@@ -43,8 +43,9 @@ export default function ChatPage() {
   const fileRef                   = useRef<HTMLInputElement>(null)
   const textareaRef               = useRef<HTMLTextAreaElement>(null)
   const imgRef                    = useRef<HTMLImageElement>(null)
-  const pendingReadsRef           = useRef<number>(0)   // count of in-progress FileReaders
-  const pendingSendRef            = useRef<boolean>(false) // send was requested while reads pending
+  const pendingReadsRef           = useRef<number>(0)       // count of in-progress FileReaders
+  const pendingSendRef            = useRef<boolean>(false)  // send was requested while reads pending
+  const pendingTextRef            = useRef<string>('')      // text saved when queued send fired
   const loupeRef                  = useRef<{ x: number; y: number; zoom: number } | null>(null)
   const minZoomRef                = useRef(0.5)
 
@@ -191,23 +192,35 @@ export default function ChatPage() {
     const reader = new FileReader()
     reader.onload = e => {
       const b64 = e.target?.result as string
-      setImages(prev => {
-        const next = [...prev, b64]
-        // Persist to localStorage if total size <= 4MB
-        try {
-          const total = next.reduce((sum, s) => sum + s.length, 0)
-          if (total <= 4 * 1024 * 1024) {
-            localStorage.setItem('chat-draft-images', JSON.stringify(next))
-          }
-        } catch { /* ignore quota errors */ }
-        return next
-      })
       pendingReadsRef.current -= 1
-      // If send was requested while we were reading, fire it now
-      if (pendingReadsRef.current === 0 && pendingSendRef.current) {
+      const isLast = pendingReadsRef.current === 0
+
+      if (isLast && pendingSendRef.current) {
+        // Queued send: add this image then immediately drain state for the send.
+        // setImages callback receives the guaranteed-current value — no stale closure.
         pendingSendRef.current = false
-        // Use setTimeout so React state (images) is flushed first
-        setTimeout(() => sendNow(), 0)
+        const textToSend = pendingTextRef.current
+        setImages(prev => {
+          const next = [...prev, b64]
+          // Persist
+          try {
+            const total = next.reduce((sum, s) => sum + s.length, 0)
+            if (total <= 4 * 1024 * 1024) localStorage.setItem('chat-draft-images', JSON.stringify(next))
+          } catch { /* ignore */ }
+          // Fire send after React flushes this update
+          setTimeout(() => _doSend(textToSend, next), 0)
+          return next
+        })
+      } else {
+        // Normal path: just add to state
+        setImages(prev => {
+          const next = [...prev, b64]
+          try {
+            const total = next.reduce((sum, s) => sum + s.length, 0)
+            if (total <= 4 * 1024 * 1024) localStorage.setItem('chat-draft-images', JSON.stringify(next))
+          } catch { /* ignore */ }
+          return next
+        })
       }
     }
     reader.onerror = () => { pendingReadsRef.current -= 1 }
@@ -225,21 +238,6 @@ export default function ChatPage() {
   }, [])
 
   // ── Send ──
-  // sendNow: executes immediately (called when all FileReaders are done)
-  const sendNow = () => {
-    const text = input.trim()
-    // read images from localStorage as fallback (state may not be flushed yet)
-    let imgs = images
-    if (imgs.length === 0) {
-      try {
-        const saved = localStorage.getItem('chat-draft-images')
-        if (saved) imgs = JSON.parse(saved) as string[]
-      } catch { /* ignore */ }
-    }
-    if (!text && imgs.length === 0) return
-    _doSend(text, imgs)
-  }
-
   const send = () => {
     const text = input.trim()
     if ((!text && images.length === 0 && pendingReadsRef.current === 0) || sending) return
@@ -247,6 +245,9 @@ export default function ChatPage() {
     // If images are still being read from disk/clipboard, queue the send
     if (pendingReadsRef.current > 0) {
       pendingSendRef.current = true
+      pendingTextRef.current = text   // save text so the queued callback can use it
+      setInput('')
+      localStorage.removeItem('chat-draft')
       return
     }
 
