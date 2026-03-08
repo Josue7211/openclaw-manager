@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Activity, Brain, MessageSquare, Bot, RefreshCw, Cpu, Wifi, CheckSquare, Target } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js"
 
 interface StatusData {
   name: string; emoji: string; model: string; status: string; lastActive: string; host: string; ip: string;
@@ -12,7 +13,7 @@ interface MemoryEntry { date: string; preview: string; path: string; }
 interface Session { id: string; label?: string; kind?: string; lastActive?: string; }
 interface Todo { id: string; text: string; done: boolean; createdAt: string; }
 interface Mission { id: string; title: string; assignee: string; status: string; createdAt: string; }
-interface AgentInfo { id: string; display_name: string; emoji: string; model: string; role: string; status: string; }
+interface AgentInfo { id: string; display_name: string; emoji: string; model: string; role: string; status: string; current_task: string | null; }
 interface AgentsData { agents: AgentInfo[]; activeSessions: string[]; }
 interface SubagentData { count: number; agents: unknown[]; }
 interface ProxmoxVM { vmid: number; name: string; status: string; cpuPercent: number; memUsedGB: number; memTotalGB: number; node: string; }
@@ -137,9 +138,28 @@ export default function Dashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'missions' }, () => fetchMissions())
       .subscribe()
 
+    const agentsSub = supabase
+      .channel('agents-dash-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agents' }, (payload: RealtimePostgresChangesPayload<AgentInfo>) => {
+        setAgentsData(prev => {
+          if (!prev) return prev
+          let updated = prev.agents
+          if (payload.eventType === 'UPDATE') {
+            updated = prev.agents.map(a => a.id === (payload.new as AgentInfo).id ? { ...a, ...(payload.new as AgentInfo) } : a)
+          } else if (payload.eventType === 'INSERT') {
+            updated = [...prev.agents, payload.new as AgentInfo]
+          } else if (payload.eventType === 'DELETE') {
+            updated = prev.agents.filter(a => a.id !== (payload.old as AgentInfo).id)
+          }
+          return { ...prev, agents: updated }
+        })
+      })
+      .subscribe()
+
     return () => {
       supabase.removeChannel(todosChannel)
       supabase.removeChannel(missionsChannel)
+      supabase.removeChannel(agentsSub)
     }
   }, [fetchTodos, fetchMissions])
 
@@ -502,7 +522,7 @@ export default function Dashboard() {
               {(agentsData?.agents || []).map(agent => {
                 const isMain = agent.id === 'main'
                 const isCodingWorking = agent.id === 'coding' && activeSubagents.active
-                const isActive = isCodingWorking || (agentsData?.activeSessions || []).some(s => s.includes(agent.id))
+                const isActive = agent.status === 'active' || isCodingWorking || (agentsData?.activeSessions || []).some(s => s.includes(agent.id))
                 const isMainWorking = isMain && isActive
 
                 const badge = (isMain && !isMainWorking)
