@@ -2,22 +2,101 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Brain, MessageSquare, ChevronLeft, ChevronRight, MessageCircle, Settings, CalendarDays, Bot, Target } from 'lucide-react'
+import { LayoutDashboard, Brain, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, MessageCircle, Settings, CalendarDays, Bot, Target } from 'lucide-react'
 import { useState } from 'react'
 
-const navItems = [
+const agentDashboardItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/chat', label: 'Chat', icon: MessageCircle },
   { href: '/missions', label: 'Missions', icon: Target },
-  { href: '/memory', label: 'Memory', icon: Brain },
-  { href: '/sessions', label: 'Sessions', icon: MessageSquare },
-  { href: '/crons', label: 'Calendar', icon: CalendarDays },
   { href: '/agents', label: 'Agents', icon: Bot },
+  { href: '/sessions', label: 'Sessions', icon: MessageSquare },
 ]
+
+const personalDashboardItems = [
+  { href: '/chat', label: 'Chat', icon: MessageCircle },
+  { href: '/memory', label: 'Memory', icon: Brain },
+  { href: '/crons', label: 'Calendar', icon: CalendarDays },
+]
+
+function NavSection({
+  label,
+  items,
+  pathname,
+  collapsed,
+  open,
+  onToggle,
+}: {
+  label: string
+  items: { href: string; label: string; icon: React.ElementType }[]
+  pathname: string
+  collapsed: boolean
+  open: boolean
+  onToggle: () => void
+}) {
+  return (
+    <div style={{ marginBottom: '4px' }}>
+      {!collapsed && (
+        <button
+          onClick={onToggle}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            padding: '6px 12px',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            color: 'var(--text-muted)',
+            fontSize: '10px',
+            fontWeight: 600,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            borderRadius: '6px',
+          }}
+        >
+          {label}
+          {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        </button>
+      )}
+      {(open || collapsed) && items.map(({ href, label: itemLabel, icon: Icon }) => {
+        const active = pathname === href
+        return (
+          <Link
+            key={href}
+            href={href}
+            title={collapsed ? itemLabel : undefined}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: collapsed ? '10px 0' : '10px 12px',
+              borderRadius: '8px',
+              marginBottom: '4px',
+              color: active ? 'var(--accent-bright)' : 'var(--text-secondary)',
+              background: active ? 'rgba(155, 132, 236, 0.12)' : 'transparent',
+              border: active ? '1px solid rgba(155, 132, 236, 0.2)' : '1px solid transparent',
+              textDecoration: 'none',
+              fontSize: '13px',
+              fontWeight: active ? 600 : 400,
+              transition: 'all 0.15s',
+              justifyContent: collapsed ? 'center' : 'flex-start',
+            }}
+          >
+            <Icon size={16} style={{ flexShrink: 0, color: active ? 'var(--accent)' : undefined }} />
+            {!collapsed && itemLabel}
+          </Link>
+        )
+      })}
+    </div>
+  )
+}
 
 export default function Sidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
+  const [agentOpen, setAgentOpen] = useState(true)
+  const [personalOpen, setPersonalOpen] = useState(true)
 
   return (
     <aside style={{
@@ -65,36 +144,23 @@ export default function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav style={{ flex: 1, padding: '12px 8px' }}>
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href
-          return (
-            <Link
-              key={href}
-              href={href}
-              title={collapsed ? label : undefined}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: collapsed ? '10px 0' : '10px 12px',
-                borderRadius: '8px',
-                marginBottom: '4px',
-                color: active ? 'var(--accent-bright)' : 'var(--text-secondary)',
-                background: active ? 'rgba(155, 132, 236, 0.12)' : 'transparent',
-                border: active ? '1px solid rgba(155, 132, 236, 0.2)' : '1px solid transparent',
-                textDecoration: 'none',
-                fontSize: '13px',
-                fontWeight: active ? 600 : 400,
-                transition: 'all 0.15s',
-                justifyContent: collapsed ? 'center' : 'flex-start',
-              }}
-            >
-              <Icon size={16} style={{ flexShrink: 0, color: active ? 'var(--accent)' : undefined }} />
-              {!collapsed && label}
-            </Link>
-          )
-        })}
+      <nav style={{ flex: 1, padding: '12px 8px', overflowY: 'auto' }}>
+        <NavSection
+          label="Agent Dashboard"
+          items={agentDashboardItems}
+          pathname={pathname}
+          collapsed={collapsed}
+          open={agentOpen}
+          onToggle={() => setAgentOpen(o => !o)}
+        />
+        <NavSection
+          label="Personal Dashboard"
+          items={personalDashboardItems}
+          pathname={pathname}
+          collapsed={collapsed}
+          open={personalOpen}
+          onToggle={() => setPersonalOpen(o => !o)}
+        />
       </nav>
 
       {/* Settings — pinned bottom */}
