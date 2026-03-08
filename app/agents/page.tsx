@@ -234,6 +234,8 @@ function LiveProcesses() {
     return () => clearInterval(interval)
   }, [])
 
+  if (processes.length === 0) return null
+
   return (
     <div style={{
       background: 'var(--bg-panel)',
@@ -243,19 +245,14 @@ function LiveProcesses() {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
         <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-          Live Processes
+          Subagents
         </div>
         <div style={{ fontSize: '10px', fontFamily: 'monospace', color: 'var(--text-muted)' }}>
           {lastFetch ? `updated ${lastFetch.toLocaleTimeString()}` : 'loading…'}
         </div>
       </div>
 
-      {processes.length === 0 ? (
-        <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'monospace', padding: '8px 0' }}>
-          No AI processes running
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {processes.map((p, i) => (
             <div key={i} style={{
               display: 'flex', alignItems: 'center', gap: '10px',
@@ -272,7 +269,6 @@ function LiveProcesses() {
             </div>
           ))}
         </div>
-      )}
     </div>
   )
 }
