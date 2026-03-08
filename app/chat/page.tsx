@@ -46,6 +46,7 @@ export default function ChatPage() {
   const pendingReadsRef           = useRef<number>(0)       // count of in-progress FileReaders
   const pendingSendRef            = useRef<boolean>(false)  // send was requested while reads pending
   const pendingTextRef            = useRef<string>('')      // text saved when queued send fired
+  const imagesRef                 = useRef<string[]>([])    // always-current mirror of images state
   const loupeRef                  = useRef<{ x: number; y: number; zoom: number } | null>(null)
   const minZoomRef                = useRef(0.5)
 
@@ -85,7 +86,7 @@ export default function ChatPage() {
       const saved = localStorage.getItem('chat-draft-images')
       if (saved) {
         const parsed = JSON.parse(saved) as string[]
-        if (Array.isArray(parsed) && parsed.length > 0) setImages(parsed)
+        if (Array.isArray(parsed) && parsed.length > 0) { imagesRef.current = parsed; setImages(parsed) }
       }
     } catch { /* ignore */ }
   }, [])
@@ -202,19 +203,19 @@ export default function ChatPage() {
         const textToSend = pendingTextRef.current
         setImages(prev => {
           const next = [...prev, b64]
-          // Persist
+          imagesRef.current = next
           try {
             const total = next.reduce((sum, s) => sum + s.length, 0)
             if (total <= 4 * 1024 * 1024) localStorage.setItem('chat-draft-images', JSON.stringify(next))
           } catch { /* ignore */ }
-          // Fire send after React flushes this update
           setTimeout(() => _doSend(textToSend, next), 0)
           return next
         })
       } else {
-        // Normal path: just add to state
+        // Normal path: just add to state + sync ref
         setImages(prev => {
           const next = [...prev, b64]
+          imagesRef.current = next
           try {
             const total = next.reduce((sum, s) => sum + s.length, 0)
             if (total <= 4 * 1024 * 1024) localStorage.setItem('chat-draft-images', JSON.stringify(next))
@@ -240,18 +241,19 @@ export default function ChatPage() {
   // ── Send ──
   const send = () => {
     const text = input.trim()
-    if ((!text && images.length === 0 && pendingReadsRef.current === 0) || sending) return
+    const currentImages = imagesRef.current  // always-current, no stale closure
+    if ((!text && currentImages.length === 0 && pendingReadsRef.current === 0) || sending) return
 
     // If images are still being read from disk/clipboard, queue the send
     if (pendingReadsRef.current > 0) {
       pendingSendRef.current = true
-      pendingTextRef.current = text   // save text so the queued callback can use it
+      pendingTextRef.current = text
       setInput('')
       localStorage.removeItem('chat-draft')
       return
     }
 
-    _doSend(text, images)
+    _doSend(text, currentImages)
   }
 
   const _doSend = (text: string, imgs: string[]) => {
@@ -261,6 +263,7 @@ export default function ChatPage() {
     localStorage.removeItem('chat-draft')
     localStorage.removeItem('chat-draft-images')
     setImages([])
+    imagesRef.current = []
     pendingSendRef.current = false
 
     // Add optimistic bubble immediately before any async work
@@ -570,6 +573,7 @@ export default function ChatPage() {
               <button
                 onClick={() => setImages(prev => {
                   const next = prev.filter((_, j) => j !== i)
+                  imagesRef.current = next
                   try {
                     if (next.length === 0) localStorage.removeItem('chat-draft-images')
                     else localStorage.setItem('chat-draft-images', JSON.stringify(next))
