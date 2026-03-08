@@ -212,6 +212,9 @@ export default function ChatPage() {
       if (isLast && pendingSendRef.current) {
         pendingSendRef.current = false
         const textToSend = pendingTextRef.current
+        // Reset imagesRef NOW (decision point) so any new paste that arrives
+        // before the async _doSend fires won't be wiped by it.
+        imagesRef.current = []
         setImages(currentImgs)
         setTimeout(() => _doSend(textToSend, currentImgs), 0)
       } else {
@@ -248,6 +251,9 @@ export default function ChatPage() {
       return
     }
 
+    // Reset imagesRef NOW (decision point) before _doSend so new pastes
+    // after this point start fresh and aren't zeroed by _doSend running later.
+    imagesRef.current = []
     _doSend(text, currentImages)
   }
 
@@ -258,7 +264,9 @@ export default function ChatPage() {
     localStorage.removeItem('chat-draft')
     localStorage.removeItem('chat-draft-images')
     setImages([])
-    imagesRef.current = []
+    // imagesRef.current is already reset at the decision point (send() or
+    // the queued-send branch in readImageFile.onload) — resetting it here
+    // again would race with images pasted after the decision was made.
     pendingSendRef.current = false
 
     // Add optimistic bubble immediately before any async work
