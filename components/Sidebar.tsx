@@ -10,11 +10,11 @@ const agentDashboardItems = [
   { href: '/missions', label: 'Missions', icon: Target },
   { href: '/agents', label: 'Agents', icon: Bot },
   { href: '/sessions', label: 'Sessions', icon: MessageSquare },
+  { href: '/memory', label: 'Memory', icon: Brain },
 ]
 
 const personalDashboardItems = [
   { href: '/chat', label: 'Chat', icon: MessageCircle },
-  { href: '/memory', label: 'Memory', icon: Brain },
   { href: '/crons', label: 'Calendar', icon: CalendarDays },
 ]
 
