@@ -17,7 +17,7 @@ export async function PATCH(req: NextRequest) {
 
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
-  const allowed = ['display_name', 'emoji', 'role', 'status', 'current_task', 'color']
+  const allowed = ['display_name', 'emoji', 'role', 'status', 'current_task', 'color', 'model']
   const update: Record<string, string> = { updated_at: new Date().toISOString() }
   for (const key of allowed) {
     if (key in fields) update[key] = fields[key]
