@@ -86,7 +86,7 @@ export default function ChatPage() {
       const saved = localStorage.getItem('chat-draft-images')
       if (saved) {
         const parsed = JSON.parse(saved) as string[]
-        if (Array.isArray(parsed) && parsed.length > 0) { imagesRef.current = parsed; setImages(parsed) }
+        if (Array.isArray(parsed) && parsed.length > 0) { imagesRef.current = parsed; setImages(() => parsed) }
       }
     } catch { /* ignore */ }
   }, [])
@@ -193,34 +193,33 @@ export default function ChatPage() {
     const reader = new FileReader()
     reader.onload = e => {
       const b64 = e.target?.result as string
+      // Update imagesRef IMMEDIATELY (synchronously) so send() sees it
+      // even if React hasn't re-rendered yet.
+      imagesRef.current = [...imagesRef.current, b64]
       pendingReadsRef.current -= 1
       const isLast = pendingReadsRef.current === 0
+      const currentImgs = [...imagesRef.current]  // snapshot for queued send
 
       if (isLast && pendingSendRef.current) {
-        // Queued send: add this image then immediately drain state for the send.
-        // setImages callback receives the guaranteed-current value — no stale closure.
         pendingSendRef.current = false
         const textToSend = pendingTextRef.current
-        setImages(prev => {
-          const next = [...prev, b64]
-          imagesRef.current = next
+        // Update React state for UI preview, then fire send
+        setImages(() => {
           try {
-            const total = next.reduce((sum, s) => sum + s.length, 0)
-            if (total <= 4 * 1024 * 1024) localStorage.setItem('chat-draft-images', JSON.stringify(next))
+            const total = currentImgs.reduce((sum, s) => sum + s.length, 0)
+            if (total <= 4 * 1024 * 1024) localStorage.setItem('chat-draft-images', JSON.stringify(currentImgs))
           } catch { /* ignore */ }
-          setTimeout(() => _doSend(textToSend, next), 0)
-          return next
+          return currentImgs
         })
+        setTimeout(() => _doSend(textToSend, currentImgs), 0)
       } else {
-        // Normal path: just add to state + sync ref
-        setImages(prev => {
-          const next = [...prev, b64]
-          imagesRef.current = next
+        // Normal path: update React state for UI (ref already updated above)
+        setImages(() => {
           try {
-            const total = next.reduce((sum, s) => sum + s.length, 0)
-            if (total <= 4 * 1024 * 1024) localStorage.setItem('chat-draft-images', JSON.stringify(next))
+            const total = currentImgs.reduce((sum, s) => sum + s.length, 0)
+            if (total <= 4 * 1024 * 1024) localStorage.setItem('chat-draft-images', JSON.stringify(currentImgs))
           } catch { /* ignore */ }
-          return next
+          return currentImgs
         })
       }
     }
