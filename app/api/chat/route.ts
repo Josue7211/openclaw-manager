@@ -76,14 +76,14 @@ export async function POST(req: NextRequest) {
   const imgs: string[] = Array.isArray(images) ? images : []
   const txt: string    = (text as string)?.trim() ?? ''
 
-  console.log(`[chat/POST] text=${JSON.stringify(txt)} images=${imgs.length} sizes=${imgs.map(s => s.length)}`)
+
 
   if (!txt && imgs.length === 0) {
     return NextResponse.json({ error: 'empty message' }, { status: 400 })
   }
 
   const result = await sendViaChatSend(txt, imgs)
-  console.log(`[chat/POST] sendViaChatSend result:`, result)
+
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 502 })
   }
