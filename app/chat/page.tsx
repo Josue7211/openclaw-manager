@@ -50,6 +50,9 @@ export default function ChatPage() {
   const loupeRef                  = useRef<{ x: number; y: number; zoom: number } | null>(null)
   const minZoomRef                = useRef(0.5)
 
+  // ── Keep imagesRef in sync with committed images state (safety net for normal send path) ──
+  useEffect(() => { imagesRef.current = images }, [images])
+
   const LOUPE_W = 720
   const LOUPE_H = 480
 
@@ -200,27 +203,20 @@ export default function ChatPage() {
       const isLast = pendingReadsRef.current === 0
       const currentImgs = [...imagesRef.current]  // snapshot for queued send
 
+      // Save to localStorage synchronously — outside any updater so timing is deterministic
+      try {
+        const total = currentImgs.reduce((sum, s) => sum + s.length, 0)
+        if (total <= 4 * 1024 * 1024) localStorage.setItem('chat-draft-images', JSON.stringify(currentImgs))
+      } catch { /* ignore */ }
+
       if (isLast && pendingSendRef.current) {
         pendingSendRef.current = false
         const textToSend = pendingTextRef.current
-        // Update React state for UI preview, then fire send
-        setImages(() => {
-          try {
-            const total = currentImgs.reduce((sum, s) => sum + s.length, 0)
-            if (total <= 4 * 1024 * 1024) localStorage.setItem('chat-draft-images', JSON.stringify(currentImgs))
-          } catch { /* ignore */ }
-          return currentImgs
-        })
+        setImages(currentImgs)
         setTimeout(() => _doSend(textToSend, currentImgs), 0)
       } else {
         // Normal path: update React state for UI (ref already updated above)
-        setImages(() => {
-          try {
-            const total = currentImgs.reduce((sum, s) => sum + s.length, 0)
-            if (total <= 4 * 1024 * 1024) localStorage.setItem('chat-draft-images', JSON.stringify(currentImgs))
-          } catch { /* ignore */ }
-          return currentImgs
-        })
+        setImages(currentImgs)
       }
     }
     reader.onerror = () => { pendingReadsRef.current -= 1 }
