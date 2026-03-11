@@ -7,7 +7,7 @@
     "beforeDevCommand": "npm run dev -- --hostname 127.0.0.1",
     "devUrl": "http://127.0.0.1:3000",
     "beforeBuildCommand": "npm run build",
-    "frontendDist": "../out"
+    "frontendDist": "http://127.0.0.1:3000"
   },
   "app": {
     "windows": [
