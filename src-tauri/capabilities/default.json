@@ -1,0 +1,22 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Main window capabilities",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "notification:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "args": true,
+          "name": "binaries/node",
+          "sidecar": true
+        }
+      ]
+    },
+    "shell:allow-spawn",
+    "shell:allow-stdin-write"
+  ]
+}
