@@ -64,7 +64,8 @@ fn main() {
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
                 let state = window.state::<SidecarState>();
-                if let Some(child) = state.0.lock().unwrap().take() {
+                let mut guard = state.0.lock().unwrap();
+                if let Some(child) = guard.take() {
                     println!("[main] Killing sidecar on window close…");
                     let _ = child.kill();
                     println!("[main] Sidecar killed");
