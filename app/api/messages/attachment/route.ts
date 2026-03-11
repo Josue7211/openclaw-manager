@@ -14,8 +14,8 @@ export async function GET(req: Request) {
     return new NextResponse(null, { status: 404 })
   }
 
-  // Validate guid format to prevent path traversal
-  if (!/^[a-zA-Z0-9\-]+$/.test(guid)) {
+  // Validate guid format to prevent path traversal (BB guids contain letters, digits, hyphens, underscores)
+  if (!/^[a-zA-Z0-9_\-]+$/.test(guid)) {
     return new NextResponse(null, { status: 400 })
   }
 

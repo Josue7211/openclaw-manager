@@ -443,11 +443,17 @@ export default function MessagesPage() {
     }
   }, [selected, fetchMessages])
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom on new messages — delay on initial load so DOM is painted
   useEffect(() => {
-    const isNewOrSent = prevMsgCount.current === 0 || messages.length > prevMsgCount.current
+    const isInitialLoad = prevMsgCount.current === 0 && messages.length > 0
+    const isNewMsg = messages.length > prevMsgCount.current
     prevMsgCount.current = messages.length
-    if (isNewOrSent) {
+    if (isInitialLoad) {
+      // Initial load: jump instantly after a frame so content is rendered
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'instant' })
+      })
+    } else if (isNewMsg) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
   }, [messages])
