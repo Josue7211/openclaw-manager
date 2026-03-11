@@ -234,8 +234,15 @@ export async function GET(req: Request) {
         const existingPriority = existing ? servicePriority(existing.guid as string) : -1
         const thisPriority = servicePriority(chat.guid as string)
 
-        if (!existing || thisPriority > existingPriority) {
+        if (!existing) {
           bestChat.set(normalizedId, chat as Record<string, unknown>)
+        } else if (thisPriority > existingPriority) {
+          // Preserve participants from the existing record (message query doesn't include them)
+          const merged = { ...(chat as Record<string, unknown>) }
+          if (!merged.participants && existing.participants) {
+            merged.participants = existing.participants
+          }
+          bestChat.set(normalizedId, merged)
         }
 
         const msgDate = msg.dateCreated || 0
@@ -256,9 +263,59 @@ export async function GET(req: Request) {
       contactLookup[key] = name
     }
 
+    // Backfill participants for chats that came from recentMessages (which lack participant data).
+    // For 1:1 chats, infer the participant from the chatIdentifier (phone/email).
+    // For group chats missing participants, batch-fetch from BB.
+    const missingParticipantGuids: string[] = []
+    for (const [, entry] of bestChat) {
+      const p = entry.participants
+      const hasParticipants = Array.isArray(p) && p.length > 0
+      if (!hasParticipants) {
+        const chatId = (entry.chatIdentifier as string) || ''
+        const guid = (entry.guid as string) || ''
+        // Group chats have + in the GUID service separator (e.g. iMessage;+;chatXXX)
+        const isGroup = guid.includes(';+;')
+        if (isGroup) {
+          missingParticipantGuids.push(guid)
+        } else if (chatId) {
+          // 1:1 chat — infer participant from chatIdentifier
+          const service = guid.split(';')[0] || 'iMessage'
+          entry.participants = [{ address: chatId, service }]
+        }
+      }
+    }
+
+    // Batch-fetch participants for group chats missing them
+    if (missingParticipantGuids.length > 0) {
+      const fetches = missingParticipantGuids.map(guid =>
+        bbFetch(`/chat/${encodeURIComponent(guid)}`, {
+          method: 'GET',
+        }).catch(() => null)
+      )
+      const results = await Promise.all(fetches)
+      const groupParticipantsMap = new Map<string, { address: string; service: string }[]>()
+      for (let i = 0; i < results.length; i++) {
+        const chatData = results[i]
+        if (chatData?.participants) {
+          groupParticipantsMap.set(missingParticipantGuids[i], chatData.participants)
+        }
+      }
+      // Patch bestChat entries
+      for (const [, entry] of bestChat) {
+        if (!Array.isArray(entry.participants) || (entry.participants as unknown[]).length === 0) {
+          const guid = (entry.guid as string) || ''
+          const fetched = groupParticipantsMap.get(guid)
+          if (fetched) entry.participants = fetched
+        }
+      }
+    }
+
     // Build final conversations using best chat + newest date
     const conversations = Array.from(bestChat.entries()).map(([normalizedId, c]) => {
-      const participants = (c.participants as { address: string; service: string }[]) ?? []
+      const rawParticipants = c.participants
+      const participants = Array.isArray(rawParticipants)
+        ? rawParticipants.map((p: Record<string, unknown>) => ({ address: String(p.address || ''), service: String(p.service || '') }))
+        : []
       const chatId = (c.chatIdentifier as string) || ''
       const newest = newestDate.get(normalizedId)
 
