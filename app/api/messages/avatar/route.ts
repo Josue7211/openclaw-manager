@@ -28,7 +28,7 @@ async function getBBContactAvatars(): Promise<Map<string, Buffer>> {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ limit: 500 }),
+      body: JSON.stringify({ limit: 500, extraProperties: ['avatar'] }),
     })
     if (!res.ok) return new Map()
     const json = await res.json()
