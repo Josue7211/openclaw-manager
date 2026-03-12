@@ -53,38 +53,28 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
 
-    const isTauri = await isRunningInTauri()
-
-    if (isTauri) {
-      // In Tauri: get the OAuth URL without redirecting, then open in system browser
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
-          skipBrowserRedirect: true,
-        },
-      })
-      if (error) {
-        setError(error.message)
-        setLoading(false)
-        return
-      }
-      if (data.url) {
+    // Get OAuth URL without auto-redirecting
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        skipBrowserRedirect: true,
+      },
+    })
+    if (error) {
+      setError(error.message)
+      setLoading(false)
+      return
+    }
+    if (data.url) {
+      // Try Tauri shell.open first, fall back to window.location
+      try {
         const { open } = await import('@tauri-apps/plugin-shell')
         await open(data.url)
         setLoading(false)
-      }
-    } else {
-      // In browser: normal redirect flow
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
-        },
-      })
-      if (error) {
-        setError(error.message)
-        setLoading(false)
+      } catch {
+        // Not in Tauri or plugin unavailable — normal browser redirect
+        window.location.href = data.url
       }
     }
   }
