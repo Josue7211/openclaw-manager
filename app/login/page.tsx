@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { createAuthClient } from '@/lib/supabase/client'
 import { isRunningInTauri } from '@/lib/tauri'
 
-type View = 'main' | 'email' | 'mfa' | 'mfa-enroll'
+type View = 'main' | 'email' | 'mfa' | 'mfa-enroll' | 'waiting'
 
 export default function LoginPage() {
   const [view, setView] = useState<View>('main')
@@ -49,15 +49,64 @@ export default function LoginPage() {
     }
   }, [mfaParam])
 
+  // Poll for Tauri OAuth session handoff
+  useEffect(() => {
+    if (view !== 'waiting') return
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/auth/tauri-session')
+        const { session } = await res.json()
+        if (session) {
+          // Set the session in the WebView's Supabase client
+          await supabase.auth.setSession(session)
+
+          // Check MFA
+          const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+          if (aal && aal.currentLevel === 'aal1' && aal.nextLevel === 'aal2') {
+            const factors = await supabase.auth.mfa.listFactors()
+            const totp = factors.data?.totp?.find(f => f.status === 'verified')
+            if (totp) {
+              setMfaFactorId(totp.id)
+              setView('mfa')
+              return
+            }
+          } else if (aal && aal.currentLevel === 'aal1' && aal.nextLevel === 'aal1') {
+            const { data: enrollData } = await supabase.auth.mfa.enroll({
+              factorType: 'totp',
+              friendlyName: 'Mission Control',
+            })
+            if (enrollData) {
+              setMfaFactorId(enrollData.id)
+              setMfaQr(enrollData.totp.qr_code)
+              setMfaSecret(enrollData.totp.secret)
+              setView('mfa-enroll')
+              return
+            }
+          }
+
+          window.location.href = next
+        }
+      } catch { /* ignore fetch errors */ }
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [view])
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isTauriApp = typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__
+
   async function handleOAuth(provider: 'github' | 'google') {
     setError('')
     setLoading(true)
 
-    // Get OAuth URL without auto-redirecting
+    // Build redirect URL — add tauri=1 flag for Tauri so callback stores tokens server-side
+    const callbackUrl = isTauriApp
+      ? `${window.location.origin}/auth/callback?tauri=1&next=${encodeURIComponent(next)}`
+      : `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        redirectTo: callbackUrl,
         skipBrowserRedirect: true,
       },
     })
@@ -67,15 +116,13 @@ export default function LoginPage() {
       return
     }
     if (data.url) {
-      // Check if running inside Tauri WebView
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tauri = (window as any).__TAURI_INTERNALS__
-      if (tauri?.invoke) {
-        // Open OAuth URL in system browser, not the WebView
+      if (isTauriApp) {
+        // Open in system browser, then poll for tokens
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tauri = (window as any).__TAURI_INTERNALS__
         await tauri.invoke('plugin:shell|open', { path: data.url })
-        setLoading(false)
+        setView('waiting')
       } else {
-        // Normal browser — redirect in place
         window.location.href = data.url
       }
     }
@@ -288,6 +335,7 @@ export default function LoginPage() {
             {view === 'email' && 'Sign in with email'}
             {view === 'mfa' && 'Enter authenticator code'}
             {view === 'mfa-enroll' && 'Set up two-factor authentication'}
+            {view === 'waiting' && 'Complete sign-in in your browser'}
           </p>
         </div>
 
@@ -545,6 +593,51 @@ export default function LoginPage() {
               {loading ? 'Verifying...' : 'Verify'}
             </button>
           </form>
+        )}
+
+        {/* ── Waiting for Tauri OAuth ── */}
+        {view === 'waiting' && (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '16px',
+            padding: '12px 0',
+            animation: 'fadeInUp 0.3s cubic-bezier(0.22, 1, 0.36, 1) both',
+          }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              border: '3px solid var(--border)',
+              borderTopColor: 'var(--accent)',
+              borderRadius: '50%',
+              animation: 'spin 0.8s linear infinite',
+            }} />
+            <p style={{
+              fontSize: '12px',
+              color: 'var(--text-secondary)',
+              margin: 0,
+              textAlign: 'center',
+            }}>
+              Waiting for you to authorize in the browser...
+            </p>
+            <button
+              onClick={() => { setView('main'); setLoading(false) }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-muted)',
+                fontSize: '12px',
+                cursor: 'pointer',
+                padding: '4px',
+                transition: 'color 0.2s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--text-secondary)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+            >
+              Cancel
+            </button>
+          </div>
         )}
 
         {/* ── MFA enrollment view ── */}
