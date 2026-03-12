@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { getCached, setCache } from '@/lib/page-cache'
 
 interface CalendarEvent {
   id: string
@@ -85,10 +86,10 @@ const GRID_END   = 23  // 11 PM  (last row label = 11 PM)
 // ── main component ────────────────────────────────────────────────────────────
 
 export default function CalendarPage() {
-  const [events, setEvents] = useState<CalendarEvent[]>([])
+  const [events, setEvents] = useState<CalendarEvent[]>(getCached<CalendarEvent[]>('calendar-events') || [])
   const [error, setError] = useState<string | null>(null)
   const [missingCreds, setMissingCreds] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!getCached('calendar-events'))
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -124,7 +125,7 @@ export default function CalendarPage() {
   }, [loading, view])
 
   const fetchEvents = useCallback(async () => {
-    setLoading(true)
+    if (!getCached('calendar-events')) setLoading(true)
     try {
       const res = await fetch('/api/calendar')
       const data = await res.json()
@@ -134,6 +135,7 @@ export default function CalendarPage() {
         setError(data.message || 'Failed to load calendar')
       } else {
         setEvents(data.events || [])
+        setCache('calendar-events', data.events || [])
       }
     } catch {
       setError('Failed to connect to calendar API')

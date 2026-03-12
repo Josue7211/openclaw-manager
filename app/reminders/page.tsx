@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Bell, RefreshCw, AlertCircle } from 'lucide-react'
+import { getCached, setCache } from '@/lib/page-cache'
 
 interface Reminder {
   id: string
@@ -59,8 +60,8 @@ function dueColor(dateStr: string | null): string {
 }
 
 export default function RemindersPage() {
-  const [reminders, setReminders] = useState<Reminder[]>([])
-  const [loading, setLoading] = useState(true)
+  const [reminders, setReminders] = useState<Reminder[]>(getCached<Reminder[]>('reminders') || [])
+  const [loading, setLoading] = useState(!getCached('reminders'))
   const [error, setError] = useState<string | null>(null)
   const [missingCreds, setMissingCreds] = useState(false)
   const [filter, setFilter] = useState<FilterTab>('all')
@@ -81,6 +82,7 @@ export default function RemindersPage() {
         setError(data.error)
       } else {
         setReminders(data.reminders ?? [])
+        setCache('reminders', data.reminders ?? [])
         setOptimistic({})
         setLastRefresh(new Date())
       }
@@ -194,7 +196,7 @@ export default function RemindersPage() {
             </span>
           )}
           <button
-            onClick={() => { setLoading(true); fetchReminders() }}
+            onClick={() => { if (!getCached('reminders')) setLoading(true); fetchReminders() }}
             style={{
               background: 'transparent', border: '1px solid var(--border)', borderRadius: '8px',
               color: 'var(--text-secondary)', padding: '6px 10px', cursor: 'pointer',

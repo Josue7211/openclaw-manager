@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { ChevronLeft, ChevronRight, Zap, Clock } from 'lucide-react'
+import { getCached, setCache } from '@/lib/page-cache'
 
 interface CronSchedule {
   kind: string
@@ -146,8 +147,8 @@ function getFireTimesInWeek(job: CronJob, weekStart: Date): FireTime[] {
 }
 
 export default function CronsPage() {
-  const [jobs, setJobs] = useState<CronJob[]>([])
-  const [loading, setLoading] = useState(true)
+  const [jobs, setJobs] = useState<CronJob[]>(getCached<CronJob[]>('crons') || [])
+  const [loading, setLoading] = useState(!getCached('crons'))
   const [weekOffset, setWeekOffset] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const now = useRef(new Date()).current
@@ -155,7 +156,9 @@ export default function CronsPage() {
   const fetchJobs = useCallback(async () => {
     try {
       const data = await fetch('/api/crons').then(r => r.json())
-      setJobs(data.jobs || [])
+      const fetched = data.jobs || []
+      setJobs(fetched)
+      setCache('crons', fetched)
     } catch {
       setJobs([])
     } finally {

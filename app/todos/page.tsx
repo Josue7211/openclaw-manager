@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { CheckSquare, Plus, Flame } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { getCached, setCache } from '@/lib/page-cache'
 
 interface Todo {
   id: string
@@ -45,7 +46,7 @@ function DueDateBadge({ due_date }: { due_date: string | null | undefined }) {
 }
 
 export default function TodosPage() {
-  const [todos, setTodos] = useState<Todo[]>([])
+  const [todos, setTodos] = useState<Todo[]>(getCached<Todo[]>('todos') || [])
   const [todoInput, setTodoInput] = useState('')
   const [mounted, setMounted] = useState(false)
   const [hasDueDateSupport, setHasDueDateSupport] = useState(false)
@@ -54,6 +55,7 @@ export default function TodosPage() {
     fetch('/api/todos').then(r => r.json()).then(d => {
       const fetched: Todo[] = d.todos || []
       setTodos(fetched)
+      setCache('todos', fetched)
       // Detect due_date column support: if any todo has the key (even null)
       if (fetched.length > 0 && 'due_date' in fetched[0]) {
         setHasDueDateSupport(true)

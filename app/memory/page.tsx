@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { getCached, setCache } from '@/lib/page-cache'
 
 interface FileItem {
   name: string
@@ -13,7 +14,7 @@ interface FileTree {
 }
 
 export default function MemoryPage() {
-  const [tree, setTree] = useState<FileTree>({ coreFiles: [], memoryFiles: [] })
+  const [tree, setTree] = useState<FileTree>(getCached<FileTree>('memory-tree') || { coreFiles: [], memoryFiles: [] })
   const [activeFile, setActiveFile] = useState<string | null>(null)
   const [content, setContent] = useState('')
   const [editContent, setEditContent] = useState('')
@@ -25,7 +26,11 @@ export default function MemoryPage() {
   useEffect(() => {
     fetch('/api/workspace/files')
       .then(r => r.json())
-      .then(d => setTree({ coreFiles: d.coreFiles || [], memoryFiles: d.memoryFiles || [] }))
+      .then(d => {
+        const fetched = { coreFiles: d.coreFiles || [], memoryFiles: d.memoryFiles || [] }
+        setTree(fetched)
+        setCache('memory-tree', fetched)
+      })
       .catch(() => {})
   }, [])
 

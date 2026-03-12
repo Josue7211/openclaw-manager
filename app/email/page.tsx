@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Mail, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Settings, Plus, Trash2, Star, X, Eye, EyeOff } from 'lucide-react'
+import { getCached, setCache } from '@/lib/page-cache'
 
 interface Email {
   id: string
@@ -58,8 +59,8 @@ function formatDate(iso: string): string {
 }
 
 export default function EmailPage() {
-  const [emails, setEmails] = useState<Email[]>([])
-  const [loading, setLoading] = useState(true)
+  const [emails, setEmails] = useState<Email[]>(getCached<Email[]>('emails') ?? [])
+  const [loading, setLoading] = useState(!getCached('emails'))
   const [error, setError] = useState<string | null>(null)
   const [missingCreds, setMissingCreds] = useState(false)
   const [folder, setFolder] = useState<Folder>('INBOX')
@@ -118,7 +119,7 @@ export default function EmailPage() {
   }, [])
 
   const fetchEmails = useCallback(async (f: Folder, accountId?: string | null) => {
-    setLoading(true)
+    if (!getCached('emails')) setLoading(true)
     setError(null)
     setMissingCreds(false)
     try {
@@ -135,6 +136,7 @@ export default function EmailPage() {
         setError(data.error)
       } else {
         setEmails(data.emails ?? [])
+        setCache('emails', data.emails ?? [])
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to fetch')

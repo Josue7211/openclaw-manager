@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { BookOpen, X, ExternalLink, Trash2, Plus, Search } from 'lucide-react'
+import { getCached, setCache } from '@/lib/page-cache'
 
 interface KnowledgeEntry {
   id: string
@@ -433,8 +434,8 @@ function EntryCard({ entry, onClick }: { entry: KnowledgeEntry; onClick: () => v
 }
 
 export default function KnowledgePage() {
-  const [entries, setEntries] = useState<KnowledgeEntry[]>([])
-  const [mounted, setMounted] = useState(false)
+  const [entries, setEntries] = useState<KnowledgeEntry[]>(getCached<KnowledgeEntry[]>('knowledge-entries') ?? [])
+  const [mounted, setMounted] = useState(!!getCached('knowledge-entries'))
   const [search, setSearch] = useState('')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [selected, setSelected] = useState<KnowledgeEntry | null>(null)
@@ -447,7 +448,7 @@ export default function KnowledgePage() {
     if (tag) params.set('tag', tag)
     fetch(`/api/knowledge?${params}`)
       .then(r => r.json())
-      .then(d => setEntries(d.entries || []))
+      .then(d => { const items = d.entries || []; setEntries(items); setCache('knowledge-entries', items) })
       .catch(() => {})
   }, [])
 

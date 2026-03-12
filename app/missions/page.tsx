@@ -725,10 +725,14 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
+// Module-level cache — instant display when navigating back
+let cachedMissions: Mission[] | null = null
+let cachedAgents: Agent[] | null = null
+
 export default function MissionsPage() {
-  const [missions, setMissions] = useState<Mission[]>([])
-  const [agents, setAgents]     = useState<Agent[]>([])
-  const [loading, setLoading]   = useState(true)
+  const [missions, setMissions] = useState<Mission[]>(cachedMissions || [])
+  const [agents, setAgents]     = useState<Agent[]>(cachedAgents || [])
+  const [loading, setLoading]   = useState(!cachedMissions)
   const [error, setError]       = useState<string | null>(null)
   const [tab, setTab]           = useState<Tab>('all')
   const [markingDone, setMarkingDone]   = useState<string | null>(null)
@@ -737,22 +741,25 @@ export default function MissionsPage() {
   const agentMap = Object.fromEntries(agents.map(a => [a.id, a]))
 
   const fetchMissions = useCallback(async () => {
-    setLoading(true)
+    if (!cachedMissions) setLoading(true)
     setError(null)
     try {
       if (supabase) {
         const [{ data: mData, error: mErr }, { data: aData }] = await Promise.all([
-          supabase.from('missions').select('*').order('created_at', { ascending: false }),
+          supabase.from('missions').select('id,title,assignee,status,progress,created_at,updated_at,log_path,complexity,task_type,review_status,review_notes,retry_count,routed_agent').order('created_at', { ascending: false }),
           supabase.from('agents').select('id, display_name, emoji'),
         ])
         if (mErr) throw new Error(mErr.message)
-        setMissions(mData || [])
-        setAgents(aData || [])
+        cachedMissions = mData || []
+        cachedAgents = aData || []
+        setMissions(cachedMissions!)
+        setAgents(cachedAgents!)
       } else {
         const res = await fetch('/api/missions')
         const json = await res.json()
         if (!res.ok) throw new Error(json.error || 'Failed to fetch')
-        setMissions(json.missions || [])
+        cachedMissions = json.missions || []
+        setMissions(cachedMissions!)
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Unknown error')
