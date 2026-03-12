@@ -44,6 +44,7 @@ export async function POST() {
 
     return NextResponse.json({ ok: true, processes: activeProcesses.length })
   } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e) })
+    console.error('[sync-agents]', e instanceof Error ? e.message : e)
+    return NextResponse.json({ ok: false, error: 'Internal error' })
   }
 }

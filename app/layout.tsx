@@ -1,32 +1,29 @@
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 import './globals.css'
-import Sidebar from '@/components/Sidebar'
+import LayoutShell from '@/components/LayoutShell'
 
 export const metadata: Metadata = {
   title: 'Mission Control — Bjorn',
   description: 'Bjorn AI Assistant Mission Control Dashboard',
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  // Force dynamic rendering — dashboard requires client navigation context
+  await headers()
+
   return (
     <html lang="en">
-      <body style={{ display: 'flex', height: '100vh', overflow: 'hidden', position: 'relative', zIndex: 1 }}>
-        <Sidebar />
-        <main style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '24px',
-          background: 'transparent',
-          display: 'flex',
-          flexDirection: 'column',
-        }}>
-          {children}
-        </main>
-      </body>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
+      </head>
+      <LayoutShell>{children}</LayoutShell>
     </html>
   )
 }

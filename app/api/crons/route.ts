@@ -7,6 +7,7 @@ export async function GET() {
     const jobs = JSON.parse(out)
     return NextResponse.json({ jobs: Array.isArray(jobs) ? jobs : [] })
   } catch (e) {
-    return NextResponse.json({ jobs: [], error: String(e) })
+    console.error('[crons]', e instanceof Error ? e.message : e)
+    return NextResponse.json({ jobs: [], error: 'Failed to list crons' })
   }
 }

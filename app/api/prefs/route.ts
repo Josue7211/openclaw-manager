@@ -7,7 +7,7 @@ export async function GET() {
     .select('*')
     .order('key', { ascending: true })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Database error' }, { status: 500 })
   return NextResponse.json({ prefs: data })
 }
 
@@ -26,6 +26,6 @@ export async function PATCH(req: NextRequest) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Database error' }, { status: 500 })
   return NextResponse.json({ pref: data })
 }

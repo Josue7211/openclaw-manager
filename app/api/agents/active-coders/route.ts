@@ -12,20 +12,14 @@ export async function GET() {
       !line.includes('/bin/bash')
     )
 
-    const subagents = lines.slice(1).map((line, i) => {
-      const marker = '--dangerously-skip-permissions -p '
-      const markerIdx = line.indexOf(marker)
-      let task = ''
-      if (markerIdx !== -1) {
-        task = line.slice(markerIdx + marker.length, markerIdx + marker.length + 80).trim()
-      }
-
+    const subagents = lines.slice(1).map((_line, i) => {
+      // Don't extract prompt/task from ps output — it can contain sensitive content
       return {
         id: `temp-${i}`,
         name: NAMES[i % NAMES.length],
         model: 'claude-sonnet-4-6',
         status: 'active',
-        task,
+        task: '(running)',
         temp: true,
       }
     })

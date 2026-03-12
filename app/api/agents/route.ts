@@ -7,7 +7,7 @@ export async function GET() {
     .select('*')
     .order('sort_order', { ascending: true })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Database error' }, { status: 500 })
   return NextResponse.json({ agents: data })
 }
 
@@ -17,8 +17,9 @@ export async function PATCH(req: NextRequest) {
 
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
-  const allowed = ['display_name', 'emoji', 'role', 'status', 'current_task', 'color', 'model']
-  const update: Record<string, string> = { updated_at: new Date().toISOString() }
+  const allowed = ['display_name', 'emoji', 'role', 'status', 'current_task', 'color', 'model', 'sort_order']
+  // allowed status values: 'active' | 'idle' | 'awaiting_deploy'
+  const update: Record<string, string | number> = { updated_at: new Date().toISOString() }
   for (const key of allowed) {
     if (key in fields) update[key] = fields[key]
   }
@@ -30,6 +31,6 @@ export async function PATCH(req: NextRequest) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Database error' }, { status: 500 })
   return NextResponse.json({ agent: data })
 }

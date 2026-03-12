@@ -1,24 +1,21 @@
 import { NextResponse } from 'next/server'
+import { homelabFetch } from '@/lib/http'
 
-const PROXMOX_HOST = 'https://10.0.0.PROXMOX:8006'
-const AUTH_HEADER = 'PVEAPIToken=root@pam!mission-control=4837631f-fc84-4fe5-81e5-ae5545cf5d6f'
+const PROXMOX_HOST = process.env.PROXMOX_HOST || 'https://10.0.0.PROXMOX:8006'
+const TOKEN_ID = process.env.PROXMOX_TOKEN_ID || ''
+const TOKEN_SECRET = process.env.PROXMOX_TOKEN_SECRET || ''
 
 async function proxmoxFetch(path: string) {
-  const res = await fetch(`${PROXMOX_HOST}${path}`, {
-    headers: { Authorization: AUTH_HEADER },
-    // @ts-expect-error - Node fetch option for self-signed certs
-    agent: undefined,
-    next: { revalidate: 0 },
+  const res = await homelabFetch(`${PROXMOX_HOST}${path}`, {
+    headers: { Authorization: `PVEAPIToken=${TOKEN_ID}=${TOKEN_SECRET}` },
   })
-  if (!res.ok) throw new Error(`Proxmox ${path} => ${res.status}`)
+  if (!res.ok) throw new Error(`Proxmox API error: ${res.status}`)
   const json = await res.json()
   return json.data
 }
 
 export async function GET() {
   try {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
-
     const nodes: { node: string }[] = await proxmoxFetch('/api2/json/nodes')
 
     const [vmArrays, nodeStatResults] = await Promise.all([
@@ -68,10 +65,7 @@ export async function GET() {
     const vms = vmArrays.flat().sort((a, b) => a.vmid - b.vmid)
     const nodeStats = nodeStatResults.filter(Boolean)
     return NextResponse.json({ vms, nodeStats })
-  } catch (err) {
-    console.error('Proxmox fetch error:', err)
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch Proxmox data' }, { status: 500 })
-  } finally {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '1'
   }
 }

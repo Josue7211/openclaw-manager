@@ -1,0 +1,276 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { Film, Tv, Play, RefreshCw, Calendar } from 'lucide-react'
+
+interface NowPlaying {
+  title: string
+  type: string
+  user: string
+  progress: number | null
+}
+
+interface RecentItem {
+  title: string
+  type: string
+  year?: number
+}
+
+interface UpcomingItem {
+  title: string
+  air_date: string
+}
+
+interface MediaData {
+  now_playing: NowPlaying | null
+  recently_added: RecentItem[]
+  upcoming: UpcomingItem[]
+  mock?: boolean
+}
+
+function formatAirDate(dateStr: string): string {
+  if (!dateStr) return ''
+  const d = new Date(dateStr + 'T12:00:00Z')
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const diff = Math.round((d.getTime() - today.getTime()) / 86400000)
+  if (diff === 0) return 'Today'
+  if (diff === 1) return 'Tomorrow'
+  if (diff > 0 && diff < 7) return `in ${diff} days`
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+export default function MediaPage() {
+  const [data, setData] = useState<MediaData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+
+  const fetchData = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true)
+    try {
+      const res = await fetch('/api/media')
+      const json = await res.json()
+      setData(json)
+    } catch {
+      setData({ now_playing: null, recently_added: [], upcoming: [] })
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+    const interval = setInterval(() => fetchData(), 30_000)
+    return () => clearInterval(interval)
+  }, [])
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-muted)', padding: '40px 0' }}>
+        <div style={{ width: '16px', height: '16px', border: '2px solid var(--accent)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        Loading media...
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ maxWidth: '720px' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+            <Film size={20} style={{ color: 'var(--accent)' }} />
+            <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>
+              Media Radar
+            </h1>
+          </div>
+          <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+            {data?.mock ? 'demo data · configure PLEX_TOKEN / SONARR_API_KEY to connect' : 'live · Plex · Sonarr · Radarr'}
+          </p>
+        </div>
+        <button
+          onClick={() => fetchData(true)}
+          disabled={refreshing}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '8px 14px', borderRadius: '8px', border: '1px solid var(--border)',
+            background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '12px',
+          }}
+        >
+          <RefreshCw size={13} style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }} />
+          Refresh
+        </button>
+      </div>
+
+      {/* Now Playing */}
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px' }}>
+          Now Playing
+        </div>
+        {data?.now_playing ? (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(88,101,242,0.12) 0%, rgba(88,101,242,0.04) 100%)',
+            border: '1px solid rgba(88,101,242,0.25)',
+            borderRadius: '14px',
+            padding: '20px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+              <div style={{
+                width: '36px', height: '36px', borderRadius: '8px',
+                background: 'rgba(88,101,242,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Play size={16} style={{ color: 'var(--blue-bright)', marginLeft: '2px' }} />
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)', marginBottom: '2px' }}>
+                  {data.now_playing.title}
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  Playing for {data.now_playing.user}
+                </div>
+              </div>
+              <div style={{ marginLeft: 'auto' }}>
+                <span style={{
+                  padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 600,
+                  background: 'rgba(88,101,242,0.2)', color: 'var(--blue-bright)',
+                  border: '1px solid rgba(88,101,242,0.3)',
+                }}>
+                  {data.now_playing.type === 'movie' ? 'Movie' : 'Episode'}
+                </span>
+              </div>
+            </div>
+            {data.now_playing.progress !== null && (
+              <div>
+                <div style={{ height: '4px', borderRadius: '2px', background: 'rgba(88,101,242,0.15)', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%', borderRadius: '2px',
+                    background: 'linear-gradient(90deg, var(--accent-blue), var(--blue-bright))',
+                    width: `${data.now_playing.progress}%`, transition: 'width 0.5s ease',
+                  }} />
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '5px', textAlign: 'right' }}>
+                  {data.now_playing.progress}% watched
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{
+            background: 'var(--bg-panel)',
+            border: '1px solid var(--border)',
+            borderRadius: '14px',
+            padding: '24px',
+            textAlign: 'center',
+            color: 'var(--text-muted)',
+            fontSize: '13px',
+          }}>
+            <div style={{ fontSize: '28px', marginBottom: '8px' }}>🎬</div>
+            Nothing playing right now
+          </div>
+        )}
+      </div>
+
+      {/* Recently Added */}
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px' }}>
+          Recently Added
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px' }}>
+          {(data?.recently_added ?? []).map((item, i) => (
+            <div key={`${item.title}-${i}`} style={{
+              background: 'var(--bg-panel)',
+              border: '1px solid var(--border)',
+              borderRadius: '10px',
+              padding: '14px',
+              transition: 'border-color 0.15s',
+            }}>
+              <div style={{
+                width: '32px', height: '32px', borderRadius: '7px', marginBottom: '10px',
+                background: item.type === 'movie' ? 'rgba(155,132,236,0.15)' : 'rgba(59,165,92,0.15)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {item.type === 'movie'
+                  ? <Film size={15} style={{ color: 'var(--accent)' }} />
+                  : <Tv size={15} style={{ color: 'var(--green)' }} />}
+              </div>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px', lineHeight: 1.3 }}>
+                {item.title}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                {item.year && <span style={{ marginRight: '6px' }}>{item.year}</span>}
+                <span style={{
+                  padding: '1px 6px', borderRadius: '10px', fontSize: '10px',
+                  background: item.type === 'movie' ? 'rgba(155,132,236,0.1)' : 'rgba(59,165,92,0.1)',
+                  color: item.type === 'movie' ? 'var(--accent)' : 'var(--green)',
+                }}>
+                  {item.type === 'movie' ? 'Movie' : 'Show'}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Upcoming */}
+      <div>
+        <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px' }}>
+          Coming Up
+        </div>
+        <div style={{
+          background: 'var(--bg-panel)',
+          border: '1px solid var(--border)',
+          borderRadius: '12px',
+          overflow: 'hidden',
+        }}>
+          {(data?.upcoming ?? []).length === 0 ? (
+            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+              No upcoming episodes
+            </div>
+          ) : (
+            (data?.upcoming ?? []).map((ep, i) => (
+              <div
+                key={`${ep.title}-${i}`}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '13px 16px',
+                  borderBottom: i < (data?.upcoming ?? []).length - 1 ? '1px solid var(--border)' : 'none',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Calendar size={13} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                  <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>
+                    {ep.title}
+                  </span>
+                </div>
+                <span style={{
+                  fontSize: '11px', fontFamily: 'monospace', fontWeight: 600,
+                  padding: '3px 10px', borderRadius: '20px',
+                  background: 'rgba(155,132,236,0.1)', color: 'var(--accent-bright)',
+                  border: '1px solid rgba(155,132,236,0.2)',
+                }}>
+                  {formatAirDate(ep.air_date)}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {data?.mock && (
+        <div style={{
+          marginTop: '20px',
+          padding: '12px 16px',
+          borderRadius: '8px',
+          background: 'rgba(230,168,23,0.08)',
+          border: '1px solid rgba(230,168,23,0.2)',
+          fontSize: '12px',
+          color: '#e6a817',
+          fontFamily: 'monospace',
+        }}>
+          Demo mode — set PLEX_TOKEN, SONARR_API_KEY, and/or RADARR_API_KEY in .env.local to connect.
+        </div>
+      )}
+    </div>
+  )
+}

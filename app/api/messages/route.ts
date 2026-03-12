@@ -1,57 +1,19 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
+import { bbFetch, normalizePhone, getContactMap, CHAT_GUID_RE, MESSAGE_GUID_RE } from './_lib/bb'
 
 export const dynamic = 'force-dynamic'
 
-const BB_HOST = process.env.BLUEBUBBLES_HOST || ''
-const BB_PASSWORD = process.env.BLUEBUBBLES_PASSWORD || ''
-
-async function bbFetch(path: string, opts?: RequestInit & { body?: string }) {
-  if (!BB_HOST) throw new Error('bluebubbles_not_configured')
-  const sep = path.includes('?') ? '&' : '?'
-  const url = `${BB_HOST}/api/v1${path}${sep}password=${encodeURIComponent(BB_PASSWORD)}`
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  const res = await fetch(url, { ...opts, headers })
-  if (!res.ok) throw new Error(`BlueBubbles ${res.status}: ${await res.text().catch(() => '')}`)
-  const json = await res.json()
-  if (json.status !== 200) throw new Error(json.error?.message || json.message || 'Unknown error')
-  return json.data
+// Map string reaction names to numeric types (BB may return either format)
+const REACTION_NAME_TO_TYPE: Record<string, number> = {
+  love: 2000, like: 2001, dislike: 2002, laugh: 2003, emphasize: 2004, question: 2005,
+  '-love': 3000, '-like': 3001, '-dislike': 3002, '-laugh': 3003, '-emphasize': 3004, '-question': 3005,
 }
 
-// Normalize a phone number to digits-only for matching
-function normalizePhone(addr: string): string {
-  const digits = addr.replace(/\D/g, '')
-  // Strip leading 1 for US numbers (11 digits → 10)
-  if (digits.length === 11 && digits.startsWith('1')) return digits.slice(1)
-  return digits
-}
-
-// Build a map: normalized phone/email → displayName
-async function buildContactMap(): Promise<Map<string, string>> {
-  const map = new Map<string, string>()
-  try {
-    const contacts = await bbFetch('/contact/query', {
-      method: 'POST',
-      body: JSON.stringify({ limit: 500 }),
-    })
-    for (const c of contacts ?? []) {
-      const name = c.displayName || [c.firstName, c.lastName].filter(Boolean).join(' ')
-      if (!name) continue
-      for (const ph of c.phoneNumbers ?? []) {
-        if (!ph.address) continue
-        const normalized = normalizePhone(ph.address)
-        // Skip entries that aren't real phone numbers (less than 7 digits)
-        if (normalized.length < 7) continue
-        map.set(normalized, name)
-      }
-      for (const em of c.emails ?? []) {
-        if (em.address && em.address.includes('@')) map.set(em.address.toLowerCase(), name)
-      }
-    }
-  } catch {
-    // Contact lookup is best-effort
-  }
-  return map
+function normalizeReactionType(raw: unknown): number | null {
+  if (typeof raw === 'number' && raw >= 2000) return raw
+  if (typeof raw === 'string') return REACTION_NAME_TO_TYPE[raw] ?? null
+  return null
 }
 
 // Process messages to separate reactions from regular messages and attach them
@@ -63,8 +25,8 @@ function processMessagesWithReactions(rawMessages: any[]): any[] {
 
   for (const msg of rawMessages) {
     const assocGuid = msg.associatedMessageGuid
-    const assocType = msg.associatedMessageType
-    if (assocGuid && assocType != null && assocType >= 2000) {
+    const reactionType = normalizeReactionType(msg.associatedMessageType)
+    if (assocGuid && reactionType !== null) {
       // Reaction message — strip p:N/ or bp: prefix to get parent GUID
       const parentGuid = assocGuid.replace(/^(p|bp):\d+\//, '')
       const senderKey = msg.isFromMe ? '__me__' : (msg.handle?.address || 'unknown')
@@ -75,12 +37,12 @@ function processMessagesWithReactions(rawMessages: any[]): any[] {
 
       // Only keep the most recent reaction per sender per message
       if (!existing || msg.dateCreated > existing.dateCreated) {
-        if (assocType >= 3000) {
+        if (reactionType >= 3000) {
           // Remove reaction
           senderMap.delete(senderKey)
         } else {
           senderMap.set(senderKey, {
-            type: assocType,
+            type: reactionType,
             fromMe: !!msg.isFromMe,
             handle: msg.isFromMe ? undefined : msg.handle?.address,
             dateCreated: msg.dateCreated,
@@ -113,23 +75,35 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const chatGuid = searchParams.get('conversation')
   const limit = searchParams.get('limit') || '25'
+  const before = searchParams.get('before')
 
   try {
     if (chatGuid) {
       // Fetch messages (extra to capture reactions) and contacts in parallel
-      const requestedLimit = parseInt(limit)
+      const requestedLimit = Math.max(1, Math.min(parseInt(limit, 10) || 25, 500))
+      // Validate chatGuid format (service;type;identifier)
+      if (!CHAT_GUID_RE.test(chatGuid)) {
+        return NextResponse.json({ error: 'Invalid conversation ID' }, { status: 400 })
+      }
+
+      const queryBody: Record<string, unknown> = {
+        chatGuid,
+        limit: Math.min(requestedLimit * 4, 1000),
+        offset: 0,
+        sort: 'DESC',
+        with: ['attachment', 'handle'],
+      }
+      if (before) {
+        const beforeTs = parseInt(before, 10)
+        if (!isNaN(beforeTs)) queryBody.before = beforeTs
+      }
+
       const [rawMessages, contactMap] = await Promise.all([
         bbFetch('/message/query', {
           method: 'POST',
-          body: JSON.stringify({
-            chatGuid,
-            limit: Math.min(requestedLimit * 2, 500),
-            offset: 0,
-            sort: 'DESC',
-            with: ['attachment', 'handle'],
-          }),
+          body: JSON.stringify(queryBody),
         }),
-        buildContactMap(),
+        getContactMap(),
       ])
 
       // Process: reverse to chronological, extract reactions, attach to parent msgs
@@ -153,7 +127,7 @@ export async function GET(req: Request) {
       bbFetch('/chat/query', {
         method: 'POST',
         body: JSON.stringify({
-          limit: Math.min(parseInt(limit), 500),
+          limit: Math.max(1, Math.min(parseInt(limit, 10) || 25, 500)),
           offset: 0,
           sort: 'lastmessage',
           with: ['lastMessage', 'participants'],
@@ -169,7 +143,7 @@ export async function GET(req: Request) {
           with: ['chat'],
         }),
       }).catch(() => []),
-      buildContactMap(),
+      getContactMap(),
     ])
 
     // Service priority: iMessage > RCS > SMS > other
@@ -184,12 +158,12 @@ export async function GET(req: Request) {
     // For each number, keep: the best service version (for display) + the newest lastMessage date
     type ChatRecord = Record<string, unknown> & {
       participants?: { address: string; service: string }[]
-      lastMessage?: { text?: string; dateCreated?: number; isFromMe?: boolean }
+      lastMessage?: { text?: string; dateCreated?: number; isFromMe?: boolean; dateRead?: number | null }
     }
 
     // Track per normalized ID: best chat entry (prefer iMessage) + newest date across all versions
     const bestChat = new Map<string, Record<string, unknown>>()
-    const newestDate = new Map<string, { text?: string; dateCreated?: number; isFromMe?: boolean }>()
+    const newestDate = new Map<string, { text: string | undefined; dateCreated: number | undefined; isFromMe: boolean | undefined; dateRead: number | null }>()
 
     for (const c of (chats ?? []) as ChatRecord[]) {
       const chatId = (c.chatIdentifier as string) || ''
@@ -213,6 +187,7 @@ export async function GET(req: Request) {
           text: c.lastMessage?.text,
           dateCreated: c.lastMessage?.dateCreated,
           isFromMe: c.lastMessage?.isFromMe,
+          dateRead: c.lastMessage?.dateRead ?? null,
         })
       }
     }
@@ -222,6 +197,7 @@ export async function GET(req: Request) {
       text?: string
       dateCreated?: number
       isFromMe?: boolean
+      dateRead?: number | null
       chats?: ChatRecord[]
     }
     for (const msg of (recentMessages ?? []) as MessageRecord[]) {
@@ -252,6 +228,7 @@ export async function GET(req: Request) {
             text: msg.text,
             dateCreated: msg.dateCreated,
             isFromMe: msg.isFromMe,
+            dateRead: msg.dateRead ?? null,
           })
         }
       }
@@ -279,7 +256,9 @@ export async function GET(req: Request) {
           missingParticipantGuids.push(guid)
         } else if (chatId) {
           // 1:1 chat — infer participant from chatIdentifier
-          const service = guid.split(';')[0] || 'iMessage'
+          // macOS 26+ uses 'any;-;' for all GUIDs — default to iMessage
+          const guidService = guid.split(';')[0]
+          const service = (guidService && guidService !== 'any') ? guidService : 'iMessage'
           entry.participants = [{ address: chatId, service }]
         }
       }
@@ -287,19 +266,55 @@ export async function GET(req: Request) {
 
     // Batch-fetch participants for group chats missing them
     if (missingParticipantGuids.length > 0) {
+      // Use BB chat query with participants (individual endpoint returns empty on macOS 26+)
       const fetches = missingParticipantGuids.map(guid =>
-        bbFetch(`/chat/${encodeURIComponent(guid)}`, {
-          method: 'GET',
+        bbFetch('/chat/query', {
+          method: 'POST',
+          body: JSON.stringify({ guid, with: ['participants'] }),
+        }).then((data: unknown) => {
+          const arr = Array.isArray(data) ? data : []
+          return arr[0] ?? null
         }).catch(() => null)
       )
       const results = await Promise.all(fetches)
       const groupParticipantsMap = new Map<string, { address: string; service: string }[]>()
       for (let i = 0; i < results.length; i++) {
         const chatData = results[i]
-        if (chatData?.participants) {
+        if (chatData?.participants?.length > 0) {
           groupParticipantsMap.set(missingParticipantGuids[i], chatData.participants)
         }
       }
+
+      // For group chats where BB returned no participants, infer from recent message handles
+      const stillMissing = missingParticipantGuids.filter(g => !groupParticipantsMap.has(g))
+      if (stillMissing.length > 0) {
+        const msgFetches = stillMissing.map(guid =>
+          bbFetch('/message/query', {
+            method: 'POST',
+            body: JSON.stringify({ chatGuid: guid, limit: 50, sort: 'DESC', with: ['handle'] }),
+          }).catch(() => [])
+        )
+        const msgResults = await Promise.all(msgFetches)
+        for (let i = 0; i < stillMissing.length; i++) {
+          const msgs = msgResults[i] ?? []
+          const seen = new Set<string>()
+          const inferred: { address: string; service: string }[] = []
+          for (const m of msgs) {
+            const addr = m.handle?.address
+            // Use the handle's actual service (iMessage/SMS/RCS) — not the GUID prefix
+            // macOS 26+ uses 'any;' for all GUIDs but handles still report correct service
+            const handleSvc = m.handle?.service || ''
+            if (addr && !seen.has(addr)) {
+              seen.add(addr)
+              inferred.push({ address: addr, service: handleSvc })
+            }
+          }
+          if (inferred.length > 0) {
+            groupParticipantsMap.set(stillMissing[i], inferred)
+          }
+        }
+      }
+
       // Patch bestChat entries
       for (const [, entry] of bestChat) {
         if (!Array.isArray(entry.participants) || (entry.participants as unknown[]).length === 0) {
@@ -333,15 +348,32 @@ export async function GET(req: Request) {
           || null
       }
 
+      // Unread = last message is incoming and has no dateRead
+      const isUnread = newest && !newest.isFromMe && !newest.dateRead
+
       return {
         guid: c.guid as string,
         chatId,
         displayName,
         participants,
-        service: (c.guid as string)?.split(';')[0] || participants[0]?.service || 'iMessage',
+        service: (() => {
+          // Resolve real service — macOS 26+ uses 'any' prefix for all GUIDs
+          // Participants still report correct service (iMessage/SMS/RCS)
+          const partSvc = participants[0]?.service?.toLowerCase() || ''
+          if (partSvc && partSvc !== 'any') return participants[0].service
+          const guidPrefix = ((c.guid as string) || '').split(';')[0]?.toLowerCase() || ''
+          if (guidPrefix && guidPrefix !== 'any') return guidPrefix
+          // 'any' with no explicit SMS → iMessage (macOS 26+ default)
+          const hasSms = participants.some(p => p.service?.toLowerCase() === 'sms')
+          const hasRcs = participants.some(p => p.service?.toLowerCase() === 'rcs')
+          if (hasSms) return 'SMS'
+          if (hasRcs) return 'RCS'
+          return 'iMessage'
+        })(),
         lastMessage: newest?.text || null,
         lastDate: newest?.dateCreated || null,
         lastFromMe: newest?.isFromMe ? 1 : 0,
+        isUnread: !!isUnread,
       }
     })
 
@@ -350,19 +382,33 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ conversations, contacts: contactLookup })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    if (msg === 'bluebubbles_not_configured') {
+    const raw = err instanceof Error ? err.message : String(err)
+    if (raw === 'bluebubbles_not_configured') {
       return NextResponse.json({ error: 'bluebubbles_not_configured', conversations: [] })
     }
-    return NextResponse.json({ error: msg }, { status: 502 })
+    console.error('Messages API error:', raw)
+    return NextResponse.json({ error: 'Backend service error' }, { status: 502 })
   }
 }
 
 // POST /api/messages — send a message
 export async function POST(req: Request) {
   try {
-    const { chatGuid, text } = await req.json()
-    if (!chatGuid || !text) return NextResponse.json({ error: 'chatGuid and text required' }, { status: 400 })
+    const { chatGuid, text, selectedMessageGuid } = await req.json()
+    if (!chatGuid || !text || typeof chatGuid !== 'string' || typeof text !== 'string') {
+      return NextResponse.json({ error: 'chatGuid and text required' }, { status: 400 })
+    }
+    if (!CHAT_GUID_RE.test(chatGuid)) {
+      return NextResponse.json({ error: 'Invalid conversation ID' }, { status: 400 })
+    }
+    if (text.length > 10000) {
+      return NextResponse.json({ error: 'Message too long' }, { status: 400 })
+    }
+    if (selectedMessageGuid !== undefined && selectedMessageGuid !== null) {
+      if (typeof selectedMessageGuid !== 'string' || !MESSAGE_GUID_RE.test(selectedMessageGuid)) {
+        return NextResponse.json({ error: 'Invalid reply message GUID' }, { status: 400 })
+      }
+    }
 
     const result = await bbFetch('/message/text', {
       method: 'POST',
@@ -370,11 +416,12 @@ export async function POST(req: Request) {
         chatGuid,
         tempGuid: `temp-${randomUUID()}`,
         message: text,
+        ...(selectedMessageGuid ? { selectedMessageGuid } : {}),
       }),
     })
     return NextResponse.json({ ok: true, message: result })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: msg }, { status: 502 })
+    console.error('Send message error:', err instanceof Error ? err.message : err)
+    return NextResponse.json({ error: 'Failed to send message' }, { status: 502 })
   }
 }

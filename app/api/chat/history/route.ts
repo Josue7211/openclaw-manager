@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server'
 import fs from 'fs'
-import path from 'path'
-
-const OPENCLAW = path.join(process.env.HOME || '/home/aparcedodev', '.openclaw')
-const GATEWAY  = 'http://127.0.0.1:18789'
-const TOKEN    = 'REDACTED_PASSWORD'
+import { getSessionFile } from '@/lib/openclaw'
 
 export interface ChatMessage {
   id: string
@@ -14,25 +10,20 @@ export interface ChatMessage {
   images?: string[]
 }
 
-function getSessionFile(): string | null {
-  try {
-    const idx = JSON.parse(fs.readFileSync(path.join(OPENCLAW, 'agents/main/sessions/sessions.json'), 'utf-8'))
-    const sessionId = idx['agent:main:main']?.sessionId
-    if (!sessionId) return null
-    const p = path.join(OPENCLAW, `agents/main/sessions/${sessionId}.jsonl`)
-    return fs.existsSync(p) ? p : null
-  } catch { return null }
-}
-
 // Strip the "[Timestamp] Sender metadata" prefix OpenClaw wraps inbound messages with
 // Also extract [Image: source: /path] annotations and return them separately
 function cleanUserText(raw: string): { text: string; imagePaths: string[] } {
   const imagePaths: string[] = []
-  // Extract all [Image: source: /path] annotations
-  const withoutImages = raw.replace(/\[Image:\s*source:\s*([^\]]+)\]/g, (_, p) => {
-    imagePaths.push(p.trim())
-    return ''
-  })
+  // Extract all image annotations: [Image: source: /path] and [Attached image: /path]
+  const withoutImages = raw
+    .replace(/\[Image:\s*source:\s*([^\]]+)\]/g, (_, p) => {
+      imagePaths.push(p.trim())
+      return ''
+    })
+    .replace(/\[Attached image:\s*([^\]]+)\]/g, (_, p) => {
+      imagePaths.push(p.trim())
+      return ''
+    })
   const text = withoutImages
     .replace(/^Sender \(untrusted metadata\):\s*```json[\s\S]*?```\s*/m, '')
     .replace(/^\[.*?\]\s+/, '')
@@ -83,6 +74,9 @@ export function parseMessages(filePath: string): ChatMessage[] {
 
         const allImages = [...inlineImages, ...pathImages]
         if (!text && allImages.length === 0) continue
+        // Hide internal session-trigger messages from the UI
+        if (text.startsWith('A new session was started via /new or /reset') ||
+            text === '/new' || text === '/reset') continue
         msgs.push({
           id: entry.id,
           role: 'user',
@@ -110,7 +104,7 @@ export function parseMessages(filePath: string): ChatMessage[] {
 
 export async function GET() {
   const filePath = getSessionFile()
-  if (!filePath) return NextResponse.json({ messages: [], sessionFile: null })
+  if (!filePath) return NextResponse.json({ messages: [] })
   const messages = parseMessages(filePath)
-  return NextResponse.json({ messages, sessionFile: filePath })
+  return NextResponse.json({ messages })
 }

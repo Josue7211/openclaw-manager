@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { Send, Image as ImageIcon, X, ChevronDown } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { formatTime } from '@/lib/utils'
 
 interface ChatMessage {
   id: string
@@ -21,10 +22,6 @@ interface OptimisticMsg {
   images?: string[]
 }
 
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
-
 export default function ChatPage() {
   const [messages, setMessages]   = useState<ChatMessage[]>([])
   const [input, setInput]         = useState('')
@@ -37,6 +34,7 @@ export default function ChatPage() {
   const [atBottom, setAtBottom]   = useState(true)
   const [optimistic, setOptimistic] = useState<OptimisticMsg[]>([])
   const [isTyping, setIsTyping]   = useState(false)
+  const [systemMsg, setSystemMsg] = useState<string | null>(null)
   const lastUserMsgTimeRef        = useRef<number>(0)
   const bottomRef                 = useRef<HTMLDivElement>(null)
   const scrollRef                 = useRef<HTMLDivElement>(null)
@@ -96,9 +94,15 @@ export default function ChatPage() {
 
   // ── Load history on mount ──
   useEffect(() => {
+    const sessionStart = localStorage.getItem('session-start')
+    const startTime = sessionStart ? parseInt(sessionStart, 10) : 0
     fetch('/api/chat/history')
       .then(r => r.json())
-      .then(d => { if (d.messages?.length) setMessages(d.messages) })
+      .then(d => {
+        let msgs: ChatMessage[] = d.messages || []
+        if (startTime > 0) msgs = msgs.filter(m => new Date(m.timestamp).getTime() >= startTime)
+        if (msgs.length) setMessages(msgs)
+      })
       .catch(() => {})
       .finally(() => setMounted(true))
   }, [])
@@ -111,7 +115,13 @@ export default function ChatPage() {
     try {
       const res = await fetch('/api/chat/history')
       const d = await res.json()
-      const incoming: ChatMessage[] = d.messages || []
+      let incoming: ChatMessage[] = d.messages || []
+      // Filter out messages from before the current session (set on /new or /reset)
+      const sessionStart = localStorage.getItem('session-start')
+      if (sessionStart) {
+        const startTime = parseInt(sessionStart, 10)
+        incoming = incoming.filter(m => new Date(m.timestamp).getTime() >= startTime)
+      }
 
       setConnected(true)
       setMessages(prev => {
@@ -120,10 +130,11 @@ export default function ChatPage() {
         if (newMsgs.length === 0) return prev
         return [...prev, ...newMsgs]
       })
-      // Remove optimistic messages whose text now appears in history — delayed 2s so
-      // the history record has time to include its attachments before we swap it in.
+      // Remove optimistic messages whose text now appears in history.
+      // For image messages, keep a short delay so the history record has time to
+      // include attachments before we swap it in. Text-only: remove immediately.
       const incomingSnapshot = incoming
-      setTimeout(() => {
+      const removeOptimistic = () => {
         setOptimistic(prev => {
           if (prev.length === 0) return prev
           const filtered = prev.filter(opt => {
@@ -135,7 +146,11 @@ export default function ChatPage() {
           })
           return filtered.length === prev.length ? prev : filtered
         })
-      }, 2000)
+      }
+      // Check if any pending optimistic has images — only those need a delay
+      // Access optimistic state via a ref snapshot to avoid stale closure
+      removeOptimistic() // immediate removal for text-only messages
+      setTimeout(removeOptimistic, 1500) // second pass catches image messages once history has attachments
       // Clear typing indicator if assistant replied after user sent
       if (lastUserMsgTimeRef.current > 0) {
         const lastAssistant = [...incoming].reverse().find(m => m.role === 'assistant')
@@ -236,11 +251,37 @@ export default function ChatPage() {
     Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/')).forEach(readImageFile)
   }, [])
 
+  // ── Slash command helper ──
+  const SLASH_CMDS = ['/new', '/reset']
+  const isSlashCommand = (t: string) => SLASH_CMDS.includes(t.toLowerCase())
+
+  // Session trigger messages are already filtered server-side in history/route.ts
+
   // ── Send ──
   const send = () => {
     const text = input.trim()
     const currentImages = imagesRef.current  // always-current, no stale closure
     if ((!text && currentImages.length === 0 && pendingReadsRef.current === 0) || sending) return
+
+    // ── Intercept slash commands ──
+    if (isSlashCommand(text)) {
+      setInput('')
+      localStorage.removeItem('chat-draft')
+      localStorage.setItem('session-start', Date.now().toString())
+      setSystemMsg('── Starting fresh session… ──')
+      setMessages([])
+      setOptimistic([])
+      fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, images: [] }),
+      }).catch(() => {})
+      setTimeout(() => {
+        setSystemMsg('── Session reset ──')
+        setTimeout(() => setSystemMsg(null), 3000)
+      }, 2500)
+      return
+    }
 
     // If images are still being read from disk/clipboard, queue the send
     if (pendingReadsRef.current > 0) {
@@ -362,7 +403,7 @@ export default function ChatPage() {
                   backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite',
                 }} />
                 <div style={{
-                  width: item.w, height: '52px', borderRadius: '14px',
+                  width: item.w, height: '52px', borderRadius: '16px',
                   background: 'linear-gradient(90deg, var(--bg-elevated) 25%, var(--bg-panel) 50%, var(--bg-elevated) 75%)',
                   backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite',
                 }} />
@@ -378,6 +419,13 @@ export default function ChatPage() {
             </div>
           </div>
         ) : null}
+
+        {/* System message pill */}
+        {systemMsg && (
+          <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px', padding: '8px 0', fontFamily: 'monospace' }}>
+            {systemMsg}
+          </div>
+        )}
 
         {messages.map(msg => (
           <div key={msg.id} style={{
@@ -411,7 +459,7 @@ export default function ChatPage() {
                 <div style={{
                   padding: '9px 13px',
                   borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                  background: msg.role === 'user' ? 'var(--accent-blue)' : 'var(--bg-card)',
+                  background: msg.role === 'user' ? 'var(--accent-blue)' : 'rgba(22, 22, 28, 0.65)',
                   border: `1px solid ${msg.role === 'user' ? 'transparent' : 'var(--border)'}`,
                   fontSize: '13px', lineHeight: 1.65,
                   color: msg.role === 'user' ? '#fff' : 'var(--text-primary)',
@@ -435,18 +483,8 @@ export default function ChatPage() {
                               borderRadius: '4px',
                               border: '1px solid rgba(155,132,236,0.2)',
                             }} {...props}>{children}</code>
-                          : <pre style={{
-                              fontFamily: 'JetBrains Mono, Fira Code, monospace',
-                              fontSize: '12px',
-                              background: 'var(--bg-base)',
-                              border: '1px solid var(--border)',
-                              borderRadius: '8px',
-                              padding: '12px 14px',
-                              overflowX: 'auto',
-                              margin: '8px 0',
-                              lineHeight: 1.5,
-                            }}><code {...props}>{children}</code></pre>,
-                        pre: ({ children }) => <>{children}</>,
+                          : <code {...props}>{children}</code>,
+                        pre: ({ children }) => <div style={{ fontFamily: 'JetBrains Mono, Fira Code, monospace', fontSize: '12px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px 14px', overflowX: 'auto', margin: '8px 0', lineHeight: 1.5 }}><code>{children}</code></div>,
                         ul: ({ children }) => <ul style={{ margin: '4px 0 8px', paddingLeft: '20px' }}>{children}</ul>,
                         ol: ({ children }) => <ol style={{ margin: '4px 0 8px', paddingLeft: '20px' }}>{children}</ol>,
                         li: ({ children }) => <li style={{ marginBottom: '2px' }}>{children}</li>,
@@ -485,7 +523,7 @@ export default function ChatPage() {
               {/* Images */}
               {(msg.images || []).map((src, i) => (
                 <img key={i} src={src} alt="attached"
-                  style={{ maxWidth: '200px', maxHeight: '150px', borderRadius: '8px', marginBottom: '4px', display: 'block' }}
+                  style={{ maxWidth: '200px', maxHeight: '150px', borderRadius: '10px', marginBottom: '4px', display: 'block' }}
                 />
               ))}
               {/* Text bubble */}
@@ -546,7 +584,7 @@ export default function ChatPage() {
             <div style={{
               display: 'flex', alignItems: 'center', gap: '4px',
               padding: '12px 16px',
-              background: 'var(--bg-elevated)',
+              background: 'rgba(255, 255, 255, 0.05)',
               border: '1px solid var(--border)',
               borderRadius: '18px 18px 18px 4px',
               width: 'fit-content',
@@ -572,7 +610,7 @@ export default function ChatPage() {
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px', flexShrink: 0 }}>
           {images.map((url, i) => (
             <div key={i} style={{ position: 'relative' }}>
-              <img src={url} alt="preview" style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--border)' }} />
+              <img src={url} alt="preview" style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '10px', border: '1px solid var(--border)' }} />
               <button
                 onClick={() => setImages(prev => {
                   const next = prev.filter((_, j) => j !== i)
@@ -597,10 +635,10 @@ export default function ChatPage() {
         <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
           <button onClick={scrollToBottom} style={{
             display: 'flex', alignItems: 'center', gap: '5px',
-            background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+            background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border)',
             borderRadius: '20px', padding: '5px 14px',
             color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.4)', transition: 'all 0.15s',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.4)', transition: 'all 0.25s cubic-bezier(0.22, 1, 0.36, 1)',
           }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
@@ -613,7 +651,7 @@ export default function ChatPage() {
       {/* Input */}
       <div style={{
         flexShrink: 0,
-        background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px',
+        background: 'rgba(22, 22, 28, 0.65)', border: '1px solid var(--border)', borderRadius: '16px',
         padding: '10px 12px', display: 'flex', alignItems: 'flex-end', gap: '8px',
       }}>
         <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleFileChange} style={{ display: 'none' }} />
@@ -638,10 +676,10 @@ export default function ChatPage() {
         <button onClick={send} disabled={sending || (!input.trim() && images.length === 0)}
           style={{
             flexShrink: 0,
-            background: (sending || (!input.trim() && images.length === 0)) ? 'var(--bg-elevated)' : 'var(--accent)',
-            border: 'none', borderRadius: '8px',
+            background: (sending || (!input.trim() && images.length === 0)) ? 'rgba(255, 255, 255, 0.05)' : 'var(--accent)',
+            border: 'none', borderRadius: '10px',
             color: (sending || (!input.trim() && images.length === 0)) ? 'var(--text-muted)' : '#fff',
-            padding: '7px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all 0.15s',
+            padding: '7px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all 0.25s cubic-bezier(0.22, 1, 0.36, 1)',
           }}
         >
           <Send size={15} />

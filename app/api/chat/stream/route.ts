@@ -1,19 +1,6 @@
-import { NextResponse } from 'next/server'
 import fs from 'fs'
-import path from 'path'
 import { parseMessages } from '../history/route'
-
-const OPENCLAW = path.join(process.env.HOME || '/home/aparcedodev', '.openclaw')
-
-function getSessionFile(): string | null {
-  try {
-    const idx = JSON.parse(fs.readFileSync(path.join(OPENCLAW, 'agents/main/sessions/sessions.json'), 'utf-8'))
-    const sessionId = idx['agent:main:main']?.sessionId
-    if (!sessionId) return null
-    const p = path.join(OPENCLAW, `agents/main/sessions/${sessionId}.jsonl`)
-    return fs.existsSync(p) ? p : null
-  } catch { return null }
-}
+import { getSessionFile } from '@/lib/openclaw'
 
 export async function GET() {
   const filePath = getSessionFile()
@@ -26,12 +13,14 @@ export async function GET() {
   let lastSize = fs.statSync(filePath).size
   let lastCount = parseMessages(filePath).length
 
+  let intervalId: ReturnType<typeof setInterval> | null = null
+
   const stream = new ReadableStream({
     start(controller) {
       // Send a heartbeat comment immediately
       controller.enqueue(new TextEncoder().encode(': connected\n\n'))
 
-      const interval = setInterval(() => {
+      intervalId = setInterval(() => {
         try {
           const stat = fs.statSync(filePath)
           if (stat.size === lastSize) {
@@ -54,13 +43,9 @@ export async function GET() {
           controller.enqueue(new TextEncoder().encode(': error\n\n'))
         }
       }, 1000)
-
-      // Clean up on close
-      const cleanup = () => clearInterval(interval)
-      ;(controller as any)._cleanup = cleanup
     },
     cancel() {
-      // interval cleanup handled by GC
+      if (intervalId) clearInterval(intervalId)
     },
   })
 

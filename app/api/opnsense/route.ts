@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { homelabFetch } from '@/lib/http'
 
 const HOST   = process.env.OPNSENSE_HOST   ?? 'https://10.0.0.1'
 const KEY    = process.env.OPNSENSE_KEY    ?? ''
@@ -12,13 +13,10 @@ function authHeader() {
 }
 
 async function opnFetch(path: string) {
-  const res = await fetch(`${HOST}${path}`, {
+  const res = await homelabFetch(`${HOST}${path}`, {
     headers: { Authorization: authHeader(), Accept: 'application/json' },
-    // @ts-expect-error node fetch option
-    agent: undefined,
-    cache: 'no-store',
   })
-  if (!res.ok) throw new Error(`OPNsense ${path} → ${res.status}`)
+  if (!res.ok) throw new Error(`OPNsense API error: ${res.status}`)
   return res.json()
 }
 
@@ -29,9 +27,6 @@ function formatRate(bytesPerSec: number): string {
 }
 
 export async function GET() {
-  // Ignore self-signed cert
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
-
   try {
     const [ifaceData, firmwareData] = await Promise.allSettled([
       opnFetch('/api/diagnostics/interface/getInterfaceStatistics'),
@@ -41,7 +36,8 @@ export async function GET() {
     // ── Bandwidth ──
     let wanIn = '—', wanOut = '—'
     if (ifaceData.status === 'fulfilled') {
-      const stats: Record<string, Record<string, number>> = ifaceData.value.statistics ?? {}
+      const ifaceVal = ifaceData.value as { statistics?: Record<string, Record<string, number>> }
+      const stats: Record<string, Record<string, number>> = ifaceVal.statistics ?? {}
 
       // Find the WAN link-level entry (has MAC address, highest byte counts)
       const wanEntry = Object.entries(stats).find(([key]) =>
@@ -72,15 +68,13 @@ export async function GET() {
     let updateAvailable = false
     let version = '—'
     if (firmwareData.status === 'fulfilled') {
-      const fw = firmwareData.value
+      const fw = firmwareData.value as { status?: string; needs_reboot?: string; product_version?: string; version?: string }
       updateAvailable = fw.status === 'update' || fw.status === 'upgrade' || fw.needs_reboot === '1'
       version = fw.product_version ?? fw.version ?? '—'
     }
 
     return NextResponse.json({ wanIn, wanOut, updateAvailable, version })
-  } catch (err) {
-    return NextResponse.json({ error: String(err), wanIn: '—', wanOut: '—', updateAvailable: false, version: '—' }, { status: 500 })
-  } finally {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '1'
+  } catch {
+    return NextResponse.json({ error: 'Failed to fetch OPNsense data', wanIn: '—', wanOut: '—', updateAvailable: false, version: '—' }, { status: 500 })
   }
 }

@@ -3,15 +3,30 @@ import fs from 'fs'
 import path from 'path'
 
 // Only serve images from known safe directories
+const OPENCLAW_HOME = process.env.HOME || '/home/aparcedodev'
 const ALLOWED_DIRS = [
-  '/tmp',
-  path.join(process.env.HOME || '/home/aparcedodev', '.openclaw/workspace/chat-uploads'),
-  path.join(process.env.HOME || '/home/aparcedodev', '.openclaw/workspace'),
+  path.join(OPENCLAW_HOME, '.openclaw/workspace/chat-uploads'),
+  path.join(OPENCLAW_HOME, '.openclaw/workspace'),
+  path.join(OPENCLAW_HOME, '.openclaw/media/chat-images'),
 ]
+
+const ALLOWED_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp'])
 
 function isSafePath(filePath: string): boolean {
   const resolved = path.resolve(filePath)
-  return ALLOWED_DIRS.some(dir => resolved.startsWith(dir + path.sep) || resolved.startsWith(dir))
+  // Check extension
+  if (!ALLOWED_EXTENSIONS.has(path.extname(resolved).toLowerCase())) {
+    return false
+  }
+  // Resolve symlinks to prevent escape
+  let realPath: string
+  try {
+    realPath = fs.realpathSync(resolved)
+  } catch {
+    return false
+  }
+  // Verify real path is strictly inside an allowed directory (trailing sep prevents prefix attacks)
+  return ALLOWED_DIRS.some(dir => realPath.startsWith(dir + path.sep) || realPath === dir)
 }
 
 function guessMime(filePath: string): string {
@@ -36,10 +51,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'forbidden path' }, { status: 403 })
   }
 
-  if (!fs.existsSync(filePath)) {
-    return NextResponse.json({ error: 'not found' }, { status: 404 })
-  }
-
   try {
     const data = fs.readFileSync(filePath)
     const mime = guessMime(filePath)
@@ -50,6 +61,6 @@ export async function GET(req: NextRequest) {
       },
     })
   } catch {
-    return NextResponse.json({ error: 'read error' }, { status: 500 })
+    return NextResponse.json({ error: 'not found' }, { status: 404 })
   }
 }

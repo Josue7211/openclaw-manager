@@ -25,7 +25,7 @@ export default function MemoryPage() {
   useEffect(() => {
     fetch('/api/workspace/files')
       .then(r => r.json())
-      .then(setTree)
+      .then(d => setTree({ coreFiles: d.coreFiles || [], memoryFiles: d.memoryFiles || [] }))
       .catch(() => {})
   }, [])
 
