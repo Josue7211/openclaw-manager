@@ -60,8 +60,6 @@ export default function Dashboard() {
   const [sessions, setSessions]       = useState<Session[]>([])
   const [subagents, setSubagents]     = useState<SubagentData | null>(null)
   const [missions, setMissions]       = useState<Mission[]>([])
-  const [missionInput, setMissionInput] = useState('')
-  const [missionAssignee, setMissionAssignee] = useState('team')
   const [agentsData, setAgentsData]   = useState<AgentsData | null>(null)
   const [activeSubagents, setActiveSubagents] = useState<ActiveSubagentData>({ active: false, count: 0, tasks: [] })
   const [lastRefresh, setLastRefresh]     = useState<Date>(new Date())
@@ -353,11 +351,6 @@ export default function Dashboard() {
     })
   }, [agentsData?.agents])
 
-  const addMission = async () => {
-    if (!missionInput.trim()) return
-    await fetch('/api/missions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: missionInput, assignee: missionAssignee }) })
-    setMissionInput('')
-  }
   const updateMissionStatus = async (id: string, currentStatus: string) => {
     const next = currentStatus === 'pending' ? 'active' : currentStatus === 'active' ? 'done' : 'pending'
     await fetch('/api/missions', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: next }) })
@@ -541,7 +534,7 @@ export default function Dashboard() {
             <SkeletonRows count={3} />
           ) : (
             <div style={{ position: 'relative' }}>
-            <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
+            <div className="hidden-scrollbar" style={{ maxHeight: '280px', overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {sortedAgents.map(agent => {
                 const isMain = agent.id === 'main'
@@ -607,63 +600,47 @@ export default function Dashboard() {
         </div>
 
         {/* ── Missions — pending=gray, active=BLUE, done=GREEN ── */}
-        <div className="card" style={{ padding: '20px', overflow: 'hidden' }}>
+        <div className="card" style={{ padding: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
             <Target size={14} style={{ color: 'var(--red-bright)' }} />
             <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Missions</span>
           </div>
-          <div style={{ position: 'relative', marginBottom: '12px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '240px', overflowY: 'auto' }}>
-            {!mounted ? (
-              <SkeletonRows count={3} />
-            ) : missions.length === 0 ? (
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>No missions assigned</div>
-            ) : missions.map(m => (
-              <div key={m.id} style={{
-                display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px',
-                background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', border: '1px solid var(--border)', transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
-              }}>
-                <span style={{ flex: 1, fontSize: '12px', color: 'var(--text-primary)' }}>{m.title}</span>
-                <span style={{
-                  fontSize: '10px', padding: '2px 6px', borderRadius: '4px',
-                  background: 'var(--bg-elevated)', color: 'var(--text-muted)',
-                  textTransform: 'capitalize', fontFamily: 'monospace',
-                }}>{m.assignee}</span>
-                <button
-                  onClick={() => updateMissionStatus(m.id, m.status)}
-                  style={{
-                    fontSize: '10px', padding: '3px 10px', borderRadius: '8px', border: 'none',
-                    cursor: 'pointer', fontWeight: 600, textTransform: 'capitalize',
-                    transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
-                    ...missionStatusStyle(m.status),
-                  }}
-                >{m.status}</button>
-                <button onClick={() => deleteMission(m.id)} className="btn-delete">✕</button>
-              </div>
-            ))}
-          </div>
-          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '28px', background: 'linear-gradient(to bottom, transparent, var(--bg-card-solid))', pointerEvents: 'none' }} />
-          </div>
-          <div style={{ display: 'flex', gap: '6px' }}>
-            <input
-              value={missionInput}
-              onChange={e => setMissionInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addMission()}
-              placeholder="New mission..."
-              style={{ flex: 1, minWidth: 0, background: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border)', borderRadius: '10px', padding: '8px 12px', fontSize: '12px', color: 'var(--text-primary)', outline: 'none' }}
-            />
-            <select
-              value={missionAssignee}
-              onChange={e => setMissionAssignee(e.target.value)}
-              style={{ background: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border)', borderRadius: '10px', padding: '8px 10px', fontSize: '12px', color: 'var(--text-primary)', outline: 'none', cursor: 'pointer' }}
-            >
-              <option value="team">team</option>
-              <option value="bjorn">bjorn</option>
-              <option value="devstral">devstral</option>
-              <option value="deep">deep</option>
-            </select>
-            <button onClick={addMission} style={{ background: 'var(--accent)', border: 'none', borderRadius: '10px', color: '#fff', padding: '8px 16px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 12px rgba(167, 139, 250, 0.25)' }}>Add</button>
-          </div>
+          {!mounted ? (
+            <SkeletonRows count={3} />
+          ) : (
+            <div style={{ position: 'relative' }}>
+            <div className="hidden-scrollbar" style={{ maxHeight: '280px', overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {missions.length === 0 ? (
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>No missions assigned</div>
+              ) : missions.map(m => (
+                <div key={m.id} style={{
+                  display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px',
+                  background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', border: '1px solid var(--border)', transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
+                }}>
+                  <span style={{ flex: 1, fontSize: '12px', color: 'var(--text-primary)' }}>{m.title}</span>
+                  <span style={{
+                    fontSize: '10px', padding: '2px 6px', borderRadius: '4px',
+                    background: 'var(--bg-elevated)', color: 'var(--text-muted)',
+                    textTransform: 'capitalize', fontFamily: 'monospace',
+                  }}>{m.assignee}</span>
+                  <button
+                    onClick={() => updateMissionStatus(m.id, m.status)}
+                    style={{
+                      fontSize: '10px', padding: '3px 10px', borderRadius: '8px', border: 'none',
+                      cursor: 'pointer', fontWeight: 600, textTransform: 'capitalize',
+                      transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
+                      ...missionStatusStyle(m.status),
+                    }}
+                  >{m.status}</button>
+                  <button onClick={() => deleteMission(m.id)} className="btn-delete">✕</button>
+                </div>
+              ))}
+            </div>
+            </div>
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '28px', background: 'linear-gradient(to bottom, transparent, var(--bg-card-solid))', pointerEvents: 'none' }} />
+            </div>
+          )}
         </div>
 
         {/* ── Memory — PURPLE dates ── */}

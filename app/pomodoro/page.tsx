@@ -30,14 +30,9 @@ const MODE_LABELS: Record<Mode, string> = {
   long: 'Long Break',
 }
 
-const ZOOM_OPTIONS = [
-  { label: '1W', weeks: 1 },
-  { label: '1M', weeks: 4 },
-  { label: '3M', weeks: 13 },
-  { label: '6M', weeks: 26 },
-  { label: '1Y', weeks: 52 },
-]
-const ZOOM_STORAGE_KEY = 'pomodoro-heatmap-zoom'
+const MIN_CELL_SIZE = 4
+const MAX_CELL_SIZE = 18
+const CELL_SIZE_STORAGE_KEY = 'pomodoro-heatmap-cellsize'
 
 function playChime(type: 'work' | 'break') {
   try {
@@ -144,8 +139,8 @@ export default function PomodoroPage() {
   const [focusText, setFocusText] = useState('')
   const [completionPrompt, setCompletionPrompt] = useState(false)
 
-  // Heatmap zoom
-  const [zoomWeeks, setZoomWeeks] = useState(13)
+  // Heatmap zoom — cell size controlled by scroll wheel
+  const [cellSizeTarget, setCellSizeTarget] = useState(8)
   const heatmapGridRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(0)
   const [containerHeight, setContainerHeight] = useState(0)
@@ -168,10 +163,10 @@ export default function PomodoroPage() {
     setMounted(true)
     // Load zoom preference
     try {
-      const saved = localStorage.getItem(ZOOM_STORAGE_KEY)
+      const saved = localStorage.getItem(CELL_SIZE_STORAGE_KEY)
       if (saved) {
         const n = parseInt(saved)
-        if (ZOOM_OPTIONS.some(z => z.weeks === n)) setZoomWeeks(n)
+        if (n >= MIN_CELL_SIZE && n <= MAX_CELL_SIZE) setCellSizeTarget(n)
       }
     } catch { /* ignore */ }
   }, [])
@@ -190,10 +185,22 @@ export default function PomodoroPage() {
     return () => ro.disconnect()
   }, [])
 
-  const handleZoomChange = (weeks: number) => {
-    setZoomWeeks(weeks)
-    try { localStorage.setItem(ZOOM_STORAGE_KEY, String(weeks)) } catch { /* ignore */ }
-  }
+  const handleHeatmapWheel = useCallback((e: WheelEvent) => {
+    e.preventDefault()
+    setCellSizeTarget(prev => {
+      const delta = e.deltaY < 0 ? 1 : -1
+      const next = Math.max(MIN_CELL_SIZE, Math.min(MAX_CELL_SIZE, prev + delta))
+      try { localStorage.setItem(CELL_SIZE_STORAGE_KEY, String(next)) } catch { /* ignore */ }
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    const el = heatmapGridRef.current
+    if (!el) return
+    el.addEventListener('wheel', handleHeatmapWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleHeatmapWheel)
+  }, [handleHeatmapWheel])
 
   // Keep browser title in sync
   useEffect(() => {
@@ -363,8 +370,25 @@ export default function PomodoroPage() {
   const todayWork = todaySessions.filter(s => s.type === 'work').length
   const nextPomodoro = (pomodoroCount % 4) + 1
 
-  // Heatmap data — build max weeks, slice to visibleWeeks when rendering
-  const { today: heatToday, weeks: allWeeks } = buildHeatmapGrid(zoomWeeks)
+  // Heatmap: cell size from scroll wheel, capped by container height
+  const monthLabelH = cellSizeTarget >= 8 ? 11 : 0
+  const maxCellFromHeight = containerHeight > 0
+    ? Math.max(MIN_CELL_SIZE, Math.floor((containerHeight - monthLabelH - 6 * CELL_GAP) / 7))
+    : MAX_CELL_SIZE
+  const cellSize = Math.min(cellSizeTarget, maxCellFromHeight)
+  const visibleWeeks = containerWidth > 0
+    ? Math.max(4, Math.floor(containerWidth / (cellSize + CELL_GAP)))
+    : 13
+  const showMonthLabels = cellSize >= 8
+
+  // Zoom label
+  const totalDays = visibleWeeks * 7
+  const zoomLabel = totalDays <= 14 ? `${totalDays}d`
+    : totalDays <= 56 ? `${Math.round(totalDays / 7)}w`
+    : totalDays <= 180 ? `${Math.round(totalDays / 30)}mo`
+    : `${(totalDays / 365).toFixed(1)}y`
+
+  const { today: heatToday, weeks: allWeeks } = buildHeatmapGrid(visibleWeeks)
   const heatTodayKey = toDateKey(heatToday)
 
   const sessionMap: Record<string, number> = {}
@@ -403,19 +427,8 @@ export default function PomodoroPage() {
     check.setDate(check.getDate() - 1)
   }
 
-  // Cell size from height: fit 7 rows + 6 gaps in the grid area (month label already accounted for separately)
-  const monthLabelH = 11
-  const cellSize = containerHeight > 0
-    ? Math.max(4, Math.floor((containerHeight - monthLabelH - 6 * CELL_GAP) / 7))
-    : 8
-  // Visible weeks: how many columns fit in container width at this cell size
-  const visibleWeeks = containerWidth > 0 && cellSize > 0
-    ? Math.min(zoomWeeks, Math.max(1, Math.floor(containerWidth / (cellSize + CELL_GAP))))
-    : zoomWeeks
-  const showMonthLabels = cellSize >= 8
-
-  // Slice to visible weeks and compute month labels
-  const weeks = allWeeks.slice(allWeeks.length - visibleWeeks)
+  // Compute month labels for visible weeks
+  const weeks = allWeeks
   const monthLabels: (string | null)[] = weeks.map((week, i) => {
     const monday = week[0]
     if (i === 0) return MONTH_NAMES[monday.getMonth()]
@@ -716,35 +729,32 @@ export default function PomodoroPage() {
             <div style={{ fontSize: '9px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
               Activity
             </div>
-            <div style={{ display: 'flex', gap: '2px' }}>
-              {ZOOM_OPTIONS.map(z => (
-                <button
-                  key={z.label}
-                  onClick={() => handleZoomChange(z.weeks)}
-                  style={{
-                    padding: '1px 5px', borderRadius: '3px',
-                    border: zoomWeeks === z.weeks ? '1px solid rgba(155,132,236,0.5)' : '1px solid transparent',
-                    background: zoomWeeks === z.weeks ? 'rgba(155,132,236,0.18)' : 'transparent',
-                    color: zoomWeeks === z.weeks ? 'var(--accent-bright)' : 'var(--text-muted)',
-                    fontSize: '8px', fontWeight: 700, cursor: 'pointer',
-                    fontFamily: 'monospace', letterSpacing: '0.04em',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {z.label}
-                </button>
-              ))}
+            <div style={{
+              fontSize: '8px', fontWeight: 700, color: 'var(--accent-bright)',
+              fontFamily: 'monospace', letterSpacing: '0.04em',
+              padding: '1px 6px', borderRadius: '3px',
+              background: 'rgba(155,132,236,0.12)',
+              border: '1px solid rgba(155,132,236,0.3)',
+              transition: 'all 0.3s ease',
+              userSelect: 'none',
+            }}>
+              {zoomLabel} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>· scroll to zoom</span>
             </div>
           </div>
 
-          <div ref={heatmapGridRef} style={{ flex: 1, overflow: 'hidden', width: '100%' }}>
-            <div style={{ display: 'flex', gap: `${CELL_GAP}px` }}>
+          <div ref={heatmapGridRef} style={{ flex: 1, overflow: 'hidden', width: '100%', cursor: 'zoom-in' }}>
+            <div style={{
+              display: 'flex', gap: `${CELL_GAP}px`,
+              justifyContent: 'flex-end',
+              transition: 'gap 0.25s ease',
+            }}>
               {weeks.map((week, wi) => (
                 <div
                   key={wi}
                   style={{
                     display: 'flex', flexDirection: 'column', gap: `${CELL_GAP}px`,
                     width: `${cellSize}px`, flexShrink: 0,
+                    transition: 'width 0.25s ease',
                   }}
                 >
                   <div style={{
@@ -752,9 +762,10 @@ export default function PomodoroPage() {
                     overflow: 'hidden', fontSize: '8px',
                     color: 'var(--text-muted)', fontFamily: 'monospace',
                     whiteSpace: 'nowrap', userSelect: 'none',
-                    lineHeight: '11px', transition: 'height 0.2s',
+                    lineHeight: '11px', transition: 'height 0.25s ease, opacity 0.25s ease',
+                    opacity: showMonthLabels ? 1 : 0,
                   }}>
-                    {showMonthLabels ? (monthLabels[wi] || '') : ''}
+                    {monthLabels[wi] || ''}
                   </div>
                   {week.map((date, di) => {
                     const key = toDateKey(date)
@@ -778,7 +789,7 @@ export default function PomodoroPage() {
                           outline: isToday ? '1px solid var(--accent)' : 'none',
                           outlineOffset: '1px',
                           cursor: isFuture ? 'default' : 'pointer',
-                          transition: 'transform 0.1s, background 0.15s',
+                          transition: 'width 0.25s ease, height 0.25s ease, transform 0.1s, background 0.15s, border-radius 0.25s ease',
                           flexShrink: 0,
                         }}
                         onMouseOver={e => {

@@ -42,8 +42,8 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next()
   }
 
-  // Skip auth for login page and auth callback
-  if (pathname === '/login' || pathname.startsWith('/auth/')) {
+  // Skip auth for login page, auth callback, and Tauri OAuth handoff
+  if (pathname === '/login' || pathname.startsWith('/auth/') || pathname === '/api/auth/tauri-session') {
     return NextResponse.next()
   }
 

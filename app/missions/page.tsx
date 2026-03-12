@@ -615,9 +615,10 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
 
       {/* ── Files touched (inline compact strip) ─────────────────── */}
       {(filesModified.length > 0 || filesRead.length > 0) && (() => {
+        const modifiedPaths = new Set(filesModified.map(([p]) => p))
         const allFiles = [
           ...filesModified.map(([p]) => ({ path: p, color: '#4ade80' })),
-          ...filesRead.map(([p]) => ({ path: p, color: '#52525b' })),
+          ...filesRead.filter(([p]) => !modifiedPaths.has(p)).map(([p]) => ({ path: p, color: '#52525b' })),
         ]
         const shown = allFiles.slice(0, 6)
         const extra = allFiles.length - 6

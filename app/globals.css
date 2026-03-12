@@ -158,6 +158,15 @@ html, body {
   scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
 }
 
+/* ── Hidden scrollbar — scrollable but no visible scrollbar ── */
+.hidden-scrollbar {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.hidden-scrollbar::-webkit-scrollbar {
+  display: none !important;
+}
+
 /* ── Status dot ── */
 
 .status-dot {

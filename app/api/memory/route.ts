@@ -2,9 +2,26 @@ import { NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
 
+const OPENCLAW_URL = process.env.OPENCLAW_API_URL
+const OPENCLAW_KEY = process.env.OPENCLAW_API_KEY
+
 export async function GET() {
+  // Remote API mode — proxy to OpenClaw VM
+  if (OPENCLAW_URL) {
+    try {
+      const headers: Record<string, string> = {}
+      if (OPENCLAW_KEY) headers['Authorization'] = `Bearer ${OPENCLAW_KEY}`
+      const res = await fetch(`${OPENCLAW_URL}/memory`, { headers, cache: 'no-store' })
+      if (!res.ok) return NextResponse.json({ entries: [] })
+      return NextResponse.json(await res.json())
+    } catch {
+      return NextResponse.json({ entries: [] })
+    }
+  }
+
+  // Local filesystem mode
   try {
-    const memoryDir = path.join(process.env.HOME || '/home/aparcedodev', '.openclaw/workspace/memory')
+    const memoryDir = path.join(process.env.HOME || '', '.openclaw/workspace/memory')
 
     if (!fs.existsSync(memoryDir)) {
       return NextResponse.json({ entries: [] })
@@ -21,7 +38,6 @@ export async function GET() {
       let preview = ''
       try {
         const content = fs.readFileSync(filePath, 'utf-8')
-        // Skip comment lines and get first real content
         const firstLine = content
           .split('\n')
           .find(l => l.trim() && !l.trim().startsWith('#')) || ''

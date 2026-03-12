@@ -2,9 +2,15 @@ import { NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
 
-const WORKSPACE = '/home/aparcedodev/.openclaw/workspace'
-const API_URL = process.env.OPENCLAW_API_URL
-const API_KEY = process.env.OPENCLAW_API_KEY
+const OPENCLAW_URL = process.env.OPENCLAW_API_URL
+const OPENCLAW_KEY = process.env.OPENCLAW_API_KEY
+const WORKSPACE = path.join(process.env.HOME || '', '.openclaw/workspace')
+
+function remoteHeaders(): Record<string, string> {
+  const h: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (OPENCLAW_KEY) h['Authorization'] = `Bearer ${OPENCLAW_KEY}`
+  return h
+}
 
 function safePath(userPath: string): string | null {
   const resolved = path.resolve(WORKSPACE, userPath.replace(/^\//, ''))
@@ -26,20 +32,21 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const filePath = searchParams.get('path') || ''
 
-  // Remote mode
-  if (API_URL) {
+  // Remote API mode
+  if (OPENCLAW_URL) {
     try {
-      const res = await fetch(`${API_URL}/file?path=${encodeURIComponent(filePath)}`, {
-        headers: API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {},
-      })
-      const data = await res.json()
-      return NextResponse.json(data, { status: res.status })
+      const res = await fetch(
+        `${OPENCLAW_URL}/file?path=${encodeURIComponent(filePath)}`,
+        { headers: remoteHeaders(), cache: 'no-store' },
+      )
+      if (!res.ok) return NextResponse.json({ error: 'File not found' }, { status: res.status })
+      return NextResponse.json(await res.json())
     } catch {
-      return NextResponse.json({ error: 'API unreachable' }, { status: 502 })
+      return NextResponse.json({ error: 'Remote fetch failed' }, { status: 502 })
     }
   }
 
-  // Local mode
+  // Local filesystem mode
   const full = safePath(filePath)
   if (!full) {
     return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
@@ -65,25 +72,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Content too large (max 5MB)' }, { status: 413 })
   }
 
-  // Remote mode
-  if (API_URL) {
+  // Remote API mode
+  if (OPENCLAW_URL) {
     try {
-      const res = await fetch(`${API_URL}/file`, {
+      const res = await fetch(`${OPENCLAW_URL}/file`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
-        },
+        headers: remoteHeaders(),
         body: JSON.stringify({ path: filePath, content }),
       })
-      const data = await res.json()
-      return NextResponse.json(data, { status: res.status })
+      if (!res.ok) return NextResponse.json({ error: 'Remote write failed' }, { status: res.status })
+      return NextResponse.json(await res.json())
     } catch {
-      return NextResponse.json({ error: 'API unreachable' }, { status: 502 })
+      return NextResponse.json({ error: 'Remote write failed' }, { status: 502 })
     }
   }
 
-  // Local mode
+  // Local filesystem mode
   const full = safePath(filePath)
   if (!full) {
     return NextResponse.json({ error: 'Invalid path' }, { status: 400 })

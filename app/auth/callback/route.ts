@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabase/server'
-import { setPendingSession } from '@/app/api/auth/tauri-session/route'
+import { setPendingCode } from '@/app/api/auth/tauri-session/route'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -9,21 +9,16 @@ export async function GET(request: Request) {
   let next = searchParams.get('next') ?? '/'
   if (!next.startsWith('/')) next = '/'
 
+  console.log('[auth/callback] code:', code ? code.slice(0, 8) + '...' : 'NONE', 'isTauri:', isTauri)
+
   if (code) {
-    const supabase = await createAuthClient()
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    // Tauri flow: don't exchange here (system browser lacks the PKCE verifier).
+    // Store the code so the WebView can poll for it and exchange client-side.
+    if (isTauri) {
+      setPendingCode(code)
 
-    if (!error && data.session) {
-      // Tauri flow: store tokens server-side for the WebView to pick up
-      if (isTauri) {
-        setPendingSession({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        })
-
-        // Return a simple page telling user to go back to the app
-        return new NextResponse(
-          `<!DOCTYPE html>
+      return new NextResponse(
+        `<!DOCTYPE html>
 <html><head><title>Mission Control</title>
 <style>
   body { background: #0a0a0c; color: #e4e4ec; font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
@@ -34,15 +29,19 @@ export async function GET(request: Request) {
   p { font-size: 13px; color: #9898a8; margin: 0; }
 </style></head>
 <body><div class="card">
-  <div style="font-size:32px">🦬</div>
+  <div style="font-size:32px">&#x1F9AC;</div>
   <h1>Signed in!</h1>
   <p>You can close this tab and return to Mission Control.</p>
 </div></body></html>`,
-          { status: 200, headers: { 'Content-Type': 'text/html' } }
-        )
-      }
+        { status: 200, headers: { 'Content-Type': 'text/html' } }
+      )
+    }
 
-      // Normal browser flow: check MFA and redirect
+    // Normal browser flow: exchange and redirect
+    const supabase = await createAuthClient()
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+
+    if (!error) {
       const base = request.headers.get('x-forwarded-host')
         ? `https://${request.headers.get('x-forwarded-host')}`
         : origin

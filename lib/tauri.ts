@@ -33,3 +33,13 @@ export async function sendNotification(title: string, body: string) {
 export async function isRunningInTauri(): Promise<boolean> {
   return (await getTauriInvoke()) !== null
 }
+
+export async function openInBrowser(url: string): Promise<boolean> {
+  try {
+    const { open } = await import('@tauri-apps/plugin-shell')
+    await open(url)
+    return true
+  } catch {
+    return false
+  }
+}

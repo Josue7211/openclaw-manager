@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createAuthClient } from '@/lib/supabase/client'
-import { isRunningInTauri } from '@/lib/tauri'
+import { openInBrowser } from '@/lib/tauri'
 
 type View = 'main' | 'email' | 'mfa' | 'mfa-enroll' | 'waiting'
 
@@ -49,16 +49,27 @@ export default function LoginPage() {
     }
   }, [mfaParam])
 
-  // Poll for Tauri OAuth session handoff
+  // Poll for Tauri OAuth code handoff — exchange happens here in the WebView
+  // because the PKCE code_verifier is stored in the WebView's cookies.
   useEffect(() => {
     if (view !== 'waiting') return
     const interval = setInterval(async () => {
       try {
-        const res = await fetch('/api/auth/tauri-session')
-        const { session } = await res.json()
-        if (session) {
-          // Set the session in the WebView's Supabase client
-          await supabase.auth.setSession(session)
+        const res = await fetch(`/api/auth/tauri-session?t=${Date.now()}`, { cache: 'no-store' })
+        const { code } = await res.json()
+        console.log('[tauri-poll] code:', code ? 'received' : 'waiting...')
+        if (code) {
+          // Exchange the code in the WebView (has the PKCE verifier in cookies)
+          console.log('[tauri-poll] exchanging code for session...')
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+          if (exchangeError) {
+            console.error('[tauri-poll] exchange failed:', exchangeError.message)
+            setError(exchangeError.message)
+            setView('main')
+            setLoading(false)
+            return
+          }
+          console.log('[tauri-poll] exchange succeeded!')
 
           // Check MFA
           const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
@@ -67,6 +78,7 @@ export default function LoginPage() {
             const totp = factors.data?.totp?.find(f => f.status === 'verified')
             if (totp) {
               setMfaFactorId(totp.id)
+              setLoading(false)
               setView('mfa')
               return
             }
@@ -79,6 +91,7 @@ export default function LoginPage() {
               setMfaFactorId(enrollData.id)
               setMfaQr(enrollData.totp.qr_code)
               setMfaSecret(enrollData.totp.secret)
+              setLoading(false)
               setView('mfa-enroll')
               return
             }
@@ -98,7 +111,8 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
 
-    // Build redirect URL — add tauri=1 flag for Tauri so callback stores tokens server-side
+    // Build redirect URL — add tauri=1 flag so the callback stores the code
+    // for the WebView to pick up (instead of exchanging server-side).
     const callbackUrl = isTauriApp
       ? `${window.location.origin}/auth/callback?tauri=1&next=${encodeURIComponent(next)}`
       : `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
@@ -118,10 +132,13 @@ export default function LoginPage() {
     if (data.url) {
       if (isTauriApp) {
         // Open in system browser, then poll for tokens
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const tauri = (window as any).__TAURI_INTERNALS__
-        await tauri.invoke('plugin:shell|open', { path: data.url })
-        setView('waiting')
+        const opened = await openInBrowser(data.url)
+        if (opened) {
+          setView('waiting')
+        } else {
+          setError('Could not open browser. Please try again.')
+          setLoading(false)
+        }
       } else {
         window.location.href = data.url
       }

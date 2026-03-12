@@ -90,8 +90,8 @@ export async function GET() {
 
     const calendars = await client.fetchCalendars()
 
-    const now = new Date()
-    const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+    const ago30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const in30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
 
     const allEvents: CalendarEvent[] = []
 
@@ -101,7 +101,7 @@ export async function GET() {
           const objects = await client.fetchCalendarObjects({
             calendar: cal,
             timeRange: {
-              start: now.toISOString(),
+              start: ago30.toISOString(),
               end: in30.toISOString(),
             },
           })

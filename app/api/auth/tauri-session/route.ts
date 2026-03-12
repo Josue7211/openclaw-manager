@@ -1,26 +1,30 @@
 import { NextResponse } from 'next/server'
+import { readFileSync, writeFileSync, unlinkSync } from 'fs'
+import { join } from 'path'
+import { tmpdir } from 'os'
 
-// Server-side store for pending Tauri OAuth tokens (single-user, in-memory)
-let pendingSession: { access_token: string; refresh_token: string } | null = null
-let pendingAt = 0
+export const dynamic = 'force-dynamic'
 
-export function setPendingSession(tokens: { access_token: string; refresh_token: string }) {
-  pendingSession = tokens
-  pendingAt = Date.now()
+const CODE_FILE = join(tmpdir(), 'mc-tauri-auth-code')
+
+export function setPendingCode(code: string) {
+  console.log('[tauri-session] storing code to', CODE_FILE)
+  writeFileSync(CODE_FILE, code, 'utf-8')
 }
 
-// GET: Tauri WebView polls this to pick up tokens after OAuth in system browser
+// GET: Tauri WebView polls this to pick up the OAuth code after auth in system browser
 export async function GET() {
-  // Expire after 5 minutes
-  if (pendingSession && Date.now() - pendingAt > 5 * 60 * 1000) {
-    pendingSession = null
+  const headers = {
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+    'Pragma': 'no-cache',
   }
 
-  if (!pendingSession) {
-    return NextResponse.json({ session: null })
+  try {
+    const code = readFileSync(CODE_FILE, 'utf-8')
+    unlinkSync(CODE_FILE) // One-time use
+    console.log('[tauri-session] delivering code to webview')
+    return NextResponse.json({ code }, { headers })
+  } catch {
+    return NextResponse.json({ code: null }, { headers })
   }
-
-  const tokens = pendingSession
-  pendingSession = null // One-time use
-  return NextResponse.json({ session: tokens })
 }
