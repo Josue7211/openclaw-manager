@@ -67,13 +67,15 @@ export default function LoginPage() {
       return
     }
     if (data.url) {
-      // Try Tauri shell.open first, fall back to window.location
-      try {
-        const { open } = await import('@tauri-apps/plugin-shell')
-        await open(data.url)
+      // Check if running inside Tauri WebView
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tauri = (window as any).__TAURI_INTERNALS__
+      if (tauri?.invoke) {
+        // Open OAuth URL in system browser, not the WebView
+        await tauri.invoke('plugin:shell|open', { path: data.url })
         setLoading(false)
-      } catch {
-        // Not in Tauri or plugin unavailable — normal browser redirect
+      } else {
+        // Normal browser — redirect in place
         window.location.href = data.url
       }
     }
