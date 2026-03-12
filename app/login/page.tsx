@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createAuthClient } from '@/lib/supabase/client'
+import { isRunningInTauri } from '@/lib/tauri'
 
 type View = 'main' | 'email' | 'mfa' | 'mfa-enroll'
 
@@ -51,15 +52,40 @@ export default function LoginPage() {
   async function handleOAuth(provider: 'github' | 'google') {
     setError('')
     setLoading(true)
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
-      },
-    })
-    if (error) {
-      setError(error.message)
-      setLoading(false)
+
+    const isTauri = await isRunningInTauri()
+
+    if (isTauri) {
+      // In Tauri: get the OAuth URL without redirecting, then open in system browser
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+          skipBrowserRedirect: true,
+        },
+      })
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+        return
+      }
+      if (data.url) {
+        const { open } = await import('@tauri-apps/plugin-shell')
+        await open(data.url)
+        setLoading(false)
+      }
+    } else {
+      // In browser: normal redirect flow
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        },
+      })
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+      }
     }
   }
 
