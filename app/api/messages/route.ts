@@ -134,18 +134,15 @@ export async function GET(req: Request) {
           with: ['lastMessage', 'participants'],
         }),
       }),
-      // Only fetch recent messages supplement for large requests (it's expensive)
-      requestedConvLimit > 100
-        ? bbFetch('/message/query', {
-            method: 'POST',
-            body: JSON.stringify({
-              limit: 500,
-              sort: 'DESC',
-              after: Date.now() - 14 * 24 * 60 * 60 * 1000, // last 14 days
-              with: ['chat'],
-            }),
-          }).catch(() => [])
-        : Promise.resolve([]),
+      bbFetch('/message/query', {
+        method: 'POST',
+        body: JSON.stringify({
+          limit: 1000,
+          sort: 'DESC',
+          after: Date.now() - 30 * 24 * 60 * 60 * 1000,
+          with: ['chat'],
+        }),
+      }).catch(() => []),
       getContactMap(),
     ]
     const [chats, recentMessages, contactMap] = await Promise.all(fetchPromises)
