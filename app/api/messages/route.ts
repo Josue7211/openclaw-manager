@@ -122,29 +122,33 @@ export async function GET(req: Request) {
       })
     }
 
-    // Fetch conversations, recent messages, and contacts in parallel
-    const [chats, recentMessages, contactMap] = await Promise.all([
+    // Fetch conversations and contacts in parallel
+    const requestedConvLimit = Math.max(1, Math.min(parseInt(limit, 10) || 25, 500))
+    const fetchPromises: [Promise<unknown>, Promise<unknown>, Promise<Map<string, string>>] = [
       bbFetch('/chat/query', {
         method: 'POST',
         body: JSON.stringify({
-          limit: Math.max(1, Math.min(parseInt(limit, 10) || 25, 500)),
+          limit: requestedConvLimit,
           offset: 0,
           sort: 'lastmessage',
           with: ['lastMessage', 'participants'],
         }),
       }),
-      // Also fetch recent messages to find active chats BB's query misses
-      bbFetch('/message/query', {
-        method: 'POST',
-        body: JSON.stringify({
-          limit: 1000,
-          sort: 'DESC',
-          after: Date.now() - 30 * 24 * 60 * 60 * 1000, // last 30 days
-          with: ['chat'],
-        }),
-      }).catch(() => []),
+      // Only fetch recent messages supplement for large requests (it's expensive)
+      requestedConvLimit > 100
+        ? bbFetch('/message/query', {
+            method: 'POST',
+            body: JSON.stringify({
+              limit: 500,
+              sort: 'DESC',
+              after: Date.now() - 14 * 24 * 60 * 60 * 1000, // last 14 days
+              with: ['chat'],
+            }),
+          }).catch(() => [])
+        : Promise.resolve([]),
       getContactMap(),
-    ])
+    ]
+    const [chats, recentMessages, contactMap] = await Promise.all(fetchPromises)
 
     // Service priority: iMessage > RCS > SMS > other
     function servicePriority(guid: string): number {
@@ -380,7 +384,9 @@ export async function GET(req: Request) {
     // Sort by most recent message
     conversations.sort((a, b) => (b.lastDate || 0) - (a.lastDate || 0))
 
-    return NextResponse.json({ conversations, contacts: contactLookup })
+    return NextResponse.json({ conversations, contacts: contactLookup }, {
+      headers: { 'Cache-Control': 'private, max-age=5, stale-while-revalidate=30' },
+    })
   } catch (err) {
     const raw = err instanceof Error ? err.message : String(err)
     if (raw === 'bluebubbles_not_configured') {

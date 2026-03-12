@@ -383,6 +383,33 @@ function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
 
 /* ─── ContactAvatar ─────────────────────────────────────────────────────── */
 
+// Module-level avatar cache — persists across re-renders, cleared on page refresh
+const avatarCache = new Map<string, 'ok' | 'miss'>()
+
+// Batch-check which addresses have avatars (called once per conversation list load)
+let batchCheckPromise: Promise<void> | null = null
+function ensureAvatarBatchCheck(addresses: string[]) {
+  const unchecked = addresses.filter(a => a && !avatarCache.has(a))
+  if (unchecked.length === 0 || batchCheckPromise) return
+  batchCheckPromise = fetch('/api/messages/avatar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ addresses: unchecked }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      const available = new Set(data.available || [])
+      for (const addr of unchecked) {
+        avatarCache.set(addr, available.has(addr) ? 'ok' : 'miss')
+      }
+    })
+    .catch(() => {
+      // On failure, mark all as miss to avoid retry storm
+      for (const addr of unchecked) avatarCache.set(addr, 'miss')
+    })
+    .finally(() => { batchCheckPromise = null })
+}
+
 function ContactAvatar({ address, name, isImsg, size = 40 }: {
   address: string
   name?: string | null
@@ -395,13 +422,21 @@ function ContactAvatar({ address, name, isImsg, size = 40 }: {
   const bgColor = hashColor(address || name || 'default')
 
   useEffect(() => {
-    setPhotoUrl(null) // Reset on address change
+    setPhotoUrl(null)
     if (!address) return
+    // Skip fetch if we already know there's no avatar
+    const cached = avatarCache.get(address)
+    if (cached === 'miss') return
+
     let cancelled = false
     const url = `/api/messages/avatar?address=${encodeURIComponent(address)}`
     const img = new Image()
-    img.onload = () => { if (!cancelled) setPhotoUrl(url) }
-    img.onerror = () => { if (!cancelled) setPhotoUrl(null) }
+    img.onload = () => {
+      if (!cancelled) { setPhotoUrl(url); avatarCache.set(address, 'ok') }
+    }
+    img.onerror = () => {
+      if (!cancelled) { setPhotoUrl(null); avatarCache.set(address, 'miss') }
+    }
     img.src = url
     return () => { cancelled = true }
   }, [address])
@@ -924,18 +959,24 @@ export default function MessagesPage() {
   const fetchConversations = useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true)
-      const res = await fetch('/api/messages?limit=500')
+      const res = await fetch('/api/messages?limit=100')
       const data = await res.json()
       if (data.error) {
         if (!silent) setError(data.error)
       } else {
-        setConversations(data.conversations ?? [])
+        const convs = data.conversations ?? []
+        setConversations(convs)
         if (data.contacts) setContactLookup(prev => {
           const keys = Object.keys(data.contacts)
           if (keys.every(k => prev[k] === data.contacts[k])) return prev
           return { ...prev, ...data.contacts }
         })
         if (!silent) setError(null)
+        // Batch-check avatars for all visible contacts
+        const allAddresses = convs.flatMap((c: Conversation) =>
+          (c.participants || []).map((p: { address: string }) => p.address).filter(Boolean)
+        )
+        if (allAddresses.length > 0) ensureAvatarBatchCheck(allAddresses)
       }
     } catch (e) {
       if (!silent) setError(e instanceof Error ? e.message : 'Failed to fetch')

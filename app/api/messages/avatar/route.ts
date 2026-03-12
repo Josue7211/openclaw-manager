@@ -102,5 +102,36 @@ export async function GET(req: Request) {
     } catch { /* fall through */ }
   }
 
-  return new NextResponse(null, { status: 404 })
+  return new NextResponse(null, {
+    status: 404,
+    headers: { 'Cache-Control': 'public, max-age=86400' }, // cache 404 for 24h
+  })
+}
+
+// POST /api/messages/avatar — batch check which addresses have avatars
+export async function POST(req: Request) {
+  try {
+    const { addresses } = await req.json()
+    if (!Array.isArray(addresses)) {
+      return NextResponse.json({ error: 'addresses array required' }, { status: 400 })
+    }
+
+    const avatars = await getBBContactAvatars()
+    const available: string[] = []
+
+    for (const addr of addresses) {
+      if (typeof addr !== 'string') continue
+      const normalized = normalizePhone(addr)
+      const lowered = addr.toLowerCase()
+      if (avatars.has(normalized) || avatars.has(lowered)) {
+        available.push(addr)
+      }
+    }
+
+    return NextResponse.json({ available }, {
+      headers: { 'Cache-Control': 'public, max-age=300' },
+    })
+  } catch {
+    return NextResponse.json({ available: [] })
+  }
 }
