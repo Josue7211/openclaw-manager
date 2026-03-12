@@ -134,15 +134,17 @@ export async function GET(req: Request) {
           with: ['lastMessage', 'participants'],
         }),
       }),
-      bbFetch('/message/query', {
-        method: 'POST',
-        body: JSON.stringify({
-          limit: 1000,
-          sort: 'DESC',
-          after: Date.now() - 30 * 24 * 60 * 60 * 1000,
-          with: ['chat'],
-        }),
-      }).catch(() => []),
+      requestedConvLimit > 100
+        ? bbFetch('/message/query', {
+            method: 'POST',
+            body: JSON.stringify({
+              limit: 500,
+              sort: 'DESC',
+              after: Date.now() - 14 * 24 * 60 * 60 * 1000,
+              with: ['chat'],
+            }),
+          }).catch(() => [])
+        : Promise.resolve([]),
       getContactMap(),
     ]
     const [chats, recentMessages, contactMap] = await Promise.all(fetchPromises)

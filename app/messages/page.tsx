@@ -959,7 +959,7 @@ export default function MessagesPage() {
   const fetchConversations = useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true)
-      const res = await fetch('/api/messages?limit=500')
+      const res = await fetch('/api/messages?limit=100')
       const data = await res.json()
       if (data.error) {
         if (!silent) setError(data.error)
