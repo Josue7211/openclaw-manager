@@ -171,8 +171,8 @@ export default function Sidebar() {
         <img
           src="/logo-40.png"
           alt="Mission Control"
-          width={40}
-          height={40}
+          width={45}
+          height={45}
           style={{
             flexShrink: 0,
             filter: 'drop-shadow(0 2px 8px rgba(167, 139, 250, 0.3))',
@@ -182,12 +182,14 @@ export default function Sidebar() {
         {!collapsed && (
           <div style={{ animation: 'slideInLeft 0.3s cubic-bezier(0.22, 1, 0.36, 1) both' }}>
             <div style={{
-              fontSize: '12px',
+              fontSize: '22px',
               fontWeight: 700,
+              fontFamily: "'Bitcount Prop Double', monospace",
               color: 'var(--text-primary)',
-              letterSpacing: '0.06em',
+              letterSpacing: '0.08em',
+              lineHeight: 0.9,
             }}>
-              MISSION CONTROL
+              MISSION<br />CONTROL
             </div>
           </div>
         )}
@@ -324,19 +326,6 @@ export default function Sidebar() {
         </span>
       </button>
 
-      {/* Version */}
-      {!collapsed && (
-        <div style={{
-          padding: '8px 16px',
-          borderTop: '1px solid var(--glass-border)',
-          fontSize: '9px',
-          color: 'var(--text-muted)',
-          fontFamily: "'JetBrains Mono', monospace",
-          opacity: 0.6,
-        }}>
-          v2026.3.2
-        </div>
-      )}
     </nav>
   )
 }
