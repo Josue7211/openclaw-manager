@@ -408,7 +408,7 @@ fn parse_messages(file_path: &Path) -> Vec<ChatMessage> {
 }
 
 // ---------------------------------------------------------------------------
-// WebSocket chat.send to OpenClaw (mirrors lib/openclaw.ts openclawChatSend)
+// HTTP chat completions to OpenClaw gateway (/v1/chat/completions)
 // ---------------------------------------------------------------------------
 
 #[derive(Debug)]
@@ -419,171 +419,57 @@ struct ChatSendResult {
 
 async fn openclaw_chat_send(
     message: &str,
-    attachments: Option<Vec<Value>>,
-    deliver: bool,
+    _attachments: Option<Vec<Value>>,
+    _deliver: bool,
 ) -> ChatSendResult {
-    use futures::{SinkExt, StreamExt};
-    use tokio_tungstenite::tungstenite::Message;
-
-    let ws_url = openclaw_ws();
+    let gateway_url = openclaw_ws()
+        .replace("ws://", "http://")
+        .replace("wss://", "https://");
     let password = openclaw_password();
+    let url = format!("{}/v1/chat/completions", gateway_url);
 
-    let ws_stream = match tokio_tungstenite::connect_async(&ws_url).await {
-        Ok((stream, _)) => stream,
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(120))
+        .build()
+    {
+        Ok(c) => c,
         Err(e) => {
             return ChatSendResult {
                 ok: false,
-                error: Some(format!("ws connect error: {}", e)),
+                error: Some(format!("http client error: {}", e)),
             };
         }
     };
 
-    let (mut write, mut read) = ws_stream.split();
-    let mut connected = false;
-
-    let timeout = tokio::time::timeout(Duration::from_secs(15), async {
-        while let Some(msg_result) = read.next().await {
-            let msg = match msg_result {
-                Ok(m) => m,
-                Err(e) => {
-                    return ChatSendResult {
-                        ok: false,
-                        error: Some(format!("ws read error: {}", e)),
-                    };
-                }
-            };
-
-            let text = match msg {
-                Message::Text(t) => t,
-                Message::Close(_) => {
-                    if !connected {
-                        return ChatSendResult {
-                            ok: false,
-                            error: Some("closed early".into()),
-                        };
-                    }
-                    continue;
-                }
-                _ => continue,
-            };
-
-            let frame: Value = match serde_json::from_str(&text) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-
-            let frame_type = frame.get("type").and_then(|t| t.as_str()).unwrap_or("");
-
-            // Step 1: Respond to connect.challenge with auth credentials
-            if frame_type == "event"
-                && frame.get("event").and_then(|e| e.as_str())
-                    == Some("connect.challenge")
-            {
-                let connect_req = json!({
-                    "type": "req",
-                    "id": random_uuid(),
-                    "method": "connect",
-                    "params": {
-                        "minProtocol": 3,
-                        "maxProtocol": 3,
-                        "client": {
-                            "id": "gateway-client",
-                            "version": "1.0.0",
-                            "platform": "linux",
-                            "mode": "ui"
-                        },
-                        "role": "operator",
-                        "scopes": ["operator.read", "operator.write"],
-                        "caps": [],
-                        "commands": [],
-                        "permissions": {},
-                        "auth": { "password": password },
-                        "locale": "en-US",
-                        "userAgent": "mission-control/1.0.0"
-                    }
-                });
-                if let Err(e) = write
-                    .send(Message::Text(connect_req.to_string()))
-                    .await
-                {
-                    return ChatSendResult {
-                        ok: false,
-                        error: Some(format!("ws send error: {}", e)),
-                    };
-                }
-            }
-            // Step 2: After hello-ok, send chat.send request
-            else if !connected
-                && frame_type == "res"
-                && frame.get("ok").and_then(|v| v.as_bool()) == Some(true)
-                && frame
-                    .get("payload")
-                    .and_then(|p| p.get("type"))
-                    .and_then(|t| t.as_str())
-                    == Some("hello-ok")
-            {
-                connected = true;
-
-                let mut params = json!({
-                    "sessionKey": "main",
-                    "message": message,
-                    "deliver": deliver,
-                    "idempotencyKey": random_uuid(),
-                });
-                if let Some(ref att) = attachments {
-                    if !att.is_empty() {
-                        params
-                            .as_object_mut()
-                            .unwrap()
-                            .insert("attachments".into(), json!(att));
-                    }
-                }
-
-                let chat_req = json!({
-                    "type": "req",
-                    "id": random_uuid(),
-                    "method": "chat.send",
-                    "params": params,
-                });
-                if let Err(e) = write
-                    .send(Message::Text(chat_req.to_string()))
-                    .await
-                {
-                    return ChatSendResult {
-                        ok: false,
-                        error: Some(format!("ws send error: {}", e)),
-                    };
-                }
-            }
-            // Step 3: Receive chat.send response
-            else if connected && frame_type == "res" {
-                let ok = frame.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
-                let error = if ok {
-                    None
-                } else {
-                    frame
-                        .get("error")
-                        .and_then(|e| e.get("message"))
-                        .and_then(|m| m.as_str())
-                        .map(|s| s.to_string())
-                };
-                let _ = write.close().await;
-                return ChatSendResult { ok, error };
-            }
-        }
-
-        // Stream ended without getting a response
-        ChatSendResult {
-            ok: false,
-            error: Some("ws stream ended unexpectedly".into()),
-        }
+    let body = json!({
+        "messages": [{"role": "user", "content": message}],
+        "model": "default",
     });
 
-    match timeout.await {
-        Ok(result) => result,
-        Err(_) => ChatSendResult {
+    let res = client
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .header("Authorization", format!("Bearer {}", password))
+        .json(&body)
+        .send()
+        .await;
+
+    match res {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                ChatSendResult { ok: true, error: None }
+            } else {
+                let status = resp.status();
+                let text = resp.text().await.unwrap_or_default();
+                ChatSendResult {
+                    ok: false,
+                    error: Some(format!("gateway returned {}: {}", status, text)),
+                }
+            }
+        }
+        Err(e) => ChatSendResult {
             ok: false,
-            error: Some("timeout".into()),
+            error: Some(format!("http request error: {}", e)),
         },
     }
 }
