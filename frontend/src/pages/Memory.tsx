@@ -3,6 +3,8 @@
 
 import { useState, useCallback } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { API_BASE } from '@/lib/api'
+import { SkeletonList } from '@/components/Skeleton'
 
 interface FileItem {
   name: string
@@ -14,11 +16,9 @@ interface FileTree {
   memoryFiles: FileItem[]
 }
 
-const API_BASE = 'http://127.0.0.1:3000'
-
 export default function MemoryPage() {
   const queryClient = useQueryClient()
-  const { data: treeData } = useQuery<FileTree>({
+  const { data: treeData, isLoading: treeLoading } = useQuery<FileTree>({
     queryKey: ['workspace-files'],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/api/workspace/files`)
@@ -127,54 +127,60 @@ export default function MemoryPage() {
         </div>
 
         {/* Core files section */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{
-            fontSize: '11px',
-            fontWeight: 700,
-            color: 'var(--text-muted)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            padding: '8px 12px 4px',
-          }}>
-            Workspace Files
-          </div>
-          {tree.coreFiles.length === 0 && (
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '4px 12px' }}>No files found</div>
-          )}
-          {tree.coreFiles.map(f => (
-            <FileRow
-              key={f.path}
-              file={f}
-              active={activeFile === f.path}
-              onClick={() => loadFile(f.path)}
-            />
-          ))}
-        </div>
+        {treeLoading ? (
+          <SkeletonList count={2} lines={2} />
+        ) : (
+          <>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                padding: '8px 12px 4px',
+              }}>
+                Workspace Files
+              </div>
+              {tree.coreFiles.length === 0 && (
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '4px 12px' }}>No files found</div>
+              )}
+              {tree.coreFiles.map(f => (
+                <FileRow
+                  key={f.path}
+                  file={f}
+                  active={activeFile === f.path}
+                  onClick={() => loadFile(f.path)}
+                />
+              ))}
+            </div>
 
-        {/* Memory logs section */}
-        <div>
-          <div style={{
-            fontSize: '11px',
-            fontWeight: 700,
-            color: 'var(--text-muted)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            padding: '8px 12px 4px',
-          }}>
-            Memory Logs
-          </div>
-          {tree.memoryFiles.length === 0 && (
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '4px 12px' }}>No logs found</div>
-          )}
-          {tree.memoryFiles.map(f => (
-            <FileRow
-              key={f.path}
-              file={f}
-              active={activeFile === f.path}
-              onClick={() => loadFile(f.path)}
-            />
-          ))}
-        </div>
+            {/* Memory logs section */}
+            <div>
+              <div style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                padding: '8px 12px 4px',
+              }}>
+                Memory Logs
+              </div>
+              {tree.memoryFiles.length === 0 && (
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '4px 12px' }}>No logs found</div>
+              )}
+              {tree.memoryFiles.map(f => (
+                <FileRow
+                  key={f.path}
+                  file={f}
+                  active={activeFile === f.path}
+                  onClick={() => loadFile(f.path)}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Right panel */}

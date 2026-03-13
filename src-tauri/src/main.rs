@@ -19,8 +19,7 @@ fn main() {
 
     // Load .env.local as a fallback for development (keychain values override these)
     for path in &[".env.local", "../.env.local"] {
-        if std::path::Path::new(path).exists() {
-            let _ = dotenvy::from_filename(path);
+        if dotenvy::from_filename(path).is_ok() {
             tracing::info!("Loaded env from {}", path);
             break;
         }

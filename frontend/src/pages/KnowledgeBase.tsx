@@ -4,6 +4,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { BookOpen, X, ExternalLink, Trash2, Plus, Search } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { API_BASE } from '@/lib/api'
+import { SkeletonList } from '@/components/Skeleton'
 
 interface KnowledgeEntry {
   id: string
@@ -14,8 +16,6 @@ interface KnowledgeEntry {
   created_at: string
   updated_at: string
 }
-
-const API_BASE = 'http://127.0.0.1:3000'
 
 function TagChip({ tag, active, onClick }: { tag: string; active?: boolean; onClick: () => void }) {
   return (
@@ -447,7 +447,7 @@ export default function KnowledgePage() {
   const [showModal, setShowModal] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const { data: entriesData } = useQuery<{ entries: KnowledgeEntry[] }>({
+  const { data: entriesData, isLoading } = useQuery<{ entries: KnowledgeEntry[] }>({
     queryKey: ['knowledge', debouncedSearch, tagFilter],
     queryFn: async () => {
       const params = new URLSearchParams()
@@ -573,7 +573,9 @@ export default function KnowledgePage() {
       )}
 
       {/* Grid */}
-      {entries.length === 0 ? (
+      {isLoading ? (
+        <SkeletonList count={3} lines={3} layout="grid" />
+      ) : entries.length === 0 ? (
         <div style={{
           textAlign: 'center',
           padding: '60px 0',

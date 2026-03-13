@@ -1,6 +1,6 @@
 use axum::{
     extract::State,
-    routing::{get, patch},
+    routing::get,
     Json, Router,
 };
 use serde::Deserialize;
@@ -175,7 +175,7 @@ async fn subagents_active(
     // Detect running Claude processes with --dangerously flag
     match detect_dangerously_claude_processes().await {
         Ok(lines) => {
-            for (i, line) in lines.iter().enumerate() {
+            for (_i, line) in lines.iter().enumerate() {
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 let pid = parts.get(1).unwrap_or(&"").to_string();
                 if pid.is_empty() {

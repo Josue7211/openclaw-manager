@@ -11,7 +11,7 @@ services:
     container_name: ntfy
     command: serve
     environment:
-      - NTFY_BASE_URL=http://10.0.0.SERVICES:2586
+      - NTFY_BASE_URL=http://<your-ntfy-host>:2586
       - NTFY_LISTEN_HTTP=:80
     ports:
       - "2586:80"
@@ -41,13 +41,13 @@ curl http://localhost:2586/health
 
 In Mission Control → Settings → Notifications:
 
-- **NTFY URL**: `http://10.0.0.SERVICES:2586`
+- **NTFY URL**: `http://<your-ntfy-host>:2586`
 - **Topic**: `mission-control`
 
 Or set env vars in `.env.local`:
 
 ```
-NTFY_URL=http://10.0.0.SERVICES:2586
+NTFY_URL=http://<your-ntfy-host>:2586
 NTFY_TOPIC=mission-control
 ```
 
@@ -60,7 +60,7 @@ NTFY_TOPIC=mission-control
 2. Open the app → tap **+** → **Subscribe to topic**
 
 3. Enter:
-   - **Server URL**: `http://10.0.0.SERVICES:2586` (use your homelab IP)
+   - **Server URL**: `http://<your-ntfy-host>:2586` (use your homelab IP)
    - **Topic**: `mission-control`
 
 4. Tap **Subscribe**

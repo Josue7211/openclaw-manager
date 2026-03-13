@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-11
 **Status:** Approved
-**Author:** Josue
+**Author:** Project maintainer
 
 ## Overview
 
@@ -74,30 +74,30 @@ All secrets stored in OS keychain under the namespace `com.mission-control`:
 
 | Key | Example Value | Required |
 |-----|---------------|----------|
-| `com.mission-control.bluebubbles.host` | `http://100.69.211.3:1234` | No |
+| `com.mission-control.bluebubbles.host` | `http://<host-ip>:1234` | No |
 | `com.mission-control.bluebubbles.password` | `(password)` | No |
 | `com.mission-control.sync.url` | `https://sync.yourdomain.com` | No (Phase 2) |
 | `com.mission-control.sync.token` | `(auth token)` | No (Phase 2) |
 | `com.mission-control.caldav.url` | `https://caldav.icloud.com` | No |
 | `com.mission-control.caldav.username` | `user@icloud.com` | No |
 | `com.mission-control.caldav.password` | `(app password)` | No |
-| `com.mission-control.proxmox.host` | `https://10.0.0.PROXMOX:8006` | No |
+| `com.mission-control.proxmox.host` | `https://<host-ip>:8006` | No |
 | `com.mission-control.proxmox.token-id` | `root@pam!mc` | No |
 | `com.mission-control.proxmox.token-secret` | `(token)` | No |
-| `com.mission-control.opnsense.host` | `https://10.0.0.1` | No |
+| `com.mission-control.opnsense.host` | `https://<host-ip>` | No |
 | `com.mission-control.opnsense.key` | `(key)` | No |
 | `com.mission-control.opnsense.secret` | `(secret)` | No |
 | `com.mission-control.mc-api-key` | `(auto-generated)` | Yes (auto) |
-| `com.mission-control.plex.url` | `http://10.0.0.SERVICES:32400` | No |
+| `com.mission-control.plex.url` | `http://<host-ip>:32400` | No |
 | `com.mission-control.plex.token` | `(token)` | No |
 | `com.mission-control.openclaw.ws` | `ws://127.0.0.1:18789` | No |
 | `com.mission-control.openclaw.password` | `(password)` | No |
-| `com.mission-control.mac-bridge.host` | `http://100.69.211.3:4100` | No |
+| `com.mission-control.mac-bridge.host` | `http://<host-ip>:4100` | No |
 | `com.mission-control.mac-bridge.api-key` | `(key)` | No |
 | `com.mission-control.anthropic.api-key` | `(key)` | No |
-| `com.mission-control.sonarr.url` | `http://10.0.0.SERVICES:8989` | No |
+| `com.mission-control.sonarr.url` | `http://<host-ip>:8989` | No |
 | `com.mission-control.sonarr.api-key` | `(key)` | No |
-| `com.mission-control.radarr.url` | `http://10.0.0.SERVICES:7878` | No |
+| `com.mission-control.radarr.url` | `http://<host-ip>:7878` | No |
 | `com.mission-control.radarr.api-key` | `(key)` | No |
 | `com.mission-control.email.host` | `imap.gmail.com` | No |
 | `com.mission-control.email.port` | `993` | No |
@@ -332,7 +332,7 @@ Returns which integrations are configured based on which environment variables a
     "agents": true
   },
   "user": {
-    "displayName": "Josue"
+    "displayName": "YourName"
   }
 }
 ```
@@ -425,7 +425,7 @@ mission-control-releases/
 
 Tauri's built-in updater checks:
 ```
-https://github.com/Josue7211/mission-control-releases/releases/latest/download/latest.json
+https://github.com/your-username/mission-control-releases/releases/latest/download/latest.json
 ```
 
 `latest.json` format:

@@ -5,8 +5,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { AGENT_STATUS, MISSION_STATUS } from '@/lib/constants'
+import { SkeletonList } from '@/components/Skeleton'
 
-const API_BASE = 'http://127.0.0.1:3000'
+import { API_BASE } from '@/lib/api'
 
 interface Agent {
   id: string
@@ -492,13 +493,12 @@ export default function AgentsPage() {
 
     const channel = supabase
       .channel('agents-realtime')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agents' }, () => {
+      .on<Record<string, unknown>>('postgres_changes', { event: '*', schema: 'public', table: 'agents' }, () => {
         queryClient.invalidateQueries({ queryKey: ['agents'] })
       })
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    return () => { supabase?.removeChannel(channel) }
   }, [queryClient])
 
   return (
@@ -515,7 +515,7 @@ export default function AgentsPage() {
         </div>
 
         {loading ? (
-          <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Loading…</p>
+          <SkeletonList count={3} lines={4} layout="grid" />
         ) : (
           <div>
             <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '12px' }}>

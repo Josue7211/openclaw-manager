@@ -4,7 +4,7 @@ let _openclawDir: string | null = null
 
 export async function getOpenclawDir(): Promise<string> {
   if (_openclawDir) return _openclawDir
-  if ((window as any).__TAURI_INTERNALS__) {
+  if (window.__TAURI_INTERNALS__) {
     _openclawDir = await invoke<string>('get_openclaw_dir')
   } else {
     _openclawDir = '~/.openclaw'

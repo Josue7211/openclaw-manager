@@ -5,6 +5,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, CheckSquare, Target, CalendarDays, Mail, Loader2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
+import { API_BASE } from '@/lib/api'
+import { SkeletonList } from '@/components/Skeleton'
 
 interface Todo {
   id: string
@@ -44,24 +46,6 @@ interface Results {
   missions: Mission[]
   events: CalEvent[]
   emails: Email[]
-}
-
-const API_BASE = 'http://127.0.0.1:3000'
-
-function Skeleton() {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      {[1, 2, 3].map(i => (
-        <div key={i} style={{
-          height: '52px',
-          borderRadius: '8px',
-          background: 'rgba(255,255,255,0.05)',
-          animation: 'pulse 1.5s ease-in-out infinite',
-          opacity: 0.6 - i * 0.1,
-        }} />
-      ))}
-    </div>
-  )
 }
 
 function SectionHeader({ icon: Icon, label, count }: { icon: React.ElementType; label: string; count: number }) {
@@ -227,7 +211,7 @@ export default function SearchPage() {
       )}
 
       {/* Loading skeleton */}
-      {loading && !results && <Skeleton />}
+      {loading && !results && <SkeletonList count={3} lines={2} />}
 
       {/* No results */}
       {!loading && results && !hasResults && (

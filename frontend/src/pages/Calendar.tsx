@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { useTauriQuery } from '@/hooks/useTauriQuery'
+import { formatHour } from '@/lib/utils'
 
 interface CalendarEvent {
   id: string
@@ -52,13 +53,6 @@ function formatTime(iso: string): string {
   if (iso.length === 10) return 'All day'
   const d = new Date(iso)
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-}
-
-function formatHour(h: number): string {
-  if (h === 0) return '12 AM'
-  if (h < 12) return `${h} AM`
-  if (h === 12) return '12 PM'
-  return `${h - 12} PM`
 }
 
 /** Monday of the week containing `date` */

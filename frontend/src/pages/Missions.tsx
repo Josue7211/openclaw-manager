@@ -6,10 +6,8 @@ import {
   FileText, Terminal, Eye, Pencil, Lightbulb, CircleDot,
   ChevronDown, Play, Pause, Search, User, XCircle, Cpu,
 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { timeAgo } from '@/lib/utils'
-
-const API_BASE = 'http://127.0.0.1:3000'
+import { API_BASE } from '@/lib/api'
 
 interface Mission {
   id: string
@@ -321,13 +319,13 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
     return (idx / (events.length - 1)) * totalDuration
   }
 
-  function clientXToIdx(clientX: number): number {
+  const clientXToIdx = useCallback((clientX: number): number => {
     const el = scrubberRef.current
     if (!el || eventsRef.current.length === 0) return 0
     const rect = el.getBoundingClientRect()
     const pct  = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
     return Math.round(pct * (eventsRef.current.length - 1))
-  }
+  }, [])
 
   function handleScrubberMouseDown(e: React.MouseEvent) {
     e.preventDefault()
@@ -357,8 +355,7 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDragging])
+  }, [isDragging, clientXToIdx])
 
   // Playback interval
   useEffect(() => {
@@ -747,23 +744,17 @@ export default function MissionsPage() {
     if (!cachedMissions) setLoading(true)
     setError(null)
     try {
-      if (supabase) {
-        const [{ data: mData, error: mErr }, { data: aData }] = await Promise.all([
-          supabase.from('missions').select('id,title,assignee,status,progress,created_at,updated_at,log_path,complexity,task_type,review_status,review_notes,retry_count,routed_agent').order('created_at', { ascending: false }),
-          supabase.from('agents').select('id, display_name, emoji'),
-        ])
-        if (mErr) throw new Error(mErr.message)
-        cachedMissions = mData || []
-        cachedAgents = aData || []
-        setMissions(cachedMissions!)
-        setAgents(cachedAgents!)
-      } else {
-        const res = await fetch(`${API_BASE}/api/missions`)
-        const json = await res.json()
-        if (!res.ok) throw new Error(json.error || 'Failed to fetch')
-        cachedMissions = json.missions || []
-        setMissions(cachedMissions!)
-      }
+      const [mRes, aRes] = await Promise.all([
+        fetch(`${API_BASE}/api/missions`),
+        fetch(`${API_BASE}/api/agents`),
+      ])
+      const [mJson, aJson] = await Promise.all([mRes.json(), aRes.json()])
+      if (!mRes.ok) throw new Error(mJson.error || 'Failed to fetch missions')
+      if (!aRes.ok) throw new Error(aJson.error || 'Failed to fetch agents')
+      cachedMissions = mJson.missions || []
+      cachedAgents = aJson.agents || []
+      setMissions(cachedMissions!)
+      setAgents(cachedAgents!)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Unknown error')
     } finally {

@@ -5,6 +5,7 @@ use tower_http::cors::{CorsLayer, Any};
 use crate::routes;
 
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct AppState {
     pub app: tauri::AppHandle,
     pub db: sqlx::SqlitePool,

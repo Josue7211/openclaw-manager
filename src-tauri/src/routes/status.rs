@@ -152,12 +152,22 @@ fn local_ip() -> String {
 
 // ── GET /api/status/heartbeat ────────────────────────────────────────────────
 
+fn parse_heartbeat_tasks(content: &str) -> Vec<String> {
+    content
+        .lines()
+        .filter(|l| {
+            let trimmed = l.trim();
+            !trimmed.is_empty() && !trimmed.starts_with('#')
+        })
+        .map(|l| l.trim().to_string())
+        .collect()
+}
+
 async fn heartbeat(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
     let base = openclaw_dir();
     let heartbeat_path = Path::new(&base).join("workspace").join("HEARTBEAT.md");
 
     if heartbeat_path.exists() {
-        // Local file found — read directly
         let last_check = match tokio::fs::metadata(&heartbeat_path).await {
             Ok(meta) => meta
                 .modified()
@@ -172,19 +182,11 @@ async fn heartbeat(State(state): State<AppState>) -> Result<Json<Value>, AppErro
         let content = tokio::fs::read_to_string(&heartbeat_path)
             .await
             .unwrap_or_default();
-        let tasks: Vec<String> = content
-            .lines()
-            .filter(|l| {
-                let trimmed = l.trim();
-                !trimmed.is_empty() && !trimmed.starts_with('#')
-            })
-            .map(|l| l.trim().to_string())
-            .collect();
 
         return Ok(Json(json!({
             "lastCheck": last_check,
             "status": "ok",
-            "tasks": tasks,
+            "tasks": parse_heartbeat_tasks(&content),
         })));
     }
 
@@ -206,18 +208,10 @@ async fn heartbeat(State(state): State<AppState>) -> Result<Json<Value>, AppErro
                         .get("content")
                         .and_then(|v| v.as_str())
                         .unwrap_or("");
-                    let tasks: Vec<String> = content
-                        .lines()
-                        .filter(|l| {
-                            let trimmed = l.trim();
-                            !trimmed.is_empty() && !trimmed.starts_with('#')
-                        })
-                        .map(|l| l.trim().to_string())
-                        .collect();
                     return Ok(Json(json!({
                         "lastCheck": chrono::Utc::now().to_rfc3339(),
                         "status": "ok",
-                        "tasks": tasks,
+                        "tasks": parse_heartbeat_tasks(content),
                     })));
                 }
             }

@@ -1,11 +1,25 @@
-use axum::{extract::Query, extract::State, routing::{get, post, patch, delete}, Json, Router};
+use axum::{extract::Query, extract::State, routing::{get, post}, Json, Router};
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::path::Path;
+use std::sync::RwLock;
 
 use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
+
+/// Stores hashes of last-upserted cache values to skip redundant writes.
+static CACHE_HASHES: std::sync::LazyLock<RwLock<HashMap<String, u64>>> =
+    std::sync::LazyLock::new(|| RwLock::new(HashMap::new()));
+
+fn value_hash(v: &Value) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let s = v.to_string();
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    s.hash(&mut hasher);
+    hasher.finish()
+}
 
 // ── Router ──────────────────────────────────────────────────────────────────
 
@@ -20,7 +34,7 @@ pub fn router() -> Router<AppState> {
         // workflow-notes
         .route("/workflow-notes", get(get_workflow_notes).post(post_workflow_note).patch(patch_workflow_note))
         // ideas
-        .route("/ideas", get(get_ideas).post(post_idea).patch(patch_idea))
+        .route("/ideas", get(get_ideas).post(post_idea).patch(patch_idea).delete(delete_idea))
         // changelog
         .route("/changelog", get(get_changelog).post(post_changelog).delete(delete_changelog))
         // search
@@ -438,7 +452,7 @@ async fn post_idea(
 
 #[derive(Debug, Deserialize)]
 struct PatchIdeaBody {
-    id: Option<Value>,
+    id: Option<String>,
     status: Option<String>,
     mission_id: Option<Value>,
 }
@@ -493,6 +507,30 @@ async fn patch_idea(
         .update("ideas", &format!("id=eq.{id}"), Value::Object(update))
         .await?;
     Ok(Json(json!({ "idea": data })))
+}
+
+#[derive(Debug, Deserialize)]
+struct DeleteIdeaParams {
+    id: Option<String>,
+}
+
+async fn delete_idea(
+    State(_state): State<AppState>,
+    axum::extract::Query(params): axum::extract::Query<DeleteIdeaParams>,
+) -> Result<Json<Value>, AppError> {
+    let id = params
+        .id
+        .as_deref()
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if id.is_empty() {
+        return Err(AppError::BadRequest("id required".into()));
+    }
+
+    let sb = SupabaseClient::from_env()?;
+    sb.delete("ideas", &format!("id=eq.{id}")).await?;
+    Ok(Json(json!({ "ok": true })))
 }
 
 // ── Changelog ───────────────────────────────────────────────────────────────
@@ -644,13 +682,29 @@ async fn post_cache_refresh(State(_state): State<AppState>) -> Result<Json<Value
                     Ok(v) => v,
                     Err(_) => return false,
                 };
+
+                // Skip upsert if value hasn't changed since last write
+                let new_hash = value_hash(&value);
+                let changed = {
+                    let hashes = CACHE_HASHES.read().unwrap();
+                    hashes.get(*key) != Some(&new_hash)
+                };
+                if !changed {
+                    return true;
+                }
+
                 let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-                let _ = sb_ref
+                if sb_ref
                     .upsert(
                         "cache",
                         json!({ "key": key, "value": value, "updated_at": now }),
                     )
-                    .await;
+                    .await
+                    .is_ok()
+                {
+                    let mut hashes = CACHE_HASHES.write().unwrap();
+                    hashes.insert(key.to_string(), new_hash);
+                }
                 true
             }
         })

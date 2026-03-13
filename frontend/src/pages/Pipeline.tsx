@@ -1,10 +1,10 @@
 
 
-import { useEffect, useState, useCallback } from 'react'
-import { Plus, X, Tag, Trash2, Calendar, AlertTriangle, CheckSquare, Target, Lightbulb, Clock, BellOff, Rocket } from 'lucide-react'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { Plus, X, Tag, Trash2, Calendar, AlertTriangle, CheckSquare, Target, Lightbulb, Clock, BellOff, Rocket, ChevronDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
-const API_BASE = 'http://127.0.0.1:3000'
+import { API_BASE } from '@/lib/api'
 
 type WorkflowNote = {
   id: string
@@ -53,12 +53,12 @@ type StaleItem = {
   status?: string
 }
 
-const CATEGORIES = ['routing', 'delegation', 'josue-preferences', 'lessons']
+const CATEGORIES = ['routing', 'delegation', 'user-preferences', 'lessons']
 
 const CATEGORY_COLORS: Record<string, string> = {
   routing: '#7c3aed',
   delegation: '#0891b2',
-  'josue-preferences': '#059669',
+  'user-preferences': '#059669',
   lessons: '#d97706',
 }
 
@@ -159,6 +159,112 @@ function groupByMonth(entries: ChangelogEntry[]) {
   return groups
 }
 
+function FilterDropdown({ label, value, options, onChange, colorMap }: {
+  label: string
+  value: string | null
+  options: string[]
+  onChange: (v: string | null) => void
+  colorMap?: Record<string, string>
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const activeColor = value && colorMap?.[value]
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          padding: '4px 10px',
+          borderRadius: '8px',
+          border: '1px solid',
+          borderColor: value ? (activeColor ? `${activeColor}66` : 'rgba(155,132,236,0.3)') : 'rgba(255,255,255,0.08)',
+          cursor: 'pointer',
+          fontSize: '11px',
+          fontWeight: 500,
+          background: value ? (activeColor ? `${activeColor}15` : 'rgba(155,132,236,0.08)') : 'transparent',
+          color: value ? (activeColor || 'var(--accent-bright)') : 'var(--text-muted)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          transition: 'all 0.15s var(--ease-spring)',
+        }}
+      >
+        {label}{value ? `: ${value}` : ''}
+        <ChevronDown size={11} style={{
+          transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+          transition: 'transform 0.15s ease',
+        }} />
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute',
+          top: 'calc(100% + 4px)',
+          left: 0,
+          minWidth: '140px',
+          background: 'rgba(18, 18, 24, 0.96)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: '10px',
+          padding: '4px',
+          zIndex: 100,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          animation: 'fadeInUp 0.12s var(--ease-spring) both',
+        }}>
+          {value && (
+            <button
+              onClick={() => { onChange(null); setOpen(false) }}
+              style={{
+                width: '100%', textAlign: 'left', padding: '6px 10px', borderRadius: '6px',
+                border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 500,
+                background: 'transparent', color: 'var(--text-muted)',
+                transition: 'background 0.1s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              Clear
+            </button>
+          )}
+          {options.map(opt => {
+            const active = value === opt
+            const optColor = colorMap?.[opt]
+            return (
+              <button
+                key={opt}
+                onClick={() => { onChange(active ? null : opt); setOpen(false) }}
+                style={{
+                  width: '100%', textAlign: 'left', padding: '6px 10px', borderRadius: '6px',
+                  border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: active ? 600 : 450,
+                  background: active ? 'rgba(155,132,236,0.12)' : 'transparent',
+                  color: active ? (optColor || 'var(--accent-bright)') : (optColor || 'var(--text-secondary)'),
+                  transition: 'background 0.1s',
+                  textTransform: 'capitalize',
+                }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
+              >
+                {opt}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function PipelinePage() {
   const [tab, setTab] = useState<'ideas' | 'notes' | 'retros' | 'status' | 'shiplog' | 'stale'>('ideas')
   const [notes, setNotes] = useState<WorkflowNote[]>([])
@@ -166,6 +272,12 @@ export default function PipelinePage() {
   const [crons, setCrons] = useState<CronJob[]>([])
   const [ideas, setIdeas] = useState<Idea[]>([])
   const [ideasFilter, setIdeasFilter] = useState<IdeaStatus | null>(null)
+  const [effortFilter, setEffortFilter] = useState<string | null>(null)
+  const [impactFilter, setImpactFilter] = useState<string | null>(null)
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkActing, setBulkActing] = useState(false)
+  const [expandedIdeaId, setExpandedIdeaId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   // Ship Log
@@ -223,11 +335,11 @@ export default function PipelinePage() {
     setLoading(false)
   }
 
-  async function fetchIdeas() {
+  const fetchIdeas = useCallback(async () => {
     const res = await fetch(`${API_BASE}/api/ideas`)
     const json = await res.json()
     setIdeas(json.ideas || [])
-  }
+  }, [])
 
   const fetchShipLog = useCallback(() => {
     setShipLoading(true)
@@ -262,15 +374,43 @@ export default function PipelinePage() {
     }
   }
 
+  const bulkUpdateStatus = async (newStatus: IdeaStatus) => {
+    if (selectedIds.size === 0) return
+    setBulkActing(true)
+    const ids = [...selectedIds]
+    setIdeas(prev => prev.map(i => ids.includes(i.id) ? { ...i, status: newStatus } : i))
+    try {
+      await Promise.all(ids.map(id =>
+        fetch(`${API_BASE}/api/ideas`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, status: newStatus }),
+        })
+      ))
+    } catch { /* silent */ }
+    setSelectedIds(new Set())
+    setBulkActing(false)
+    fetchIdeas()
+  }
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   useEffect(() => {
     fetchIdeas()
     if (!supabase) return
     const channel = supabase
       .channel('pipeline-ideas-rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ideas' }, fetchIdeas)
+      .on<Record<string, unknown>>('postgres_changes', { event: '*', schema: 'public', table: 'ideas' }, fetchIdeas)
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { supabase?.removeChannel(channel) }
+  }, [fetchIdeas])
 
   async function markApplied(id: string, current: boolean) {
     const res = await fetch(`${API_BASE}/api/workflow-notes`, {
@@ -360,32 +500,31 @@ export default function PipelinePage() {
 
   return (
     <div>
-      <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-          Self-Improvement Pipeline
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px', marginBottom: '20px' }}>
+        <h1 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+          Pipeline
         </h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '4px' }}>
-          The full improvement loop — ideas, lessons, retrospectives, and scheduled runs.
-        </p>
+        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+          Ideas, lessons, retrospectives & scheduled runs
+        </span>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0' }}>
+      <div style={{ display: 'flex', gap: '2px', marginBottom: '20px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '3px' }}>
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             style={{
-              padding: '8px 16px',
-              background: 'transparent',
+              padding: '6px 14px',
+              background: tab === t.key ? 'rgba(155,132,236,0.15)' : 'transparent',
               border: 'none',
-              borderBottom: tab === t.key ? '2px solid var(--accent)' : '2px solid transparent',
+              borderRadius: '8px',
               color: tab === t.key ? 'var(--accent-bright)' : 'var(--text-muted)',
               cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: tab === t.key ? 600 : 400,
-              transition: 'all 0.15s',
-              marginBottom: '-1px',
+              fontSize: '12px',
+              fontWeight: tab === t.key ? 600 : 450,
+              transition: 'all 0.15s var(--ease-spring)',
             }}
           >
             {t.label}
@@ -398,40 +537,40 @@ export default function PipelinePage() {
       )}
 
       {/* Ideas tab */}
-      {tab === 'ideas' && (
-        <div style={{ marginBottom: '32px' }}>
-          {/* Stat summary bar */}
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid var(--border)' }}>
-            {IDEA_STATUS_META.map(({ status, label, color }) => {
-              const count = ideas.filter(i => i.status === status).length
-              const active = ideasFilter === status
-              return (
-                <button
-                  key={status}
-                  onClick={() => setIdeasFilter(active ? null : status)}
-                  style={{
-                    padding: '14px 22px',
-                    minWidth: '80px',
-                    borderRadius: '10px',
-                    border: `1px solid ${active ? color : 'rgba(255,255,255,0.1)'}`,
-                    background: active ? `${color}22` : 'var(--bg-panel)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '4px',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  <span style={{ fontSize: '26px', fontWeight: 700, lineHeight: 1, color: active ? color : 'var(--text-primary)' }}>{count}</span>
-                  <span style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: active ? color : 'var(--text-muted)' }}>{label}</span>
-                </button>
-              )
-            })}
-          </div>
+      {tab === 'ideas' && (() => {
+        const categories = [...new Set(ideas.map(i => i.category).filter(Boolean))].sort()
+        const hasActiveFilters = ideasFilter !== null || effortFilter !== null || impactFilter !== null || categoryFilter !== null
+        const filtered = ideas.filter(i => {
+          if (ideasFilter && i.status !== ideasFilter) return false
+          if (effortFilter && i.effort !== effortFilter) return false
+          if (impactFilter && i.impact !== impactFilter) return false
+          if (categoryFilter && i.category !== categoryFilter) return false
+          return true
+        })
 
-          {/* Filter pills — all statuses */}
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '16px' }}>
+        const allSelected = filtered.length > 0 && filtered.every(i => selectedIds.has(i.id))
+
+        return (
+        <div style={{ marginBottom: '32px' }}>
+          {/* Status pills row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setIdeasFilter(null)}
+              style={{
+                padding: '5px 12px',
+                borderRadius: '8px',
+                border: '1px solid',
+                borderColor: ideasFilter === null ? 'rgba(255,255,255,0.2)' : 'transparent',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 600,
+                background: ideasFilter === null ? 'rgba(255,255,255,0.08)' : 'transparent',
+                color: ideasFilter === null ? 'var(--text-primary)' : 'var(--text-muted)',
+                transition: 'all 0.15s var(--ease-spring)',
+              }}
+            >
+              All <span style={{ opacity: 0.5, fontWeight: 400, marginLeft: '2px' }}>{ideas.length}</span>
+            </button>
             {IDEA_STATUS_META.map(({ status, label, color }) => {
               const active = ideasFilter === status
               const count = ideas.filter(i => i.status === status).length
@@ -440,140 +579,278 @@ export default function PipelinePage() {
                   key={status}
                   onClick={() => setIdeasFilter(active ? null : status)}
                   style={{
-                    padding: '5px 14px',
-                    borderRadius: '20px',
-                    border: `1px solid ${active ? color : 'rgba(255,255,255,0.1)'}`,
+                    padding: '5px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid',
+                    borderColor: active ? `${color}66` : 'transparent',
                     cursor: 'pointer',
                     fontSize: '12px',
                     fontWeight: 600,
-                    background: active ? `${color}22` : 'transparent',
+                    background: active ? `${color}18` : 'transparent',
                     color: active ? color : 'var(--text-muted)',
-                    transition: 'all 0.15s',
+                    transition: 'all 0.15s var(--ease-spring)',
                   }}
                 >
-                  {label} {count > 0 && <span style={{ opacity: 0.7 }}>({count})</span>}
+                  {label} <span style={{ opacity: 0.5, fontWeight: 400, marginLeft: '2px' }}>{count}</span>
                 </button>
               )
             })}
           </div>
 
+          {/* Secondary filters row: effort, impact, category + select all */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+            {/* Effort */}
+            <FilterDropdown
+              label="Effort"
+              value={effortFilter}
+              options={['low', 'medium', 'high']}
+              onChange={setEffortFilter}
+              colorMap={IDEA_LEVEL_COLORS}
+            />
+            {/* Impact */}
+            <FilterDropdown
+              label="Impact"
+              value={impactFilter}
+              options={['low', 'medium', 'high']}
+              onChange={setImpactFilter}
+              colorMap={IDEA_LEVEL_COLORS}
+            />
+            {/* Category */}
+            <FilterDropdown
+              label="Category"
+              value={categoryFilter}
+              options={categories}
+              onChange={setCategoryFilter}
+            />
+
+            {hasActiveFilters && (
+              <button
+                onClick={() => { setIdeasFilter(null); setEffortFilter(null); setImpactFilter(null); setCategoryFilter(null) }}
+                style={{
+                  padding: '4px 10px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                  fontSize: '11px', fontWeight: 500, background: 'rgba(248,113,113,0.1)', color: 'var(--red)',
+                  transition: 'all 0.12s',
+                }}
+              >
+                Clear filters
+              </button>
+            )}
+
+            <span style={{ flex: 1 }} />
+
+            {/* Result count */}
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              {filtered.length} result{filtered.length !== 1 ? 's' : ''}
+            </span>
+
+            {/* Select all */}
+            {filtered.length > 0 && (
+              <button
+                onClick={() => {
+                  if (allSelected) setSelectedIds(new Set())
+                  else setSelectedIds(new Set(filtered.map(i => i.id)))
+                }}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid',
+                  borderColor: allSelected ? 'rgba(155,132,236,0.3)' : 'transparent',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  background: allSelected ? 'rgba(155,132,236,0.1)' : 'transparent',
+                  color: allSelected ? 'var(--accent-bright)' : 'var(--text-muted)',
+                  transition: 'all 0.15s var(--ease-spring)',
+                }}
+              >
+                {allSelected ? 'Deselect all' : 'Select all'}
+              </button>
+            )}
+          </div>
+
           {/* Idea cards */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '760px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
             {(() => {
-              const filtered = ideasFilter ? ideas.filter(i => i.status === ideasFilter) : ideas
               if (filtered.length === 0) {
                 return (
-                  <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic' }}>
-                    {ideasFilter ? `No ${ideasFilter} ideas` : 'No ideas yet'}
+                  <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)', fontSize: '13px' }}>
+                    {hasActiveFilters ? 'No ideas match filters' : 'No ideas yet'}
                   </div>
                 )
               }
-              return filtered.map(idea => {
+              return filtered.map((idea, idx) => {
                 const statusMeta = IDEA_STATUS_META.find(s => s.status === idea.status)
+                const isSelected = selectedIds.has(idea.id)
+                const isExpanded = expandedIdeaId === idea.id
                 return (
                   <div
                     key={idea.id}
-                    style={{ background: 'var(--bg-panel)', borderRadius: '10px', border: '1px solid var(--border)', padding: '16px 18px' }}
+                    style={{
+                      borderRadius: idx === 0 ? '10px 10px 2px 2px' : idx === filtered.length - 1 ? '2px 2px 10px 10px' : '2px',
+                      background: isExpanded ? 'rgba(255,255,255,0.04)' : isSelected ? 'rgba(155,132,236,0.06)' : 'rgba(255,255,255,0.02)',
+                      border: '1px solid',
+                      borderColor: isExpanded ? 'rgba(155,132,236,0.3)' : isSelected ? 'rgba(155,132,236,0.2)' : 'var(--border)',
+                      transition: 'all 0.15s var(--ease-spring)',
+                      marginBottom: '-1px',
+                      position: 'relative',
+                      zIndex: isExpanded ? 2 : isSelected ? 1 : 0,
+                      overflow: 'hidden',
+                    }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '8px' }}>
-                      <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)', lineHeight: 1.4 }}>
-                        {idea.title}
-                      </div>
-                      <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                        {statusMeta && (
-                          <span style={{
-                            padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 600,
-                            background: `${statusMeta.color}22`, color: statusMeta.color, border: `1px solid ${statusMeta.color}44`,
-                          }}>{statusMeta.label}</span>
+                    {/* Row header — clickable to expand */}
+                    <div
+                      onClick={() => setExpandedIdeaId(isExpanded ? null : idea.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '10px 14px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {/* Circular select checkbox — click stops propagation */}
+                      <div
+                        onClick={(e) => { e.stopPropagation(); toggleSelect(idea.id) }}
+                        style={{
+                          width: '20px',
+                          height: '20px',
+                          borderRadius: '50%',
+                          border: `1.5px solid ${isSelected ? 'var(--accent)' : 'rgba(255,255,255,0.15)'}`,
+                          background: isSelected ? 'var(--accent)' : 'transparent',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s var(--ease-spring)',
+                        }}
+                      >
+                        {isSelected && (
+                          <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                            <path d="M1 4L3.5 6.5L9 1" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
                         )}
-                        {idea.category && (
+                      </div>
+
+                      {/* Title + inline badges */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span style={{
-                            padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 500,
-                            background: 'rgba(155,132,236,0.12)', color: 'var(--accent)', border: '1px solid rgba(155,132,236,0.2)',
+                            fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)', lineHeight: 1.4,
                           }}>
-                            {idea.category}
+                            {idea.title}
                           </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {idea.description && (
-                      <p style={{ margin: '0 0 10px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                        {idea.description}
-                      </p>
-                    )}
-
-                    {idea.why && (
-                      <p style={{ margin: '0 0 12px', fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic', lineHeight: 1.5 }}>
-                        Why it fits: {idea.why}
-                      </p>
-                    )}
-
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                        {idea.effort && (
-                          <span style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '4px',
-                            padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 600,
-                            background: `${IDEA_LEVEL_COLORS[idea.effort]}22`, color: IDEA_LEVEL_COLORS[idea.effort],
-                            border: `1px solid ${IDEA_LEVEL_COLORS[idea.effort]}44`,
-                          }}>Effort: {idea.effort}</span>
-                        )}
-                        {idea.impact && (
-                          <span style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '4px',
-                            padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 600,
-                            background: `${IDEA_LEVEL_COLORS[idea.impact]}22`, color: IDEA_LEVEL_COLORS[idea.impact],
-                            border: `1px solid ${IDEA_LEVEL_COLORS[idea.impact]}44`,
-                          }}>Impact: {idea.impact}</span>
-                        )}
-                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', alignSelf: 'center' }}>
-                          {new Date(idea.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '3px', alignItems: 'center', flexWrap: 'wrap' }}>
+                          {statusMeta && (
+                            <span style={{
+                              padding: '1px 7px', borderRadius: '6px', fontSize: '10px', fontWeight: 600,
+                              background: `${statusMeta.color}15`, color: statusMeta.color,
+                            }}>{statusMeta.label}</span>
+                          )}
+                          {idea.category && (
+                            <span style={{
+                              padding: '1px 7px', borderRadius: '6px', fontSize: '10px', fontWeight: 500,
+                              background: 'rgba(155,132,236,0.1)', color: 'var(--accent)',
+                            }}>
+                              {idea.category}
+                            </span>
+                          )}
+                          {idea.effort && (
+                            <span style={{ fontSize: '10px', color: IDEA_LEVEL_COLORS[idea.effort], fontWeight: 500 }}>
+                              {idea.effort} effort
+                            </span>
+                          )}
+                          {idea.impact && (
+                            <span style={{ fontSize: '10px', color: IDEA_LEVEL_COLORS[idea.impact], fontWeight: 500 }}>
+                              {idea.impact} impact
+                            </span>
+                          )}
+                        </div>
                       </div>
 
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        {idea.status === 'pending' && (
+                      {/* Inline actions */}
+                      <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: '4px', flexShrink: 0, alignItems: 'center' }}>
+                        {(idea.status === 'pending' || idea.status === 'deferred') && (
                           <>
-                            <button onClick={() => updateIdeaStatus(idea.id, 'approved')} style={{
-                              padding: '5px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                              fontSize: '12px', fontWeight: 600, background: 'rgba(59,165,92,0.15)', color: 'var(--green)',
+                            <button onClick={() => updateIdeaStatus(idea.id, 'approved')} title="Approve" style={{
+                              padding: '4px 8px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                              fontSize: '11px', fontWeight: 600, background: 'rgba(52,211,153,0.12)', color: 'var(--green)',
+                              transition: 'all 0.12s',
                             }}>Approve</button>
-                            <button onClick={() => updateIdeaStatus(idea.id, 'rejected')} style={{
-                              padding: '5px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                              fontSize: '12px', fontWeight: 600, background: 'rgba(240,71,71,0.15)', color: 'var(--red)',
+                            <button onClick={() => updateIdeaStatus(idea.id, 'rejected')} title="Reject" style={{
+                              padding: '4px 8px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                              fontSize: '11px', fontWeight: 600, background: 'rgba(248,113,113,0.12)', color: 'var(--red)',
+                              transition: 'all 0.12s',
                             }}>Reject</button>
-                            <button onClick={() => updateIdeaStatus(idea.id, 'deferred')} style={{
-                              padding: '5px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                              fontSize: '12px', fontWeight: 600, background: 'rgba(230,168,23,0.15)', color: '#e6a817',
-                            }}>Defer</button>
-                          </>
-                        )}
-                        {idea.status === 'deferred' && (
-                          <>
-                            <button onClick={() => updateIdeaStatus(idea.id, 'approved')} style={{
-                              padding: '5px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                              fontSize: '12px', fontWeight: 600, background: 'rgba(59,165,92,0.15)', color: 'var(--green)',
-                            }}>Approve</button>
-                            <button onClick={() => updateIdeaStatus(idea.id, 'rejected')} style={{
-                              padding: '5px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                              fontSize: '12px', fontWeight: 600, background: 'rgba(240,71,71,0.15)', color: 'var(--red)',
-                            }}>Reject</button>
+                            {idea.status === 'pending' && (
+                              <button onClick={() => updateIdeaStatus(idea.id, 'deferred')} title="Defer" style={{
+                                padding: '4px 8px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                                fontSize: '11px', fontWeight: 600, background: 'rgba(230,168,23,0.12)', color: '#e6a817',
+                                transition: 'all 0.12s',
+                              }}>Defer</button>
+                            )}
                           </>
                         )}
                         {idea.status === 'approved' && idea.mission_id && (
-                          <span style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '6px',
-                            padding: '5px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
-                            background: 'rgba(5,150,105,0.15)', color: '#34d399', border: '1px solid rgba(5,150,105,0.3)',
-                          }}>🗂 In Queue</span>
+                          <span style={{ fontSize: '11px', fontWeight: 500, color: '#34d399', opacity: 0.8 }}>Queued</span>
                         )}
                         {idea.status === 'approved' && !idea.mission_id && (
                           <button onClick={() => updateIdeaStatus(idea.id, 'built')} style={{
-                            padding: '5px 14px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                            fontSize: '12px', fontWeight: 600, background: 'rgba(155,132,236,0.15)', color: 'var(--accent-bright)',
-                          }}>Mark as Built</button>
+                            padding: '4px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                            fontSize: '11px', fontWeight: 600, background: 'rgba(155,132,236,0.12)', color: 'var(--accent-bright)',
+                            transition: 'all 0.12s',
+                          }}>Built</button>
                         )}
+                      </div>
+
+                      {/* Chevron */}
+                      <div style={{
+                        flexShrink: 0, color: 'var(--text-muted)',
+                        transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.2s ease',
+                        display: 'flex', alignItems: 'center',
+                      }}>
+                        <ChevronDown size={14} />
+                      </div>
+                    </div>
+
+                    {/* Expandable detail body */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateRows: isExpanded ? '1fr' : '0fr',
+                      transition: 'grid-template-rows 0.25s var(--ease-spring)',
+                    }}>
+                      <div style={{ overflow: 'hidden' }}>
+                        <div style={{ padding: '0 14px 14px', paddingLeft: '46px' }}>
+                          {idea.description && (
+                            <p style={{ margin: '0 0 8px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                              {idea.description}
+                            </p>
+                          )}
+                          {idea.why && (
+                            <p style={{ margin: '0 0 10px', fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic', lineHeight: 1.5 }}>
+                              {idea.why}
+                            </p>
+                          )}
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                            {idea.effort && (
+                              <span style={{
+                                padding: '2px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: 600,
+                                background: `${IDEA_LEVEL_COLORS[idea.effort]}18`, color: IDEA_LEVEL_COLORS[idea.effort],
+                              }}>Effort: {idea.effort}</span>
+                            )}
+                            {idea.impact && (
+                              <span style={{
+                                padding: '2px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: 600,
+                                background: `${IDEA_LEVEL_COLORS[idea.impact]}18`, color: IDEA_LEVEL_COLORS[idea.impact],
+                              }}>Impact: {idea.impact}</span>
+                            )}
+                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                              {new Date(idea.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -582,8 +859,58 @@ export default function PipelinePage() {
             })()}
           </div>
 
+          {/* Discord-style floating bulk action bar */}
+          {selectedIds.size > 0 && (
+            <div style={{
+              position: 'fixed',
+              bottom: '24px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '10px 16px',
+              borderRadius: '12px',
+              background: 'rgba(18, 18, 24, 0.95)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid rgba(155,132,236,0.25)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04)',
+              zIndex: 1000,
+              animation: 'fadeInUp 0.2s var(--ease-spring) both',
+            }}>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--accent-bright)' }}>
+                {selectedIds.size} selected
+              </span>
+              <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.08)' }} />
+              <button onClick={() => bulkUpdateStatus('approved')} disabled={bulkActing} style={{
+                padding: '6px 14px', borderRadius: '8px', border: 'none', cursor: bulkActing ? 'wait' : 'pointer',
+                fontSize: '12px', fontWeight: 600, background: 'rgba(52,211,153,0.15)', color: 'var(--green)',
+                opacity: bulkActing ? 0.5 : 1, transition: 'all 0.12s',
+              }}>Approve</button>
+              <button onClick={() => bulkUpdateStatus('rejected')} disabled={bulkActing} style={{
+                padding: '6px 14px', borderRadius: '8px', border: 'none', cursor: bulkActing ? 'wait' : 'pointer',
+                fontSize: '12px', fontWeight: 600, background: 'rgba(248,113,113,0.15)', color: 'var(--red)',
+                opacity: bulkActing ? 0.5 : 1, transition: 'all 0.12s',
+              }}>Reject</button>
+              <button onClick={() => bulkUpdateStatus('deferred')} disabled={bulkActing} style={{
+                padding: '6px 14px', borderRadius: '8px', border: 'none', cursor: bulkActing ? 'wait' : 'pointer',
+                fontSize: '12px', fontWeight: 600, background: 'rgba(230,168,23,0.15)', color: '#e6a817',
+                opacity: bulkActing ? 0.5 : 1, transition: 'all 0.12s',
+              }}>Defer</button>
+              <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.08)' }} />
+              <button onClick={() => setSelectedIds(new Set())} style={{
+                padding: '6px 10px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                fontSize: '12px', fontWeight: 500, background: 'transparent', color: 'var(--text-muted)',
+                transition: 'all 0.12s',
+              }}>
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
         </div>
-      )}
+      )})()}
 
       {/* Workflow Notes tab */}
       {tab === 'notes' && !loading && (

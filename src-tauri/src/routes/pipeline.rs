@@ -25,6 +25,7 @@ mod status {
         pub const IDLE: &str = "idle";
     }
     pub mod mission {
+        #[allow(dead_code)]
         pub const PENDING: &str = "pending";
         pub const ACTIVE: &str = "active";
         pub const DONE: &str = "done";

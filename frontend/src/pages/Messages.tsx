@@ -6,7 +6,7 @@ import {
   Paperclip, X, Users, Search, Play, Pause, ChevronDown, CornerUpLeft, Copy, Check, SmilePlus,
 } from 'lucide-react'
 
-const API_BASE = 'http://127.0.0.1:3000'
+import { API_BASE } from '@/lib/api'
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 
@@ -315,7 +315,6 @@ function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
           maxWidth: '100%', overflow: 'hidden',
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`} alt=""
           style={{ width: '16px', height: '16px', borderRadius: '3px', flexShrink: 0 }}
           onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
@@ -343,7 +342,6 @@ function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
     >
       {/* OG Image */}
       {hasImage && (
-        /* eslint-disable-next-line @next/next/no-img-element */
         <img src={meta.image} alt="" style={{
           width: '100%', height: '140px', objectFit: 'cover', display: 'block',
         }} onError={() => setImgError(true)} />
@@ -449,7 +447,6 @@ function ContactAvatar({ address, name, isImsg, size = 40 }: {
         width: `${size}px`, height: `${size}px`, borderRadius: '50%', flexShrink: 0,
         overflow: 'hidden',
       }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
     )
@@ -1985,7 +1982,6 @@ export default function MessagesPage() {
 
                               if (mime.startsWith('image/') || att.isSticker) {
                                 return (
-                                  /* eslint-disable-next-line @next/next/no-img-element */
                                   <img key={att.guid} src={src} alt={att.transferName || 'image'}
                                     style={{
                                       maxWidth: att.isSticker ? '160px' : '280px',
@@ -2196,7 +2192,6 @@ export default function MessagesPage() {
               animation: 'replySlideDown 0.2s var(--ease-spring)',
             }}>
               {attachmentFile?.type.startsWith('image/') ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={attachmentPreview} alt="" style={{
                   width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover',
                 }} />
@@ -2345,7 +2340,6 @@ export default function MessagesPage() {
         >
           {lightbox.type === 'image' ? (
             <div onClick={e => e.stopPropagation()} style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 ref={imgRef} src={lightbox.src} alt="expanded"
                 style={{

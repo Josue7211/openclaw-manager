@@ -1,6 +1,6 @@
 use axum::{
     extract::{Query, State},
-    routing::{delete, get},
+    routing::get,
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -395,13 +395,11 @@ async fn delete_file(
     let full =
         safe_path(&file_path).ok_or_else(|| AppError::BadRequest("Invalid path".into()))?;
 
-    if !full.exists() {
-        return Err(AppError::NotFound("File not found".into()));
+    match tokio::fs::remove_file(&full).await {
+        Ok(()) => Ok(Json(json!({ "ok": true }))),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            Err(AppError::NotFound("File not found".into()))
+        }
+        Err(e) => Err(AppError::Internal(e.into())),
     }
-
-    tokio::fs::remove_file(&full)
-        .await
-        .map_err(|e| AppError::Internal(e.into()))?;
-
-    Ok(Json(json!({ "ok": true })))
 }

@@ -5,8 +5,10 @@ import { Activity, Brain, MessageSquare, Bot, RefreshCw, Cpu, Wifi, Target, Ligh
 import { supabase } from '@/lib/supabase'
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js"
 import { timeAgo, formatTime } from '@/lib/utils'
+import { Skeleton, SkeletonRows } from '@/components/Skeleton'
+import { BackendErrorBanner } from '@/components/BackendErrorBanner'
 
-const API_BASE = 'http://127.0.0.1:3000'
+import { API_BASE } from '@/lib/api'
 
 interface StatusData {
   name: string; emoji: string; model: string; status: string; lastActive: string; host: string; ip: string;
@@ -39,32 +41,6 @@ function missionStatusStyle(status: string): React.CSSProperties {
   return { background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-muted)', border: '1px solid var(--border)' }
 }
 
-const skeletonStyle: React.CSSProperties = {
-  background: 'linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.06) 50%, rgba(255,255,255,0.03) 75%)',
-  backgroundSize: '200% 100%',
-  animation: 'shimmer 1.5s infinite',
-  borderRadius: '8px',
-  height: '16px',
-  marginBottom: '8px',
-}
-
-function Skeleton({ width = '100%', height = '16px', mb = '8px' }: { width?: string; height?: string; mb?: string }) {
-  return <div style={{ ...skeletonStyle, width, height, marginBottom: mb }} />
-}
-
-function SkeletonRows({ count = 3 }: { count?: number }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', border: '1px solid var(--border)', transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)' }}>
-          <Skeleton width={`${60 + (i % 3) * 15}%`} mb="4px" />
-          <Skeleton width={`${40 + (i % 2) * 20}%`} height="11px" mb="0" />
-        </div>
-      ))}
-    </div>
-  )
-}
-
 export default function Dashboard() {
   const [status, setStatus]           = useState<StatusData | null>(null)
   const [heartbeat, setHeartbeat]     = useState<HeartbeatData | null>(null)
@@ -76,12 +52,17 @@ export default function Dashboard() {
   const [activeSubagents, setActiveSubagents] = useState<ActiveSubagentData>({ active: false, count: 0, tasks: [] })
   const [lastRefresh, setLastRefresh]     = useState<Date>(new Date())
   const [mounted, setMounted]             = useState(false)
+  const [backendError, setBackendError]   = useState(false)
   const mountedRef                        = useRef(false)
   const researchMissionIdRef = useRef<string | null>(null)
-  const cacheDebounceRef = useRef<NodeJS.Timeout | null>(null)
+  const cacheDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetchMissions = useCallback(() => {
-    fetch(`${API_BASE}/api/missions`).then(r => r.json()).then(d => {
+    fetch(`${API_BASE}/api/missions`).then(r => {
+      if (!r.ok) throw new Error(`missions ${r.status}`)
+      return r.json()
+    }).then(d => {
+      setBackendError(false)
       const filtered = (d.missions || []).filter((m: Mission) => m.status !== 'done')
       const seen = new Set<string>()
       const deduped = filtered.filter((m: Mission) => {
@@ -91,7 +72,7 @@ export default function Dashboard() {
         return true
       })
       setMissions(deduped)
-    }).catch(() => {})
+    }).catch(() => setBackendError(true))
   }, [])
 
   const fetchAll = useCallback(() => {
@@ -104,6 +85,17 @@ export default function Dashboard() {
     const interval = setInterval(fetchAll, 30000)
     return () => clearInterval(interval)
   }, [fetchAll])
+
+  // Ensure dashboard shows content after 3s even if cache reads fail
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (!mountedRef.current) {
+        mountedRef.current = true
+        setMounted(true)
+      }
+    }, 3000)
+    return () => clearTimeout(t)
+  }, [])
 
   // Real-time subscriptions for missions and agents (only when supabase client is available)
   useEffect(() => {
@@ -135,8 +127,8 @@ export default function Dashboard() {
       .subscribe()
 
     return () => {
-      supabase.removeChannel(missionsChannel)
-      supabase.removeChannel(agentsSub)
+      supabase?.removeChannel(missionsChannel)
+      supabase?.removeChannel(agentsSub)
     }
   }, [fetchMissions])
 
@@ -154,15 +146,13 @@ export default function Dashboard() {
     }
   }, [])
 
-  // Read cache — via Supabase client if available, otherwise via API route
+  // Read cache via API — the embedded Axum backend uses the service role key,
+  // which bypasses RLS and always returns data.
   const readCache = useCallback(async () => {
-    if (supabase) {
-      const { data } = await supabase.from('cache').select('*')
-      return data as Array<{ key: string; value: unknown }> | null
-    }
-    const res = await fetch(`${API_BASE}/api/cache`)
-    const json = await res.json()
-    return (json.rows || null) as Array<{ key: string; value: unknown }> | null
+    const r = await fetch(`${API_BASE}/api/cache`)
+    if (!r.ok) throw new Error(`cache ${r.status}`)
+    const flat = await r.json()
+    return Object.entries(flat).map(([key, value]) => ({ key, value })) as Array<{ key: string; value: unknown }>
   }, [])
 
   // Trigger server cache-refresh then read back
@@ -171,25 +161,26 @@ export default function Dashboard() {
       await fetch(`${API_BASE}/api/cache-refresh`, { method: 'POST' })
       const cacheRows = await readCache()
       if (cacheRows) applyCache(cacheRows)
+      // Backend responded — clear error and re-fetch missions if needed
+      setBackendError(prev => {
+        if (prev) fetchMissions()
+        return false
+      })
     } catch { /* silent */ }
-  }, [applyCache, readCache])
+  }, [applyCache, readCache, fetchMissions])
 
   // Poll cache every 5s (fast) + 30s (slow) + realtime subscription + focus/visibility refresh
   useEffect(() => {
     // First: read stale cache immediately (fast — shows data before refresh completes)
     readCache().then((data) => {
       if (data?.length) applyCache(data)
-    })
+    }).catch(() => {})
     // Then: trigger refresh in background
-    fetch(`${API_BASE}/api/cache-refresh`, { method: 'POST' })
-    fetch(`${API_BASE}/api/cache-refresh-slow`, { method: 'POST' })
+    fetch(`${API_BASE}/api/cache-refresh`, { method: 'POST' }).catch(() => {})
     const fastInterval = setInterval(triggerCacheRefresh, 5000)
-    const slowInterval = setInterval(() => {
-      fetch(`${API_BASE}/api/cache-refresh-slow`, { method: 'POST' })
-    }, 30000)
 
     // Realtime: when server writes cache, debounce to wait for all upserts to land (only with supabase)
-    let cacheChannel: ReturnType<typeof supabase.channel> | null = null
+    let cacheChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null
     if (supabase) {
       cacheChannel = supabase
         .channel('cache-updates')
@@ -198,7 +189,7 @@ export default function Dashboard() {
           cacheDebounceRef.current = setTimeout(() => {
             readCache().then((data) => {
               if (data) applyCache(data)
-            })
+            }).catch(() => {})
           }, 200)
         })
         .subscribe()
@@ -212,8 +203,7 @@ export default function Dashboard() {
 
     return () => {
       clearInterval(fastInterval)
-      clearInterval(slowInterval)
-      if (cacheChannel) supabase.removeChannel(cacheChannel)
+      if (cacheChannel) supabase?.removeChannel(cacheChannel)
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisibility)
     }
@@ -352,6 +342,7 @@ export default function Dashboard() {
 
   return (
     <div>
+      {backendError && <BackendErrorBanner />}
       {/* ── Header ── */}
       <div style={{
         display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '32px',
@@ -415,13 +406,13 @@ export default function Dashboard() {
           {!mounted ? (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                <div style={{ width: '48px', height: '48px', borderRadius: '8px', ...skeletonStyle, marginBottom: 0 }} />
+                <Skeleton width={48} height={48} radius={8} style={{ marginBottom: 0 }} />
                 <div style={{ flex: 1 }}>
-                  <Skeleton width="50%" height="20px" mb="10px" />
+                  <Skeleton width="50%" height="20px" style={{ marginBottom: '10px' }} />
                   <div style={{ display: 'flex', gap: '20px' }}>
-                    <Skeleton width="60px" height="12px" mb="0" />
-                    <Skeleton width="80px" height="12px" mb="0" />
-                    <Skeleton width="70px" height="12px" mb="0" />
+                    <Skeleton width="60px" height="12px" style={{ marginBottom: 0 }} />
+                    <Skeleton width="80px" height="12px" style={{ marginBottom: 0 }} />
+                    <Skeleton width="70px" height="12px" style={{ marginBottom: 0 }} />
                   </div>
                 </div>
               </div>
@@ -469,12 +460,12 @@ export default function Dashboard() {
           {!mounted ? (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <Skeleton width="60px" height="20px" mb="0" />
-                <Skeleton width="50px" height="14px" mb="0" />
+                <Skeleton width="60px" height="20px" style={{ marginBottom: 0 }} />
+                <Skeleton width="50px" height="14px" style={{ marginBottom: 0 }} />
               </div>
               <Skeleton width="100%" height="14px" />
               <Skeleton width="80%" height="14px" />
-              <Skeleton width="90%" height="14px" mb="0" />
+              <Skeleton width="90%" height="14px" style={{ marginBottom: 0 }} />
             </div>
           ) : (
             <>
@@ -624,7 +615,7 @@ export default function Dashboard() {
                       ...missionStatusStyle(m.status),
                     }}
                   >{m.status}</button>
-                  <button onClick={() => deleteMission(m.id)} className="btn-delete">✕</button>
+                  <button onClick={() => deleteMission(m.id)} className="btn-delete" aria-label="Delete mission">✕</button>
                 </div>
               ))}
             </div>
@@ -753,12 +744,12 @@ export default function Dashboard() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
               <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>OpenClaw Gateway</div>
-              <div className="mono" style={{ color: 'var(--green-bright)', fontSize: '12px' }}>http://10.0.0.SERVICES:18789</div>
+              <div className="mono" style={{ color: 'var(--green-bright)', fontSize: '12px' }}>{`${window.location.protocol}//${window.location.hostname}:18789`}</div>
               <span className="badge badge-green" style={{ marginTop: '5px' }}>● Active</span>
             </div>
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
               <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>Mission Control</div>
-              <div className="mono" style={{ color: 'var(--blue-bright)', fontSize: '12px' }}>http://10.0.0.SERVICES:3000</div>
+              <div className="mono" style={{ color: 'var(--blue-bright)', fontSize: '12px' }}>{window.location.origin}</div>
               <span className="badge badge-blue" style={{ marginTop: '5px' }}>This app</span>
             </div>
           </div>

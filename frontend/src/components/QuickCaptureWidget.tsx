@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { ChevronDown, ChevronUp, Zap } from 'lucide-react'
 
-const API_BASE = 'http://127.0.0.1:3000'
+import { API_BASE } from '@/lib/api'
 
 type CaptureType = 'Note' | 'Task' | 'Idea' | 'Decision'
 
@@ -67,6 +67,43 @@ export default function QuickCaptureWidget() {
     }
   }, [expanded])
 
+  const handleSave = useCallback(async () => {
+    if (!content.trim()) return
+    setSaving(true)
+    try {
+      let res: Response
+      if (type === 'Task') {
+        res = await fetch(`${API_BASE}/api/todos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: content.trim() }),
+        })
+      } else {
+        res = await fetch(`${API_BASE}/api/capture`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: content.trim() }),
+        })
+      }
+      if (res.ok) {
+        setContent('')
+        setFlash('ok')
+        setTimeout(() => {
+          setFlash(null)
+          setExpanded(false)
+        }, 800)
+      } else {
+        setFlash('err')
+        setTimeout(() => setFlash(null), 1500)
+      }
+    } catch {
+      setFlash('err')
+      setTimeout(() => setFlash(null), 1500)
+    } finally {
+      setSaving(false)
+    }
+  }, [content, type])
+
   // Keyboard shortcuts
   useEffect(() => {
     if (!expanded) return
@@ -76,8 +113,7 @@ export default function QuickCaptureWidget() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded, content, type])
+  }, [expanded, handleSave])
 
   // Unified drag handler on the outer wrapper.
   // Skips textarea and buttons so their interactions work normally.
@@ -143,43 +179,6 @@ export default function QuickCaptureWidget() {
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
   }, [size])
-
-  const handleSave = async () => {
-    if (!content.trim()) return
-    setSaving(true)
-    try {
-      let res: Response
-      if (type === 'Task') {
-        res = await fetch(`${API_BASE}/api/todos`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: content.trim() }),
-        })
-      } else {
-        res = await fetch(`${API_BASE}/api/capture`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: content.trim() }),
-        })
-      }
-      if (res.ok) {
-        setContent('')
-        setFlash('ok')
-        setTimeout(() => {
-          setFlash(null)
-          setExpanded(false)
-        }, 800)
-      } else {
-        setFlash('err')
-        setTimeout(() => setFlash(null), 1500)
-      }
-    } catch {
-      setFlash('err')
-      setTimeout(() => setFlash(null), 1500)
-    } finally {
-      setSaving(false)
-    }
-  }
 
   const types: CaptureType[] = ['Note', 'Task', 'Idea', 'Decision']
 

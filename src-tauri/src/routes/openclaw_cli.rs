@@ -1,5 +1,6 @@
 use axum::{routing::get, Json, Router};
 use serde_json::{json, Value};
+use std::sync::OnceLock;
 use std::time::Duration;
 use tokio::process::Command;
 
@@ -34,11 +35,25 @@ fn exec_path() -> String {
     .join(":")
 }
 
+/// Check once whether `openclaw` binary exists on PATH.
+fn openclaw_available() -> bool {
+    static AVAILABLE: OnceLock<bool> = OnceLock::new();
+    *AVAILABLE.get_or_init(|| {
+        let path = exec_path();
+        path.split(':')
+            .any(|dir| std::path::Path::new(dir).join("openclaw").exists())
+    })
+}
+
 /// Run an `openclaw` CLI subcommand with a timeout and return its stdout.
 ///
 /// Returns `Ok(stdout)` on success, `Err(message)` if the command fails, times
 /// out, or the binary is not found.
 async fn run_openclaw(args: &[&str], timeout: Duration) -> Result<String, String> {
+    if !openclaw_available() {
+        return Err("openclaw not installed".into());
+    }
+
     let result = tokio::time::timeout(timeout, async {
         Command::new("openclaw")
             .args(args)
@@ -85,11 +100,6 @@ fn parse_json_array(raw: &str) -> Vec<Value> {
 // ---------------------------------------------------------------------------
 
 /// GET /sessions
-///
-/// Mirrors the Next.js behaviour:
-/// - On success, returns `{ "sessions": [...] }` (capped at 5 entries).
-/// - On failure, returns a single mock session so the UI always has something
-///   to render.
 async fn get_sessions() -> Result<Json<Value>, AppError> {
     let timeout = Duration::from_secs(5);
 
@@ -100,8 +110,6 @@ async fn get_sessions() -> Result<Json<Value>, AppError> {
             Ok(Json(json!({ "sessions": sessions })))
         }
         Err(_) => {
-            // Fallback: return a synthetic "main" session so the UI stays
-            // functional even when the daemon is unreachable.
             Ok(Json(json!({
                 "sessions": [{
                     "id": "main",
@@ -115,9 +123,6 @@ async fn get_sessions() -> Result<Json<Value>, AppError> {
 }
 
 /// GET /subagents
-///
-/// Returns `{ "count": N, "agents": [...] }`.
-/// Falls back to an empty list on any error.
 async fn get_subagents() -> Result<Json<Value>, AppError> {
     let timeout = Duration::from_secs(5);
 
@@ -132,13 +137,7 @@ async fn get_subagents() -> Result<Json<Value>, AppError> {
 }
 
 /// GET /crons
-///
-/// Returns `{ "jobs": [...] }`.
-/// On failure, includes an `"error"` key alongside the empty list, matching
-/// the original Next.js route.
 async fn get_crons() -> Result<Json<Value>, AppError> {
-    // The original TS route used execSync (no explicit timeout). We still apply
-    // a generous timeout to avoid hanging the server indefinitely.
     let timeout = Duration::from_secs(10);
 
     match run_openclaw(&["cron", "list", "--json"], timeout).await {
@@ -146,9 +145,6 @@ async fn get_crons() -> Result<Json<Value>, AppError> {
             let jobs = parse_json_array(&stdout);
             Ok(Json(json!({ "jobs": jobs })))
         }
-        Err(msg) => {
-            tracing::error!("[crons] {msg}");
-            Ok(Json(json!({ "jobs": [], "error": "Failed to list crons" })))
-        }
+        Err(_) => Ok(Json(json!({ "jobs": [] }))),
     }
 }

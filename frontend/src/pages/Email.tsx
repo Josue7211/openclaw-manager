@@ -4,8 +4,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Mail, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Settings, Plus, Trash2, Star, X, Eye, EyeOff } from 'lucide-react'
+import { SkeletonList } from '@/components/Skeleton'
 
-const API_BASE = 'http://127.0.0.1:3000'
+import { API_BASE } from '@/lib/api'
 
 interface Email {
   id: string
@@ -615,15 +616,7 @@ export default function EmailPage() {
 
       {/* Loading skeleton */}
       {loading && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} style={{
-              height: '64px', borderRadius: '8px',
-              background: 'linear-gradient(90deg, var(--bg-elevated) 25%, var(--bg-panel) 50%, var(--bg-elevated) 75%)',
-              backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite',
-            }} />
-          ))}
-        </div>
+        <SkeletonList count={3} lines={2} />
       )}
 
       {/* Email list */}

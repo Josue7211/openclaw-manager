@@ -870,7 +870,7 @@ git commit -m "feat: add Tauri bridge utility — notifications with browser fal
 - [ ] **Step 1: Initialize git if needed and create private dev repo**
 
 ```bash
-cd /home/aparcedodev/Projects/mission-control
+cd <project-root>
 git init  # if not already a repo
 gh repo create mission-control --private --source=. --push
 ```

@@ -6,7 +6,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { formatTime } from '@/lib/utils'
 
-const API_BASE = 'http://127.0.0.1:3000'
+import { API_BASE } from '@/lib/api'
 
 interface ChatMessage {
   id: string
@@ -50,6 +50,7 @@ export default function ChatPage() {
   const pendingTextRef            = useRef<string>('')      // text saved when queued send fired
   const imagesRef                 = useRef<string[]>([])    // always-current mirror of images state
   const loupeRef                  = useRef<{ x: number; y: number; zoom: number } | null>(null)
+  const draftTimerRef              = useRef<ReturnType<typeof setTimeout> | null>(null)
   const minZoomRef                = useRef(0.5)
 
   // ── Keep imagesRef in sync with committed images state (safety net for normal send path) ──
@@ -504,18 +505,20 @@ OPENCLAW_API_KEY=your-api-key`}
                       remarkPlugins={[remarkGfm]}
                       components={{
                         p: ({ children }) => <p style={{ margin: '0 0 8px', lineHeight: 1.65 }}>{children}</p>,
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        code: ({ inline, children, ...props }: any) => inline
-                          ? <code style={{
-                              fontFamily: 'JetBrains Mono, Fira Code, monospace',
-                              fontSize: '12px',
-                              background: 'rgba(155,132,236,0.12)',
-                              color: 'var(--accent-bright)',
-                              padding: '1px 5px',
-                              borderRadius: '4px',
-                              border: '1px solid rgba(155,132,236,0.2)',
-                            }} {...props}>{children}</code>
-                          : <code {...props}>{children}</code>,
+                        code: ({ children, className, ...props }) => {
+                          const isBlock = typeof className === 'string' && /language-/.test(className)
+                          return isBlock
+                            ? <code className={className} {...props}>{children}</code>
+                            : <code style={{
+                                fontFamily: 'JetBrains Mono, Fira Code, monospace',
+                                fontSize: '12px',
+                                background: 'rgba(155,132,236,0.12)',
+                                color: 'var(--accent-bright)',
+                                padding: '1px 5px',
+                                borderRadius: '4px',
+                                border: '1px solid rgba(155,132,236,0.2)',
+                              }} {...props}>{children}</code>
+                        },
                         pre: ({ children }) => <div style={{ fontFamily: 'JetBrains Mono, Fira Code, monospace', fontSize: '12px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px 14px', overflowX: 'auto', margin: '8px 0', lineHeight: 1.5 }}><code>{children}</code></div>,
                         ul: ({ children }) => <ul style={{ margin: '4px 0 8px', paddingLeft: '20px' }}>{children}</ul>,
                         ol: ({ children }) => <ol style={{ margin: '4px 0 8px', paddingLeft: '20px' }}>{children}</ol>,
@@ -699,7 +702,12 @@ OPENCLAW_API_KEY=your-api-key`}
         <textarea
           ref={textareaRef}
           value={input}
-          onChange={e => { setInput(e.target.value); localStorage.setItem('chat-draft', e.target.value) }}
+          onChange={e => {
+            const v = e.target.value
+            setInput(v)
+            if (draftTimerRef.current) clearTimeout(draftTimerRef.current)
+            draftTimerRef.current = setTimeout(() => localStorage.setItem('chat-draft', v), 300)
+          }}
           onKeyDown={onKeyDown}
           placeholder="Message Bjorn… (paste or drag images)"
           rows={1}

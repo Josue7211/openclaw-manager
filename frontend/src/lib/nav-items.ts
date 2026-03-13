@@ -25,7 +25,7 @@ export interface NavItem {
 }
 
 export const personalDashboardItems: NavItem[] = [
-  { href: '/personal', label: 'Home', icon: Home },
+  { href: '/', label: 'Home', icon: Home },
   { href: '/chat', label: 'Chat', icon: MessageCircle },
   { href: '/todos', label: 'Todos', icon: CheckSquare },
   { href: '/calendar', label: 'Calendar', icon: CalendarDays },
@@ -38,7 +38,7 @@ export const personalDashboardItems: NavItem[] = [
 ]
 
 export const agentDashboardItems: NavItem[] = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/missions', label: 'Missions', icon: Target },
   { href: '/agents', label: 'Agents', icon: Bot },
   { href: '/memory', label: 'Memory', icon: Brain },

@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router-dom'
 import { createAuthClient } from '@/lib/supabase/client'
 import { openInBrowser } from '@/lib/tauri'
 
-const API_BASE = 'http://127.0.0.1:3000'
+import { API_BASE } from '@/lib/api'
 
 type View = 'main' | 'email' | 'mfa' | 'mfa-enroll' | 'waiting'
 
@@ -60,10 +60,7 @@ export default function LoginPage() {
       try {
         const res = await fetch(`${API_BASE}/api/auth/tauri-session?t=${Date.now()}`, { cache: 'no-store' })
         const { code } = await res.json()
-        console.log('[tauri-poll] code:', code ? 'received' : 'waiting...')
         if (code) {
-          // Exchange the code in the WebView (has the PKCE verifier in cookies)
-          console.log('[tauri-poll] exchanging code for session...')
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
           if (exchangeError) {
             console.error('[tauri-poll] exchange failed:', exchangeError.message)
@@ -72,8 +69,6 @@ export default function LoginPage() {
             setLoading(false)
             return
           }
-          console.log('[tauri-poll] exchange succeeded!')
-
           // Check MFA
           const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
           if (aal && aal.currentLevel === 'aal1' && aal.nextLevel === 'aal2') {
@@ -107,8 +102,7 @@ export default function LoginPage() {
     return () => clearInterval(interval)
   }, [view])
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const isTauriApp = typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__
+  const isTauriApp = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
 
   async function handleOAuth(provider: 'github' | 'google') {
     setError('')
@@ -699,7 +693,6 @@ export default function LoginPage() {
                 width: 'fit-content',
                 margin: '0 auto',
               }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={mfaQr} alt="TOTP QR code" width={180} height={180} />
               </div>
             )}

@@ -160,16 +160,16 @@ export default function Sidebar() {
     }}>
       {/* Logo */}
       <header style={{
-        padding: collapsed ? '20px 0' : '20px 16px',
+        padding: collapsed ? '14px 0' : '14px 16px',
         borderBottom: '1px solid var(--glass-border)',
         display: 'flex',
         alignItems: 'center',
-        gap: '10px',
+        gap: '8px',
         justifyContent: collapsed ? 'center' : 'flex-start',
         animation: 'fadeIn 0.5s ease both',
       }}>
         <span style={{
-          fontSize: '28px',
+          fontSize: '20px',
           flexShrink: 0,
           filter: 'drop-shadow(0 2px 8px rgba(167, 139, 250, 0.2))',
           transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
@@ -177,21 +177,12 @@ export default function Sidebar() {
         {!collapsed && (
           <div style={{ animation: 'slideInLeft 0.3s cubic-bezier(0.22, 1, 0.36, 1) both' }}>
             <div style={{
-              fontSize: '14px',
-              fontWeight: 800,
+              fontSize: '12px',
+              fontWeight: 700,
               color: 'var(--text-primary)',
               letterSpacing: '0.06em',
             }}>
               MISSION CONTROL
-            </div>
-            <div style={{
-              fontSize: '11px',
-              color: 'var(--accent)',
-              fontFamily: "'JetBrains Mono', monospace",
-              marginTop: '2px',
-              opacity: 0.8,
-            }}>
-              Bjorn | Personal Agent
             </div>
           </div>
         )}
@@ -331,14 +322,14 @@ export default function Sidebar() {
       {/* Version */}
       {!collapsed && (
         <div style={{
-          padding: '12px 16px',
+          padding: '8px 16px',
           borderTop: '1px solid var(--glass-border)',
-          fontSize: '10px',
+          fontSize: '9px',
           color: 'var(--text-muted)',
           fontFamily: "'JetBrains Mono', monospace",
-          animation: 'fadeIn 0.5s ease both',
+          opacity: 0.6,
         }}>
-          openclaw v2026.3.2
+          v2026.3.2
         </div>
       )}
     </nav>

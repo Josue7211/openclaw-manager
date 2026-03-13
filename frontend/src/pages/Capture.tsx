@@ -4,6 +4,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { Zap, Trash2 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { API_BASE } from '@/lib/api'
+import { SkeletonList } from '@/components/Skeleton'
 
 interface CaptureItem {
   id: string
@@ -20,12 +22,10 @@ const ROUTE_LABELS: Record<string, string> = {
   pipeline: '🔄 Pipeline',
 }
 
-const API_BASE = 'http://127.0.0.1:3000'
-
 export default function CapturePage() {
   const queryClient = useQueryClient()
 
-  const { data: captureData } = useQuery<{ items: CaptureItem[] }>({
+  const { data: captureData, isLoading } = useQuery<{ items: CaptureItem[] }>({
     queryKey: ['capture'],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/api/capture`)
@@ -39,7 +39,6 @@ export default function CapturePage() {
   const [input, setInput] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [routing, setRouting] = useState<string | null>(null)
-  const [mounted, setMounted] = useState(false)
   const [optimisticItems, setOptimisticItems] = useState<CaptureItem[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -47,8 +46,6 @@ export default function CapturePage() {
   const displayItems = [...optimisticItems.filter(o => !items.some(i => i.id === o.id || (o.id.startsWith('temp-') && i.content === o.content))), ...items]
 
   useEffect(() => {
-    setMounted(true)
-
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === '/' && document.activeElement !== inputRef.current) {
         e.preventDefault()
@@ -174,7 +171,7 @@ export default function CapturePage() {
           <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>
             Quick Capture
           </h1>
-          {mounted && unrouted.length > 0 && (
+          {!isLoading && unrouted.length > 0 && (
             <span className="badge badge-yellow" style={{ marginLeft: '4px' }}>
               {unrouted.length} unrouted
             </span>
@@ -230,7 +227,9 @@ export default function CapturePage() {
       </form>
 
       {/* Items */}
-      {mounted && (
+      {isLoading ? (
+        <SkeletonList count={3} lines={3} />
+      ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {displayItems.length === 0 && (
             <div style={{

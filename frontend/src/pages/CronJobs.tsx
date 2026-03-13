@@ -4,6 +4,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Zap, Clock } from 'lucide-react'
 import { useTauriQuery } from '@/hooks/useTauriQuery'
+import { SkeletonList } from '@/components/Skeleton'
+import { formatHour, formatTimeMs } from '@/lib/utils'
 
 interface CronSchedule {
   kind: string
@@ -92,15 +94,6 @@ function formatWeekLabel(weekStart: Date): string {
   return `Week of ${weekStart.toLocaleDateString(undefined, opts)}`
 }
 
-function formatHour(h: number): string {
-  if (h === 0) return '12 AM'
-  if (h === 12) return '12 PM'
-  return h > 12 ? `${h - 12} PM` : `${h} AM`
-}
-
-function formatTime(ms: number): string {
-  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
 
 interface FireTime {
   ms: number
@@ -409,7 +402,7 @@ export default function CronsPage() {
                     return (
                       <div
                         key={`${item.job.id}-${item.fire.ms}`}
-                        title={`${item.job.name}\n${formatTime(item.fire.ms)}`}
+                        title={`${item.job.name}\n${formatTimeMs(item.fire.ms)}`}
                         style={{
                           position: 'absolute',
                           top: item.fire.top + 2,
@@ -430,7 +423,7 @@ export default function CronsPage() {
                           {item.job.name}
                         </div>
                         <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: '2px' }}>
-                          {formatTime(item.fire.ms)}
+                          {formatTimeMs(item.fire.ms)}
                         </div>
                       </div>
                     )
@@ -453,7 +446,7 @@ export default function CronsPage() {
         </div>
 
         {loading ? (
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>Loading…</div>
+          <SkeletonList count={2} lines={2} />
         ) : jobs.length === 0 ? (
           <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>No cron jobs found</div>
         ) : (

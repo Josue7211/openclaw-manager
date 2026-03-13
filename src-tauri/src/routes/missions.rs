@@ -1,6 +1,6 @@
 use axum::{
     extract::{Query, State},
-    routing::{delete, get, patch, post},
+    routing::{get, post},
     Json, Router,
 };
 use serde::Deserialize;
@@ -877,7 +877,8 @@ async fn send_ntfy(
     priority: i32,
     tags: &[&str],
 ) -> anyhow::Result<()> {
-    let url = std::env::var("NTFY_URL").unwrap_or_else(|_| "http://localhost:2586".into());
+    let url = std::env::var("NTFY_URL")
+        .map_err(|_| anyhow::anyhow!("NTFY_URL not configured"))?;
     let topic = std::env::var("NTFY_TOPIC").unwrap_or_else(|_| "mission-control".into());
 
     let mut req = http

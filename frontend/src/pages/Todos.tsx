@@ -5,6 +5,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { CheckSquare, Plus, Flame } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { API_BASE } from '@/lib/api'
+import { SkeletonList } from '@/components/Skeleton'
 
 interface Todo {
   id: string
@@ -46,12 +48,10 @@ function DueDateBadge({ due_date }: { due_date: string | null | undefined }) {
   )
 }
 
-const API_BASE = 'http://127.0.0.1:3000'
-
 export default function TodosPage() {
   const queryClient = useQueryClient()
 
-  const { data: todosData } = useQuery<{ todos: Todo[] }>({
+  const { data: todosData, isLoading } = useQuery<{ todos: Todo[] }>({
     queryKey: ['todos'],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/api/todos`)
@@ -62,7 +62,6 @@ export default function TodosPage() {
 
   const todos = todosData?.todos ?? []
   const [todoInput, setTodoInput] = useState('')
-  const [mounted, setMounted] = useState(false)
   const [hasDueDateSupport, setHasDueDateSupport] = useState(false)
 
   // Detect due_date column support
@@ -77,8 +76,6 @@ export default function TodosPage() {
   }, [queryClient])
 
   useEffect(() => {
-    setMounted(true)
-
     if (!supabase) return
 
     const channel = supabase
@@ -86,7 +83,7 @@ export default function TodosPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, () => invalidateTodos())
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    return () => { supabase?.removeChannel(channel) }
   }, [invalidateTodos])
 
   const addMutation = useMutation({
@@ -170,7 +167,7 @@ export default function TodosPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
           <CheckSquare size={20} style={{ color: 'var(--green)' }} />
           <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>Todos</h1>
-          {mounted && (
+          {!isLoading && (
             <span className="badge badge-green" style={{ marginLeft: '4px' }}>
               {pending.length} pending
             </span>
@@ -207,7 +204,9 @@ export default function TodosPage() {
         </button>
       </div>
 
-      {mounted && (
+      {isLoading ? (
+        <SkeletonList count={3} lines={3} />
+      ) : (
         <>
           {/* Today's Focus section */}
           {focusTodos.length > 0 && (
@@ -278,7 +277,7 @@ export default function TodosPage() {
                         />
                       </div>
                     )}
-                    <button onClick={() => deleteTodo(t.id)} className="btn-delete">✕</button>
+                    <button onClick={() => deleteTodo(t.id)} className="btn-delete" aria-label="Delete todo">✕</button>
                   </div>
                 ))}
               </div>
@@ -303,7 +302,7 @@ export default function TodosPage() {
                       style={{ cursor: 'pointer', accentColor: 'var(--green)', width: '16px', height: '16px', flexShrink: 0 }}
                     />
                     <span style={{ flex: 1, fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'line-through', lineHeight: 1.4 }}>{t.text}</span>
-                    <button onClick={() => deleteTodo(t.id)} className="btn-delete">✕</button>
+                    <button onClick={() => deleteTodo(t.id)} className="btn-delete" aria-label="Delete todo">✕</button>
                   </div>
                 ))}
               </div>

@@ -8,6 +8,18 @@ export default defineConfig({
     alias: { '@': path.resolve(__dirname, './src') }
   },
   server: { port: 5173, strictPort: true },
-  build: { target: 'esnext' },
+  build: {
+    target: 'esnext',
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/') || id.includes('node_modules/react-router')) return 'react'
+          if (id.includes('node_modules/@tanstack')) return 'query'
+          if (id.includes('node_modules/@supabase')) return 'supabase'
+          if (id.includes('node_modules/lucide-react')) return 'icons'
+        },
+      },
+    },
+  },
   envPrefix: 'VITE_'
 })

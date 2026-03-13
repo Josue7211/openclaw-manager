@@ -126,12 +126,14 @@ fn insecure_client() -> &'static Client {
 // ── Proxmox fetcher ─────────────────────────────────────────────────────────
 
 async fn fetch_proxmox() -> Option<Value> {
-    let url = std::env::var("PROXMOX_HOST")
-        .unwrap_or_else(|_| "https://10.0.0.PROXMOX:8006".to_string());
+    let url = std::env::var("PROXMOX_HOST").unwrap_or_default();
     let token_id = std::env::var("PROXMOX_TOKEN_ID").unwrap_or_default();
     let token_secret = std::env::var("PROXMOX_TOKEN_SECRET").unwrap_or_default();
 
-    if token_id.is_empty() || token_secret.is_empty() {
+    if url.is_empty() || token_id.is_empty() || token_secret.is_empty() {
+        if !token_id.is_empty() || !token_secret.is_empty() {
+            warn!("Proxmox credentials are set but PROXMOX_HOST is not configured");
+        }
         return None;
     }
 
@@ -276,9 +278,15 @@ async fn fetch_node_vms(
 // ── OPNsense fetcher ────────────────────────────────────────────────────────
 
 async fn fetch_opnsense() -> Option<Value> {
-    let mut url = std::env::var("OPNSENSE_HOST")
+    let mut url = match std::env::var("OPNSENSE_HOST")
         .or_else(|_| std::env::var("OPNSENSE_URL"))
-        .unwrap_or_else(|_| "https://10.0.0.1".to_string());
+    {
+        Ok(u) if !u.is_empty() => u,
+        _ => {
+            warn!("OPNSENSE_HOST is not configured");
+            return None;
+        }
+    };
 
     // Force HTTPS (matching TS behavior)
     if url.starts_with("http://") {

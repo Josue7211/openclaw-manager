@@ -3,7 +3,7 @@ use ical::parser::ical::component::IcalCalendar;
 use ical::IcalParser;
 use reqwest::header::CONTENT_TYPE;
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::json;
 use std::io::BufReader;
 
 use crate::server::AppState;
@@ -536,36 +536,8 @@ fn extract_href_from_tag(xml: &str, tag_local_name: &str) -> Option<String> {
 }
 
 /// Extract content from any `<X:href>...</X:href>` tag.
-/// Handles tags with attributes like `<href xmlns="DAV:">`.
 fn extract_href(xml: &str) -> Option<String> {
-    let tag_names = ["d:href", "D:href", "href", "ns0:href", "ns1:href"];
-
-    for tag in &tag_names {
-        let open_exact = format!("<{}>", tag);
-        let open_attr = format!("<{} ", tag);
-        let close = format!("</{}>", tag);
-
-        // Find the opening tag (either exact or with attributes)
-        let start_pos = xml.find(&open_exact)
-            .map(|pos| pos + open_exact.len())
-            .or_else(|| {
-                xml.find(&open_attr).and_then(|pos| {
-                    // Find the closing '>' of the opening tag
-                    xml[pos..].find('>').map(|gt| pos + gt + 1)
-                })
-            });
-
-        if let Some(value_start) = start_pos {
-            if let Some(end) = xml[value_start..].find(&close) {
-                let href = xml[value_start..value_start + end].trim().to_string();
-                if !href.is_empty() {
-                    return Some(href);
-                }
-            }
-        }
-    }
-
-    None
+    extract_tag_content(xml, &["d:href", "D:href", "href", "ns0:href", "ns1:href"])
 }
 
 /// Parse the calendar listing PROPFIND response.

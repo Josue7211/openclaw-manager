@@ -5,6 +5,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react'
 import { Bell, RefreshCw, AlertCircle } from 'lucide-react'
 import { useTauriQuery } from '@/hooks/useTauriQuery'
 import { useMutation } from '@tanstack/react-query'
+import { API_BASE } from '@/lib/api'
 
 interface Reminder {
   id: string
@@ -89,7 +90,7 @@ export default function RemindersPage() {
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, completed }: { id: string; completed: boolean }) => {
-      await fetch('http://127.0.0.1:3000/api/reminders', {
+      await fetch(`${API_BASE}/api/reminders`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, completed }),

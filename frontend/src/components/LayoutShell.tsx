@@ -8,8 +8,8 @@ import CommandPalette from '@/components/CommandPalette'
 import KeyboardShortcutsModal from '@/components/KeyboardShortcutsModal'
 
 const GO_ROUTES: Record<string, string> = {
-  h: '/personal',
-  d: '/',
+  h: '/',
+  d: '/dashboard',
   a: '/agents',
   m: '/missions',
   c: '/calendar',
@@ -129,7 +129,7 @@ export default function LayoutShell() {
       <main id="main-content" style={{
         flex: 1,
         overflowY: 'auto',
-        padding: '28px 32px',
+        padding: '20px 28px',
         background: 'transparent',
         display: 'flex',
         flexDirection: 'column',

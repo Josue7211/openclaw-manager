@@ -6,7 +6,7 @@ import { useSearchParams } from 'react-router-dom'
 import { createAuthClient } from '@/lib/supabase/client'
 import { useQuery, useMutation } from '@tanstack/react-query'
 
-const API_BASE = 'http://127.0.0.1:3000'
+import { API_BASE } from '@/lib/api'
 
 const card: React.CSSProperties = {
   background: 'var(--bg-card)',
@@ -82,7 +82,7 @@ interface Pref {
 export default function SettingsPage() {
   const [searchParams] = useSearchParams()
   const setupMfaRequired = searchParams.get('setup_mfa') === '1'
-  const [ntfyUrl, setNtfyUrl] = useState('http://localhost:2586')
+  const [ntfyUrl, setNtfyUrl] = useState('')
   const [ntfyTopic, setNtfyTopic] = useState('mission-control')
   const [ntfyStatus, setNtfyStatus] = useState<string | null>(null)
   const [ntfyTesting, setNtfyTesting] = useState(false)
@@ -204,15 +204,15 @@ export default function SettingsPage() {
       {/* Gateway */}
       <div style={card}>
         <div style={label}>Gateway</div>
-        <div style={row}><span>WebSocket</span><span style={val}>ws://127.0.0.1:18789</span></div>
-        <div style={row}><span>HTTP</span><span style={val}>http://127.0.0.1:18789</span></div>
+        <div style={row}><span>WebSocket</span><span style={val}>{import.meta.env.VITE_OPENCLAW_WS || 'not configured'}</span></div>
+        <div style={row}><span>HTTP</span><span style={val}>{import.meta.env.VITE_OPENCLAW_HTTP || 'not configured'}</span></div>
         <div style={rowLast}><span>Auth</span><span style={val}>password</span></div>
       </div>
 
       {/* Mission Control */}
       <div style={card}>
         <div style={label}>Mission Control</div>
-        <div style={row}><span>Host</span><span style={val}>10.0.0.SERVICES:3000</span></div>
+        <div style={row}><span>Host</span><span style={val}>{window.location.host}</span></div>
         <div style={row}><span>Poll interval</span><span style={val}>2s</span></div>
         <div style={rowLast}><span>Session file</span><span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace', fontSize: '11px' }}>~/.openclaw/agents/main/sessions/</span></div>
       </div>
@@ -220,7 +220,7 @@ export default function SettingsPage() {
       {/* User */}
       <div style={card}>
         <div style={label}>User</div>
-        <div style={row}><span>Name</span><span style={val}>Josue</span></div>
+        <div style={row}><span>Name</span><span style={val}>User</span></div>
         <div style={rowLast}><span>Avatar</span><span style={{ fontSize: '18px' }}>🦍</span></div>
       </div>
 

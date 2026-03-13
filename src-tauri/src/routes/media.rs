@@ -5,12 +5,6 @@ use serde_json::{json, Value};
 use crate::error::AppError;
 use crate::server::AppState;
 
-// ── Default fallback URLs (match TypeScript defaults) ───────────────────────
-
-const DEFAULT_PLEX_URL: &str = "http://10.0.0.SERVICES:32400";
-const DEFAULT_SONARR_URL: &str = "http://10.0.0.SERVICES:8989";
-const DEFAULT_RADARR_URL: &str = "http://10.0.0.SERVICES:7878";
-
 // ── Config helpers ──────────────────────────────────────────────────────────
 
 struct PlexConfig {
@@ -33,7 +27,11 @@ fn plex_config() -> Option<PlexConfig> {
     if token.is_empty() {
         return None;
     }
-    let url = std::env::var("PLEX_URL").unwrap_or_else(|_| DEFAULT_PLEX_URL.to_string());
+    let url = std::env::var("PLEX_URL").unwrap_or_default();
+    if url.is_empty() {
+        tracing::warn!("PLEX_TOKEN is set but PLEX_URL is not configured");
+        return None;
+    }
     Some(PlexConfig { url, token })
 }
 
@@ -42,7 +40,11 @@ fn sonarr_config() -> Option<SonarrConfig> {
     if api_key.is_empty() {
         return None;
     }
-    let url = std::env::var("SONARR_URL").unwrap_or_else(|_| DEFAULT_SONARR_URL.to_string());
+    let url = std::env::var("SONARR_URL").unwrap_or_default();
+    if url.is_empty() {
+        tracing::warn!("SONARR_API_KEY is set but SONARR_URL is not configured");
+        return None;
+    }
     Some(SonarrConfig { url, api_key })
 }
 
@@ -51,7 +53,11 @@ fn radarr_config() -> Option<RadarrConfig> {
     if api_key.is_empty() {
         return None;
     }
-    let url = std::env::var("RADARR_URL").unwrap_or_else(|_| DEFAULT_RADARR_URL.to_string());
+    let url = std::env::var("RADARR_URL").unwrap_or_default();
+    if url.is_empty() {
+        tracing::warn!("RADARR_API_KEY is set but RADARR_URL is not configured");
+        return None;
+    }
     Some(RadarrConfig { url, api_key })
 }
 
@@ -98,6 +104,7 @@ struct PlexContainer<T> {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct PlexSession {
     title: Option<String>,
     #[serde(rename = "grandparentTitle")]
@@ -135,6 +142,7 @@ struct PlexLibraryItem {
 // ── Sonarr API types ────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct SonarrEpisode {
     series: Option<SonarrSeries>,
     title: Option<String>,
@@ -147,6 +155,7 @@ struct SonarrEpisode {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct SonarrSeries {
     title: Option<String>,
     year: Option<i64>,
@@ -156,6 +165,7 @@ struct SonarrSeries {
 // ── Radarr API types ────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct RadarrMovie {
     title: Option<String>,
     year: Option<i64>,

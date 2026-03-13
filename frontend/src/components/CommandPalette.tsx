@@ -16,8 +16,8 @@ interface PaletteItem {
 }
 
 const GO_SHORTCUTS: Record<string, string> = {
-  '/personal': 'G H',
-  '/': 'G D',
+  '/': 'G H',
+  '/dashboard': 'G D',
   '/agents': 'G A',
   '/missions': 'G M',
   '/calendar': 'G C',

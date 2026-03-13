@@ -3,8 +3,10 @@
 import { useEffect, useState, useCallback } from 'react'
 import { CheckSquare, Cpu, Wifi, RefreshCw, Sun, Sunset, Moon, CalendarDays, Target, ClipboardList, ChevronDown, ChevronRight, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { Skeleton, SkeletonRows } from '@/components/Skeleton'
+import { BackendErrorBanner } from '@/components/BackendErrorBanner'
 
-const API_BASE = 'http://127.0.0.1:3000'
+import { API_BASE } from '@/lib/api'
 
 interface Todo { id: string; text: string; done: boolean; createdAt: string; due_date?: string }
 interface Mission { id: string; title: string; status: string }
@@ -33,32 +35,6 @@ function getGreeting() {
 
 function formatDate(d: Date) {
   return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
-}
-
-const skeletonStyle: React.CSSProperties = {
-  background: 'linear-gradient(90deg, var(--bg-elevated) 25%, var(--bg-panel) 50%, var(--bg-elevated) 75%)',
-  backgroundSize: '200% 100%',
-  animation: 'shimmer 1.5s infinite',
-  borderRadius: '10px',
-  height: '16px',
-  marginBottom: '8px',
-}
-
-function Skeleton({ width = '100%', height = '16px', mb = '8px' }: { width?: string; height?: string; mb?: string }) {
-  return <div style={{ ...skeletonStyle, width, height, marginBottom: mb }} />
-}
-
-function SkeletonRows({ count = 3 }: { count?: number }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} style={{ padding: '8px 10px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', border: '1px solid var(--border)' }}>
-          <Skeleton width={`${60 + (i % 3) * 15}%`} mb="4px" />
-          <Skeleton width={`${40 + (i % 2) * 20}%`} height="11px" mb="0" />
-        </div>
-      ))}
-    </div>
-  )
 }
 
 function DailyReviewWidget({ todos, missions }: { todos: Todo[]; missions: Mission[] }) {
@@ -112,11 +88,13 @@ function DailyReviewWidget({ todos, missions }: { todos: Todo[]; missions: Missi
     <>
       <div className="card" style={{ padding: '0', marginBottom: '24px', border: '1px solid rgba(155,132,236,0.2)', overflow: 'hidden' }}>
         {/* Header row */}
-        <div
+        <button
           onClick={() => setCollapsed(c => !c)}
+          aria-expanded={!collapsed}
+          aria-label="Toggle daily review"
           style={{
             display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 20px',
-            cursor: 'pointer', userSelect: 'none',
+            cursor: 'pointer', userSelect: 'none', width: '100%', border: 'none', fontSize: 'inherit', fontFamily: 'inherit',
             background: 'linear-gradient(90deg, rgba(155,132,236,0.07) 0%, transparent 100%)',
             borderBottom: collapsed ? 'none' : '1px solid var(--border)',
           }}
@@ -144,16 +122,16 @@ function DailyReviewWidget({ todos, missions }: { todos: Todo[]; missions: Missi
               {review ? 'Edit Review' : 'Start Daily Review'}
             </button>
           </div>
-        </div>
+        </button>
 
         {/* Body */}
         {!collapsed && (
           <div style={{ padding: '16px 20px' }}>
             {loadingReview ? (
               <div style={{ display: 'flex', gap: '16px' }}>
-                <Skeleton width="33%" height="60px" mb="0" />
-                <Skeleton width="33%" height="60px" mb="0" />
-                <Skeleton width="33%" height="60px" mb="0" />
+                <Skeleton width="33%" height="60px" style={{ marginBottom: 0 }} />
+                <Skeleton width="33%" height="60px" style={{ marginBottom: 0 }} />
+                <Skeleton width="33%" height="60px" style={{ marginBottom: 0 }} />
               </div>
             ) : !review ? (
               <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
@@ -195,6 +173,7 @@ function DailyReviewWidget({ todos, missions }: { todos: Todo[]; missions: Missi
               </div>
               <button
                 onClick={() => setModalOpen(false)}
+                aria-label="Close daily review"
                 style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
               >
                 <X size={16} />
@@ -322,7 +301,7 @@ function DailyReview({ todos, missions, calendarEvents, mounted }: {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <GreetIcon size={18} style={{ color: 'var(--accent)' }} />
             <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
-              {greetText}, Josue
+              {greetText}
             </h2>
           </div>
           <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
@@ -430,65 +409,64 @@ export default function PersonalDashboard() {
   const [mounted, setMounted] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [secondsAgo, setSecondsAgo] = useState(0)
+  const [backendError, setBackendError] = useState(false)
 
   const fetchTodos = useCallback(() => {
-    fetch(`${API_BASE}/api/todos`).then(r => r.json()).then(d => setTodos(d.todos || [])).catch(() => {})
+    fetch(`${API_BASE}/api/todos`).then(r => r.json()).then(d => { setBackendError(false); setTodos(d.todos || []) }).catch(() => {})
   }, [])
 
   const fetchMissions = useCallback(() => {
-    fetch(`${API_BASE}/api/missions`).then(r => r.json()).then(d => setMissions(d.missions || [])).catch(() => {})
+    fetch(`${API_BASE}/api/missions`).then(r => r.json()).then(d => { setBackendError(false); setMissions(d.missions || []) }).catch(() => {})
   }, [])
 
   const fetchCalendar = useCallback(() => {
     fetch(`${API_BASE}/api/calendar`).then(r => r.json()).then(d => setCalendarEvents(d.events || [])).catch(() => {})
   }, [])
 
-  const fetchProxmox = useCallback(async () => {
+  const fetchHomelab = useCallback(async () => {
     try {
-      let cacheRows: Array<{ key: string; value: unknown }> | null = null
-      if (supabase) {
-        const { data } = await supabase.from('cache').select('*')
-        cacheRows = data
-      } else {
-        const res = await fetch(`${API_BASE}/api/cache`)
-        const json = await res.json()
-        cacheRows = json.rows
-      }
-      if (cacheRows) {
-        const cm = Object.fromEntries(cacheRows.map((r: { key: string; value: unknown }) => [r.key, r.value]))
-        if (cm.proxmox) {
-          const newVMs = ((cm.proxmox as { vms?: ProxmoxVM[] }).vms) ?? []
-          if (newVMs.length > 0) {
-            setProxmoxVMs(newVMs)
-            setProxmoxNodes(((cm.proxmox as { nodeStats?: ProxmoxNodeStat[] }).nodeStats) ?? [])
-          }
+      const d = await fetch(`${API_BASE}/api/homelab`).then(r => r.json())
+      setBackendError(false)
+      if (d.proxmox?.vms) {
+        const toGB = (b: number) => +(b / 1073741824).toFixed(1)
+        setProxmoxVMs(d.proxmox.vms.map((v: Record<string, unknown>) => ({
+          vmid: 0, node: 'pve', name: v.name, status: v.status,
+          cpuPercent: Math.round((v.cpu as number) * 100),
+          memUsedGB: toGB(v.mem as number), memTotalGB: 0,
+        })))
+        if (d.proxmox.nodes) {
+          setProxmoxNodes(d.proxmox.nodes.map((n: Record<string, unknown>) => ({
+            node: n.name, cpuPercent: Math.round((n.cpu as number) * 100),
+            memUsedGB: toGB(n.mem_used as number), memTotalGB: toGB(n.mem_total as number),
+            memPercent: Math.round(((n.mem_used as number) / (n.mem_total as number)) * 100),
+          })))
         }
       }
-    } catch { /* silent */ }
-  }, [])
-
-  const fetchOpnsense = useCallback(async () => {
-    try {
-      const data = await fetch(`${API_BASE}/api/opnsense`).then(r => r.json())
-      setOpnsense(data)
-    } catch { /* silent */ }
+      if (d.opnsense) {
+        setOpnsense({
+          wanIn: d.opnsense.wan_in ?? '—', wanOut: d.opnsense.wan_out ?? '—',
+          updateAvailable: false, version: '—',
+        })
+      }
+    } catch {
+      setBackendError(true)
+    }
   }, [])
 
   const refreshAll = useCallback(() => {
     fetchTodos()
     fetchMissions()
     fetchCalendar()
-    fetchProxmox()
-    fetchOpnsense()
+    fetchHomelab()
     setLastRefresh(new Date())
-  }, [fetchTodos, fetchMissions, fetchCalendar, fetchProxmox, fetchOpnsense])
+  }, [fetchTodos, fetchMissions, fetchCalendar, fetchHomelab])
 
   useEffect(() => {
     refreshAll()
     setMounted(true)
 
-    let todosChannel: ReturnType<typeof supabase.channel> | null = null
-    let cacheChannel: ReturnType<typeof supabase.channel> | null = null
+    let todosChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null
+    let cacheChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null
     if (supabase) {
       todosChannel = supabase
         .channel('personal-todos-realtime')
@@ -497,20 +475,18 @@ export default function PersonalDashboard() {
 
       cacheChannel = supabase
         .channel('personal-cache-updates')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'cache' }, () => fetchProxmox())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'cache' }, () => fetchHomelab())
         .subscribe()
     }
 
-    const proxmoxInterval = setInterval(fetchProxmox, 10000)
-    const opnsenseInterval = setInterval(fetchOpnsense, 10000)
+    const homelabInterval = setInterval(fetchHomelab, 10000)
 
     return () => {
-      if (todosChannel) supabase.removeChannel(todosChannel)
-      if (cacheChannel) supabase.removeChannel(cacheChannel)
-      clearInterval(proxmoxInterval)
-      clearInterval(opnsenseInterval)
+      if (todosChannel) supabase?.removeChannel(todosChannel)
+      if (cacheChannel) supabase?.removeChannel(cacheChannel)
+      clearInterval(homelabInterval)
     }
-  }, [fetchTodos, fetchProxmox, fetchOpnsense, refreshAll])
+  }, [fetchTodos, fetchHomelab, refreshAll])
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -533,6 +509,7 @@ export default function PersonalDashboard() {
 
   return (
     <div>
+      {backendError && <BackendErrorBanner />}
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
         <div>
@@ -594,7 +571,7 @@ export default function PersonalDashboard() {
                   color: t.done ? 'var(--text-muted)' : 'var(--text-primary)',
                   textDecoration: t.done ? 'line-through' : 'none',
                 }}>{t.text}</span>
-                <button onClick={() => deleteTodo(t.id)} className="btn-delete">✕</button>
+                <button onClick={() => deleteTodo(t.id)} className="btn-delete" aria-label="Delete todo">✕</button>
               </div>
             ))}
           </div>
@@ -710,7 +687,7 @@ export default function PersonalDashboard() {
             <div>
               <Skeleton width="100%" height="44px" />
               <Skeleton width="100%" height="44px" />
-              <Skeleton width="120px" height="20px" mb="0" />
+              <Skeleton width="120px" height="20px" style={{ marginBottom: 0 }} />
             </div>
           ) : (
             <>

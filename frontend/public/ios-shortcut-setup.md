@@ -6,7 +6,7 @@ Capture tasks, ideas, and notes from anywhere on your iPhone and send them strai
 
 ## Prerequisites
 
-- Mission Control running and reachable at `http://10.0.0.SERVICES:3000` (or your server IP)
+- Mission Control running and reachable at `http://<your-server-ip>:3000` (or your server IP)
 - `CAPTURE_API_KEY` set in your `.env.local` (see below)
 - iOS Shortcuts app
 
@@ -14,7 +14,7 @@ Capture tasks, ideas, and notes from anywhere on your iPhone and send them strai
 
 ## 1. Set the API Key (server side)
 
-Add this to `/home/aparcedodev/Projects/mission-control/.env.local`:
+Add this to `/path/to/mission-control/.env.local`:
 
 ```
 CAPTURE_API_KEY=your-secret-key-here
@@ -51,7 +51,7 @@ Repeat this block inside **each** menu branch (Task, Idea, Note, Decision):
 | Field | Value |
 |---|---|
 | Action | **Get Contents of URL** |
-| URL | `http://10.0.0.SERVICES:3000/api/quick-capture` |
+| URL | `http://<your-server-ip>:3000/api/quick-capture` |
 | Method | `POST` |
 | Request Body | JSON |
 | **Body key** `content` | **Value** → *Provided Input* (the Ask for Input variable) |
