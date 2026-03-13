@@ -160,7 +160,7 @@ export default function Sidebar() {
     }}>
       {/* Logo */}
       <header style={{
-        padding: collapsed ? '14px 0' : '14px 16px',
+        padding: collapsed ? '6px 0' : '6px 16px',
         borderBottom: '1px solid var(--glass-border)',
         display: 'flex',
         alignItems: 'center',
@@ -168,12 +168,17 @@ export default function Sidebar() {
         justifyContent: collapsed ? 'center' : 'flex-start',
         animation: 'fadeIn 0.5s ease both',
       }}>
-        <span style={{
-          fontSize: '20px',
-          flexShrink: 0,
-          filter: 'drop-shadow(0 2px 8px rgba(167, 139, 250, 0.2))',
-          transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
-        }}>🦬</span>
+        <img
+          src="/logo-40.png"
+          alt="Mission Control"
+          width={40}
+          height={40}
+          style={{
+            flexShrink: 0,
+            filter: 'drop-shadow(0 2px 8px rgba(167, 139, 250, 0.3))',
+            transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
+          }}
+        />
         {!collapsed && (
           <div style={{ animation: 'slideInLeft 0.3s cubic-bezier(0.22, 1, 0.36, 1) both' }}>
             <div style={{
