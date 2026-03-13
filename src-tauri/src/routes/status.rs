@@ -327,8 +327,9 @@ async fn get_processes(State(_state): State<AppState>) -> Result<Json<Value>, Ap
         get_top_cpu_mem(&pids),
     );
 
-    // Regex for redacting prompt content from command lines
-    let prompt_re = Regex::new(r#"-p\s+(['"])[\s\S]*?\1"#).unwrap_or_else(|_| Regex::new(r"$^").unwrap());
+    // Regex for redacting prompt content from command lines (two patterns since regex crate doesn't support backreferences)
+    let prompt_re_single = Regex::new(r#"-p\s+'[^']*'"#).unwrap_or_else(|_| Regex::new(r"$^").unwrap());
+    let prompt_re_double = Regex::new(r#"-p\s+"[^"]*""#).unwrap_or_else(|_| Regex::new(r"$^").unwrap());
     let prompt_file_re = Regex::new(r#"-p\s+"?\$\(cat [^)]+\)"?"#).unwrap_or_else(|_| Regex::new(r"$^").unwrap());
 
     let processes: Vec<ProcessEntry> = lines
@@ -346,11 +347,10 @@ async fn get_processes(State(_state): State<AppState>) -> Result<Json<Value>, Ap
                 String::new()
             };
             // Redact prompt content
+            let redacted1 = prompt_re_single.replace_all(&raw_cmd, "-p [redacted]");
+            let redacted2 = prompt_re_double.replace_all(&redacted1, "-p [redacted]");
             let cmd = prompt_file_re
-                .replace_all(
-                    &prompt_re.replace_all(&raw_cmd, "-p [redacted]"),
-                    "-p [prompt-file]",
-                )
+                .replace_all(&redacted2, "-p [prompt-file]")
                 .to_string();
 
             // Prefer top's instantaneous values; fall back to ps normalized by core count

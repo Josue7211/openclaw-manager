@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Mission Control
+Comment=Personal AI OS
+Exec=env GDK_BACKEND=wayland mission-control
+Icon=mission-control
+Type=Application
+Categories=Utility;
+StartupWMClass=mission-control
