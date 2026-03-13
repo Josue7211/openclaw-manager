@@ -4,25 +4,32 @@ use crate::server::AppState;
 
 pub mod agents;
 pub mod auth;
+pub mod cache;
 pub mod calendar;
+pub mod captures;
+pub mod changelog;
 pub mod chat;
+pub mod decisions;
 pub mod deploy;
 pub mod email;
 pub mod habits;
 pub mod homelab;
+pub mod ideas;
 pub mod knowledge;
 pub mod media;
+pub mod memory;
 pub mod messages;
-pub mod misc;
 pub mod missions;
 pub mod notify;
 pub mod openclaw_cli;
 pub mod pipeline;
 pub mod reminders;
 pub mod reviews;
+pub mod search;
 pub mod stale;
 pub mod status;
 pub mod todos;
+pub mod workflow_notes;
 pub mod workspace;
 
 pub fn router() -> Router<AppState> {
@@ -39,7 +46,14 @@ pub fn router() -> Router<AppState> {
         .merge(knowledge::router())
         .nest("/media", media::router())
         .merge(messages::router())
-        .merge(misc::router())
+        .merge(cache::router())
+        .merge(captures::router())
+        .merge(changelog::router())
+        .merge(decisions::router())
+        .merge(ideas::router())
+        .merge(memory::router())
+        .merge(search::router())
+        .merge(workflow_notes::router())
         .merge(missions::router())
         .merge(notify::router())
         .merge(openclaw_cli::router())
