@@ -4,7 +4,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { BookOpen, X, ExternalLink, Trash2, Plus, Search } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { API_BASE } from '@/lib/api'
+import { api } from '@/lib/api'
 import { SkeletonList } from '@/components/Skeleton'
 
 interface KnowledgeEntry {
@@ -220,13 +220,7 @@ function AddEntryModal({ onClose, onAdded }: { onClose: () => void; onAdded: () 
     setLoading(true)
     try {
       const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean)
-      const res = await fetch(`${API_BASE}/api/knowledge`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, content, tags, source_url: sourceUrl || undefined }),
-      })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Failed to add entry')
+      await api.post('/api/knowledge', { title, content, tags, source_url: sourceUrl || undefined })
       onAdded()
       onClose()
     } catch (err: unknown) {
@@ -449,13 +443,11 @@ export default function KnowledgePage() {
 
   const { data: entriesData, isLoading } = useQuery<{ entries: KnowledgeEntry[] }>({
     queryKey: ['knowledge', debouncedSearch, tagFilter],
-    queryFn: async () => {
+    queryFn: () => {
       const params = new URLSearchParams()
       if (debouncedSearch) params.set('q', debouncedSearch)
       if (tagFilter) params.set('tag', tagFilter)
-      const res = await fetch(`${API_BASE}/api/knowledge?${params}`)
-      if (!res.ok) throw new Error(`API error: ${res.status}`)
-      return res.json()
+      return api.get<{ entries: KnowledgeEntry[] }>(`/api/knowledge?${params}`)
     },
   })
 
@@ -474,7 +466,7 @@ export default function KnowledgePage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await fetch(`${API_BASE}/api/knowledge?id=${id}`, { method: 'DELETE' })
+      await api.del(`/api/knowledge?id=${id}`)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['knowledge'] })

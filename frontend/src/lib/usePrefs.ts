@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
-import { API_BASE } from '@/lib/api'
+import { api } from '@/lib/api'
 
 type PrefsMap = Record<string, string>
 
@@ -10,8 +10,7 @@ export function usePrefs(): PrefsMap {
   const [prefs, setPrefs] = useState<PrefsMap>({})
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/prefs`)
-      .then(r => r.json())
+    api.get<{ prefs?: Array<{ key: string; value: string }> }>('/api/prefs')
       .then(data => {
         const map: PrefsMap = {}
         for (const pref of data.prefs ?? []) {

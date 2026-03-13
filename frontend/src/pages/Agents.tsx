@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { AGENT_STATUS, MISSION_STATUS } from '@/lib/constants'
 import { SkeletonList } from '@/components/Skeleton'
 
-import { API_BASE } from '@/lib/api'
+import { api } from '@/lib/api'
 
 interface Agent {
   id: string
@@ -287,8 +287,7 @@ function LiveProcesses({ agents }: { agents: Agent[] }) {
     setDeploying(true)
     setDeployLog(null)
     try {
-      const res = await fetch(`${API_BASE}/api/deploy`, { method: 'POST' })
-      const data = await res.json()
+      const data = await api.post<{ ok?: boolean; error?: string }>('/api/deploy')
       if (data.ok) {
         setDeployOk(true)
         setDeployLog('Deploy successful')
@@ -306,8 +305,7 @@ function LiveProcesses({ agents }: { agents: Agent[] }) {
 
   async function fetchProcesses() {
     try {
-      const res = await fetch(`${API_BASE}/api/processes`)
-      const data = await res.json()
+      const data = await api.get<{ processes?: Process[] }>('/api/processes')
       const incoming: Process[] = data.processes ?? []
       // Only update state if process data actually changed (avoid no-op re-renders)
       const pidHash = incoming.map(p => `${p.pid}:${p.cpu}:${p.mem}`).join('|')
@@ -449,20 +447,12 @@ export default function AgentsPage() {
 
   const { data: agentsData, isLoading: loading } = useQuery<{ agents: Agent[] }>({
     queryKey: ['agents'],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/api/agents`)
-      if (!res.ok) throw new Error(`API error: ${res.status}`)
-      return res.json()
-    },
+    queryFn: () => api.get<{ agents: Agent[] }>('/api/agents'),
   })
 
   const { data: missionsData } = useQuery<{ missions: Mission[] }>({
     queryKey: ['missions'],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/api/missions`)
-      if (!res.ok) throw new Error(`API error: ${res.status}`)
-      return res.json()
-    },
+    queryFn: () => api.get<{ missions: Mission[] }>('/api/missions'),
   })
 
   const agents = agentsData?.agents ?? []
@@ -470,13 +460,7 @@ export default function AgentsPage() {
 
   const saveMutation = useMutation({
     mutationFn: async ({ id, fields }: { id: string; fields: { display_name: string; emoji: string; role: string; model: string } }) => {
-      const res = await fetch(`${API_BASE}/api/agents`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, ...fields }),
-      })
-      if (!res.ok) throw new Error(`API error: ${res.status}`)
-      return res.json()
+      return api.patch('/api/agents', { id, ...fields })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agents'] })

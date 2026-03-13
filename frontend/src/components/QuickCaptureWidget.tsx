@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { ChevronDown, ChevronUp, Zap } from 'lucide-react'
 
-import { API_BASE } from '@/lib/api'
+import { api } from '@/lib/api'
 
 type CaptureType = 'Note' | 'Task' | 'Idea' | 'Decision'
 
@@ -71,31 +71,17 @@ export default function QuickCaptureWidget() {
     if (!content.trim()) return
     setSaving(true)
     try {
-      let res: Response
       if (type === 'Task') {
-        res = await fetch(`${API_BASE}/api/todos`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: content.trim() }),
-        })
+        await api.post('/api/todos', { text: content.trim() })
       } else {
-        res = await fetch(`${API_BASE}/api/capture`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: content.trim() }),
-        })
+        await api.post('/api/capture', { content: content.trim() })
       }
-      if (res.ok) {
-        setContent('')
-        setFlash('ok')
-        setTimeout(() => {
-          setFlash(null)
-          setExpanded(false)
-        }, 800)
-      } else {
-        setFlash('err')
-        setTimeout(() => setFlash(null), 1500)
-      }
+      setContent('')
+      setFlash('ok')
+      setTimeout(() => {
+        setFlash(null)
+        setExpanded(false)
+      }, 800)
     } catch {
       setFlash('err')
       setTimeout(() => setFlash(null), 1500)

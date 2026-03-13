@@ -8,7 +8,7 @@ import { timeAgo, formatTime } from '@/lib/utils'
 import { Skeleton, SkeletonRows } from '@/components/Skeleton'
 import { BackendErrorBanner } from '@/components/BackendErrorBanner'
 
-import { API_BASE } from '@/lib/api'
+import { api } from '@/lib/api'
 
 interface StatusData {
   name: string; emoji: string; model: string; status: string; lastActive: string; host: string; ip: string;
@@ -58,10 +58,7 @@ export default function Dashboard() {
   const cacheDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetchMissions = useCallback(() => {
-    fetch(`${API_BASE}/api/missions`).then(r => {
-      if (!r.ok) throw new Error(`missions ${r.status}`)
-      return r.json()
-    }).then(d => {
+    api.get<{ missions?: Mission[] }>('/api/missions').then(d => {
       setBackendError(false)
       const filtered = (d.missions || []).filter((m: Mission) => m.status !== 'done')
       const seen = new Set<string>()
@@ -76,7 +73,7 @@ export default function Dashboard() {
   }, [])
 
   const fetchAll = useCallback(() => {
-    fetch(`${API_BASE}/api/memory`).then(r => r.json()).then(d => setMemory(d.entries || [])).catch(() => {})
+    api.get<{ entries?: MemoryEntry[] }>('/api/memory').then(d => setMemory(d.entries || [])).catch(() => {})
     setLastRefresh(new Date())
   }, [])
 
@@ -149,16 +146,14 @@ export default function Dashboard() {
   // Read cache via API — the embedded Axum backend uses the service role key,
   // which bypasses RLS and always returns data.
   const readCache = useCallback(async () => {
-    const r = await fetch(`${API_BASE}/api/cache`)
-    if (!r.ok) throw new Error(`cache ${r.status}`)
-    const flat = await r.json()
+    const flat = await api.get<Record<string, unknown>>('/api/cache')
     return Object.entries(flat).map(([key, value]) => ({ key, value })) as Array<{ key: string; value: unknown }>
   }, [])
 
   // Trigger server cache-refresh then read back
   const triggerCacheRefresh = useCallback(async () => {
     try {
-      await fetch(`${API_BASE}/api/cache-refresh`, { method: 'POST' })
+      await api.post('/api/cache-refresh')
       const cacheRows = await readCache()
       if (cacheRows) applyCache(cacheRows)
       // Backend responded — clear error and re-fetch missions if needed
@@ -176,7 +171,7 @@ export default function Dashboard() {
       if (data?.length) applyCache(data)
     }).catch(() => {})
     // Then: trigger refresh in background
-    fetch(`${API_BASE}/api/cache-refresh`, { method: 'POST' }).catch(() => {})
+    api.post('/api/cache-refresh').catch(() => {})
     const fastInterval = setInterval(triggerCacheRefresh, 5000)
 
     // Realtime: when server writes cache, debounce to wait for all upserts to land (only with supabase)
@@ -211,7 +206,7 @@ export default function Dashboard() {
 
   const fetchActiveSubagents = useCallback(async () => {
     try {
-      const data = await fetch(`${API_BASE}/api/subagents/active`).then(r => r.json())
+      const data = await api.get<ActiveSubagentData>('/api/subagents/active')
       setActiveSubagents(data)
     } catch { /* silent */ }
   }, [])
@@ -226,8 +221,8 @@ export default function Dashboard() {
   const syncResearchMission = useCallback(async () => {
     try {
       const [{ jobs }, { missions: missionList }] = await Promise.all([
-        fetch(`${API_BASE}/api/crons`).then(r => r.json()).catch(() => ({ jobs: [] })),
-        fetch(`${API_BASE}/api/missions`).then(r => r.json()).catch(() => ({ missions: [] })),
+        api.get<{ jobs: Array<{ name: string; state?: { nextRunAtMs?: number; lastRunAtMs?: number; lastRunStatus?: string }; enabled?: boolean }> }>('/api/crons').catch(() => ({ jobs: [] as Array<{ name: string; state?: { nextRunAtMs?: number; lastRunAtMs?: number; lastRunStatus?: string }; enabled?: boolean }> })),
+        api.get<{ missions: Mission[] }>('/api/missions').catch(() => ({ missions: [] as Mission[] })),
       ])
       const cron = (jobs as Array<{ name: string; state?: { nextRunAtMs?: number; lastRunAtMs?: number; lastRunStatus?: string }; enabled?: boolean }>)
         .find(j => j.name === 'bjorn-research-agent')
@@ -244,30 +239,18 @@ export default function Dashboard() {
 
       if (seemsRunning) {
         if (!existing) {
-          const created = await fetch(`${API_BASE}/api/missions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: 'Research', assignee: 'bjorn' }),
-          }).then(r => r.json()).catch(() => null)
+          const created = await api.post<{ mission?: { id: string } }>('/api/missions', { title: 'Research', assignee: 'bjorn' }).catch(() => null)
           if (created?.mission?.id) researchMissionIdRef.current = created.mission.id
         } else {
           if (!researchMissionIdRef.current) researchMissionIdRef.current = existing.id
           if (existing.status !== 'active') {
-            await fetch(`${API_BASE}/api/missions`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: existing.id, status: 'active' }),
-            }).catch(() => {})
+            await api.patch('/api/missions', { id: existing.id, status: 'active' }).catch(() => {})
           }
         }
       } else if (lastStatus === 'success' || (lastRun > 0 && !seemsRunning)) {
         const targetId = researchMissionIdRef.current ?? existing?.id
         if (existing && existing.status === 'active' && targetId) {
-          await fetch(`${API_BASE}/api/missions`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: targetId, status: 'done' }),
-          }).catch(() => {})
+          await api.patch('/api/missions', { id: targetId, status: 'done' }).catch(() => {})
         }
       }
 
@@ -283,9 +266,9 @@ export default function Dashboard() {
 
   // Auto-missions: sync claude processes every 15s (realtime subscription handles state refresh)
   useEffect(() => {
-    fetch(`${API_BASE}/api/missions/sync-agents`, { method: 'POST' }).catch(() => {})
+    api.post('/api/missions/sync-agents').catch(() => {})
     const interval = setInterval(() => {
-      fetch(`${API_BASE}/api/missions/sync-agents`, { method: 'POST' }).catch(() => {})
+      api.post('/api/missions/sync-agents').catch(() => {})
     }, 15000)
     return () => clearInterval(interval)
   }, [])
@@ -294,8 +277,7 @@ export default function Dashboard() {
   const [panelIdea, setPanelIdea] = useState<Idea | null>(null)
 
   const fetchPendingIdeas = useCallback(() => {
-    fetch(`${API_BASE}/api/ideas?status=pending`)
-      .then(r => r.json())
+    api.get<{ ideas?: Idea[] }>('/api/ideas?status=pending')
       .then(d => setPendingIdeas(d.ideas || []))
       .catch(() => {})
   }, [])
@@ -307,11 +289,7 @@ export default function Dashboard() {
   }, [fetchPendingIdeas])
 
   const handleIdeaAction = useCallback(async (id: string, status: 'approved' | 'deferred' | 'rejected') => {
-    await fetch(`${API_BASE}/api/ideas`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, status }),
-    }).catch(() => {})
+    await api.patch('/api/ideas', { id, status }).catch(() => {})
     fetchPendingIdeas()
     setPanelIdea(prev => (prev?.id === id ? null : prev))
   }, [fetchPendingIdeas])
@@ -334,10 +312,10 @@ export default function Dashboard() {
 
   const updateMissionStatus = async (id: string, currentStatus: string) => {
     const next = currentStatus === 'pending' ? 'active' : currentStatus === 'active' ? 'done' : 'pending'
-    await fetch(`${API_BASE}/api/missions`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: next }) })
+    await api.patch('/api/missions', { id, status: next })
   }
   const deleteMission = async (id: string) => {
-    await fetch(`${API_BASE}/api/missions`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+    await api.del('/api/missions', { id })
   }
 
   return (

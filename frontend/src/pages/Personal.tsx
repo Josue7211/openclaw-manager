@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { Skeleton, SkeletonRows } from '@/components/Skeleton'
 import { BackendErrorBanner } from '@/components/BackendErrorBanner'
 
-import { API_BASE } from '@/lib/api'
+import { api } from '@/lib/api'
 
 interface Todo { id: string; text: string; done: boolean; createdAt: string; due_date?: string }
 interface Mission { id: string; title: string; status: string }
@@ -48,8 +48,7 @@ function DailyReviewWidget({ todos, missions }: { todos: Todo[]; missions: Missi
 
   const fetchReview = useCallback(() => {
     setLoadingReview(true)
-    fetch(`${API_BASE}/api/daily-review?date=${today}`)
-      .then(r => r.json())
+    api.get<{ review?: DailyReviewRecord }>(`/api/daily-review?date=${today}`)
       .then(d => { setReview(d.review || null); setLoadingReview(false) })
       .catch(() => setLoadingReview(false))
   }, [today])
@@ -68,12 +67,7 @@ function DailyReviewWidget({ todos, missions }: { todos: Todo[]; missions: Missi
   const saveReview = async () => {
     setSaving(true)
     try {
-      const res = await fetch(`${API_BASE}/api/daily-review`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: today, ...form }),
-      })
-      const d = await res.json()
+      const d = await api.post<{ review?: DailyReviewRecord }>('/api/daily-review', { date: today, ...form })
       if (d.review) setReview(d.review)
       setModalOpen(false)
     } finally {
@@ -412,20 +406,20 @@ export default function PersonalDashboard() {
   const [backendError, setBackendError] = useState(false)
 
   const fetchTodos = useCallback(() => {
-    fetch(`${API_BASE}/api/todos`).then(r => r.json()).then(d => { setBackendError(false); setTodos(d.todos || []) }).catch(() => {})
+    api.get<{ todos?: Todo[] }>('/api/todos').then(d => { setBackendError(false); setTodos(d.todos || []) }).catch(() => {})
   }, [])
 
   const fetchMissions = useCallback(() => {
-    fetch(`${API_BASE}/api/missions`).then(r => r.json()).then(d => { setBackendError(false); setMissions(d.missions || []) }).catch(() => {})
+    api.get<{ missions?: Mission[] }>('/api/missions').then(d => { setBackendError(false); setMissions(d.missions || []) }).catch(() => {})
   }, [])
 
   const fetchCalendar = useCallback(() => {
-    fetch(`${API_BASE}/api/calendar`).then(r => r.json()).then(d => setCalendarEvents(d.events || [])).catch(() => {})
+    api.get<{ events?: CalendarEvent[] }>('/api/calendar').then(d => setCalendarEvents(d.events || [])).catch(() => {})
   }, [])
 
   const fetchHomelab = useCallback(async () => {
     try {
-      const d = await fetch(`${API_BASE}/api/homelab`).then(r => r.json())
+      const d = await api.get<Record<string, unknown>>('/api/homelab')
       setBackendError(false)
       if (d.proxmox?.vms) {
         const toGB = (b: number) => +(b / 1073741824).toFixed(1)
@@ -497,14 +491,14 @@ export default function PersonalDashboard() {
 
   const addTodo = async () => {
     if (!todoInput.trim()) return
-    await fetch(`${API_BASE}/api/todos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: todoInput }) })
+    await api.post('/api/todos', { text: todoInput })
     setTodoInput('')
   }
   const toggleTodo = async (id: string, done: boolean) => {
-    await fetch(`${API_BASE}/api/todos`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, done: !done }) })
+    await api.patch('/api/todos', { id, done: !done })
   }
   const deleteTodo = async (id: string) => {
-    await fetch(`${API_BASE}/api/todos`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+    await api.del('/api/todos', { id })
   }
 
   return (

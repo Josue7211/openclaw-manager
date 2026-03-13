@@ -7,7 +7,7 @@ import {
   ChevronDown, Play, Pause, Search, User, XCircle, Cpu,
 } from 'lucide-react'
 import { timeAgo } from '@/lib/utils'
-import { API_BASE } from '@/lib/api'
+import { api } from '@/lib/api'
 
 interface Mission {
   id: string
@@ -241,21 +241,18 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
       setLoading(true)
       setIngesting(false)
       try {
-        const res = await fetch(`${API_BASE}/api/mission-events?mission_id=${missionId}`)
-        const j = await res.json()
+        const j = await api.get<{ events?: MissionEvent[] }>(`/api/mission-events?mission_id=${missionId}`)
         let evts: MissionEvent[] = j.events || []
 
         if (evts.length === 0 && mission.log_path) {
           setLoading(false)
           setIngesting(true)
           try {
-            const ir = await fetch(
-              `${API_BASE}/api/mission-events?action=ingest&mission_id=${missionId}&log_path=${encodeURIComponent(mission.log_path)}`
+            const ij = await api.get<{ success?: boolean; events_inserted?: number }>(
+              `/api/mission-events?action=ingest&mission_id=${missionId}&log_path=${encodeURIComponent(mission.log_path)}`
             )
-            const ij = await ir.json()
-            if (ij.success && ij.events_inserted > 0) {
-              const res2 = await fetch(`${API_BASE}/api/mission-events?mission_id=${missionId}`)
-              const j2 = await res2.json()
+            if (ij.success && (ij.events_inserted ?? 0) > 0) {
+              const j2 = await api.get<{ events?: MissionEvent[] }>(`/api/mission-events?mission_id=${missionId}`)
               evts = j2.events || []
             }
           } catch { /* auto-ingest failed — show empty state */ }
@@ -744,13 +741,10 @@ export default function MissionsPage() {
     if (!cachedMissions) setLoading(true)
     setError(null)
     try {
-      const [mRes, aRes] = await Promise.all([
-        fetch(`${API_BASE}/api/missions`),
-        fetch(`${API_BASE}/api/agents`),
+      const [mJson, aJson] = await Promise.all([
+        api.get<{ missions?: Mission[] }>('/api/missions'),
+        api.get<{ agents?: Agent[] }>('/api/agents'),
       ])
-      const [mJson, aJson] = await Promise.all([mRes.json(), aRes.json()])
-      if (!mRes.ok) throw new Error(mJson.error || 'Failed to fetch missions')
-      if (!aRes.ok) throw new Error(aJson.error || 'Failed to fetch agents')
       cachedMissions = mJson.missions || []
       cachedAgents = aJson.agents || []
       setMissions(cachedMissions!)
@@ -766,12 +760,7 @@ export default function MissionsPage() {
     e.stopPropagation()
     setMarkingDone(missionId)
     try {
-      const res = await fetch(`${API_BASE}/api/missions`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: missionId, status: 'done', progress: 100 }),
-      })
-      if (!res.ok) throw new Error('Failed to mark done')
+      await api.patch('/api/missions', { id: missionId, status: 'done', progress: 100 })
       setMissions(prev => prev.map(m =>
         m.id === missionId ? { ...m, status: 'done', progress: 100 } : m
       ))

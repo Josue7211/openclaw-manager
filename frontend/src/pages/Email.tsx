@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Mail, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Settings, Plus, Trash2, Star, X, Eye, EyeOff } from 'lucide-react'
 import { SkeletonList } from '@/components/Skeleton'
 
-import { API_BASE } from '@/lib/api'
+import { api } from '@/lib/api'
 
 interface Email {
   id: string
@@ -85,11 +85,7 @@ export default function EmailPage() {
   // Load accounts via useQuery
   const { data: accountsData } = useQuery<{ accounts: EmailAccount[] }>({
     queryKey: ['email-accounts'],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/api/email-accounts`)
-      if (!res.ok) throw new Error(`API error: ${res.status}`)
-      return res.json()
-    },
+    queryFn: () => api.get<{ accounts: EmailAccount[] }>('/api/email-accounts'),
   })
 
   const accounts = accountsData?.accounts ?? []
@@ -125,12 +121,10 @@ export default function EmailPage() {
   // Fetch emails via useQuery
   const { data: emailsData, isLoading: loading, error: emailsError, refetch: refetchEmails } = useQuery<{ emails?: Email[]; error?: string }>({
     queryKey: ['emails', folder, selectedAccountId],
-    queryFn: async () => {
+    queryFn: () => {
       const params = new URLSearchParams({ folder })
       if (selectedAccountId) params.set('account_id', selectedAccountId)
-      const res = await fetch(`${API_BASE}/api/email?${params}`)
-      if (!res.ok) throw new Error(`API error: ${res.status}`)
-      return res.json()
+      return api.get<{ emails?: Email[]; error?: string }>(`/api/email?${params}`)
     },
   })
 
@@ -152,11 +146,7 @@ export default function EmailPage() {
     if (email.read || markingRead.has(email.id)) return
     setMarkingRead(prev => new Set(prev).add(email.id))
     try {
-      await fetch(`${API_BASE}/api/email`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: email.id, read: true, account_id: selectedAccountId }),
-      })
+      await api.patch('/api/email', { id: email.id, read: true, account_id: selectedAccountId })
       invalidateEmails()
     } catch {
       // silently ignore
@@ -211,14 +201,13 @@ export default function EmailPage() {
       }
       if (form.password) body.password = form.password
 
-      let res: Response
+      let data: { error?: string }
       if (editingAccount) {
         body.id = editingAccount.id
-        res = await fetch(`${API_BASE}/api/email-accounts`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        data = await api.patch<{ error?: string }>('/api/email-accounts', body)
       } else {
-        res = await fetch(`${API_BASE}/api/email-accounts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        data = await api.post<{ error?: string }>('/api/email-accounts', body)
       }
-      const data = await res.json()
       if (data.error) { setFormError(data.error); return }
       invalidateAccounts()
       accountInitRef.current = false
@@ -234,7 +223,7 @@ export default function EmailPage() {
   const handleDelete = async (id: string) => {
     setDeletingId(id)
     try {
-      await fetch(`${API_BASE}/api/email-accounts?id=${id}`, { method: 'DELETE' })
+      await api.del(`/api/email-accounts?id=${id}`)
       invalidateAccounts()
       accountInitRef.current = false
       if (selectedAccountId === id) {
@@ -248,11 +237,7 @@ export default function EmailPage() {
   }
 
   const handleSetDefault = async (id: string) => {
-    await fetch(`${API_BASE}/api/email-accounts`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, is_default: true }),
-    })
+    await api.patch('/api/email-accounts', { id, is_default: true })
     invalidateAccounts()
     accountInitRef.current = false
   }

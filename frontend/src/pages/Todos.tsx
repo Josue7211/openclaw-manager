@@ -5,7 +5,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { CheckSquare, Plus, Flame } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { API_BASE } from '@/lib/api'
+import { api } from '@/lib/api'
 import { SkeletonList } from '@/components/Skeleton'
 
 interface Todo {
@@ -53,11 +53,7 @@ export default function TodosPage() {
 
   const { data: todosData, isLoading } = useQuery<{ todos: Todo[] }>({
     queryKey: ['todos'],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/api/todos`)
-      if (!res.ok) throw new Error(`API error: ${res.status}`)
-      return res.json()
-    },
+    queryFn: () => api.get<{ todos: Todo[] }>('/api/todos'),
   })
 
   const todos = todosData?.todos ?? []
@@ -88,32 +84,28 @@ export default function TodosPage() {
 
   const addMutation = useMutation({
     mutationFn: async (text: string) => {
-      await fetch(`${API_BASE}/api/todos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) })
+      await api.post('/api/todos', { text })
     },
     onSuccess: () => invalidateTodos(),
   })
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, done }: { id: string; done: boolean }) => {
-      await fetch(`${API_BASE}/api/todos`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, done: !done }) })
+      await api.patch('/api/todos', { id, done: !done })
     },
     onSuccess: () => invalidateTodos(),
   })
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await fetch(`${API_BASE}/api/todos`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+      await api.del('/api/todos', { id })
     },
     onSuccess: () => invalidateTodos(),
   })
 
   const updateDueDateMutation = useMutation({
     mutationFn: async ({ id, due_date }: { id: string; due_date: string | null }) => {
-      await fetch(`${API_BASE}/api/todos`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, due_date: due_date || null }),
-      })
+      await api.patch('/api/todos', { id, due_date: due_date || null })
     },
     onSuccess: () => invalidateTodos(),
   })

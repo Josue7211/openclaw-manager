@@ -3,7 +3,7 @@
 
 import { useState, useCallback } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { API_BASE } from '@/lib/api'
+import { api } from '@/lib/api'
 import { SkeletonList } from '@/components/Skeleton'
 
 interface FileItem {
@@ -21,9 +21,7 @@ export default function MemoryPage() {
   const { data: treeData, isLoading: treeLoading } = useQuery<FileTree>({
     queryKey: ['workspace-files'],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/api/workspace/files`)
-      if (!res.ok) throw new Error(`API error: ${res.status}`)
-      const d = await res.json()
+      const d = await api.get<{ coreFiles?: FileItem[]; memoryFiles?: FileItem[] }>('/api/workspace/files')
       return { coreFiles: d.coreFiles || [], memoryFiles: d.memoryFiles || [] }
     },
   })
@@ -43,8 +41,7 @@ export default function MemoryPage() {
     setLoading(true)
     setContent('')
     try {
-      const res = await fetch(`${API_BASE}/api/workspace/file?path=${encodeURIComponent(filePath)}`)
-      const data = await res.json()
+      const data = await api.get<{ content?: string }>(`/api/workspace/file?path=${encodeURIComponent(filePath)}`)
       setContent(data.content || '')
       setEditContent(data.content || '')
     } catch {
@@ -56,11 +53,7 @@ export default function MemoryPage() {
 
   const saveMutation = useMutation({
     mutationFn: async ({ path, content: fileContent }: { path: string; content: string }) => {
-      await fetch(`${API_BASE}/api/workspace/file`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path, content: fileContent }),
-      })
+      await api.post('/api/workspace/file', { path, content: fileContent })
     },
     onSuccess: () => {
       setContent(editContent)
@@ -71,13 +64,7 @@ export default function MemoryPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (path: string) => {
-      const res = await fetch(`${API_BASE}/api/workspace/file?path=${encodeURIComponent(path)}`, {
-        method: 'DELETE',
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || 'Delete failed')
-      }
+      await api.del(`/api/workspace/file?path=${encodeURIComponent(path)}`)
     },
     onSuccess: () => {
       setActiveFile(null)

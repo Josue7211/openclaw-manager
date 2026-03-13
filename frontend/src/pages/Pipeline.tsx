@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { Plus, X, Tag, Trash2, Calendar, AlertTriangle, CheckSquare, Target, Lightbulb, Clock, BellOff, Rocket, ChevronDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
-import { API_BASE } from '@/lib/api'
+import { api } from '@/lib/api'
 
 type WorkflowNote = {
   id: string
@@ -307,24 +307,21 @@ export default function PipelinePage() {
 
   async function fetchNotes() {
     setLoading(true)
-    const res = await fetch(`${API_BASE}/api/workflow-notes`)
-    const json = await res.json()
+    const json = await api.get<{ notes?: WorkflowNote[] }>('/api/workflow-notes')
     setNotes(json.notes || [])
     setLoading(false)
   }
 
   async function fetchRetros() {
     setLoading(true)
-    const res = await fetch(`${API_BASE}/api/retrospectives`)
-    const json = await res.json()
+    const json = await api.get<{ retrospectives?: Retrospective[] }>('/api/retrospectives')
     setRetros(json.retrospectives || [])
     setLoading(false)
   }
 
   async function fetchCrons() {
     setLoading(true)
-    const res = await fetch(`${API_BASE}/api/crons`)
-    const json = await res.json()
+    const json = await api.get<{ jobs?: CronJob[] }>('/api/crons')
     const all: CronJob[] = json.jobs || []
     const filtered = all.filter((j) =>
       j.name?.includes('bjorn-ideas') ||
@@ -336,15 +333,13 @@ export default function PipelinePage() {
   }
 
   const fetchIdeas = useCallback(async () => {
-    const res = await fetch(`${API_BASE}/api/ideas`)
-    const json = await res.json()
+    const json = await api.get<{ ideas?: Idea[] }>('/api/ideas')
     setIdeas(json.ideas || [])
   }, [])
 
   const fetchShipLog = useCallback(() => {
     setShipLoading(true)
-    fetch(`${API_BASE}/api/changelog`)
-      .then(r => r.json())
+    api.get<{ entries?: ChangelogEntry[] }>('/api/changelog')
       .then(d => setEntries(d.entries || []))
       .catch(() => {})
       .finally(() => setShipLoading(false))
@@ -352,8 +347,7 @@ export default function PipelinePage() {
 
   const fetchStale = useCallback(() => {
     setStaleLoading(true)
-    fetch(`${API_BASE}/api/stale`)
-      .then(r => r.json())
+    api.get<{ items?: StaleItem[] }>('/api/stale')
       .then(d => setStaleItems(d.items || []))
       .catch(() => {})
       .finally(() => setStaleLoading(false))
@@ -362,13 +356,8 @@ export default function PipelinePage() {
   const updateIdeaStatus = async (id: string, newStatus: IdeaStatus) => {
     setIdeas(prev => prev.map(idea => idea.id === id ? { ...idea, status: newStatus } : idea))
     try {
-      const res = await fetch(`${API_BASE}/api/ideas`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status: newStatus }),
-      })
-      const json = await res.json()
-      if (json.idea) setIdeas(prev => prev.map(idea => idea.id === id ? json.idea : idea))
+      const json = await api.patch<{ idea?: Idea }>('/api/ideas', { id, status: newStatus })
+      if (json.idea) setIdeas(prev => prev.map(idea => idea.id === id ? json.idea! : idea))
     } catch {
       fetchIdeas()
     }
@@ -381,11 +370,7 @@ export default function PipelinePage() {
     setIdeas(prev => prev.map(i => ids.includes(i.id) ? { ...i, status: newStatus } : i))
     try {
       await Promise.all(ids.map(id =>
-        fetch(`${API_BASE}/api/ideas`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, status: newStatus }),
-        })
+        api.patch('/api/ideas', { id, status: newStatus })
       ))
     } catch { /* silent */ }
     setSelectedIds(new Set())
@@ -413,14 +398,9 @@ export default function PipelinePage() {
   }, [fetchIdeas])
 
   async function markApplied(id: string, current: boolean) {
-    const res = await fetch(`${API_BASE}/api/workflow-notes`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, applied: !current }),
-    })
-    const json = await res.json()
+    const json = await api.patch<{ note?: WorkflowNote }>('/api/workflow-notes', { id, applied: !current })
     if (json.note) {
-      setNotes((prev) => prev.map((n) => (n.id === id ? json.note : n)))
+      setNotes((prev) => prev.map((n) => (n.id === id ? json.note! : n)))
     }
   }
 
@@ -430,12 +410,7 @@ export default function PipelinePage() {
     setShipSubmitting(true)
     try {
       const tags = shipForm.tags.split(',').map(t => t.trim()).filter(Boolean)
-      const res = await fetch(`${API_BASE}/api/changelog`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...shipForm, tags }),
-      })
-      const json = await res.json()
+      const json = await api.post<{ entry?: ChangelogEntry }>('/api/changelog', { ...shipForm, tags })
       if (json.entry) {
         setEntries(prev => [json.entry, ...prev])
         setShipForm({ title: '', date: new Date().toISOString().slice(0, 10), description: '', tags: '' })
@@ -450,11 +425,7 @@ export default function PipelinePage() {
 
   const deleteShipEntry = async (id: string) => {
     if (!confirm('Delete this entry?')) return
-    await fetch(`${API_BASE}/api/changelog`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    })
+    await api.del('/api/changelog', { id })
     setEntries(prev => prev.filter(e => e.id !== id))
   }
 
@@ -462,17 +433,9 @@ export default function PipelinePage() {
     setStaleActing(`${id}-${action}`)
     try {
       if (action === 'delete') {
-        await fetch(`${API_BASE}/api/stale`, {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, type }),
-        })
+        await api.del('/api/stale', { id, type })
       } else {
-        await fetch(`${API_BASE}/api/stale`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, type, action }),
-        })
+        await api.patch('/api/stale', { id, type, action })
       }
       setStaleItems(prev => prev.filter(i => i.id !== id))
     } catch (err) {

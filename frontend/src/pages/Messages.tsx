@@ -6,7 +6,7 @@ import {
   Paperclip, X, Users, Search, Play, Pause, ChevronDown, CornerUpLeft, Copy, Check, SmilePlus,
 } from 'lucide-react'
 
-import { API_BASE } from '@/lib/api'
+import { API_BASE, api } from '@/lib/api'
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 
@@ -288,8 +288,7 @@ function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
   useEffect(() => {
     if (linkPreviewCache.has(url)) { setMeta(linkPreviewCache.get(url)!); return }
     let cancelled = false
-    fetch(`${API_BASE}/api/messages/link-preview?url=${encodeURIComponent(url)}`)
-      .then(r => r.json())
+    api.get<{ title: string; description: string; image: string; siteName: string; error?: string }>(`/api/messages/link-preview?url=${encodeURIComponent(url)}`)
       .then(data => {
         if (cancelled || data.error) return
         linkPreviewCache.set(url, data)
@@ -391,12 +390,7 @@ let batchCheckPromise: Promise<void> | null = null
 function ensureAvatarBatchCheck(addresses: string[]) {
   const unchecked = addresses.filter(a => a && !avatarCache.has(a))
   if (unchecked.length === 0 || batchCheckPromise) return
-  batchCheckPromise = fetch(`${API_BASE}/api/messages/avatar`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ addresses: unchecked }),
-  })
-    .then(r => r.json())
+  batchCheckPromise = api.post<{ available?: string[] }>('/api/messages/avatar', { addresses: unchecked })
     .then(data => {
       const available = new Set(data.available || [])
       for (const addr of unchecked) {
@@ -894,8 +888,7 @@ export default function MessagesPage() {
     try {
       const oldest = messagesRef.current[0]
       const before = oldest?.dateCreated || Date.now()
-      const res = await fetch(`${API_BASE}/api/messages?conversation=${encodeURIComponent(convGuid)}&limit=50&before=${before}`)
-      const data = await res.json()
+      const data = await api.get<{ messages?: Message[] }>(`/api/messages?conversation=${encodeURIComponent(convGuid)}&limit=50&before=${before}`)
       if (selectedGuidRef.current !== convGuid) return // stale
       const older: Message[] = data.messages ?? []
       if (older.length === 0) {
@@ -958,8 +951,7 @@ export default function MessagesPage() {
   const fetchConversations = useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true)
-      const res = await fetch(`${API_BASE}/api/messages?limit=100`)
-      const data = await res.json()
+      const data = await api.get<{ conversations?: Conversation[]; contacts?: Record<string, string>; error?: string }>('/api/messages?limit=100')
       if (data.error) {
         if (!silent) setError(data.error)
       } else {
@@ -987,8 +979,7 @@ export default function MessagesPage() {
   const fetchMessages = useCallback(async (conv: Conversation, silent = false) => {
     try {
       if (!silent) setMsgsLoading(true)
-      const res = await fetch(`${API_BASE}/api/messages?conversation=${encodeURIComponent(conv.guid)}&limit=50`)
-      const data = await res.json()
+      const data = await api.get<{ messages?: Message[]; contacts?: Record<string, string> }>(`/api/messages?conversation=${encodeURIComponent(conv.guid)}&limit=50`)
       // Guard: only apply if we're still viewing this conversation
       if (selectedGuidRef.current === conv.guid) {
         setMessages(data.messages ?? [])
@@ -1021,11 +1012,7 @@ export default function MessagesPage() {
       inputRef.current?.focus()
 
       if (selected.isUnread) {
-        fetch(`${API_BASE}/api/messages/read`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chatGuid: selected.guid }),
-        }).catch(() => {})
+        api.post('/api/messages/read', { chatGuid: selected.guid }).catch(() => {})
         setConversations(prev => prev.map(c =>
           c.guid === selected.guid ? { ...c, isUnread: false } : c
         ))
@@ -1219,14 +1206,10 @@ export default function MessagesPage() {
         if (replyGuid) formData.append('selectedMessageGuid', replyGuid)
         await fetch(`${API_BASE}/api/messages/send-attachment`, { method: 'POST', body: formData })
       } else {
-        await fetch(`${API_BASE}/api/messages`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chatGuid: selected.guid,
-            text,
-            ...(replyGuid ? { selectedMessageGuid: replyGuid } : {}),
-          }),
+        await api.post('/api/messages', {
+          chatGuid: selected.guid,
+          text,
+          ...(replyGuid ? { selectedMessageGuid: replyGuid } : {}),
         })
       }
       setTimeout(() => fetchMessages(selected, true), 2000)
@@ -1244,14 +1227,10 @@ export default function MessagesPage() {
     if (!selected) return
     setMessageMenu(null)
     try {
-      await fetch(`${API_BASE}/api/messages/react`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chatGuid: selected.guid,
-          selectedMessageGuid: msgGuid,
-          reaction,
-        }),
+      await api.post('/api/messages/react', {
+        chatGuid: selected.guid,
+        selectedMessageGuid: msgGuid,
+        reaction,
       })
       setTimeout(() => fetchMessages(selected, true), 1500)
     } catch { /* best-effort */ }
@@ -1264,11 +1243,7 @@ export default function MessagesPage() {
     setConversations(prev => prev.map(c =>
       c.guid === convGuid ? { ...c, isUnread: markUnread } : c
     ))
-    fetch(`${API_BASE}/api/messages/read`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chatGuid: convGuid, action: markUnread ? 'unread' : 'read' }),
-    }).catch(() => {})
+    api.post('/api/messages/read', { chatGuid: convGuid, action: markUnread ? 'unread' : 'read' }).catch(() => {})
   }, [])
 
   const batchMarkReadStatus = useCallback(async (action: 'read' | 'unread') => {
@@ -1277,11 +1252,7 @@ export default function MessagesPage() {
       guids.includes(c.guid) ? { ...c, isUnread: action === 'unread' } : c
     ))
     Promise.allSettled(guids.map(guid =>
-      fetch(`${API_BASE}/api/messages/read`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatGuid: guid, action }),
-      })
+      api.post('/api/messages/read', { chatGuid: guid, action })
     ))
     setSelectedConvs(new Set())
     setSelectMode(false)

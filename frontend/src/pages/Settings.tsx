@@ -6,7 +6,7 @@ import { useSearchParams } from 'react-router-dom'
 import { createAuthClient } from '@/lib/supabase/client'
 import { useQuery, useMutation } from '@tanstack/react-query'
 
-import { API_BASE } from '@/lib/api'
+import { api } from '@/lib/api'
 
 const card: React.CSSProperties = {
   background: 'var(--bg-card)',
@@ -106,11 +106,7 @@ export default function SettingsPage() {
   // Load prefs via React Query
   useQuery<{ prefs: Pref[] }>({
     queryKey: ['prefs'],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/api/prefs`)
-      if (!res.ok) throw new Error(`API error: ${res.status}`)
-      return res.json()
-    },
+    queryFn: () => api.get<{ prefs: Pref[] }>('/api/prefs'),
     // Apply prefs to local state on success
     meta: { onSettled: true },
     select: (data) => {
@@ -146,16 +142,8 @@ export default function SettingsPage() {
   const saveNtfyMutation = useMutation({
     mutationFn: async () => {
       await Promise.all([
-        fetch(`${API_BASE}/api/prefs`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: 'ntfy_url', value: ntfyUrl }),
-        }),
-        fetch(`${API_BASE}/api/prefs`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: 'ntfy_topic', value: ntfyTopic }),
-        }),
+        api.patch('/api/prefs', { key: 'ntfy_url', value: ntfyUrl }),
+        api.patch('/api/prefs', { key: 'ntfy_topic', value: ntfyTopic }),
       ])
     },
     onSuccess: () => setNtfyStatus('Saved.'),
@@ -166,17 +154,12 @@ export default function SettingsPage() {
     setNtfyTesting(true)
     setNtfyStatus(null)
     try {
-      const res = await fetch(`${API_BASE}/api/notify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: 'Mission Control',
-          message: 'Test notification from Mission Control',
-          priority: 3,
-          tags: ['bell'],
-        }),
+      const json = await api.post<{ ok?: boolean; error?: string }>('/api/notify', {
+        title: 'Mission Control',
+        message: 'Test notification from Mission Control',
+        priority: 3,
+        tags: ['bell'],
       })
-      const json = await res.json()
       setNtfyStatus(json.ok ? 'Notification sent!' : `Error: ${json.error}`)
     } catch (e: unknown) {
       setNtfyStatus(`Error: ${e instanceof Error ? e.message : String(e)}`)

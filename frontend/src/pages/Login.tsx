@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router-dom'
 import { createAuthClient } from '@/lib/supabase/client'
 import { openInBrowser } from '@/lib/tauri'
 
-import { API_BASE } from '@/lib/api'
+import { api } from '@/lib/api'
 
 type View = 'main' | 'email' | 'mfa' | 'mfa-enroll' | 'waiting'
 
@@ -58,8 +58,7 @@ export default function LoginPage() {
     if (view !== 'waiting') return
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/auth/tauri-session?t=${Date.now()}`, { cache: 'no-store' })
-        const { code } = await res.json()
+        const { code } = await api.get<{ code?: string }>(`/api/auth/tauri-session?t=${Date.now()}`)
         if (code) {
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
           if (exchangeError) {

@@ -4,7 +4,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Zap, Trash2 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { API_BASE } from '@/lib/api'
+import { api } from '@/lib/api'
 import { SkeletonList } from '@/components/Skeleton'
 
 interface CaptureItem {
@@ -27,11 +27,7 @@ export default function CapturePage() {
 
   const { data: captureData, isLoading } = useQuery<{ items: CaptureItem[] }>({
     queryKey: ['capture'],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/api/capture`)
-      if (!res.ok) throw new Error(`API error: ${res.status}`)
-      return res.json()
-    },
+    queryFn: () => api.get<{ items: CaptureItem[] }>('/api/capture'),
   })
 
   const items = captureData?.items ?? []
@@ -74,11 +70,7 @@ export default function CapturePage() {
     setInput('')
 
     try {
-      await fetch(`${API_BASE}/api/capture`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: optimisticItem.content }),
-      })
+      await api.post('/api/capture', { content: optimisticItem.content })
       invalidateCapture()
       setOptimisticItems(prev => prev.filter(i => i.id !== optimisticItem.id))
     } catch {
@@ -93,44 +85,20 @@ export default function CapturePage() {
       let routedId: string | null = null
 
       if (destination === 'todo') {
-        const res = await fetch(`${API_BASE}/api/todos`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: item.content }),
-        })
-        const json = await res.json()
+        const json = await api.post<{ todo?: { id: string } }>('/api/todos', { text: item.content })
         routedId = json.todo?.id || null
       } else if (destination === 'idea') {
-        const res = await fetch(`${API_BASE}/api/ideas`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: item.content }),
-        })
-        const json = await res.json()
+        const json = await api.post<{ idea?: { id: string } }>('/api/ideas', { title: item.content })
         routedId = json.idea?.id || null
       } else if (destination === 'knowledge') {
-        const res = await fetch(`${API_BASE}/api/knowledge`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: item.content, source_type: 'note' }),
-        })
-        const json = await res.json()
+        const json = await api.post<{ entry?: { id: string } }>('/api/knowledge', { title: item.content, source_type: 'note' })
         routedId = json.entry?.id || null
       } else if (destination === 'pipeline') {
-        const res = await fetch(`${API_BASE}/api/pipeline-events`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ event_type: 'capture', description: item.content }),
-        })
-        const json = await res.json()
+        const json = await api.post<{ event?: { id: string } }>('/api/pipeline-events', { event_type: 'capture', description: item.content })
         routedId = json.event?.id || null
       }
 
-      await fetch(`${API_BASE}/api/capture`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: item.id, routed_to: destination, routed_id: routedId }),
-      })
+      await api.patch('/api/capture', { id: item.id, routed_to: destination, routed_id: routedId })
     },
     onSuccess: () => invalidateCapture(),
   })
@@ -146,11 +114,7 @@ export default function CapturePage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await fetch(`${API_BASE}/api/capture`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      })
+      await api.del('/api/capture', { id })
     },
     onSuccess: () => invalidateCapture(),
   })

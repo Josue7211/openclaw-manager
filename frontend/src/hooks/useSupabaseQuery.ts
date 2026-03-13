@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { API_BASE } from '@/lib/api'
+import { api } from '@/lib/api'
 
 /**
  * Generic query hook that fetches data through the Axum backend API first,
@@ -39,25 +39,21 @@ export function useSupabaseQuery<T = Record<string, unknown>>(
       }
 
       const qs = params.toString()
-      const url = `${API_BASE}/api/${table}${qs ? `?${qs}` : ''}`
+      const path = `/api/${table}${qs ? `?${qs}` : ''}`
 
       // Try the Axum backend first (uses service_role key, bypasses RLS)
       try {
-        const res = await fetch(url)
-        if (res.ok) {
-          const json = await res.json()
-          // API responses are typically { table: [...] } or plain arrays
-          if (Array.isArray(json)) return json as T[]
-          if (json[table] && Array.isArray(json[table])) return json[table] as T[]
-          // If response is an object with a single array value, use it
-          const values = Object.values(json)
-          const arr = values.find((v) => Array.isArray(v))
-          if (arr) return arr as T[]
-          return [] as T[]
-        }
-        // Non-OK response -- fall through to Supabase fallback
+        const json = await api.get<Record<string, unknown> | T[]>(path)
+        // API responses are typically { table: [...] } or plain arrays
+        if (Array.isArray(json)) return json as T[]
+        if ((json as Record<string, unknown>)[table] && Array.isArray((json as Record<string, unknown>)[table])) return (json as Record<string, unknown>)[table] as T[]
+        // If response is an object with a single array value, use it
+        const values = Object.values(json as Record<string, unknown>)
+        const arr = values.find((v) => Array.isArray(v))
+        if (arr) return arr as T[]
+        return [] as T[]
       } catch {
-        // Network error or API unreachable -- fall through to Supabase fallback
+        // ApiError or network error -- fall through to Supabase fallback
       }
 
       // Fallback: direct Supabase query (may fail if RLS blocks the anon key)
@@ -84,19 +80,14 @@ export function useSupabaseMutation<T = Record<string, unknown>>(
 ) {
   const queryClient = useQueryClient()
 
-  const apiUrl = `${API_BASE}/api/${table}`
+  const apiPath = `/api/${table}`
 
   return {
     insert: useMutation({
       mutationFn: async (values: Partial<T>) => {
         // Try API first
         try {
-          const res = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(values),
-          })
-          if (res.ok) return res.json()
+          return await api.post(apiPath, values)
         } catch {
           // fall through to Supabase
         }
@@ -113,12 +104,7 @@ export function useSupabaseMutation<T = Record<string, unknown>>(
       mutationFn: async ({ id, ...values }: { id: string } & Partial<T>) => {
         // Try API first
         try {
-          const res = await fetch(apiUrl, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, ...values }),
-          })
-          if (res.ok) return res.json()
+          return await api.patch(apiPath, { id, ...values })
         } catch {
           // fall through to Supabase
         }
@@ -135,12 +121,8 @@ export function useSupabaseMutation<T = Record<string, unknown>>(
       mutationFn: async (id: string) => {
         // Try API first
         try {
-          const res = await fetch(apiUrl, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id }),
-          })
-          if (res.ok) return
+          await api.del(apiPath, { id })
+          return
         } catch {
           // fall through to Supabase
         }

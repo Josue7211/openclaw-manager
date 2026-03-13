@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, CheckSquare, Target, CalendarDays, Mail, Loader2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { API_BASE } from '@/lib/api'
+import { api } from '@/lib/api'
 import { SkeletonList } from '@/components/Skeleton'
 
 interface Todo {
@@ -112,11 +112,7 @@ export default function SearchPage() {
 
   const { data: results, isLoading: loading } = useQuery<Results>({
     queryKey: ['search', debouncedQuery],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(debouncedQuery)}`)
-      if (!res.ok) throw new Error(`API error: ${res.status}`)
-      return res.json()
-    },
+    queryFn: () => api.get<Results>(`/api/search?q=${encodeURIComponent(debouncedQuery)}`),
     enabled: !!debouncedQuery.trim(),
   })
 

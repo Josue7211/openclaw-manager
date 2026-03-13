@@ -6,7 +6,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { formatTime } from '@/lib/utils'
 
-import { API_BASE } from '@/lib/api'
+import { api } from '@/lib/api'
 
 interface ChatMessage {
   id: string
@@ -101,8 +101,7 @@ export default function ChatPage() {
   useEffect(() => {
     const sessionStart = localStorage.getItem('session-start')
     const startTime = sessionStart ? parseInt(sessionStart, 10) : 0
-    fetch(`${API_BASE}/api/chat/history`)
-      .then(r => r.json())
+    api.get<{ messages?: ChatMessage[] }>('/api/chat/history')
       .then(d => {
         let msgs: ChatMessage[] = d.messages || []
         if (startTime > 0) msgs = msgs.filter(m => new Date(m.timestamp).getTime() >= startTime)
@@ -118,8 +117,7 @@ export default function ChatPage() {
 
   const pollHistory = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/chat/history`)
-      const d = await res.json()
+      const d = await api.get<{ messages?: ChatMessage[] }>('/api/chat/history')
       let incoming: ChatMessage[] = d.messages || []
       // Filter out messages from before the current session (set on /new or /reset)
       const sessionStart = localStorage.getItem('session-start')
@@ -280,11 +278,7 @@ export default function ChatPage() {
       setSystemMsg('── Starting fresh session… ──')
       setMessages([])
       setOptimistic([])
-      fetch(`${API_BASE}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, images: [] }),
-      }).catch(() => {})
+      api.post('/api/chat', { text, images: [] }).catch(() => {})
       setTimeout(() => {
         setSystemMsg('── Session reset ──')
         setTimeout(() => setSystemMsg(null), 3000)
@@ -328,11 +322,7 @@ export default function ChatPage() {
     }
 
     // Fire send — don't await; WS gateway has no clean ack
-    fetch(`${API_BASE}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, images: imgs }),
-    }).catch(() => {})
+    api.post('/api/chat', { text, images: imgs }).catch(() => {})
 
     // Optimistically mark sent after 500ms fallback — no need to wait for real ack
     setTimeout(() => {
@@ -352,12 +342,7 @@ export default function ChatPage() {
   const retry = async (msg: OptimisticMsg) => {
     setOptimistic(prev => prev.map(m => m.id === msg.id ? { ...m, status: 'sending' } : m))
     try {
-      const res = await fetch(`${API_BASE}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: msg.text, images: msg.images || [] }),
-      })
-      if (!res.ok) throw new Error('API error')
+      await api.post('/api/chat', { text: msg.text, images: msg.images || [] })
       setOptimistic(prev => prev.map(m => m.id === msg.id ? { ...m, status: 'sent' } : m))
       setTimeout(() => setOptimistic(prev => prev.filter(m => m.id !== msg.id)), 2000)
     } catch {
