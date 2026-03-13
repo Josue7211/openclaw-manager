@@ -36,6 +36,52 @@ fn openclaw_password() -> String {
     std::env::var("OPENCLAW_PASSWORD").unwrap_or_default()
 }
 
+fn openclaw_api_url() -> Option<String> {
+    std::env::var("OPENCLAW_API_URL").ok()
+}
+
+fn openclaw_api_key() -> String {
+    std::env::var("OPENCLAW_API_KEY").unwrap_or_default()
+}
+
+/// Fetch chat history from the remote OpenClaw API when local files aren't available.
+async fn fetch_remote_history() -> Option<Vec<ChatMessage>> {
+    let base = openclaw_api_url()?;
+    let url = format!("{}/chat/history", base);
+    let key = openclaw_api_key();
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .ok()?;
+
+    let mut req = client.get(&url);
+    if !key.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", key));
+    }
+
+    let resp = req.send().await.ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+
+    let body: Value = resp.json().await.ok()?;
+    let messages = body.get("messages")?.as_array()?;
+
+    let mut result = Vec::new();
+    for m in messages {
+        let id = m.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let role = m.get("role").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let text = m.get("text").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let timestamp = m.get("timestamp").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        if !text.is_empty() {
+            result.push(ChatMessage { id, role, text, timestamp, images: None });
+        }
+    }
+
+    Some(result)
+}
+
 fn chat_images_dir() -> PathBuf {
     openclaw_dir().join("media/chat-images")
 }
@@ -488,15 +534,6 @@ async fn post_chat(
     State(_state): State<AppState>,
     Json(body): Json<PostChatBody>,
 ) -> Response {
-    let dir = openclaw_dir();
-    if !dir.exists() {
-        return Json(json!({
-            "error": "openclaw_not_configured",
-            "message": "OpenClaw workspace not found. Set OPENCLAW_WS in .env.local and ensure OpenClaw is running."
-        }))
-        .into_response();
-    }
-
     let txt = body.text.unwrap_or_default().trim().to_string();
     let imgs = body.images.unwrap_or_default();
 
@@ -578,22 +615,21 @@ async fn post_chat(
 
 async fn get_history(State(_state): State<AppState>) -> Response {
     let dir = openclaw_dir();
-    if !dir.exists() {
-        return Json(json!({
-            "error": "openclaw_not_configured",
-            "message": "OpenClaw workspace not found. Set OPENCLAW_WS in .env.local and ensure OpenClaw is running.",
-            "messages": []
-        }))
-        .into_response();
+
+    // Try local session files first
+    if dir.exists() {
+        if let Some(file_path) = get_session_file() {
+            let messages = parse_messages(&file_path);
+            return Json(json!({"messages": messages})).into_response();
+        }
     }
 
-    let file_path = match get_session_file() {
-        Some(p) => p,
-        None => return Json(json!({"messages": []})).into_response(),
-    };
+    // Fall back to remote OpenClaw API
+    if let Some(messages) = fetch_remote_history().await {
+        return Json(json!({"messages": messages})).into_response();
+    }
 
-    let messages = parse_messages(&file_path);
-    Json(json!({"messages": messages})).into_response()
+    Json(json!({"messages": []})).into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -602,76 +638,100 @@ async fn get_history(State(_state): State<AppState>) -> Response {
 
 async fn get_stream(State(_state): State<AppState>) -> Response {
     let dir = openclaw_dir();
-    if !dir.exists() {
-        return Json(json!({
-            "error": "openclaw_not_configured",
-            "message": "OpenClaw workspace not found. Set OPENCLAW_WS in .env.local and ensure OpenClaw is running."
-        }))
-        .into_response();
-    }
+    let local_mode = dir.exists() && get_session_file().is_some();
 
-    let file_path = match get_session_file() {
-        Some(p) => p,
-        None => {
-            // Return a single SSE error event matching the TS behavior
-            let stream = async_stream::stream! {
-                yield Ok::<_, std::convert::Infallible>(
-                    Event::default().data(r#"{"error":"no session"}"#)
-                );
-            };
-            return Sse::new(stream)
-                .keep_alive(KeepAlive::default())
-                .into_response();
-        }
-    };
+    if local_mode {
+        // Local mode: poll session file for changes
+        let file_path = get_session_file().unwrap();
+        let mut last_size = std::fs::metadata(&file_path)
+            .map(|m| m.len())
+            .unwrap_or(0);
+        let mut last_count = parse_messages(&file_path).len();
 
-    let mut last_size = std::fs::metadata(&file_path)
-        .map(|m| m.len())
-        .unwrap_or(0);
-    let mut last_count = parse_messages(&file_path).len();
+        let stream = async_stream::stream! {
+            let mut ticker = interval(Duration::from_secs(1));
 
-    let stream = async_stream::stream! {
-        let mut ticker = interval(Duration::from_secs(1));
+            loop {
+                ticker.tick().await;
 
-        loop {
-            ticker.tick().await;
+                let current_size = match std::fs::metadata(&file_path) {
+                    Ok(m) => m.len(),
+                    Err(_) => {
+                        yield Ok::<_, std::convert::Infallible>(
+                            Event::default().comment("error")
+                        );
+                        continue;
+                    }
+                };
 
-            let current_size = match std::fs::metadata(&file_path) {
-                Ok(m) => m.len(),
-                Err(_) => {
-                    yield Ok::<_, std::convert::Infallible>(
-                        Event::default().comment("error")
-                    );
+                if current_size == last_size {
+                    yield Ok(Event::default().comment("ping"));
                     continue;
                 }
-            };
 
-            if current_size == last_size {
-                yield Ok(Event::default().comment("ping"));
-                continue;
-            }
+                last_size = current_size;
 
-            last_size = current_size;
+                let messages = parse_messages(&file_path);
+                if messages.len() > last_count {
+                    let new_msgs = &messages[last_count..];
+                    last_count = messages.len();
 
-            let messages = parse_messages(&file_path);
-            if messages.len() > last_count {
-                let new_msgs = &messages[last_count..];
-                last_count = messages.len();
-
-                for msg in new_msgs {
-                    let mut redacted = msg.clone();
-                    redacted.text = crate::redact::redact(&msg.text);
-                    if let Ok(data) = serde_json::to_string(&redacted) {
-                        yield Ok(Event::default().data(data));
+                    for msg in new_msgs {
+                        let mut redacted = msg.clone();
+                        redacted.text = crate::redact::redact(&msg.text);
+                        if let Ok(data) = serde_json::to_string(&redacted) {
+                            yield Ok(Event::default().data(data));
+                        }
                     }
                 }
             }
-        }
-    };
+        };
 
-    Sse::new(stream)
-        .keep_alive(KeepAlive::default())
-        .into_response()
+        Sse::new(stream)
+            .keep_alive(KeepAlive::default())
+            .into_response()
+    } else {
+        // Remote mode: poll OpenClaw API for new messages
+        let initial = fetch_remote_history().await.unwrap_or_default();
+        let mut last_count = initial.len();
+
+        let stream = async_stream::stream! {
+            let mut ticker = interval(Duration::from_secs(2));
+
+            loop {
+                ticker.tick().await;
+
+                let messages = match fetch_remote_history().await {
+                    Some(m) => m,
+                    None => {
+                        yield Ok::<_, std::convert::Infallible>(
+                            Event::default().comment("ping")
+                        );
+                        continue;
+                    }
+                };
+
+                if messages.len() > last_count {
+                    let new_msgs = &messages[last_count..];
+                    last_count = messages.len();
+
+                    for msg in new_msgs {
+                        let mut redacted = msg.clone();
+                        redacted.text = crate::redact::redact(&msg.text);
+                        if let Ok(data) = serde_json::to_string(&redacted) {
+                            yield Ok(Event::default().data(data));
+                        }
+                    }
+                } else {
+                    yield Ok(Event::default().comment("ping"));
+                }
+            }
+        };
+
+        Sse::new(stream)
+            .keep_alive(KeepAlive::default())
+            .into_response()
+    }
 }
 
 // ---------------------------------------------------------------------------
