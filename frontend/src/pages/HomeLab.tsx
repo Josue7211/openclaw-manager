@@ -1,6 +1,7 @@
 
 
-import { useEffect, useState } from 'react'
+
+import { useTauriQuery } from '@/hooks/useTauriQuery'
 
 interface VMInfo {
   name: string
@@ -153,31 +154,13 @@ const sectionTitle: React.CSSProperties = {
 }
 
 export default function HomelabPage() {
-  const [data, setData] = useState<HoblabData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const { data, isLoading: loading, error, refetch, dataUpdatedAt } = useTauriQuery<HoblabData>(
+    ['homelab'],
+    '/api/homelab',
+    { refetchInterval: 30000 },
+  )
 
-  async function load() {
-    try {
-      const res = await fetch('/api/homelab')
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const json = await res.json()
-      setData(json)
-      setLastUpdated(new Date())
-      setError(null)
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    load()
-    const interval = setInterval(load, 30000)
-    return () => clearInterval(interval)
-  }, [])
+  const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt) : null
 
   return (
     <div style={{ padding: '32px', maxWidth: '1100px' }}>
@@ -201,7 +184,7 @@ export default function HomelabPage() {
             </span>
           )}
           <button
-            onClick={load}
+            onClick={() => refetch()}
             style={{
               padding: '6px 14px',
               background: 'var(--bg-elevated)',
@@ -232,7 +215,7 @@ export default function HomelabPage() {
           fontSize: '13px',
           marginBottom: '20px',
         }}>
-          Error: {error}
+          Error: {(error as Error).message}
         </div>
       )}
 

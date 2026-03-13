@@ -9,6 +9,8 @@ import {
 import { supabase } from '@/lib/supabase'
 import { timeAgo } from '@/lib/utils'
 
+const API_BASE = 'http://127.0.0.1:3000'
+
 interface Mission {
   id: string
   title: string
@@ -241,7 +243,7 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
       setLoading(true)
       setIngesting(false)
       try {
-        const res = await fetch(`/api/mission-events?mission_id=${missionId}`)
+        const res = await fetch(`${API_BASE}/api/mission-events?mission_id=${missionId}`)
         const j = await res.json()
         let evts: MissionEvent[] = j.events || []
 
@@ -254,7 +256,7 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
             )
             const ij = await ir.json()
             if (ij.success && ij.events_inserted > 0) {
-              const res2 = await fetch(`/api/mission-events?mission_id=${missionId}`)
+              const res2 = await fetch(`${API_BASE}/api/mission-events?mission_id=${missionId}`)
               const j2 = await res2.json()
               evts = j2.events || []
             }
@@ -756,7 +758,7 @@ export default function MissionsPage() {
         setMissions(cachedMissions!)
         setAgents(cachedAgents!)
       } else {
-        const res = await fetch('/api/missions')
+        const res = await fetch(`${API_BASE}/api/missions`)
         const json = await res.json()
         if (!res.ok) throw new Error(json.error || 'Failed to fetch')
         cachedMissions = json.missions || []
@@ -773,7 +775,7 @@ export default function MissionsPage() {
     e.stopPropagation()
     setMarkingDone(missionId)
     try {
-      const res = await fetch('/api/missions', {
+      const res = await fetch(`${API_BASE}/api/missions`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: missionId, status: 'done', progress: 100 }),

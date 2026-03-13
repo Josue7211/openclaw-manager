@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase'
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js"
 import { timeAgo, formatTime } from '@/lib/utils'
 
+const API_BASE = 'http://127.0.0.1:3000'
+
 interface StatusData {
   name: string; emoji: string; model: string; status: string; lastActive: string; host: string; ip: string;
 }
@@ -79,7 +81,7 @@ export default function Dashboard() {
   const cacheDebounceRef = useRef<NodeJS.Timeout | null>(null)
 
   const fetchMissions = useCallback(() => {
-    fetch('/api/missions').then(r => r.json()).then(d => {
+    fetch(`${API_BASE}/api/missions`).then(r => r.json()).then(d => {
       const filtered = (d.missions || []).filter((m: Mission) => m.status !== 'done')
       const seen = new Set<string>()
       const deduped = filtered.filter((m: Mission) => {
@@ -93,7 +95,7 @@ export default function Dashboard() {
   }, [])
 
   const fetchAll = useCallback(() => {
-    fetch('/api/memory').then(r => r.json()).then(d => setMemory(d.entries || [])).catch(() => {})
+    fetch(`${API_BASE}/api/memory`).then(r => r.json()).then(d => setMemory(d.entries || [])).catch(() => {})
     setLastRefresh(new Date())
   }, [])
 
@@ -158,7 +160,7 @@ export default function Dashboard() {
       const { data } = await supabase.from('cache').select('*')
       return data as Array<{ key: string; value: unknown }> | null
     }
-    const res = await fetch('/api/cache')
+    const res = await fetch(`${API_BASE}/api/cache`)
     const json = await res.json()
     return (json.rows || null) as Array<{ key: string; value: unknown }> | null
   }, [])
@@ -166,7 +168,7 @@ export default function Dashboard() {
   // Trigger server cache-refresh then read back
   const triggerCacheRefresh = useCallback(async () => {
     try {
-      await fetch('/api/cache-refresh', { method: 'POST' })
+      await fetch(`${API_BASE}/api/cache-refresh`, { method: 'POST' })
       const cacheRows = await readCache()
       if (cacheRows) applyCache(cacheRows)
     } catch { /* silent */ }
@@ -179,11 +181,11 @@ export default function Dashboard() {
       if (data?.length) applyCache(data)
     })
     // Then: trigger refresh in background
-    fetch('/api/cache-refresh', { method: 'POST' })
-    fetch('/api/cache-refresh-slow', { method: 'POST' })
+    fetch(`${API_BASE}/api/cache-refresh`, { method: 'POST' })
+    fetch(`${API_BASE}/api/cache-refresh-slow`, { method: 'POST' })
     const fastInterval = setInterval(triggerCacheRefresh, 5000)
     const slowInterval = setInterval(() => {
-      fetch('/api/cache-refresh-slow', { method: 'POST' })
+      fetch(`${API_BASE}/api/cache-refresh-slow`, { method: 'POST' })
     }, 30000)
 
     // Realtime: when server writes cache, debounce to wait for all upserts to land (only with supabase)
@@ -219,7 +221,7 @@ export default function Dashboard() {
 
   const fetchActiveSubagents = useCallback(async () => {
     try {
-      const data = await fetch('/api/subagents/active').then(r => r.json())
+      const data = await fetch(`${API_BASE}/api/subagents/active`).then(r => r.json())
       setActiveSubagents(data)
     } catch { /* silent */ }
   }, [])
@@ -234,8 +236,8 @@ export default function Dashboard() {
   const syncResearchMission = useCallback(async () => {
     try {
       const [{ jobs }, { missions: missionList }] = await Promise.all([
-        fetch('/api/crons').then(r => r.json()).catch(() => ({ jobs: [] })),
-        fetch('/api/missions').then(r => r.json()).catch(() => ({ missions: [] })),
+        fetch(`${API_BASE}/api/crons`).then(r => r.json()).catch(() => ({ jobs: [] })),
+        fetch(`${API_BASE}/api/missions`).then(r => r.json()).catch(() => ({ missions: [] })),
       ])
       const cron = (jobs as Array<{ name: string; state?: { nextRunAtMs?: number; lastRunAtMs?: number; lastRunStatus?: string }; enabled?: boolean }>)
         .find(j => j.name === 'bjorn-research-agent')
@@ -252,7 +254,7 @@ export default function Dashboard() {
 
       if (seemsRunning) {
         if (!existing) {
-          const created = await fetch('/api/missions', {
+          const created = await fetch(`${API_BASE}/api/missions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title: 'Research', assignee: 'bjorn' }),
@@ -261,7 +263,7 @@ export default function Dashboard() {
         } else {
           if (!researchMissionIdRef.current) researchMissionIdRef.current = existing.id
           if (existing.status !== 'active') {
-            await fetch('/api/missions', {
+            await fetch(`${API_BASE}/api/missions`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ id: existing.id, status: 'active' }),
@@ -271,7 +273,7 @@ export default function Dashboard() {
       } else if (lastStatus === 'success' || (lastRun > 0 && !seemsRunning)) {
         const targetId = researchMissionIdRef.current ?? existing?.id
         if (existing && existing.status === 'active' && targetId) {
-          await fetch('/api/missions', {
+          await fetch(`${API_BASE}/api/missions`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: targetId, status: 'done' }),
@@ -291,9 +293,9 @@ export default function Dashboard() {
 
   // Auto-missions: sync claude processes every 15s (realtime subscription handles state refresh)
   useEffect(() => {
-    fetch('/api/missions/sync-agents', { method: 'POST' }).catch(() => {})
+    fetch(`${API_BASE}/api/missions/sync-agents`, { method: 'POST' }).catch(() => {})
     const interval = setInterval(() => {
-      fetch('/api/missions/sync-agents', { method: 'POST' }).catch(() => {})
+      fetch(`${API_BASE}/api/missions/sync-agents`, { method: 'POST' }).catch(() => {})
     }, 15000)
     return () => clearInterval(interval)
   }, [])
@@ -302,7 +304,7 @@ export default function Dashboard() {
   const [panelIdea, setPanelIdea] = useState<Idea | null>(null)
 
   const fetchPendingIdeas = useCallback(() => {
-    fetch('/api/ideas?status=pending')
+    fetch(`${API_BASE}/api/ideas?status=pending`)
       .then(r => r.json())
       .then(d => setPendingIdeas(d.ideas || []))
       .catch(() => {})
@@ -315,7 +317,7 @@ export default function Dashboard() {
   }, [fetchPendingIdeas])
 
   const handleIdeaAction = useCallback(async (id: string, status: 'approved' | 'deferred' | 'rejected') => {
-    await fetch('/api/ideas', {
+    await fetch(`${API_BASE}/api/ideas`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status }),
@@ -342,10 +344,10 @@ export default function Dashboard() {
 
   const updateMissionStatus = async (id: string, currentStatus: string) => {
     const next = currentStatus === 'pending' ? 'active' : currentStatus === 'active' ? 'done' : 'pending'
-    await fetch('/api/missions', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: next }) })
+    await fetch(`${API_BASE}/api/missions`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: next }) })
   }
   const deleteMission = async (id: string) => {
-    await fetch('/api/missions', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+    await fetch(`${API_BASE}/api/missions`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
   }
 
   return (

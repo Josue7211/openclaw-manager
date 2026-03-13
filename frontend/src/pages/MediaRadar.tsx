@@ -1,7 +1,9 @@
 
 
-import { useEffect, useState } from 'react'
+
+import { useState } from 'react'
 import { Film, Tv, Play, RefreshCw, Calendar } from 'lucide-react'
+import { useTauriQuery } from '@/hooks/useTauriQuery'
 
 interface NowPlaying {
   title: string
@@ -41,29 +43,20 @@ function formatAirDate(dateStr: string): string {
 }
 
 export default function MediaPage() {
-  const [data, setData] = useState<MediaData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { data, isLoading: loading, refetch, isFetching } = useTauriQuery<MediaData>(
+    ['media'],
+    '/api/media',
+    { refetchInterval: 30_000 },
+  )
   const [refreshing, setRefreshing] = useState(false)
 
-  const fetchData = async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true)
-    try {
-      const res = await fetch('/api/media')
-      const json = await res.json()
-      setData(json)
-    } catch {
-      setData({ now_playing: null, recently_added: [], upcoming: [] })
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await refetch()
+    setRefreshing(false)
   }
 
-  useEffect(() => {
-    fetchData()
-    const interval = setInterval(() => fetchData(), 30_000)
-    return () => clearInterval(interval)
-  }, [])
+  const isRefreshing = refreshing || (isFetching && !loading)
 
   if (loading) {
     return (
@@ -90,15 +83,15 @@ export default function MediaPage() {
           </p>
         </div>
         <button
-          onClick={() => fetchData(true)}
-          disabled={refreshing}
+          onClick={handleRefresh}
+          disabled={isRefreshing}
           style={{
             display: 'flex', alignItems: 'center', gap: '6px',
             padding: '8px 14px', borderRadius: '8px', border: '1px solid var(--border)',
             background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '12px',
           }}
         >
-          <RefreshCw size={13} style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }} />
+          <RefreshCw size={13} style={{ animation: isRefreshing ? 'spin 0.8s linear infinite' : 'none' }} />
           Refresh
         </button>
       </div>

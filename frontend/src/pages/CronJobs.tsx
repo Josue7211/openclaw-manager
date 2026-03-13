@@ -1,8 +1,9 @@
 
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+
+import { useState, useRef, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Zap, Clock } from 'lucide-react'
-import { getCached, setCache } from '@/lib/page-cache'
+import { useTauriQuery } from '@/hooks/useTauriQuery'
 
 interface CronSchedule {
   kind: string
@@ -147,26 +148,15 @@ function getFireTimesInWeek(job: CronJob, weekStart: Date): FireTime[] {
 }
 
 export default function CronsPage() {
-  const [jobs, setJobs] = useState<CronJob[]>(getCached<CronJob[]>('crons') || [])
-  const [loading, setLoading] = useState(!getCached('crons'))
+  const { data: cronsData, isLoading: loading } = useTauriQuery<{ jobs: CronJob[] }>(
+    ['crons'],
+    '/api/crons',
+  )
+  const jobs = cronsData?.jobs ?? []
+
   const [weekOffset, setWeekOffset] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const now = useRef(new Date()).current
-
-  const fetchJobs = useCallback(async () => {
-    try {
-      const data = await fetch('/api/crons').then(r => r.json())
-      const fetched = data.jobs || []
-      setJobs(fetched)
-      setCache('crons', fetched)
-    } catch {
-      setJobs([])
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => { fetchJobs() }, [fetchJobs])
 
   useEffect(() => {
     if (!loading && scrollRef.current) {

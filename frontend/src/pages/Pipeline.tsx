@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { Plus, X, Tag, Trash2, Calendar, AlertTriangle, CheckSquare, Target, Lightbulb, Clock, BellOff, Rocket } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
+const API_BASE = 'http://127.0.0.1:3000'
+
 type WorkflowNote = {
   id: string
   category: string
@@ -193,7 +195,7 @@ export default function PipelinePage() {
 
   async function fetchNotes() {
     setLoading(true)
-    const res = await fetch('/api/workflow-notes')
+    const res = await fetch(`${API_BASE}/api/workflow-notes`)
     const json = await res.json()
     setNotes(json.notes || [])
     setLoading(false)
@@ -201,7 +203,7 @@ export default function PipelinePage() {
 
   async function fetchRetros() {
     setLoading(true)
-    const res = await fetch('/api/retrospectives')
+    const res = await fetch(`${API_BASE}/api/retrospectives`)
     const json = await res.json()
     setRetros(json.retrospectives || [])
     setLoading(false)
@@ -209,7 +211,7 @@ export default function PipelinePage() {
 
   async function fetchCrons() {
     setLoading(true)
-    const res = await fetch('/api/crons')
+    const res = await fetch(`${API_BASE}/api/crons`)
     const json = await res.json()
     const all: CronJob[] = json.jobs || []
     const filtered = all.filter((j) =>
@@ -222,14 +224,14 @@ export default function PipelinePage() {
   }
 
   async function fetchIdeas() {
-    const res = await fetch('/api/ideas')
+    const res = await fetch(`${API_BASE}/api/ideas`)
     const json = await res.json()
     setIdeas(json.ideas || [])
   }
 
   const fetchShipLog = useCallback(() => {
     setShipLoading(true)
-    fetch('/api/changelog')
+    fetch(`${API_BASE}/api/changelog`)
       .then(r => r.json())
       .then(d => setEntries(d.entries || []))
       .catch(() => {})
@@ -238,7 +240,7 @@ export default function PipelinePage() {
 
   const fetchStale = useCallback(() => {
     setStaleLoading(true)
-    fetch('/api/stale')
+    fetch(`${API_BASE}/api/stale`)
       .then(r => r.json())
       .then(d => setStaleItems(d.items || []))
       .catch(() => {})
@@ -248,7 +250,7 @@ export default function PipelinePage() {
   const updateIdeaStatus = async (id: string, newStatus: IdeaStatus) => {
     setIdeas(prev => prev.map(idea => idea.id === id ? { ...idea, status: newStatus } : idea))
     try {
-      const res = await fetch('/api/ideas', {
+      const res = await fetch(`${API_BASE}/api/ideas`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, status: newStatus }),
@@ -271,7 +273,7 @@ export default function PipelinePage() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function markApplied(id: string, current: boolean) {
-    const res = await fetch('/api/workflow-notes', {
+    const res = await fetch(`${API_BASE}/api/workflow-notes`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, applied: !current }),
@@ -288,7 +290,7 @@ export default function PipelinePage() {
     setShipSubmitting(true)
     try {
       const tags = shipForm.tags.split(',').map(t => t.trim()).filter(Boolean)
-      const res = await fetch('/api/changelog', {
+      const res = await fetch(`${API_BASE}/api/changelog`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...shipForm, tags }),
@@ -308,7 +310,7 @@ export default function PipelinePage() {
 
   const deleteShipEntry = async (id: string) => {
     if (!confirm('Delete this entry?')) return
-    await fetch('/api/changelog', {
+    await fetch(`${API_BASE}/api/changelog`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
@@ -320,13 +322,13 @@ export default function PipelinePage() {
     setStaleActing(`${id}-${action}`)
     try {
       if (action === 'delete') {
-        await fetch('/api/stale', {
+        await fetch(`${API_BASE}/api/stale`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id, type }),
         })
       } else {
-        await fetch('/api/stale', {
+        await fetch(`${API_BASE}/api/stale`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id, type, action }),

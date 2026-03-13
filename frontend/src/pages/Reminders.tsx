@@ -1,8 +1,10 @@
 
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { Bell, RefreshCw, AlertCircle } from 'lucide-react'
-import { getCached, setCache } from '@/lib/page-cache'
+import { useTauriQuery } from '@/hooks/useTauriQuery'
+import { useMutation } from '@tanstack/react-query'
 
 interface Reminder {
   id: string
@@ -59,63 +61,52 @@ function dueColor(dateStr: string | null): string {
   return 'var(--accent-blue, #5ac8fa)'
 }
 
+interface RemindersResponse {
+  reminders?: Reminder[]
+  error?: string
+}
+
 export default function RemindersPage() {
-  const [reminders, setReminders] = useState<Reminder[]>(getCached<Reminder[]>('reminders') || [])
-  const [loading, setLoading] = useState(!getCached('reminders'))
-  const [error, setError] = useState<string | null>(null)
-  const [missingCreds, setMissingCreds] = useState(false)
+  const { data: remindersData, isLoading: loading, refetch, dataUpdatedAt } = useTauriQuery<RemindersResponse>(
+    ['reminders'],
+    '/api/reminders',
+  )
+
+  const reminders = remindersData?.reminders ?? []
+  const missingCreds = remindersData?.error === 'missing_credentials'
+  const errorMsg = remindersData?.error && remindersData.error !== 'missing_credentials' ? remindersData.error : null
+
   const [filter, setFilter] = useState<FilterTab>('all')
   const [secondsAgo, setSecondsAgo] = useState(0)
-  const [lastRefresh, setLastRefresh] = useState(new Date())
   const [optimistic, setOptimistic] = useState<Record<string, boolean>>({})
 
-  const fetchReminders = useCallback(async () => {
-    try {
-      const res = await fetch('/api/reminders')
-      const data = await res.json()
-      if (data.error === 'missing_credentials') {
-        setMissingCreds(true)
-        setLoading(false)
-        return
-      }
-      if (data.error) {
-        setError(data.error)
-      } else {
-        setReminders(data.reminders ?? [])
-        setCache('reminders', data.reminders ?? [])
-        setOptimistic({})
-        setLastRefresh(new Date())
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to fetch')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchReminders()
-  }, [fetchReminders])
+  const lastRefresh = dataUpdatedAt ? new Date(dataUpdatedAt) : new Date()
 
   useEffect(() => {
     const t = setInterval(() => setSecondsAgo(Math.floor((Date.now() - lastRefresh.getTime()) / 1000)), 1000)
     return () => clearInterval(t)
   }, [lastRefresh])
 
+  const toggleMutation = useMutation({
+    mutationFn: async ({ id, completed }: { id: string; completed: boolean }) => {
+      await fetch('http://127.0.0.1:3000/api/reminders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, completed }),
+      })
+    },
+  })
+
   const toggle = useCallback(async (id: string, currentCompleted: boolean) => {
     const newVal = !currentCompleted
     setOptimistic(o => ({ ...o, [id]: newVal }))
     try {
-      await fetch('/api/reminders', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, completed: newVal }),
-      })
+      await toggleMutation.mutateAsync({ id, completed: newVal })
     } catch {
       // revert on error
       setOptimistic(o => ({ ...o, [id]: currentCompleted }))
     }
-  }, [])
+  }, [toggleMutation])
 
   const displayReminders = useMemo(() => {
     return reminders.map(r => ({ ...r, completed: r.id in optimistic ? optimistic[r.id] : r.completed }))
@@ -196,7 +187,7 @@ export default function RemindersPage() {
             </span>
           )}
           <button
-            onClick={() => { if (!getCached('reminders')) setLoading(true); fetchReminders() }}
+            onClick={() => { setOptimistic({}); refetch() }}
             style={{
               background: 'transparent', border: '1px solid var(--border)', borderRadius: '8px',
               color: 'var(--text-secondary)', padding: '6px 10px', cursor: 'pointer',
@@ -238,13 +229,13 @@ export default function RemindersPage() {
       </div>
 
       {/* Error */}
-      {error && (
+      {errorMsg && (
         <div style={{
           padding: '12px 16px', borderRadius: '8px', marginBottom: '16px',
           background: 'rgba(255,95,95,0.1)', border: '1px solid rgba(255,95,95,0.3)',
           color: 'var(--red-bright, #ff5f5f)', fontSize: '12px',
         }}>
-          {error}
+          {errorMsg}
         </div>
       )}
 
@@ -262,7 +253,7 @@ export default function RemindersPage() {
       )}
 
       {/* Content */}
-      {!loading && !error && (
+      {!loading && !errorMsg && (
         <>
           {filtered.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic' }}>

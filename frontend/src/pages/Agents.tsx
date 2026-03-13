@@ -1,8 +1,12 @@
 
 
+
 import { useEffect, useRef, useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { AGENT_STATUS, MISSION_STATUS } from '@/lib/constants'
+
+const API_BASE = 'http://127.0.0.1:3000'
 
 interface Agent {
   id: string
@@ -190,13 +194,13 @@ function AgentCard({ agent, onSave, activeMission }: AgentCardProps) {
             borderRadius: '10px', padding: '2px 8px',
             animation: 'pulse-dot 2s ease-in-out infinite',
           }}>
-            ⏳ Awaiting Deploy
+            Awaiting Deploy
           </span>
         ) : (
           <>
             <StatusDot active={active} />
             <span style={{ fontSize: '11px', color: active ? '#4ade80' : '#8b8fa3', fontWeight: 600 }}>
-              {active ? '● Working' : 'Idle'}
+              {active ? 'Working' : 'Idle'}
             </span>
           </>
         )}
@@ -204,7 +208,7 @@ function AgentCard({ agent, onSave, activeMission }: AgentCardProps) {
 
       {agent.current_task && (
         <p style={{ margin: 0, fontSize: '12px', color: active ? 'var(--text-secondary)' : 'var(--text-muted)', lineHeight: 1.5, wordBreak: 'break-word', fontStyle: active ? 'normal' : 'italic' }}>
-          {active ? '⚡ ' : 'Last: '}{agent.current_task}
+          {active ? '' : 'Last: '}{agent.current_task}
         </p>
       )}
 
@@ -282,7 +286,7 @@ function LiveProcesses({ agents }: { agents: Agent[] }) {
     setDeploying(true)
     setDeployLog(null)
     try {
-      const res = await fetch('/api/deploy', { method: 'POST' })
+      const res = await fetch(`${API_BASE}/api/deploy`, { method: 'POST' })
       const data = await res.json()
       if (data.ok) {
         setDeployOk(true)
@@ -301,7 +305,7 @@ function LiveProcesses({ agents }: { agents: Agent[] }) {
 
   async function fetchProcesses() {
     try {
-      const res = await fetch('/api/processes')
+      const res = await fetch(`${API_BASE}/api/processes`)
       const data = await res.json()
       const incoming: Process[] = data.processes ?? []
       // Only update state if process data actually changed (avoid no-op re-renders)
@@ -362,7 +366,7 @@ function LiveProcesses({ agents }: { agents: Agent[] }) {
                 opacity: deploying ? 0.7 : 1,
               }}
             >
-              {deploying ? '⏳ Deploying…' : '🚀 Deploy'}
+              {deploying ? 'Deploying…' : 'Deploy'}
             </button>
           )}
           <div aria-live="polite" style={{ fontSize: '10px', fontFamily: 'monospace', color: 'var(--text-muted)' }}>
@@ -378,7 +382,7 @@ function LiveProcesses({ agents }: { agents: Agent[] }) {
           color: deployOk ? '#4ade80' : '#f87171',
           border: `1px solid ${deployOk ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'}`,
         }}>
-          {deployOk ? '✓' : '✗'} {deployLog}
+          {deployOk ? '' : ''} {deployLog}
         </div>
       )}
 
@@ -421,7 +425,7 @@ function LiveProcesses({ agents }: { agents: Agent[] }) {
               <div style={{ display: 'flex', gap: '12px', fontFamily: 'monospace', fontSize: '10px', paddingLeft: '16px' }}>
                 <span style={{ color: '#4ade80' }}>cpu {p.cpu}%</span>
                 <span style={{ color: 'var(--text-secondary)' }}>mem {p.mem}%</span>
-                {p.elapsed && <span style={{ color: 'var(--text-muted)' }}>⏱ {p.elapsed}</span>}
+                {p.elapsed && <span style={{ color: 'var(--text-muted)' }}>{p.elapsed}</span>}
               </div>
               {p.lastLogLine && (
                 <div style={{
@@ -440,53 +444,62 @@ function LiveProcesses({ agents }: { agents: Agent[] }) {
 }
 
 export default function AgentsPage() {
-  const [agents, setAgents] = useState<Agent[]>([])
-  const [missions, setMissions] = useState<Mission[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
 
+  const { data: agentsData, isLoading: loading } = useQuery<{ agents: Agent[] }>({
+    queryKey: ['agents'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/agents`)
+      if (!res.ok) throw new Error(`API error: ${res.status}`)
+      return res.json()
+    },
+  })
+
+  const { data: missionsData } = useQuery<{ missions: Mission[] }>({
+    queryKey: ['missions'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/missions`)
+      if (!res.ok) throw new Error(`API error: ${res.status}`)
+      return res.json()
+    },
+  })
+
+  const agents = agentsData?.agents ?? []
+  const missions = missionsData?.missions ?? []
+
+  const saveMutation = useMutation({
+    mutationFn: async ({ id, fields }: { id: string; fields: { display_name: string; emoji: string; role: string; model: string } }) => {
+      const res = await fetch(`${API_BASE}/api/agents`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...fields }),
+      })
+      if (!res.ok) throw new Error(`API error: ${res.status}`)
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
+    },
+  })
+
+  async function handleSave(id: string, fields: { display_name: string; emoji: string; role: string; model: string }) {
+    await saveMutation.mutateAsync({ id, fields })
+  }
+
+  // Real-time subscription (only when supabase client is available)
   useEffect(() => {
-    // Initial fetch
-    fetch('/api/agents')
-      .then(r => r.json())
-      .then(data => { setAgents(data.agents ?? []); setLoading(false) })
-      .catch(() => setLoading(false))
-
-    fetch('/api/missions')
-      .then(r => r.json())
-      .then(data => setMissions(data.missions ?? []))
-      .catch(() => {})
-
-    // Real-time subscription (only when supabase client is available)
     if (!supabase) return
 
     const channel = supabase
       .channel('agents-realtime')
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agents' }, (payload: any) => {
-        if (payload.eventType === 'UPDATE') {
-          setAgents(prev => prev.map(a => a.id === (payload.new as Agent).id ? { ...a, ...(payload.new as Agent) } : a))
-        } else if (payload.eventType === 'INSERT') {
-          setAgents(prev => [...prev, payload.new as Agent])
-        } else if (payload.eventType === 'DELETE') {
-          setAgents(prev => prev.filter(a => a.id !== (payload.old as { id: string }).id))
-        }
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agents' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['agents'] })
       })
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [])
-
-  async function handleSave(id: string, fields: { display_name: string; emoji: string; role: string; model: string }) {
-    const res = await fetch('/api/agents', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...fields }),
-    })
-    if (res.ok) {
-      const { agent } = await res.json()
-      setAgents(prev => prev.map(a => a.id === id ? { ...a, ...agent } : a))
-    }
-  }
+  }, [queryClient])
 
   return (
     <>

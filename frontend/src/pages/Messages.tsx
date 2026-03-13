@@ -6,6 +6,8 @@ import {
   Paperclip, X, Users, Search, Play, Pause, ChevronDown, CornerUpLeft, Copy, Check, SmilePlus,
 } from 'lucide-react'
 
+const API_BASE = 'http://127.0.0.1:3000'
+
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 
 interface Participant { address: string; service: string }
@@ -286,7 +288,7 @@ function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
   useEffect(() => {
     if (linkPreviewCache.has(url)) { setMeta(linkPreviewCache.get(url)!); return }
     let cancelled = false
-    fetch(`/api/messages/link-preview?url=${encodeURIComponent(url)}`)
+    fetch(`${API_BASE}/api/messages/link-preview?url=${encodeURIComponent(url)}`)
       .then(r => r.json())
       .then(data => {
         if (cancelled || data.error) return
@@ -391,7 +393,7 @@ let batchCheckPromise: Promise<void> | null = null
 function ensureAvatarBatchCheck(addresses: string[]) {
   const unchecked = addresses.filter(a => a && !avatarCache.has(a))
   if (unchecked.length === 0 || batchCheckPromise) return
-  batchCheckPromise = fetch('/api/messages/avatar', {
+  batchCheckPromise = fetch(`${API_BASE}/api/messages/avatar`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ addresses: unchecked }),
@@ -895,7 +897,7 @@ export default function MessagesPage() {
     try {
       const oldest = messagesRef.current[0]
       const before = oldest?.dateCreated || Date.now()
-      const res = await fetch(`/api/messages?conversation=${encodeURIComponent(convGuid)}&limit=50&before=${before}`)
+      const res = await fetch(`${API_BASE}/api/messages?conversation=${encodeURIComponent(convGuid)}&limit=50&before=${before}`)
       const data = await res.json()
       if (selectedGuidRef.current !== convGuid) return // stale
       const older: Message[] = data.messages ?? []
@@ -959,7 +961,7 @@ export default function MessagesPage() {
   const fetchConversations = useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true)
-      const res = await fetch('/api/messages?limit=100')
+      const res = await fetch(`${API_BASE}/api/messages?limit=100`)
       const data = await res.json()
       if (data.error) {
         if (!silent) setError(data.error)
@@ -988,7 +990,7 @@ export default function MessagesPage() {
   const fetchMessages = useCallback(async (conv: Conversation, silent = false) => {
     try {
       if (!silent) setMsgsLoading(true)
-      const res = await fetch(`/api/messages?conversation=${encodeURIComponent(conv.guid)}&limit=50`)
+      const res = await fetch(`${API_BASE}/api/messages?conversation=${encodeURIComponent(conv.guid)}&limit=50`)
       const data = await res.json()
       // Guard: only apply if we're still viewing this conversation
       if (selectedGuidRef.current === conv.guid) {
@@ -1022,7 +1024,7 @@ export default function MessagesPage() {
       inputRef.current?.focus()
 
       if (selected.isUnread) {
-        fetch('/api/messages/read', {
+        fetch(`${API_BASE}/api/messages/read`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ chatGuid: selected.guid }),
@@ -1218,9 +1220,9 @@ export default function MessagesPage() {
         formData.append('attachment', file)
         if (text) formData.append('message', text)
         if (replyGuid) formData.append('selectedMessageGuid', replyGuid)
-        await fetch('/api/messages/send-attachment', { method: 'POST', body: formData })
+        await fetch(`${API_BASE}/api/messages/send-attachment`, { method: 'POST', body: formData })
       } else {
-        await fetch('/api/messages', {
+        await fetch(`${API_BASE}/api/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1245,7 +1247,7 @@ export default function MessagesPage() {
     if (!selected) return
     setMessageMenu(null)
     try {
-      await fetch('/api/messages/react', {
+      await fetch(`${API_BASE}/api/messages/react`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1265,7 +1267,7 @@ export default function MessagesPage() {
     setConversations(prev => prev.map(c =>
       c.guid === convGuid ? { ...c, isUnread: markUnread } : c
     ))
-    fetch('/api/messages/read', {
+    fetch(`${API_BASE}/api/messages/read`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chatGuid: convGuid, action: markUnread ? 'unread' : 'read' }),
@@ -1278,7 +1280,7 @@ export default function MessagesPage() {
       guids.includes(c.guid) ? { ...c, isUnread: action === 'unread' } : c
     ))
     Promise.allSettled(guids.map(guid =>
-      fetch('/api/messages/read', {
+      fetch(`${API_BASE}/api/messages/read`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chatGuid: guid, action }),

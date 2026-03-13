@@ -1,8 +1,10 @@
 
 
+
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, CheckSquare, Target, CalendarDays, Mail, Loader2 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 
 interface Todo {
   id: string
@@ -43,6 +45,8 @@ interface Results {
   events: CalEvent[]
   emails: Email[]
 }
+
+const API_BASE = 'http://127.0.0.1:3000'
 
 function Skeleton() {
   return (
@@ -114,8 +118,7 @@ function ResultCard({ children, href }: { children: React.ReactNode; href: strin
 
 export default function SearchPage() {
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<Results | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -123,36 +126,26 @@ export default function SearchPage() {
     inputRef.current?.focus()
   }, [])
 
-  const doSearch = useCallback(async (q: string) => {
-    if (!q.trim()) {
-      setResults(null)
-      setLoading(false)
-      return
-    }
-    setLoading(true)
-    try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`)
-      const data = await res.json()
-      setResults(data)
-    } catch {
-      setResults({ todos: [], missions: [], events: [], emails: [] })
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const { data: results, isLoading: loading } = useQuery<Results>({
+    queryKey: ['search', debouncedQuery],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(debouncedQuery)}`)
+      if (!res.ok) throw new Error(`API error: ${res.status}`)
+      return res.json()
+    },
+    enabled: !!debouncedQuery.trim(),
+  })
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
     setQuery(val)
     if (timerRef.current) clearTimeout(timerRef.current)
     if (!val.trim()) {
-      setResults(null)
-      setLoading(false)
+      setDebouncedQuery('')
       return
     }
-    setLoading(true)
-    timerRef.current = setTimeout(() => doSearch(val), 300)
-  }
+    timerRef.current = setTimeout(() => setDebouncedQuery(val), 300)
+  }, [])
 
   const hasResults = results && (
     results.todos.length > 0 ||

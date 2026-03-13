@@ -6,6 +6,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { formatTime } from '@/lib/utils'
 
+const API_BASE = 'http://127.0.0.1:3000'
+
 interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
@@ -98,7 +100,7 @@ export default function ChatPage() {
   useEffect(() => {
     const sessionStart = localStorage.getItem('session-start')
     const startTime = sessionStart ? parseInt(sessionStart, 10) : 0
-    fetch('/api/chat/history')
+    fetch(`${API_BASE}/api/chat/history`)
       .then(r => r.json())
       .then(d => {
         let msgs: ChatMessage[] = d.messages || []
@@ -115,7 +117,7 @@ export default function ChatPage() {
 
   const pollHistory = useCallback(async () => {
     try {
-      const res = await fetch('/api/chat/history')
+      const res = await fetch(`${API_BASE}/api/chat/history`)
       const d = await res.json()
       let incoming: ChatMessage[] = d.messages || []
       // Filter out messages from before the current session (set on /new or /reset)
@@ -277,7 +279,7 @@ export default function ChatPage() {
       setSystemMsg('── Starting fresh session… ──')
       setMessages([])
       setOptimistic([])
-      fetch('/api/chat', {
+      fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, images: [] }),
@@ -325,7 +327,7 @@ export default function ChatPage() {
     }
 
     // Fire send — don't await; WS gateway has no clean ack
-    fetch('/api/chat', {
+    fetch(`${API_BASE}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, images: imgs }),
@@ -349,7 +351,7 @@ export default function ChatPage() {
   const retry = async (msg: OptimisticMsg) => {
     setOptimistic(prev => prev.map(m => m.id === msg.id ? { ...m, status: 'sending' } : m))
     try {
-      const res = await fetch('/api/chat', {
+      const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: msg.text, images: msg.images || [] }),

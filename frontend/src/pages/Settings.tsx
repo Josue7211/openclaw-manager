@@ -1,9 +1,12 @@
 
 
 import { Settings, Bell, Shield, LogOut } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { createAuthClient } from '@/lib/supabase/client'
+import { useQuery, useMutation } from '@tanstack/react-query'
+
+const API_BASE = 'http://127.0.0.1:3000'
 
 const card: React.CSSProperties = {
   background: 'var(--bg-card)',
@@ -71,13 +74,17 @@ const btnSecondary: React.CSSProperties = {
   marginRight: '8px',
 }
 
+interface Pref {
+  key: string
+  value: string
+}
+
 export default function SettingsPage() {
   const [searchParams] = useSearchParams()
   const setupMfaRequired = searchParams.get('setup_mfa') === '1'
   const [ntfyUrl, setNtfyUrl] = useState('http://localhost:2586')
   const [ntfyTopic, setNtfyTopic] = useState('mission-control')
   const [ntfyStatus, setNtfyStatus] = useState<string | null>(null)
-  const [ntfySaving, setNtfySaving] = useState(false)
   const [ntfyTesting, setNtfyTesting] = useState(false)
 
   // Auth & MFA state
@@ -96,61 +103,70 @@ export default function SettingsPage() {
   const [mfaStatus, setMfaStatus] = useState<string | null>(null)
   const supabase = createAuthClient()
 
-  useEffect(() => {
-    fetch('/api/prefs')
-      .then(r => r.json())
-      .then(({ prefs }) => {
-        if (!prefs) return
-        for (const p of prefs) {
+  // Load prefs via React Query
+  useQuery<{ prefs: Pref[] }>({
+    queryKey: ['prefs'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/prefs`)
+      if (!res.ok) throw new Error(`API error: ${res.status}`)
+      return res.json()
+    },
+    // Apply prefs to local state on success
+    meta: { onSettled: true },
+    select: (data) => {
+      // Side-effect in select: set state from prefs data
+      if (data?.prefs) {
+        for (const p of data.prefs) {
           if (p.key === 'ntfy_url' && p.value) setNtfyUrl(p.value)
           if (p.key === 'ntfy_topic' && p.value) setNtfyTopic(p.value)
         }
-      })
+      }
+      return data
+    },
+  })
 
-    // Load user + MFA status
-    supabase.auth.getUser().then(({ data: { user } }) => {
+  // Load user + MFA status (supabase auth - leave as-is)
+  useQuery({
+    queryKey: ['auth-user'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         setUserEmail(user.email ?? null)
         setHasPassword(user.identities?.some(i => i.provider === 'email') ?? false)
       }
-    })
-    supabase.auth.mfa.listFactors().then(({ data }) => {
-      if (data?.totp && data.totp.length > 0) {
-        const verified = data.totp.some(f => f.status === 'verified')
+      const { data: mfaData } = await supabase.auth.mfa.listFactors()
+      if (mfaData?.totp && mfaData.totp.length > 0) {
+        const verified = mfaData.totp.some(f => f.status === 'verified')
         setMfaEnabled(verified)
       }
-    })
-  }, [])
+      return { user, mfaData }
+    },
+  })
 
-  async function saveNtfy() {
-    setNtfySaving(true)
-    setNtfyStatus(null)
-    try {
+  const saveNtfyMutation = useMutation({
+    mutationFn: async () => {
       await Promise.all([
-        fetch('/api/prefs', {
+        fetch(`${API_BASE}/api/prefs`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ key: 'ntfy_url', value: ntfyUrl }),
         }),
-        fetch('/api/prefs', {
+        fetch(`${API_BASE}/api/prefs`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ key: 'ntfy_topic', value: ntfyTopic }),
         }),
       ])
-      setNtfyStatus('Saved.')
-    } catch {
-      setNtfyStatus('Error saving.')
-    } finally {
-      setNtfySaving(false)
-    }
-  }
+    },
+    onSuccess: () => setNtfyStatus('Saved.'),
+    onError: () => setNtfyStatus('Error saving.'),
+  })
 
   async function testNtfy() {
     setNtfyTesting(true)
     setNtfyStatus(null)
     try {
-      const res = await fetch('/api/notify', {
+      const res = await fetch(`${API_BASE}/api/notify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -237,8 +253,8 @@ export default function SettingsPage() {
             <button style={btnSecondary} onClick={testNtfy} disabled={ntfyTesting}>
               {ntfyTesting ? 'Sending...' : 'Test'}
             </button>
-            <button style={btnStyle} onClick={saveNtfy} disabled={ntfySaving}>
-              {ntfySaving ? 'Saving...' : 'Save'}
+            <button style={btnStyle} onClick={() => { setNtfyStatus(null); saveNtfyMutation.mutate() }} disabled={saveNtfyMutation.isPending}>
+              {saveNtfyMutation.isPending ? 'Saving...' : 'Save'}
             </button>
           </div>
           {ntfyStatus && (
@@ -398,7 +414,6 @@ export default function SettingsPage() {
                 borderRadius: '10px',
                 width: 'fit-content',
               }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={mfaQr} alt="TOTP QR code" width={180} height={180} />
               </div>
             )}

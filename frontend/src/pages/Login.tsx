@@ -5,6 +5,8 @@ import { useSearchParams } from 'react-router-dom'
 import { createAuthClient } from '@/lib/supabase/client'
 import { openInBrowser } from '@/lib/tauri'
 
+const API_BASE = 'http://127.0.0.1:3000'
+
 type View = 'main' | 'email' | 'mfa' | 'mfa-enroll' | 'waiting'
 
 export default function LoginPage() {
@@ -56,7 +58,7 @@ export default function LoginPage() {
     if (view !== 'waiting') return
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/auth/tauri-session?t=${Date.now()}`, { cache: 'no-store' })
+        const res = await fetch(`${API_BASE}/api/auth/tauri-session?t=${Date.now()}`, { cache: 'no-store' })
         const { code } = await res.json()
         console.log('[tauri-poll] code:', code ? 'received' : 'waiting...')
         if (code) {

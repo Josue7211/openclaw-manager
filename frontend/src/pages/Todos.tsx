@@ -1,9 +1,10 @@
 
 
+
 import { useEffect, useState, useCallback } from 'react'
 import { CheckSquare, Plus, Flame } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { getCached, setCache } from '@/lib/page-cache'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
 interface Todo {
   id: string
@@ -45,60 +46,97 @@ function DueDateBadge({ due_date }: { due_date: string | null | undefined }) {
   )
 }
 
+const API_BASE = 'http://127.0.0.1:3000'
+
 export default function TodosPage() {
-  const [todos, setTodos] = useState<Todo[]>(getCached<Todo[]>('todos') || [])
+  const queryClient = useQueryClient()
+
+  const { data: todosData } = useQuery<{ todos: Todo[] }>({
+    queryKey: ['todos'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/todos`)
+      if (!res.ok) throw new Error(`API error: ${res.status}`)
+      return res.json()
+    },
+  })
+
+  const todos = todosData?.todos ?? []
   const [todoInput, setTodoInput] = useState('')
   const [mounted, setMounted] = useState(false)
   const [hasDueDateSupport, setHasDueDateSupport] = useState(false)
 
-  const fetchTodos = useCallback(() => {
-    fetch('/api/todos').then(r => r.json()).then(d => {
-      const fetched: Todo[] = d.todos || []
-      setTodos(fetched)
-      setCache('todos', fetched)
-      // Detect due_date column support: if any todo has the key (even null)
-      if (fetched.length > 0 && 'due_date' in fetched[0]) {
-        setHasDueDateSupport(true)
-      }
-    }).catch(() => {})
-  }, [])
+  // Detect due_date column support
+  useEffect(() => {
+    if (todos.length > 0 && 'due_date' in todos[0]) {
+      setHasDueDateSupport(true)
+    }
+  }, [todos])
+
+  const invalidateTodos = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['todos'] })
+  }, [queryClient])
 
   useEffect(() => {
-    fetchTodos()
     setMounted(true)
 
     if (!supabase) return
 
     const channel = supabase
       .channel('todos-page-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, () => fetchTodos())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, () => invalidateTodos())
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [fetchTodos])
+  }, [invalidateTodos])
+
+  const addMutation = useMutation({
+    mutationFn: async (text: string) => {
+      await fetch(`${API_BASE}/api/todos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) })
+    },
+    onSuccess: () => invalidateTodos(),
+  })
+
+  const toggleMutation = useMutation({
+    mutationFn: async ({ id, done }: { id: string; done: boolean }) => {
+      await fetch(`${API_BASE}/api/todos`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, done: !done }) })
+    },
+    onSuccess: () => invalidateTodos(),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await fetch(`${API_BASE}/api/todos`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+    },
+    onSuccess: () => invalidateTodos(),
+  })
+
+  const updateDueDateMutation = useMutation({
+    mutationFn: async ({ id, due_date }: { id: string; due_date: string | null }) => {
+      await fetch(`${API_BASE}/api/todos`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, due_date: due_date || null }),
+      })
+    },
+    onSuccess: () => invalidateTodos(),
+  })
 
   const addTodo = async () => {
     if (!todoInput.trim()) return
-    await fetch('/api/todos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: todoInput }) })
+    await addMutation.mutateAsync(todoInput)
     setTodoInput('')
   }
 
   const toggleTodo = async (id: string, done: boolean) => {
-    await fetch('/api/todos', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, done: !done }) })
+    await toggleMutation.mutateAsync({ id, done })
   }
 
   const deleteTodo = async (id: string) => {
-    await fetch('/api/todos', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+    await deleteMutation.mutateAsync(id)
   }
 
   const updateDueDate = async (id: string, due_date: string | null) => {
-    // Optimistic update
-    setTodos(prev => prev.map(t => t.id === id ? { ...t, due_date } : t))
-    await fetch('/api/todos', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, due_date: due_date || null }),
-    }).catch(() => { fetchTodos() })
+    await updateDueDateMutation.mutateAsync({ id, due_date })
   }
 
   const pending = todos.filter(t => !t.done)

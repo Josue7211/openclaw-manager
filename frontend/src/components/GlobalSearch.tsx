@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { Search, CheckSquare, Target, CalendarDays, Mail, Bell, BookOpen, Loader2 } from 'lucide-react'
 
+const API_BASE = 'http://127.0.0.1:3000'
+
 interface Todo { id: string; text: string; done: boolean }
 interface Mission { id: string; title: string; status: string }
 interface CalEvent { id: string; title: string; start: string; allDay: boolean; calendar: string }
@@ -44,7 +46,7 @@ export default function GlobalSearch({ compact, collapsed }: { compact?: boolean
     if (!q.trim()) { setResults(null); setLoading(false); return }
     setLoading(true)
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`)
+      const res = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(q)}`)
       const data = await res.json()
       setResults(data)
     } catch {

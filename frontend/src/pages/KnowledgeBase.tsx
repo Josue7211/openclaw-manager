@@ -1,8 +1,9 @@
 
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+
+import { useEffect, useState, useRef } from 'react'
 import { BookOpen, X, ExternalLink, Trash2, Plus, Search } from 'lucide-react'
-import { getCached, setCache } from '@/lib/page-cache'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
 interface KnowledgeEntry {
   id: string
@@ -13,6 +14,8 @@ interface KnowledgeEntry {
   created_at: string
   updated_at: string
 }
+
+const API_BASE = 'http://127.0.0.1:3000'
 
 function TagChip({ tag, active, onClick }: { tag: string; active?: boolean; onClick: () => void }) {
   return (
@@ -217,7 +220,7 @@ function AddEntryModal({ onClose, onAdded }: { onClose: () => void; onAdded: () 
     setLoading(true)
     try {
       const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean)
-      const res = await fetch('/api/knowledge', {
+      const res = await fetch(`${API_BASE}/api/knowledge`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, content, tags, source_url: sourceUrl || undefined }),
@@ -436,48 +439,58 @@ function EntryCard({ entry, onClick }: { entry: KnowledgeEntry; onClick: () => v
 }
 
 export default function KnowledgePage() {
-  const [entries, setEntries] = useState<KnowledgeEntry[]>(getCached<KnowledgeEntry[]>('knowledge-entries') ?? [])
-  const [mounted, setMounted] = useState(!!getCached('knowledge-entries'))
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [selected, setSelected] = useState<KnowledgeEntry | null>(null)
   const [showModal, setShowModal] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const fetchEntries = useCallback((q?: string, tag?: string | null) => {
-    const params = new URLSearchParams()
-    if (q) params.set('q', q)
-    if (tag) params.set('tag', tag)
-    fetch(`/api/knowledge?${params}`)
-      .then(r => r.json())
-      .then(d => { const items = d.entries || []; setEntries(items); setCache('knowledge-entries', items) })
-      .catch(() => {})
-  }, [])
+  const { data: entriesData } = useQuery<{ entries: KnowledgeEntry[] }>({
+    queryKey: ['knowledge', debouncedSearch, tagFilter],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (debouncedSearch) params.set('q', debouncedSearch)
+      if (tagFilter) params.set('tag', tagFilter)
+      const res = await fetch(`${API_BASE}/api/knowledge?${params}`)
+      if (!res.ok) throw new Error(`API error: ${res.status}`)
+      return res.json()
+    },
+  })
 
-  useEffect(() => {
-    setMounted(true)
-    fetchEntries()
-  }, [fetchEntries])
+  const entries = entriesData?.entries ?? []
 
   const handleSearchChange = (val: string) => {
     setSearch(val)
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => fetchEntries(val, tagFilter), 300)
+    debounceRef.current = setTimeout(() => setDebouncedSearch(val), 300)
   }
 
   const handleTagFilter = (tag: string) => {
     const next = tagFilter === tag ? null : tag
     setTagFilter(next)
-    fetchEntries(search, next)
   }
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await fetch(`${API_BASE}/api/knowledge?id=${id}`, { method: 'DELETE' })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['knowledge'] })
+    },
+  })
+
   const handleDelete = async (id: string) => {
-    setEntries(prev => prev.filter(e => e.id !== id))
     setSelected(null)
-    await fetch(`/api/knowledge?id=${id}`, { method: 'DELETE' }).catch(() => {})
+    await deleteMutation.mutateAsync(id)
   }
 
   const allTags = Array.from(new Set(entries.flatMap(e => e.tags || [])))
+
+  useEffect(() => {
+    // auto-focus is handled by the search input
+  }, [])
 
   return (
     <div style={{ maxWidth: '900px' }}>
@@ -544,13 +557,13 @@ export default function KnowledgePage() {
       </div>
 
       {/* Tag filter chips */}
-      {mounted && allTags.length > 0 && (
+      {allTags.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '20px' }}>
           {tagFilter && (
             <TagChip
               tag={`✕ ${tagFilter}`}
               active
-              onClick={() => { setTagFilter(null); fetchEntries(search, null) }}
+              onClick={() => setTagFilter(null)}
             />
           )}
           {allTags.filter(t => t !== tagFilter).map(tag => (
@@ -560,29 +573,27 @@ export default function KnowledgePage() {
       )}
 
       {/* Grid */}
-      {mounted && (
-        entries.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '60px 0',
-            color: 'var(--text-muted)',
-            fontSize: '13px',
-          }}>
-            {search || tagFilter
-              ? 'No entries match your filters'
-              : 'No knowledge entries yet — add a note, article, or link'}
-          </div>
-        ) : (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-            gap: '12px',
-          }}>
-            {entries.map(entry => (
-              <EntryCard key={entry.id} entry={entry} onClick={() => setSelected(entry)} />
-            ))}
-          </div>
-        )
+      {entries.length === 0 ? (
+        <div style={{
+          textAlign: 'center',
+          padding: '60px 0',
+          color: 'var(--text-muted)',
+          fontSize: '13px',
+        }}>
+          {search || tagFilter
+            ? 'No entries match your filters'
+            : 'No knowledge entries yet — add a note, article, or link'}
+        </div>
+      ) : (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+          gap: '12px',
+        }}>
+          {entries.map(entry => (
+            <EntryCard key={entry.id} entry={entry} onClick={() => setSelected(entry)} />
+          ))}
+        </div>
       )}
 
       {/* Slide-in panel */}
@@ -598,7 +609,7 @@ export default function KnowledgePage() {
       {showModal && (
         <AddEntryModal
           onClose={() => setShowModal(false)}
-          onAdded={() => fetchEntries(search, tagFilter)}
+          onAdded={() => queryClient.invalidateQueries({ queryKey: ['knowledge'] })}
         />
       )}
     </div>

@@ -1,8 +1,9 @@
 
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+
+import { useState, useRef, useEffect } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react'
-import { getCached, setCache } from '@/lib/page-cache'
+import { useTauriQuery } from '@/hooks/useTauriQuery'
 
 interface CalendarEvent {
   id: string
@@ -11,6 +12,12 @@ interface CalendarEvent {
   end: string
   allDay: boolean
   calendar: string
+}
+
+interface CalendarResponse {
+  events?: CalendarEvent[]
+  error?: string
+  message?: string
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -86,10 +93,16 @@ const GRID_END   = 23  // 11 PM  (last row label = 11 PM)
 // ── main component ────────────────────────────────────────────────────────────
 
 export default function CalendarPage() {
-  const [events, setEvents] = useState<CalendarEvent[]>(getCached<CalendarEvent[]>('calendar-events') || [])
-  const [error, setError] = useState<string | null>(null)
-  const [missingCreds, setMissingCreds] = useState(false)
-  const [loading, setLoading] = useState(!getCached('calendar-events'))
+  const { data: calendarData, isLoading: loading } = useTauriQuery<CalendarResponse>(
+    ['calendar'],
+    '/api/calendar',
+  )
+
+  const events = calendarData?.events ?? []
+  const missingCreds = calendarData?.error === 'missing_credentials'
+  const error = calendarData?.error && calendarData.error !== 'missing_credentials'
+    ? (calendarData.message || 'Failed to load calendar')
+    : null
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -123,28 +136,6 @@ export default function CalendarPage() {
     window.addEventListener('resize', resize)
     return () => window.removeEventListener('resize', resize)
   }, [loading, view])
-
-  const fetchEvents = useCallback(async () => {
-    if (!getCached('calendar-events')) setLoading(true)
-    try {
-      const res = await fetch('/api/calendar')
-      const data = await res.json()
-      if (data.error === 'missing_credentials') {
-        setMissingCreds(true)
-      } else if (data.error) {
-        setError(data.message || 'Failed to load calendar')
-      } else {
-        setEvents(data.events || [])
-        setCache('calendar-events', data.events || [])
-      }
-    } catch {
-      setError('Failed to connect to calendar API')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => { fetchEvents() }, [fetchEvents])
 
   // Scroll week grid to 8 AM on mount
   useEffect(() => {

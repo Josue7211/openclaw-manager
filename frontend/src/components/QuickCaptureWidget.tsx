@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { ChevronDown, ChevronUp, Zap } from 'lucide-react'
 
+const API_BASE = 'http://127.0.0.1:3000'
+
 type CaptureType = 'Note' | 'Task' | 'Idea' | 'Decision'
 
 const STORAGE_KEY = 'quick-capture-widget'
@@ -148,13 +150,13 @@ export default function QuickCaptureWidget() {
     try {
       let res: Response
       if (type === 'Task') {
-        res = await fetch('/api/todos', {
+        res = await fetch(`${API_BASE}/api/todos`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: content.trim() }),
         })
       } else {
-        res = await fetch('/api/capture', {
+        res = await fetch(`${API_BASE}/api/capture`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ content: content.trim() }),

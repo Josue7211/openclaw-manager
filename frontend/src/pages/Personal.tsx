@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { CheckSquare, Cpu, Wifi, RefreshCw, Sun, Sunset, Moon, CalendarDays, Target, ClipboardList, ChevronDown, ChevronRight, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
+const API_BASE = 'http://127.0.0.1:3000'
+
 interface Todo { id: string; text: string; done: boolean; createdAt: string; due_date?: string }
 interface Mission { id: string; title: string; status: string }
 interface CalendarEvent { id: string; title: string; start: string; end: string; allDay: boolean; calendar: string }
@@ -70,7 +72,7 @@ function DailyReviewWidget({ todos, missions }: { todos: Todo[]; missions: Missi
 
   const fetchReview = useCallback(() => {
     setLoadingReview(true)
-    fetch(`/api/daily-review?date=${today}`)
+    fetch(`${API_BASE}/api/daily-review?date=${today}`)
       .then(r => r.json())
       .then(d => { setReview(d.review || null); setLoadingReview(false) })
       .catch(() => setLoadingReview(false))
@@ -90,7 +92,7 @@ function DailyReviewWidget({ todos, missions }: { todos: Todo[]; missions: Missi
   const saveReview = async () => {
     setSaving(true)
     try {
-      const res = await fetch('/api/daily-review', {
+      const res = await fetch(`${API_BASE}/api/daily-review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date: today, ...form }),
@@ -430,15 +432,15 @@ export default function PersonalDashboard() {
   const [secondsAgo, setSecondsAgo] = useState(0)
 
   const fetchTodos = useCallback(() => {
-    fetch('/api/todos').then(r => r.json()).then(d => setTodos(d.todos || [])).catch(() => {})
+    fetch(`${API_BASE}/api/todos`).then(r => r.json()).then(d => setTodos(d.todos || [])).catch(() => {})
   }, [])
 
   const fetchMissions = useCallback(() => {
-    fetch('/api/missions').then(r => r.json()).then(d => setMissions(d.missions || [])).catch(() => {})
+    fetch(`${API_BASE}/api/missions`).then(r => r.json()).then(d => setMissions(d.missions || [])).catch(() => {})
   }, [])
 
   const fetchCalendar = useCallback(() => {
-    fetch('/api/calendar').then(r => r.json()).then(d => setCalendarEvents(d.events || [])).catch(() => {})
+    fetch(`${API_BASE}/api/calendar`).then(r => r.json()).then(d => setCalendarEvents(d.events || [])).catch(() => {})
   }, [])
 
   const fetchProxmox = useCallback(async () => {
@@ -448,7 +450,7 @@ export default function PersonalDashboard() {
         const { data } = await supabase.from('cache').select('*')
         cacheRows = data
       } else {
-        const res = await fetch('/api/cache')
+        const res = await fetch(`${API_BASE}/api/cache`)
         const json = await res.json()
         cacheRows = json.rows
       }
@@ -467,7 +469,7 @@ export default function PersonalDashboard() {
 
   const fetchOpnsense = useCallback(async () => {
     try {
-      const data = await fetch('/api/opnsense').then(r => r.json())
+      const data = await fetch(`${API_BASE}/api/opnsense`).then(r => r.json())
       setOpnsense(data)
     } catch { /* silent */ }
   }, [])
@@ -519,14 +521,14 @@ export default function PersonalDashboard() {
 
   const addTodo = async () => {
     if (!todoInput.trim()) return
-    await fetch('/api/todos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: todoInput }) })
+    await fetch(`${API_BASE}/api/todos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: todoInput }) })
     setTodoInput('')
   }
   const toggleTodo = async (id: string, done: boolean) => {
-    await fetch('/api/todos', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, done: !done }) })
+    await fetch(`${API_BASE}/api/todos`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, done: !done }) })
   }
   const deleteTodo = async (id: string) => {
-    await fetch('/api/todos', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+    await fetch(`${API_BASE}/api/todos`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
   }
 
   return (

@@ -1,7 +1,9 @@
 
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+
+import { useEffect, useState, useRef } from 'react'
 import { Zap, Trash2 } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
 interface CaptureItem {
   id: string
@@ -18,23 +20,33 @@ const ROUTE_LABELS: Record<string, string> = {
   pipeline: '🔄 Pipeline',
 }
 
+const API_BASE = 'http://127.0.0.1:3000'
+
 export default function CapturePage() {
-  const [items, setItems] = useState<CaptureItem[]>([])
+  const queryClient = useQueryClient()
+
+  const { data: captureData } = useQuery<{ items: CaptureItem[] }>({
+    queryKey: ['capture'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/capture`)
+      if (!res.ok) throw new Error(`API error: ${res.status}`)
+      return res.json()
+    },
+  })
+
+  const items = captureData?.items ?? []
+
   const [input, setInput] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [routing, setRouting] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
+  const [optimisticItems, setOptimisticItems] = useState<CaptureItem[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const fetchItems = useCallback(() => {
-    fetch('/api/capture')
-      .then(r => r.json())
-      .then(d => setItems(d.items || []))
-      .catch(() => {})
-  }, [])
+  // Merge optimistic items with server items
+  const displayItems = [...optimisticItems.filter(o => !items.some(i => i.id === o.id || (o.id.startsWith('temp-') && i.content === o.content))), ...items]
 
   useEffect(() => {
-    fetchItems()
     setMounted(true)
 
     const handleKey = (e: KeyboardEvent) => {
@@ -45,7 +57,9 @@ export default function CapturePage() {
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [fetchItems])
+  }, [])
+
+  const invalidateCapture = () => queryClient.invalidateQueries({ queryKey: ['capture'] })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -59,34 +73,30 @@ export default function CapturePage() {
       routed_id: null,
       created_at: new Date().toISOString(),
     }
-    setItems(prev => [optimisticItem, ...prev])
+    setOptimisticItems(prev => [optimisticItem, ...prev])
     setInput('')
 
     try {
-      const res = await fetch('/api/capture', {
+      await fetch(`${API_BASE}/api/capture`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: optimisticItem.content }),
       })
-      const json = await res.json()
-      if (json.item) {
-        setItems(prev => prev.map(i => i.id === optimisticItem.id ? json.item : i))
-      }
+      invalidateCapture()
+      setOptimisticItems(prev => prev.filter(i => i.id !== optimisticItem.id))
     } catch {
-      setItems(prev => prev.filter(i => i.id !== optimisticItem.id))
+      setOptimisticItems(prev => prev.filter(i => i.id !== optimisticItem.id))
     } finally {
       setSubmitting(false)
     }
   }
 
-  const routeItem = async (item: CaptureItem, destination: string) => {
-    setRouting(item.id + destination)
-
-    try {
+  const routeMutation = useMutation({
+    mutationFn: async ({ item, destination }: { item: CaptureItem; destination: string }) => {
       let routedId: string | null = null
 
       if (destination === 'todo') {
-        const res = await fetch('/api/todos', {
+        const res = await fetch(`${API_BASE}/api/todos`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: item.content }),
@@ -94,7 +104,7 @@ export default function CapturePage() {
         const json = await res.json()
         routedId = json.todo?.id || null
       } else if (destination === 'idea') {
-        const res = await fetch('/api/ideas', {
+        const res = await fetch(`${API_BASE}/api/ideas`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title: item.content }),
@@ -102,7 +112,7 @@ export default function CapturePage() {
         const json = await res.json()
         routedId = json.idea?.id || null
       } else if (destination === 'knowledge') {
-        const res = await fetch('/api/knowledge', {
+        const res = await fetch(`${API_BASE}/api/knowledge`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title: item.content, source_type: 'note' }),
@@ -110,7 +120,7 @@ export default function CapturePage() {
         const json = await res.json()
         routedId = json.entry?.id || null
       } else if (destination === 'pipeline') {
-        const res = await fetch('/api/pipeline-events', {
+        const res = await fetch(`${API_BASE}/api/pipeline-events`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ event_type: 'capture', description: item.content }),
@@ -119,37 +129,41 @@ export default function CapturePage() {
         routedId = json.event?.id || null
       }
 
-      const patchRes = await fetch('/api/capture', {
+      await fetch(`${API_BASE}/api/capture`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: item.id, routed_to: destination, routed_id: routedId }),
       })
-      const patchJson = await patchRes.json()
-      if (patchJson.item) {
-        setItems(prev => prev.map(i => i.id === item.id ? patchJson.item : i))
-      }
-    } catch {
-      // silently fail
+    },
+    onSuccess: () => invalidateCapture(),
+  })
+
+  const routeItem = async (item: CaptureItem, destination: string) => {
+    setRouting(item.id + destination)
+    try {
+      await routeMutation.mutateAsync({ item, destination })
     } finally {
       setRouting(null)
     }
   }
 
-  const deleteItem = async (id: string) => {
-    setItems(prev => prev.filter(i => i.id !== id))
-    try {
-      await fetch('/api/capture', {
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await fetch(`${API_BASE}/api/capture`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
       })
-    } catch {
-      fetchItems()
-    }
+    },
+    onSuccess: () => invalidateCapture(),
+  })
+
+  const deleteItem = async (id: string) => {
+    await deleteMutation.mutateAsync(id)
   }
 
-  const unrouted = items.filter(i => !i.routed_to)
-  const routed = items.filter(i => i.routed_to)
+  const unrouted = displayItems.filter(i => !i.routed_to)
+  const routed = displayItems.filter(i => i.routed_to)
 
   return (
     <div style={{ maxWidth: '720px' }}>
@@ -218,7 +232,7 @@ export default function CapturePage() {
       {/* Items */}
       {mounted && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {items.length === 0 && (
+          {displayItems.length === 0 && (
             <div style={{
               textAlign: 'center',
               padding: '60px 0',

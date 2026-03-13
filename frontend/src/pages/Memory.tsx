@@ -1,7 +1,8 @@
 
 
-import { useState, useEffect, useCallback } from 'react'
-import { getCached, setCache } from '@/lib/page-cache'
+
+import { useState, useCallback } from 'react'
+import { useQuery, useMutation } from '@tanstack/react-query'
 
 interface FileItem {
   name: string
@@ -13,26 +14,27 @@ interface FileTree {
   memoryFiles: FileItem[]
 }
 
+const API_BASE = 'http://127.0.0.1:3000'
+
 export default function MemoryPage() {
-  const [tree, setTree] = useState<FileTree>(getCached<FileTree>('memory-tree') || { coreFiles: [], memoryFiles: [] })
+  const { data: treeData } = useQuery<FileTree>({
+    queryKey: ['workspace-files'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/workspace/files`)
+      if (!res.ok) throw new Error(`API error: ${res.status}`)
+      const d = await res.json()
+      return { coreFiles: d.coreFiles || [], memoryFiles: d.memoryFiles || [] }
+    },
+  })
+
+  const tree = treeData ?? { coreFiles: [], memoryFiles: [] }
+
   const [activeFile, setActiveFile] = useState<string | null>(null)
   const [content, setContent] = useState('')
   const [editContent, setEditContent] = useState('')
   const [mode, setMode] = useState<'view' | 'edit'>('view')
   const [loading, setLoading] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    fetch('/api/workspace/files')
-      .then(r => r.json())
-      .then(d => {
-        const fetched = { coreFiles: d.coreFiles || [], memoryFiles: d.memoryFiles || [] }
-        setTree(fetched)
-        setCache('memory-tree', fetched)
-      })
-      .catch(() => {})
-  }, [])
 
   const loadFile = useCallback(async (filePath: string) => {
     setActiveFile(filePath)
@@ -40,7 +42,7 @@ export default function MemoryPage() {
     setLoading(true)
     setContent('')
     try {
-      const res = await fetch(`/api/workspace/file?path=${encodeURIComponent(filePath)}`)
+      const res = await fetch(`${API_BASE}/api/workspace/file?path=${encodeURIComponent(filePath)}`)
       const data = await res.json()
       setContent(data.content || '')
       setEditContent(data.content || '')
@@ -51,22 +53,23 @@ export default function MemoryPage() {
     }
   }, [])
 
-  const saveFile = async () => {
-    if (!activeFile) return
-    setSaving(true)
-    try {
-      await fetch('/api/workspace/file', {
+  const saveMutation = useMutation({
+    mutationFn: async ({ path, content: fileContent }: { path: string; content: string }) => {
+      await fetch(`${API_BASE}/api/workspace/file`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: activeFile, content: editContent }),
+        body: JSON.stringify({ path, content: fileContent }),
       })
+    },
+    onSuccess: () => {
       setContent(editContent)
       setLastSaved(new Date())
-    } catch {
-      alert('Save failed')
-    } finally {
-      setSaving(false)
-    }
+    },
+  })
+
+  const saveFile = async () => {
+    if (!activeFile) return
+    await saveMutation.mutateAsync({ path: activeFile, content: editContent })
   }
 
   const timeSince = (date: Date) => {
@@ -204,19 +207,19 @@ export default function MemoryPage() {
                 {mode === 'edit' && (
                   <button
                     onClick={saveFile}
-                    disabled={saving}
+                    disabled={saveMutation.isPending}
                     style={{
                       padding: '5px 16px',
                       fontSize: '12px',
                       borderRadius: 6,
                       border: 'none',
-                      background: saving ? 'var(--text-muted)' : '#7c3aed',
+                      background: saveMutation.isPending ? 'var(--text-muted)' : '#7c3aed',
                       color: '#fff',
-                      cursor: saving ? 'not-allowed' : 'pointer',
+                      cursor: saveMutation.isPending ? 'not-allowed' : 'pointer',
                       fontWeight: 700,
                     }}
                   >
-                    {saving ? 'Saving…' : 'Save'}
+                    {saveMutation.isPending ? 'Saving…' : 'Save'}
                   </button>
                 )}
               </div>

@@ -1,8 +1,11 @@
 
 
+
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Mail, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Settings, Plus, Trash2, Star, X, Eye, EyeOff } from 'lucide-react'
-import { getCached, setCache } from '@/lib/page-cache'
+
+const API_BASE = 'http://127.0.0.1:3000'
 
 interface Email {
   id: string
@@ -59,16 +62,13 @@ function formatDate(iso: string): string {
 }
 
 export default function EmailPage() {
-  const [emails, setEmails] = useState<Email[]>(getCached<Email[]>('emails') ?? [])
-  const [loading, setLoading] = useState(!getCached('emails'))
-  const [error, setError] = useState<string | null>(null)
-  const [missingCreds, setMissingCreds] = useState(false)
+  const queryClient = useQueryClient()
+
   const [folder, setFolder] = useState<Folder>('INBOX')
   const [expanded, setExpanded] = useState<string | null>(null)
   const [markingRead, setMarkingRead] = useState<Set<string>>(new Set())
 
   // Multi-account state
-  const [accounts, setAccounts] = useState<EmailAccount[]>([])
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
@@ -79,33 +79,36 @@ export default function EmailPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const accountInitRef = useRef(false)
 
-  // Load accounts
-  const loadAccounts = useCallback(async () => {
-    try {
-      const res = await fetch('/api/email-accounts')
-      const data = await res.json()
-      if (data.accounts) {
-        setAccounts(data.accounts)
-        // Restore selected from localStorage or pick default
-        const stored = typeof window !== 'undefined' ? localStorage.getItem('email_account_id') : null
-        const ids = data.accounts.map((a: EmailAccount) => a.id)
-        if (stored && ids.includes(stored)) {
-          setSelectedAccountId(stored)
-        } else {
-          const def = data.accounts.find((a: EmailAccount) => a.is_default) || data.accounts[0]
-          if (def) {
-            setSelectedAccountId(def.id)
-            if (typeof window !== 'undefined') localStorage.setItem('email_account_id', def.id)
-          }
-        }
+  // Load accounts via useQuery
+  const { data: accountsData } = useQuery<{ accounts: EmailAccount[] }>({
+    queryKey: ['email-accounts'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/email-accounts`)
+      if (!res.ok) throw new Error(`API error: ${res.status}`)
+      return res.json()
+    },
+  })
+
+  const accounts = accountsData?.accounts ?? []
+
+  // Initialise selected account from localStorage / default when accounts first load
+  useEffect(() => {
+    if (accounts.length === 0 || accountInitRef.current) return
+    accountInitRef.current = true
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('email_account_id') : null
+    const ids = accounts.map(a => a.id)
+    if (stored && ids.includes(stored)) {
+      setSelectedAccountId(stored)
+    } else {
+      const def = accounts.find(a => a.is_default) || accounts[0]
+      if (def) {
+        setSelectedAccountId(def.id)
+        if (typeof window !== 'undefined') localStorage.setItem('email_account_id', def.id)
       }
-    } catch {
-      // ignore — will fall back to env vars
     }
-  }, [])
-
-  useEffect(() => { loadAccounts() }, [loadAccounts])
+  }, [accounts])
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -118,36 +121,24 @@ export default function EmailPage() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  const fetchEmails = useCallback(async (f: Folder, accountId?: string | null) => {
-    if (!getCached('emails')) setLoading(true)
-    setError(null)
-    setMissingCreds(false)
-    try {
-      const params = new URLSearchParams({ folder: f })
-      if (accountId) params.set('account_id', accountId)
-      const res = await fetch(`/api/email?${params}`)
-      const data = await res.json()
-      if (data.error === 'missing_credentials') {
-        setMissingCreds(true)
-        setLoading(false)
-        return
-      }
-      if (data.error) {
-        setError(data.error)
-      } else {
-        setEmails(data.emails ?? [])
-        setCache('emails', data.emails ?? [])
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to fetch')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  // Fetch emails via useQuery
+  const { data: emailsData, isLoading: loading, error: emailsError, refetch: refetchEmails } = useQuery<{ emails?: Email[]; error?: string }>({
+    queryKey: ['emails', folder, selectedAccountId],
+    queryFn: async () => {
+      const params = new URLSearchParams({ folder })
+      if (selectedAccountId) params.set('account_id', selectedAccountId)
+      const res = await fetch(`${API_BASE}/api/email?${params}`)
+      if (!res.ok) throw new Error(`API error: ${res.status}`)
+      return res.json()
+    },
+  })
 
-  useEffect(() => {
-    fetchEmails(folder, selectedAccountId)
-  }, [folder, selectedAccountId, fetchEmails])
+  const emails = emailsData?.emails ?? []
+  const missingCreds = emailsData?.error === 'missing_credentials'
+  const error = emailsError ? (emailsError instanceof Error ? emailsError.message : 'Failed to fetch') : (emailsData?.error && emailsData.error !== 'missing_credentials' ? emailsData.error : null)
+
+  const invalidateAccounts = () => queryClient.invalidateQueries({ queryKey: ['email-accounts'] })
+  const invalidateEmails = () => queryClient.invalidateQueries({ queryKey: ['emails'] })
 
   const selectAccount = useCallback((id: string) => {
     setSelectedAccountId(id)
@@ -160,12 +151,12 @@ export default function EmailPage() {
     if (email.read || markingRead.has(email.id)) return
     setMarkingRead(prev => new Set(prev).add(email.id))
     try {
-      await fetch('/api/email', {
+      await fetch(`${API_BASE}/api/email`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: email.id, read: true, account_id: selectedAccountId }),
       })
-      setEmails(prev => prev.map(e => e.id === email.id ? { ...e, read: true } : e))
+      invalidateEmails()
     } catch {
       // silently ignore
     } finally {
@@ -222,13 +213,14 @@ export default function EmailPage() {
       let res: Response
       if (editingAccount) {
         body.id = editingAccount.id
-        res = await fetch('/api/email-accounts', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        res = await fetch(`${API_BASE}/api/email-accounts`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       } else {
-        res = await fetch('/api/email-accounts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        res = await fetch(`${API_BASE}/api/email-accounts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       }
       const data = await res.json()
       if (data.error) { setFormError(data.error); return }
-      await loadAccounts()
+      invalidateAccounts()
+      accountInitRef.current = false
       setEditingAccount(null)
       setForm(EMPTY_FORM)
     } catch (e) {
@@ -241,8 +233,9 @@ export default function EmailPage() {
   const handleDelete = async (id: string) => {
     setDeletingId(id)
     try {
-      await fetch(`/api/email-accounts?id=${id}`, { method: 'DELETE' })
-      await loadAccounts()
+      await fetch(`${API_BASE}/api/email-accounts?id=${id}`, { method: 'DELETE' })
+      invalidateAccounts()
+      accountInitRef.current = false
       if (selectedAccountId === id) {
         setSelectedAccountId(null)
         if (typeof window !== 'undefined') localStorage.removeItem('email_account_id')
@@ -254,12 +247,13 @@ export default function EmailPage() {
   }
 
   const handleSetDefault = async (id: string) => {
-    await fetch('/api/email-accounts', {
+    await fetch(`${API_BASE}/api/email-accounts`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, is_default: true }),
     })
-    await loadAccounts()
+    invalidateAccounts()
+    accountInitRef.current = false
   }
 
   const selectedAccount = accounts.find(a => a.id === selectedAccountId)
@@ -564,7 +558,7 @@ export default function EmailPage() {
 
           {/* Refresh */}
           <button
-            onClick={() => fetchEmails(folder, selectedAccountId)}
+            onClick={() => refetchEmails()}
             style={{
               background: 'transparent', border: '1px solid var(--border)', borderRadius: '8px',
               color: 'var(--text-secondary)', padding: '6px 10px', cursor: 'pointer',
