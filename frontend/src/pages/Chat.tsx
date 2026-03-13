@@ -115,65 +115,76 @@ export default function ChatPage() {
   const knownIdsRef = useRef<Set<string>>(new Set())
   const optimisticImageCacheRef = useRef<Map<string, string[]>>(new Map())
 
-  const pollHistory = useCallback(async () => {
-    try {
-      const d = await api.get<{ messages?: ChatMessage[] }>('/api/chat/history')
-      let incoming: ChatMessage[] = d.messages || []
-      // Filter out messages from before the current session (set on /new or /reset)
-      const sessionStart = localStorage.getItem('session-start')
-      if (sessionStart) {
-        const startTime = parseInt(sessionStart, 10)
-        incoming = incoming.filter(m => new Date(m.timestamp).getTime() >= startTime)
-      }
-
-      setConnected(true)
-      failCountRef.current = 0
-      setNotConfigured(false)
-      setMessages(prev => {
-        const existingIds = new Set(prev.map(m => m.id))
-        const newMsgs = incoming.filter(m => !existingIds.has(m.id))
-        if (newMsgs.length === 0) return prev
-        return [...prev, ...newMsgs]
-      })
-      // Remove optimistic messages whose text now appears in history.
-      // For image messages, keep a short delay so the history record has time to
-      // include attachments before we swap it in. Text-only: remove immediately.
-      const incomingSnapshot = incoming
-      const removeOptimistic = () => {
-        setOptimistic(prev => {
-          if (prev.length === 0) return prev
-          const filtered = prev.filter(opt => {
-            const historyMsg = incomingSnapshot.find(m => m.role === 'user' && m.text === opt.text)
-            if (!historyMsg) return true // keep — not in history yet
-            // Keep if optimistic had images but history record doesn't yet
-            if ((opt.images?.length ?? 0) > 0 && (!historyMsg.images || historyMsg.images.length === 0)) return true
-            return false // safe to remove
-          })
-          return filtered.length === prev.length ? prev : filtered
-        })
-      }
-      // Check if any pending optimistic has images — only those need a delay
-      // Access optimistic state via a ref snapshot to avoid stale closure
-      removeOptimistic() // immediate removal for text-only messages
-      setTimeout(removeOptimistic, 1500) // second pass catches image messages once history has attachments
-      // Clear typing indicator if assistant replied after user sent
-      if (lastUserMsgTimeRef.current > 0) {
-        const lastAssistant = [...incoming].reverse().find(m => m.role === 'assistant')
-        if (lastAssistant && new Date(lastAssistant.timestamp).getTime() > lastUserMsgTimeRef.current) {
-          setIsTyping(false)
-        }
-      }
-    } catch {
-      setConnected(false)
-      failCountRef.current += 1
-      if (failCountRef.current >= 3) setNotConfigured(true)
-    }
-  }, [])
-
+  // ── Adaptive polling with exponential backoff (2s → 30s on failure) ──
   useEffect(() => {
-    const interval = setInterval(pollHistory, 2000)
-    return () => clearInterval(interval)
-  }, [pollHistory])
+    let delay = 2000
+    let timer: ReturnType<typeof setTimeout>
+    let cancelled = false
+
+    const tick = async () => {
+      try {
+        const d = await api.get<{ messages?: ChatMessage[]; error?: string }>('/api/chat/history')
+
+        if (d.error === 'openclaw_not_configured') {
+          setNotConfigured(true)
+          setConnected(false)
+          delay = Math.min(delay * 2, 30000)
+        } else {
+          let incoming: ChatMessage[] = d.messages || []
+          const sessionStart = localStorage.getItem('session-start')
+          if (sessionStart) {
+            const startTime = parseInt(sessionStart, 10)
+            incoming = incoming.filter(m => new Date(m.timestamp).getTime() >= startTime)
+          }
+
+          setConnected(true)
+          failCountRef.current = 0
+          setNotConfigured(false)
+          delay = 2000 // reset on success
+
+          setMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id))
+            const newMsgs = incoming.filter(m => !existingIds.has(m.id))
+            if (newMsgs.length === 0) return prev
+            return [...prev, ...newMsgs]
+          })
+
+          const incomingSnapshot = incoming
+          const removeOptimistic = () => {
+            setOptimistic(prev => {
+              if (prev.length === 0) return prev
+              const filtered = prev.filter(opt => {
+                const historyMsg = incomingSnapshot.find(m => m.role === 'user' && m.text === opt.text)
+                if (!historyMsg) return true
+                if ((opt.images?.length ?? 0) > 0 && (!historyMsg.images || historyMsg.images.length === 0)) return true
+                return false
+              })
+              return filtered.length === prev.length ? prev : filtered
+            })
+          }
+          removeOptimistic()
+          setTimeout(removeOptimistic, 1500)
+
+          if (lastUserMsgTimeRef.current > 0) {
+            const lastAssistant = [...incoming].reverse().find(m => m.role === 'assistant')
+            if (lastAssistant && new Date(lastAssistant.timestamp).getTime() > lastUserMsgTimeRef.current) {
+              setIsTyping(false)
+            }
+          }
+        }
+      } catch {
+        setConnected(false)
+        failCountRef.current += 1
+        if (failCountRef.current >= 3) setNotConfigured(true)
+        delay = Math.min(delay * 2, 30000)
+      }
+
+      if (!cancelled) timer = setTimeout(tick, delay)
+    }
+
+    tick()
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [])
 
   // ── Lightbox: close on Escape ──
   useEffect(() => {
