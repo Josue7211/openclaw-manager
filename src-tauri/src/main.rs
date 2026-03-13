@@ -1,76 +1,56 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod commands;
+mod db;
+mod error;
+mod redact;
+mod routes;
 mod secrets;
-mod sidecar;
-
-use std::sync::Mutex;
-use tauri::Manager;
-use tauri_plugin_shell::process::CommandChild;
-
-/// Holds the sidecar child process handle so we can kill it on shutdown.
-struct SidecarState(Mutex<Option<CommandChild>>);
+mod server;
 
 fn main() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "mission_control=info".into()),
+        )
+        .init();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
-        .manage(SidecarState(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             secrets::get_secret,
             secrets::set_secret,
             secrets::get_modules,
             secrets::check_first_run,
+            commands::get_openclaw_dir,
         ])
         .setup(|app| {
-            // In dev mode the Next.js dev server is started by `beforeDevCommand`
-            // in tauri.conf.json, so we skip sidecar spawning entirely.
-            if cfg!(debug_assertions) {
-                println!("[main] Dev mode — sidecar managed by beforeDevCommand");
-                return Ok(());
-            }
+            let handle = app.handle().clone();
 
-            // Load keychain secrets as env vars for the sidecar process.
+            // Load keychain secrets into env vars
             let env_vars = secrets::load_env_vars();
-
-            // On first run there are no secrets configured yet. The webview
-            // will show a setup wizard; once secrets are saved the user
-            // restarts the app and the sidecar launches normally.
-            if secrets::is_first_run() {
-                println!("[main] First run detected — skipping sidecar, showing setup wizard");
-                return Ok(());
+            for (key, value) in &env_vars {
+                std::env::set_var(key, value);
             }
 
-            let app_handle = app.handle().clone();
-
-            // Spawn the Node.js sidecar and wait for it to accept connections.
-            match sidecar::spawn_sidecar(&app_handle, env_vars) {
-                Ok(child) => {
-                    println!("[main] Sidecar spawned, waiting for health check…");
-                    if let Err(e) = sidecar::wait_for_ready(30) {
-                        eprintln!("[main] Sidecar health check failed: {e}");
-                    } else {
-                        // Store the child handle so we can kill it later.
-                        let state = app_handle.state::<SidecarState>();
-                        *state.0.lock().unwrap() = Some(child);
-                    }
-                }
-                Err(e) => {
-                    eprintln!("[main] Failed to start sidecar: {e}");
+            #[cfg(target_os = "linux")]
+            {
+                std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+                if std::env::var("WAYLAND_DISPLAY").is_ok() {
+                    std::env::set_var("GDK_BACKEND", "wayland");
                 }
             }
+
+            // Start embedded Axum server (replaces Node.js sidecar)
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = crate::server::start(handle).await {
+                    tracing::error!("Server error: {}", e);
+                }
+            });
 
             Ok(())
-        })
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::Destroyed = event {
-                let state = window.state::<SidecarState>();
-                let mut guard = state.0.lock().unwrap();
-                if let Some(child) = guard.take() {
-                    println!("[main] Killing sidecar on window close…");
-                    let _ = child.kill();
-                    println!("[main] Sidecar killed");
-                }
-            }
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

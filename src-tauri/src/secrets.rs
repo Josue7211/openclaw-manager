@@ -35,8 +35,8 @@ const KEY_ENV_MAP: &[(&str, &str)] = &[
     ("email.password", "EMAIL_PASSWORD"),
     ("ntfy.url", "NTFY_URL"),
     ("ntfy.topic", "NTFY_TOPIC"),
-    ("supabase.url", "NEXT_PUBLIC_SUPABASE_URL"),
-    ("supabase.anon-key", "NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+    ("supabase.url", "SUPABASE_URL"),
+    ("supabase.anon-key", "SUPABASE_ANON_KEY"),
     ("supabase.service-role-key", "SUPABASE_SERVICE_ROLE_KEY"),
 ];
 
@@ -137,15 +137,28 @@ pub fn is_first_run() -> bool {
 // Tauri commands (exported for the frontend)
 // ---------------------------------------------------------------------------
 
+/// Check if a key is in the allowed set (KEY_ENV_MAP keys + USER_KEYS).
+fn is_allowed_key(key: &str) -> bool {
+    KEY_ENV_MAP.iter().any(|&(k, _)| k == key) || USER_KEYS.contains(&key)
+}
+
 /// Retrieve a single secret from the OS keychain by its keyring key name.
+/// Only keys in the KEY_ENV_MAP/USER_KEYS allowlist are permitted.
 #[tauri::command]
 pub fn get_secret(key: String) -> Option<String> {
+    if !is_allowed_key(&key) {
+        return None;
+    }
     get_entry(&key)
 }
 
 /// Store a secret in the OS keychain.
+/// Only keys in the KEY_ENV_MAP/USER_KEYS allowlist are permitted.
 #[tauri::command]
 pub fn set_secret(key: String, value: String) -> Result<(), String> {
+    if !is_allowed_key(&key) {
+        return Err(format!("Key '{}' is not in the allowed set", key));
+    }
     set_entry(&key, &value)
 }
 

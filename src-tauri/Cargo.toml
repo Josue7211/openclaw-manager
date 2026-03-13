@@ -15,3 +15,24 @@ serde_json = "1"
 rand = "0.8"
 hex = "0.4"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+axum = { version = "0.7", features = ["ws", "macros"] }
+axum-extra = { version = "0.9", features = ["typed-header"] }
+tokio = { version = "1", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"], default-features = false }
+sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite", "chrono"] }
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "5"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+futures = "0.3"
+async-stream = "0.3"
+tokio-stream = "0.1"
+regex = "1"
+tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
+ical = "0.11"
+async-imap = "0.9"
+async-native-tls = "0.5"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
