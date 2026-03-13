@@ -35,4 +35,5 @@ tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
 ical = "0.11"
 async-imap = "0.9"
 async-native-tls = "0.5"
+tokio-util = { version = "0.7", features = ["compat"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
