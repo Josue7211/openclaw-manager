@@ -468,6 +468,51 @@ async fn openclaw_chat_send(
     _attachments: Option<Vec<Value>>,
     _deliver: bool,
 ) -> ChatSendResult {
+    // Try remote OpenClaw API first (handles session persistence + AI response)
+    if let Some(base) = openclaw_api_url() {
+        let url = format!("{}/chat/send", base);
+        let key = openclaw_api_key();
+
+        let client = match reqwest::Client::builder()
+            .timeout(Duration::from_secs(180))
+            .build()
+        {
+            Ok(c) => c,
+            Err(e) => {
+                return ChatSendResult {
+                    ok: false,
+                    error: Some(format!("http client error: {}", e)),
+                };
+            }
+        };
+
+        let body = json!({ "text": message });
+        let mut req = client.post(&url).json(&body);
+        if !key.is_empty() {
+            req = req.header("Authorization", format!("Bearer {}", key));
+        }
+
+        return match req.send().await {
+            Ok(resp) => {
+                if resp.status().is_success() {
+                    ChatSendResult { ok: true, error: None }
+                } else {
+                    let status = resp.status();
+                    let text = resp.text().await.unwrap_or_default();
+                    ChatSendResult {
+                        ok: false,
+                        error: Some(format!("api returned {}: {}", status, text)),
+                    }
+                }
+            }
+            Err(e) => ChatSendResult {
+                ok: false,
+                error: Some(format!("http request error: {}", e)),
+            },
+        };
+    }
+
+    // Fallback: direct gateway HTTP completions (no session persistence)
     let gateway_url = openclaw_ws()
         .replace("ws://", "http://")
         .replace("wss://", "https://");
