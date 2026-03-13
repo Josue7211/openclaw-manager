@@ -17,6 +17,15 @@ fn main() {
         )
         .init();
 
+    // Load .env.local as a fallback for development (keychain values override these)
+    for path in &[".env.local", "../.env.local"] {
+        if std::path::Path::new(path).exists() {
+            let _ = dotenvy::from_filename(path);
+            tracing::info!("Loaded env from {}", path);
+            break;
+        }
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())

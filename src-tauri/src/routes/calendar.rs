@@ -536,14 +536,27 @@ fn extract_href_from_tag(xml: &str, tag_local_name: &str) -> Option<String> {
 }
 
 /// Extract content from any `<X:href>...</X:href>` tag.
+/// Handles tags with attributes like `<href xmlns="DAV:">`.
 fn extract_href(xml: &str) -> Option<String> {
-    let href_patterns = ["<d:href>", "<D:href>", "<href>", "<ns0:href>", "<ns1:href>"];
-    let close_patterns = ["</d:href>", "</D:href>", "</href>", "</ns0:href>", "</ns1:href>"];
+    let tag_names = ["d:href", "D:href", "href", "ns0:href", "ns1:href"];
 
-    for (open, close) in href_patterns.iter().zip(close_patterns.iter()) {
-        if let Some(start) = xml.find(open) {
-            let value_start = start + open.len();
-            if let Some(end) = xml[value_start..].find(close) {
+    for tag in &tag_names {
+        let open_exact = format!("<{}>", tag);
+        let open_attr = format!("<{} ", tag);
+        let close = format!("</{}>", tag);
+
+        // Find the opening tag (either exact or with attributes)
+        let start_pos = xml.find(&open_exact)
+            .map(|pos| pos + open_exact.len())
+            .or_else(|| {
+                xml.find(&open_attr).and_then(|pos| {
+                    // Find the closing '>' of the opening tag
+                    xml[pos..].find('>').map(|gt| pos + gt + 1)
+                })
+            });
+
+        if let Some(value_start) = start_pos {
+            if let Some(end) = xml[value_start..].find(&close) {
                 let href = xml[value_start..value_start + end].trim().to_string();
                 if !href.is_empty() {
                     return Some(href);
@@ -564,12 +577,14 @@ fn parse_calendar_list(xml: &str, base_url: &str) -> Vec<(String, String)> {
     let response_splits: Vec<&str> = split_xml_responses(xml);
 
     for response in response_splits {
-        // Must contain a <d:calendar/> (or similar) resourcetype.
+        // Must contain a <calendar/> (or similar) resourcetype.
         let is_calendar = response.contains("<d:calendar")
             || response.contains("<D:calendar")
             || response.contains("<cal:calendar")
             || response.contains("<C:calendar")
-            || response.contains(":calendar/>");
+            || response.contains(":calendar/>")
+            || response.contains("<calendar/")
+            || response.contains("<calendar ");
 
         if !is_calendar {
             continue;
@@ -630,21 +645,35 @@ fn split_xml_responses(xml: &str) -> Vec<&str> {
 
 /// Extract `<d:displayname>` content from an XML fragment.
 fn extract_displayname(xml: &str) -> Option<String> {
-    let open_tags = ["<d:displayname>", "<D:displayname>", "<displayname>"];
-    let close_tags = ["</d:displayname>", "</D:displayname>", "</displayname>"];
+    extract_tag_content(xml, &["d:displayname", "D:displayname", "displayname"])
+        .map(|s| xml_unescape(&s))
+}
 
-    for (open, close) in open_tags.iter().zip(close_tags.iter()) {
-        if let Some(start) = xml.find(open) {
-            let value_start = start + open.len();
-            if let Some(end) = xml[value_start..].find(close) {
-                let name = xml[value_start..value_start + end].trim().to_string();
-                if !name.is_empty() {
-                    return Some(xml_unescape(&name));
+/// Generic XML tag content extractor that handles tags with attributes
+/// (e.g. `<tag xmlns="DAV:">`).
+fn extract_tag_content(xml: &str, tag_names: &[&str]) -> Option<String> {
+    for tag in tag_names {
+        let open_exact = format!("<{}>", tag);
+        let open_attr = format!("<{} ", tag);
+        let close = format!("</{}>", tag);
+
+        let start_pos = xml.find(&open_exact)
+            .map(|pos| pos + open_exact.len())
+            .or_else(|| {
+                xml.find(&open_attr).and_then(|pos| {
+                    xml[pos..].find('>').map(|gt| pos + gt + 1)
+                })
+            });
+
+        if let Some(value_start) = start_pos {
+            if let Some(end) = xml[value_start..].find(&close) {
+                let content = xml[value_start..value_start + end].trim().to_string();
+                if !content.is_empty() {
+                    return Some(content);
                 }
             }
         }
     }
-
     None
 }
 
@@ -652,33 +681,43 @@ fn extract_displayname(xml: &str) -> Option<String> {
 fn extract_calendar_data(xml: &str) -> Vec<String> {
     let mut results = Vec::new();
 
-    let open_tags = [
-        "<cal:calendar-data>",
-        "<C:calendar-data>",
-        "<c:calendar-data>",
-        "<caldav:calendar-data>",
-        "<ns0:calendar-data>",
-        "<ns1:calendar-data>",
-    ];
-    let close_tags = [
-        "</cal:calendar-data>",
-        "</C:calendar-data>",
-        "</c:calendar-data>",
-        "</caldav:calendar-data>",
-        "</ns0:calendar-data>",
-        "</ns1:calendar-data>",
+    let tag_names = [
+        "cal:calendar-data",
+        "C:calendar-data",
+        "c:calendar-data",
+        "caldav:calendar-data",
+        "ns0:calendar-data",
+        "ns1:calendar-data",
+        "calendar-data",
     ];
 
-    for (open, close) in open_tags.iter().zip(close_tags.iter()) {
+    for tag in &tag_names {
+        let open_exact = format!("<{}>", tag);
+        let open_attr = format!("<{} ", tag);
+        let close = format!("</{}>", tag);
+
         let mut search_from = 0;
-        while let Some(start) = xml[search_from..].find(open) {
-            let abs_start = search_from + start + open.len();
-            if let Some(end) = xml[abs_start..].find(close) {
-                let data = xml[abs_start..abs_start + end].trim().to_string();
-                if !data.is_empty() {
-                    results.push(xml_unescape(&data));
+        while search_from < xml.len() {
+            // Find opening tag (exact or with attributes)
+            let start_pos = xml[search_from..].find(&open_exact)
+                .map(|pos| (search_from + pos, search_from + pos + open_exact.len()))
+                .or_else(|| {
+                    xml[search_from..].find(&open_attr).and_then(|pos| {
+                        let abs = search_from + pos;
+                        xml[abs..].find('>').map(|gt| (abs, abs + gt + 1))
+                    })
+                });
+
+            if let Some((_tag_start, value_start)) = start_pos {
+                if let Some(end) = xml[value_start..].find(&close) {
+                    let data = xml[value_start..value_start + end].trim().to_string();
+                    if !data.is_empty() {
+                        results.push(xml_unescape(&data));
+                    }
+                    search_from = value_start + end + close.len();
+                } else {
+                    break;
                 }
-                search_from = abs_start + end + close.len();
             } else {
                 break;
             }

@@ -152,46 +152,81 @@ fn local_ip() -> String {
 
 // ── GET /api/status/heartbeat ────────────────────────────────────────────────
 
-async fn heartbeat(State(_state): State<AppState>) -> Result<Json<Value>, AppError> {
+async fn heartbeat(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
     let base = openclaw_dir();
     let heartbeat_path = Path::new(&base).join("workspace").join("HEARTBEAT.md");
 
-    if !heartbeat_path.exists() {
-        return Ok(Json(
-            json!({ "lastCheck": null, "status": "unknown", "tasks": [] }),
-        ));
+    if heartbeat_path.exists() {
+        // Local file found — read directly
+        let last_check = match tokio::fs::metadata(&heartbeat_path).await {
+            Ok(meta) => meta
+                .modified()
+                .ok()
+                .map(|t| {
+                    let dt: chrono::DateTime<chrono::Utc> = t.into();
+                    dt.to_rfc3339()
+                }),
+            Err(_) => None,
+        };
+
+        let content = tokio::fs::read_to_string(&heartbeat_path)
+            .await
+            .unwrap_or_default();
+        let tasks: Vec<String> = content
+            .lines()
+            .filter(|l| {
+                let trimmed = l.trim();
+                !trimmed.is_empty() && !trimmed.starts_with('#')
+            })
+            .map(|l| l.trim().to_string())
+            .collect();
+
+        return Ok(Json(json!({
+            "lastCheck": last_check,
+            "status": "ok",
+            "tasks": tasks,
+        })));
     }
 
-    // Read mtime
-    let last_check = match tokio::fs::metadata(&heartbeat_path).await {
-        Ok(meta) => meta
-            .modified()
-            .ok()
-            .map(|t| {
-                let dt: chrono::DateTime<chrono::Utc> = t.into();
-                dt.to_rfc3339()
-            }),
-        Err(_) => None,
-    };
+    // No local file — try fetching HEARTBEAT.md from the remote OpenClaw API
+    let openclaw_url = std::env::var("OPENCLAW_API_URL").unwrap_or_default();
+    if !openclaw_url.is_empty() {
+        let url = format!(
+            "{}/file?path=HEARTBEAT.md",
+            openclaw_url.trim_end_matches('/')
+        );
+        let mut req = state.http.get(&url);
+        if let Ok(key) = std::env::var("OPENCLAW_API_KEY") {
+            req = req.header("Authorization", format!("Bearer {key}"));
+        }
+        if let Ok(resp) = req.send().await {
+            if resp.status().is_success() {
+                if let Ok(data) = resp.json::<Value>().await {
+                    let content = data
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let tasks: Vec<String> = content
+                        .lines()
+                        .filter(|l| {
+                            let trimmed = l.trim();
+                            !trimmed.is_empty() && !trimmed.starts_with('#')
+                        })
+                        .map(|l| l.trim().to_string())
+                        .collect();
+                    return Ok(Json(json!({
+                        "lastCheck": chrono::Utc::now().to_rfc3339(),
+                        "status": "ok",
+                        "tasks": tasks,
+                    })));
+                }
+            }
+        }
+    }
 
-    // Read content and extract task lines (non-empty, non-comment)
-    let content = tokio::fs::read_to_string(&heartbeat_path)
-        .await
-        .unwrap_or_default();
-    let tasks: Vec<String> = content
-        .lines()
-        .filter(|l| {
-            let trimmed = l.trim();
-            !trimmed.is_empty() && !trimmed.starts_with('#')
-        })
-        .map(|l| l.trim().to_string())
-        .collect();
-
-    Ok(Json(json!({
-        "lastCheck": last_check,
-        "status": "ok",
-        "tasks": tasks,
-    })))
+    Ok(Json(
+        json!({ "lastCheck": null, "status": "unknown", "tasks": [] }),
+    ))
 }
 
 // ── GET /api/status/processes ────────────────────────────────────────────────

@@ -731,19 +731,23 @@ async fn get_messages(
         let requested_conv_limit = params
             .limit
             .as_deref()
-            .and_then(|s| s.parse::<i64>().ok())
+            .and_then(|s| s.parse::<usize>().ok())
             .unwrap_or(25)
             .max(1)
             .min(500);
 
+        // Always fetch a large batch from BB so we can dedup + sort properly,
+        // then truncate to the requested limit. BB's "lastmessage" sort doesn't
+        // always reflect actual recent activity with unified `any;-;` conversations.
+        let bb_fetch_limit: i64 = 500;
+
         let chat_query = json!({
-            "limit": requested_conv_limit,
+            "limit": bb_fetch_limit,
             "offset": 0,
             "sort": "lastmessage",
             "with": ["lastMessage", "participants"],
         });
 
-        let fetch_recent = requested_conv_limit > 100;
         let now_ms = chrono::Utc::now().timestamp_millis();
         let fourteen_days_ago = now_ms - 14 * 24 * 60 * 60 * 1000;
 
@@ -754,16 +758,14 @@ async fn get_messages(
             "with": ["chat"],
         });
 
+        // Always fetch recent messages to supplement the chat list — this catches
+        // conversations that BB's chat sort misses (e.g. unified any;-; conversations).
         let (chats_result, recent_result, contact_map) = tokio::join!(
             bb_fetch(client, "/chat/query", reqwest::Method::POST, Some(chat_query)),
             async {
-                if fetch_recent {
-                    bb_fetch(client, "/message/query", reqwest::Method::POST, Some(recent_query))
-                        .await
-                        .unwrap_or(Value::Array(vec![]))
-                } else {
-                    Value::Array(vec![])
-                }
+                bb_fetch(client, "/message/query", reqwest::Method::POST, Some(recent_query))
+                    .await
+                    .unwrap_or(Value::Array(vec![]))
             },
             get_contact_map(client),
         );
@@ -1221,6 +1223,9 @@ async fn get_messages(
             let b_date = b.get("lastDate").and_then(|v| v.as_i64()).unwrap_or(0);
             b_date.cmp(&a_date)
         });
+
+        // Truncate to the requested limit (we fetched 500 from BB for proper sorting)
+        conversations.truncate(requested_conv_limit);
 
         (
             [

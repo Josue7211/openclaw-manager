@@ -252,7 +252,7 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
           setIngesting(true)
           try {
             const ir = await fetch(
-              `/api/mission-events?action=ingest&mission_id=${missionId}&log_path=${encodeURIComponent(mission.log_path)}`
+              `${API_BASE}/api/mission-events?action=ingest&mission_id=${missionId}&log_path=${encodeURIComponent(mission.log_path)}`
             )
             const ij = await ir.json()
             if (ij.success && ij.events_inserted > 0) {

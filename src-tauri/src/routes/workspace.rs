@@ -1,6 +1,6 @@
 use axum::{
     extract::{Query, State},
-    routing::get,
+    routing::{delete, get},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -30,7 +30,7 @@ const CORE_FILES: &[&str] = &[
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/files", get(list_files))
-        .route("/file", get(read_file).post(write_file))
+        .route("/file", get(read_file).post(write_file).delete(delete_file))
 }
 
 // ---------------------------------------------------------------------------
@@ -332,6 +332,74 @@ async fn write_file(
     }
 
     tokio::fs::write(&full, content.as_bytes())
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?;
+
+    Ok(Json(json!({ "ok": true })))
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /file?path=... – delete a file
+// ---------------------------------------------------------------------------
+
+async fn delete_file(
+    State(state): State<AppState>,
+    Query(query): Query<FileQuery>,
+) -> Result<Json<Value>, AppError> {
+    let file_path = query.path;
+
+    if file_path.is_empty() {
+        return Err(AppError::BadRequest("path is required".into()));
+    }
+
+    // Prevent deleting core workspace files
+    let basename = file_path.split('/').last().unwrap_or("");
+    if CORE_FILES.contains(&basename) && !file_path.starts_with("memory/") {
+        return Err(AppError::BadRequest(
+            "Cannot delete core workspace files".into(),
+        ));
+    }
+
+    // Remote mode
+    if let Some((url, key)) = remote_config() {
+        if !is_valid_workspace_path(&file_path) {
+            return Err(AppError::BadRequest("Invalid path".into()));
+        }
+
+        let res = state
+            .http
+            .delete(format!("{}/file", url))
+            .query(&[("path", &file_path)])
+            .headers(remote_headers(&key))
+            .send()
+            .await;
+
+        return match res {
+            Ok(r) if r.status().is_success() => Ok(Json(json!({ "ok": true }))),
+            Ok(r) => {
+                let status = r.status().as_u16();
+                if status == 404 {
+                    Err(AppError::NotFound("File not found".into()))
+                } else {
+                    Err(AppError::Internal(anyhow::anyhow!(
+                        "Remote delete failed with status {}",
+                        status
+                    )))
+                }
+            }
+            Err(_) => Err(AppError::Internal(anyhow::anyhow!("Remote delete failed"))),
+        };
+    }
+
+    // Local mode
+    let full =
+        safe_path(&file_path).ok_or_else(|| AppError::BadRequest("Invalid path".into()))?;
+
+    if !full.exists() {
+        return Err(AppError::NotFound("File not found".into()));
+    }
+
+    tokio::fs::remove_file(&full)
         .await
         .map_err(|e| AppError::Internal(e.into()))?;
 

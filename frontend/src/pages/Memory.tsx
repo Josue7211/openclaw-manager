@@ -2,7 +2,7 @@
 
 
 import { useState, useCallback } from 'react'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 
 interface FileItem {
   name: string
@@ -17,6 +17,7 @@ interface FileTree {
 const API_BASE = 'http://127.0.0.1:3000'
 
 export default function MemoryPage() {
+  const queryClient = useQueryClient()
   const { data: treeData } = useQuery<FileTree>({
     queryKey: ['workspace-files'],
     queryFn: async () => {
@@ -64,12 +65,38 @@ export default function MemoryPage() {
     onSuccess: () => {
       setContent(editContent)
       setLastSaved(new Date())
+      setMode('view')
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (path: string) => {
+      const res = await fetch(`${API_BASE}/api/workspace/file?path=${encodeURIComponent(path)}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Delete failed')
+      }
+    },
+    onSuccess: () => {
+      setActiveFile(null)
+      setContent('')
+      setEditContent('')
+      setMode('view')
+      queryClient.invalidateQueries({ queryKey: ['workspace-files'] })
     },
   })
 
   const saveFile = async () => {
     if (!activeFile) return
     await saveMutation.mutateAsync({ path: activeFile, content: editContent })
+  }
+
+  const deleteFile = async () => {
+    if (!activeFile) return
+    if (!confirm(`Delete "${activeFile}"? This cannot be undone.`)) return
+    await deleteMutation.mutateAsync(activeFile)
   }
 
   const timeSince = (date: Date) => {
@@ -205,22 +232,42 @@ export default function MemoryPage() {
                   Edit
                 </button>
                 {mode === 'edit' && (
-                  <button
-                    onClick={saveFile}
-                    disabled={saveMutation.isPending}
-                    style={{
-                      padding: '5px 16px',
-                      fontSize: '12px',
-                      borderRadius: 6,
-                      border: 'none',
-                      background: saveMutation.isPending ? 'var(--text-muted)' : '#7c3aed',
-                      color: '#fff',
-                      cursor: saveMutation.isPending ? 'not-allowed' : 'pointer',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {saveMutation.isPending ? 'Saving…' : 'Save'}
-                  </button>
+                  <>
+                    <button
+                      onClick={saveFile}
+                      disabled={saveMutation.isPending}
+                      style={{
+                        padding: '5px 16px',
+                        fontSize: '12px',
+                        borderRadius: 6,
+                        border: 'none',
+                        background: saveMutation.isPending ? 'var(--text-muted)' : '#7c3aed',
+                        color: '#fff',
+                        cursor: saveMutation.isPending ? 'not-allowed' : 'pointer',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {saveMutation.isPending ? 'Saving…' : 'Save'}
+                    </button>
+                    {activeFile?.startsWith('memory/') && (
+                      <button
+                        onClick={deleteFile}
+                        disabled={deleteMutation.isPending}
+                        style={{
+                          padding: '5px 14px',
+                          fontSize: '12px',
+                          borderRadius: 6,
+                          border: '1px solid #dc2626',
+                          background: 'transparent',
+                          color: '#dc2626',
+                          cursor: deleteMutation.isPending ? 'not-allowed' : 'pointer',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>

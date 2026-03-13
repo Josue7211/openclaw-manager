@@ -431,7 +431,7 @@ function ContactAvatar({ address, name, isImsg, size = 40 }: {
     if (cached === 'miss') return
 
     let cancelled = false
-    const url = `/api/messages/avatar?address=${encodeURIComponent(address)}`
+    const url = `${API_BASE}/api/messages/avatar?address=${encodeURIComponent(address)}`
     const img = new Image()
     img.onload = () => {
       if (!cancelled) { setPhotoUrl(url); avatarCache.set(address, 'ok') }
@@ -1065,7 +1065,7 @@ export default function MessagesPage() {
     }
 
     function connect() {
-      es = new EventSource('/api/messages/stream')
+      es = new EventSource(`${API_BASE}/api/messages/stream`)
       es.onmessage = (ev) => {
         try {
           const event = JSON.parse(ev.data)
@@ -1977,7 +1977,7 @@ export default function MessagesPage() {
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: cleanText ? '6px' : 0 }}>
                             {msg.attachments.map((att) => {
                               const mime = att.mimeType || ''
-                              const src = `/api/messages/attachment?guid=${encodeURIComponent(att.guid)}${att.uti ? `&uti=${encodeURIComponent(att.uti)}` : ''}`
+                              const src = `${API_BASE}/api/messages/attachment?guid=${encodeURIComponent(att.guid)}${att.uti ? `&uti=${encodeURIComponent(att.uti)}` : ''}`
 
                               if (msg.isAudioMessage || mime.startsWith('audio/') || att.transferName?.endsWith('.caf')) {
                                 return <AudioWaveform key={att.guid} src={src} fromMe={fromMe} guid={att.guid} />

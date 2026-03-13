@@ -71,7 +71,7 @@ function NavSection({
             return (
               <Link
                 key={href}
-                href={href}
+                to={href}
                 title={collapsed ? itemLabel : undefined}
                 style={{
                   display: 'flex',
@@ -237,7 +237,7 @@ export default function Sidebar() {
           const active = pathname === '/settings'
           return (
             <Link
-              href="/settings"
+              to="/settings"
               title={collapsed ? 'Settings' : undefined}
               style={{
                 display: 'flex',

@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' http://127.0.0.1:3000 http://localhost:5173 ws://localhost:5173 ws://127.0.0.1:* http://127.0.0.1:*; img-src 'self' data: https: http://127.0.0.1:3000; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https: https://fonts.gstatic.com"
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' http://127.0.0.1:3000 http://localhost:5173 ws://localhost:5173 ws://127.0.0.1:* http://127.0.0.1:* https://supabase.aparcedo.org wss://supabase.aparcedo.org; img-src 'self' data: https: http://127.0.0.1:3000; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https: https://fonts.gstatic.com"
     }
   },
   "bundle": {

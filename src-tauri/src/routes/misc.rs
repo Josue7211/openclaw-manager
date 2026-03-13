@@ -644,11 +644,9 @@ async fn post_cache_refresh(State(_state): State<AppState>) -> Result<Json<Value
                     Ok(v) => v,
                     Err(_) => return false,
                 };
-                let now = chrono::Utc::now().to_rfc3339();
-                // Upsert into cache table — use the update method with onConflict
-                // Since our SupabaseClient may not have upsert, insert and handle conflict
+                let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
                 let _ = sb_ref
-                    .insert(
+                    .upsert(
                         "cache",
                         json!({ "key": key, "value": value, "updated_at": now }),
                     )

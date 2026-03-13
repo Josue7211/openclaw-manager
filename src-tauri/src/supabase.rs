@@ -145,6 +145,31 @@ impl SupabaseClient {
             .context("supabase insert: failed to parse JSON")
     }
 
+    /// `POST /rest/v1/{table}` with `Prefer: resolution=merge-duplicates` — upsert rows.
+    ///
+    /// On conflict with the primary key, updates the existing row.
+    pub async fn upsert(&self, table: &str, body: Value) -> anyhow::Result<Value> {
+        let resp = self
+            .auth_headers(self.http.post(&self.rest_url(table)))
+            .header("Content-Type", "application/json")
+            .header("Prefer", "return=representation,resolution=merge-duplicates")
+            .json(&body)
+            .send()
+            .await
+            .context("supabase upsert request failed")?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let body_text = resp.text().await.unwrap_or_default();
+            warn!("supabase upsert {table} returned {status}: {body_text}");
+            return Err(anyhow!("supabase upsert {table}: {status} — {body_text}"));
+        }
+
+        resp.json::<Value>()
+            .await
+            .context("supabase upsert: failed to parse JSON")
+    }
+
     /// `PATCH /rest/v1/{table}?{query}` — update matching rows.
     ///
     /// Returns updated rows.

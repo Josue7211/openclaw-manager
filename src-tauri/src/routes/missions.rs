@@ -547,7 +547,8 @@ async fn sync_agents(
         .await;
 
     // Delete done missions older than 24h
-    let one_day_ago = (chrono::Utc::now() - chrono::Duration::hours(24)).to_rfc3339();
+    let one_day_ago = (chrono::Utc::now() - chrono::Duration::hours(24))
+        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
     let _ = sb
         .delete(
             "missions",
