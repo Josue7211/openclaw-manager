@@ -7,6 +7,7 @@ mod redact;
 mod routes;
 mod secrets;
 mod server;
+mod supabase;
 
 fn main() {
     tracing_subscriber::fmt()
