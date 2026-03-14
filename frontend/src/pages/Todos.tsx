@@ -1,24 +1,18 @@
 
 
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { CheckSquare, Plus, Flame } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { useSearchParams } from 'react-router-dom'
+import { supabase } from '@/lib/supabase/client'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { emit } from '@/lib/event-bus'
+import { queryKeys } from '@/lib/query-keys'
+import { todayISO } from '@/lib/utils'
 import { SkeletonList } from '@/components/Skeleton'
-
-interface Todo {
-  id: string
-  text: string
-  done: boolean
-  created_at: string
-  due_date?: string | null
-}
-
-function todayISO() {
-  return new Date().toISOString().split('T')[0]
-}
+import { useTodos } from '@/lib/hooks/useTodos'
+import type { Todo } from '@/lib/types'
 
 function getDueDateStatus(due_date: string | null | undefined): 'overdue' | 'today' | 'future' | null {
   if (!due_date) return null
@@ -50,9 +44,20 @@ function DueDateBadge({ due_date }: { due_date: string | null | undefined }) {
 
 export default function TodosPage() {
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const addInputRef = useRef<HTMLInputElement>(null)
+  const { addMutation, toggleMutation, deleteMutation, invalidateTodos } = useTodos()
+
+  // Auto-focus add input when navigated with ?focus=add
+  useEffect(() => {
+    if (searchParams.get('focus') === 'add') {
+      requestAnimationFrame(() => addInputRef.current?.focus())
+      setSearchParams({}, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   const { data: todosData, isLoading } = useQuery<{ todos: Todo[] }>({
-    queryKey: ['todos'],
+    queryKey: queryKeys.todos,
     queryFn: () => api.get<{ todos: Todo[] }>('/api/todos'),
   })
 
@@ -67,41 +72,19 @@ export default function TodosPage() {
     }
   }, [todos])
 
-  const invalidateTodos = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['todos'] })
-  }, [queryClient])
-
   useEffect(() => {
     if (!supabase) return
 
     const channel = supabase
       .channel('todos-page-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, () => invalidateTodos())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, () => {
+        invalidateTodos()
+        emit('todo-changed', null, 'supabase')
+      })
       .subscribe()
 
     return () => { supabase?.removeChannel(channel) }
   }, [invalidateTodos])
-
-  const addMutation = useMutation({
-    mutationFn: async (text: string) => {
-      await api.post('/api/todos', { text })
-    },
-    onSuccess: () => invalidateTodos(),
-  })
-
-  const toggleMutation = useMutation({
-    mutationFn: async ({ id, done }: { id: string; done: boolean }) => {
-      await api.patch('/api/todos', { id, done: !done })
-    },
-    onSuccess: () => invalidateTodos(),
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await api.del('/api/todos', { id })
-    },
-    onSuccess: () => invalidateTodos(),
-  })
 
   const updateDueDateMutation = useMutation({
     mutationFn: async ({ id, due_date }: { id: string; due_date: string | null }) => {
@@ -158,7 +141,7 @@ export default function TodosPage() {
       <div style={{ marginBottom: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
           <CheckSquare size={20} style={{ color: 'var(--green)' }} />
-          <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>Todos</h1>
+          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>Todos</h1>
           {!isLoading && (
             <span className="badge badge-green" style={{ marginLeft: '4px' }}>
               {pending.length} pending
@@ -173,6 +156,7 @@ export default function TodosPage() {
       {/* Add input */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
         <input
+          ref={addInputRef}
           value={todoInput}
           onChange={e => setTodoInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && addTodo()}

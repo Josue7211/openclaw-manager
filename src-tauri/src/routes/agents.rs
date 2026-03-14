@@ -42,9 +42,9 @@ pub fn router() -> Router<AppState> {
 // ── GET /agents ──────────────────────────────────────────────────────────────
 
 async fn get_agents(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
     let data = sb
         .select("agents", "select=*&order=sort_order.asc")
         .await?;
@@ -67,7 +67,7 @@ struct UpdateAgentBody {
 }
 
 async fn update_agent(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<UpdateAgentBody>,
 ) -> Result<Json<Value>, AppError> {
     let id = body
@@ -101,7 +101,7 @@ async fn update_agent(
         }
     }
 
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
     let data = sb
         .update("agents", &format!("id=eq.{id}"), Value::Object(update))
         .await?;

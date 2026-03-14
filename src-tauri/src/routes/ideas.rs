@@ -19,10 +19,10 @@ struct IdeasQuery {
 }
 
 async fn get_ideas(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Query(params): Query<IdeasQuery>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let mut query = "select=*&order=created_at.desc".to_string();
     if let Some(status) = &params.status {
@@ -44,10 +44,10 @@ struct PostIdeaBody {
 }
 
 async fn post_idea(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<PostIdeaBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let title = body.title.as_deref().unwrap_or("").trim();
     if title.is_empty() {
@@ -80,10 +80,10 @@ struct PatchIdeaBody {
 }
 
 async fn patch_idea(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<PatchIdeaBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let id = body.id.as_ref().ok_or_else(|| AppError::BadRequest("id required".into()))?;
 
@@ -137,7 +137,7 @@ struct DeleteIdeaParams {
 }
 
 async fn delete_idea(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     axum::extract::Query(params): axum::extract::Query<DeleteIdeaParams>,
 ) -> Result<Json<Value>, AppError> {
     let id = params
@@ -150,7 +150,7 @@ async fn delete_idea(
         return Err(AppError::BadRequest("id required".into()));
     }
 
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
     sb.delete("ideas", &format!("id=eq.{id}")).await?;
     Ok(Json(json!({ "ok": true })))
 }

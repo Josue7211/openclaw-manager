@@ -19,7 +19,7 @@ struct SearchQuery {
 }
 
 async fn get_search(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Query(params): Query<SearchQuery>,
 ) -> Result<Json<Value>, AppError> {
     let q = params.q.as_deref().unwrap_or("").trim().to_string();
@@ -31,7 +31,7 @@ async fn get_search(
         })));
     }
 
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
     let pattern = format!("%25{q}%25");
 
     // Search todos and missions in parallel

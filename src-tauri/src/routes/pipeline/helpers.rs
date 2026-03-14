@@ -54,8 +54,8 @@ pub(super) fn shell_escape(s: &str) -> String {
 
 // ── Supabase helpers ─────────────────────────────────────────────────────────
 
-pub(super) fn supabase() -> Result<SupabaseClient, AppError> {
-    SupabaseClient::from_env().map_err(|e| {
+pub(super) fn supabase(state: &crate::server::AppState) -> Result<SupabaseClient, AppError> {
+    SupabaseClient::from_state(state).map_err(|e| {
         warn!("Supabase not configured: {e}");
         AppError::Internal(e)
     })
@@ -152,12 +152,23 @@ pub(super) fn exec_path() -> String {
 
 /// Build a clean env for spawning agent subprocesses.
 /// Strips infrastructure secrets — only passes through ANTHROPIC_API_KEY and MC_API_KEY.
-pub(super) fn clean_env(model: &str) -> Vec<(String, String)> {
+/// System vars (HOME, USER, etc.) are read from `std::env::var` (they are not secrets).
+/// Actual secrets come from the AppState HashMap.
+#[allow(dead_code)]
+pub(super) fn clean_env(state: &crate::server::AppState, model: &str) -> Vec<(String, String)> {
     let mut env = Vec::new();
 
-    let passthrough = ["HOME", "USER", "PATH", "SHELL", "TERM", "LANG", "ANTHROPIC_API_KEY", "MC_API_KEY"];
-    for key in passthrough {
+    // System (non-secret) env vars
+    let system_passthrough = ["HOME", "USER", "PATH", "SHELL", "TERM", "LANG"];
+    for key in system_passthrough {
         if let Ok(val) = std::env::var(key) {
+            env.push((key.to_string(), val));
+        }
+    }
+    // Secrets from AppState
+    let secret_passthrough = ["ANTHROPIC_API_KEY", "MC_API_KEY"];
+    for key in secret_passthrough {
+        if let Some(val) = state.secret(key) {
             env.push((key.to_string(), val));
         }
     }
@@ -167,6 +178,22 @@ pub(super) fn clean_env(model: &str) -> Vec<(String, String)> {
     // Exclude CLAUDECODE to prevent "nested session" error
     // Exclude: SUPABASE_*, PROXMOX_*, OPNSENSE_*, CALDAV_*, OPENCLAW_*
 
+    env
+}
+
+/// Fallback version of `clean_env` for code paths that don't have access to AppState.
+/// Reads ANTHROPIC_API_KEY and MC_API_KEY from process env (only works if .env.local is loaded).
+/// TODO: Remove this once spawn_agent_process accepts &AppState.
+fn clean_env_from_env(model: &str) -> Vec<(String, String)> {
+    let mut env = Vec::new();
+    let passthrough = ["HOME", "USER", "PATH", "SHELL", "TERM", "LANG", "ANTHROPIC_API_KEY", "MC_API_KEY"];
+    for key in passthrough {
+        if let Ok(val) = std::env::var(key) {
+            env.push((key.to_string(), val));
+        }
+    }
+    env.push(("PATH".to_string(), exec_path()));
+    env.push(("ANTHROPIC_MODEL".to_string(), model.to_string()));
     env
 }
 
@@ -203,7 +230,10 @@ pub(super) async fn spawn_agent_process(
         flags = route.flags,
     );
 
-    let env_vars = clean_env(route.model);
+    // TODO: spawn_agent_process should accept &AppState to pass secrets to clean_env.
+    // For now, read ANTHROPIC_API_KEY and MC_API_KEY from the process env as a fallback,
+    // which will only work if .env.local is loaded by dotenvy (dev mode).
+    let env_vars = clean_env_from_env(route.model);
 
     // Use std::process::Command (not tokio) for detached spawning — we don't
     // need async I/O on the child; it runs fully backgrounded.

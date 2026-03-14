@@ -13,8 +13,8 @@ pub fn router() -> Router<AppState> {
 
 // ── Changelog ───────────────────────────────────────────────────────────────
 
-async fn get_changelog(State(_state): State<AppState>) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+async fn get_changelog(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    let sb = SupabaseClient::from_state(&state)?;
     let data = sb.select("changelog_entries", "select=*&order=date.desc").await?;
     Ok(Json(json!({ "entries": data })))
 }
@@ -28,10 +28,10 @@ struct PostChangelogBody {
 }
 
 async fn post_changelog(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<PostChangelogBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let title = body.title.as_deref().unwrap_or("").trim();
     if title.is_empty() {
@@ -55,10 +55,10 @@ async fn post_changelog(
 }
 
 async fn delete_changelog(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
     let id = body.get("id").ok_or_else(|| AppError::BadRequest("id required".into()))?;
     sb.delete("changelog_entries", &format!("id=eq.{id}")).await?;
     Ok(Json(json!({ "ok": true })))

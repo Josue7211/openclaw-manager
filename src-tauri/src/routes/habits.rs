@@ -16,8 +16,8 @@ pub fn router() -> Router<AppState> {
 
 // ── GET /api/habits ─────────────────────────────────────────────────────────
 
-async fn get_habits(State(_state): State<AppState>) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+async fn get_habits(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    let sb = SupabaseClient::from_state(&state)?;
     let data = sb
         .select("habits", "select=*&order=sort_order,created_at")
         .await?;
@@ -34,10 +34,10 @@ struct PostHabitBody {
 }
 
 async fn post_habit(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<PostHabitBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let name = body.name.as_deref().unwrap_or("").trim();
     if name.is_empty() {
@@ -61,10 +61,10 @@ async fn post_habit(
 // ── DELETE /api/habits ──────────────────────────────────────────────────────
 
 async fn delete_habit(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
     let id = body
         .get("id")
         .ok_or_else(|| AppError::BadRequest("id required".into()))?;
@@ -80,10 +80,10 @@ struct HabitEntriesQuery {
 }
 
 async fn get_habit_entries(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Query(params): Query<HabitEntriesQuery>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let mut query = "select=*&order=date".to_string();
     if let Some(since) = &params.since {
@@ -103,10 +103,10 @@ struct PostHabitEntryBody {
 }
 
 async fn post_habit_entry(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<PostHabitEntryBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let habit_id = body
         .habit_id

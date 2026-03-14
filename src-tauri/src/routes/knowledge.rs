@@ -21,10 +21,10 @@ struct GetKnowledgeParams {
 }
 
 async fn get_knowledge(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     axum::extract::Query(params): axum::extract::Query<GetKnowledgeParams>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let mut query = String::from("select=*&order=created_at.desc");
 
@@ -60,10 +60,10 @@ struct PostKnowledgeBody {
 }
 
 async fn post_knowledge(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<PostKnowledgeBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let title = body.title.as_deref().unwrap_or("").trim();
     if title.is_empty() {
@@ -103,7 +103,7 @@ async fn post_knowledge(
 }
 
 async fn delete_knowledge(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     axum::extract::Query(params): axum::extract::Query<GetKnowledgeParams>,
 ) -> Result<Json<Value>, AppError> {
     let id = params
@@ -116,7 +116,7 @@ async fn delete_knowledge(
         return Err(AppError::BadRequest("id required".into()));
     }
 
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
     sb.delete("knowledge_entries", &format!("id=eq.{}", id)).await?;
     Ok(Json(json!({ "ok": true })))
 }

@@ -7,45 +7,13 @@ import { Search, CheckSquare, Target, CalendarDays, Mail, Loader2 } from 'lucide
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { SkeletonList } from '@/components/Skeleton'
-
-interface Todo {
-  id: string
-  text: string
-  done: boolean
-  created_at: string
-}
-
-interface Mission {
-  id: string
-  title: string
-  status: string
-  created_at: string
-}
-
-interface CalEvent {
-  id: string
-  title: string
-  start: string
-  end: string
-  allDay: boolean
-  calendar: string
-}
-
-interface Email {
-  id: string
-  from: string
-  subject: string
-  date: string
-  preview: string
-  read: boolean
-  folder: string
-}
+import type { Todo, Mission, CalendarEvent, EmailMessage } from '@/lib/types'
 
 interface Results {
   todos: Todo[]
   missions: Mission[]
-  events: CalEvent[]
-  emails: Email[]
+  events: CalendarEvent[]
+  emails: EmailMessage[]
 }
 
 function SectionHeader({ icon: Icon, label, count }: { icon: React.ElementType; label: string; count: number }) {
@@ -147,7 +115,7 @@ export default function SearchPage() {
         }
       `}</style>
 
-      <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '24px' }}>
+      <h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '24px' }}>
         Search
       </h1>
 
@@ -196,7 +164,7 @@ export default function SearchPage() {
         )}
       </div>
 
-      <style>{`@keyframes spin { to { transform: translateY(-50%) rotate(360deg); } }`}</style>
+
 
       {/* Empty state */}
       {!query && !loading && (

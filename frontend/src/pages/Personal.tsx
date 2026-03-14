@@ -2,15 +2,21 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { CheckSquare, Cpu, Wifi, RefreshCw, Sun, Sunset, Moon, CalendarDays, Target, ClipboardList, ChevronDown, ChevronRight, X } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Skeleton, SkeletonRows } from '@/components/Skeleton'
 import { BackendErrorBanner } from '@/components/BackendErrorBanner'
+import SecondsAgo from '@/components/SecondsAgo'
 
-import { api } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
+import { emit } from '@/lib/event-bus'
+import { queryKeys } from '@/lib/query-keys'
+import { todayISO } from '@/lib/utils'
+import { useTodos } from '@/lib/hooks/useTodos'
+import { isDemoMode, DEMO_TODOS, DEMO_MISSIONS, DEMO_CALENDAR_EVENTS } from '@/lib/demo-data'
+import { DemoBadge } from '@/components/DemoModeBanner'
+import type { Todo, Mission, CalendarEvent } from '@/lib/types'
 
-interface Todo { id: string; text: string; done: boolean; createdAt: string; due_date?: string }
-interface Mission { id: string; title: string; status: string }
-interface CalendarEvent { id: string; title: string; start: string; end: string; allDay: boolean; calendar: string }
 interface ProxmoxVM { vmid: number; name: string; status: string; cpuPercent: number; memUsedGB: number; memTotalGB: number; node: string; }
 interface ProxmoxNodeStat { node: string; cpuPercent: number; memUsedGB: number; memTotalGB: number; memPercent: number; }
 interface OPNsenseData { wanIn: string; wanOut: string; updateAvailable: boolean; version: string; }
@@ -38,7 +44,7 @@ function formatDate(d: Date) {
 }
 
 function DailyReviewWidget({ todos, missions }: { todos: Todo[]; missions: Mission[] }) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayISO()
   const [collapsed, setCollapsed] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [review, setReview] = useState<DailyReviewRecord | null>(null)
@@ -70,6 +76,8 @@ function DailyReviewWidget({ todos, missions }: { todos: Todo[]; missions: Missi
       const d = await api.post<{ review?: DailyReviewRecord }>('/api/daily-review', { date: today, ...form })
       if (d.review) setReview(d.review)
       setModalOpen(false)
+    } catch (e) {
+      console.error('saveReview failed:', e)
     } finally {
       setSaving(false)
     }
@@ -82,14 +90,17 @@ function DailyReviewWidget({ todos, missions }: { todos: Todo[]; missions: Missi
     <>
       <div className="card" style={{ padding: '0', marginBottom: '24px', border: '1px solid rgba(155,132,236,0.2)', overflow: 'hidden' }}>
         {/* Header row */}
-        <button
+        <div
+          role="button"
+          tabIndex={0}
           onClick={() => setCollapsed(c => !c)}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCollapsed(c => !c) } }}
           aria-expanded={!collapsed}
           aria-label="Toggle daily review"
           style={{
             display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 20px',
             cursor: 'pointer', userSelect: 'none', width: '100%', border: 'none', fontSize: 'inherit', fontFamily: 'inherit',
-            background: 'linear-gradient(90deg, rgba(155,132,236,0.07) 0%, transparent 100%)',
+            background: 'rgba(155,132,236,0.04)',
             borderBottom: collapsed ? 'none' : '1px solid var(--border)',
           }}
         >
@@ -109,14 +120,17 @@ function DailyReviewWidget({ todos, missions }: { todos: Todo[]; missions: Missi
               onClick={e => { e.stopPropagation(); openModal() }}
               style={{
                 background: 'var(--accent)', border: 'none', borderRadius: '10px',
-                color: '#fff', padding: '5px 12px', fontSize: '11px', fontWeight: 600,
+                color: 'var(--text-on-accent)', padding: '5px 12px', fontSize: '11px', fontWeight: 600,
                 cursor: 'pointer', letterSpacing: '0.02em',
+                transition: 'filter 0.15s ease, transform 0.15s ease',
               }}
+              onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(1.15)'; e.currentTarget.style.transform = 'scale(1.03)' }}
+              onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; e.currentTarget.style.transform = 'scale(1)' }}
             >
               {review ? 'Edit Review' : 'Start Daily Review'}
             </button>
           </div>
-        </button>
+        </div>
 
         {/* Body */}
         {!collapsed && (
@@ -153,6 +167,9 @@ function DailyReviewWidget({ todos, missions }: { todos: Todo[]; missions: Missi
           }}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="daily-review-title"
             onClick={e => e.stopPropagation()}
             style={{
               background: 'rgba(22, 22, 28, 0.65)', border: '1px solid rgba(155,132,236,0.25)',
@@ -162,7 +179,7 @@ function DailyReviewWidget({ todos, missions }: { todos: Todo[]; missions: Missi
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>Daily Review</h2>
+                <h2 id="daily-review-title" style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>Daily Review</h2>
                 <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{today}</p>
               </div>
               <button
@@ -208,7 +225,7 @@ function DailyReviewWidget({ todos, missions }: { todos: Todo[]; missions: Missi
                 disabled={saving}
                 style={{
                   background: 'var(--accent)', border: 'none', borderRadius: '10px',
-                  color: '#fff', padding: '8px 20px', fontSize: '13px', fontWeight: 600,
+                  color: 'var(--text-on-accent)', padding: '8px 20px', fontSize: '13px', fontWeight: 600,
                   cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
                 }}
               >
@@ -267,7 +284,7 @@ function DailyReview({ todos, missions, calendarEvents, mounted }: {
   const now = new Date()
   const { text: greetText, Icon: GreetIcon } = getGreeting()
   const motivation = MOTIVATIONS[now.getDay() % MOTIVATIONS.length]
-  const today = now.toISOString().slice(0, 10)
+  const today = todayISO()
 
   const focusTodos = todos
     .filter(t => !t.done)
@@ -288,7 +305,7 @@ function DailyReview({ todos, missions, calendarEvents, mounted }: {
   const activeMissionsCount = missions.filter(m => m.status === 'active' || m.status === 'pending').length
 
   return (
-    <div className="card" style={{ padding: '24px', marginBottom: '24px', background: 'linear-gradient(135deg, rgba(155,132,236,0.06) 0%, var(--bg-panel) 100%)', border: '1px solid rgba(155,132,236,0.15)' }}>
+    <div className="card" style={{ padding: '24px', marginBottom: '24px', background: 'var(--bg-panel)', border: '1px solid rgba(155,132,236,0.1)' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px' }}>
         <div>
@@ -302,8 +319,8 @@ function DailyReview({ todos, missions, calendarEvents, mounted }: {
             {formatDate(now)}
           </p>
         </div>
-        <div style={{ maxWidth: '260px', textAlign: 'right' }}>
-          <p style={{ margin: 0, fontSize: '11px', color: 'var(--accent)', fontStyle: 'italic', lineHeight: 1.5 }}>
+        <div style={{ maxWidth: '320px', textAlign: 'right' }}>
+          <p style={{ margin: 0, fontSize: '14px', color: 'var(--accent)', fontStyle: 'italic', lineHeight: 1.5 }}>
             "{motivation}"
           </p>
         </div>
@@ -393,29 +410,39 @@ function DailyReview({ todos, missions, calendarEvents, mounted }: {
 }
 
 export default function PersonalDashboard() {
-  const [todos, setTodos] = useState<Todo[]>([])
+  const queryClient = useQueryClient()
   const [todoInput, setTodoInput] = useState('')
-  const [missions, setMissions] = useState<Mission[]>([])
-  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([])
   const [proxmoxVMs, setProxmoxVMs] = useState<ProxmoxVM[]>([])
   const [proxmoxNodes, setProxmoxNodes] = useState<ProxmoxNodeStat[]>([])
   const [opnsense, setOpnsense] = useState<OPNsenseData | null>(null)
-  const [mounted, setMounted] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
-  const [secondsAgo, setSecondsAgo] = useState(0)
-  const [backendError, setBackendError] = useState(false)
+  const [backendError, setBackendError] = useState<string | false>(false)
+  const { addMutation, toggleMutation, deleteMutation, invalidateTodos } = useTodos()
 
-  const fetchTodos = useCallback(() => {
-    api.get<{ todos?: Todo[] }>('/api/todos').then(d => { setBackendError(false); setTodos(d.todos || []) }).catch(() => {})
-  }, [])
+  const _demo = isDemoMode()
 
-  const fetchMissions = useCallback(() => {
-    api.get<{ missions?: Mission[] }>('/api/missions').then(d => { setBackendError(false); setMissions(d.missions || []) }).catch(() => {})
-  }, [])
+  const { data: todosData, isSuccess: todosMounted } = useQuery<{ todos?: Todo[] }>({
+    queryKey: queryKeys.todos,
+    queryFn: () => api.get<{ todos?: Todo[] }>('/api/todos'),
+    enabled: !_demo,
+  })
+  const todos = _demo ? DEMO_TODOS : (todosData?.todos ?? [])
 
-  const fetchCalendar = useCallback(() => {
-    api.get<{ events?: CalendarEvent[] }>('/api/calendar').then(d => setCalendarEvents(d.events || [])).catch(() => {})
-  }, [])
+  const { data: missionsData, isSuccess: missionsMounted } = useQuery<{ missions?: Mission[] }>({
+    queryKey: queryKeys.missions,
+    queryFn: () => api.get<{ missions?: Mission[] }>('/api/missions'),
+    enabled: !_demo,
+  })
+  const missions = _demo ? DEMO_MISSIONS : (missionsData?.missions ?? [])
+
+  const { data: calendarData, isSuccess: calendarMounted } = useQuery<{ events?: CalendarEvent[] }>({
+    queryKey: queryKeys.calendar,
+    queryFn: () => api.get<{ events?: CalendarEvent[] }>('/api/calendar'),
+    enabled: !_demo,
+  })
+  const calendarEvents = _demo ? DEMO_CALENDAR_EVENTS : (calendarData?.events ?? [])
+
+  const mounted = _demo || (todosMounted && missionsMounted && calendarMounted)
 
   const fetchHomelab = useCallback(async () => {
     try {
@@ -442,29 +469,31 @@ export default function PersonalDashboard() {
           updateAvailable: false, version: '—',
         })
       }
-    } catch {
-      setBackendError(true)
+    } catch (e) {
+      setBackendError(e instanceof ApiError ? e.serviceLabel : 'Service unavailable')
     }
   }, [])
 
   const refreshAll = useCallback(() => {
-    fetchTodos()
-    fetchMissions()
-    fetchCalendar()
+    queryClient.invalidateQueries({ queryKey: queryKeys.todos })
+    queryClient.invalidateQueries({ queryKey: queryKeys.missions })
+    queryClient.invalidateQueries({ queryKey: queryKeys.calendar })
     fetchHomelab()
     setLastRefresh(new Date())
-  }, [fetchTodos, fetchMissions, fetchCalendar, fetchHomelab])
+  }, [queryClient, fetchHomelab])
 
   useEffect(() => {
-    refreshAll()
-    setMounted(true)
+    fetchHomelab()
 
     let todosChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null
     let cacheChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null
     if (supabase) {
       todosChannel = supabase
         .channel('personal-todos-realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, () => fetchTodos())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, () => {
+          invalidateTodos()
+          emit('todo-changed', null, 'supabase')
+        })
         .subscribe()
 
       cacheChannel = supabase
@@ -480,48 +509,41 @@ export default function PersonalDashboard() {
       if (cacheChannel) supabase?.removeChannel(cacheChannel)
       clearInterval(homelabInterval)
     }
-  }, [fetchTodos, fetchHomelab, refreshAll])
-
-  useEffect(() => {
-    const t = setInterval(() => {
-      setSecondsAgo(Math.floor((Date.now() - lastRefresh.getTime()) / 1000))
-    }, 1000)
-    return () => clearInterval(t)
-  }, [lastRefresh])
+  }, [invalidateTodos, fetchHomelab])
 
   const addTodo = async () => {
     if (!todoInput.trim()) return
-    await api.post('/api/todos', { text: todoInput })
+    await addMutation.mutateAsync(todoInput)
     setTodoInput('')
   }
   const toggleTodo = async (id: string, done: boolean) => {
-    await api.patch('/api/todos', { id, done: !done })
+    await toggleMutation.mutateAsync({ id, done })
   }
   const deleteTodo = async (id: string) => {
-    await api.del('/api/todos', { id })
+    await deleteMutation.mutateAsync(id)
   }
 
   return (
     <div>
-      {backendError && <BackendErrorBanner />}
+      {backendError && <BackendErrorBanner label={backendError} />}
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>Personal Dashboard</h1>
+          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>Personal Dashboard</h1>
           <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
             home · todos · infra
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-            refreshed {secondsAgo}s ago
+            refreshed <SecondsAgo sinceMs={lastRefresh.getTime()} />
           </span>
           <button
             onClick={refreshAll}
             style={{
               background: 'transparent', border: '1px solid var(--border)', borderRadius: '10px',
               color: 'var(--text-secondary)', padding: '6px 10px', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', transition: 'all 0.25s cubic-bezier(0.22, 1, 0.36, 1)',
+              display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', transition: 'all 0.25s var(--ease-spring)',
             }}
           >
             <RefreshCw size={12} />
@@ -544,6 +566,7 @@ export default function PersonalDashboard() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
             <CheckSquare size={14} style={{ color: 'var(--green)' }} />
             <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>To-Do</span>
+            {_demo && <DemoBadge />}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px', maxHeight: '200px', overflowY: 'auto' }}>
             {!mounted ? (
@@ -556,15 +579,17 @@ export default function PersonalDashboard() {
                 background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px',
                 border: `1px solid ${t.done ? 'rgba(59,165,92,0.2)' : 'var(--border)'}`,
               }}>
-                <input
-                  type="checkbox" checked={t.done} onChange={() => toggleTodo(t.id, t.done)}
-                  style={{ cursor: 'pointer', accentColor: 'var(--green)' }}
-                />
-                <span style={{
-                  flex: 1, fontSize: '12px',
-                  color: t.done ? 'var(--text-muted)' : 'var(--text-primary)',
-                  textDecoration: t.done ? 'line-through' : 'none',
-                }}>{t.text}</span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, cursor: 'pointer', minWidth: 0 }}>
+                  <input
+                    type="checkbox" checked={t.done} onChange={() => toggleTodo(t.id, t.done)}
+                    style={{ cursor: 'pointer', accentColor: 'var(--green)', flexShrink: 0 }}
+                  />
+                  <span style={{
+                    flex: 1, fontSize: '12px',
+                    color: t.done ? 'var(--text-muted)' : 'var(--text-primary)',
+                    textDecoration: t.done ? 'line-through' : 'none',
+                  }}>{t.text}</span>
+                </label>
                 <button onClick={() => deleteTodo(t.id)} className="btn-delete" aria-label="Delete todo">✕</button>
               </div>
             ))}
@@ -577,7 +602,7 @@ export default function PersonalDashboard() {
               placeholder="Add a task..."
               style={{ flex: 1, minWidth: 0, background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border)', borderRadius: '10px', padding: '6px 10px', fontSize: '12px', color: 'var(--text-primary)', outline: 'none' }}
             />
-            <button onClick={addTodo} style={{ background: 'var(--green)', border: 'none', borderRadius: '10px', color: '#fff', padding: '6px 12px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>Add</button>
+            <button onClick={addTodo} style={{ background: 'var(--green)', border: 'none', borderRadius: '10px', color: 'var(--text-on-accent)', padding: '6px 12px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>Add</button>
           </div>
         </div>
 
@@ -599,8 +624,8 @@ export default function PersonalDashboard() {
               {proxmoxNodes.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px', padding: '10px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', border: '1px solid var(--border)' }}>
                   {proxmoxNodes.map(n => {
-                    const cpuColor = n.cpuPercent >= 85 ? 'var(--red-bright)' : n.cpuPercent >= 60 ? '#f5a623' : 'var(--green)'
-                    const memColor = n.memPercent >= 85 ? 'var(--red-bright)' : n.memPercent >= 60 ? '#f5a623' : 'var(--green)'
+                    const cpuColor = n.cpuPercent >= 85 ? 'var(--red-bright)' : n.cpuPercent >= 60 ? 'var(--warning)' : 'var(--green)'
+                    const memColor = n.memPercent >= 85 ? 'var(--red-bright)' : n.memPercent >= 60 ? 'var(--warning)' : 'var(--green)'
                     return (
                       <div key={n.node}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
@@ -609,14 +634,14 @@ export default function PersonalDashboard() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span className="mono" style={{ fontSize: '10px', color: 'var(--text-muted)', width: '28px' }}>CPU</span>
-                            <div style={{ flex: 1, height: '5px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div role="progressbar" aria-valuenow={n.cpuPercent} aria-valuemin={0} aria-valuemax={100} aria-label={`${n.node} CPU usage`} style={{ flex: 1, height: '5px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '3px', overflow: 'hidden' }}>
                               <div style={{ width: `${n.cpuPercent}%`, height: '100%', background: cpuColor, borderRadius: '3px', transition: 'width 0.4s ease' }} />
                             </div>
                             <span className="mono" style={{ fontSize: '10px', color: cpuColor, width: '32px', textAlign: 'right' }}>{n.cpuPercent}%</span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span className="mono" style={{ fontSize: '10px', color: 'var(--text-muted)', width: '28px' }}>RAM</span>
-                            <div style={{ flex: 1, height: '5px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div role="progressbar" aria-valuenow={n.memPercent} aria-valuemin={0} aria-valuemax={100} aria-label={`${n.node} RAM usage`} style={{ flex: 1, height: '5px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '3px', overflow: 'hidden' }}>
                               <div style={{ width: `${n.memPercent}%`, height: '100%', background: memColor, borderRadius: '3px', transition: 'width 0.4s ease' }} />
                             </div>
                             <span className="mono" style={{ fontSize: '10px', color: memColor, width: '32px', textAlign: 'right' }}>{n.memPercent}%</span>
@@ -700,7 +725,7 @@ export default function PersonalDashboard() {
                 {opnsense === null ? (
                   <span className="badge badge-gray">Checking…</span>
                 ) : opnsense.updateAvailable ? (
-                  <span className="badge" style={{ background: 'rgba(245,166,35,0.15)', color: '#f5a623', border: '1px solid rgba(245,166,35,0.3)', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600 }}>
+                  <span className="badge" style={{ background: 'rgba(245,166,35,0.15)', color: 'var(--warning)', border: '1px solid rgba(245,166,35,0.3)', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600 }}>
                     ⚠ Update available
                   </span>
                 ) : (

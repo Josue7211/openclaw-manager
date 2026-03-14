@@ -21,43 +21,118 @@
   /* Green — online, ok, done */
   --green: #34d399;
   --green-bright: #6ee7b7;
-  --green-glow: 0 0 20px rgba(52, 211, 153, 0.15);
 
   /* Red — error, delete */
   --red: #f87171;
   --red-bright: #fca5a5;
-  --red-glow: 0 0 20px rgba(248, 113, 113, 0.15);
 
   /* Blue — blurple, sessions */
   --accent-blue: #818cf8;
   --blue-bright: #a5b4fc;
-  --blue-glow: 0 0 20px rgba(129, 140, 248, 0.15);
 
   /* Glows — subtle Apple-like halos */
-  --glow-purple: 0 0 40px rgba(167, 139, 250, 0.08);
+  --glow-purple: 0 0 60px rgba(167, 139, 250, 0.04);
 
   /* Text — slightly warmer */
   --text-primary: #e4e4ec;
   --text-secondary: #9898a8;
   --text-muted: #8b8fa3;
 
+  /* Apple system colors */
+  --apple-blue: #007aff;
+  --apple-green: #34c759;
+
   /* Legacy compat */
   --accent-green: var(--green);
-  --glow-green: var(--green-glow);
-  --glow-blue: var(--blue-glow);
 
   /* Glass */
   --glass-blur: 24px;
   --glass-bg: rgba(18, 18, 24, 0.6);
   --glass-border: rgba(255, 255, 255, 0.06);
 
-  /* Motion — Apple spring-like */
+  /* Motion — Apple spring-like
+     Duration scale: fast (micro-interactions, hover), normal (panels, collapses), slow (page entrances).
+     Use these variables instead of hardcoded durations for consistency. */
   --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --duration-fast: 0.2s;
   --duration-normal: 0.35s;
   --duration-slow: 0.5s;
+
+  /* Z-index scale */
+  --z-base: 1;
+  --z-sidebar: 100;
+  --z-dropdown: 200;
+  --z-modal-backdrop: 900;
+  --z-modal: 1000;
+  --z-toast: 5000;
+  --z-max: 10000;
+
+  /* Border-radius scale */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 999px;
+
+  /* Semantic colors */
+  --warning: #fbbf24;
+  --text-on-accent: #fff;
+
+  /* Hover/active backgrounds */
+  --hover-bg: rgba(255, 255, 255, 0.05);
+  --active-bg: rgba(255, 255, 255, 0.06);
+
+  /* ── Spacing scale — 4px/8px grid ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* ── Typography scale — iOS-like sizes ── */
+  --text-2xs: 9px;
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 28px;
+}
+
+/* ── Custom accent color override ──
+   When a user picks a non-default accent, JS sets data-accent on <html>
+   and applies --accent, --accent-dim, --accent-bright via inline styles.
+   This selector blankets any remaining hardcoded accent-derived values. */
+
+[data-accent] {
+  --border-accent: color-mix(in srgb, var(--accent) 25%, transparent);
+  --glow-purple: 0 0 60px color-mix(in srgb, var(--accent) 4%, transparent);
+}
+
+/* ── Light theme overrides ── */
+
+[data-theme="light"] {
+  --bg-base: #f5f5f7;
+  --bg-panel: rgba(255, 255, 255, 0.85);
+  --bg-card: rgba(255, 255, 255, 0.75);
+  --bg-card-hover: rgba(255, 255, 255, 0.9);
+  --bg-elevated: rgba(0, 0, 0, 0.04);
+  --bg-card-solid: #ffffff;
+  --border: rgba(0, 0, 0, 0.08);
+  --border-accent: rgba(155, 132, 236, 0.3);
+  --border-hover: rgba(0, 0, 0, 0.15);
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-muted: #86868b;
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(0, 0, 0, 0.06);
+  --hover-bg: rgba(0, 0, 0, 0.04);
+  --active-bg: rgba(0, 0, 0, 0.06);
 }
 
 /* ── Keyframes ── */
@@ -104,14 +179,19 @@
   100% { background-position: -200% 0; }
 }
 
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @keyframes typingBounce {
   0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
   30% { transform: translateY(-6px); opacity: 1; }
 }
 
 @keyframes glowPulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(167, 139, 250, 0.05); }
-  50% { box-shadow: 0 0 30px rgba(167, 139, 250, 0.12); }
+  0%, 100% { box-shadow: 0 0 30px rgba(167, 139, 250, 0.03); }
+  50% { box-shadow: 0 0 50px rgba(167, 139, 250, 0.06); }
 }
 
 @keyframes subtleFloat {
@@ -119,10 +199,23 @@
   50% { transform: translateY(-2px); }
 }
 
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.type-cursor { animation: cursorBlink 0.6s step-end infinite; }
+
 /* ── Base reset ── */
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  scroll-behavior: smooth;
+  transition: background-color 0.3s ease, color 0.2s ease;
 }
 
 html, body {
@@ -137,25 +230,26 @@ html, body {
   text-rendering: optimizeLegibility;
 }
 
-/* ── Scrollbars — thin, Apple-like ── */
+/* GPU-accelerate key animated elements for high-refresh displays (120Hz+) */
+.card:hover {
+  will-change: transform;
+}
+nav {
+  will-change: transform;
+  transform: translateZ(0);
+}
+[data-tauri-drag-region] {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* ── Scrollbars — hidden but still scrollable ── */
 
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 100px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.14);
+  display: none;
 }
 * {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+  scrollbar-width: none;
 }
 
 /* ── Hidden scrollbar — scrollable but no visible scrollbar ── */
@@ -209,7 +303,8 @@ html, body {
   border-color: var(--border-hover);
   box-shadow:
     var(--glow-purple),
-    0 8px 32px rgba(0, 0, 0, 0.2);
+    0 8px 24px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.08);
   transform: translateY(-1px);
   background: var(--bg-card-hover);
 }
@@ -311,6 +406,7 @@ button {
 
 button:active:not(:disabled) {
   transform: scale(0.97);
+  transition: transform 0.1s ease;
 }
 
 /* ── Inputs — Apple-like focus ring ── */
@@ -321,7 +417,7 @@ input, textarea, select {
 
 input:focus, textarea:focus, select:focus {
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.06);
 }
 
 /* ── Page title animation ── */
@@ -331,30 +427,24 @@ h1 {
   letter-spacing: -0.02em;
 }
 
-/* ── Subtle ambient gradient on body ── */
+
+/* ── Top ambient glow ── */
 
 body::before {
   content: '';
   position: fixed;
-  top: -40%;
-  left: -20%;
-  width: 80%;
-  height: 80%;
-  background: radial-gradient(ellipse, rgba(167, 139, 250, 0.04) 0%, transparent 70%);
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 250px;
+  background: linear-gradient(to bottom, rgba(139, 92, 246, 0.10) 0%, transparent 100%);
   pointer-events: none;
   z-index: 0;
 }
 
-body::after {
-  content: '';
-  position: fixed;
-  bottom: -30%;
-  right: -15%;
-  width: 60%;
-  height: 60%;
-  background: radial-gradient(ellipse, rgba(129, 140, 248, 0.03) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 0;
+[data-theme="light"] body::before,
+:root[data-theme="light"] body::before {
+  background: linear-gradient(to bottom, rgba(139, 92, 246, 0.06) 0%, transparent 100%);
 }
 
 /* ── Selection highlight ── */
@@ -364,11 +454,192 @@ body::after {
   color: #fff;
 }
 
-/* ── Accessible focus ring ── */
+[data-theme="light"] ::selection {
+  background: rgba(139, 92, 246, 0.2);
+  color: #1d1d1f;
+}
+
+/* ── Accessible focus ring — only for keyboard nav ── */
+
+:focus {
+  outline: none;
+}
 
 :focus-visible {
-  outline: 2px solid rgba(0, 229, 204, 0.7) !important;
+  outline: 2px solid rgba(167, 139, 250, 0.5) !important;
   outline-offset: 2px !important;
+  transition: outline-offset 0.15s ease;
+}
+
+/* ── Hover utilities — replaces inline onMouseEnter/onMouseLeave ── */
+
+.hover-bg:hover {
+  background: var(--hover-bg) !important;
+}
+
+.hover-bg-bright:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.hover-text-primary:hover {
+  color: var(--text-primary) !important;
+}
+
+.hover-border-accent:hover {
+  border-color: var(--border-hover) !important;
+}
+
+.hover-text-secondary:hover {
+  color: var(--text-secondary) !important;
+}
+
+.hover-translate-x:hover {
+  transform: translateX(2px);
+}
+
+/* ── Utility classes — for use in new components ── */
+
+.flex-center { display: flex; align-items: center; justify-content: center; }
+.flex-col { display: flex; flex-direction: column; }
+.flex-1 { flex: 1; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.text-sm { font-size: 13px; }
+.text-xs { font-size: 11px; }
+.font-mono { font-family: 'JetBrains Mono', monospace; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Touch target minimum — Apple HIG 44px ── */
+
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* ── Scrollbar overrides for light theme ──
+   Prepared for when scrollbars are re-enabled. */
+
+[data-theme="light"] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: var(--radius-full);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+  background-clip: content-box;
+}
+
+/* ── Traffic light buttons — dim when window unfocused ── */
+
+.traffic-lights button {
+  transition: opacity 0.2s ease !important;
+}
+
+html:not(:focus-within) .traffic-lights button {
+  opacity: 0.5;
+}
+
+html:focus-within .traffic-lights button {
+  opacity: 1;
+}
+
+.traffic-lights:hover button {
+  opacity: 1 !important;
+}
+
+/* ── Messages keyframes ── */
+
+@keyframes menuIn {
+  from { opacity: 0; transform: scale(0.92) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes emojiPop {
+  from { opacity: 0; transform: scale(0.3); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes msgSlideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes replySlideDown {
+  from { opacity: 0; max-height: 0; }
+  to { opacity: 1; max-height: 80px; }
+}
+
+@keyframes scrollBtnIn {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes stickerWobble {
+  0% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(-3deg) scale(1.05); }
+  50% { transform: rotate(2deg) scale(1.08); }
+  75% { transform: rotate(-1deg) scale(1.03); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+
+@keyframes ctxIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes toastOut {
+  from { opacity: 1; }
+  to { opacity: 0; transform: translateY(-10px); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes searchSlideDown {
+  from { opacity: 0; max-height: 0; }
+  to { opacity: 1; max-height: 50px; }
+}
+
+.msg-row .reply-hint {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.msg-row:hover .reply-hint {
+  opacity: 0.5;
+}
+.msg-row .reply-hint:hover {
+  opacity: 1 !important;
+  transform: scale(1.1);
+}
+
+/* ── Notification keyframes ── */
+
+@keyframes notifPanelIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes unreadPulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(96,165,250,0.4); }
+  50% { opacity: 0.8; box-shadow: 0 0 0 3px rgba(96,165,250,0); }
 }
 
 /* ── Reduced motion ── */

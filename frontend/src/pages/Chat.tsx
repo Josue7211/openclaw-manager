@@ -1,12 +1,36 @@
 
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Send, Image as ImageIcon, X, ChevronDown } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { Send, Image as ImageIcon, X, ChevronDown, Settings } from 'lucide-react'
+import Lightbox, { type LightboxData } from '@/components/Lightbox'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { formatTime } from '@/lib/utils'
+import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
+import { useChatSocket, type WsMessage } from '@/lib/hooks/useChatSocket'
 
-import { api } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
+import { queryKeys } from '@/lib/query-keys'
+
+const MODEL_OPTIONS = [
+  { value: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
+  { value: 'claude-opus-4-6', label: 'Opus 4.6' },
+  { value: 'claude-haiku-4-5', label: 'Haiku 4.5' },
+] as const
+
+/** Strip [timestamp] prefix and [[reply_to]] tags from message text */
+function cleanText(text: string): string {
+  return text
+    .replace(/^\[.*?\]\s+/, '')              // leading [Fri, 03/13/2026, ...] prefix
+    .replace(/\[\[\s*reply_to_current\s*\]\]\s*/g, '')
+    .replace(/\[\[\s*reply_to\s*:\s*[^\]]*\]\]\s*/g, '')
+    .trim()
+}
+
+function cleanMessages(msgs: ChatMessage[]): ChatMessage[] {
+  return msgs.map(m => ({ ...m, text: cleanText(m.text) }))
+}
 
 interface ChatMessage {
   id: string
@@ -31,33 +55,30 @@ export default function ChatPage() {
   const [sending, setSending]     = useState(false)
   const [connected, setConnected] = useState(false)
   const [mounted, setMounted]     = useState(false)
-  const [lightbox, setLightbox]   = useState<string | null>(null)
-  const [loupe, setLoupe]         = useState<{ x: number; y: number; zoom: number } | null>(null)
+  const [lightbox, setLightbox]   = useState<LightboxData>(null)
   const [atBottom, setAtBottom]   = useState(true)
   const [optimistic, setOptimistic] = useState<OptimisticMsg[]>([])
   const [isTyping, setIsTyping]   = useState(false)
   const [systemMsg, setSystemMsg] = useState<string | null>(null)
   const [notConfigured, setNotConfigured] = useState(false)
+  const [historyError, setHistoryError] = useState<string | null>(null)
+  const [model, setModel] = useLocalStorageState('chat-model', 'claude-sonnet-4-6')
+  const [sysPrompt, setSysPrompt] = useLocalStorageState('chat-system-prompt', '')
+  const [showSysPrompt, setShowSysPrompt] = useState(false)
   const failCountRef              = useRef(0)
   const lastUserMsgTimeRef        = useRef<number>(0)
   const bottomRef                 = useRef<HTMLDivElement>(null)
   const scrollRef                 = useRef<HTMLDivElement>(null)
   const fileRef                   = useRef<HTMLInputElement>(null)
   const textareaRef               = useRef<HTMLTextAreaElement>(null)
-  const imgRef                    = useRef<HTMLImageElement>(null)
   const pendingReadsRef           = useRef<number>(0)       // count of in-progress FileReaders
   const pendingSendRef            = useRef<boolean>(false)  // send was requested while reads pending
   const pendingTextRef            = useRef<string>('')      // text saved when queued send fired
   const imagesRef                 = useRef<string[]>([])    // always-current mirror of images state
-  const loupeRef                  = useRef<{ x: number; y: number; zoom: number } | null>(null)
   const draftTimerRef              = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const minZoomRef                = useRef(0.5)
 
   // ── Keep imagesRef in sync with committed images state (safety net for normal send path) ──
   useEffect(() => { imagesRef.current = images }, [images])
-
-  const LOUPE_W = 720
-  const LOUPE_H = 480
 
   // ── Auto-scroll (only when already at bottom) ──
   useEffect(() => {
@@ -95,120 +116,130 @@ export default function ChatPage() {
         if (Array.isArray(parsed) && parsed.length > 0) { imagesRef.current = parsed; setImages(() => parsed) }
       }
     } catch { /* ignore */ }
+    return () => {
+      if (draftTimerRef.current) clearTimeout(draftTimerRef.current)
+    }
   }, [])
 
-  // ── Load history on mount ──
-  useEffect(() => {
-    const sessionStart = localStorage.getItem('session-start')
-    const startTime = sessionStart ? parseInt(sessionStart, 10) : 0
-    api.get<{ messages?: ChatMessage[] }>('/api/chat/history')
-      .then(d => {
-        let msgs: ChatMessage[] = d.messages || []
-        if (startTime > 0) msgs = msgs.filter(m => new Date(m.timestamp).getTime() >= startTime)
-        if (msgs.length) setMessages(msgs)
-      })
-      .catch(() => {})
-      .finally(() => setMounted(true))
-  }, [])
-
-  // ── Live polling ──
-  const knownIdsRef = useRef<Set<string>>(new Set())
+  // ── WebSocket + polling fallback ──
   const optimisticImageCacheRef = useRef<Map<string, string[]>>(new Map())
+  const backoffRef = useRef(5000)
 
-  // ── Adaptive polling with exponential backoff (2s → 30s on failure) ──
-  useEffect(() => {
-    let delay = 2000
-    let timer: ReturnType<typeof setTimeout>
-    let cancelled = false
+  // Helper: reconcile an array of incoming messages into state
+  const reconcileMessages = useCallback((incoming: ChatMessage[]) => {
+    setMessages(prev => {
+      const existingIds = new Set(prev.map(m => m.id))
+      const newMsgs = incoming.filter(m => !existingIds.has(m.id))
+      if (newMsgs.length === 0) return prev
+      return [...prev, ...newMsgs]
+    })
 
-    const tick = async () => {
-      try {
-        const d = await api.get<{ messages?: ChatMessage[]; error?: string }>('/api/chat/history')
+    // Remove optimistic bubbles that now appear in real history
+    const removeOptimistic = () => {
+      setOptimistic(prev => {
+        if (prev.length === 0) return prev
+        const filtered = prev.filter(opt => {
+          const historyMsg = incoming.find(m => m.role === 'user' && m.text === opt.text)
+          if (!historyMsg) return true
+          if ((opt.images?.length ?? 0) > 0 && (!historyMsg.images || historyMsg.images.length === 0)) return true
+          return false
+        })
+        return filtered.length === prev.length ? prev : filtered
+      })
+    }
+    removeOptimistic()
+    setTimeout(removeOptimistic, 1500)
 
-        if (d.error === 'openclaw_not_configured') {
-          setNotConfigured(true)
-          setConnected(false)
-          delay = Math.min(delay * 2, 30000)
-        } else {
-          let incoming: ChatMessage[] = d.messages || []
-          const sessionStart = localStorage.getItem('session-start')
-          if (sessionStart) {
-            const startTime = parseInt(sessionStart, 10)
-            incoming = incoming.filter(m => new Date(m.timestamp).getTime() >= startTime)
-          }
-
-          setConnected(true)
-          failCountRef.current = 0
-          setNotConfigured(false)
-          delay = 2000 // reset on success
-
-          setMessages(prev => {
-            const existingIds = new Set(prev.map(m => m.id))
-            const newMsgs = incoming.filter(m => !existingIds.has(m.id))
-            if (newMsgs.length === 0) return prev
-            return [...prev, ...newMsgs]
-          })
-
-          const incomingSnapshot = incoming
-          const removeOptimistic = () => {
-            setOptimistic(prev => {
-              if (prev.length === 0) return prev
-              const filtered = prev.filter(opt => {
-                const historyMsg = incomingSnapshot.find(m => m.role === 'user' && m.text === opt.text)
-                if (!historyMsg) return true
-                if ((opt.images?.length ?? 0) > 0 && (!historyMsg.images || historyMsg.images.length === 0)) return true
-                return false
-              })
-              return filtered.length === prev.length ? prev : filtered
-            })
-          }
-          removeOptimistic()
-          setTimeout(removeOptimistic, 1500)
-
-          if (lastUserMsgTimeRef.current > 0) {
-            const lastAssistant = [...incoming].reverse().find(m => m.role === 'assistant')
-            if (lastAssistant && new Date(lastAssistant.timestamp).getTime() > lastUserMsgTimeRef.current) {
-              setIsTyping(false)
-            }
-          }
-        }
-      } catch {
-        setConnected(false)
-        failCountRef.current += 1
-        if (failCountRef.current >= 3) setNotConfigured(true)
-        delay = Math.min(delay * 2, 30000)
+    // Clear typing indicator when assistant replies after our last user message
+    if (lastUserMsgTimeRef.current > 0) {
+      const lastAssistant = [...incoming].reverse().find(m => m.role === 'assistant')
+      if (lastAssistant && new Date(lastAssistant.timestamp).getTime() > lastUserMsgTimeRef.current) {
+        setIsTyping(false)
       }
-
-      if (!cancelled) timer = setTimeout(tick, delay)
     }
-
-    tick()
-    return () => { cancelled = true; clearTimeout(timer) }
   }, [])
 
-  // ── Lightbox: close on Escape ──
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') { setLightbox(null); setLoupe(null) } }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [])
-
-  // ── Loupe: keep ref in sync so wheel handler can read latest zoom ──
-  useEffect(() => { loupeRef.current = loupe }, [loupe])
-
-  // ── Loupe: non-passive wheel listener on lightbox image ──
-  useEffect(() => {
-    if (!lightbox) return
-    const el = imgRef.current
-    if (!el) return
-    const handler = (e: WheelEvent) => {
-      if (!loupeRef.current) return
-      e.preventDefault()
-      setLoupe(l => l ? { ...l, zoom: Math.max(minZoomRef.current, Math.min(12, l.zoom - e.deltaY * 0.008)) } : null)
+  // -- WebSocket: receive individual new messages in real time --
+  const onWsMessage = useCallback((msg: WsMessage) => {
+    const cleaned = cleanMessages([msg as ChatMessage])
+    const sessionStart = localStorage.getItem('session-start')
+    let filtered = cleaned
+    if (sessionStart) {
+      const startTime = parseInt(sessionStart, 10)
+      filtered = cleaned.filter(m => new Date(m.timestamp).getTime() >= startTime)
     }
-    el.addEventListener('wheel', handler, { passive: false })
-    return () => el.removeEventListener('wheel', handler)
-  }, [lightbox])
+    if (filtered.length === 0) return
+
+    if (!mounted) setMounted(true)
+    setConnected(true)
+    failCountRef.current = 0
+    setNotConfigured(false)
+    setHistoryError(null)
+
+    reconcileMessages(filtered)
+  }, [mounted, reconcileMessages])
+
+  const { connected: wsConnected, usingFallback } = useChatSocket({
+    onMessage: onWsMessage,
+    onStatusChange: (status) => {
+      if (status) {
+        setConnected(true)
+        setHistoryError(null)
+      }
+    },
+  })
+
+  // -- Polling fallback: only active when WebSocket is unavailable --
+  // Also used for initial history load (WS only sends NEW messages)
+  const { data: historyData, dataUpdatedAt, isError: historyIsError, error: historyQueryError } = useQuery<{ messages?: ChatMessage[]; error?: string }>({
+    queryKey: queryKeys.chatHistory,
+    queryFn: () => api.get<{ messages?: ChatMessage[]; error?: string }>('/api/chat/history'),
+    // Always fetch once on mount for history; then only poll if WS is down
+    refetchInterval: (query) => {
+      if (wsConnected && !usingFallback) return false  // WS active — no polling needed
+      return query.state.error ? Math.min((backoffRef.current *= 2), 30000) : ((backoffRef.current = 5000), 5000)
+    },
+  })
+
+  // Surface network-level failures as a user-visible error
+  useEffect(() => {
+    if (historyIsError && !notConfigured) {
+      // Only show error if WS is also down
+      if (!wsConnected) {
+        setConnected(false)
+        const label = historyQueryError instanceof ApiError
+          ? historyQueryError.serviceLabel
+          : 'OpenClaw unreachable'
+        setHistoryError(label)
+      }
+    }
+  }, [historyIsError, historyQueryError, notConfigured, wsConnected])
+
+  // ── Reconcile incoming history (initial load + polling fallback) ──
+  useEffect(() => {
+    if (!historyData) return
+    if (!mounted) setMounted(true)
+
+    if (historyData.error === 'openclaw_not_configured') {
+      setNotConfigured(true)
+      setConnected(false)
+      return
+    }
+
+    let incoming: ChatMessage[] = cleanMessages(historyData.messages || [])
+    const sessionStart = localStorage.getItem('session-start')
+    if (sessionStart) {
+      const startTime = parseInt(sessionStart, 10)
+      incoming = incoming.filter(m => new Date(m.timestamp).getTime() >= startTime)
+    }
+
+    setConnected(true)
+    failCountRef.current = 0
+    setNotConfigured(false)
+    setHistoryError(null)
+
+    reconcileMessages(incoming)
+  }, [historyData, dataUpdatedAt, reconcileMessages])
 
   // ── Paste image ──
   useEffect(() => {
@@ -289,7 +320,11 @@ export default function ChatPage() {
       setSystemMsg('── Starting fresh session… ──')
       setMessages([])
       setOptimistic([])
-      api.post('/api/chat', { text, images: [] }).catch(() => {})
+      api.post('/api/chat', { text, images: [], model, systemPrompt: sysPrompt || undefined }).catch((err) => {
+        console.error('Slash command failed:', err)
+        setSystemMsg('Failed to send command — try again')
+        setTimeout(() => setSystemMsg(null), 4000)
+      })
       setTimeout(() => {
         setSystemMsg('── Session reset ──')
         setTimeout(() => setSystemMsg(null), 3000)
@@ -333,7 +368,10 @@ export default function ChatPage() {
     }
 
     // Fire send — don't await; WS gateway has no clean ack
-    api.post('/api/chat', { text, images: imgs }).catch(() => {})
+    api.post('/api/chat', { text, images: imgs, model, systemPrompt: sysPrompt || undefined }).catch(() => {
+      setOptimistic(prev => prev.map(m => m.id === msgId ? { ...m, status: 'error' } : m))
+      setSending(false)
+    })
 
     // Optimistically mark sent after 500ms fallback — no need to wait for real ack
     setTimeout(() => {
@@ -353,7 +391,7 @@ export default function ChatPage() {
   const retry = async (msg: OptimisticMsg) => {
     setOptimistic(prev => prev.map(m => m.id === msg.id ? { ...m, status: 'sending' } : m))
     try {
-      await api.post('/api/chat', { text: msg.text, images: msg.images || [] })
+      await api.post('/api/chat', { text: msg.text, images: msg.images || [], model, systemPrompt: sysPrompt || undefined })
       setOptimistic(prev => prev.map(m => m.id === msg.id ? { ...m, status: 'sent' } : m))
       setTimeout(() => setOptimistic(prev => prev.filter(m => m.id !== msg.id)), 2000)
     } catch {
@@ -370,9 +408,59 @@ export default function ChatPage() {
 
       {/* Header */}
       <div style={{ marginBottom: '16px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>Chat</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>Chat</h1>
 
+          {/* Model selector */}
+          <select
+            value={model}
+            onChange={e => setModel(e.target.value)}
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              color: 'var(--text-secondary)',
+              fontSize: '11px',
+              fontFamily: 'monospace',
+              padding: '4px 8px',
+              cursor: 'pointer',
+              outline: 'none',
+              appearance: 'none',
+              WebkitAppearance: 'none',
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E")`,
+              backgroundRepeat: 'no-repeat',
+              backgroundPosition: 'right 8px center',
+              paddingRight: '22px',
+            }}
+          >
+            {MODEL_OPTIONS.map(o => (
+              <option key={o.value} value={o.value} style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+
+          {/* System prompt toggle */}
+          <button
+            onClick={() => setShowSysPrompt(p => !p)}
+            title="System prompt"
+            aria-label="Toggle system prompt"
+            style={{
+              background: showSysPrompt ? 'rgba(155, 132, 236, 0.15)' : 'transparent',
+              border: showSysPrompt ? '1px solid rgba(155, 132, 236, 0.3)' : '1px solid transparent',
+              borderRadius: '6px',
+              color: showSysPrompt ? 'var(--accent-bright)' : 'var(--text-muted)',
+              cursor: 'pointer',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { if (!showSysPrompt) e.currentTarget.style.color = 'var(--text-secondary)' }}
+            onMouseLeave={e => { if (!showSysPrompt) e.currentTarget.style.color = 'var(--text-muted)' }}
+          >
+            <Settings size={14} />
+          </button>
         </div>
         <div aria-live="polite" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <div style={{
@@ -381,10 +469,49 @@ export default function ChatPage() {
             boxShadow: connected ? '0 0 6px var(--green)' : 'none',
           }} />
           <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-            {connected ? 'live' : 'reconnecting…'}
+            {connected
+              ? (wsConnected ? 'live' : 'polling')
+              : historyIsError ? 'OpenClaw unreachable' : 'reconnecting…'}
           </span>
         </div>
       </div>
+
+      {/* System prompt editor (collapsible) */}
+      {showSysPrompt && (
+        <div style={{
+          marginBottom: '12px', flexShrink: 0,
+          background: 'rgba(155, 132, 236, 0.05)',
+          border: '1px solid rgba(155, 132, 236, 0.15)',
+          borderRadius: '10px',
+          padding: '10px 12px',
+        }}>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace', marginBottom: '6px' }}>
+            System Prompt
+          </div>
+          <textarea
+            value={sysPrompt}
+            onChange={e => setSysPrompt(e.target.value)}
+            placeholder="Custom instructions for the assistant..."
+            rows={3}
+            style={{
+              width: '100%',
+              background: 'rgba(0, 0, 0, 0.2)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              color: 'var(--text-primary)',
+              fontSize: '12px',
+              fontFamily: 'inherit',
+              padding: '8px 10px',
+              resize: 'vertical',
+              lineHeight: 1.5,
+              outline: 'none',
+              minHeight: '60px',
+              maxHeight: '160px',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+      )}
 
       {/* Not configured banner */}
       {notConfigured && (
@@ -407,6 +534,42 @@ OPENCLAW_PASSWORD=your-password
 OPENCLAW_API_URL=http://your-openclaw-host:3001
 OPENCLAW_API_KEY=your-api-key`}
           </pre>
+        </div>
+      )}
+
+      {/* History load error */}
+      {historyError && (
+        <div style={{
+          marginBottom: '12px', padding: '12px 16px', flexShrink: 0,
+          background: 'rgba(239, 68, 68, 0.08)',
+          border: '1px solid rgba(239, 68, 68, 0.25)',
+          borderRadius: '10px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <span style={{ fontSize: '13px', color: 'rgba(248, 113, 113, 1)' }}>
+            Could not load chat history: {historyError}
+          </span>
+          <button
+            onClick={() => {
+              setHistoryError(null)
+              api.get<{ messages?: ChatMessage[] }>('/api/chat/history')
+                .then(d => {
+                  const sessionStart = localStorage.getItem('session-start')
+                  const startTime = sessionStart ? parseInt(sessionStart, 10) : 0
+                  let msgs = cleanMessages(d.messages || [])
+                  if (startTime > 0) msgs = msgs.filter(m => new Date(m.timestamp).getTime() >= startTime)
+                  if (msgs.length) setMessages(msgs)
+                })
+                .catch(err => setHistoryError(err instanceof Error ? err.message : 'Failed to load chat history'))
+            }}
+            style={{
+              background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: '8px', padding: '4px 12px', color: 'rgba(248, 113, 113, 1)',
+              fontSize: '12px', cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            Retry
+          </button>
         </div>
       )}
 
@@ -479,7 +642,7 @@ OPENCLAW_API_KEY=your-api-key`}
             <div style={{ maxWidth: '74%', display: 'flex', flexDirection: 'column', gap: '4px', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
               {/* Images — fall back to optimistic cache if history record arrived without attachments */}
               {(msg.images?.length ? msg.images : (optimisticImageCacheRef.current.get(msg.text) ?? [])).map((url, i) => (
-                <img key={i} src={url} alt="attached" onClick={() => setLightbox(url)}
+                <img key={i} src={url} alt="attached" onClick={() => setLightbox({ src: url, type: 'image' })}
                   style={{ maxWidth: '240px', maxHeight: '180px', borderRadius: '10px', display: 'block', marginBottom: '4px', border: '1px solid var(--border)', objectFit: 'contain', cursor: 'zoom-in' }}
                 />
               ))}
@@ -670,7 +833,7 @@ OPENCLAW_API_KEY=your-api-key`}
             background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border)',
             borderRadius: '20px', padding: '5px 14px',
             color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.4)', transition: 'all 0.25s cubic-bezier(0.22, 1, 0.36, 1)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.4)', transition: 'all 0.25s var(--ease-spring)',
           }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
@@ -716,7 +879,7 @@ OPENCLAW_API_KEY=your-api-key`}
             background: (sending || (!input.trim() && images.length === 0)) ? 'rgba(255, 255, 255, 0.05)' : 'var(--accent)',
             border: 'none', borderRadius: '10px',
             color: (sending || (!input.trim() && images.length === 0)) ? 'var(--text-muted)' : '#fff',
-            padding: '7px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all 0.25s cubic-bezier(0.22, 1, 0.36, 1)',
+            padding: '7px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all 0.25s var(--ease-spring)',
           }}
         >
           <Send size={15} />
@@ -725,101 +888,11 @@ OPENCLAW_API_KEY=your-api-key`}
 
       <style>{`
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes fadeOutCheck { 0% { opacity: 1; } 100% { opacity: 0; } }
         .md-bubble p:last-child { margin-bottom: 0 !important; }
       `}</style>
 
-      {/* Lightbox */}
-      {lightbox && (
-        <div
-          onClick={() => { setLightbox(null); setLoupe(null) }}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 1000,
-            background: 'rgba(0,0,0,0.85)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'zoom-out',
-          }}
-        >
-          {/* Image + loupe container */}
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}
-          >
-            <img
-              ref={imgRef}
-              src={lightbox}
-              alt="expanded"
-              style={{
-                maxWidth: '80vw', maxHeight: '80vh',
-                borderRadius: '10px',
-                border: '1px solid var(--border)',
-                objectFit: 'contain',
-                boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
-                display: 'block',
-                cursor: loupe ? 'crosshair' : 'zoom-in',
-                userSelect: 'none',
-              }}
-              onClick={e => {
-                const rect = e.currentTarget.getBoundingClientRect()
-                const x = e.clientX - rect.left
-                const y = e.clientY - rect.top
-                setLoupe(l => l ? null : { x, y, zoom: 2.1 })
-              }}
-              onMouseMove={e => {
-                if (!loupeRef.current) return
-                const rect = e.currentTarget.getBoundingClientRect()
-                setLoupe(l => l ? { ...l, x: e.clientX - rect.left, y: e.clientY - rect.top } : null)
-              }}
-            />
-
-            {/* Loupe */}
-            {loupe && imgRef.current && (() => {
-              const iw = imgRef.current.clientWidth
-              const ih = imgRef.current.clientHeight
-              // keep 15% buffer so image always overfills the loupe — no blank edges
-              minZoomRef.current = Math.max(LOUPE_W / iw, LOUPE_H / ih) / 0.85
-              const lx = Math.max(LOUPE_W / 2, Math.min(iw - LOUPE_W / 2, loupe.x))
-              const ly = Math.max(LOUPE_H / 2, Math.min(ih - LOUPE_H / 2, loupe.y))
-              return (
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: lx - LOUPE_W / 2,
-                    top: ly - LOUPE_H / 2,
-                    width: LOUPE_W,
-                    height: LOUPE_H,
-                    borderRadius: '10px',
-                    border: '2px solid rgba(255,255,255,0.35)',
-                    boxShadow: '0 4px 24px rgba(0,0,0,0.7)',
-                    backgroundImage: `url(${lightbox})`,
-                    backgroundSize: `${iw * loupe.zoom}px ${ih * loupe.zoom}px`,
-                    backgroundPosition: `${LOUPE_W / 2 - loupe.x * loupe.zoom}px ${LOUPE_H / 2 - loupe.y * loupe.zoom}px`,
-                    backgroundRepeat: 'no-repeat',
-                    pointerEvents: 'none',
-                  }}
-                />
-              )
-            })()}
-          </div>
-
-          {/* Close button */}
-          <button
-            onClick={() => { setLightbox(null); setLoupe(null) }}
-            aria-label="Close lightbox"
-            style={{
-              position: 'fixed', top: '20px', right: '24px',
-              background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
-              borderRadius: '50%', width: '32px', height: '32px',
-              color: '#fff', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-          >
-            <X size={16} />
-          </button>
-        </div>
-      )}
+      <Lightbox data={lightbox} onClose={() => setLightbox(null)} />
     </div>
   )
 }

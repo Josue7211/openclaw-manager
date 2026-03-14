@@ -138,7 +138,7 @@ export default function RemindersPage() {
       <div style={{ maxWidth: '560px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px' }}>
           <Bell size={20} style={{ color: 'var(--accent)' }} />
-          <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>Reminders</h1>
+          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>Reminders</h1>
         </div>
         <div className="card" style={{ padding: '32px', textAlign: 'center' }}>
           <AlertCircle size={32} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
@@ -170,7 +170,7 @@ export default function RemindersPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Bell size={20} style={{ color: 'var(--accent)' }} />
-          <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>Reminders</h1>
+          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>Reminders</h1>
           {!loading && (
             <span className="badge badge-green" style={{ marginLeft: '4px' }}>
               {displayReminders.filter(r => !r.completed).length} pending

@@ -1,14 +1,20 @@
 
 
+
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { Activity, Brain, MessageSquare, Bot, RefreshCw, Cpu, Wifi, Target, Lightbulb, X, CheckCircle, SkipForward, XCircle } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js"
 import { timeAgo, formatTime } from '@/lib/utils'
 import { Skeleton, SkeletonRows } from '@/components/Skeleton'
 import { BackendErrorBanner } from '@/components/BackendErrorBanner'
+import SecondsAgo from '@/components/SecondsAgo'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryKeys } from '@/lib/query-keys'
 
-import { api } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
+import { emit } from '@/lib/event-bus'
+import type { Mission } from '@/lib/types'
 
 interface StatusData {
   name: string; emoji: string; model: string; status: string; lastActive: string; host: string; ip: string;
@@ -16,7 +22,6 @@ interface StatusData {
 interface HeartbeatData { lastCheck: string | null; status: string; tasks: string[]; }
 interface MemoryEntry { date: string; preview: string; path: string; }
 interface Session { id: string; label?: string; kind?: string; lastActive?: string; }
-interface Mission { id: string; title: string; assignee: string; status: string; createdAt: string; }
 interface AgentInfo { id: string; display_name: string; emoji: string; model: string; role: string; status: string; current_task: string | null; sort_order?: number; }
 interface AgentsData { agents: AgentInfo[]; activeSessions: string[]; }
 interface SubagentData { count: number; agents: unknown[]; }
@@ -24,110 +29,76 @@ interface ActiveSubagentTask { id: string; label: string; agentId: string; start
 interface ActiveSubagentData { active: boolean; count: number; tasks: ActiveSubagentTask[]; }
 interface Idea { id: string; title: string; description: string | null; why: string | null; effort: string | null; impact: string | null; category: string | null; status: string; created_at: string; }
 
-// Isolated timer component — prevents full dashboard re-render every second
-function SecondsAgo({ sinceMs }: { sinceMs: number }) {
-  const [s, setS] = useState(0)
-  useEffect(() => {
-    const t = setInterval(() => setS(Math.floor((Date.now() - sinceMs) / 1000)), 1000)
-    return () => clearInterval(t)
-  }, [sinceMs])
-  return <>{s}s ago</>
-}
-
 // Pill color per mission status
 function missionStatusStyle(status: string): React.CSSProperties {
   if (status === 'done')   return { background: 'rgba(52, 211, 153, 0.2)', color: 'var(--green-bright)', border: '1px solid rgba(52, 211, 153, 0.25)' }
   if (status === 'active') return { background: 'rgba(129, 140, 248, 0.2)', color: 'var(--blue-bright)', border: '1px solid rgba(129, 140, 248, 0.25)' }
-  return { background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-muted)', border: '1px solid var(--border)' }
+  return { background: 'var(--hover-bg)', color: 'var(--text-muted)', border: '1px solid var(--border)' }
 }
 
 export default function Dashboard() {
+  const queryClient = useQueryClient()
   const [status, setStatus]           = useState<StatusData | null>(null)
   const [heartbeat, setHeartbeat]     = useState<HeartbeatData | null>(null)
-  const [memory, setMemory]           = useState<MemoryEntry[]>([])
   const [sessions, setSessions]       = useState<Session[]>([])
   const [subagents, setSubagents]     = useState<SubagentData | null>(null)
-  const [missions, setMissions]       = useState<Mission[]>([])
   const [agentsData, setAgentsData]   = useState<AgentsData | null>(null)
-  const [activeSubagents, setActiveSubagents] = useState<ActiveSubagentData>({ active: false, count: 0, tasks: [] })
-  const [lastRefresh, setLastRefresh]     = useState<Date>(new Date())
+  // activeSubagents now managed by React Query below
   const [mounted, setMounted]             = useState(false)
-  const [backendError, setBackendError]   = useState(false)
+  const [backendError, setBackendError]   = useState<string | false>(false)
   const mountedRef                        = useRef(false)
   const researchMissionIdRef = useRef<string | null>(null)
   const cacheDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const fetchMissions = useCallback(() => {
-    api.get<{ missions?: Mission[] }>('/api/missions').then(d => {
-      setBackendError(false)
-      const filtered = (d.missions || []).filter((m: Mission) => m.status !== 'done')
-      const seen = new Set<string>()
-      const deduped = filtered.filter((m: Mission) => {
-        const key = m.title.toLowerCase().slice(0, 40)
-        if (seen.has(key)) return false
-        seen.add(key)
-        return true
-      })
-      setMissions(deduped)
-    }).catch(() => setBackendError(true))
-  }, [])
+  const [panelIdea, setPanelIdea] = useState<Idea | null>(null)
+  const realtimeConnectedRef = useRef(false)
+  const fastIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const slowIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const fetchAll = useCallback(() => {
-    api.get<{ entries?: MemoryEntry[] }>('/api/memory').then(d => setMemory(d.entries || [])).catch(() => {})
-    setLastRefresh(new Date())
-  }, [])
+  // ── React Query: memory ──
+  const { data: memoryData, dataUpdatedAt: memoryUpdatedAt } = useQuery({
+    queryKey: queryKeys.memory,
+    queryFn: () => api.get<{ entries?: MemoryEntry[] }>('/api/memory').then(d => d.entries || []),
+    refetchInterval: 30_000,
+  })
+  const memory = memoryData ?? []
 
-  useEffect(() => {
-    fetchAll()
-    const interval = setInterval(fetchAll, 30000)
-    return () => clearInterval(interval)
-  }, [fetchAll])
+  // ── React Query: pending ideas ──
+  const { data: pendingIdeasData } = useQuery({
+    queryKey: queryKeys.ideas('pending'),
+    queryFn: () => api.get<{ ideas?: Idea[] }>('/api/ideas?status=pending').then(d => d.ideas || []),
+    refetchInterval: 60_000,
+  })
+  const pendingIdeas = pendingIdeasData ?? []
+  const lastRefreshMs = memoryUpdatedAt || Date.now()
 
-  // Ensure dashboard shows content after 3s even if cache reads fail
-  useEffect(() => {
-    const t = setTimeout(() => {
-      if (!mountedRef.current) {
-        mountedRef.current = true
-        setMounted(true)
-      }
-    }, 3000)
-    return () => clearTimeout(t)
-  }, [])
+  // ── React Query: active subagents ──
+  const { data: activeSubagentsData, isError: subagentsError } = useQuery<ActiveSubagentData>({
+    queryKey: queryKeys.subagentsActive,
+    queryFn: () => api.get<ActiveSubagentData>('/api/subagents/active'),
+    refetchInterval: 10_000,
+  })
+  const activeSubagents = activeSubagentsData ?? { active: false, count: 0, tasks: [] }
 
-  // Real-time subscriptions for missions and agents (only when supabase client is available)
-  useEffect(() => {
-    fetchMissions()
+  // ── React Query: missions ──
+  const { data: missionsData } = useQuery<{ missions?: Mission[] }>({
+    queryKey: queryKeys.missions,
+    queryFn: () => api.get<{ missions?: Mission[] }>('/api/missions'),
+    refetchInterval: 30_000,
+  })
+  const allMissions = missionsData?.missions ?? []
+  const missions = useMemo(() => {
+    const filtered = allMissions.filter((m: Mission) => m.status !== 'done')
+    const seen = new Set<string>()
+    return filtered.filter((m: Mission) => {
+      const key = m.title.toLowerCase().slice(0, 40)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [allMissions])
 
-    if (!supabase) return
-
-    const missionsChannel = supabase
-      .channel('missions-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'missions' }, () => fetchMissions())
-      .subscribe()
-
-    const agentsSub = supabase
-      .channel('agents-dash-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agents' }, (payload: RealtimePostgresChangesPayload<AgentInfo>) => {
-        setAgentsData(prev => {
-          if (!prev) return prev
-          let updated = prev.agents
-          if (payload.eventType === 'UPDATE') {
-            updated = prev.agents.map(a => a.id === (payload.new as AgentInfo).id ? { ...a, ...(payload.new as AgentInfo) } : a)
-          } else if (payload.eventType === 'INSERT') {
-            updated = [...prev.agents, payload.new as AgentInfo]
-          } else if (payload.eventType === 'DELETE') {
-            updated = prev.agents.filter(a => a.id !== (payload.old as AgentInfo).id)
-          }
-          return { ...prev, agents: updated }
-        })
-      })
-      .subscribe()
-
-    return () => {
-      supabase?.removeChannel(missionsChannel)
-      supabase?.removeChannel(agentsSub)
-    }
-  }, [fetchMissions])
+  // ── Data-fetching primitives ──
 
   // Apply cache rows into state (used by both polling and realtime)
   const applyCache = useCallback((cacheRows: Array<{ key: string; value: unknown }>) => {
@@ -156,66 +127,16 @@ export default function Dashboard() {
       await api.post('/api/cache-refresh')
       const cacheRows = await readCache()
       if (cacheRows) applyCache(cacheRows)
-      // Backend responded — clear error and re-fetch missions if needed
       setBackendError(prev => {
-        if (prev) fetchMissions()
+        if (prev) queryClient.invalidateQueries({ queryKey: queryKeys.missions })
         return false
       })
-    } catch { /* silent */ }
-  }, [applyCache, readCache, fetchMissions])
-
-  // Poll cache every 5s (fast) + 30s (slow) + realtime subscription + focus/visibility refresh
-  useEffect(() => {
-    // First: read stale cache immediately (fast — shows data before refresh completes)
-    readCache().then((data) => {
-      if (data?.length) applyCache(data)
-    }).catch(() => {})
-    // Then: trigger refresh in background
-    api.post('/api/cache-refresh').catch(() => {})
-    const fastInterval = setInterval(triggerCacheRefresh, 5000)
-
-    // Realtime: when server writes cache, debounce to wait for all upserts to land (only with supabase)
-    let cacheChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null
-    if (supabase) {
-      cacheChannel = supabase
-        .channel('cache-updates')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'cache' }, () => {
-          if (cacheDebounceRef.current) clearTimeout(cacheDebounceRef.current)
-          cacheDebounceRef.current = setTimeout(() => {
-            readCache().then((data) => {
-              if (data) applyCache(data)
-            }).catch(() => {})
-          }, 200)
-        })
-        .subscribe()
+    } catch (e) {
+      setBackendError(e instanceof ApiError ? e.serviceLabel : 'Service unavailable')
     }
+  }, [applyCache, readCache, queryClient])
 
-    // Refresh on page focus / tab visibility
-    const onFocus = () => { triggerCacheRefresh() }
-    const onVisibility = () => { if (!document.hidden) onFocus() }
-    window.addEventListener('focus', onFocus)
-    document.addEventListener('visibilitychange', onVisibility)
-
-    return () => {
-      clearInterval(fastInterval)
-      if (cacheChannel) supabase?.removeChannel(cacheChannel)
-      window.removeEventListener('focus', onFocus)
-      document.removeEventListener('visibilitychange', onVisibility)
-    }
-  }, [triggerCacheRefresh, applyCache, readCache])
-
-  const fetchActiveSubagents = useCallback(async () => {
-    try {
-      const data = await api.get<ActiveSubagentData>('/api/subagents/active')
-      setActiveSubagents(data)
-    } catch { /* silent */ }
-  }, [])
-
-  useEffect(() => {
-    fetchActiveSubagents()
-    const interval = setInterval(fetchActiveSubagents, 10000)
-    return () => clearInterval(interval)
-  }, [fetchActiveSubagents])
+  // fetchActiveSubagents removed — now handled by React Query with refetchInterval: 10_000
 
   // Research cron → mission sync
   const syncResearchMission = useCallback(async () => {
@@ -253,46 +174,168 @@ export default function Dashboard() {
           await api.patch('/api/missions', { id: targetId, status: 'done' }).catch(() => {})
         }
       }
-
-      // Real-time subscription handles missions refresh
+      queryClient.invalidateQueries({ queryKey: queryKeys.missions })
     } catch { /* silent */ }
-  }, [])
+  }, [queryClient])
 
-  useEffect(() => {
+  // ── Consolidated "fast" tick (10s): cache refresh ──
+  // (active subagents are now managed by React Query with refetchInterval: 10_000)
+  const fastTick = useCallback(async () => {
+    await triggerCacheRefresh()
+  }, [triggerCacheRefresh])
+
+  // ── Consolidated "slow" tick (30s): mission syncs ──
+  // (memory + ideas are now managed by React Query with their own refetchInterval)
+  const slowTick = useCallback(() => {
     syncResearchMission()
-    const interval = setInterval(syncResearchMission, 30000)
-    return () => clearInterval(interval)
+    api.post('/api/missions/sync-agents').catch(() => {})
   }, [syncResearchMission])
 
-  // Auto-missions: sync claude processes every 15s (realtime subscription handles state refresh)
-  useEffect(() => {
-    api.post('/api/missions/sync-agents').catch(() => {})
-    const interval = setInterval(() => {
-      api.post('/api/missions/sync-agents').catch(() => {})
-    }, 15000)
-    return () => clearInterval(interval)
+  // ── Helpers to start / stop consolidated intervals ──
+  const startFastInterval = useCallback(() => {
+    if (fastIntervalRef.current) return
+    fastIntervalRef.current = setInterval(fastTick, 10_000)
+  }, [fastTick])
+
+  const stopFastInterval = useCallback(() => {
+    if (fastIntervalRef.current) { clearInterval(fastIntervalRef.current); fastIntervalRef.current = null }
   }, [])
 
-  const [pendingIdeas, setPendingIdeas] = useState<Idea[]>([])
-  const [panelIdea, setPanelIdea] = useState<Idea | null>(null)
+  const startSlowInterval = useCallback(() => {
+    if (slowIntervalRef.current) return
+    slowIntervalRef.current = setInterval(slowTick, 30_000)
+  }, [slowTick])
 
-  const fetchPendingIdeas = useCallback(() => {
-    api.get<{ ideas?: Idea[] }>('/api/ideas?status=pending')
-      .then(d => setPendingIdeas(d.ideas || []))
-      .catch(() => {})
+  const stopSlowInterval = useCallback(() => {
+    if (slowIntervalRef.current) { clearInterval(slowIntervalRef.current); slowIntervalRef.current = null }
   }, [])
 
+  // ── Ensure dashboard shows content after 3s even if cache reads fail ──
   useEffect(() => {
-    fetchPendingIdeas()
-    const interval = setInterval(fetchPendingIdeas, 60000)
-    return () => clearInterval(interval)
-  }, [fetchPendingIdeas])
+    const t = setTimeout(() => {
+      if (!mountedRef.current) {
+        mountedRef.current = true
+        setMounted(true)
+      }
+    }, 3000)
+    return () => clearTimeout(t)
+  }, [])
+
+  // ── Real-time subscriptions for missions and agents ──
+  useEffect(() => {
+    if (!supabase) return
+
+    const missionsChannel = supabase
+      .channel('missions-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'missions' }, () => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.missions })
+        emit('mission-updated', null, 'supabase')
+      })
+      .subscribe()
+
+    const agentsSub = supabase
+      .channel('agents-dash-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agents' }, (payload: RealtimePostgresChangesPayload<AgentInfo>) => {
+        setAgentsData(prev => {
+          if (!prev) return prev
+          let updated = prev.agents
+          if (payload.eventType === 'UPDATE') {
+            updated = prev.agents.map(a => a.id === (payload.new as AgentInfo).id ? { ...a, ...(payload.new as AgentInfo) } : a)
+          } else if (payload.eventType === 'INSERT') {
+            updated = [...prev.agents, payload.new as AgentInfo]
+          } else if (payload.eventType === 'DELETE') {
+            updated = prev.agents.filter(a => a.id !== (payload.old as AgentInfo).id)
+          }
+          return { ...prev, agents: updated }
+        })
+      })
+      .subscribe()
+
+    return () => {
+      supabase?.removeChannel(missionsChannel)
+      supabase?.removeChannel(agentsSub)
+    }
+  }, [queryClient])
+
+  // ── Main polling orchestrator ──
+  // Two consolidated intervals + realtime cache subscription.
+  // Pauses all polling when the page is hidden; resumes when visible.
+  useEffect(() => {
+    // Bootstrap: read stale cache immediately, then trigger refresh
+    readCache().then((data) => {
+      if (data?.length) applyCache(data)
+    }).catch(() => {})
+    api.post('/api/cache-refresh').catch(() => {})
+
+    // Run both ticks once at mount
+    fastTick()
+    slowTick()
+
+    // Start fast interval only when realtime is not connected
+    if (!realtimeConnectedRef.current) startFastInterval()
+    // Slow interval always runs
+    startSlowInterval()
+
+    // Realtime cache subscription (when supabase available)
+    let cacheChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null
+    if (supabase) {
+      cacheChannel = supabase
+        .channel('cache-updates')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'cache' }, () => {
+          if (cacheDebounceRef.current) clearTimeout(cacheDebounceRef.current)
+          cacheDebounceRef.current = setTimeout(() => {
+            readCache().then((data) => {
+              if (data) applyCache(data)
+            }).catch(() => {})
+          }, 200)
+        })
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            realtimeConnectedRef.current = true
+            // Realtime handles fast updates — stop polling for them
+            stopFastInterval()
+          } else {
+            realtimeConnectedRef.current = false
+            // Realtime lost — fall back to fast polling (unless page is hidden)
+            if (!document.hidden) startFastInterval()
+          }
+        })
+    }
+
+    // Pause all polling when page is hidden; resume when visible
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        stopFastInterval()
+        stopSlowInterval()
+      } else {
+        // Immediately refresh on return
+        fastTick()
+        slowTick()
+        // Restart intervals
+        if (!realtimeConnectedRef.current) startFastInterval()
+        startSlowInterval()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    // Also refresh on window focus (covers alt-tab without visibility change)
+    const onFocus = () => { if (!document.hidden) fastTick() }
+    window.addEventListener('focus', onFocus)
+
+    return () => {
+      stopFastInterval()
+      stopSlowInterval()
+      if (cacheChannel) supabase?.removeChannel(cacheChannel)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [fastTick, slowTick, readCache, applyCache, startFastInterval, stopFastInterval, startSlowInterval, stopSlowInterval])
 
   const handleIdeaAction = useCallback(async (id: string, status: 'approved' | 'deferred' | 'rejected') => {
     await api.patch('/api/ideas', { id, status }).catch(() => {})
-    fetchPendingIdeas()
+    queryClient.invalidateQueries({ queryKey: queryKeys.ideas('pending') })
     setPanelIdea(prev => (prev?.id === id ? null : prev))
-  }, [fetchPendingIdeas])
+  }, [queryClient])
 
   // Dynamic agent ordering: Bjorn first, active coding agents second, rest by sort_order
   const sortedAgents = useMemo(() => {
@@ -312,19 +355,29 @@ export default function Dashboard() {
 
   const updateMissionStatus = async (id: string, currentStatus: string) => {
     const next = currentStatus === 'pending' ? 'active' : currentStatus === 'active' ? 'done' : 'pending'
-    await api.patch('/api/missions', { id, status: next })
+    try {
+      await api.patch('/api/missions', { id, status: next })
+      queryClient.invalidateQueries({ queryKey: queryKeys.missions })
+    } catch (e) {
+      console.error('updateMissionStatus failed:', e)
+    }
   }
   const deleteMission = async (id: string) => {
-    await api.del('/api/missions', { id })
+    try {
+      await api.del('/api/missions', { id })
+      queryClient.invalidateQueries({ queryKey: queryKeys.missions })
+    } catch (e) {
+      console.error('deleteMission failed:', e)
+    }
   }
 
   return (
     <div>
-      {backendError && <BackendErrorBanner />}
+      {backendError && <BackendErrorBanner label={backendError} />}
       {/* ── Header ── */}
       <div style={{
         display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '32px',
-        animation: 'fadeInUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both',
+        animation: 'fadeInUp 0.5s var(--ease-spring) both',
       }}>
         <div>
           <h1 style={{
@@ -339,6 +392,18 @@ export default function Dashboard() {
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {subagentsError && (
+            <span style={{
+              fontSize: '11px', color: '#f59e0b',
+              fontFamily: "'JetBrains Mono', monospace",
+              padding: '4px 10px',
+              background: 'rgba(245, 158, 11, 0.08)',
+              border: '1px solid rgba(245, 158, 11, 0.2)',
+              borderRadius: '8px',
+            }}>
+              stale
+            </span>
+          )}
           <span aria-live="polite" style={{
             fontSize: '11px', color: 'var(--text-muted)',
             fontFamily: "'JetBrains Mono', monospace",
@@ -346,12 +411,12 @@ export default function Dashboard() {
             background: 'rgba(255, 255, 255, 0.03)',
             borderRadius: '8px',
           }}>
-            <SecondsAgo sinceMs={lastRefresh.getTime()} />
+            <SecondsAgo sinceMs={lastRefreshMs} />
           </span>
           <button
-            onClick={() => { fetchAll(); triggerCacheRefresh() }}
+            onClick={() => { fastTick(); slowTick() }}
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: 'var(--hover-bg)',
               border: '1px solid var(--border)',
               borderRadius: '10px',
               color: 'var(--text-secondary)',
@@ -370,7 +435,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Grid: left = general activity, right = today's sessions ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: '20px', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '20px', alignItems: 'start' }}>
 
         {/* ── Left Column: General Activity ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
@@ -576,7 +641,7 @@ export default function Dashboard() {
               ) : missions.map(m => (
                 <div key={m.id} style={{
                   display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px',
-                  background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', border: '1px solid var(--border)', transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
+                  background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', border: '1px solid var(--border)', transition: 'all 0.2s var(--ease-spring)',
                 }}>
                   <span style={{ flex: 1, fontSize: '12px', color: 'var(--text-primary)' }}>{m.title}</span>
                   <span style={{
@@ -589,7 +654,7 @@ export default function Dashboard() {
                     style={{
                       fontSize: '10px', padding: '3px 10px', borderRadius: '8px', border: 'none',
                       cursor: 'pointer', fontWeight: 600, textTransform: 'capitalize',
-                      transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
+                      transition: 'all 0.2s var(--ease-spring)',
                       ...missionStatusStyle(m.status),
                     }}
                   >{m.status}</button>
@@ -617,7 +682,7 @@ export default function Dashboard() {
             <div style={{ position: 'relative' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
                 {memory.map((entry) => (
-                  <div key={entry.date} style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', border: '1px solid var(--border)', transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)' }}>
+                  <div key={entry.date} style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', border: '1px solid var(--border)', transition: 'all 0.2s var(--ease-spring)' }}>
                     <div className="mono" style={{ color: 'var(--accent-bright)', fontSize: '11px', marginBottom: '3px' }}>{entry.date}</div>
                     <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
                       {entry.preview || <em style={{ color: 'var(--text-muted)' }}>empty</em>}
@@ -684,19 +749,19 @@ export default function Dashboard() {
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                     <button
                       onClick={() => handleIdeaAction(topIdea.id, 'approved')}
-                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '8px', border: 'none', cursor: 'pointer', background: 'rgba(52, 211, 153, 0.12)', color: 'var(--green)', transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '8px', border: 'none', cursor: 'pointer', background: 'rgba(52, 211, 153, 0.12)', color: 'var(--green)', transition: 'all 0.2s var(--ease-spring)' }}
                     >
                       <CheckCircle size={11} /> Approve
                     </button>
                     <button
                       onClick={() => handleIdeaAction(topIdea.id, 'deferred')}
-                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '8px', border: 'none', cursor: 'pointer', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-muted)', transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '8px', border: 'none', cursor: 'pointer', background: 'var(--hover-bg)', color: 'var(--text-muted)', transition: 'all 0.2s var(--ease-spring)' }}
                     >
                       <SkipForward size={11} /> Defer
                     </button>
                     <button
                       onClick={() => handleIdeaAction(topIdea.id, 'rejected')}
-                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '8px', border: 'none', cursor: 'pointer', background: 'rgba(248, 113, 113, 0.12)', color: 'var(--red-bright)', transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '8px', border: 'none', cursor: 'pointer', background: 'rgba(248, 113, 113, 0.12)', color: 'var(--red-bright)', transition: 'all 0.2s var(--ease-spring)' }}
                     >
                       <XCircle size={11} /> Reject
                     </button>
@@ -785,7 +850,7 @@ export default function Dashboard() {
               onClick={() => setPanelIdea(null)}
               style={{
                 position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', zIndex: 200,
-                animation: 'fadeIn 0.25s cubic-bezier(0.22, 1, 0.36, 1)',
+                animation: 'fadeIn 0.25s var(--ease-spring)',
               }}
             />
             {/* Panel */}
@@ -798,7 +863,7 @@ export default function Dashboard() {
               borderLeft: '1px solid var(--border)',
               zIndex: 201,
               display: 'flex', flexDirection: 'column',
-              animation: 'slideInRight 0.35s cubic-bezier(0.22, 1, 0.36, 1)',
+              animation: 'slideInRight 0.35s var(--ease-spring)',
               boxShadow: '-20px 0 60px rgba(0, 0, 0, 0.3)',
               overflowY: 'auto',
             }}>
@@ -863,19 +928,19 @@ export default function Dashboard() {
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   <button
                     onClick={() => handleIdeaAction(idea.id, 'approved')}
-                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 18px', fontSize: '12px', fontWeight: 600, borderRadius: '10px', border: 'none', cursor: 'pointer', background: 'var(--green)', color: '#fff', transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)', boxShadow: '0 2px 12px rgba(52, 211, 153, 0.25)' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 18px', fontSize: '12px', fontWeight: 600, borderRadius: '10px', border: 'none', cursor: 'pointer', background: 'var(--green)', color: 'var(--text-on-accent)', transition: 'all 0.2s var(--ease-spring)', boxShadow: '0 2px 12px rgba(52, 211, 153, 0.25)' }}
                   >
                     <CheckCircle size={13} /> Approve
                   </button>
                   <button
                     onClick={() => handleIdeaAction(idea.id, 'deferred')}
-                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 18px', fontSize: '12px', fontWeight: 600, borderRadius: '10px', border: '1px solid var(--border)', cursor: 'pointer', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-secondary)', transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 18px', fontSize: '12px', fontWeight: 600, borderRadius: '10px', border: '1px solid var(--border)', cursor: 'pointer', background: 'var(--hover-bg)', color: 'var(--text-secondary)', transition: 'all 0.2s var(--ease-spring)' }}
                   >
                     <SkipForward size={13} /> Defer
                   </button>
                   <button
                     onClick={() => handleIdeaAction(idea.id, 'rejected')}
-                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 18px', fontSize: '12px', fontWeight: 600, borderRadius: '10px', border: 'none', cursor: 'pointer', background: 'var(--red)', color: '#fff', transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)', boxShadow: '0 2px 12px rgba(248, 113, 113, 0.25)' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 18px', fontSize: '12px', fontWeight: 600, borderRadius: '10px', border: 'none', cursor: 'pointer', background: 'var(--red)', color: 'var(--text-on-accent)', transition: 'all 0.2s var(--ease-spring)', boxShadow: '0 2px 12px rgba(248, 113, 113, 0.25)' }}
                   >
                     <XCircle size={13} /> Reject
                   </button>
@@ -886,11 +951,6 @@ export default function Dashboard() {
         )
       })()}
 
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
-      `}</style>
     </div>
   )
 }

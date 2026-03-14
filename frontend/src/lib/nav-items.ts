@@ -22,35 +22,34 @@ export interface NavItem {
   href: string
   label: string
   icon: React.ElementType
+  moduleId?: string
 }
 
 export const personalDashboardItems: NavItem[] = [
   { href: '/', label: 'Home', icon: Home },
-  { href: '/chat', label: 'Chat', icon: MessageCircle },
-  { href: '/todos', label: 'Todos', icon: CheckSquare },
-  { href: '/calendar', label: 'Calendar', icon: CalendarDays },
-  { href: '/reminders', label: 'Reminders', icon: Bell },
-  { href: '/messages', label: 'Messages', icon: Smartphone },
-  { href: '/pomodoro', label: 'Pomodoro', icon: Timer },
-  { href: '/email', label: 'Email', icon: Mail },
-  { href: '/homelab', label: 'Home Lab', icon: Server },
-  { href: '/media', label: 'Media Radar', icon: Film },
+  { href: '/chat', label: 'Chat', icon: MessageCircle, moduleId: 'chat' },
+  { href: '/todos', label: 'Todos', icon: CheckSquare, moduleId: 'todos' },
+  { href: '/calendar', label: 'Calendar', icon: CalendarDays, moduleId: 'calendar' },
+  { href: '/reminders', label: 'Reminders', icon: Bell, moduleId: 'reminders' },
+  { href: '/messages', label: 'Messages', icon: Smartphone, moduleId: 'messages' },
+  { href: '/pomodoro', label: 'Pomodoro', icon: Timer, moduleId: 'pomodoro' },
+  { href: '/email', label: 'Email', icon: Mail, moduleId: 'email' },
+  { href: '/homelab', label: 'Home Lab', icon: Server, moduleId: 'homelab' },
+  { href: '/media', label: 'Media Radar', icon: Film, moduleId: 'media' },
 ]
 
 export const agentDashboardItems: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/missions', label: 'Missions', icon: Target },
-  { href: '/agents', label: 'Agents', icon: Bot },
-  { href: '/memory', label: 'Memory', icon: Brain },
-  { href: '/crons', label: 'Cron Jobs', icon: CalendarDays },
-  { href: '/pipeline', label: 'Pipeline', icon: GitBranch },
-  { href: '/knowledge', label: 'Knowledge Base', icon: BookOpen },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, moduleId: 'dashboard' },
+  { href: '/missions', label: 'Missions', icon: Target, moduleId: 'missions' },
+  { href: '/agents', label: 'Agents', icon: Bot, moduleId: 'agents' },
+  { href: '/memory', label: 'Memory', icon: Brain, moduleId: 'memory' },
+  { href: '/crons', label: 'Cron Jobs', icon: CalendarDays, moduleId: 'crons' },
+  { href: '/pipeline', label: 'Pipeline', icon: GitBranch, moduleId: 'pipeline' },
+  { href: '/knowledge', label: 'Knowledge Base', icon: BookOpen, moduleId: 'knowledge' },
 ]
-
-export const settingsItem: NavItem = { href: '/settings', label: 'Settings', icon: Settings }
 
 export const allNavItems: NavItem[] = [
   ...personalDashboardItems,
   ...agentDashboardItems,
-  settingsItem,
+  { href: '/settings', label: 'Settings', icon: Settings },
 ]

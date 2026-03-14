@@ -4,17 +4,45 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::OnceLock;
 use tokio::process::Command;
 
 use crate::error::AppError;
 use crate::redact::redact;
 use crate::server::AppState;
 
+// ── Compiled-once regexes ────────────────────────────────────────────────────
+
+fn prompt_re_single() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r#"-p\s+'[^']*'"#).unwrap())
+}
+
+fn prompt_re_double() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r#"-p\s+"[^"]*""#).unwrap())
+}
+
+fn prompt_file_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r#"-p\s+"?\$\(cat [^)]+\)"?"#).unwrap())
+}
+
+fn log_path_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(LOG_PATH_RE).unwrap())
+}
+
+fn top_header_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"(?i)^\s*PID\s+USER").unwrap())
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /// Resolve the openclaw base directory (~/.openclaw by default).
-fn openclaw_dir() -> String {
-    std::env::var("OPENCLAW_DIR").unwrap_or_else(|_| {
+fn openclaw_dir(state: &AppState) -> String {
+    state.secret("OPENCLAW_DIR").unwrap_or_else(|| {
         dirs::home_dir()
             .map(|h| h.join(".openclaw").to_string_lossy().into_owned())
             .unwrap_or_else(|| ".openclaw".to_string())
@@ -82,14 +110,18 @@ async fn write_registry(registry: &Registry) {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/status", get(get_status))
+        .route("/status/connections", get(get_connections))
+        .route("/status/health", get(get_health))
+        .route("/status/tailscale", get(get_tailscale_peers))
         .route("/heartbeat", get(heartbeat))
         .route("/processes", get(get_processes).post(post_process))
+        .route("/feature-flags", get(get_feature_flags))
 }
 
 // ── GET /api/status ──────────────────────────────────────────────────────────
 
-async fn get_status(State(_state): State<AppState>) -> Result<Json<Value>, AppError> {
-    let base = openclaw_dir();
+async fn get_status(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    let base = openclaw_dir(&state);
     let identity_path = Path::new(&base).join("workspace").join("IDENTITY.md");
 
     let (name, emoji) = if identity_path.exists() {
@@ -150,6 +182,291 @@ fn local_ip() -> String {
     "127.0.0.1".to_string()
 }
 
+// ── GET /api/status/health ─────────────────────────────────────────────────────
+//
+// Returns a comprehensive health snapshot: version, uptime, platform, SQLite
+// cache stats, and service connectivity — all in a single request so the
+// Status page only needs one fetch.
+
+/// Epoch timestamp recorded once at process start.
+static BOOT_EPOCH: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
+
+fn boot_epoch() -> u64 {
+    *BOOT_EPOCH.get_or_init(|| {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+    })
+}
+
+async fn get_health(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let uptime_seconds = now_secs.saturating_sub(boot_epoch());
+
+    // SQLite cache stats
+    let cache_entries: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM api_cache")
+        .fetch_one(&state.db)
+        .await
+        .unwrap_or(0);
+
+    // Total SQLite DB file size (bytes)
+    let db_size: i64 = sqlx::query_scalar::<_, i64>(
+        "SELECT page_count * page_size FROM pragma_page_count, pragma_page_size",
+    )
+    .fetch_one(&state.db)
+    .await
+    .unwrap_or(0);
+
+    // Platform detection
+    let platform = if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else {
+        "linux"
+    };
+
+    // Service connectivity (reuse existing helpers — runs concurrently)
+    let bb_host = state.secret("BLUEBUBBLES_HOST").unwrap_or_default();
+    let bb_password = state.secret("BLUEBUBBLES_PASSWORD").unwrap_or_default();
+    let openclaw_url = state.secret("OPENCLAW_API_URL").unwrap_or_default();
+    let openclaw_key = state.secret("OPENCLAW_API_KEY").unwrap_or_default();
+    let supabase_url = state.secret_or_default("SUPABASE_URL");
+    let supabase_key = state.secret_or_default("SUPABASE_SERVICE_ROLE_KEY");
+
+    let http = &state.http;
+    let (bb, oc, sb) = tokio::join!(
+        test_bluebubbles(http, &bb_host, &bb_password),
+        test_openclaw(http, &openclaw_url, &openclaw_key),
+        test_supabase(http, &supabase_url, &supabase_key),
+    );
+
+    Ok(Json(json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "uptime_seconds": uptime_seconds,
+        "platform": platform,
+        "hostname": hostname(),
+        "sqlite_cache_entries": cache_entries,
+        "sqlite_db_size_bytes": db_size,
+        "services": {
+            "bluebubbles": bb,
+            "openclaw": oc,
+            "supabase": sb,
+        },
+    })))
+}
+
+// ── GET /api/status/tailscale ─────────────────────────────────────────────────
+//
+// Returns the list of Tailscale peers from `tailscale status --json`.
+
+async fn get_tailscale_peers() -> Result<Json<Value>, AppError> {
+    // Run the blocking tailscale CLI call on a blocking thread
+    let peers = tokio::task::spawn_blocking(crate::tailscale::get_tailscale_peers)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("join error: {e}")))?
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("{e}")))?;
+
+    let peer_json: Vec<Value> = peers
+        .iter()
+        .map(|p| json!({ "ip": p.ip, "hostname": p.hostname, "online": p.online }))
+        .collect();
+
+    Ok(Json(json!({ "peers": peer_json })))
+}
+
+// ── GET /api/status/connections ───────────────────────────────────────────────
+//
+// Tests connectivity to BlueBubbles, OpenClaw, and Supabase, returning latency
+// or error info for each. Also verifies Tailscale peer identity when services
+// are accessed via Tailscale IPs.
+
+async fn get_connections(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    let http = &state.http;
+
+    let bb_host = state.secret("BLUEBUBBLES_HOST").unwrap_or_default();
+    let bb_password = state.secret("BLUEBUBBLES_PASSWORD").unwrap_or_default();
+    let openclaw_url = state.secret("OPENCLAW_API_URL").unwrap_or_default();
+    let openclaw_key = state.secret("OPENCLAW_API_KEY").unwrap_or_default();
+    let supabase_url = state.secret_or_default("SUPABASE_URL");
+    let supabase_key = state.secret_or_default("SUPABASE_SERVICE_ROLE_KEY");
+
+    // Load expected hostnames from user preferences (stored in Supabase)
+    let (bb_expected_host, oc_expected_host) = load_expected_hostnames(&state).await;
+
+    // Test all three services concurrently
+    let (bb_result, oc_result, sb_result) = tokio::join!(
+        test_bluebubbles(http, &bb_host, &bb_password),
+        test_openclaw(http, &openclaw_url, &openclaw_key),
+        test_supabase(http, &supabase_url, &supabase_key),
+    );
+
+    // Run Tailscale peer verification on a blocking thread (calls CLI)
+    let bb_url = bb_host.clone();
+    let oc_url = openclaw_url.clone();
+    let bb_exp = bb_expected_host.clone();
+    let oc_exp = oc_expected_host.clone();
+    let peer_results = tokio::task::spawn_blocking(move || {
+        let peers = crate::tailscale::get_tailscale_peers().unwrap_or_default();
+        let bb_peer = crate::tailscale::verify_service_peer(
+            &bb_url,
+            bb_exp.as_deref(),
+            &peers,
+        );
+        let oc_peer = crate::tailscale::verify_service_peer(
+            &oc_url,
+            oc_exp.as_deref(),
+            &peers,
+        );
+        (bb_peer, oc_peer)
+    })
+    .await
+    .unwrap_or_else(|_| {
+        let empty = crate::tailscale::PeerVerification {
+            peer_hostname: None,
+            peer_verified: None,
+        };
+        (empty.clone(), empty)
+    });
+
+    // Merge connectivity results with peer verification
+    let mut bb_json = bb_result;
+    if let Some(hostname) = &peer_results.0.peer_hostname {
+        bb_json["peer_hostname"] = json!(hostname);
+    }
+    if let Some(verified) = peer_results.0.peer_verified {
+        bb_json["peer_verified"] = json!(verified);
+    }
+
+    let mut oc_json = oc_result;
+    if let Some(hostname) = &peer_results.1.peer_hostname {
+        oc_json["peer_hostname"] = json!(hostname);
+    }
+    if let Some(verified) = peer_results.1.peer_verified {
+        oc_json["peer_verified"] = json!(verified);
+    }
+
+    Ok(Json(json!({
+        "bluebubbles": bb_json,
+        "openclaw": oc_json,
+        "supabase": sb_result,
+    })))
+}
+
+/// Load expected Tailscale hostnames from user preferences in Supabase.
+async fn load_expected_hostnames(state: &AppState) -> (Option<String>, Option<String>) {
+    let sb = match crate::supabase::SupabaseClient::from_state(state) {
+        Ok(sb) => sb,
+        Err(_) => return (None, None),
+    };
+
+    let query = "select=preferences&user_id=eq.default";
+    let prefs = match sb.select_single("user_preferences", query).await {
+        Ok(row) => row.get("preferences").cloned().unwrap_or(json!({})),
+        Err(_) => return (None, None),
+    };
+
+    let bb = prefs
+        .get("bluebubbles.expected-host")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(String::from);
+    let oc = prefs
+        .get("openclaw.expected-host")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(String::from);
+
+    (bb, oc)
+}
+
+async fn test_bluebubbles(http: &reqwest::Client, host: &str, password: &str) -> Value {
+    if host.is_empty() {
+        return json!({ "status": "not_configured" });
+    }
+    let url = format!("{}/api/v1/ping?password={}", host.trim_end_matches('/'), password);
+    ping_service(http, &url).await
+}
+
+async fn test_openclaw(http: &reqwest::Client, base_url: &str, api_key: &str) -> Value {
+    if base_url.is_empty() {
+        return json!({ "status": "not_configured" });
+    }
+    let url = format!("{}/health", base_url.trim_end_matches('/'));
+    let mut req = http.get(&url);
+    if !api_key.is_empty() {
+        req = req.header("Authorization", format!("Bearer {api_key}"));
+    }
+    let start = std::time::Instant::now();
+    match req.timeout(std::time::Duration::from_secs(5)).send().await {
+        Ok(resp) if resp.status().is_success() => {
+            json!({ "status": "ok", "latency_ms": start.elapsed().as_millis() as u64 })
+        }
+        Ok(resp) => {
+            json!({ "status": "error", "error": format!("HTTP {}", resp.status().as_u16()), "latency_ms": start.elapsed().as_millis() as u64 })
+        }
+        Err(e) => {
+            json!({ "status": "unreachable", "error": connection_error_message(&e) })
+        }
+    }
+}
+
+async fn test_supabase(http: &reqwest::Client, url: &str, service_key: &str) -> Value {
+    if url.is_empty() {
+        return json!({ "status": "not_configured" });
+    }
+    let rest_url = format!("{}/rest/v1/", url.trim_end_matches('/'));
+    let req = http
+        .get(&rest_url)
+        .header("apikey", service_key)
+        .header("Authorization", format!("Bearer {service_key}"));
+    let start = std::time::Instant::now();
+    match req.timeout(std::time::Duration::from_secs(5)).send().await {
+        Ok(resp) if resp.status().as_u16() != 401 => {
+            json!({ "status": "ok", "latency_ms": start.elapsed().as_millis() as u64 })
+        }
+        Ok(_) => {
+            json!({ "status": "error", "error": "unauthorized (bad service key)", "latency_ms": start.elapsed().as_millis() as u64 })
+        }
+        Err(e) => {
+            json!({ "status": "unreachable", "error": connection_error_message(&e) })
+        }
+    }
+}
+
+/// Ping a URL with GET and return a status JSON object.
+async fn ping_service(http: &reqwest::Client, url: &str) -> Value {
+    let start = std::time::Instant::now();
+    match http.get(url).timeout(std::time::Duration::from_secs(5)).send().await {
+        Ok(resp) if resp.status().is_success() => {
+            json!({ "status": "ok", "latency_ms": start.elapsed().as_millis() as u64 })
+        }
+        Ok(resp) => {
+            json!({ "status": "error", "error": format!("HTTP {}", resp.status().as_u16()), "latency_ms": start.elapsed().as_millis() as u64 })
+        }
+        Err(e) => {
+            json!({ "status": "unreachable", "error": connection_error_message(&e) })
+        }
+    }
+}
+
+/// Produce a short user-friendly error message from a reqwest error.
+fn connection_error_message(e: &reqwest::Error) -> String {
+    if e.is_connect() {
+        "connection refused".to_string()
+    } else if e.is_timeout() {
+        "timed out".to_string()
+    } else if e.is_request() {
+        "invalid URL".to_string()
+    } else {
+        format!("{e}")
+    }
+}
+
 // ── GET /api/status/heartbeat ────────────────────────────────────────────────
 
 fn parse_heartbeat_tasks(content: &str) -> Vec<String> {
@@ -164,7 +481,7 @@ fn parse_heartbeat_tasks(content: &str) -> Vec<String> {
 }
 
 async fn heartbeat(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
-    let base = openclaw_dir();
+    let base = openclaw_dir(&state);
     let heartbeat_path = Path::new(&base).join("workspace").join("HEARTBEAT.md");
 
     if heartbeat_path.exists() {
@@ -191,14 +508,14 @@ async fn heartbeat(State(state): State<AppState>) -> Result<Json<Value>, AppErro
     }
 
     // No local file — try fetching HEARTBEAT.md from the remote OpenClaw API
-    let openclaw_url = std::env::var("OPENCLAW_API_URL").unwrap_or_default();
+    let openclaw_url = state.secret_or_default("OPENCLAW_API_URL");
     if !openclaw_url.is_empty() {
         let url = format!(
             "{}/file?path=HEARTBEAT.md",
             openclaw_url.trim_end_matches('/')
         );
         let mut req = state.http.get(&url);
-        if let Ok(key) = std::env::var("OPENCLAW_API_KEY") {
+        if let Some(key) = state.secret("OPENCLAW_API_KEY") {
             req = req.header("Authorization", format!("Bearer {key}"));
         }
         if let Ok(resp) = req.send().await {
@@ -221,6 +538,47 @@ async fn heartbeat(State(state): State<AppState>) -> Result<Json<Value>, AppErro
     Ok(Json(
         json!({ "lastCheck": null, "status": "unknown", "tasks": [] }),
     ))
+}
+
+// ── GET /api/feature-flags ───────────────────────────────────────────────────
+//
+// Returns the user's enabled-modules list from the `user_preferences` table in
+// Supabase. This lets the backend (or external services) know which modules are
+// active, so they can skip unnecessary work for disabled modules (e.g. skipping
+// BlueBubbles SSE polling when Messages is disabled).
+//
+// Response shape:
+//   { "ok": true, "data": { "enabled_modules": ["chat","todos",...] } }
+//
+// Falls back to an empty array if Supabase is unreachable or no preferences
+// have been saved yet.
+
+async fn get_feature_flags(
+    State(state): State<AppState>,
+) -> Result<Json<Value>, AppError> {
+    let modules: Vec<String> = match crate::supabase::SupabaseClient::from_state(&state) {
+        Ok(sb) => {
+            let query = "select=preferences&user_id=eq.default";
+            match sb.select_single("user_preferences", query).await {
+                Ok(row) => row
+                    .get("preferences")
+                    .and_then(|p| p.get("enabled-modules"))
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                Err(_) => vec![],
+            }
+        }
+        Err(_) => vec![],
+    };
+
+    Ok(crate::error::success_json(json!({
+        "enabled_modules": modules,
+    })))
 }
 
 // ── GET /api/status/processes ────────────────────────────────────────────────
@@ -356,11 +714,6 @@ async fn get_processes(State(_state): State<AppState>) -> Result<Json<Value>, Ap
         get_top_cpu_mem(&pids),
     );
 
-    // Regex for redacting prompt content from command lines (two patterns since regex crate doesn't support backreferences)
-    let prompt_re_single = Regex::new(r#"-p\s+'[^']*'"#).unwrap_or_else(|_| Regex::new(r"$^").unwrap());
-    let prompt_re_double = Regex::new(r#"-p\s+"[^"]*""#).unwrap_or_else(|_| Regex::new(r"$^").unwrap());
-    let prompt_file_re = Regex::new(r#"-p\s+"?\$\(cat [^)]+\)"?"#).unwrap_or_else(|_| Regex::new(r"$^").unwrap());
-
     let processes: Vec<ProcessEntry> = lines
         .iter()
         .map(|line| {
@@ -376,9 +729,9 @@ async fn get_processes(State(_state): State<AppState>) -> Result<Json<Value>, Ap
                 String::new()
             };
             // Redact prompt content
-            let redacted1 = prompt_re_single.replace_all(&raw_cmd, "-p [redacted]");
-            let redacted2 = prompt_re_double.replace_all(&redacted1, "-p [redacted]");
-            let cmd = prompt_file_re
+            let redacted1 = prompt_re_single().replace_all(&raw_cmd, "-p [redacted]");
+            let redacted2 = prompt_re_double().replace_all(&redacted1, "-p [redacted]");
+            let cmd = prompt_file_re()
                 .replace_all(&redacted2, "-p [prompt-file]")
                 .to_string();
 
@@ -449,8 +802,7 @@ async fn post_process(
 
     // Validate logFile path if provided
     if let Some(ref log_file) = body.log_file {
-        let log_re = Regex::new(LOG_PATH_RE).unwrap();
-        if !log_re.is_match(log_file) {
+        if !log_path_re().is_match(log_file) {
             return Err(AppError::BadRequest(
                 "logFile must be a .log file under /tmp/".to_string(),
             ));
@@ -484,8 +836,7 @@ struct LogMatch {
 }
 
 async fn get_last_log_line(log_path: &str) -> Option<String> {
-    let log_re = Regex::new(LOG_PATH_RE).ok()?;
-    if !log_re.is_match(log_path) {
+    if !log_path_re().is_match(log_path) {
         return None;
     }
     let output = Command::new("tail")
@@ -591,8 +942,7 @@ async fn get_top_cpu_mem(pids: &[String]) -> HashMap<String, (String, String)> {
 
     // Find the header line with PID column
     let batch_lines: Vec<&str> = last_batch.lines().collect();
-    let header_re = Regex::new(r"(?i)^\s*PID\s+USER").unwrap();
-    let header_idx = batch_lines.iter().position(|l| header_re.is_match(l));
+    let header_idx = batch_lines.iter().position(|l| top_header_re().is_match(l));
 
     if let Some(idx) = header_idx {
         // Parse process lines after header

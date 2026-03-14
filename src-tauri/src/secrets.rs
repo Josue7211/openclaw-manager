@@ -22,6 +22,8 @@ const KEY_ENV_MAP: &[(&str, &str)] = &[
     ("plex.token", "PLEX_TOKEN"),
     ("openclaw.ws", "OPENCLAW_WS"),
     ("openclaw.password", "OPENCLAW_PASSWORD"),
+    ("openclaw.api-url", "OPENCLAW_API_URL"),
+    ("openclaw.api-key", "OPENCLAW_API_KEY"),
     ("mac-bridge.host", "MAC_BRIDGE_HOST"),
     ("mac-bridge.api-key", "MAC_BRIDGE_API_KEY"),
     ("anthropic.api-key", "ANTHROPIC_API_KEY"),
@@ -57,6 +59,8 @@ const USER_KEYS: &[&str] = &[
     "plex.token",
     "openclaw.ws",
     "openclaw.password",
+    "openclaw.api-url",
+    "openclaw.api-key",
     "mac-bridge.host",
     "mac-bridge.api-key",
     "anthropic.api-key",
@@ -127,6 +131,40 @@ pub fn load_env_vars() -> HashMap<String, String> {
     env_vars
 }
 
+/// All env-var names that correspond to keychain secrets.
+/// Used by `load_secrets` to know which `.env.local` values to merge.
+fn known_secret_keys() -> std::collections::HashSet<&'static str> {
+    KEY_ENV_MAP.iter().map(|&(_, env_name)| env_name).collect()
+}
+
+/// Load secrets from the OS keychain, then merge in any `.env.local`
+/// values as a dev-mode fallback. Returns the merged `HashMap` without
+/// ever calling `std::env::set_var`, so secrets stay out of
+/// `/proc/PID/environ`.
+pub fn load_secrets() -> HashMap<String, String> {
+    let mut secrets = load_env_vars();
+
+    // Load .env.local as a dev-mode fallback.
+    // Only merge keys that correspond to known secrets and that the
+    // keychain didn't already provide (keychain takes precedence).
+    let known = known_secret_keys();
+    for path in &[".env.local", "../.env.local"] {
+        if let Ok(iter) = dotenvy::from_filename_iter(path) {
+            tracing::info!("Merging dev secrets from {}", path);
+            for item in iter {
+                if let Ok((key, value)) = item {
+                    if known.contains(key.as_str()) && !secrets.contains_key(&key) {
+                        secrets.insert(key, value);
+                    }
+                }
+            }
+            break;
+        }
+    }
+
+    secrets
+}
+
 /// Check if this is a first run — i.e. no user-configured secrets
 /// exist in the keychain yet.
 pub fn is_first_run() -> bool {
@@ -142,11 +180,21 @@ fn is_allowed_key(key: &str) -> bool {
     KEY_ENV_MAP.iter().any(|&(k, _)| k == key) || USER_KEYS.contains(&key)
 }
 
+/// Keys that must never be returned to the frontend via IPC.
+const FRONTEND_BLOCKED_KEYS: &[&str] = &[
+    "supabase.service-role-key",
+];
+
 /// Retrieve a single secret from the OS keychain by its keyring key name.
 /// Only keys in the KEY_ENV_MAP/USER_KEYS allowlist are permitted.
+/// Sensitive backend-only keys (e.g. service-role-key) are blocked from
+/// frontend access.
 #[tauri::command]
 pub fn get_secret(key: String) -> Option<String> {
     if !is_allowed_key(&key) {
+        return None;
+    }
+    if FRONTEND_BLOCKED_KEYS.contains(&key.as_str()) {
         return None;
     }
     get_entry(&key)

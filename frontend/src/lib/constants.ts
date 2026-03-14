@@ -13,13 +13,3 @@ export const MISSION_STATUS = {
   FAILED: 'failed',
   AWAITING_REVIEW: 'awaiting_review',
 } as const
-
-export const REVIEW_STATUS = {
-  PENDING: 'pending',
-  APPROVED: 'approved',
-  REJECTED: 'rejected',
-} as const
-
-export type AgentStatusType = (typeof AGENT_STATUS)[keyof typeof AGENT_STATUS]
-export type MissionStatusType = (typeof MISSION_STATUS)[keyof typeof MISSION_STATUS]
-export type ReviewStatusType = (typeof REVIEW_STATUS)[keyof typeof REVIEW_STATUS]

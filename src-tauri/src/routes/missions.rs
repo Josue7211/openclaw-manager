@@ -42,11 +42,50 @@ struct MissionEventsQuery {
 // ── GET /missions ────────────────────────────────────────────────────────────
 
 async fn get_missions(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
-    let data = sb.select("missions", "select=*&order=created_at.asc").await?;
-    Ok(Json(json!({ "missions": data })))
+    // Try SQLite cache first for instant response
+    let cached = state.cache_get("missions").await;
+
+    // Always fetch fresh data from Supabase (or try to)
+    let sb = SupabaseClient::from_state(&state);
+    match sb {
+        Ok(sb) => {
+            match sb.select("missions", "select=*&order=created_at.asc").await {
+                Ok(data) => {
+                    // Persist to SQLite in background
+                    let response = json!({ "missions": data });
+                    if let Ok(payload) = serde_json::to_string(&response) {
+                        let bg = state.clone();
+                        tokio::spawn(async move {
+                            bg.cache_set("missions", &payload).await;
+                        });
+                    }
+                    Ok(Json(response))
+                }
+                Err(e) => {
+                    // Network failed — serve stale cache if available
+                    if let Some(ref data) = cached {
+                        if let Ok(v) = serde_json::from_str::<Value>(data) {
+                            tracing::warn!("Missions fetch failed, serving from SQLite cache");
+                            return Ok(Json(v));
+                        }
+                    }
+                    Err(AppError::Internal(e))
+                }
+            }
+        }
+        Err(e) => {
+            // Supabase not configured — serve stale cache if available
+            if let Some(ref data) = cached {
+                if let Ok(v) = serde_json::from_str::<Value>(data) {
+                    tracing::warn!("Supabase not configured, serving missions from SQLite cache");
+                    return Ok(Json(v));
+                }
+            }
+            Err(AppError::Internal(e))
+        }
+    }
 }
 
 // ── POST /missions ───────────────────────────────────────────────────────────
@@ -58,7 +97,7 @@ struct CreateMissionBody {
 }
 
 async fn create_mission(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<CreateMissionBody>,
 ) -> Result<Json<Value>, AppError> {
     let title = body.title.as_deref().map(|s| s.trim()).unwrap_or("");
@@ -66,7 +105,7 @@ async fn create_mission(
         return Err(AppError::BadRequest("Empty title".into()));
     }
 
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
     let row = json!({
         "title": title,
         "assignee": body.assignee.as_deref().unwrap_or("team"),
@@ -123,7 +162,7 @@ async fn update_mission(
         updates.insert("log_path".into(), json!(log_path));
     }
 
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
     let data = sb
         .update("missions", &format!("id=eq.{id}"), Value::Object(updates))
         .await?;
@@ -143,12 +182,14 @@ async fn update_mission(
             };
 
             // Fire-and-forget notification
+            let ntfy_url = state.secret("NTFY_URL").unwrap_or_default();
+            let ntfy_topic = state.secret("NTFY_TOPIC").unwrap_or_else(|| "mission-control".into());
             let http = state.http.clone();
             let label = label.to_string();
             let title_text = title_text.to_string();
             let emoji = emoji.to_string();
             tokio::spawn(async move {
-                let _ = send_ntfy(&http, &label, &title_text, priority, &[&emoji]).await;
+                let _ = send_ntfy(&http, &ntfy_url, &ntfy_topic, &label, &title_text, priority, &[&emoji]).await;
             });
         }
     }
@@ -170,7 +211,7 @@ async fn update_mission(
             desc.push_str(&format!(", progress: {p}%"));
         }
 
-        let sb_log = SupabaseClient::from_env().ok();
+        let sb_log = SupabaseClient::from_state(&state).ok();
         if let Some(sb_log) = sb_log {
             let log_row = json!({
                 "mission_id": id,
@@ -208,8 +249,9 @@ async fn update_mission(
 
         if let Some(log_path) = final_log_path {
             let mission_id = id.to_string();
+            let state_clone = state.clone();
             tokio::spawn(async move {
-                if let Err(e) = ingest_log_file(&mission_id, &log_path, duration_sec).await {
+                if let Err(e) = ingest_log_file(&state_clone, &mission_id, &log_path, duration_sec).await {
                     error!("[missions] auto-ingest error: {e:#}");
                 }
             });
@@ -227,10 +269,20 @@ struct DeleteMissionBody {
 }
 
 async fn delete_mission(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<DeleteMissionBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    // Validate UUID format to prevent filter injection
+    let uuid_re = {
+        use std::sync::OnceLock;
+        static RE: OnceLock<regex::Regex> = OnceLock::new();
+        RE.get_or_init(|| regex::Regex::new(r"^[0-9a-fA-F-]{36}$").unwrap())
+    };
+    if !uuid_re.is_match(&body.id) {
+        return Err(AppError::BadRequest("Invalid mission id format".into()));
+    }
+
+    let sb = SupabaseClient::from_state(&state)?;
     sb.delete("missions", &format!("id=eq.{}", body.id)).await?;
     Ok(Json(json!({ "ok": true })))
 }
@@ -238,11 +290,12 @@ async fn delete_mission(
 // ── GET /mission-events ──────────────────────────────────────────────────────
 
 async fn get_mission_events(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Query(params): Query<MissionEventsQuery>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
+    // TODO: This mutation should be POST, not GET. Migrate callers.
     // Manual ingest mode: GET /mission-events?action=ingest&mission_id=X&log_path=/tmp/foo.log
     if params.action.as_deref() == Some("ingest") {
         let mission_id = params
@@ -373,7 +426,7 @@ struct IngestEventsBody {
 }
 
 async fn ingest_events(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<IngestEventsBody>,
 ) -> Result<Json<Value>, AppError> {
     let mission_id = body
@@ -410,7 +463,7 @@ async fn ingest_events(
         })
         .collect();
 
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     // Delete existing events for this mission first (idempotent re-ingest)
     let _ = sb
@@ -433,7 +486,7 @@ struct BjornEventBody {
 }
 
 async fn bjorn_event(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<BjornEventBody>,
 ) -> Result<Json<Value>, AppError> {
     let mission_id = body
@@ -449,7 +502,7 @@ async fn bjorn_event(
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("content required".into()))?;
 
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     // Get current max seq for this mission
     let max_rows = sb
@@ -486,7 +539,7 @@ async fn bjorn_event(
 // ── POST /missions/sync-agents ───────────────────────────────────────────────
 
 async fn sync_agents(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
 ) -> Result<Json<Value>, AppError> {
     // Detect running coding agent processes
     let ps_output = Command::new("ps")
@@ -505,7 +558,7 @@ async fn sync_agents(
         })
         .collect();
 
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     // Get all active/pending bjorn missions
     let active_missions = sb
@@ -622,6 +675,7 @@ async fn find_agent_log_file(assignee: &str) -> Option<String> {
 
 /// Ingest a log file into mission_events via Supabase.
 async fn ingest_log_file(
+    state: &AppState,
     mission_id: &str,
     log_path: &str,
     duration_sec: Option<i64>,
@@ -664,7 +718,7 @@ async fn ingest_log_file(
         })
         .collect();
 
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
     let _ = sb
         .delete("mission_events", &format!("mission_id=eq.{mission_id}"))
         .await;
@@ -872,14 +926,16 @@ fn parse_log_events(log_content: &str, duration_sec: Option<i64>) -> Vec<Value> 
 /// Send a notification via ntfy.sh (best-effort).
 async fn send_ntfy(
     http: &reqwest::Client,
+    url: &str,
+    topic: &str,
     title: &str,
     message: &str,
     priority: i32,
     tags: &[&str],
 ) -> anyhow::Result<()> {
-    let url = std::env::var("NTFY_URL")
-        .map_err(|_| anyhow::anyhow!("NTFY_URL not configured"))?;
-    let topic = std::env::var("NTFY_TOPIC").unwrap_or_else(|_| "mission-control".into());
+    if url.is_empty() {
+        return Err(anyhow::anyhow!("NTFY_URL not configured"));
+    }
 
     let mut req = http
         .post(format!("{url}/{topic}"))

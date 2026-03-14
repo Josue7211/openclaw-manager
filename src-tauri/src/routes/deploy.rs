@@ -14,9 +14,9 @@ pub fn router() -> Router<AppState> {
 /// Finds all agents with `status = 'awaiting_deploy'`, transitions them to
 /// `active`, and returns success.  The frontend calls this with no JSON body.
 async fn post_deploy(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     // Fetch agents that are awaiting deploy
     let agents = sb

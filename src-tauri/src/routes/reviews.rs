@@ -23,10 +23,10 @@ struct DailyReviewQuery {
 }
 
 async fn get_daily_review(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Query(params): Query<DailyReviewQuery>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let date = params
         .date
@@ -59,10 +59,10 @@ struct PostDailyReviewBody {
 }
 
 async fn post_daily_review(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<PostDailyReviewBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let date = body
         .date
@@ -102,10 +102,10 @@ struct WeeklyReviewQuery {
 }
 
 async fn get_weekly_review(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Query(params): Query<WeeklyReviewQuery>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let query = if let Some(week_start) = &params.week_start {
         format!("select=*&order=week_start.desc&week_start=eq.{week_start}")
@@ -129,10 +129,10 @@ struct PostWeeklyReviewBody {
 }
 
 async fn post_weekly_review(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<PostWeeklyReviewBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let week_start = body
         .week_start
@@ -167,8 +167,8 @@ async fn post_weekly_review(
 
 // ── GET /api/retrospectives ─────────────────────────────────────────────────
 
-async fn get_retrospectives(State(_state): State<AppState>) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+async fn get_retrospectives(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    let sb = SupabaseClient::from_state(&state)?;
     let data = sb
         .select("retrospectives", "select=*&order=created_at.desc")
         .await?;
@@ -187,10 +187,10 @@ struct PostRetrospectiveBody {
 }
 
 async fn post_retrospective(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<PostRetrospectiveBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let mission_id = body
         .mission_id

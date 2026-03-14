@@ -23,7 +23,7 @@ pub(super) struct ReviewBody {
 }
 
 pub(super) async fn pipeline_review(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<ReviewBody>,
 ) -> Result<Json<Value>, AppError> {
     if body.mission_id.is_empty() {
@@ -35,7 +35,7 @@ pub(super) async fn pipeline_review(
         ));
     }
 
-    let sb = supabase()?;
+    let sb = supabase(&state)?;
     let mission_id = &body.mission_id;
 
     // Fetch mission

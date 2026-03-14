@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Mail, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Settings, Plus, Trash2, Star, X, Eye, EyeOff } from 'lucide-react'
+import { Mail, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Settings, Trash2, Star, X, Eye, EyeOff } from 'lucide-react'
 import { SkeletonList } from '@/components/Skeleton'
 
 import { api } from '@/lib/api'
@@ -231,15 +231,21 @@ export default function EmailPage() {
         if (typeof window !== 'undefined') localStorage.removeItem('email_account_id')
       }
       if (editingAccount?.id === id) { setEditingAccount(null); setForm(EMPTY_FORM) }
+    } catch (e) {
+      console.error('handleDelete failed:', e)
     } finally {
       setDeletingId(null)
     }
   }
 
   const handleSetDefault = async (id: string) => {
-    await api.patch('/api/email-accounts', { id, is_default: true })
-    invalidateAccounts()
-    accountInitRef.current = false
+    try {
+      await api.patch('/api/email-accounts', { id, is_default: true })
+      invalidateAccounts()
+      accountInitRef.current = false
+    } catch (e) {
+      console.error('handleSetDefault failed:', e)
+    }
   }
 
   const selectedAccount = accounts.find(a => a.id === selectedAccountId)
@@ -257,7 +263,7 @@ export default function EmailPage() {
       <div style={{ maxWidth: '600px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px' }}>
           <Mail size={20} style={{ color: 'var(--accent)' }} />
-          <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>Email</h1>
+          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>Email</h1>
         </div>
         <div className="card" style={{ padding: '32px', textAlign: 'center' }}>
           <AlertCircle size={32} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
@@ -475,7 +481,7 @@ export default function EmailPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Mail size={20} style={{ color: 'var(--accent)' }} />
-          <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>Email</h1>
+          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>Email</h1>
           {!loading && unreadCount > 0 && (
             <span className="badge badge-green" style={{ marginLeft: '4px' }}>
               {unreadCount} unread

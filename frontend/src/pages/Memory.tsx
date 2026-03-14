@@ -4,6 +4,7 @@
 import { useState, useCallback } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { timeAgo } from '@/lib/utils'
 import { SkeletonList } from '@/components/Skeleton'
 
 interface FileItem {
@@ -26,7 +27,10 @@ export default function MemoryPage() {
     },
   })
 
-  const tree = treeData ?? { coreFiles: [], memoryFiles: [] }
+  const tree = {
+    coreFiles: treeData?.coreFiles ?? [],
+    memoryFiles: treeData?.memoryFiles ?? [],
+  }
 
   const [activeFile, setActiveFile] = useState<string | null>(null)
   const [content, setContent] = useState('')
@@ -34,6 +38,7 @@ export default function MemoryPage() {
   const [mode, setMode] = useState<'view' | 'edit'>('view')
   const [loading, setLoading] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [search, setSearch] = useState('')
 
   const loadFile = useCallback(async (filePath: string) => {
     setActiveFile(filePath)
@@ -86,14 +91,15 @@ export default function MemoryPage() {
     await deleteMutation.mutateAsync(activeFile)
   }
 
-  const timeSince = (date: Date) => {
-    const s = Math.floor((Date.now() - date.getTime()) / 1000)
-    if (s < 60) return `${s}s ago`
-    if (s < 3600) return `${Math.floor(s / 60)}m ago`
-    return `${Math.floor(s / 3600)}h ago`
-  }
-
   const fileName = activeFile ? activeFile.split('/').pop() : null
+
+  const q = search.toLowerCase().trim()
+  const filteredCore = q
+    ? tree.coreFiles.filter(f => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q))
+    : tree.coreFiles
+  const filteredMemory = q
+    ? tree.memoryFiles.filter(f => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q))
+    : tree.memoryFiles
 
   return (
     <div style={{ display: 'flex', gap: 0, height: 'calc(100vh - 120px)', minHeight: 0 }}>
@@ -107,10 +113,31 @@ export default function MemoryPage() {
         flexShrink: 0,
       }}>
         <div style={{ padding: '0 0 8px 0', marginBottom: 8 }}>
-          <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>Memory</h1>
+          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>Memory</h1>
           <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
             workspace files + daily logs
           </p>
+        </div>
+
+        <div style={{ padding: '0 0 8px 0' }}>
+          <input
+            type="text"
+            placeholder="Search files..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '6px 10px',
+              fontSize: '12px',
+              fontFamily: 'monospace',
+              background: 'var(--bg-base)',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              color: 'var(--text-primary)',
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
         </div>
 
         {/* Core files section */}
@@ -129,10 +156,10 @@ export default function MemoryPage() {
               }}>
                 Workspace Files
               </div>
-              {tree.coreFiles.length === 0 && (
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '4px 12px' }}>No files found</div>
+              {filteredCore.length === 0 && (
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '4px 12px' }}>{q ? 'No matches' : 'No files found'}</div>
               )}
-              {tree.coreFiles.map(f => (
+              {filteredCore.map(f => (
                 <FileRow
                   key={f.path}
                   file={f}
@@ -154,10 +181,10 @@ export default function MemoryPage() {
               }}>
                 Memory Logs
               </div>
-              {tree.memoryFiles.length === 0 && (
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '4px 12px' }}>No logs found</div>
+              {filteredMemory.length === 0 && (
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '4px 12px' }}>{q ? 'No matches' : 'No logs found'}</div>
               )}
-              {tree.memoryFiles.map(f => (
+              {filteredMemory.map(f => (
                 <FileRow
                   key={f.path}
                   file={f}
@@ -189,7 +216,7 @@ export default function MemoryPage() {
                 </div>
                 {lastSaved && (
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: 2 }}>
-                    Last saved {timeSince(lastSaved)}
+                    Last saved {timeAgo(lastSaved.getTime())}
                   </div>
                 )}
               </div>

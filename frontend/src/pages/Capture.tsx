@@ -132,7 +132,7 @@ export default function CapturePage() {
       <div style={{ marginBottom: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
           <Zap size={20} style={{ color: '#e6a817' }} />
-          <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>
+          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>
             Quick Capture
           </h1>
           {!isLoading && unrouted.length > 0 && (

@@ -18,12 +18,32 @@ pub struct SupabaseClient {
 impl SupabaseClient {
     /// Build a client from environment variables.
     /// Returns `Err` if either `SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY` is missing.
+    ///
+    /// NOTE: Prefer `from_state()` which reads secrets from the in-memory
+    /// HashMap instead of process-wide environment variables.
+    #[allow(dead_code)]
     pub fn from_env() -> anyhow::Result<Self> {
         let url = std::env::var("SUPABASE_URL")
             .context("SUPABASE_URL not set")?
             .trim_end_matches('/')
             .to_string();
         let service_key = std::env::var("SUPABASE_SERVICE_ROLE_KEY")
+            .context("SUPABASE_SERVICE_ROLE_KEY not set")?;
+
+        Ok(Self {
+            http: Client::new(),
+            url,
+            service_key,
+        })
+    }
+
+    /// Build a client from AppState secrets (preferred over `from_env`).
+    pub fn from_state(state: &crate::server::AppState) -> anyhow::Result<Self> {
+        let url = state.secret("SUPABASE_URL")
+            .context("SUPABASE_URL not set")?
+            .trim_end_matches('/')
+            .to_string();
+        let service_key = state.secret("SUPABASE_SERVICE_ROLE_KEY")
             .context("SUPABASE_SERVICE_ROLE_KEY not set")?;
 
         Ok(Self {

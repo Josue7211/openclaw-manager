@@ -125,10 +125,10 @@ fn insecure_client() -> &'static Client {
 
 // ── Proxmox fetcher ─────────────────────────────────────────────────────────
 
-async fn fetch_proxmox() -> Option<Value> {
-    let url = std::env::var("PROXMOX_HOST").unwrap_or_default();
-    let token_id = std::env::var("PROXMOX_TOKEN_ID").unwrap_or_default();
-    let token_secret = std::env::var("PROXMOX_TOKEN_SECRET").unwrap_or_default();
+async fn fetch_proxmox(state: &AppState) -> Option<Value> {
+    let url = state.secret_or_default("PROXMOX_HOST");
+    let token_id = state.secret_or_default("PROXMOX_TOKEN_ID");
+    let token_secret = state.secret_or_default("PROXMOX_TOKEN_SECRET");
 
     if url.is_empty() || token_id.is_empty() || token_secret.is_empty() {
         if !token_id.is_empty() || !token_secret.is_empty() {
@@ -277,27 +277,29 @@ async fn fetch_node_vms(
 
 // ── OPNsense fetcher ────────────────────────────────────────────────────────
 
-async fn fetch_opnsense() -> Option<Value> {
-    let mut url = match std::env::var("OPNSENSE_HOST")
-        .or_else(|_| std::env::var("OPNSENSE_URL"))
-    {
-        Ok(u) if !u.is_empty() => u,
-        _ => {
+async fn fetch_opnsense(state: &AppState) -> Option<Value> {
+    let mut url = state.secret("OPNSENSE_HOST")
+        .or_else(|| state.secret("OPNSENSE_URL"))
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| {
             warn!("OPNSENSE_HOST is not configured");
-            return None;
-        }
-    };
+            String::new()
+        });
+
+    if url.is_empty() {
+        return None;
+    }
 
     // Force HTTPS (matching TS behavior)
     if url.starts_with("http://") {
         url = format!("https://{}", &url[7..]);
     }
 
-    let key = std::env::var("OPNSENSE_API_KEY")
-        .or_else(|_| std::env::var("OPNSENSE_KEY"))
+    let key = state.secret("OPNSENSE_API_KEY")
+        .or_else(|| state.secret("OPNSENSE_KEY"))
         .unwrap_or_default();
-    let secret = std::env::var("OPNSENSE_API_SECRET")
-        .or_else(|_| std::env::var("OPNSENSE_SECRET"))
+    let secret = state.secret("OPNSENSE_API_SECRET")
+        .or_else(|| state.secret("OPNSENSE_SECRET"))
         .unwrap_or_default();
 
     if key.is_empty() || secret.is_empty() {
@@ -482,31 +484,25 @@ pub fn router() -> Router<AppState> {
 // ── GET /homelab ────────────────────────────────────────────────────────────
 
 async fn get_homelab(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
 ) -> Result<Json<Value>, AppError> {
-    let proxmox_configured = std::env::var("PROXMOX_TOKEN_ID")
-        .ok()
+    let proxmox_configured = state.secret("PROXMOX_TOKEN_ID")
         .filter(|s| !s.is_empty())
         .is_some()
-        && std::env::var("PROXMOX_TOKEN_SECRET")
-            .ok()
+        && state.secret("PROXMOX_TOKEN_SECRET")
             .filter(|s| !s.is_empty())
             .is_some();
 
-    let opnsense_configured = (std::env::var("OPNSENSE_API_KEY")
-        .ok()
+    let opnsense_configured = (state.secret("OPNSENSE_API_KEY")
         .filter(|s| !s.is_empty())
         .is_some()
-        || std::env::var("OPNSENSE_KEY")
-            .ok()
+        || state.secret("OPNSENSE_KEY")
             .filter(|s| !s.is_empty())
             .is_some())
-        && (std::env::var("OPNSENSE_API_SECRET")
-            .ok()
+        && (state.secret("OPNSENSE_API_SECRET")
             .filter(|s| !s.is_empty())
             .is_some()
-            || std::env::var("OPNSENSE_SECRET")
-                .ok()
+            || state.secret("OPNSENSE_SECRET")
                 .filter(|s| !s.is_empty())
                 .is_some());
 
@@ -523,7 +519,7 @@ async fn get_homelab(
 
     // Fetch both concurrently; each returns None on failure
     let (proxmox_result, opnsense_result) =
-        tokio::join!(fetch_proxmox(), fetch_opnsense());
+        tokio::join!(fetch_proxmox(&state), fetch_opnsense(&state));
 
     let proxmox_live = proxmox_result.is_some();
     let opnsense_live = opnsense_result.is_some();

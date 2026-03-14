@@ -6,19 +6,13 @@ import { useNavigate } from 'react-router-dom'
 import { Search, CheckSquare, Target, CalendarDays, Mail, Bell, BookOpen, Loader2 } from 'lucide-react'
 
 import { api } from '@/lib/api'
+import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
+import type { SearchResults, FlatSearchResult } from '@/lib/types'
 
-interface Todo { id: string; text: string; done: boolean }
-interface Mission { id: string; title: string; status: string }
-interface CalEvent { id: string; title: string; start: string; allDay: boolean; calendar: string }
-interface Email { id: string; from: string; subject: string; date: string; read: boolean }
-interface Reminder { id: string; title: string; completed: boolean; dueDate?: string; list: string }
-interface Knowledge { id: string; title: string; content?: string; tags: string[] }
-interface Results { todos: Todo[]; missions: Mission[]; events: CalEvent[]; emails: Email[]; reminders: Reminder[]; knowledge: Knowledge[] }
+const LISTBOX_ID = 'gs-results-listbox'
 
-type FlatResult = { id: string; label: string; sub: string; href: string; icon: React.ElementType }
-
-function flattenResults(results: Results): FlatResult[] {
-  const flat: FlatResult[] = []
+function flattenResults(results: SearchResults): FlatSearchResult[] {
+  const flat: FlatSearchResult[] = []
   ;(results.todos || []).forEach(t => flat.push({ id: 'todo-' + t.id, label: t.text, sub: t.done ? 'done' : 'open', href: '/todos', icon: CheckSquare }))
   ;(results.missions || []).forEach(m => flat.push({ id: 'mis-' + m.id, label: m.title, sub: m.status, href: '/missions', icon: Target }))
   ;(results.events || []).forEach(e => flat.push({ id: 'evt-' + e.id, label: e.title, sub: e.calendar + ' · ' + (e.allDay ? new Date(e.start).toLocaleDateString() : new Date(e.start).toLocaleString()), href: '/calendar', icon: CalendarDays }))
@@ -30,7 +24,7 @@ function flattenResults(results: Results): FlatResult[] {
 
 export default function GlobalSearch({ compact, collapsed }: { compact?: boolean; collapsed?: boolean } = {}) {
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<Results | null>(null)
+  const [results, setResults] = useState<SearchResults | null>(null)
   const [loading, setLoading] = useState(false)
   const [activeIdx, setActiveIdx] = useState(0)
   const [mounted, setMounted] = useState(false)
@@ -38,15 +32,18 @@ export default function GlobalSearch({ compact, collapsed }: { compact?: boolean
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const navigate = useNavigate()
 
-  useEffect(() => { setMounted(true) }, [])
-
   const open = query.length > 0
+
+  // Focus trap for the spotlight overlay
+  const trapRef = useFocusTrap(open)
+
+  useEffect(() => { setMounted(true) }, [])
 
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) { setResults(null); setLoading(false); return }
     setLoading(true)
     try {
-      const data = await api.get<Results>(`/api/search?q=${encodeURIComponent(q)}`)
+      const data = await api.get<SearchResults>(`/api/search?q=${encodeURIComponent(q)}`)
       setResults(data)
     } catch {
       setResults({ todos: [], missions: [], events: [], emails: [], reminders: [], knowledge: [] })
@@ -85,24 +82,16 @@ export default function GlobalSearch({ compact, collapsed }: { compact?: boolean
     }
   }
 
-  // Global Cmd+K / Ctrl+K shortcut
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        inputRef.current?.focus()
-        inputRef.current?.select()
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [])
+  // NOTE: No Cmd+K handler here — the global shortcut is managed by the
+  // keybinding system in LayoutShell to avoid duplicate listeners.
+
+  const activeItemId = flat.length > 0 ? `gs-option-${flat[activeIdx]?.id}` : undefined
 
   // The overlay (backdrop + spotlight popup) must render via portal to document.body
   // because the sidebar's backdrop-filter creates a stacking context that traps
   // position:fixed children.
   const overlay = open && mounted ? createPortal(
-    <>
+    <div ref={trapRef}>
       <style>{`
         @keyframes gs-fadein { from { opacity: 0; transform: translateY(-8px) translateX(-50%); } to { opacity: 1; transform: translateY(0) translateX(-50%); } }
       `}</style>
@@ -157,7 +146,12 @@ export default function GlobalSearch({ compact, collapsed }: { compact?: boolean
         </div>
 
         {/* Results */}
-        <div style={{ overflowY: 'auto', flex: 1 }}>
+        <div
+          id={LISTBOX_ID}
+          role="listbox"
+          aria-label="Search results"
+          style={{ overflowY: 'auto', flex: 1 }}
+        >
           {loading && flat.length === 0 && (
             <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
               Searching...
@@ -174,7 +168,10 @@ export default function GlobalSearch({ compact, collapsed }: { compact?: boolean
             return (
               <div
                 key={item.id}
-                onMouseEnter={() => setActiveIdx(idx)}
+                id={`gs-option-${item.id}`}
+                role="option"
+                aria-selected={active}
+                className="hover-bg"
                 onClick={() => { navigate(item.href); close() }}
                 style={{
                   display: 'flex',
@@ -218,54 +215,91 @@ export default function GlobalSearch({ compact, collapsed }: { compact?: boolean
           </div>
         )}
       </div>
-    </>,
+    </div>,
     document.body,
   ) : null
+
+  // ── Collapsed sidebar: show a search icon that triggers the command palette ──
+  if (compact && collapsed) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+        <button
+          aria-label="Search"
+          className="hover-bg"
+          onClick={() => {
+            window.dispatchEvent(new KeyboardEvent('keydown', {
+              key: 'k',
+              code: 'KeyK',
+              metaKey: true,
+              ctrlKey: false,
+              bubbles: true,
+            }))
+          }}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '8px',
+            borderRadius: '8px',
+            color: 'var(--text-muted)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Search size={16} />
+        </button>
+      </div>
+    )
+  }
 
   return (
     <>
       {/* Input — compact (sidebar) or full top bar */}
       {compact ? (
-        !collapsed && (
+        <div style={{
+          padding: '0 8px',
+          marginBottom: '8px',
+        }}>
           <div style={{
-            padding: '0 8px',
-            marginBottom: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: '10px',
+            height: '36px',
+            transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
+            padding: '0 10px',
           }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.06)',
-              borderRadius: '10px',
-              height: '36px',
-              transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
-              padding: '0 10px',
-            }}>
-              <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-              <input
-                ref={inputRef}
-                value={query}
-                onChange={handleChange}
-                onKeyDown={handleKeyDown}
-                placeholder="Search..."
-                style={{
-                  flex: 1,
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  color: 'var(--text-primary)',
-                  fontSize: '13px',
-                  minWidth: 0,
-                }}
-              />
-              {loading
-                ? <Loader2 size={13} style={{ color: 'var(--accent)', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
-                : <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace', flexShrink: 0 }}>⌘K</span>
-              }
-            </div>
+            <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Search..."
+              aria-label="Search"
+              role="combobox"
+              aria-expanded={open}
+              aria-controls={LISTBOX_ID}
+              aria-activedescendant={activeItemId}
+              style={{
+                flex: 1,
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                color: 'var(--text-primary)',
+                fontSize: '13px',
+                minWidth: 0,
+              }}
+            />
+            {loading
+              ? <Loader2 size={13} style={{ color: 'var(--accent)', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+              : <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace', flexShrink: 0 }}>⌘K</span>
+            }
           </div>
-        )
+        </div>
       ) : (
         <div style={{
           position: 'relative',
@@ -287,6 +321,11 @@ export default function GlobalSearch({ compact, collapsed }: { compact?: boolean
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             placeholder="Search..."
+            aria-label="Search"
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={LISTBOX_ID}
+            aria-activedescendant={activeItemId}
             style={{
               flex: 1,
               background: 'transparent',

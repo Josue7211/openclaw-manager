@@ -6,8 +6,10 @@ import {
   FileText, Terminal, Eye, Pencil, Lightbulb, CircleDot,
   ChevronDown, Play, Pause, Search, User, XCircle, Cpu,
 } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { timeAgo } from '@/lib/utils'
 import { api } from '@/lib/api'
+import { queryKeys } from '@/lib/query-keys'
 
 interface Mission {
   id: string
@@ -243,6 +245,7 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
       try {
         const j = await api.get<{ events?: MissionEvent[] }>(`/api/mission-events?mission_id=${missionId}`)
         let evts: MissionEvent[] = j.events || []
+        if (evts.length === 0) console.warn(`[Missions] No events for mission ${missionId}, log_path=${mission.log_path || 'none'}`)
 
         if (evts.length === 0 && mission.log_path) {
           setLoading(false)
@@ -255,7 +258,7 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
               const j2 = await api.get<{ events?: MissionEvent[] }>(`/api/mission-events?mission_id=${missionId}`)
               evts = j2.events || []
             }
-          } catch { /* auto-ingest failed — show empty state */ }
+          } catch (e) { console.error('[Missions] auto-ingest failed:', e) }
           if (!cancelled) {
             setIngesting(false)
             setEvents(evts)
@@ -722,56 +725,64 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-// Module-level cache — instant display when navigating back
-let cachedMissions: Mission[] | null = null
-let cachedAgents: Agent[] | null = null
-
 export default function MissionsPage() {
-  const [missions, setMissions] = useState<Mission[]>(cachedMissions || [])
-  const [agents, setAgents]     = useState<Agent[]>(cachedAgents || [])
-  const [loading, setLoading]   = useState(!cachedMissions)
-  const [error, setError]       = useState<string | null>(null)
+  const queryClient = useQueryClient()
   const [tab, setTab]           = useState<Tab>('all')
-  const [markingDone, setMarkingDone]   = useState<string | null>(null)
   const [expandedId, setExpandedId]     = useState<string | null>(null)
+
+  const { data: missionsData, isLoading: missionsLoading, error: missionsError } = useQuery<{ missions?: Mission[] }>({
+    queryKey: queryKeys.missions,
+    queryFn: () => api.get<{ missions?: Mission[] }>('/api/missions'),
+  })
+  const missions = missionsData?.missions ?? []
+
+  const { data: agentsData } = useQuery<{ agents?: Agent[] }>({
+    queryKey: queryKeys.agents,
+    queryFn: () => api.get<{ agents?: Agent[] }>('/api/agents'),
+  })
+  const agents = agentsData?.agents ?? []
 
   const agentMap = Object.fromEntries(agents.map(a => [a.id, a]))
 
-  const fetchMissions = useCallback(async () => {
-    if (!cachedMissions) setLoading(true)
-    setError(null)
-    try {
-      const [mJson, aJson] = await Promise.all([
-        api.get<{ missions?: Mission[] }>('/api/missions'),
-        api.get<{ agents?: Agent[] }>('/api/agents'),
-      ])
-      cachedMissions = mJson.missions || []
-      cachedAgents = aJson.agents || []
-      setMissions(cachedMissions!)
-      setAgents(cachedAgents!)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Unknown error')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const loading = missionsLoading
+  const error = missionsError ? (missionsError instanceof Error ? missionsError.message : 'Unknown error') : null
 
-  async function markDone(missionId: string, e: React.MouseEvent) {
-    e.stopPropagation()
-    setMarkingDone(missionId)
-    try {
+  const invalidateMissions = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.missions })
+  }, [queryClient])
+
+  const markDoneMutation = useMutation({
+    mutationFn: async (missionId: string) => {
       await api.patch('/api/missions', { id: missionId, status: 'done', progress: 100 })
-      setMissions(prev => prev.map(m =>
-        m.id === missionId ? { ...m, status: 'done', progress: 100 } : m
-      ))
-    } catch {
-      // silently fail
-    } finally {
-      setMarkingDone(null)
-    }
+    },
+    onMutate: async (missionId) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.missions })
+      const prev = queryClient.getQueryData(queryKeys.missions)
+      queryClient.setQueryData(queryKeys.missions, (old: { missions?: Mission[] } | undefined) => ({
+        ...old,
+        missions: (old?.missions || []).map(m =>
+          m.id === missionId ? { ...m, status: 'done', progress: 100 } : m
+        ),
+      }))
+      return { prev }
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(queryKeys.missions, ctx.prev)
+    },
+    onSettled: () => invalidateMissions(),
+  })
+
+  function markDone(missionId: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    markDoneMutation.mutate(missionId)
   }
 
-  useEffect(() => { fetchMissions() }, [fetchMissions])
+  const markingDone = markDoneMutation.isPending ? markDoneMutation.variables : null
+
+  const refreshMissions = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.missions })
+    queryClient.invalidateQueries({ queryKey: queryKeys.agents })
+  }, [queryClient])
 
   const filtered = missions.filter(m => {
     if (tab === 'all') return true
@@ -800,19 +811,19 @@ export default function MissionsPage() {
       {/* Header */}
       <div style={{ marginBottom: '20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>Missions</h1>
+          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>Missions</h1>
           <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: '3px' }}>
             {missions.length} total · {counts.active} active · {counts.done} done
           </div>
         </div>
         <button
-          onClick={fetchMissions}
+          onClick={refreshMissions}
           style={{
             display: 'flex', alignItems: 'center', gap: '6px',
             background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border)',
             borderRadius: '10px', padding: '7px 12px',
             color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer',
-            transition: 'all 0.25s cubic-bezier(0.22, 1, 0.36, 1)',
+            transition: 'all 0.25s var(--ease-spring)',
           }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
@@ -836,7 +847,7 @@ export default function MissionsPage() {
                 background: active ? 'rgba(155,132,236,0.12)' : 'transparent',
                 color: active ? 'var(--accent-bright)' : 'var(--text-secondary)',
                 fontSize: '12px', fontWeight: active ? 600 : 400,
-                cursor: 'pointer', transition: 'all 0.25s cubic-bezier(0.22, 1, 0.36, 1)',
+                cursor: 'pointer', transition: 'all 0.25s var(--ease-spring)',
                 display: 'flex', alignItems: 'center', gap: '5px',
               }}
             >
@@ -1024,7 +1035,7 @@ export default function MissionsPage() {
                             color: 'var(--green, #4ade80)',
                             fontSize: '11px', cursor: isMarkingThis ? 'wait' : 'pointer',
                             opacity: isMarkingThis ? 0.5 : 1,
-                            transition: 'all 0.25s cubic-bezier(0.22, 1, 0.36, 1)',
+                            transition: 'all 0.25s var(--ease-spring)',
                           }}
                           onMouseEnter={e => { if (!isMarkingThis) { e.currentTarget.style.background = 'rgba(74,222,128,0.14)'; e.currentTarget.style.borderColor = 'rgba(74,222,128,0.45)' } }}
                           onMouseLeave={e => { e.currentTarget.style.background = 'rgba(74,222,128,0.06)'; e.currentTarget.style.borderColor = 'rgba(74,222,128,0.25)' }}
@@ -1087,15 +1098,6 @@ export default function MissionsPage() {
         )}
       </div>
 
-      <style>{`
-        @keyframes shimmer {
-          0%   { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   )
 }

@@ -14,12 +14,12 @@ pub fn router() -> Router<AppState> {
 
 // ── Bridge helper ───────────────────────────────────────────────────────────
 
-fn bridge_config() -> Option<(String, String)> {
-    let host = std::env::var("MAC_BRIDGE_HOST").unwrap_or_default();
+fn bridge_config(state: &AppState) -> Option<(String, String)> {
+    let host = state.secret_or_default("MAC_BRIDGE_HOST");
     if host.is_empty() {
         return None;
     }
-    let api_key = std::env::var("MAC_BRIDGE_API_KEY").unwrap_or_default();
+    let api_key = state.secret_or_default("MAC_BRIDGE_API_KEY");
     Some((host, api_key))
 }
 
@@ -83,12 +83,12 @@ async fn get_reminders(
     State(state): State<AppState>,
     Query(params): Query<RemindersQuery>,
 ) -> Result<Json<Value>, AppError> {
-    let (host, api_key) = match bridge_config() {
+    let (host, api_key) = match bridge_config(&state) {
         Some(cfg) => cfg,
         None => {
             return Ok(Json(json!({
                 "error": "bridge_not_configured",
-                "message": "Set MAC_BRIDGE_HOST in .env.local (e.g. http://macbook.tailnet.ts.net:4100)",
+                "message": "Set MAC_BRIDGE_HOST in Settings (e.g. http://macbook.tailnet.ts.net:4100)",
                 "reminders": [],
             })));
         }
@@ -136,7 +136,7 @@ async fn patch_reminder(
     State(state): State<AppState>,
     Json(body): Json<PatchReminderBody>,
 ) -> Result<Json<Value>, AppError> {
-    let (host, api_key) = match bridge_config() {
+    let (host, api_key) = match bridge_config(&state) {
         Some(cfg) => cfg,
         None => {
             return Err(AppError::Internal(anyhow::anyhow!("bridge_not_configured")));

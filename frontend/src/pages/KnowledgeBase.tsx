@@ -491,7 +491,7 @@ export default function KnowledgePage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <BookOpen size={20} style={{ color: 'var(--accent)' }} />
           <div>
-            <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>Knowledge Base</h1>
+            <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>Knowledge Base</h1>
             <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
               Notes · Articles · Links · Learnings
             </p>

@@ -38,8 +38,8 @@ pub fn router() -> Router<AppState> {
 // ---------------------------------------------------------------------------
 
 /// Return the workspace directory: `$OPENCLAW_DIR/workspace` or `~/.openclaw/workspace`.
-fn workspace_dir() -> PathBuf {
-    let base = std::env::var("OPENCLAW_DIR").unwrap_or_else(|_| {
+fn workspace_dir_from(state: &AppState) -> PathBuf {
+    let base = state.secret("OPENCLAW_DIR").unwrap_or_else(|| {
         dirs::home_dir()
             .map(|h| h.join(".openclaw").to_string_lossy().into_owned())
             .unwrap_or_else(|| ".openclaw".to_string())
@@ -47,13 +47,20 @@ fn workspace_dir() -> PathBuf {
     Path::new(&base).join("workspace")
 }
 
+/// Stateless fallback for `safe_path` (only needs the default dir).
+fn workspace_dir() -> PathBuf {
+    let base = dirs::home_dir()
+        .map(|h| h.join(".openclaw").to_string_lossy().into_owned())
+        .unwrap_or_else(|| ".openclaw".to_string());
+    Path::new(&base).join("workspace")
+}
+
 /// Return `(OPENCLAW_API_URL, OPENCLAW_API_KEY)` when remote mode is active.
-fn remote_config() -> Option<(String, Option<String>)> {
-    std::env::var("OPENCLAW_API_URL")
-        .ok()
+fn remote_config(state: &AppState) -> Option<(String, Option<String>)> {
+    state.secret("OPENCLAW_API_URL")
         .filter(|u| !u.is_empty())
         .map(|url| {
-            let key = std::env::var("OPENCLAW_API_KEY").ok().filter(|k| !k.is_empty());
+            let key = state.secret("OPENCLAW_API_KEY").filter(|k| !k.is_empty());
             (url, key)
         })
 }
@@ -139,7 +146,7 @@ async fn list_files(
     State(state): State<AppState>,
 ) -> Result<Json<Value>, AppError> {
     // Remote mode
-    if let Some((url, key)) = remote_config() {
+    if let Some((url, key)) = remote_config(&state) {
         let res = state
             .http
             .get(format!("{}/files", url))
@@ -159,7 +166,7 @@ async fn list_files(
     }
 
     // Local mode
-    let ws = workspace_dir();
+    let ws = workspace_dir_from(&state);
 
     let core_files: Vec<FileEntry> = CORE_FILES
         .iter()
@@ -219,7 +226,7 @@ async fn read_file(
     let file_path = query.path;
 
     // Remote mode
-    if let Some((url, key)) = remote_config() {
+    if let Some((url, key)) = remote_config(&state) {
         if !is_valid_workspace_path(&file_path) {
             return Err(AppError::BadRequest("Invalid path".into()));
         }
@@ -292,7 +299,7 @@ async fn write_file(
     }
 
     // Remote mode
-    if let Some((url, key)) = remote_config() {
+    if let Some((url, key)) = remote_config(&state) {
         if !is_valid_workspace_path(&file_path) {
             return Err(AppError::BadRequest("Invalid path".into()));
         }
@@ -361,7 +368,7 @@ async fn delete_file(
     }
 
     // Remote mode
-    if let Some((url, key)) = remote_config() {
+    if let Some((url, key)) = remote_config(&state) {
         if !is_valid_workspace_path(&file_path) {
             return Err(AppError::BadRequest("Invalid path".into()));
         }

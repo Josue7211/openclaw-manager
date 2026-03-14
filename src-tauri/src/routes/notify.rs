@@ -41,10 +41,10 @@ async fn send_notification(
         ));
     }
 
-    let url = std::env::var("NTFY_URL")
-        .map_err(|_| AppError::BadRequest("NTFY_URL not configured".into()))?;
-    let topic =
-        std::env::var("NTFY_TOPIC").unwrap_or_else(|_| "mission-control".into());
+    let url = state.secret("NTFY_URL")
+        .ok_or_else(|| AppError::BadRequest("NTFY_URL not configured".into()))?;
+    let topic = state.secret("NTFY_TOPIC")
+        .unwrap_or_else(|| "mission-control".into());
 
     // SSRF protection: block cloud metadata and sensitive internal endpoints
     let full_url = format!("{url}/{topic}");

@@ -20,12 +20,14 @@ frontend/dist
 *.sqlite
 *.sqlite3
 
-# debug
+# debug / logs
+*.log
 npm-debug.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files
 .env*
+!.env.example
 
 # IDEs
 .vscode/

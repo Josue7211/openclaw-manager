@@ -1,0 +1,38 @@
+# ─────────────────────────────────────────────────────────────
+# Supabase — Self-Hosted Setup Reference
+# ─────────────────────────────────────────────────────────────
+#
+# Mission Control expects a running Supabase instance.
+# You can use either Supabase Cloud or a self-hosted instance.
+#
+# OPTION 1 — Supabase Cloud (easiest)
+#   1. Create a project at https://supabase.com/dashboard
+#   2. Copy your project URL and anon key into .env.local
+#
+# OPTION 2 — Self-Hosted with Docker
+#   Follow the official guide:
+#   https://supabase.com/docs/guides/self-hosting/docker
+#
+#   Quick start:
+#     git clone --depth 1 https://github.com/supabase/supabase
+#     cd supabase/docker
+#     cp .env.example .env
+#     # Edit .env — set your own POSTGRES_PASSWORD, JWT_SECRET, etc.
+#     docker compose pull
+#     docker compose up -d
+#
+#   Then point Mission Control at your local instance:
+#     VITE_SUPABASE_URL=http://localhost:8000
+#     VITE_SUPABASE_ANON_KEY=<your-generated-anon-key>
+#     SUPABASE_SERVICE_ROLE_KEY=<your-generated-service-role-key>
+#
+# OPTION 3 — Existing Instance
+#   If you already have Supabase running, just set the env vars
+#   in .env.local and run the migrations:
+#     supabase db push --db-url postgresql://postgres:<password>@<host>:5432/postgres
+#
+# ─────────────────────────────────────────────────────────────
+# This file is intentionally NOT a full docker-compose config.
+# Supabase's official docker-compose.yml has 15+ services and
+# is maintained upstream — duplicating it here would drift.
+# ─────────────────────────────────────────────────────────────

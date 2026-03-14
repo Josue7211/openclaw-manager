@@ -20,16 +20,15 @@ struct Credentials {
     password: String,
 }
 
-/// Resolve IMAP credentials from environment variables.
-/// Returns `None` when the minimum required vars are missing.
-fn get_credentials() -> Option<Credentials> {
-    let host = std::env::var("EMAIL_HOST").unwrap_or_default();
-    let port: u16 = std::env::var("EMAIL_PORT")
-        .ok()
+/// Resolve IMAP credentials from AppState secrets.
+/// Returns `None` when the minimum required secrets are missing.
+fn get_credentials(state: &AppState) -> Option<Credentials> {
+    let host = state.secret_or_default("EMAIL_HOST");
+    let port: u16 = state.secret("EMAIL_PORT")
         .and_then(|v| v.parse().ok())
         .unwrap_or(993);
-    let user = std::env::var("EMAIL_USER").unwrap_or_default();
-    let password = std::env::var("EMAIL_PASSWORD").unwrap_or_default();
+    let user = state.secret_or_default("EMAIL_USER");
+    let password = state.secret_or_default("EMAIL_PASSWORD");
 
     if host.is_empty() || user.is_empty() || password.is_empty() {
         return None;
@@ -260,16 +259,16 @@ fn sanitize_folder(raw: &str) -> &str {
 }
 
 async fn get_emails(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Query(params): Query<GetEmailsQuery>,
 ) -> Result<Json<Value>, AppError> {
     let raw_folder = params.folder.as_deref().unwrap_or("INBOX");
     let folder = sanitize_folder(raw_folder);
 
-    // account_id is accepted for API compat but unused in env-var mode
+    // account_id is accepted for API compat but unused
     let _ = params.account_id;
 
-    let creds = match get_credentials() {
+    let creds = match get_credentials(&state) {
         Some(c) => c,
         None => {
             // Match TS: return 200 with error key and empty array
@@ -297,7 +296,7 @@ struct PatchEmailBody {
 }
 
 async fn patch_email(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<PatchEmailBody>,
 ) -> Result<Json<Value>, AppError> {
     let id = body
@@ -307,7 +306,7 @@ async fn patch_email(
 
     let _ = body.account_id;
 
-    let creds = match get_credentials() {
+    let creds = match get_credentials(&state) {
         Some(c) => c,
         None => return Err(AppError::Unauthorized),
     };

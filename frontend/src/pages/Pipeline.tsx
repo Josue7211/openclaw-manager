@@ -1,8 +1,8 @@
 
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { Plus, X, Tag, Trash2, Calendar, AlertTriangle, CheckSquare, Target, Lightbulb, Clock, BellOff, Rocket, ChevronDown } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 
 import { api } from '@/lib/api'
 
@@ -134,19 +134,80 @@ function daysAgo(dateStr: string) {
   return Math.floor(diff / (1000 * 60 * 60 * 24))
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
+function MarkdownText({ text }: { text: string }) {
+  const codeStyle: React.CSSProperties = {
+    background: 'rgba(155,132,236,0.15)',
+    padding: '1px 5px',
+    borderRadius: '4px',
+    fontFamily: 'monospace',
+    fontSize: '12px',
+  }
+  const ulStyle: React.CSSProperties = { margin: '6px 0 6px 16px', padding: 0 }
 
-function renderMarkdown(text: string): string {
-  // Escape HTML first to prevent XSS, then apply markdown formatting
-  return escapeHtml(text)
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/`(.+?)`/g, '<code style="background:rgba(155,132,236,0.15);padding:1px 5px;border-radius:4px;font-family:monospace;font-size:12px">$1</code>')
-    .replace(/^- (.+)$/gm, '<li>$1</li>')
-    .replace(/(<li>[\s\S]*?<\/li>)/g, '<ul style="margin:6px 0 6px 16px;padding:0">$1</ul>')
-    .replace(/\n/g, '<br/>')
+  // Parse inline markdown tokens from a single line into React elements
+  function parseInline(line: string, keyPrefix: string): React.ReactNode[] {
+    const nodes: React.ReactNode[] = []
+    // Match bold (**), italic (*/_), and code (`) in a single pass
+    const pattern = /\*\*(.+?)\*\*|`(.+?)`|\*(.+?)\*|_(.+?)_/g
+    let lastIndex = 0
+    let match: RegExpExecArray | null
+    let i = 0
+
+    while ((match = pattern.exec(line)) !== null) {
+      // Push any plain text before this match
+      if (match.index > lastIndex) {
+        nodes.push(line.slice(lastIndex, match.index))
+      }
+
+      if (match[1] != null) {
+        nodes.push(<strong key={`${keyPrefix}-${i}`}>{match[1]}</strong>)
+      } else if (match[2] != null) {
+        nodes.push(<code key={`${keyPrefix}-${i}`} style={codeStyle}>{match[2]}</code>)
+      } else if (match[3] != null) {
+        nodes.push(<em key={`${keyPrefix}-${i}`}>{match[3]}</em>)
+      } else if (match[4] != null) {
+        nodes.push(<em key={`${keyPrefix}-${i}`}>{match[4]}</em>)
+      }
+
+      lastIndex = pattern.lastIndex
+      i++
+    }
+
+    // Trailing plain text
+    if (lastIndex < line.length) {
+      nodes.push(line.slice(lastIndex))
+    }
+
+    return nodes
+  }
+
+  const lines = text.split('\n')
+  const elements: React.ReactNode[] = []
+  let listItems: React.ReactNode[] = []
+  let listKey = 0
+
+  function flushList() {
+    if (listItems.length > 0) {
+      elements.push(<ul key={`ul-${listKey}`} style={ulStyle}>{listItems}</ul>)
+      listItems = []
+      listKey++
+    }
+  }
+
+  lines.forEach((line, idx) => {
+    const bulletMatch = line.match(/^- (.+)$/)
+    if (bulletMatch) {
+      listItems.push(<li key={`li-${idx}`}>{parseInline(bulletMatch[1], `li-${idx}`)}</li>)
+    } else {
+      flushList()
+      if (idx > 0) elements.push(<br key={`br-${idx}`} />)
+      elements.push(<React.Fragment key={`ln-${idx}`}>{parseInline(line, `ln-${idx}`)}</React.Fragment>)
+    }
+  })
+
+  flushList()
+
+  return <>{elements}</>
 }
 
 function groupByMonth(entries: ChangelogEntry[]) {
@@ -225,14 +286,13 @@ function FilterDropdown({ label, value, options, onChange, colorMap }: {
           {value && (
             <button
               onClick={() => { onChange(null); setOpen(false) }}
+              className="hover-bg"
               style={{
                 width: '100%', textAlign: 'left', padding: '6px 10px', borderRadius: '6px',
                 border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 500,
                 background: 'transparent', color: 'var(--text-muted)',
-                transition: 'background 0.1s',
+                transition: 'all 0.15s',
               }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
               Clear
             </button>
@@ -1312,10 +1372,9 @@ export default function PipelinePage() {
                             </button>
                           </div>
                           {entry.description && (
-                            <div
-                              style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.7 }}
-                              dangerouslySetInnerHTML={{ __html: renderMarkdown(entry.description) }}
-                            />
+                            <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                              <MarkdownText text={entry.description} />
+                            </div>
                           )}
                         </div>
                       ))}

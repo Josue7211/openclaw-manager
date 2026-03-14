@@ -27,8 +27,8 @@ pub fn router() -> Router<AppState> {
 
 // ── Cache ───────────────────────────────────────────────────────────────────
 
-async fn get_cache(State(_state): State<AppState>) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+async fn get_cache(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    let sb = SupabaseClient::from_state(&state)?;
     let data = sb.select("cache", "select=*").await?;
 
     let mut result = serde_json::Map::new();
@@ -46,18 +46,18 @@ async fn get_cache(State(_state): State<AppState>) -> Result<Json<Value>, AppErr
     Ok(Json(Value::Object(result)))
 }
 
-async fn get_cache_refresh(State(_state): State<AppState>) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+async fn get_cache_refresh(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    let sb = SupabaseClient::from_state(&state)?;
     let data = sb.select("cache", "select=*").await?;
     Ok(Json(json!({ "rows": data })))
 }
 
-async fn post_cache_refresh(State(_state): State<AppState>) -> Result<Json<Value>, AppError> {
+async fn post_cache_refresh(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
     // In the Tauri desktop context, cache refresh fetches from the local Axum
     // server's own endpoints and upserts the results into Supabase.
     // For now, this is a stub — the frontend can orchestrate cache refreshes
     // by calling individual endpoints and posting results.
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let cache_keys = ["status", "heartbeat", "sessions", "subagents", "agents"];
     let client = reqwest::Client::new();

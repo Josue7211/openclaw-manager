@@ -1,10 +1,18 @@
 
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+
+import { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate as useRouterNavigate } from 'react-router-dom'
-import { Search, Plus, Settings, ArrowRight } from 'lucide-react'
+import { useNavigate as useRouterNavigate, useLocation } from 'react-router-dom'
+import {
+  Search, Plus, Settings, ArrowRight, PenSquare, CheckSquare,
+  Sun, Moon, BellOff, CheckCheck, Download, MessageSquare,
+} from 'lucide-react'
 import { allNavItems } from '@/lib/nav-items'
+import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
+import { getKeybindings, subscribeKeybindings, formatKey } from '@/lib/keybindings'
+import { markAllRead } from '@/components/NotificationCenter'
+import { formatContactLabel } from '@/lib/utils'
 
 interface PaletteItem {
   id: string
@@ -12,19 +20,113 @@ interface PaletteItem {
   icon?: React.ReactNode
   action: () => void
   shortcut?: string
-  category: 'page' | 'action'
+  category: 'page' | 'action' | 'conversation'
+  /** Optional secondary text shown dimmer to the right of the label */
+  hint?: string
 }
 
-const GO_SHORTCUTS: Record<string, string> = {
-  '/': 'G H',
-  '/dashboard': 'G D',
-  '/agents': 'G A',
-  '/missions': 'G M',
-  '/calendar': 'G C',
-  '/todos': 'G T',
-  '/email': 'G E',
-  '/settings': 'G S',
+/* ─── Theme helpers (mirror Settings page logic) ───────────────────────── */
+
+function getStoredTheme(): 'dark' | 'light' | 'system' {
+  try {
+    const raw = localStorage.getItem('theme')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed === 'dark' || parsed === 'light' || parsed === 'system') return parsed
+    }
+  } catch { /* ignore */ }
+  return 'dark'
 }
+
+function cycleTheme(): string {
+  const order: Array<'dark' | 'light' | 'system'> = ['dark', 'light', 'system']
+  const current = getStoredTheme()
+  const next = order[(order.indexOf(current) + 1) % order.length]
+  localStorage.setItem('theme', JSON.stringify(next))
+  const resolved: 'dark' | 'light' = next === 'system'
+    ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+    : next
+  document.documentElement.dataset.theme = resolved
+  return next
+}
+
+/* ─── DND helpers ──────────────────────────────────────────────────────── */
+
+function isDndEnabled(): boolean {
+  try {
+    const raw = localStorage.getItem('dnd-enabled')
+    return raw ? JSON.parse(raw) === true : false
+  } catch { return false }
+}
+
+function toggleDnd(): boolean {
+  const next = !isDndEnabled()
+  localStorage.setItem('dnd-enabled', JSON.stringify(next))
+  return next
+}
+
+/* ─── Settings export (matches Settings page) ─────────────────────────── */
+
+function exportSettings() {
+  const KNOWN_PREFIXES = [
+    'dnd-enabled', 'system-notifs', 'in-app-notifs', 'notif-sound',
+    'title-bar-visible', 'sidebar-header-visible', 'user-name', 'user-avatar',
+    'app-version', 'keybindings', 'sidebar-collapsed', 'theme', 'enabled-modules',
+  ]
+  const data: Record<string, string> = {}
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (!key) continue
+    if (KNOWN_PREFIXES.some(prefix => key === prefix || key.startsWith(prefix + '-'))) {
+      data[key] = localStorage.getItem(key)!
+    }
+  }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `mission-control-settings-${new Date().toISOString().slice(0, 10)}.json`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+/* ─── Recent conversations cache (read from Messages page data) ──────── */
+
+interface RecentConversation {
+  guid: string
+  chatId: string
+  displayName: string | null
+  participants: { address: string; service: string }[]
+  lastMessage: string | null
+  lastDate: number | null
+}
+
+let _recentConversations: RecentConversation[] = []
+let _recentListeners: Set<() => void> = new Set()
+
+function emitRecentChange() {
+  for (const l of _recentListeners) l()
+}
+
+/** Called by Messages page to share its conversation list */
+export function setRecentConversations(convs: RecentConversation[]) {
+  _recentConversations = convs.slice(0, 10) // top 10
+  emitRecentChange()
+}
+
+function subscribeRecent(listener: () => void) {
+  _recentListeners.add(listener)
+  return () => { _recentListeners.delete(listener) }
+}
+
+function getRecentSnapshot(): RecentConversation[] {
+  return _recentConversations
+}
+
+
+/* ─── Component ────────────────────────────────────────────────────────── */
 
 export default function CommandPalette({
   open,
@@ -39,6 +141,8 @@ export default function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const router = useRouterNavigate()
+  const location = useLocation()
+  const trapRef = useFocusTrap(open)
 
   useEffect(() => {
     setMounted(true)
@@ -64,7 +168,19 @@ export default function CommandPalette({
     [router, onClose],
   )
 
+  const bindings = useSyncExternalStore(subscribeKeybindings, getKeybindings)
+  const recentConvs = useSyncExternalStore(subscribeRecent, getRecentSnapshot)
+  const isOnMessages = location.pathname === '/messages'
+
   const items: PaletteItem[] = useMemo(() => {
+    // Build route->shortcut map from keybindings
+    const routeShortcuts: Record<string, string> = {}
+    for (const b of bindings) {
+      if (b.route) {
+        routeShortcuts[b.route] = formatKey(b).join(' ')
+      }
+    }
+
     const pages: PaletteItem[] = allNavItems.map((nav) => {
       const Icon = nav.icon
       return {
@@ -72,17 +188,31 @@ export default function CommandPalette({
         label: nav.label,
         icon: <Icon size={16} />,
         action: () => navigate(nav.href),
-        shortcut: GO_SHORTCUTS[nav.href],
+        shortcut: routeShortcuts[nav.href],
         category: 'page' as const,
       }
     })
 
     const actions: PaletteItem[] = [
       {
+        id: 'action-new-message',
+        label: 'New message',
+        icon: <PenSquare size={16} />,
+        action: () => {
+          // Navigate to messages with compose=1 query param
+          router('/messages?compose=1')
+          onClose()
+        },
+        category: 'action',
+      },
+      {
         id: 'action-new-todo',
-        label: 'New Todo',
-        icon: <Plus size={16} />,
-        action: () => navigate('/todos'),
+        label: 'New todo',
+        icon: <CheckSquare size={16} />,
+        action: () => {
+          router('/todos?focus=add')
+          onClose()
+        },
         category: 'action',
       },
       {
@@ -90,6 +220,48 @@ export default function CommandPalette({
         label: 'New Mission',
         icon: <Plus size={16} />,
         action: () => navigate('/missions'),
+        category: 'action',
+      },
+      {
+        id: 'action-toggle-theme',
+        label: 'Toggle theme',
+        icon: getStoredTheme() === 'dark' ? <Sun size={16} /> : <Moon size={16} />,
+        action: () => {
+          cycleTheme()
+          onClose()
+        },
+        hint: getStoredTheme(),
+        category: 'action',
+      },
+      {
+        id: 'action-toggle-dnd',
+        label: 'Toggle Do Not Disturb',
+        icon: <BellOff size={16} />,
+        action: () => {
+          toggleDnd()
+          onClose()
+        },
+        hint: isDndEnabled() ? 'on' : 'off',
+        category: 'action',
+      },
+      {
+        id: 'action-mark-all-read',
+        label: 'Mark all notifications read',
+        icon: <CheckCheck size={16} />,
+        action: () => {
+          markAllRead()
+          onClose()
+        },
+        category: 'action',
+      },
+      {
+        id: 'action-export-settings',
+        label: 'Export settings',
+        icon: <Download size={16} />,
+        action: () => {
+          exportSettings()
+          onClose()
+        },
         category: 'action',
       },
       {
@@ -102,13 +274,37 @@ export default function CommandPalette({
       },
     ]
 
-    return [...pages, ...actions]
-  }, [navigate])
+    // Build conversation items when on Messages page
+    const conversations: PaletteItem[] = isOnMessages
+      ? recentConvs.map((conv) => ({
+          id: `conv-${conv.guid}`,
+          label: formatContactLabel(conv),
+          icon: <MessageSquare size={16} />,
+          hint: conv.lastMessage
+            ? conv.lastMessage.length > 40
+              ? conv.lastMessage.slice(0, 40) + '...'
+              : conv.lastMessage
+            : undefined,
+          action: () => {
+            // Navigate to messages with the conversation selected
+            router(`/messages?open=${encodeURIComponent(conv.guid)}`)
+            onClose()
+          },
+          category: 'conversation' as const,
+        }))
+      : []
+
+    return [...pages, ...actions, ...conversations]
+  }, [navigate, bindings, isOnMessages, recentConvs, router, onClose])
 
   const filtered = useMemo(() => {
     if (!query.trim()) return items
     const q = query.toLowerCase()
-    return items.filter((item) => item.label.toLowerCase().includes(q))
+    return items.filter((item) => {
+      if (item.label.toLowerCase().includes(q)) return true
+      if (item.hint && item.hint.toLowerCase().includes(q)) return true
+      return false
+    })
   }, [query, items])
 
   // Group by category for display
@@ -120,11 +316,15 @@ export default function CommandPalette({
     () => filtered.filter((i) => i.category === 'action'),
     [filtered],
   )
+  const groupedConversations = useMemo(
+    () => filtered.filter((i) => i.category === 'conversation'),
+    [filtered],
+  )
 
   // Flat list for keyboard navigation
   const flatList = useMemo(
-    () => [...groupedPages, ...groupedActions],
-    [groupedPages, groupedActions],
+    () => [...groupedPages, ...groupedActions, ...groupedConversations],
+    [groupedPages, groupedActions, groupedConversations],
   )
 
   // Clamp selected index when list changes
@@ -189,16 +389,21 @@ export default function CommandPalette({
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0, 0, 0, 0.5)',
-          backdropFilter: 'blur(8px)',
-          WebkitBackdropFilter: 'blur(8px)',
-          zIndex: 9998,
+          background: query.trim() ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.5)',
+          backdropFilter: query.trim() ? 'blur(16px)' : 'blur(8px)',
+          WebkitBackdropFilter: query.trim() ? 'blur(16px)' : 'blur(8px)',
+          zIndex: 'var(--z-modal-backdrop)' as any,
           animation: 'cp-fadein 0.15s ease',
+          transition: 'backdrop-filter 0.3s ease, -webkit-backdrop-filter 0.3s ease, background 0.3s ease',
         }}
       />
 
       {/* Modal */}
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cp-title"
         style={{
           position: 'fixed',
           top: '50%',
@@ -206,7 +411,7 @@ export default function CommandPalette({
           transform: 'translate(-50%, -50%)',
           width: '560px',
           maxWidth: 'calc(100vw - 32px)',
-          maxHeight: '400px',
+          maxHeight: '460px',
           background: 'rgba(18, 18, 24, 0.96)',
           backdropFilter: 'blur(32px) saturate(180%)',
           WebkitBackdropFilter: 'blur(32px) saturate(180%)',
@@ -214,14 +419,17 @@ export default function CommandPalette({
           borderRadius: '16px',
           boxShadow:
             '0 24px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04)',
-          zIndex: 9999,
+          zIndex: 'var(--z-modal)' as any,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          animation: 'cp-scalein 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
+          animation: 'cp-scalein 0.2s var(--ease-spring)',
         }}
       >
         {/* Search input */}
+        <span id="cp-title" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap' }}>
+          Command Palette
+        </span>
         <div
           style={{
             display: 'flex',
@@ -244,7 +452,11 @@ export default function CommandPalette({
               setSelectedIdx(0)
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Search pages, agents, actions..."
+            placeholder="Search pages, actions, conversations..."
+            role="combobox"
+            aria-expanded={true}
+            aria-controls="cp-results"
+            aria-activedescendant={selectedIdx >= 0 ? `cp-result-${selectedIdx}` : undefined}
             style={{
               flex: 1,
               background: 'transparent',
@@ -276,6 +488,8 @@ export default function CommandPalette({
         {/* Results */}
         <div
           ref={listRef}
+          id="cp-results"
+          role="listbox"
           style={{
             overflowY: 'auto',
             flex: 1,
@@ -299,12 +513,14 @@ export default function CommandPalette({
             <div>
               <div
                 style={{
-                  padding: '8px 18px 4px',
+                  padding: '8px 18px 6px',
                   fontSize: '10px',
                   fontWeight: 700,
                   color: 'var(--text-muted)',
                   letterSpacing: '0.1em',
                   textTransform: 'uppercase',
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                  marginBottom: '2px',
                 }}
               >
                 {query.trim() ? 'Pages' : 'All Pages'}
@@ -332,8 +548,8 @@ export default function CommandPalette({
                 style={{
                   padding:
                     groupedPages.length > 0
-                      ? '12px 18px 4px'
-                      : '8px 18px 4px',
+                      ? '12px 18px 6px'
+                      : '8px 18px 6px',
                   fontSize: '10px',
                   fontWeight: 700,
                   color: 'var(--text-muted)',
@@ -343,11 +559,53 @@ export default function CommandPalette({
                     groupedPages.length > 0
                       ? '1px solid rgba(255, 255, 255, 0.04)'
                       : undefined,
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                  marginBottom: '2px',
                 }}
               >
                 Actions
               </div>
               {groupedActions.map((item) => {
+                const idx = flatIdx++
+                const active = idx === selectedIdx
+                return (
+                  <PaletteRow
+                    key={item.id}
+                    item={item}
+                    active={active}
+                    dataIdx={idx}
+                    onMouseEnter={() => setSelectedIdx(idx)}
+                    onClick={() => item.action()}
+                  />
+                )
+              })}
+            </div>
+          )}
+
+          {groupedConversations.length > 0 && (
+            <div>
+              <div
+                style={{
+                  padding:
+                    (groupedPages.length > 0 || groupedActions.length > 0)
+                      ? '12px 18px 6px'
+                      : '8px 18px 6px',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  color: 'var(--text-muted)',
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  borderTop:
+                    (groupedPages.length > 0 || groupedActions.length > 0)
+                      ? '1px solid rgba(255, 255, 255, 0.04)'
+                      : undefined,
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                  marginBottom: '2px',
+                }}
+              >
+                Recent Conversations
+              </div>
+              {groupedConversations.map((item) => {
                 const idx = flatIdx++
                 const active = idx === selectedIdx
                 return (
@@ -409,6 +667,9 @@ function PaletteRow({
   return (
     <div
       data-idx={dataIdx}
+      role="option"
+      id={`cp-result-${dataIdx}`}
+      aria-selected={active}
       onMouseEnter={onMouseEnter}
       onClick={onClick}
       style={{
@@ -420,7 +681,8 @@ function PaletteRow({
         borderRadius: '10px',
         cursor: 'pointer',
         background: active ? 'rgba(167, 139, 250, 0.1)' : 'transparent',
-        transition: 'background 0.1s ease',
+        transition: 'background 0.15s ease, transform 0.15s var(--ease-spring)',
+        transform: active ? 'translateX(1px)' : 'translateX(0)',
       }}
     >
       <span
@@ -448,10 +710,29 @@ function PaletteRow({
           fontWeight: active ? 500 : 400,
           color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
           transition: 'color 0.1s ease',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
         }}
       >
         {item.label}
       </span>
+      {item.hint && !item.shortcut && (
+        <span
+          style={{
+            fontSize: '11px',
+            color: 'var(--text-muted)',
+            flexShrink: 1,
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            maxWidth: '180px',
+          }}
+        >
+          {item.hint}
+        </span>
+      )}
       {item.shortcut && (
         <span
           style={{

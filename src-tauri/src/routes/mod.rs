@@ -23,12 +23,14 @@ pub mod missions;
 pub mod notify;
 pub mod openclaw_cli;
 pub mod pipeline;
+pub mod preferences;
 pub mod reminders;
 pub mod reviews;
 pub mod search;
 pub mod stale;
 pub mod status;
 pub mod todos;
+pub mod util;
 pub mod workflow_notes;
 pub mod workspace;
 
@@ -58,6 +60,7 @@ pub fn router() -> Router<AppState> {
         .merge(notify::router())
         .merge(openclaw_cli::router())
         .merge(pipeline::router())
+        .merge(preferences::router())
         .merge(reminders::router())
         .merge(reviews::router())
         .merge(stale::router())

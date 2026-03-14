@@ -22,12 +22,12 @@ struct RadarrConfig {
     api_key: String,
 }
 
-fn plex_config() -> Option<PlexConfig> {
-    let token = std::env::var("PLEX_TOKEN").unwrap_or_default();
+fn plex_config(state: &AppState) -> Option<PlexConfig> {
+    let token = state.secret_or_default("PLEX_TOKEN");
     if token.is_empty() {
         return None;
     }
-    let url = std::env::var("PLEX_URL").unwrap_or_default();
+    let url = state.secret_or_default("PLEX_URL");
     if url.is_empty() {
         tracing::warn!("PLEX_TOKEN is set but PLEX_URL is not configured");
         return None;
@@ -35,12 +35,12 @@ fn plex_config() -> Option<PlexConfig> {
     Some(PlexConfig { url, token })
 }
 
-fn sonarr_config() -> Option<SonarrConfig> {
-    let api_key = std::env::var("SONARR_API_KEY").unwrap_or_default();
+fn sonarr_config(state: &AppState) -> Option<SonarrConfig> {
+    let api_key = state.secret_or_default("SONARR_API_KEY");
     if api_key.is_empty() {
         return None;
     }
-    let url = std::env::var("SONARR_URL").unwrap_or_default();
+    let url = state.secret_or_default("SONARR_URL");
     if url.is_empty() {
         tracing::warn!("SONARR_API_KEY is set but SONARR_URL is not configured");
         return None;
@@ -48,12 +48,12 @@ fn sonarr_config() -> Option<SonarrConfig> {
     Some(SonarrConfig { url, api_key })
 }
 
-fn radarr_config() -> Option<RadarrConfig> {
-    let api_key = std::env::var("RADARR_API_KEY").unwrap_or_default();
+fn radarr_config(state: &AppState) -> Option<RadarrConfig> {
+    let api_key = state.secret_or_default("RADARR_API_KEY");
     if api_key.is_empty() {
         return None;
     }
-    let url = std::env::var("RADARR_URL").unwrap_or_default();
+    let url = state.secret_or_default("RADARR_URL");
     if url.is_empty() {
         tracing::warn!("RADARR_API_KEY is set but RADARR_URL is not configured");
         return None;
@@ -287,9 +287,9 @@ fn mock_response() -> Value {
 // ── GET /media ──────────────────────────────────────────────────────────────
 
 async fn get_media(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
-    let plex_cfg = plex_config();
-    let sonarr_cfg = sonarr_config();
-    let radarr_cfg = radarr_config();
+    let plex_cfg = plex_config(&state);
+    let sonarr_cfg = sonarr_config(&state);
+    let radarr_cfg = radarr_config(&state);
 
     // If nothing is configured, return mock data
     if plex_cfg.is_none() && sonarr_cfg.is_none() && radarr_cfg.is_none() {

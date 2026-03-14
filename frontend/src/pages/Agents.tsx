@@ -3,11 +3,13 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 import { AGENT_STATUS, MISSION_STATUS } from '@/lib/constants'
 import { SkeletonList } from '@/components/Skeleton'
 
 import { api } from '@/lib/api'
+import { queryKeys } from '@/lib/query-keys'
+import type { Mission } from '@/lib/types'
 
 interface Agent {
   id: string
@@ -18,14 +20,6 @@ interface Agent {
   current_task: string | null
   color: string | null
   model: string | null
-}
-
-interface Mission {
-  id: string
-  title: string
-  assignee: string
-  status: string
-  progress: number
 }
 
 interface Process {
@@ -43,12 +37,6 @@ interface Process {
   started_at: string | null
 }
 
-const pulseKeyframes = `
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(0.85); }
-}
-`
 
 function StatusDot({ active }: { active: boolean }) {
   return (
@@ -446,12 +434,12 @@ export default function AgentsPage() {
   const queryClient = useQueryClient()
 
   const { data: agentsData, isLoading: loading } = useQuery<{ agents: Agent[] }>({
-    queryKey: ['agents'],
+    queryKey: queryKeys.agents,
     queryFn: () => api.get<{ agents: Agent[] }>('/api/agents'),
   })
 
   const { data: missionsData } = useQuery<{ missions: Mission[] }>({
-    queryKey: ['missions'],
+    queryKey: queryKeys.missions,
     queryFn: () => api.get<{ missions: Mission[] }>('/api/missions'),
   })
 
@@ -463,7 +451,7 @@ export default function AgentsPage() {
       return api.patch('/api/agents', { id, ...fields })
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['agents'] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents })
     },
   })
 
@@ -478,7 +466,7 @@ export default function AgentsPage() {
     const channel = supabase
       .channel('agents-realtime')
       .on<Record<string, unknown>>('postgres_changes', { event: '*', schema: 'public', table: 'agents' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['agents'] })
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents })
       })
       .subscribe()
 
@@ -486,11 +474,9 @@ export default function AgentsPage() {
   }, [queryClient])
 
   return (
-    <>
-      <style>{pulseKeyframes}</style>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>
+          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>
             Agents
           </h1>
           <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
@@ -520,6 +506,5 @@ export default function AgentsPage() {
 
         <LiveProcesses agents={agents} />
       </div>
-    </>
   )
 }

@@ -19,10 +19,10 @@ struct DecisionsQuery {
 }
 
 async fn get_decisions(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Query(params): Query<DecisionsQuery>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let mut query = "select=*&order=created_at.desc".to_string();
     if let Some(q) = &params.q {
@@ -48,10 +48,10 @@ struct PostDecisionBody {
 }
 
 async fn post_decision(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<PostDecisionBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let title = body.title.as_deref().unwrap_or("").trim();
     if title.is_empty() {
@@ -97,10 +97,10 @@ struct PatchDecisionBody {
 }
 
 async fn patch_decision(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<PatchDecisionBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let id = body.id.as_ref().ok_or_else(|| AppError::BadRequest("id required".into()))?;
 
@@ -119,10 +119,10 @@ async fn patch_decision(
 }
 
 async fn delete_decision(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let id = body.get("id").ok_or_else(|| AppError::BadRequest("id required".into()))?;
     sb.delete("decisions", &format!("id=eq.{id}")).await?;

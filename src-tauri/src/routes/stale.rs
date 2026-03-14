@@ -15,8 +15,8 @@ pub fn router() -> Router<AppState> {
 
 // ── GET /stale ──────────────────────────────────────────────────────────────
 
-async fn get_stale(State(_state): State<AppState>) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+async fn get_stale(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    let sb = SupabaseClient::from_state(&state)?;
     let cutoff = (chrono::Utc::now() - chrono::Duration::days(STALE_DAYS))
         .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
 
@@ -104,10 +104,10 @@ struct PatchStaleBody {
 }
 
 async fn patch_stale(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<PatchStaleBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
     let query = format!("id=eq.{}", body.id);
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -142,10 +142,10 @@ struct DeleteStaleBody {
 }
 
 async fn delete_stale(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<DeleteStaleBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
     let table = type_to_table(&body.item_type)?;
     sb.delete(table, &format!("id=eq.{}", body.id)).await?;
     Ok(Json(json!({ "ok": true })))

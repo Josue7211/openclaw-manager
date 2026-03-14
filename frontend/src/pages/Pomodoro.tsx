@@ -12,12 +12,6 @@ interface SessionEntry {
   duration: number
 }
 
-interface TodoItem {
-  id: string
-  text: string
-  done: boolean
-}
-
 const DEFAULT_DURATIONS: Record<Mode, number> = {
   work: 25,
   short: 5,

@@ -25,7 +25,7 @@ pub(super) struct CompleteBody {
 }
 
 pub(super) async fn pipeline_complete(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<CompleteBody>,
 ) -> Result<Json<Value>, AppError> {
     if body.mission_id.is_empty() {
@@ -37,7 +37,7 @@ pub(super) async fn pipeline_complete(
         ));
     }
 
-    let sb = supabase()?;
+    let sb = supabase(&state)?;
     let mission_id = &body.mission_id;
 
     // Fetch mission

@@ -19,10 +19,10 @@ struct WorkflowNotesQuery {
 }
 
 async fn get_workflow_notes(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Query(params): Query<WorkflowNotesQuery>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let mut query = "select=*&order=created_at.desc".to_string();
     if let Some(cat) = &params.category {
@@ -40,10 +40,10 @@ struct PostWorkflowNoteBody {
 }
 
 async fn post_workflow_note(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<PostWorkflowNoteBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let category = body.category.as_deref().unwrap_or("");
     let note = body.note.as_deref().unwrap_or("");
@@ -64,10 +64,10 @@ struct PatchWorkflowNoteBody {
 }
 
 async fn patch_workflow_note(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<PatchWorkflowNoteBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let id = body.id.as_ref().ok_or_else(|| AppError::BadRequest("id required".into()))?;
     let data = sb

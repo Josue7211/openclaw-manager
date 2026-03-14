@@ -10,8 +10,8 @@ pub fn router() -> Router<AppState> {
     Router::new().route("/todos", get(get_todos).post(post_todo).patch(patch_todo).delete(delete_todo))
 }
 
-async fn get_todos(State(_state): State<AppState>) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+async fn get_todos(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    let sb = SupabaseClient::from_state(&state)?;
     let data = sb.select("todos", "select=*&order=created_at.asc").await?;
     Ok(Json(json!({ "todos": data })))
 }
@@ -22,10 +22,10 @@ struct PostTodoBody {
 }
 
 async fn post_todo(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<PostTodoBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
     let text = body.text.as_deref().unwrap_or("").trim();
     if text.is_empty() {
         return Err(AppError::BadRequest("text required".into()));
@@ -42,10 +42,10 @@ struct PatchTodoBody {
 }
 
 async fn patch_todo(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<PatchTodoBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
     let mut update = serde_json::Map::new();
     if let Some(done) = body.done {
         update.insert("done".into(), json!(done));
@@ -68,10 +68,10 @@ struct DeleteTodoBody {
 }
 
 async fn delete_todo(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<DeleteTodoBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
     sb.delete("todos", &format!("id=eq.{}", body.id)).await?;
     Ok(Json(json!({ "ok": true })))
 }

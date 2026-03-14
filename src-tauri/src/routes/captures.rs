@@ -22,10 +22,10 @@ struct QuickCaptureBody {
 }
 
 async fn post_quick_capture(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<QuickCaptureBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_env()?;
+    let sb = SupabaseClient::from_state(&state)?;
 
     let content = body.content.as_deref().unwrap_or("").trim().to_string();
     if content.is_empty() {

@@ -1,12 +1,31 @@
 
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import {
-  MessageSquare, Send, RefreshCw, ArrowLeft, AlertCircle, User, Mic,
-  Paperclip, X, Users, Search, Play, Pause, ChevronDown, CornerUpLeft, Copy, Check, SmilePlus,
+  MessageSquare, Send, RefreshCw, ArrowLeft, AlertCircle, Mic,
+  Paperclip, X, Search, ChevronDown, ChevronUp, CornerUpLeft, Check, CheckCheck, SmilePlus,
+  PenSquare, BellOff, Pin,
 } from 'lucide-react'
 
+import { useSearchParams } from 'react-router-dom'
 import { API_BASE, api } from '@/lib/api'
+import { formatContactLabel } from '@/lib/utils'
+
+import LinkPreviewCard from '@/components/messages/LinkPreviewCard'
+import AudioWaveform from '@/components/messages/AudioWaveform'
+import ReactionPills from '@/components/messages/ReactionPills'
+import VideoThumbnail from '@/components/messages/VideoThumbnail'
+import MessageMenu, { type MessageMenuState } from '@/components/messages/MessageMenu'
+import { MButton } from '@/components/messages/MessageMenu'
+import { ContactAvatar, GroupAvatar } from '@/components/messages/ContactAvatar'
+import Lightbox, { type LightboxData } from '@/components/Lightbox'
+
+import { useConversationList, useMessageCompose, useMessagesSSE, cleanPayloadText } from '@/hooks/messages'
+import { setRecentConversations } from '@/components/CommandPalette'
+import { MessagesConversationSkeleton, MessagesThreadSkeleton } from '@/components/Skeleton'
+import { isDemoMode, DEMO_CONVERSATIONS } from '@/lib/demo-data'
+import { DemoBadge } from '@/components/DemoModeBanner'
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 
@@ -22,6 +41,7 @@ interface Conversation {
   lastDate: number | null
   lastFromMe: number
   isUnread?: boolean
+  isJunk?: boolean
 }
 
 interface Reaction {
@@ -55,67 +75,26 @@ interface Message {
   dateDelivered?: number | null
   reactions?: Reaction[]
   threadOriginatorGuid?: string | null
+  _failed?: boolean
+  _failedText?: string
+  _failedChatGuid?: string
+  _failedReplyGuid?: string | null
 }
 
 type ServiceFilter = 'all' | 'iMessage' | 'SMS'
-type LightboxData = { src: string; type: 'image' | 'video' } | null
-
-interface MessageMenuState {
-  msgGuid: string
-  msg: Message
-  x: number
-  y: number
-  fromMe: boolean
-}
 
 interface ConvContextMenu {
   x: number
   y: number
   convGuid: string
   isUnread: boolean
+  isMuted: boolean
+  isPinned: boolean
 }
 
 /* ─── Constants ─────────────────────────────────────────────────────────── */
 
-const LOUPE_W = 720
-const LOUPE_H = 480
-
-const AVATAR_COLORS = [
-  '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
-  '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE',
-  '#85C1E9', '#F8C471', '#82E0AA', '#F1948A',
-  '#FF9FF3', '#54A0FF', '#5F27CD', '#01A3A4',
-]
-
-const REACTION_EMOJI: Record<number, string> = {
-  2000: '❤️', 2001: '👍', 2002: '👎',
-  2003: '😂', 2004: '‼️', 2005: '❓',
-}
-
-const REACTION_NAMES: { key: string; emoji: string; type: number }[] = [
-  { key: 'love', emoji: '❤️', type: 2000 },
-  { key: 'like', emoji: '👍', type: 2001 },
-  { key: 'dislike', emoji: '👎', type: 2002 },
-  { key: 'laugh', emoji: '😂', type: 2003 },
-  { key: 'emphasize', emoji: '‼️', type: 2004 },
-  { key: 'question', emoji: '❓', type: 2005 },
-]
-
 const URL_RE = /https?:\/\/[^\s<>"')\]]+/gi
-// Matches anything.pluginPayloadAttachment and similar iMessage plugin junk
-const PLUGIN_PAYLOAD_RE = /\S*\.pluginPayload\w*\r?\n?/gi
-// Object replacement characters and other invisible iMessage garbage
-const IMSG_JUNK_RE = /[\ufffc\ufffd\u2028\u2029\u200b]+/g
-
-function cleanPayloadText(text: string | null | undefined): string {
-  if (!text) return ''
-  return text
-    .replace(PLUGIN_PAYLOAD_RE, '')
-    .replace(IMSG_JUNK_RE, '')
-    .replace(/\r\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-}
 
 /* ─── Utilities ─────────────────────────────────────────────────────────── */
 
@@ -154,39 +133,12 @@ function formatTimestamp(ts: number): string {
   } else if (diffDays < 7) {
     return `${d.toLocaleDateString('en-US', { weekday: 'long' })} ${formatTime(ts)}`
   }
-  return `${d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} ${formatTime(ts)}`
+  const opts: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' }
+  if (d.getFullYear() !== now.getFullYear()) opts.year = 'numeric'
+  return `${d.toLocaleDateString('en-US', opts)} ${formatTime(ts)}`
 }
 
-function formatDuration(seconds: number): string {
-  if (!seconds || !isFinite(seconds)) return '0:00'
-  const m = Math.floor(seconds / 60)
-  const s = Math.floor(seconds % 60)
-  return `${m}:${s.toString().padStart(2, '0')}`
-}
-
-function contactLabel(conv: Conversation): string {
-  if (conv.displayName) return conv.displayName
-  const id = conv.chatId || conv.participants?.[0]?.address || conv.guid
-  if (id.startsWith('+1') && id.length === 12) {
-    return `(${id.slice(2, 5)}) ${id.slice(5, 8)}-${id.slice(8)}`
-  }
-  if (id.startsWith('+') && id.length > 10) {
-    const digits = id.replace(/\D/g, '')
-    if (digits.length === 11 && digits.startsWith('1')) {
-      return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`
-    }
-    return id
-  }
-  return id
-}
-
-function hashColor(str: string): string {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
-}
+const contactLabel = formatContactLabel
 
 function isIMessage(conv: Conversation): boolean {
   const svc = conv.service?.toLowerCase() || ''
@@ -226,19 +178,6 @@ function isGroupChat(conv: Conversation): boolean {
   return (conv.participants?.length ?? 0) > 1
 }
 
-function generateWaveformBars(seed: string, count = 32): number[] {
-  let hash = 0
-  for (let i = 0; i < seed.length; i++) {
-    hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0
-  }
-  return Array.from({ length: count }, (_, i) => {
-    hash = (hash * 1103515245 + 12345) & 0x7fffffff
-    const random = (hash % 100) / 100
-    const envelope = Math.sin((i / count) * Math.PI) * 0.5 + 0.5
-    return 0.12 + random * 0.88 * envelope
-  })
-}
-
 function renderTextWithLinks(text: string, fromMe: boolean): React.ReactNode[] {
   const parts: React.ReactNode[] = []
   let lastIndex = 0
@@ -255,7 +194,7 @@ function renderTextWithLinks(text: string, fromMe: boolean): React.ReactNode[] {
       <a key={match.index} href={url} target="_blank" rel="noopener noreferrer"
         onClick={e => e.stopPropagation()}
         style={{
-          color: fromMe ? 'rgba(255,255,255,0.95)' : '#007aff',
+          color: fromMe ? 'rgba(255,255,255,0.95)' : 'var(--apple-blue)',
           textDecoration: 'underline',
           textDecorationStyle: 'dotted' as const,
           textUnderlineOffset: '2px',
@@ -275,577 +214,76 @@ function renderTextWithLinks(text: string, fromMe: boolean): React.ReactNode[] {
   return parts.length > 0 ? parts : [text]
 }
 
-/* ─── LinkPreviewCard — rich OG preview like iMessage ────────────────── */
-
-const linkPreviewCache = new Map<string, { title: string; description: string; image: string; siteName: string }>()
-
-function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
-  const [meta, setMeta] = useState<{ title: string; description: string; image: string; siteName: string } | null>(
-    linkPreviewCache.get(url) || null
-  )
-  const [imgError, setImgError] = useState(false)
-
-  useEffect(() => {
-    if (linkPreviewCache.has(url)) { setMeta(linkPreviewCache.get(url)!); return }
-    let cancelled = false
-    api.get<{ title: string; description: string; image: string; siteName: string; error?: string }>(`/api/messages/link-preview?url=${encodeURIComponent(url)}`)
-      .then(data => {
-        if (cancelled || data.error) return
-        linkPreviewCache.set(url, data)
-        setMeta(data)
-      })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [url])
-
-  if (!meta) {
-    // Fallback: just show domain
-    let domain = ''
-    try { domain = new URL(url).hostname.replace(/^www\./, '') } catch { return null }
-    return (
-      <a href={url} target="_blank" rel="noopener noreferrer"
-        onClick={e => e.stopPropagation()}
-        style={{
-          display: 'flex', alignItems: 'center', gap: '8px',
-          padding: '8px 10px', marginTop: '4px',
-          background: fromMe ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)',
-          borderRadius: '10px', textDecoration: 'none',
-          border: fromMe ? '1px solid rgba(255,255,255,0.15)' : '1px solid var(--border)',
-          maxWidth: '100%', overflow: 'hidden',
-        }}
-      >
-        <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`} alt=""
-          style={{ width: '16px', height: '16px', borderRadius: '3px', flexShrink: 0 }}
-          onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-        />
-        <span style={{ fontSize: '11px', fontWeight: 600, color: fromMe ? 'rgba(255,255,255,0.8)' : 'var(--text-primary)' }}>
-          {domain}
-        </span>
-      </a>
-    )
-  }
-
-  const hasImage = meta.image && !imgError
-
-  return (
-    <a href={url} target="_blank" rel="noopener noreferrer"
-      onClick={e => e.stopPropagation()}
-      style={{
-        display: 'flex', flexDirection: 'column',
-        marginTop: '4px', borderRadius: '12px', overflow: 'hidden',
-        background: fromMe ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)',
-        border: fromMe ? '1px solid rgba(255,255,255,0.12)' : '1px solid var(--border)',
-        textDecoration: 'none', maxWidth: '280px',
-        transition: 'background 0.15s',
-      }}
-    >
-      {/* OG Image */}
-      {hasImage && (
-        <img src={meta.image} alt="" style={{
-          width: '100%', height: '140px', objectFit: 'cover', display: 'block',
-        }} onError={() => setImgError(true)} />
-      )}
-
-      {/* Text content */}
-      <div style={{ padding: '8px 10px' }}>
-        <div style={{
-          fontSize: '10px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.03em',
-          color: fromMe ? 'rgba(255,255,255,0.45)' : 'var(--text-muted)',
-          marginBottom: '2px',
+/** Wrap matching substrings in <mark> for in-conversation search highlighting */
+function highlightSearchText(
+  nodes: React.ReactNode[],
+  query: string,
+  isActiveMatch: boolean,
+): React.ReactNode[] {
+  if (!query) return nodes
+  const q = query.toLowerCase()
+  let keyCounter = 0
+  return nodes.map(node => {
+    if (typeof node !== 'string') return node
+    const parts: React.ReactNode[] = []
+    let remaining = node
+    let lower = remaining.toLowerCase()
+    let idx = lower.indexOf(q)
+    while (idx !== -1) {
+      if (idx > 0) parts.push(remaining.slice(0, idx))
+      parts.push(
+        <mark key={`hl-${keyCounter++}`} style={{
+          background: isActiveMatch ? 'rgba(255,204,0,0.5)' : 'rgba(255,204,0,0.25)',
+          color: 'inherit',
+          borderRadius: '2px',
+          padding: '0 1px',
         }}>
-          {meta.siteName}
-        </div>
-        {meta.title && (
-          <div style={{
-            fontSize: '12px', fontWeight: 600, lineHeight: 1.3,
-            color: fromMe ? 'rgba(255,255,255,0.9)' : 'var(--text-primary)',
-            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
-            overflow: 'hidden',
-          }}>
-            {meta.title}
-          </div>
-        )}
-        {meta.description && (
-          <div style={{
-            fontSize: '11px', lineHeight: 1.3, marginTop: '2px',
-            color: fromMe ? 'rgba(255,255,255,0.55)' : 'var(--text-secondary)',
-            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
-            overflow: 'hidden',
-          }}>
-            {meta.description}
-          </div>
-        )}
-      </div>
-    </a>
-  )
-}
-
-/* ─── ContactAvatar ─────────────────────────────────────────────────────── */
-
-// Module-level avatar cache — persists across re-renders, cleared on page refresh
-const avatarCache = new Map<string, 'ok' | 'miss'>()
-
-// Batch-check which addresses have avatars (called once per conversation list load)
-let batchCheckPromise: Promise<void> | null = null
-function ensureAvatarBatchCheck(addresses: string[]) {
-  const unchecked = addresses.filter(a => a && !avatarCache.has(a))
-  if (unchecked.length === 0 || batchCheckPromise) return
-  batchCheckPromise = api.post<{ available?: string[] }>('/api/messages/avatar', { addresses: unchecked })
-    .then(data => {
-      const available = new Set(data.available || [])
-      for (const addr of unchecked) {
-        avatarCache.set(addr, available.has(addr) ? 'ok' : 'miss')
-      }
-    })
-    .catch(() => {
-      // On failure, mark all as miss to avoid retry storm
-      for (const addr of unchecked) avatarCache.set(addr, 'miss')
-    })
-    .finally(() => { batchCheckPromise = null })
-}
-
-function ContactAvatar({ address, name, isImsg, size = 40 }: {
-  address: string
-  name?: string | null
-  isImsg?: boolean
-  size?: number
-}) {
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
-  const hasSavedName = !!name
-  const initial = hasSavedName ? name!.charAt(0).toUpperCase() : null
-  const bgColor = hashColor(address || name || 'default')
-
-  useEffect(() => {
-    setPhotoUrl(null)
-    if (!address) return
-    // Skip fetch if we already know there's no avatar
-    const cached = avatarCache.get(address)
-    if (cached === 'miss') return
-
-    let cancelled = false
-    const url = `${API_BASE}/api/messages/avatar?address=${encodeURIComponent(address)}`
-    const img = new Image()
-    img.onload = () => {
-      if (!cancelled) { setPhotoUrl(url); avatarCache.set(address, 'ok') }
+          {remaining.slice(idx, idx + query.length)}
+        </mark>
+      )
+      remaining = remaining.slice(idx + query.length)
+      lower = remaining.toLowerCase()
+      idx = lower.indexOf(q)
     }
-    img.onerror = () => {
-      if (!cancelled) { setPhotoUrl(null); avatarCache.set(address, 'miss') }
-    }
-    img.src = url
-    return () => { cancelled = true }
-  }, [address])
-
-  if (photoUrl) {
-    return (
-      <div style={{
-        width: `${size}px`, height: `${size}px`, borderRadius: '50%', flexShrink: 0,
-        overflow: 'hidden',
-      }}>
-        <img src={photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-      </div>
-    )
-  }
-
-  return (
-    <div style={{
-      width: `${size}px`, height: `${size}px`, borderRadius: '50%', flexShrink: 0,
-      background: isImsg !== undefined
-        ? (isImsg ? 'linear-gradient(135deg, #5ac8fa, #007aff)' : 'linear-gradient(135deg, #34c759, #30b04e)')
-        : bgColor,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: '#fff',
-    }}>
-      {initial ? (
-        <span style={{ fontSize: `${Math.round(size * 0.38)}px`, fontWeight: 700 }}>{initial}</span>
-      ) : (
-        <User size={Math.round(size * 0.48)} strokeWidth={2} />
-      )}
-    </div>
-  )
-}
-
-/* ─── GroupAvatar ─────────────────────────────────────────────────────────── */
-
-function GroupAvatar({ conv, size = 40 }: { conv: Conversation; size?: number }) {
-  const parts = conv.participants || []
-  if (parts.length <= 1) {
-    const addr = conv.chatId || parts[0]?.address || ''
-    return <ContactAvatar address={addr} name={conv.displayName} isImsg={isIMessage(conv)} size={size} />
-  }
-
-  if (parts.length === 2) {
-    const s = Math.round(size * 0.65)
-    return (
-      <div style={{ width: `${size}px`, height: `${size}px`, position: 'relative', flexShrink: 0 }}>
-        <div style={{ position: 'absolute', top: 0, left: 0 }}>
-          <ContactAvatar address={parts[0].address} size={s} />
-        </div>
-        <div style={{ position: 'absolute', bottom: 0, right: 0, border: '2px solid var(--bg-panel)', borderRadius: '50%' }}>
-          <ContactAvatar address={parts[1].address} size={s} />
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div style={{
-      width: `${size}px`, height: `${size}px`, borderRadius: '50%', flexShrink: 0,
-      background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: '#fff',
-    }}>
-      <Users size={Math.round(size * 0.44)} strokeWidth={2} />
-    </div>
-  )
-}
-
-/* ─── AudioWaveform ──────────────────────────────────────────────────────── */
-
-function AudioWaveform({ src, fromMe, guid }: { src: string; fromMe: boolean; guid: string }) {
-  const audioRef = useRef<HTMLAudioElement>(null)
-  const animRef = useRef(0)
-  const [playing, setPlaying] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [duration, setDuration] = useState(0)
-  const bars = useMemo(() => generateWaveformBars(guid), [guid])
-
-  useEffect(() => {
-    const audio = audioRef.current
-    if (!audio) return
-    const onMeta = () => setDuration(audio.duration)
-    const onEnded = () => { setPlaying(false); setProgress(0) }
-    audio.addEventListener('loadedmetadata', onMeta)
-    audio.addEventListener('ended', onEnded)
-    return () => {
-      audio.removeEventListener('loadedmetadata', onMeta)
-      audio.removeEventListener('ended', onEnded)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!playing) { cancelAnimationFrame(animRef.current); return }
-    function tick() {
-      const a = audioRef.current
-      if (a && a.duration) setProgress(a.currentTime / a.duration)
-      animRef.current = requestAnimationFrame(tick)
-    }
-    animRef.current = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(animRef.current)
-  }, [playing])
-
-  function toggle() {
-    const a = audioRef.current
-    if (!a) return
-    if (playing) { a.pause(); setPlaying(false) }
-    else { a.play(); setPlaying(true) }
-  }
-
-  function seek(e: React.MouseEvent<HTMLDivElement>) {
-    const a = audioRef.current
-    if (!a || !a.duration) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-    a.currentTime = x * a.duration
-    setProgress(x)
-  }
-
-  const active = fromMe ? 'rgba(255,255,255,0.9)' : '#007aff'
-  const dim = fromMe ? 'rgba(255,255,255,0.25)' : 'rgba(120,120,140,0.3)'
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', minWidth: '200px' }}>
-      <button onClick={toggle} aria-label={playing ? 'Pause audio' : 'Play audio'} style={{
-        width: '30px', height: '30px', borderRadius: '50%',
-        background: fromMe ? 'rgba(255,255,255,0.18)' : 'rgba(0,122,255,0.12)',
-        border: 'none', cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: active, flexShrink: 0,
-        transition: 'transform 0.15s var(--ease-spring)',
-      }}>
-        {playing ? <Pause size={13} /> : <Play size={13} style={{ marginLeft: '2px' }} />}
-      </button>
-      <div onClick={seek} style={{
-        flex: 1, display: 'flex', alignItems: 'center', gap: '1.5px',
-        height: '32px', cursor: 'pointer',
-      }}>
-        {bars.map((h, i) => (
-          <div key={i} style={{
-            width: '3px', flexShrink: 0,
-            height: `${h * 100}%`,
-            borderRadius: '1.5px',
-            background: i / bars.length <= progress ? active : dim,
-            transition: 'background 0.1s',
-          }} />
-        ))}
-      </div>
-      <span style={{
-        fontSize: '10px', minWidth: '30px', textAlign: 'right',
-        color: fromMe ? 'rgba(255,255,255,0.6)' : 'var(--text-secondary)',
-        fontFamily: "'JetBrains Mono', monospace",
-      }}>
-        {formatDuration(playing ? (audioRef.current?.currentTime || 0) : duration)}
-      </span>
-      <audio ref={audioRef} src={src} preload="metadata" />
-    </div>
-  )
-}
-
-/* ─── ReactionPills ──────────────────────────────────────────────────────── */
-
-function ReactionPills({ reactions, fromMe }: { reactions: Reaction[]; fromMe: boolean }) {
-  if (!reactions || reactions.length === 0) return null
-
-  const grouped = new Map<number, number>()
-  for (const r of reactions) {
-    grouped.set(r.type, (grouped.get(r.type) || 0) + 1)
-  }
-
-  return (
-    <div style={{
-      display: 'flex', gap: '4px',
-      justifyContent: fromMe ? 'flex-end' : 'flex-start',
-      marginTop: '-6px',
-      paddingBottom: '2px',
-      paddingLeft: fromMe ? '0' : '12px',
-      paddingRight: fromMe ? '12px' : '0',
-    }}>
-      {Array.from(grouped.entries()).map(([type, count]) => (
-        <div key={type} style={{
-          display: 'flex', alignItems: 'center', gap: '2px',
-          background: 'var(--bg-elevated)',
-          border: '1px solid var(--border)',
-          borderRadius: '12px',
-          padding: '2px 6px',
-          fontSize: '12px', lineHeight: 1,
-          animation: 'emojiPop 0.25s var(--ease-spring)',
-        }}>
-          <span>{REACTION_EMOJI[type] || '?'}</span>
-          {count > 1 && (
-            <span style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-              {count}
-            </span>
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-/* ─── VideoThumbnail ─────────────────────────────────────────────────────── */
-
-function VideoThumbnail({ src, br, onClick }: {
-  src: string
-  br: { topLeft: string; topRight: string; bottomRight: string; bottomLeft: string }
-  onClick: () => void
-}) {
-  const radius = `${br.topLeft} ${br.topRight} ${br.bottomRight} ${br.bottomLeft}`
-  const vidRef = useRef<HTMLVideoElement>(null)
-  const [ready, setReady] = useState(false)
-
-  useEffect(() => {
-    const v = vidRef.current
-    if (!v) return
-    const onLoaded = () => {
-      if (v.duration > 0.5) v.currentTime = 0.5
-      else v.currentTime = 0.01
-    }
-    const onSeeked = () => setReady(true)
-    v.addEventListener('loadeddata', onLoaded)
-    v.addEventListener('seeked', onSeeked)
-    return () => {
-      v.removeEventListener('loadeddata', onLoaded)
-      v.removeEventListener('seeked', onSeeked)
-    }
-  }, [src])
-
-  return (
-    <div style={{ position: 'relative', cursor: 'pointer' }}
-      onClick={e => { e.stopPropagation(); onClick() }}>
-      <video
-        ref={vidRef}
-        src={src}
-        preload="auto"
-        muted
-        playsInline
-        style={{
-          maxWidth: '280px', maxHeight: '320px', borderRadius: radius,
-          display: ready ? 'block' : 'none',
-        }}
-      />
-      {!ready && (
-        <div style={{
-          width: '240px', height: '160px', borderRadius: radius,
-          background: 'linear-gradient(135deg, #1a1a2e, #2a2a3e)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }} />
-      )}
-      <div style={{
-        position: 'absolute', inset: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: ready ? 'rgba(0,0,0,0.15)' : 'transparent',
-        borderRadius: radius, pointerEvents: 'none',
-      }}>
-        <div style={{
-          width: '44px', height: '44px', borderRadius: '50%',
-          background: 'rgba(255,255,255,0.9)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-        }}>
-          <div style={{
-            width: 0, height: 0,
-            borderTop: '10px solid transparent', borderBottom: '10px solid transparent',
-            borderLeft: '16px solid #333', marginLeft: '3px',
-          }} />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ─── MessageMenu ────────────────────────────────────────────────────────── */
-
-function MessageMenu({ x, y, msg, onReact, onReply, onCopy, onClose }: {
-  x: number; y: number
-  msg: Message
-  onReact: (reaction: string) => void
-  onReply: () => void
-  onCopy: () => void
-  onClose: () => void
-}) {
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const click = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
-    }
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('mousedown', click)
-    document.addEventListener('keydown', esc)
-    return () => {
-      document.removeEventListener('mousedown', click)
-      document.removeEventListener('keydown', esc)
-    }
-  }, [onClose])
-
-  const menuW = 280
-  const clampedX = Math.max(8, Math.min(x - menuW / 2, window.innerWidth - menuW - 8))
-  const clampedY = Math.max(8, y - 108)
-
-  return (
-    <>
-      <div onClick={onClose} style={{
-        position: 'fixed', inset: 0, zIndex: 998,
-        background: 'rgba(0,0,0,0.25)',
-        backdropFilter: 'blur(2px)',
-        WebkitBackdropFilter: 'blur(2px)',
-        animation: 'fadeIn 0.12s ease-out',
-      }} />
-
-      <div ref={ref} style={{
-        position: 'fixed', left: clampedX, top: clampedY, zIndex: 999,
-        display: 'flex', flexDirection: 'column', gap: '6px',
-        animation: 'menuIn 0.2s var(--ease-spring)',
-      }}>
-        <div style={{
-          background: 'rgba(30,30,38,0.85)',
-          backdropFilter: 'blur(40px)',
-          WebkitBackdropFilter: 'blur(40px)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: '28px',
-          padding: '6px 8px',
-          display: 'flex', gap: '2px',
-          boxShadow: '0 12px 48px rgba(0,0,0,0.6)',
-        }}>
-          {REACTION_NAMES.map((r, i) => (
-            <button
-              key={r.key}
-              onClick={() => onReact(r.key)}
-              style={{
-                background: 'transparent', border: 'none', borderRadius: '50%',
-                width: '40px', height: '36px', fontSize: '22px',
-                cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                animation: `emojiPop 0.3s var(--ease-spring) ${i * 0.04}s both`,
-                transition: 'transform 0.15s var(--ease-spring)',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.35)' }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
-            >
-              {r.emoji}
-            </button>
-          ))}
-        </div>
-
-        <div style={{
-          background: 'rgba(30,30,38,0.85)',
-          backdropFilter: 'blur(40px)',
-          WebkitBackdropFilter: 'blur(40px)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: '12px',
-          padding: '4px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-        }}>
-          <MButton icon={<CornerUpLeft size={16} />} label="Reply" onClick={onReply} />
-          {msg.text && <MButton icon={<Copy size={16} />} label="Copy" onClick={onCopy} />}
-        </div>
-      </div>
-    </>
-  )
-}
-
-function MButton({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: 'flex', alignItems: 'center', gap: '10px',
-        width: '100%', padding: '10px 14px',
-        background: 'transparent', border: 'none',
-        color: 'var(--text-primary)', fontSize: '13px', fontWeight: 500,
-        cursor: 'pointer', borderRadius: '8px',
-        transition: 'background 0.1s',
-      }}
-      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
-      onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-    >
-      <span style={{ color: 'var(--text-secondary)', display: 'flex' }}>{icon}</span>
-      {label}
-    </button>
-  )
+    if (remaining) parts.push(remaining)
+    return parts.length > 0 ? parts : node
+  }).flat()
 }
 
 /* ─── Main Page ─────────────────────────────────────────────────────────── */
 
 export default function MessagesPage() {
-  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [searchParams, setSearchParams] = useSearchParams()
   const [messages, setMessages] = useState<Message[]>([])
-  const [contactLookup, setContactLookup] = useState<Record<string, string>>({})
   const [selected, setSelected] = useState<Conversation | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [panelWidth, setPanelWidth] = useState(340)
+  const isDraggingRef = useRef(false)
   const [msgsLoading, setMsgsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const draftRef = useRef('')
-  const [hasDraft, setHasDraft] = useState(false) // only tracks empty vs non-empty for send button
-  const [sending, setSending] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const hasMoreRef = useRef(true)
-  const [attachmentFile, setAttachmentFile] = useState<File | null>(null)
-  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [serviceFilter, setServiceFilter] = useState<ServiceFilter>('all')
-  const [searchQuery, setSearchQuery] = useState('')
 
   const [lightbox, setLightbox] = useState<LightboxData>(null)
-  const [loupe, setLoupe] = useState<{ x: number; y: number; zoom: number } | null>(null)
-  const loupeRef = useRef<{ x: number; y: number; zoom: number } | null>(null)
-  const minZoomRef = useRef(0.5)
-  const imgRef = useRef<HTMLImageElement>(null)
 
   const [messageMenu, setMessageMenu] = useState<MessageMenuState | null>(null)
-  const [replyTo, setReplyTo] = useState<Message | null>(null)
   const [selectMode, setSelectMode] = useState(false)
   const [selectedConvs, setSelectedConvs] = useState<Set<string>>(new Set())
   const [convCtx, setConvCtx] = useState<ConvContextMenu | null>(null)
+  const [focusedConvIndex, setFocusedConvIndex] = useState(-1)
+  const [composeMode, setComposeMode] = useState(false)
+  const [composeTo, setComposeTo] = useState('')
+  const [composeSending, setComposeSending] = useState(false)
+  const composeInputRef = useRef<HTMLTextAreaElement>(null)
+  const composeDraftRef = useRef('')
+  const [composeHasDraft, setComposeHasDraft] = useState(false)
+
+  /* ── Drag-and-drop state ── */
+  const [dragOver, setDragOver] = useState(false)
+
+  /* ── Message search state ── */
+  const [showMessageSearch, setShowMessageSearch] = useState(false)
+  const [messageSearch, setMessageSearch] = useState('')
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isNearBottomRef = useRef(true)
@@ -854,18 +292,131 @@ export default function MessagesPage() {
   const scrollDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const selectedGuidRef = useRef<string | null>(null)
+  // Track the newest message timestamp per conversation for delta sync
+  const newestTsMap = useRef<Record<string, number>>({})
 
-  // Notification toast with stacking
-  const [toast, setToast] = useState<{ sender: string; text: string; chatGuid?: string; count: number } | null>(null)
-  const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /* ── Custom hooks ── */
 
-  // Request notification permission on mount
-  useEffect(() => {
-    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      Notification.requestPermission().catch(() => {})
+  const {
+    conversations, setConversations,
+    contactLookup, setContactLookup,
+    loading, error, setError,
+    searchQuery, setSearchQuery,
+    serviceFilter, setServiceFilter,
+    showJunk, setShowJunk,
+    loadingMoreConvs,
+    convListRef,
+    filteredConversations,
+    fetchConversations,
+    handleConvListScroll,
+    mutedConvs, setMutedConvs,
+    pinnedConvs, setPinnedConvs,
+  } = useConversationList()
+
+  // Keep a ref so SSE handler can read muted state without re-subscribing
+  const mutedConvsRef = useRef(mutedConvs)
+  mutedConvsRef.current = mutedConvs
+
+  const fetchMessages = useCallback(async (conv: Conversation, silent = false) => {
+    try {
+      if (!silent) setMsgsLoading(true)
+      // Delta sync: on silent refreshes, only fetch messages newer than the
+      // last known timestamp for this conversation.
+      const sinceTs = silent ? newestTsMap.current[conv.guid] : undefined
+      let url = `/api/messages?conversation=${encodeURIComponent(conv.guid)}&limit=50`
+      if (sinceTs) url += `&since=${sinceTs}`
+
+      const data = await api.get<{ messages?: Message[]; contacts?: Record<string, string>; newestTimestamp?: number }>(url)
+      // Guard: only apply if we're still viewing this conversation
+      if (selectedGuidRef.current === conv.guid) {
+        const incoming = data.messages ?? []
+        if (sinceTs && incoming.length > 0) {
+          // Delta: append only genuinely new messages
+          setMessages(prev => {
+            const existingGuids = new Set(prev.map(m => m.guid))
+            const fresh = incoming.filter(m => !existingGuids.has(m.guid))
+            return fresh.length > 0 ? [...prev, ...fresh] : prev
+          })
+        } else {
+          // Full load (initial or non-silent)
+          setMessages(incoming)
+        }
+        if (data.contacts) setContactLookup(prev => ({ ...prev, ...data.contacts }))
+      }
+      // Track newest timestamp for next delta sync
+      if (data.newestTimestamp) {
+        newestTsMap.current[conv.guid] = data.newestTimestamp
+      }
+    } catch {
+      if (!silent && selectedGuidRef.current === conv.guid) setMessages([])
+    } finally {
+      if (!silent) setMsgsLoading(false)
     }
-  }, [])
+  }, [setContactLookup])
+
+  const {
+    hasDraft,
+    sending,
+    attachmentFile,
+    attachmentPreview,
+    replyTo, setReplyTo,
+    clearAttachment,
+    handleDraftChange,
+    handleSend: sendMessage,
+    handlePaste,
+    handleFileSelect,
+    attachFile,
+    retryMessage,
+    dismissFailedMessage,
+    resetCompose,
+  } = useMessageCompose({
+    selected,
+    inputRef,
+    fileInputRef,
+    pendingScrollRef,
+    setMessages,
+    fetchMessages,
+  })
+
+  const contactLookupRef = useRef(contactLookup)
+  contactLookupRef.current = contactLookup
+
+  const { sseConnected, toast, dismissToast } = useMessagesSSE({
+    selectedGuidRef,
+    mutedConvsRef,
+    contactLookupRef,
+    onNewMessage: useCallback((msg: any, msgChats: string[]) => {
+      // Update the newest timestamp so the next delta sync skips this message
+      if (msg.dateCreated) {
+        for (const cg of msgChats) {
+          const prev = newestTsMap.current[cg] ?? 0
+          if (msg.dateCreated > prev) newestTsMap.current[cg] = msg.dateCreated
+        }
+      }
+      if (selectedGuidRef.current && msgChats.includes(selectedGuidRef.current)) {
+        setMessages(prev => {
+          if (prev.some(m => m.guid === msg.guid)) return prev
+          const tempIdx = msg.isFromMe
+            ? prev.findIndex(m => m.guid.startsWith('temp-') && m.text === msg.text)
+            : -1
+          if (tempIdx >= 0) {
+            const next = [...prev]
+            next[tempIdx] = msg
+            return next
+          }
+          return [...prev, msg]
+        })
+      }
+    }, []),
+    onUpdateMessage: useCallback((msg: any) => {
+      setMessages(prev => prev.map(m => m.guid === msg.guid ? { ...m, ...msg } : m))
+    }, []),
+    onRefreshConvos: useCallback(() => {
+      fetchConversations(true)
+    }, [fetchConversations]),
+  })
 
   /* ── Scroll helpers ── */
 
@@ -923,6 +474,31 @@ export default function MessagesPage() {
     }
   }, [loadOlderMessages]) // stable — loadOlderMessages is stable
 
+  // Resizable panel drag handler
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    isDraggingRef.current = true
+    const startX = e.clientX
+    const startWidth = panelWidth
+    const onMove = (ev: MouseEvent) => {
+      const newWidth = Math.max(72, Math.min(600, startWidth + ev.clientX - startX))
+      setPanelWidth(newWidth)
+    }
+    const onUp = () => {
+      isDraggingRef.current = false
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      // Snap to avatar-only if text is fully faded out
+      setPanelWidth(prev => prev > 72 && prev < 90 ? 72 : prev)
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [panelWidth])
+
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     const doScroll = () => {
       const el = scrollContainerRef.current
@@ -946,53 +522,7 @@ export default function MessagesPage() {
     }
   }, [])
 
-  /* ── Data fetching ── */
-
-  const fetchConversations = useCallback(async (silent = false) => {
-    try {
-      if (!silent) setLoading(true)
-      const data = await api.get<{ conversations?: Conversation[]; contacts?: Record<string, string>; error?: string }>('/api/messages?limit=100')
-      if (data.error) {
-        if (!silent) setError(data.error)
-      } else {
-        const convs = data.conversations ?? []
-        setConversations(convs)
-        if (data.contacts) setContactLookup(prev => {
-          const keys = Object.keys(data.contacts)
-          if (keys.every(k => prev[k] === data.contacts[k])) return prev
-          return { ...prev, ...data.contacts }
-        })
-        if (!silent) setError(null)
-        // Batch-check avatars for all visible contacts
-        const allAddresses = convs.flatMap((c: Conversation) =>
-          (c.participants || []).map((p: { address: string }) => p.address).filter(Boolean)
-        )
-        if (allAddresses.length > 0) ensureAvatarBatchCheck(allAddresses)
-      }
-    } catch (e) {
-      if (!silent) setError(e instanceof Error ? e.message : 'Failed to fetch')
-    } finally {
-      if (!silent) setLoading(false)
-    }
-  }, [])
-
-  const fetchMessages = useCallback(async (conv: Conversation, silent = false) => {
-    try {
-      if (!silent) setMsgsLoading(true)
-      const data = await api.get<{ messages?: Message[]; contacts?: Record<string, string> }>(`/api/messages?conversation=${encodeURIComponent(conv.guid)}&limit=50`)
-      // Guard: only apply if we're still viewing this conversation
-      if (selectedGuidRef.current === conv.guid) {
-        setMessages(data.messages ?? [])
-        if (data.contacts) setContactLookup(prev => ({ ...prev, ...data.contacts }))
-      }
-    } catch {
-      if (!silent && selectedGuidRef.current === conv.guid) setMessages([])
-    } finally {
-      if (!silent) setMsgsLoading(false)
-    }
-  }, [])
-
-  useEffect(() => { fetchConversations() }, [fetchConversations])
+  /* ── Conversation selection ── */
 
   useEffect(() => {
     if (selected) {
@@ -1000,13 +530,8 @@ export default function MessagesPage() {
       selectedGuidRef.current = selected.guid
       if (isSwitch) {
         pendingScrollRef.current = 'instant'
-        setReplyTo(null)
         hasMoreRef.current = true
-        setAttachmentFile(null)
-        setAttachmentPreview(null)
-        draftRef.current = ''
-        setHasDraft(false)
-        if (inputRef.current) { inputRef.current.value = ''; inputRef.current.style.height = 'auto' }
+        resetCompose()
       }
       fetchMessages(selected)
       inputRef.current?.focus()
@@ -1018,7 +543,66 @@ export default function MessagesPage() {
         ))
       }
     }
-  }, [selected, fetchMessages])
+  }, [selected, fetchMessages, resetCompose, setConversations])
+
+  /* ── Sync selected conversation → URL search params ── */
+
+  useEffect(() => {
+    const current = searchParams.get('chat')
+    if (selected) {
+      if (current !== selected.guid) setSearchParams({ chat: selected.guid }, { replace: true })
+    } else {
+      if (current) setSearchParams({}, { replace: true })
+    }
+  }, [selected, searchParams, setSearchParams])
+
+  /* ── Restore selection from URL on mount (once conversations load) ── */
+
+  const restoredFromUrl = useRef(false)
+  useEffect(() => {
+    if (restoredFromUrl.current || conversations.length === 0) return
+    const chatGuid = searchParams.get('chat')
+    if (!chatGuid) { restoredFromUrl.current = true; return }
+    const match = conversations.find(c => c.guid === chatGuid)
+    if (match) {
+      setSelected(match)
+      restoredFromUrl.current = true
+    }
+  }, [conversations, searchParams])
+
+  /* ── Feed conversations to command palette ── */
+
+  useEffect(() => {
+    setRecentConversations(conversations)
+    return () => { setRecentConversations([]) }
+  }, [conversations])
+
+  /* ── Handle command palette params (compose, open) ── */
+
+  const handledPaletteParams = useRef(false)
+  useEffect(() => {
+    if (handledPaletteParams.current || conversations.length === 0) return
+    const composeParam = searchParams.get('compose')
+    const openParam = searchParams.get('open')
+
+    if (composeParam === '1') {
+      setComposeMode(true)
+      setComposeTo('')
+      composeDraftRef.current = ''
+      setComposeHasDraft(false)
+      setSelected(null)
+      setSearchParams({}, { replace: true })
+      handledPaletteParams.current = true
+    } else if (openParam) {
+      const match = conversations.find(c => c.guid === openParam)
+      if (match) {
+        setSelected(match)
+        setComposeMode(false)
+        setSearchParams({ chat: match.guid }, { replace: true })
+        handledPaletteParams.current = true
+      }
+    }
+  }, [conversations, searchParams, setSearchParams])
 
   const prevMsgCountRef = useRef(0)
   useEffect(() => {
@@ -1029,199 +613,43 @@ export default function MessagesPage() {
 
     if (behavior) {
       scrollToBottom(behavior)
+      // Re-scroll after media loads (images/videos shift layout)
+      if (behavior === 'instant') {
+        const t1 = setTimeout(() => scrollToBottom('instant'), 300)
+        const t2 = setTimeout(() => scrollToBottom('instant'), 800)
+        return () => { clearTimeout(t1); clearTimeout(t2) }
+      }
     } else if (grew && isNearBottomRef.current) {
-      // Only auto-scroll when new messages are added, not on updates
       scrollToBottom('smooth')
     }
   }, [messages, scrollToBottom])
 
-  // SSE
-  useEffect(() => {
-    let es: EventSource | null = null
-    let retryTimeout: ReturnType<typeof setTimeout> | null = null
-    let retryDelay = 3000
-    let sseConnected = false
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null
-
-    function debouncedRefreshConvos() {
-      if (debounceTimer) clearTimeout(debounceTimer)
-      debounceTimer = setTimeout(() => fetchConversations(true), 2000)
-    }
-
-    function connect() {
-      es = new EventSource(`${API_BASE}/api/messages/stream`)
-      es.onmessage = (ev) => {
-        try {
-          const event = JSON.parse(ev.data)
-          if (event.type === 'connected') {
-            sseConnected = true
-            retryDelay = 3000
-          } else if (event.type === 'new-message') {
-            const msg = event.data
-            const msgChats = msg.chats?.map((c: { guid: string }) => c.guid) ?? []
-            if (selectedGuidRef.current && msgChats.includes(selectedGuidRef.current)) {
-              setMessages(prev => {
-                if (prev.some(m => m.guid === msg.guid)) return prev
-                // Replace optimistic temp message if this is the real version
-                const tempIdx = msg.isFromMe
-                  ? prev.findIndex(m => m.guid.startsWith('temp-') && m.text === msg.text)
-                  : -1
-                if (tempIdx >= 0) {
-                  const next = [...prev]
-                  next[tempIdx] = msg
-                  return next
-                }
-                return [...prev, msg]
-              })
-            }
-            // Notification for incoming messages
-            if (!msg.isFromMe) {
-              const senderAddr = msg.handle?.address || ''
-              const preview = cleanPayloadText(msg.text).slice(0, 80) || 'New message'
-
-              // Play notification chime
-              try {
-                const ctx = new AudioContext()
-                const osc = ctx.createOscillator()
-                const gain = ctx.createGain()
-                osc.connect(gain)
-                gain.connect(ctx.destination)
-                osc.type = 'sine'
-                osc.frequency.setValueAtTime(880, ctx.currentTime)
-                osc.frequency.setValueAtTime(1175, ctx.currentTime + 0.08)
-                osc.frequency.setValueAtTime(1318, ctx.currentTime + 0.16)
-                gain.gain.setValueAtTime(0.08, ctx.currentTime)
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35)
-                osc.start(ctx.currentTime)
-                osc.stop(ctx.currentTime + 0.35)
-              } catch { /* audio not available */ }
-
-              // Browser notification (when tab not focused)
-              if (typeof Notification !== 'undefined' && document.hidden && Notification.permission === 'granted') {
-                new Notification(senderAddr, { body: preview, tag: 'mc-msg' })
-              }
-
-              // In-app toast — stack if same sender
-              if (toastTimeout.current) clearTimeout(toastTimeout.current)
-              setToast(prev => {
-                if (prev && prev.sender === senderAddr) {
-                  return { sender: senderAddr, text: preview, chatGuid: msgChats[0], count: prev.count + 1 }
-                }
-                return { sender: senderAddr, text: preview, chatGuid: msgChats[0], count: 1 }
-              })
-              toastTimeout.current = setTimeout(() => setToast(null), 4000)
-            }
-            debouncedRefreshConvos()
-          } else if (event.type === 'updated-message') {
-            const msg = event.data
-            setMessages(prev => prev.map(m => m.guid === msg.guid ? { ...m, ...msg } : m))
-          } else if (event.type === 'chat-read') {
-            debouncedRefreshConvos()
-          }
-        } catch { /* ignore */ }
-      }
-      es.onerror = () => {
-        sseConnected = false
-        es?.close()
-        retryTimeout = setTimeout(connect, retryDelay)
-        retryDelay = Math.min(retryDelay * 2, 30000)
-      }
-    }
-
-    connect()
-    const convPoll = setInterval(() => {
-      if (!sseConnected) fetchConversations(true)
-    }, 60000)
-
-    return () => {
-      es?.close()
-      if (retryTimeout) clearTimeout(retryTimeout)
-      if (debounceTimer) clearTimeout(debounceTimer)
-      clearInterval(convPoll)
-    }
-  }, [fetchConversations])
-
-  /* ── Lightbox / Loupe ── */
+  /* ── Escape key: close overlays or deselect conversation ── */
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setLightbox(null); setLoupe(null); setMessageMenu(null); setConvCtx(null) }
+      if (e.key === 'Escape') {
+        const target = e.target as HTMLElement
+        const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+        if (showMessageSearch) {
+          setShowMessageSearch(false); setMessageSearch(''); setActiveMatchIndex(0)
+        } else if (lightbox || messageMenu || convCtx) {
+          setLightbox(null); setMessageMenu(null); setConvCtx(null)
+        } else if (!isInput && composeMode) {
+          setComposeMode(false)
+          setPanelWidth(340)
+        } else if (!isInput && selected) {
+          setSelected(null)
+          selectedGuidRef.current = null
+          setFocusedConvIndex(-1)
+        }
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [])
+  }, [lightbox, messageMenu, convCtx, selected, showMessageSearch, composeMode])
 
-  useEffect(() => { loupeRef.current = loupe }, [loupe])
-
-  useEffect(() => {
-    if (!lightbox || lightbox.type !== 'image') return
-    const el = imgRef.current
-    if (!el) return
-    const handler = (e: WheelEvent) => {
-      if (!loupeRef.current) return
-      e.preventDefault()
-      setLoupe(l => l ? { ...l, zoom: Math.max(minZoomRef.current, Math.min(12, l.zoom - e.deltaY * 0.008)) } : null)
-    }
-    el.addEventListener('wheel', handler, { passive: false })
-    return () => el.removeEventListener('wheel', handler)
-  }, [lightbox])
-
-  /* ── Sending ── */
-
-  const clearAttachment = useCallback(() => {
-    if (attachmentPreview) URL.revokeObjectURL(attachmentPreview)
-    setAttachmentFile(null)
-    setAttachmentPreview(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
-  }, [attachmentPreview])
-
-  const sendMessage = useCallback(async () => {
-    const text = draftRef.current.trim()
-    const file = attachmentFile
-    if ((!text && !file) || !selected || sending) return
-    const replyGuid = replyTo?.guid || null
-    draftRef.current = ''
-    if (inputRef.current) { inputRef.current.value = ''; inputRef.current.style.height = 'auto' }
-    setHasDraft(false)
-    setReplyTo(null)
-    clearAttachment()
-    setSending(true)
-    pendingScrollRef.current = 'smooth'
-
-    const optimistic: Message = {
-      guid: `temp-${Date.now()}`,
-      text: text || (file ? `Sending ${file.name}...` : ''),
-      dateCreated: Date.now(),
-      isFromMe: true,
-      threadOriginatorGuid: replyGuid,
-    }
-    setMessages(prev => [...prev, optimistic])
-
-    try {
-      if (file) {
-        const formData = new FormData()
-        formData.append('chatGuid', selected.guid)
-        formData.append('attachment', file)
-        if (text) formData.append('message', text)
-        if (replyGuid) formData.append('selectedMessageGuid', replyGuid)
-        await fetch(`${API_BASE}/api/messages/send-attachment`, { method: 'POST', body: formData })
-      } else {
-        await api.post('/api/messages', {
-          chatGuid: selected.guid,
-          text,
-          ...(replyGuid ? { selectedMessageGuid: replyGuid } : {}),
-        })
-      }
-      setTimeout(() => fetchMessages(selected, true), 2000)
-    } catch {
-      setMessages(prev => prev.filter(m => m.guid !== optimistic.guid))
-      draftRef.current = text
-      if (inputRef.current) inputRef.current.value = text
-      setHasDraft(true)
-    } finally {
-      setSending(false)
-    }
-  }, [selected, sending, fetchMessages, replyTo, attachmentFile, clearAttachment])
+  /* ── Reactions ── */
 
   const sendReaction = useCallback(async (msgGuid: string, reaction: string) => {
     if (!selected) return
@@ -1240,76 +668,77 @@ export default function MessagesPage() {
 
   const toggleReadStatus = useCallback(async (convGuid: string, markUnread: boolean) => {
     setConvCtx(null)
-    setConversations(prev => prev.map(c =>
+    const prev = [...conversations]
+    setConversations(p => p.map(c =>
       c.guid === convGuid ? { ...c, isUnread: markUnread } : c
     ))
-    api.post('/api/messages/read', { chatGuid: convGuid, action: markUnread ? 'unread' : 'read' }).catch(() => {})
-  }, [])
+    api.post('/api/messages/read', { chatGuid: convGuid, action: markUnread ? 'unread' : 'read' })
+      .catch(() => setConversations(prev))
+  }, [conversations, setConversations])
 
   const batchMarkReadStatus = useCallback(async (action: 'read' | 'unread') => {
     const guids = Array.from(selectedConvs)
-    setConversations(prev => prev.map(c =>
+    const prev = [...conversations]
+    setConversations(p => p.map(c =>
       guids.includes(c.guid) ? { ...c, isUnread: action === 'unread' } : c
     ))
-    Promise.allSettled(guids.map(guid =>
+    const results = await Promise.allSettled(guids.map(guid =>
       api.post('/api/messages/read', { chatGuid: guid, action })
     ))
+    if (results.some(r => r.status === 'rejected')) {
+      setConversations(prev)
+    }
     setSelectedConvs(new Set())
     setSelectMode(false)
-  }, [selectedConvs])
+  }, [conversations, selectedConvs, setConversations])
 
-  const adjustTextarea = useCallback(() => {
-    const el = inputRef.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, 100)}px`
-  }, [])
+  // Reset keyboard focus when filters change
+  useEffect(() => { setFocusedConvIndex(-1) }, [searchQuery, serviceFilter, showJunk])
 
-  const handleDraftChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    draftRef.current = e.target.value
-    const hasText = e.target.value.trim().length > 0
-    setHasDraft(prev => prev !== hasText ? hasText : prev)
-    adjustTextarea()
-  }, [adjustTextarea])
+  /* ── Compose send handler ── */
 
-  // Handle paste for images
-  const handlePaste = useCallback((e: React.ClipboardEvent) => {
-    const items = e.clipboardData.items
-    for (const item of items) {
-      if (item.type.startsWith('image/') || item.type.startsWith('video/')) {
-        e.preventDefault()
-        const file = item.getAsFile()
-        if (file) {
-          setAttachmentFile(file)
-          setAttachmentPreview(URL.createObjectURL(file))
-        }
-        return
+  const handleComposeSend = useCallback(async () => {
+    const text = composeDraftRef.current.trim()
+    const to = composeTo.trim()
+    if (!text || !to || composeSending) return
+
+    setComposeSending(true)
+
+    // Build chat GUID: try iMessage first (email or phone)
+    const isEmail = to.includes('@')
+    const chatGuid = isEmail
+      ? `iMessage;-;${to}`
+      : `iMessage;-;${to.startsWith('+') ? to : `+${to}`}`
+
+    try {
+      await api.post('/api/messages', { chatGuid, text })
+
+      // Clear compose state
+      composeDraftRef.current = ''
+      setComposeHasDraft(false)
+      if (composeInputRef.current) {
+        composeInputRef.current.value = ''
+        composeInputRef.current.style.height = 'auto'
       }
+
+      // Refresh conversations and select the new one
+      await fetchConversations()
+      setComposeMode(false)
+
+      // Find the conversation we just sent to
+      setTimeout(() => {
+        setConversations(prev => {
+          const match = prev.find(c => c.guid === chatGuid)
+          if (match) setSelected(match)
+          return prev
+        })
+      }, 500)
+    } catch {
+      // If iMessage GUID failed, could try SMS - but keep it simple for now
+    } finally {
+      setComposeSending(false)
     }
-  }, [])
-
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setAttachmentFile(file)
-      setAttachmentPreview(URL.createObjectURL(file))
-    }
-  }, [])
-
-
-  /* ── Filter ── */
-
-  const filteredConversations = useMemo(() => conversations.filter(conv => {
-    if (serviceFilter === 'iMessage' && !isIMessage(conv)) return false
-    if (serviceFilter === 'SMS' && isIMessage(conv)) return false
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase()
-      const name = contactLabel(conv).toLowerCase()
-      const lastMsg = (conv.lastMessage || '').toLowerCase()
-      return name.includes(q) || lastMsg.includes(q)
-    }
-    return true
-  }), [conversations, serviceFilter, searchQuery])
+  }, [composeTo, composeSending, fetchConversations, setConversations])
 
   /* ── Delivery markers (iMessage-style) ── */
 
@@ -1352,6 +781,98 @@ export default function MessagesPage() {
     return match ? match[0].replace(/[.,;:!?)]+$/, '') : null
   }
 
+  /* ── Message search logic ── */
+
+  const searchMatches = useMemo(() => {
+    if (!messageSearch.trim()) return []
+    const q = messageSearch.toLowerCase()
+    const matches: number[] = []
+    messages.forEach((msg, idx) => {
+      const text = cleanPayloadText(msg.text)
+      if (text && text.toLowerCase().includes(q)) {
+        matches.push(idx)
+      }
+    })
+    return matches
+  }, [messages, messageSearch])
+
+  // Reset active match index when search changes
+  useEffect(() => {
+    setActiveMatchIndex(0)
+  }, [messageSearch])
+
+  // Reset search when conversation changes
+  useEffect(() => {
+    setShowMessageSearch(false)
+    setMessageSearch('')
+    setActiveMatchIndex(0)
+  }, [selected?.guid])
+
+  const jumpToNextMatch = useCallback(() => {
+    if (searchMatches.length === 0) return
+    setActiveMatchIndex(prev => (prev + 1) % searchMatches.length)
+  }, [searchMatches.length])
+
+  const jumpToPrevMatch = useCallback(() => {
+    if (searchMatches.length === 0) return
+    setActiveMatchIndex(prev => (prev - 1 + searchMatches.length) % searchMatches.length)
+  }, [searchMatches.length])
+
+  /* ── Drag-and-drop handlers ── */
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.dataTransfer.types.includes('Files')) {
+      setDragOver(true)
+    }
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    // Only set false if we're actually leaving the container
+    const rect = e.currentTarget.getBoundingClientRect()
+    const { clientX, clientY } = e
+    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
+      setDragOver(false)
+    }
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) {
+      attachFile(file)
+    }
+  }, [attachFile])
+
+  /* ── Conversation list virtualizer ── */
+
+  const convVirtualizer = useVirtualizer({
+    count: filteredConversations.length,
+    getScrollElement: () => convListRef.current,
+    estimateSize: () => 72,
+    overscan: 5,
+  })
+
+  /* ── Message thread virtualizer ── */
+
+
+  // Scroll to active search match
+  useEffect(() => {
+    if (searchMatches.length > 0 && activeMatchIndex < searchMatches.length) {
+      const msgIdx = searchMatches[activeMatchIndex]
+      const msgGuid = messages[msgIdx]?.guid
+      if (msgGuid) {
+        const el = document.querySelector(`[data-msg-guid="${msgGuid}"]`)
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }
+  }, [activeMatchIndex, searchMatches, messages])
+
   /* ── Error state ── */
 
   if (error) {
@@ -1359,7 +880,7 @@ export default function MessagesPage() {
       <div style={{ maxWidth: '560px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px' }}>
           <MessageSquare size={20} style={{ color: 'var(--accent)' }} />
-          <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700 }}>Messages</h1>
+          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700 }}>Messages</h1>
         </div>
         <div className="card" style={{ padding: '32px', textAlign: 'center' }}>
           <AlertCircle size={32} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
@@ -1405,182 +926,299 @@ export default function MessagesPage() {
   /* ── Render ── */
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 56px)', gap: '0', overflow: 'hidden' }}>
-      <style>{`
-        @keyframes shimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
-        }
-        @keyframes menuIn {
-          from { opacity: 0; transform: scale(0.92) translateY(8px); }
-          to { opacity: 1; transform: scale(1) translateY(0); }
-        }
-        @keyframes emojiPop {
-          from { opacity: 0; transform: scale(0.3); }
-          to { opacity: 1; transform: scale(1); }
-        }
-        @keyframes lightboxIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes msgSlideUp {
-          from { opacity: 0; transform: translateY(8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes replySlideDown {
-          from { opacity: 0; max-height: 0; }
-          to { opacity: 1; max-height: 80px; }
-        }
-        @keyframes scrollBtnIn {
-          from { opacity: 0; transform: scale(0.8); }
-          to { opacity: 1; transform: scale(1); }
-        }
-        @keyframes stickerWobble {
-          0% { transform: rotate(0deg) scale(1); }
-          25% { transform: rotate(-3deg) scale(1.05); }
-          50% { transform: rotate(2deg) scale(1.08); }
-          75% { transform: rotate(-1deg) scale(1.03); }
-          100% { transform: rotate(0deg) scale(1); }
-        }
-        @keyframes ctxIn {
-          from { opacity: 0; transform: scale(0.95); }
-          to { opacity: 1; transform: scale(1); }
-        }
-        @keyframes toastIn {
-          from { opacity: 0; transform: translateY(-20px) scale(0.95); }
-          to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        @keyframes toastOut {
-          from { opacity: 1; }
-          to { opacity: 0; transform: translateY(-10px); }
-        }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        .msg-row .reply-hint {
-          opacity: 0;
-          transition: opacity 0.15s;
-        }
-        .msg-row:hover .reply-hint {
-          opacity: 0.5;
-        }
-        .msg-row .reply-hint:hover {
-          opacity: 1 !important;
-          transform: scale(1.1);
-        }
-      `}</style>
+    <div style={{ display: 'flex', position: 'absolute', inset: 0, gap: '0', overflow: 'hidden' }}>
 
       {/* ═══ Conversation list ═══ */}
       <div style={{
-        width: selected ? '340px' : '100%',
-        maxWidth: '420px',
-        minWidth: selected ? '300px' : undefined,
-        borderRight: selected ? '1px solid var(--border)' : 'none',
+        width: (selected || composeMode) ? `${panelWidth}px` : '100%',
+        maxWidth: (selected || composeMode) ? '600px' : undefined,
+        minWidth: (selected || composeMode) ? '72px' : undefined,
+        borderRight: (selected || composeMode) ? '1px solid var(--border)' : 'none',
         display: 'flex', flexDirection: 'column',
-        transition: 'width 0.3s var(--ease-spring)',
+        flexShrink: 0,
+        overflow: 'hidden',
+        transition: isDraggingRef.current ? 'none' : 'width 0.25s var(--ease-spring)',
       }}>
+        {/* Header — hide title first as panel narrows, buttons only at medium, empty spacer at avatar-only */}
         <div style={{
-          padding: '16px 20px',
+          padding: '0 6px 0 22px',
+          height: '57px',
           borderBottom: '1px solid var(--border)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '10px',
+          flexShrink: 0,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <MessageSquare size={20} style={{ color: 'var(--accent)' }} />
-            <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 700 }}>Messages</h1>
-            {!loading && (
-              <span className="badge badge-blue" style={{ marginLeft: '2px' }}>{conversations.length}</span>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: '6px' }}>
-            <button
-              onClick={() => {
-                if (selectMode) { setSelectMode(false); setSelectedConvs(new Set()) }
-                else setSelectMode(true)
-              }}
-              style={{
-                background: selectMode ? 'rgba(0,122,255,0.15)' : 'transparent',
-                border: '1px solid var(--border)', borderRadius: '8px',
-                color: selectMode ? '#007aff' : 'var(--text-secondary)',
-                padding: '6px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 500,
-              }}
-            >
-              {selectMode ? 'Done' : 'Edit'}
-            </button>
-            <button
-              onClick={() => { fetchConversations(); if (selected) fetchMessages(selected) }}
-              aria-label="Refresh"
-              style={{
-                background: 'transparent', border: '1px solid var(--border)', borderRadius: '8px',
-                color: 'var(--text-secondary)', padding: '6px 8px', cursor: 'pointer',
-                display: 'flex', alignItems: 'center',
-              }}
-            >
-              <RefreshCw size={12} />
-            </button>
-          </div>
-        </div>
-
-        <div style={{ padding: '10px 14px 6px', position: 'relative' }}>
-          <Search size={13} style={{
-            position: 'absolute', left: '26px', top: '50%', transform: 'translateY(-50%)',
-            color: 'var(--text-muted)', pointerEvents: 'none',
-          }} />
-          <input
-            type="text" placeholder="Search" value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            style={{
-              width: '100%', padding: '8px 12px 8px 34px', fontSize: '13px',
-              background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-              borderRadius: '10px', color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit',
-            }}
-            onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent)' }}
-            onBlur={e => { e.currentTarget.style.borderColor = 'var(--border)' }}
-          />
-        </div>
-
-        <div style={{ display: 'flex', gap: '4px', padding: '6px 14px 8px', borderBottom: '1px solid var(--border)' }}>
-          {(['all', 'iMessage', 'SMS'] as ServiceFilter[]).map(f => {
-            const act = serviceFilter === f
-            const count = f === 'all' ? conversations.length
-              : conversations.filter(c => f === 'iMessage' ? isIMessage(c) : !isIMessage(c)).length
+          {(() => {
+            const title = 'Messages'
+            const charsVisible = panelWidth >= 260 ? title.length
+              : panelWidth <= 80 ? 0
+              : Math.round(((panelWidth - 80) / 180) * title.length)
+            const visibleText = title.slice(0, charsVisible)
+            const isDeleting = charsVisible < title.length && charsVisible > 0
+            const iconSize = 24
+            const badgeOpacity = panelWidth >= 340 ? 1 : panelWidth <= 310 ? 0 : (panelWidth - 310) / 30
+            // Buttons fade in after title is mostly visible
+            const btnOpacity = panelWidth >= 320 ? 1 : panelWidth <= 280 ? 0 : (panelWidth - 280) / 40
             return (
-              <button key={f} onClick={() => setServiceFilter(f)} style={{
-                flex: 1, padding: '6px 8px', fontSize: '11px',
-                fontWeight: act ? 600 : 450,
-                color: act ? '#fff' : 'var(--text-secondary)',
-                background: act
-                  ? (f === 'iMessage' ? 'rgba(0,122,255,0.25)' : f === 'SMS' ? 'rgba(52,199,89,0.2)' : 'rgba(167,139,250,0.15)')
-                  : 'transparent',
-                border: act ? 'none' : '1px solid var(--border)',
-                borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s',
-              }}>
-                {f === 'all' ? 'All' : f} <span style={{ opacity: 0.6, fontSize: '10px' }}>{count}</span>
-              </button>
+              <>
+                <MessageSquare size={iconSize} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                {charsVisible > 0 && (
+                  <h1 style={{
+                    margin: 0, fontSize: '20px', fontWeight: 700,
+                    whiteSpace: 'nowrap', overflow: 'hidden',
+                    display: 'flex', alignItems: 'center',
+                  }}>
+                    {visibleText}
+                    {isDeleting && (
+                      <span className="type-cursor" style={{
+                        display: 'inline-block', width: '2px', height: '20px',
+                        background: 'var(--accent)', marginLeft: '1px',
+                        borderRadius: '1px',
+                      }} />
+                    )}
+                  </h1>
+                )}
+                {badgeOpacity > 0 && !loading && (
+                  <span className="badge badge-blue" style={{
+                    marginLeft: '2px', opacity: badgeOpacity,
+                  }}>{conversations.length}</span>
+                )}
+                {btnOpacity > 0 && (
+                  <div style={{ display: 'flex', gap: '6px', opacity: btnOpacity, flexShrink: 0, marginLeft: '8px' }}>
+                    <button
+                      onClick={() => {
+                        if (selectMode) { setSelectMode(false); setSelectedConvs(new Set()) }
+                        else setSelectMode(true)
+                      }}
+                      style={{
+                        background: selectMode ? 'rgba(0,122,255,0.15)' : 'transparent',
+                        border: '1px solid var(--border)', borderRadius: '8px',
+                        color: selectMode ? 'var(--apple-blue)' : 'var(--text-secondary)',
+                        padding: '7px 14px', cursor: 'pointer', fontSize: '12px', fontWeight: 500,
+                      }}
+                    >
+                      {selectMode ? 'Done' : 'Edit'}
+                    </button>
+                    <button
+                      onClick={() => { fetchConversations(); if (selected) fetchMessages(selected) }}
+                      aria-label="Refresh"
+                      style={{
+                        background: 'transparent', border: '1px solid var(--border)', borderRadius: '8px',
+                        color: 'var(--text-secondary)', padding: '7px 10px', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center',
+                      }}
+                    >
+                      <RefreshCw size={14} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setComposeMode(true)
+                        setComposeTo('')
+                        composeDraftRef.current = ''
+                        setComposeHasDraft(false)
+                        setSelected(null)
+                        selectedGuidRef.current = null
+                        setMessages([])
+                      }}
+                      aria-label="New Message"
+                      style={{
+                        background: composeMode ? 'rgba(0,122,255,0.15)' : 'transparent',
+                        border: '1px solid var(--border)', borderRadius: '8px',
+                        color: composeMode ? 'var(--apple-blue)' : 'var(--text-secondary)',
+                        padding: '7px 10px', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center',
+                      }}
+                    >
+                      <PenSquare size={14} />
+                    </button>
+                  </div>
+                )}
+              </>
             )
-          })}
+          })()}
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '4px 8px' }}>
-          {loading && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '8px 0' }}>
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} style={{
-                  height: '64px', borderRadius: '10px',
-                  background: 'linear-gradient(90deg, var(--bg-elevated) 25%, var(--bg-panel) 50%, var(--bg-elevated) 75%)',
-                  backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite',
-                }} />
-              ))}
+        {(() => {
+          const searchOpacity = panelWidth >= 300 ? 1 : panelWidth <= 240 ? 0 : (panelWidth - 240) / 60
+          const searchHeight = panelWidth >= 300 ? 46 : panelWidth <= 240 ? 0 : ((panelWidth - 240) / 60) * 46
+          const filtersHeight = panelWidth >= 300 ? 42 : panelWidth <= 240 ? 0 : ((panelWidth - 240) / 60) * 42
+          return (
+            <>
+              <div style={{
+                height: `${searchHeight}px`, opacity: searchOpacity, overflow: 'hidden',
+                transition: isDraggingRef.current ? 'none' : 'height 0.25s ease, opacity 0.2s ease',
+              }}>
+                <div style={{ padding: '10px 14px 6px', position: 'relative' }}>
+                  <Search size={13} style={{
+                    position: 'absolute', left: '26px', top: '50%', transform: 'translateY(-50%)',
+                    color: 'var(--text-muted)', pointerEvents: 'none',
+                  }} />
+                  <input
+                    type="text" placeholder="Search" value={searchQuery}
+                    aria-label="Search conversations"
+                    onChange={e => setSearchQuery(e.target.value)}
+                    tabIndex={searchOpacity === 0 ? -1 : 0}
+                    style={{
+                      width: '100%', padding: '8px 12px 8px 34px', fontSize: '13px',
+                      background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                      borderRadius: '10px', color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit',
+                    }}
+                    onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent)' }}
+                    onBlur={e => { e.currentTarget.style.borderColor = 'var(--border)' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{
+                height: `${filtersHeight}px`, opacity: searchOpacity, overflow: 'hidden',
+                transition: isDraggingRef.current ? 'none' : 'height 0.25s ease, opacity 0.2s ease',
+              }}>
+                <div style={{ display: 'flex', gap: '4px', padding: '6px 14px 8px', borderBottom: '1px solid var(--border)' }}>
+                  {(['all', 'iMessage', 'SMS'] as ServiceFilter[]).map(f => {
+                    const act = serviceFilter === f && !showJunk
+                    const count = f === 'all' ? conversations.length
+                      : conversations.filter(c => f === 'iMessage' ? isIMessage(c) : !isIMessage(c)).length
+                    return (
+                      <button key={f} onClick={() => { setServiceFilter(f); if (showJunk) setShowJunk(false) }} style={{
+                        flex: 1, padding: '6px 8px', fontSize: '11px',
+                        fontWeight: act ? 600 : 450,
+                        color: act ? '#fff' : 'var(--text-secondary)',
+                        background: act
+                          ? (f === 'iMessage' ? 'rgba(0,122,255,0.25)' : f === 'SMS' ? 'rgba(52,199,89,0.2)' : 'rgba(167,139,250,0.15)')
+                          : 'transparent',
+                        border: act ? 'none' : '1px solid var(--border)',
+                        borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s',
+                      }}>
+                        {f === 'all' ? 'All' : f}{!showJunk && <span style={{ opacity: 0.6, fontSize: '10px', marginLeft: '4px' }}>{count}</span>}
+                      </button>
+                    )
+                  })}
+                  <button onClick={() => setShowJunk(j => !j)} style={{
+                    flex: 1, padding: '6px 8px', fontSize: '11px',
+                    fontWeight: showJunk ? 600 : 450,
+                    color: showJunk ? '#fff' : 'var(--text-muted)',
+                    background: showJunk ? 'rgba(248,113,113,0.2)' : 'transparent',
+                    border: showJunk ? 'none' : '1px solid var(--border)',
+                    borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s',
+                  }}>
+                    Junk
+                  </button>
+                </div>
+              </div>
+            </>
+          )
+        })()}
+
+        <div
+          ref={convListRef}
+          onScroll={handleConvListScroll}
+          tabIndex={0}
+          onKeyDown={e => {
+            const target = e.target as HTMLElement
+            const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+            if (e.key === 'ArrowDown' || (!isInput && e.key === 'j')) {
+              e.preventDefault()
+              setFocusedConvIndex(prev => {
+                const next = Math.min(prev + 1, filteredConversations.length - 1)
+                convVirtualizer.scrollToIndex(next, { align: 'auto' })
+                return next
+              })
+            } else if (e.key === 'ArrowUp' || (!isInput && e.key === 'k')) {
+              e.preventDefault()
+              setFocusedConvIndex(prev => {
+                const next = Math.max(prev - 1, 0)
+                convVirtualizer.scrollToIndex(next, { align: 'auto' })
+                return next
+              })
+            } else if (e.key === 'Enter' && focusedConvIndex >= 0 && focusedConvIndex < filteredConversations.length) {
+              e.preventDefault()
+              setSelected(filteredConversations[focusedConvIndex])
+              setComposeMode(false)
+            }
+          }}
+          className="hidden-scrollbar"
+          role="list"
+          style={{ flex: 1, overflowY: 'auto', padding: '4px 0', outline: 'none' }}
+        >
+          {loading && !isDemoMode() && <MessagesConversationSkeleton />}
+          {!loading && conversations.length === 0 && !searchQuery && !isDemoMode() && (
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              padding: '48px 16px', color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', gap: '12px',
+            }}>
+              <MessageSquare size={32} style={{ opacity: 0.3 }} />
+              <div>
+                <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '4px' }}>No conversations yet</div>
+                <div style={{ fontSize: '12px', fontFamily: 'monospace' }}>Messages will appear here once available</div>
+              </div>
             </div>
           )}
-          {!loading && filteredConversations.map((conv) => {
-            const active = selected?.guid === conv.guid
-            const isGroup = isGroupChat(conv)
-            const isSel = selectedConvs.has(conv.guid)
-            return (
-              <button
-                key={conv.guid}
-                onClick={() => {
+          {!loading && conversations.length === 0 && !searchQuery && isDemoMode() && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', padding: '4px 0' }}>
+              <div style={{ padding: '6px 12px', marginBottom: '4px' }}>
+                <DemoBadge />
+              </div>
+              {DEMO_CONVERSATIONS.map(conv => (
+                <div
+                  key={conv.guid}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '10px',
+                    padding: '10px 12px', borderRadius: '10px',
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid var(--border)',
+                    cursor: 'default', opacity: 0.7,
+                  }}
+                >
+                  <div style={{
+                    width: '36px', height: '36px', borderRadius: '50%',
+                    background: 'rgba(167,139,250,0.15)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '14px', color: 'var(--accent)', fontWeight: 600, flexShrink: 0,
+                  }}>
+                    {(conv.displayName || '?')[0].toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {conv.displayName}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {conv.lastMessage}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <div style={{ padding: '12px', fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center' }}>
+                Connect BlueBubbles in Settings to see real messages
+              </div>
+            </div>
+          )}
+          {!loading && filteredConversations.length === 0 && searchQuery && (
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              padding: '32px 16px', color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', gap: '8px',
+            }}>
+              <Search size={20} style={{ opacity: 0.4 }} />
+              <span>No conversations match your search</span>
+            </div>
+          )}
+          {!loading && filteredConversations.length > 0 && (
+            <div style={{ height: `${convVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+              {convVirtualizer.getVirtualItems().map(virtualRow => {
+                const convIdx = virtualRow.index
+                const conv = filteredConversations[convIdx]
+                const active = selected?.guid === conv.guid
+                const isGroup = isGroupChat(conv)
+                const isSel = selectedConvs.has(conv.guid)
+                const isFocused = focusedConvIndex === convIdx
+                const isPinned = pinnedConvs.includes(conv.guid)
+                const prevConv = convIdx > 0 ? filteredConversations[convIdx - 1] : null
+                const isPinnedDivider = !isPinned && prevConv && pinnedConvs.includes(prevConv.guid)
+                return (
+                  <button
+                    key={conv.guid}
+                    role="listitem"
+                    ref={convVirtualizer.measureElement}
+                    data-index={virtualRow.index}
+                    onClick={() => {
                   if (selectMode) {
                     setSelectedConvs(prev => {
                       const next = new Set(prev)
@@ -1590,83 +1228,122 @@ export default function MessagesPage() {
                     })
                   } else {
                     setSelected(conv)
+                    setComposeMode(false)
                   }
                 }}
                 onContextMenu={e => {
                   e.preventDefault()
-                  setConvCtx({ x: e.clientX, y: e.clientY, convGuid: conv.guid, isUnread: !!conv.isUnread })
+                  setConvCtx({ x: e.clientX, y: e.clientY, convGuid: conv.guid, isUnread: !!conv.isUnread, isMuted: mutedConvs.includes(conv.guid), isPinned: pinnedConvs.includes(conv.guid) })
                 }}
                 style={{
-                  width: '100%', position: 'relative',
+                  position: 'absolute', top: 0, left: 0, width: '100%',
+                  transform: `translateY(${virtualRow.start}px)`,
                   display: 'flex', alignItems: 'center', gap: '12px',
-                  padding: '12px 12px 12px 16px',
-                  background: active ? 'rgba(167,139,250,0.12)' : isSel ? 'rgba(0,122,255,0.08)' : 'transparent',
+                  padding: isPinnedDivider ? '10px 6px 6px 14px' : '6px 6px 6px 14px',
+                  justifyContent: 'flex-start',
+                  background: isFocused ? 'rgba(167,139,250,0.10)' : isSel ? 'rgba(0,122,255,0.08)' : 'transparent',
                   border: 'none', borderRadius: '10px', cursor: 'pointer',
-                  textAlign: 'left', transition: 'all 0.15s', marginBottom: '2px',
+                  textAlign: 'left', transition: 'background 0.15s', marginBottom: '2px',
+                  outline: isFocused ? '1px solid rgba(167,139,250,0.4)' : 'none',
+                  outlineOffset: '-1px',
+                  borderTop: isPinnedDivider ? '1px solid rgba(255,255,255,0.06)' : 'none',
                 }}
-                onMouseEnter={e => { if (!active && !isSel) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
-                onMouseLeave={e => { if (!active && !isSel) e.currentTarget.style.background = 'transparent' }}
+                onMouseEnter={e => { if (!isSel && !isFocused) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+                onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = isFocused ? 'rgba(167,139,250,0.10)' : 'transparent' }}
               >
-                {selectMode && (
-                  <div style={{
-                    width: '22px', height: '22px', borderRadius: '50%', flexShrink: 0,
-                    border: isSel ? 'none' : '2px solid var(--text-muted)',
-                    background: isSel ? '#007aff' : 'transparent',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    transition: 'all 0.15s var(--ease-spring)',
-                  }}>
-                    {isSel && <Check size={13} color="#fff" strokeWidth={3} />}
-                  </div>
-                )}
+                {(() => {
+                  // Progressive fade: starts immediately from avatar-only (72px)
+                  // Name appears 72→160, preview 120→200, timestamp 100→180
+                  const textOpacity = panelWidth >= 160 ? 1 : panelWidth <= 72 ? 0 : (panelWidth - 72) / 88
+                  const previewOpacity = panelWidth >= 200 ? 1 : panelWidth <= 120 ? 0 : (panelWidth - 120) / 80
+                  const timeOpacity = panelWidth >= 180 ? 1 : panelWidth <= 100 ? 0 : (panelWidth - 100) / 80
+                  const avatarSize = 44
+                  return (
+                    <>
+                      {selectMode && textOpacity > 0 && (
+                        <div style={{
+                          width: '22px', height: '22px', borderRadius: '50%', flexShrink: 0,
+                          border: isSel ? 'none' : '2px solid var(--text-muted)',
+                          background: isSel ? 'var(--apple-blue)' : 'transparent',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          opacity: textOpacity,
+                        }}>
+                          {isSel && <Check size={13} color="#fff" strokeWidth={3} />}
+                        </div>
+                      )}
 
-                {!selectMode && conv.isUnread && (
-                  <div style={{
-                    position: 'absolute', left: '4px', top: '50%', transform: 'translateY(-50%)',
-                    width: '8px', height: '8px', borderRadius: '50%', background: '#007aff',
-                  }} />
-                )}
+                      {!selectMode && conv.isUnread && (
+                        <div style={{
+                          position: 'absolute',
+                          ...(textOpacity === 0
+                            ? { top: '2px', right: '2px', left: 'auto', transform: 'none' }
+                            : { left: '-2px', top: '50%', transform: 'translateY(-50%)' }),
+                          width: '8px', height: '8px', borderRadius: '50%', background: 'var(--apple-blue)',
+                        }} />
+                      )}
 
-                {isGroup
-                  ? <GroupAvatar conv={conv} size={42} />
-                  : <ContactAvatar
-                      address={conv.chatId || conv.participants?.[0]?.address || ''}
-                      name={conv.displayName}
-                      isImsg={isIMessage(conv)}
-                      size={42}
-                    />
-                }
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                    <span style={{
-                      fontSize: '13px', fontWeight: conv.isUnread ? 700 : 600,
-                      color: active ? '#fff' : 'var(--text-primary)',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                      {contactLabel(conv)}
-                    </span>
-                    <span style={{
-                      fontSize: '10px', color: conv.isUnread ? '#007aff' : 'var(--text-muted)',
-                      fontFamily: "'JetBrains Mono', monospace", flexShrink: 0,
-                    }}>
-                      {timeAgo(conv.lastDate)}
-                    </span>
-                  </div>
-                  <div style={{
-                    fontSize: '12px',
-                    color: conv.isUnread ? 'var(--text-primary)' : 'var(--text-secondary)',
-                    fontWeight: conv.isUnread ? 500 : 400,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    marginTop: '3px',
-                  }}>
-                    {conv.lastFromMe ? 'You: ' : ''}{cleanPayloadText(conv.lastMessage)}
-                  </div>
-                </div>
-              </button>
-            )
-          })}
+                      <div style={{ position: 'relative', flexShrink: 0 }}>
+                        {isGroup
+                          ? <GroupAvatar conv={conv} size={avatarSize} />
+                          : <ContactAvatar
+                              address={conv.chatId || conv.participants?.[0]?.address || ''}
+                              name={conv.displayName}
+                              isImsg={isIMessage(conv)}
+                              size={avatarSize}
+                            />
+                        }
+                      </div>
+                      {textOpacity > 0 && (
+                        <div style={{ flex: 1, minWidth: 0, opacity: textOpacity }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                            <span style={{
+                              fontSize: '13px', fontWeight: conv.isUnread ? 700 : 600,
+                              color: active ? '#fff' : 'var(--text-primary)',
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                              display: 'flex', alignItems: 'center', gap: '4px',
+                            }}>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{contactLabel(conv)}</span>
+                              {pinnedConvs.includes(conv.guid) && <Pin size={11} style={{ flexShrink: 0, opacity: 0.5 }} />}
+                              {mutedConvs.includes(conv.guid) && <BellOff size={11} style={{ flexShrink: 0, opacity: 0.5 }} />}
+                            </span>
+                            {timeOpacity > 0 && (
+                              <span style={{
+                                fontSize: '10px', color: conv.isUnread ? 'var(--apple-blue)' : 'var(--text-muted)',
+                                fontFamily: "'JetBrains Mono', monospace", flexShrink: 0, opacity: timeOpacity,
+                              }}>
+                                {timeAgo(conv.lastDate)}
+                              </span>
+                            )}
+                          </div>
+                          {previewOpacity > 0 && (
+                            <div style={{
+                              fontSize: '12px',
+                              color: conv.isUnread ? 'var(--text-primary)' : 'var(--text-secondary)',
+                              fontWeight: conv.isUnread ? 500 : 400,
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                              marginTop: '3px', opacity: previewOpacity,
+                            }}>
+                              {conv.lastFromMe ? 'You: ' : ''}{cleanPayloadText(conv.lastMessage)}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          {loadingMoreConvs && (
+            <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+              Loading more...
+            </div>
+          )}
         </div>
 
-        {selectMode && selectedConvs.size > 0 && (
+        {selectMode && selectedConvs.size > 0 && panelWidth >= 180 && (
           <div style={{
             padding: '10px 14px', borderTop: '1px solid var(--border)',
             display: 'flex', gap: '8px',
@@ -1686,19 +1363,47 @@ export default function MessagesPage() {
             }}>
               Mark Unread ({selectedConvs.size})
             </button>
+            <button onClick={() => {
+              const guids = Array.from(selectedConvs)
+              setConversations(prev => prev.filter(c => !guids.includes(c.guid)))
+              if (selected && guids.includes(selected.guid)) setSelected(null)
+              setSelectedConvs(new Set())
+              setSelectMode(false)
+            }} style={{
+              flex: 1, padding: '8px', fontSize: '12px', fontWeight: 600,
+              background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.2)',
+              borderRadius: '8px', color: '#f87171', cursor: 'pointer',
+            }}>
+              Delete ({selectedConvs.size})
+            </button>
           </div>
         )}
       </div>
+
+      {/* Resize handle */}
+      {(selected || composeMode) && (
+        <div
+          onMouseDown={handleResizeStart}
+          style={{
+            width: '5px',
+            cursor: 'col-resize',
+            background: 'transparent',
+            flexShrink: 0,
+            position: 'relative',
+            zIndex: 10,
+          }}
+        />
+      )}
 
       {/* ═══ Message thread ═══ */}
       {selected ? (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative' }}>
           <div style={{
-            padding: '12px 20px', borderBottom: '1px solid var(--border)',
+            padding: '0 20px', height: '57px', borderBottom: '1px solid var(--border)',
             display: 'flex', alignItems: 'center', gap: '12px',
           }}>
             <button
-              onClick={() => { setSelected(null); setMessages([]); setMessageMenu(null); setReplyTo(null) }}
+              onClick={() => { setSelected(null); setMessages([]); setMessageMenu(null); setReplyTo(null); setPanelWidth(340) }}
               aria-label="Back to conversations"
               style={{
                 background: 'transparent', border: 'none', cursor: 'pointer',
@@ -1720,7 +1425,7 @@ export default function MessagesPage() {
               <div style={{ fontSize: '14px', fontWeight: 600 }}>{contactLabel(selected)}</div>
               <div style={{
                 fontSize: '10px',
-                color: isIMessage(selected) ? '#5ac8fa' : '#34c759',
+                color: isIMessage(selected) ? '#5ac8fa' : 'var(--apple-green)',
                 fontFamily: "'JetBrains Mono', monospace",
               }}>
                 {isIMessage(selected) ? 'iMessage' : 'SMS'}
@@ -1729,6 +1434,20 @@ export default function MessagesPage() {
                     {selected.participants.length} people
                   </span>
                 )}
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '4px',
+                  marginLeft: '8px', fontSize: '9px',
+                  color: sseConnected ? 'var(--apple-green, #34c759)' : '#ffcc00',
+                }}>
+                  <span style={{
+                    width: '6px', height: '6px', borderRadius: '50%',
+                    background: sseConnected ? '#34c759' : '#ffcc00',
+                    boxShadow: sseConnected ? '0 0 4px rgba(52,199,89,0.5)' : '0 0 4px rgba(255,204,0,0.5)',
+                    display: 'inline-block', flexShrink: 0,
+                    animation: sseConnected ? undefined : 'pulse 1.5s ease-in-out infinite',
+                  }} />
+                  {!sseConnected && 'Reconnecting...'}
+                </span>
               </div>
             </div>
             {isGroupChat(selected) && (
@@ -1754,17 +1473,140 @@ export default function MessagesPage() {
                 )}
               </div>
             )}
+            <button
+              onClick={() => {
+                setShowMessageSearch(s => {
+                  if (s) { setMessageSearch(''); setActiveMatchIndex(0) }
+                  else { setTimeout(() => searchInputRef.current?.focus(), 50) }
+                  return !s
+                })
+              }}
+              aria-label="Search messages"
+              style={{
+                background: showMessageSearch ? 'rgba(167,139,250,0.12)' : 'transparent',
+                border: '1px solid var(--border)', borderRadius: '8px',
+                color: showMessageSearch ? 'var(--accent-bright)' : 'var(--text-secondary)',
+                padding: '6px 8px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0, marginLeft: isGroupChat(selected) ? '0' : 'auto',
+                transition: 'all 0.15s',
+              }}
+            >
+              <Search size={14} />
+            </button>
           </div>
+
+          {/* Message search bar */}
+          {showMessageSearch && (
+            <div style={{
+              padding: '8px 20px', borderBottom: '1px solid var(--border)',
+              display: 'flex', alignItems: 'center', gap: '8px',
+              background: 'rgba(167,139,250,0.03)',
+              animation: 'searchSlideDown 0.2s var(--ease-spring)', overflow: 'hidden',
+            }}>
+              <Search size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search in conversation..."
+                value={messageSearch}
+                onChange={e => setMessageSearch(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    if (e.shiftKey) jumpToPrevMatch()
+                    else jumpToNextMatch()
+                  }
+                }}
+                style={{
+                  flex: 1, padding: '6px 10px', fontSize: '12px',
+                  background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                  borderRadius: '8px', color: 'var(--text-primary)', outline: 'none',
+                  fontFamily: 'inherit',
+                }}
+                onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent)' }}
+                onBlur={e => { e.currentTarget.style.borderColor = 'var(--border)' }}
+              />
+              {messageSearch && (
+                <span style={{
+                  fontSize: '11px', color: 'var(--text-muted)',
+                  fontFamily: "'JetBrains Mono', monospace",
+                  whiteSpace: 'nowrap', flexShrink: 0,
+                }}>
+                  {searchMatches.length > 0
+                    ? `${activeMatchIndex + 1} of ${searchMatches.length}`
+                    : '0 results'}
+                </span>
+              )}
+              <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
+                <button onClick={jumpToPrevMatch} disabled={searchMatches.length === 0}
+                  aria-label="Previous match"
+                  style={{
+                    background: 'transparent', border: 'none', cursor: searchMatches.length > 0 ? 'pointer' : 'default',
+                    color: searchMatches.length > 0 ? 'var(--text-secondary)' : 'var(--text-muted)',
+                    display: 'flex', padding: '4px', borderRadius: '4px',
+                    opacity: searchMatches.length > 0 ? 1 : 0.4,
+                  }}
+                >
+                  <ChevronUp size={14} />
+                </button>
+                <button onClick={jumpToNextMatch} disabled={searchMatches.length === 0}
+                  aria-label="Next match"
+                  style={{
+                    background: 'transparent', border: 'none', cursor: searchMatches.length > 0 ? 'pointer' : 'default',
+                    color: searchMatches.length > 0 ? 'var(--text-secondary)' : 'var(--text-muted)',
+                    display: 'flex', padding: '4px', borderRadius: '4px',
+                    opacity: searchMatches.length > 0 ? 1 : 0.4,
+                  }}
+                >
+                  <ChevronDown size={14} />
+                </button>
+              </div>
+              <button onClick={() => { setShowMessageSearch(false); setMessageSearch(''); setActiveMatchIndex(0) }}
+                aria-label="Close search"
+                style={{
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  color: 'var(--text-muted)', display: 'flex', padding: '4px', borderRadius: '4px',
+                }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
 
           {/* Messages */}
           <div
             ref={scrollContainerRef}
             onScroll={handleScroll}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            aria-live="polite"
             style={{
-              flex: 1, overflowY: 'auto', padding: '16px 20px',
-              display: 'flex', flexDirection: 'column', gap: '2px',
+              flex: 1, overflowY: msgsLoading ? 'hidden' : 'auto', padding: '16px 20px',
+              position: 'relative',
             }}
           >
+            {/* Drag-and-drop overlay */}
+            {dragOver && (
+              <div style={{
+                position: 'absolute', inset: 0, zIndex: 50,
+                background: 'rgba(167,139,250,0.08)',
+                backdropFilter: 'blur(4px)',
+                border: '2px dashed rgba(167,139,250,0.4)',
+                borderRadius: '12px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexDirection: 'column', gap: '8px',
+                pointerEvents: 'none',
+              }}>
+                <Paperclip size={32} style={{ color: 'var(--accent-bright)', opacity: 0.7 }} />
+                <span style={{
+                  fontSize: '14px', fontWeight: 600, color: 'var(--accent-bright)',
+                  opacity: 0.9,
+                }}>
+                  Drop to attach
+                </span>
+              </div>
+            )}
             {loadingMore && (
               <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--text-muted)', fontSize: '11px' }}>
                 <svg width="16" height="16" viewBox="0 0 16 16" style={{ animation: 'spin 1s linear infinite', verticalAlign: 'middle', marginRight: '6px' }}>
@@ -1773,12 +1615,10 @@ export default function MessagesPage() {
                 Loading older messages...
               </div>
             )}
-            {msgsLoading && (
-              <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: '12px' }}>
-                Loading messages...
-              </div>
-            )}
-            {!msgsLoading && messages.map((msg, idx) => {
+            {msgsLoading && <MessagesThreadSkeleton />}
+            {!msgsLoading && messages.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', padding: '8px 0' }}>
+              {messages.map((msg, idx) => {
               const fromMe = !!msg.isFromMe
               const prevMsg = messages[idx - 1]
               const nextMsg = messages[idx + 1]
@@ -1821,17 +1661,20 @@ export default function MessagesPage() {
 
               if (msg.groupTitle || msg.groupActionType) {
                 return (
-                  <div key={msg.guid} style={{
-                    textAlign: 'center', padding: '8px 0',
-                    fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic',
-                  }}>
-                    {msg.groupTitle ? `Named the conversation "${msg.groupTitle}"` : 'Group updated'}
+                  <div key={msg.guid}>
+                    <div style={{
+                      textAlign: 'center', padding: '8px 0',
+                      fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic',
+                    }}>
+                      {msg.groupTitle ? `Named the conversation "${msg.groupTitle}"` : 'Group updated'}
+                    </div>
                   </div>
                 )
               }
 
               return (
-                <div key={msg.guid} style={{ animation: msg.guid.startsWith('temp-') ? 'msgSlideUp 0.2s var(--ease-spring)' : undefined }}>
+                <div key={msg.guid} data-msg-guid={msg.guid}>
+                <div style={{ animation: msg.guid.startsWith('temp-') ? 'msgSlideUp 0.2s var(--ease-spring)' : undefined }}>
                   {showTime && (
                     <div style={{ textAlign: 'center', padding: '14px 0 10px', fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500 }}>
                       {formatTimestamp(msg.dateCreated)}
@@ -1891,7 +1734,11 @@ export default function MessagesPage() {
                       </div>
                     )}
 
-                    <div data-msg-guid={msg.guid} style={{ maxWidth: '70%', display: 'flex', flexDirection: 'column' }}>
+                    <div data-msg-guid={msg.guid} style={{
+                      maxWidth: '70%', display: 'flex', flexDirection: 'column',
+                      opacity: msg.guid.startsWith('temp-') ? 0.7 : msg._failed ? 0.6 : 1,
+                      transition: 'opacity 0.2s',
+                    }}>
                       {/* Reply context */}
                       {replyTarget && (
                         <>
@@ -1955,13 +1802,16 @@ export default function MessagesPage() {
                                 return (
                                   <img key={att.guid} src={src} alt={att.transferName || 'image'}
                                     style={{
-                                      maxWidth: att.isSticker ? '160px' : '280px',
-                                      maxHeight: att.isSticker ? '160px' : '320px',
+                                      maxWidth: att.isSticker ? '160px' : 'min(280px, 50vw)',
+                                      maxHeight: att.isSticker ? '160px' : '420px',
+                                      width: 'auto', height: 'auto',
+                                      objectFit: 'contain',
                                       borderRadius: att.isSticker ? '4px' : `${br.topLeft} ${br.topRight} ${br.bottomRight} ${br.bottomLeft}`,
                                       display: 'block', cursor: 'zoom-in',
                                     }}
                                     loading="lazy"
                                     onClick={e => { e.stopPropagation(); setLightbox({ src, type: 'image' }) }}
+                                    onLoad={() => { if (isNearBottomRef.current) scrollToBottom('instant') }}
                                     onMouseEnter={e => { if (att.isSticker) e.currentTarget.style.animation = 'stickerWobble 0.5s ease' }}
                                     onAnimationEnd={e => { e.currentTarget.style.animation = '' }}
                                   />
@@ -2031,7 +1881,12 @@ export default function MessagesPage() {
                               a.mimeType?.startsWith('image/') || a.mimeType?.startsWith('video/')
                             ) ? '4px 10px 6px' : '0',
                           }}>
-                            {renderTextWithLinks(cleanText, fromMe)}
+                            {(() => {
+                              const nodes = renderTextWithLinks(cleanText, fromMe)
+                              if (!messageSearch.trim()) return nodes
+                              const isActive = searchMatches.length > 0 && searchMatches[activeMatchIndex] === idx
+                              return highlightSearchText(nodes, messageSearch, isActive)
+                            })()}
                           </div>
                         ) : !msg.attachments?.length && !msg.isAudioMessage ? (
                           <span style={{ fontSize: '12px', fontStyle: 'italic', opacity: 0.6 }}>
@@ -2081,7 +1936,37 @@ export default function MessagesPage() {
                     )}
                   </div>
 
-                  {fromMe && msg.guid.startsWith('temp-') && (
+                  {fromMe && msg._failed && (
+                    <div style={{
+                      textAlign: 'right', fontSize: '10px', color: '#ff453a',
+                      padding: '2px 4px 0', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '5px',
+                      fontFamily: "'JetBrains Mono', monospace",
+                    }}>
+                      <AlertCircle size={11} />
+                      <span>Failed to send</span>
+                      <button
+                        onClick={() => retryMessage(msg)}
+                        style={{
+                          background: 'transparent', border: 'none', cursor: 'pointer',
+                          color: 'var(--apple-blue, #007aff)', fontSize: '10px', fontWeight: 500,
+                          padding: '0 2px', fontFamily: "'JetBrains Mono', monospace",
+                        }}
+                      >
+                        Retry
+                      </button>
+                      <button
+                        onClick={() => dismissFailedMessage(msg.guid)}
+                        style={{
+                          background: 'transparent', border: 'none', cursor: 'pointer',
+                          color: 'var(--text-muted)', display: 'flex', padding: '0 1px',
+                        }}
+                        title="Dismiss"
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
+                  )}
+                  {fromMe && msg.guid.startsWith('temp-') && !msg._failed && (
                     <div style={{
                       textAlign: 'right', fontSize: '10px', color: 'var(--text-muted)',
                       padding: '2px 4px 0', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px',
@@ -2096,17 +1981,26 @@ export default function MessagesPage() {
                   {deliveryMarkers[msg.guid] && fromMe && !msg.guid.startsWith('temp-') && (
                     <div style={{
                       textAlign: 'right', fontSize: '10px',
-                      color: deliveryMarkers[msg.guid].startsWith('Read') ? 'var(--text-secondary)' : 'var(--text-muted)',
+                      color: deliveryMarkers[msg.guid].startsWith('Read')
+                        ? 'var(--apple-blue, #007aff)'
+                        : 'var(--text-muted)',
                       padding: '2px 4px 0',
                       fontFamily: "'JetBrains Mono', monospace",
                       fontWeight: deliveryMarkers[msg.guid].startsWith('Read') ? 500 : 400,
+                      display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '3px',
                     }}>
+                      {deliveryMarkers[msg.guid].startsWith('Read') || deliveryMarkers[msg.guid] === 'Delivered'
+                        ? <CheckCheck size={12} />
+                        : <Check size={12} />}
                       {deliveryMarkers[msg.guid]}
                     </div>
                   )}
                 </div>
+                </div>
               )
             })}
+            </div>
+            )}
             <div style={{ height: '1px', flexShrink: 0 }} />
           </div>
 
@@ -2217,6 +2111,7 @@ export default function MessagesPage() {
               onPaste={handlePaste}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
               placeholder={isIMessage(selected) ? 'iMessage' : 'Text Message'}
+              aria-label="Type a message"
               rows={1}
               style={{
                 flex: 1, background: 'var(--bg-elevated)',
@@ -2248,16 +2143,110 @@ export default function MessagesPage() {
             </button>
           </div>
         </div>
-      ) : (
-        !loading && conversations.length > 0 && (
+      ) : composeMode ? (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative' }}>
           <div style={{
-            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic',
+            padding: '0 20px', height: '57px', borderBottom: '1px solid var(--border)',
+            display: 'flex', alignItems: 'center', gap: '12px',
           }}>
-            Select a conversation
+            <button
+              onClick={() => { setComposeMode(false); setPanelWidth(340) }}
+              aria-label="Back to conversations"
+              style={{
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                color: 'var(--text-secondary)', display: 'flex', padding: '4px',
+              }}
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <PenSquare size={20} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '14px', fontWeight: 600 }}>New Message</div>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: "'JetBrains Mono', monospace" }}>
+                Compose
+              </div>
+            </div>
           </div>
-        )
-      )}
+          <div style={{
+            padding: '12px 20px', borderBottom: '1px solid var(--border)',
+            display: 'flex', alignItems: 'center', gap: '10px',
+          }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>To:</span>
+            <input
+              type="text"
+              value={composeTo}
+              onChange={e => setComposeTo(e.target.value)}
+              placeholder="Phone number or email"
+              autoFocus
+              style={{
+                flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                color: 'var(--text-primary)', fontSize: '13px', fontFamily: 'inherit',
+                padding: '4px 0',
+              }}
+            />
+          </div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+              <MessageSquare size={32} style={{ opacity: 0.3, marginBottom: '12px' }} />
+              <div>Start a new conversation</div>
+            </div>
+          </div>
+          <div style={{
+            padding: '12px 20px',
+            borderTop: '1px solid var(--border)',
+            display: 'flex', gap: '10px', alignItems: 'flex-end',
+          }}>
+            <textarea
+              ref={composeInputRef}
+              defaultValue=""
+              onChange={e => {
+                composeDraftRef.current = e.target.value
+                const hasText = e.target.value.trim().length > 0
+                setComposeHasDraft(prev => prev !== hasText ? hasText : prev)
+                const el = e.target
+                el.style.height = 'auto'
+                el.style.height = `${Math.min(el.scrollHeight, 100)}px`
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleComposeSend()
+                }
+              }}
+              placeholder="Message"
+              aria-label="Type a message"
+              rows={1}
+              style={{
+                flex: 1, background: 'var(--bg-elevated)',
+                border: '1px solid var(--border)', borderRadius: '20px',
+                padding: '10px 16px', color: 'var(--text-primary)',
+                fontSize: '13px', resize: 'none', outline: 'none',
+                fontFamily: 'inherit', maxHeight: '100px', lineHeight: 1.4,
+              }}
+              onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent)' }}
+              onBlur={e => { e.currentTarget.style.borderColor = 'var(--border)' }}
+            />
+            <button
+              onClick={handleComposeSend}
+              disabled={!composeHasDraft || !composeTo.trim() || composeSending}
+              aria-label="Send message"
+              style={{
+                width: '36px', height: '36px', borderRadius: '50%', border: 'none',
+                background: (composeHasDraft && composeTo.trim())
+                  ? 'linear-gradient(135deg, #5ac8fa, #007aff)'
+                  : 'var(--bg-elevated)',
+                color: (composeHasDraft && composeTo.trim()) ? '#fff' : 'var(--text-muted)',
+                cursor: (composeHasDraft && composeTo.trim()) ? 'pointer' : 'default',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0, transition: 'all 0.2s var(--ease-spring)',
+                transform: composeHasDraft ? 'scale(1)' : 'scale(0.9)',
+              }}
+            >
+              <Send size={16} style={{ marginLeft: '-1px' }} />
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {/* ═══ Message Menu ═══ */}
       {messageMenu && (
@@ -2289,168 +2278,93 @@ export default function MessagesPage() {
             <MButton
               icon={convCtx.isUnread
                 ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="4" fill="var(--text-secondary)" /></svg>
-                : <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="4" fill="#007aff" /></svg>
+                : <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="4" fill="var(--apple-blue)" /></svg>
               }
               label={convCtx.isUnread ? 'Mark as Read' : 'Mark as Unread'}
               onClick={() => toggleReadStatus(convCtx.convGuid, !convCtx.isUnread)}
+            />
+            <MButton
+              icon={<Pin size={16} color="var(--text-secondary)" style={convCtx.isPinned ? { fill: 'var(--text-secondary)' } : undefined} />}
+              label={convCtx.isPinned ? 'Unpin' : 'Pin'}
+              onClick={() => {
+                const guid = convCtx.convGuid
+                setPinnedConvs(prev =>
+                  prev.includes(guid) ? prev.filter(g => g !== guid) : [...prev, guid]
+                )
+                setConvCtx(null)
+              }}
+            />
+            <MButton
+              icon={<BellOff size={16} color={convCtx.isMuted ? 'var(--apple-blue)' : 'var(--text-secondary)'} />}
+              label={convCtx.isMuted ? 'Unmute' : 'Mute'}
+              onClick={() => {
+                const guid = convCtx.convGuid
+                setMutedConvs(prev =>
+                  prev.includes(guid) ? prev.filter(g => g !== guid) : [...prev, guid]
+                )
+                setConvCtx(null)
+              }}
             />
           </div>
         </>
       )}
 
-      {/* ═══ Lightbox ═══ */}
-      {lightbox && (
-        <div
-          onClick={() => { setLightbox(null); setLoupe(null) }}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 1000,
-            background: 'rgba(0,0,0,0.88)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'zoom-out', animation: 'lightboxIn 0.2s ease-out',
-          }}
-        >
-          {lightbox.type === 'image' ? (
-            <div onClick={e => e.stopPropagation()} style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
-              <img
-                ref={imgRef} src={lightbox.src} alt="expanded"
-                style={{
-                  maxWidth: '85vw', maxHeight: '85vh', borderRadius: '10px',
-                  border: '1px solid rgba(255,255,255,0.08)', objectFit: 'contain',
-                  boxShadow: '0 8px 40px rgba(0,0,0,0.6)', display: 'block',
-                  cursor: loupe ? 'none' : 'zoom-in', userSelect: 'none',
-                }}
-                onClick={e => {
-                  const rect = e.currentTarget.getBoundingClientRect()
-                  if (loupe) {
-                    setLoupe(null)
-                  } else {
-                    setLoupe({ x: e.clientX - rect.left, y: e.clientY - rect.top, zoom: 2.1 })
-                  }
-                }}
-                onMouseMove={e => {
-                  if (!loupeRef.current) return
-                  // Direct DOM update for smooth movement — no React re-render
-                  const rect = e.currentTarget.getBoundingClientRect()
-                  const x = e.clientX - rect.left
-                  const y = e.clientY - rect.top
-                  loupeRef.current = { ...loupeRef.current, x, y }
-                  const el = document.getElementById('loupe-lens')
-                  if (!el) return
-                  const iw = rect.width
-                  const ih = rect.height
-                  const zoom = loupeRef.current.zoom
-                  const lx = Math.max(LOUPE_W / 2, Math.min(iw - LOUPE_W / 2, x))
-                  const ly = Math.max(LOUPE_H / 2, Math.min(ih - LOUPE_H / 2, y))
-                  el.style.left = `${lx - LOUPE_W / 2}px`
-                  el.style.top = `${ly - LOUPE_H / 2}px`
-                  el.style.backgroundSize = `${iw * zoom}px ${ih * zoom}px`
-                  el.style.backgroundPosition = `${LOUPE_W / 2 - x * zoom}px ${LOUPE_H / 2 - y * zoom}px`
-                }}
-              />
-              {loupe && imgRef.current && (() => {
-                const iw = imgRef.current.clientWidth
-                const ih = imgRef.current.clientHeight
-                minZoomRef.current = Math.max(LOUPE_W / iw, LOUPE_H / ih) / 0.85
-                const lx = Math.max(LOUPE_W / 2, Math.min(iw - LOUPE_W / 2, loupe.x))
-                const ly = Math.max(LOUPE_H / 2, Math.min(ih - LOUPE_H / 2, loupe.y))
-                return (
-                  <div id="loupe-lens" style={{
-                    position: 'absolute', left: lx - LOUPE_W / 2, top: ly - LOUPE_H / 2,
-                    width: LOUPE_W, height: LOUPE_H, borderRadius: '14px',
-                    border: '2px solid rgba(255,255,255,0.35)',
-                    boxShadow: '0 4px 24px rgba(0,0,0,0.7)',
-                    backgroundImage: `url(${lightbox.src})`,
-                    backgroundSize: `${iw * loupe.zoom}px ${ih * loupe.zoom}px`,
-                    backgroundPosition: `${LOUPE_W / 2 - loupe.x * loupe.zoom}px ${LOUPE_H / 2 - loupe.y * loupe.zoom}px`,
-                    backgroundRepeat: 'no-repeat', pointerEvents: 'none',
-                    willChange: 'left, top, background-position, background-size',
-                  }} />
-                )
-              })()}
-            </div>
-          ) : (
-            <div onClick={e => e.stopPropagation()}>
-              <video
-                src={lightbox.src}
-                controls
-                autoPlay
-                playsInline
-                style={{
-                  maxWidth: '85vw', maxHeight: '85vh', display: 'block',
-                  borderRadius: '10px', outline: 'none', background: '#000',
-                  boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
-                }}
-              />
-            </div>
-          )}
-          <button
-            onClick={() => { setLightbox(null); setLoupe(null) }}
-            aria-label="Close lightbox"
-            style={{
-              position: 'fixed', top: '20px', right: '24px',
-              background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
-              borderRadius: '50%', width: '36px', height: '36px', color: '#fff', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)' }}
-          >
-            <X size={18} />
-          </button>
-        </div>
-      )}
+      <Lightbox data={lightbox} onClose={() => setLightbox(null)} />
 
       {/* ═══ Toast notification ═══ */}
-      {toast && (
-        <div
-          onClick={() => {
-            if (toast.chatGuid) {
-              const conv = conversations.find(c => c.guid === toast.chatGuid)
-              if (conv) setSelected(conv)
-            }
-            setToast(null)
-          }}
-          style={{
-            position: 'fixed', top: '16px', right: '20px', zIndex: 1100,
-            background: 'rgba(30,30,38,0.92)',
-            backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: '14px', padding: '12px 16px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-            maxWidth: '320px', cursor: 'pointer',
-            animation: 'toastIn 0.3s var(--ease-spring)',
-            display: 'flex', alignItems: 'center', gap: '10px',
-          }}
-        >
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {(() => {
-                  const addr = toast.sender
-                  const digits = addr.replace(/\D/g, '')
-                  const normalized = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits
-                  return contactLookup[normalized] || contactLookup[addr.toLowerCase()] || addr
-                })()}
-              </span>
-              {toast.count > 1 && (
-                <span style={{
-                  fontSize: '10px', fontWeight: 700, color: '#fff',
-                  background: '#007aff', borderRadius: '8px',
-                  padding: '1px 5px', flexShrink: 0, lineHeight: '14px',
-                }}>
-                  {toast.count}
+      <div aria-live="polite">
+        {toast && (
+          <button
+            onClick={() => {
+              if (toast.chatGuid) {
+                const conv = conversations.find(c => c.guid === toast.chatGuid)
+                if (conv) { setSelected(conv); setComposeMode(false) }
+              }
+              dismissToast()
+            }}
+            style={{
+              position: 'fixed', top: '16px', right: '20px', zIndex: 1100,
+              background: 'rgba(30,30,38,0.92)',
+              backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '14px', padding: '12px 16px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              maxWidth: '320px', cursor: 'pointer',
+              animation: 'toastIn 0.3s var(--ease-spring)',
+              display: 'flex', alignItems: 'center', gap: '10px',
+              textAlign: 'left', font: 'inherit', color: 'inherit',
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {(() => {
+                    const addr = toast.sender
+                    const digits = addr.replace(/\D/g, '')
+                    const normalized = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits
+                    return contactLookup[normalized] || contactLookup[addr.toLowerCase()] || addr
+                  })()}
                 </span>
-              )}
+                {toast.count > 1 && (
+                  <span style={{
+                    fontSize: '10px', fontWeight: 700, color: '#fff',
+                    background: 'var(--apple-blue)', borderRadius: '8px',
+                    padding: '1px 5px', flexShrink: 0, lineHeight: '14px',
+                  }}>
+                    {toast.count}
+                  </span>
+                )}
+              </div>
+              <div style={{
+                fontSize: '12px', color: 'var(--text-secondary)',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {toast.text}
+              </div>
             </div>
-            <div style={{
-              fontSize: '12px', color: 'var(--text-secondary)',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {toast.text}
-            </div>
-          </div>
-        </div>
-      )}
+          </button>
+        )}
+      </div>
     </div>
   )
 }

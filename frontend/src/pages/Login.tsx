@@ -1,29 +1,81 @@
 
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useReducer } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { createAuthClient } from '@/lib/supabase/client'
+import { supabase as _supabase } from '@/lib/supabase/client'
 import { openInBrowser } from '@/lib/tauri'
+
+// Login page requires Supabase — not reachable in demo mode (AuthGuard skips auth)
+const supabase = _supabase!
 
 import { api } from '@/lib/api'
 
+// ── Auth view state machine ──
+// Valid states: main, email, mfa, mfa-enroll, waiting
+// Transitions:
+//   main       → email (user clicks "sign in with email")
+//   main       → waiting (OAuth opened in browser)
+//   main       → mfa (OAuth callback requires MFA verify)
+//   main       → mfa-enroll (OAuth callback requires MFA enrollment)
+//   email      → main (user clicks back)
+//   email      → mfa (password login requires MFA verify)
+//   email      → mfa-enroll (password login requires MFA enrollment)
+//   waiting    → main (user cancels or error)
+//   waiting    → mfa (tauri poll exchange requires MFA verify)
+//   waiting    → mfa-enroll (tauri poll exchange requires MFA enrollment)
+//   mfa        → main (user clicks back / signs out)
+//   mfa-enroll → main (not reachable directly, but reset via SHOW_MAIN)
+
 type View = 'main' | 'email' | 'mfa' | 'mfa-enroll' | 'waiting'
 
+type ViewAction =
+  | { type: 'SHOW_EMAIL' }
+  | { type: 'SHOW_MAIN' }
+  | { type: 'SHOW_WAITING' }
+  | { type: 'SHOW_MFA'; factorId: string }
+  | { type: 'SHOW_MFA_ENROLL'; factorId: string; qr: string; secret: string }
+
+interface ViewState {
+  view: View
+  mfaFactorId: string
+  mfaQr: string | null
+  mfaSecret: string | null
+}
+
+function viewReducer(state: ViewState, action: ViewAction): ViewState {
+  switch (action.type) {
+    case 'SHOW_EMAIL':
+      return { ...state, view: 'email' }
+    case 'SHOW_MAIN':
+      return { view: 'main', mfaFactorId: '', mfaQr: null, mfaSecret: null }
+    case 'SHOW_WAITING':
+      return { ...state, view: 'waiting' }
+    case 'SHOW_MFA':
+      return { ...state, view: 'mfa', mfaFactorId: action.factorId }
+    case 'SHOW_MFA_ENROLL':
+      return { ...state, view: 'mfa-enroll', mfaFactorId: action.factorId, mfaQr: action.qr, mfaSecret: action.secret }
+    default:
+      return state
+  }
+}
+
 export default function LoginPage() {
-  const [view, setView] = useState<View>('main')
+  const [viewState, dispatch] = useReducer(viewReducer, {
+    view: 'main',
+    mfaFactorId: '',
+    mfaQr: null,
+    mfaSecret: null,
+  })
+  const { view, mfaFactorId, mfaQr, mfaSecret } = viewState
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [mfaCode, setMfaCode] = useState('')
-  const [mfaFactorId, setMfaFactorId] = useState('')
-  const [mfaQr, setMfaQr] = useState<string | null>(null)
-  const [mfaSecret, setMfaSecret] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [searchParams] = useSearchParams()
   const rawNext = searchParams.get('next') || '/'
   const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/'
-
-  const supabase = createAuthClient()
 
   // On mount, check if user needs MFA (from query param or session)
   const mfaParam = searchParams.get('mfa')
@@ -33,8 +85,7 @@ export default function LoginPage() {
       supabase.auth.mfa.listFactors().then(({ data }) => {
         const totp = data?.totp?.find(f => f.status === 'verified')
         if (totp) {
-          setMfaFactorId(totp.id)
-          setView('mfa')
+          dispatch({ type: 'SHOW_MFA', factorId: totp.id })
         }
       })
     } else if (mfaParam === 'enroll') {
@@ -44,10 +95,7 @@ export default function LoginPage() {
         friendlyName: 'Mission Control',
       }).then(({ data, error }) => {
         if (error || !data) return
-        setMfaFactorId(data.id)
-        setMfaQr(data.totp.qr_code)
-        setMfaSecret(data.totp.secret)
-        setView('mfa-enroll')
+        dispatch({ type: 'SHOW_MFA_ENROLL', factorId: data.id, qr: data.totp.qr_code, secret: data.totp.secret })
       })
     }
   }, [mfaParam])
@@ -64,7 +112,7 @@ export default function LoginPage() {
           if (exchangeError) {
             console.error('[tauri-poll] exchange failed:', exchangeError.message)
             setError(exchangeError.message)
-            setView('main')
+            dispatch({ type: 'SHOW_MAIN' })
             setLoading(false)
             return
           }
@@ -74,9 +122,8 @@ export default function LoginPage() {
             const factors = await supabase.auth.mfa.listFactors()
             const totp = factors.data?.totp?.find(f => f.status === 'verified')
             if (totp) {
-              setMfaFactorId(totp.id)
+              dispatch({ type: 'SHOW_MFA', factorId: totp.id })
               setLoading(false)
-              setView('mfa')
               return
             }
           } else if (aal && aal.currentLevel === 'aal1' && aal.nextLevel === 'aal1') {
@@ -85,11 +132,8 @@ export default function LoginPage() {
               friendlyName: 'Mission Control',
             })
             if (enrollData) {
-              setMfaFactorId(enrollData.id)
-              setMfaQr(enrollData.totp.qr_code)
-              setMfaSecret(enrollData.totp.secret)
+              dispatch({ type: 'SHOW_MFA_ENROLL', factorId: enrollData.id, qr: enrollData.totp.qr_code, secret: enrollData.totp.secret })
               setLoading(false)
-              setView('mfa-enroll')
               return
             }
           }
@@ -99,7 +143,7 @@ export default function LoginPage() {
       } catch { /* ignore fetch errors */ }
     }, 2000)
     return () => clearInterval(interval)
-  }, [view])
+  }, [view, next])
 
   const isTauriApp = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
 
@@ -107,17 +151,30 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
 
-    // Build redirect URL — add tauri=1 flag so the callback stores the code
-    // for the WebView to pick up (instead of exchanging server-side).
-    const callbackUrl = isTauriApp
-      ? `${window.location.origin}/auth/callback?tauri=1&next=${encodeURIComponent(next)}`
-      : `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
+    // In Tauri, redirect to the embedded Axum server — the system browser can
+    // reach 127.0.0.1:3000 and the server stores the code for the WebView.
+    // Fetch a nonce from the backend and pass it as the OAuth `state` parameter
+    // so the callback can verify the request was not forged.
+    let nonce: string | undefined
+    let callbackUrl: string
+    if (isTauriApp) {
+      try {
+        const res = await api.get<{ nonce: string }>('/api/auth/nonce')
+        nonce = res.nonce
+      } catch {
+        // Fall through without nonce — backend will log a warning but allow it
+      }
+      callbackUrl = `http://127.0.0.1:3000/api/auth/callback`
+    } else {
+      callbackUrl = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
+    }
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
         redirectTo: callbackUrl,
         skipBrowserRedirect: true,
+        ...(nonce ? { queryParams: { state: nonce } } : {}),
       },
     })
     if (error) {
@@ -130,7 +187,7 @@ export default function LoginPage() {
         // Open in system browser, then poll for tokens
         const opened = await openInBrowser(data.url)
         if (opened) {
-          setView('waiting')
+          dispatch({ type: 'SHOW_WAITING' })
         } else {
           setError('Could not open browser. Please try again.')
           setLoading(false)
@@ -164,8 +221,7 @@ export default function LoginPage() {
       const factors = await supabase.auth.mfa.listFactors()
       const totp = factors.data?.totp?.find(f => f.status === 'verified')
       if (totp) {
-        setMfaFactorId(totp.id)
-        setView('mfa')
+        dispatch({ type: 'SHOW_MFA', factorId: totp.id })
         setLoading(false)
         return
       }
@@ -176,10 +232,7 @@ export default function LoginPage() {
         friendlyName: 'Mission Control',
       })
       if (!enrollErr && enrollData) {
-        setMfaFactorId(enrollData.id)
-        setMfaQr(enrollData.totp.qr_code)
-        setMfaSecret(enrollData.totp.secret)
-        setView('mfa-enroll')
+        dispatch({ type: 'SHOW_MFA_ENROLL', factorId: enrollData.id, qr: enrollData.totp.qr_code, secret: enrollData.totp.secret })
         setLoading(false)
         return
       }
@@ -231,7 +284,7 @@ export default function LoginPage() {
     borderRadius: '10px',
     color: 'var(--text-primary)',
     outline: 'none',
-    transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
+    transition: 'all 0.2s var(--ease-spring)',
     boxSizing: 'border-box',
   }
 
@@ -245,7 +298,7 @@ export default function LoginPage() {
     border: 'none',
     borderRadius: '10px',
     cursor: 'pointer',
-    transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
+    transition: 'all 0.2s var(--ease-spring)',
   }
 
   const disabledBtnStyle: React.CSSProperties = {
@@ -269,7 +322,7 @@ export default function LoginPage() {
     alignItems: 'center',
     justifyContent: 'center',
     gap: '10px',
-    transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
+    transition: 'all 0.2s var(--ease-spring)',
   }
 
   return (
@@ -306,7 +359,7 @@ export default function LoginPage() {
       <div style={{
         width: '100%',
         maxWidth: '380px',
-        padding: '40px 32px',
+        padding: '24px 32px 40px',
         background: 'var(--bg-card)',
         backdropFilter: 'blur(24px)',
         WebkitBackdropFilter: 'blur(24px)',
@@ -315,26 +368,33 @@ export default function LoginPage() {
         display: 'flex',
         flexDirection: 'column',
         gap: '24px',
-        animation: 'fadeInScale 0.5s cubic-bezier(0.22, 1, 0.36, 1) both',
+        animation: 'fadeInScale 0.5s var(--ease-spring) both',
         position: 'relative',
         zIndex: 1,
       }}>
         {/* Header */}
         <div style={{ textAlign: 'center' }}>
-          <div style={{
-            fontSize: '32px',
-            marginBottom: '12px',
-            filter: 'drop-shadow(0 2px 8px rgba(167, 139, 250, 0.2))',
-            animation: 'subtleFloat 3s ease-in-out infinite',
-          }}>
-            🦬
-          </div>
+          <img
+            src="/logo-128.png"
+            alt="Mission Control"
+            width={64}
+            height={64}
+            style={{
+              display: 'block',
+              margin: '0 auto 14px',
+              filter: 'drop-shadow(0 2px 8px rgba(167, 139, 250, 0.3))',
+              animation: 'subtleFloat 3s ease-in-out infinite',
+            }}
+          />
           <h1 style={{
             margin: 0,
-            fontSize: '20px',
-            fontWeight: 800,
+            fontSize: '22px',
+            fontWeight: 700,
+            fontFamily: "'Bitcount Prop Double', monospace",
             color: 'var(--text-primary)',
-            letterSpacing: '-0.01em',
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+            transform: 'scaleY(1.3)',
           }}>
             Mission Control
           </h1>
@@ -373,7 +433,7 @@ export default function LoginPage() {
             display: 'flex',
             flexDirection: 'column',
             gap: '10px',
-            animation: 'fadeInUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both',
+            animation: 'fadeInUp 0.4s var(--ease-spring) 0.1s both',
           }}>
             <button
               onClick={() => handleOAuth('github')}
@@ -441,19 +501,12 @@ export default function LoginPage() {
             </div>
 
             <button
-              onClick={() => { setView('email'); setError('') }}
+              onClick={() => { dispatch({ type: 'SHOW_EMAIL' }); setError('') }}
+              className="hover-bg-bright hover-border-accent"
               style={{
                 ...oauthBtnStyle,
                 color: 'var(--text-secondary)',
                 fontSize: '12px',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'
-                e.currentTarget.style.borderColor = 'var(--border-hover)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)'
-                e.currentTarget.style.borderColor = 'var(--border)'
               }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -471,7 +524,7 @@ export default function LoginPage() {
             display: 'flex',
             flexDirection: 'column',
             gap: '12px',
-            animation: 'fadeInUp 0.3s cubic-bezier(0.22, 1, 0.36, 1) both',
+            animation: 'fadeInUp 0.3s var(--ease-spring) both',
           }}>
             <input
               type="email"
@@ -512,7 +565,8 @@ export default function LoginPage() {
             </button>
             <button
               type="button"
-              onClick={() => { setView('main'); setError('') }}
+              onClick={() => { dispatch({ type: 'SHOW_MAIN' }); setError('') }}
+              className="hover-text-secondary"
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -520,10 +574,8 @@ export default function LoginPage() {
                 fontSize: '12px',
                 cursor: 'pointer',
                 padding: '4px',
-                transition: 'color 0.2s',
+                transition: 'all 0.15s',
               }}
-              onMouseEnter={e => e.currentTarget.style.color = 'var(--text-secondary)'}
-              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
             >
               Back to all sign-in options
             </button>
@@ -536,7 +588,7 @@ export default function LoginPage() {
             display: 'flex',
             flexDirection: 'column',
             gap: '12px',
-            animation: 'fadeInUp 0.3s cubic-bezier(0.22, 1, 0.36, 1) both',
+            animation: 'fadeInUp 0.3s var(--ease-spring) both',
           }}>
             <div style={{
               textAlign: 'center',
@@ -605,6 +657,27 @@ export default function LoginPage() {
             >
               {loading ? 'Verifying...' : 'Verify'}
             </button>
+            <button
+              type="button"
+              onClick={async () => {
+                await supabase.auth.signOut()
+                setMfaCode('')
+                setError('')
+                dispatch({ type: 'SHOW_MAIN' })
+              }}
+              className="hover-text-secondary"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-muted)',
+                fontSize: '12px',
+                cursor: 'pointer',
+                padding: '4px',
+                transition: 'all 0.15s',
+              }}
+            >
+              Back to all sign-in options
+            </button>
           </form>
         )}
 
@@ -616,7 +689,7 @@ export default function LoginPage() {
             alignItems: 'center',
             gap: '16px',
             padding: '12px 0',
-            animation: 'fadeInUp 0.3s cubic-bezier(0.22, 1, 0.36, 1) both',
+            animation: 'fadeInUp 0.3s var(--ease-spring) both',
           }}>
             <div style={{
               width: '40px',
@@ -635,7 +708,8 @@ export default function LoginPage() {
               Waiting for you to authorize in the browser...
             </p>
             <button
-              onClick={() => { setView('main'); setLoading(false) }}
+              onClick={() => { dispatch({ type: 'SHOW_MAIN' }); setLoading(false) }}
+              className="hover-text-secondary"
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -643,10 +717,8 @@ export default function LoginPage() {
                 fontSize: '12px',
                 cursor: 'pointer',
                 padding: '4px',
-                transition: 'color 0.2s',
+                transition: 'all 0.15s',
               }}
-              onMouseEnter={e => e.currentTarget.style.color = 'var(--text-secondary)'}
-              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
             >
               Cancel
             </button>
@@ -659,7 +731,7 @@ export default function LoginPage() {
             display: 'flex',
             flexDirection: 'column',
             gap: '14px',
-            animation: 'fadeInUp 0.3s cubic-bezier(0.22, 1, 0.36, 1) both',
+            animation: 'fadeInUp 0.3s var(--ease-spring) both',
           }}>
             <div style={{
               padding: '10px 14px',

@@ -10,29 +10,44 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::Cursor;
+use std::net::ToSocketAddrs;
 use std::sync::OnceLock;
 use tokio::sync::RwLock;
 
 use crate::server::AppState;
+use super::util::{percent_encode, random_uuid, base64_decode};
 
 // ---------------------------------------------------------------------------
 // Environment / configuration helpers
 // ---------------------------------------------------------------------------
 
-fn bb_host() -> String {
-    std::env::var("BLUEBUBBLES_HOST").unwrap_or_default()
+/// Read BlueBubbles host from AppState (env-var fallback built in).
+fn bb_host(state: &AppState) -> String {
+    state.secret_or_default("BLUEBUBBLES_HOST")
 }
 
-fn bb_password() -> String {
-    std::env::var("BLUEBUBBLES_PASSWORD").unwrap_or_default()
+/// Read BlueBubbles password from AppState (env-var fallback built in).
+fn bb_password(state: &AppState) -> String {
+    state.secret_or_default("BLUEBUBBLES_PASSWORD")
 }
 
-fn bridge_host() -> String {
-    std::env::var("MAC_BRIDGE_HOST").unwrap_or_default()
+/// Redact `password=...` query parameters from a string to prevent credential
+/// leaks in log output. Works on URLs and on `reqwest` error messages that
+/// embed the full URL.
+fn redact_bb_url(s: &str) -> String {
+    static PW_RE: OnceLock<Regex> = OnceLock::new();
+    let re = PW_RE.get_or_init(|| Regex::new(r"password=[^&\s]*").unwrap());
+    re.replace_all(s, "password=REDACTED").to_string()
 }
 
-fn bridge_api_key() -> String {
-    std::env::var("MAC_BRIDGE_API_KEY").unwrap_or_default()
+/// Read Mac-Bridge host from AppState (env-var fallback built in).
+fn bridge_host(state: &AppState) -> String {
+    state.secret_or_default("MAC_BRIDGE_HOST")
+}
+
+/// Read Mac-Bridge API key from AppState (env-var fallback built in).
+fn bridge_api_key(state: &AppState) -> String {
+    state.secret_or_default("MAC_BRIDGE_API_KEY")
 }
 
 // ---------------------------------------------------------------------------
@@ -46,7 +61,7 @@ fn chat_guid_re() -> &'static Regex {
 
 fn message_guid_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[a-zA-Z0-9_;+\-@./: ]+$").unwrap())
+    RE.get_or_init(|| Regex::new(r"^[a-zA-Z0-9_;+\-@.:]+$").unwrap())
 }
 
 fn attachment_guid_re() -> &'static Regex {
@@ -73,42 +88,31 @@ fn normalize_phone(addr: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Percent-encode helper for URL query params
-// ---------------------------------------------------------------------------
-
-fn percent_encode(input: &str) -> String {
-    let mut out = String::with_capacity(input.len() * 3);
-    for b in input.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char);
-            }
-            _ => {
-                out.push_str(&format!("%{:02X}", b));
-            }
-        }
-    }
-    out
-}
-
-// ---------------------------------------------------------------------------
 // BlueBubbles API fetch (mirrors _lib/bb.ts bbFetch)
 // ---------------------------------------------------------------------------
+
+// TODO: Replace bb_fetch calls with `state.bb` ServiceClient.
+// Migration: each `bb_fetch(client, state, path, method, body)` call becomes
+// `state.bb.as_ref().ok_or("bluebubbles_not_configured")?.get(path)` or
+// `.post(path, body)`. The ServiceClient handles timeout and 5xx retry
+// automatically. BB-specific auth (password query param) will need an
+// auth-header adapter or a custom method on ServiceClient.
 
 /// Fetch from BlueBubbles API. Returns `json.data` on success.
 /// Errors: "bluebubbles_not_configured" if BB_HOST is empty,
 ///         "Backend service error" on HTTP or API error.
 async fn bb_fetch(
     client: &reqwest::Client,
+    state: &AppState,
     path: &str,
     method: reqwest::Method,
     body: Option<Value>,
 ) -> Result<Value, String> {
-    let host = bb_host();
+    let host = bb_host(state);
     if host.is_empty() {
         return Err("bluebubbles_not_configured".into());
     }
-    let password = bb_password();
+    let password = bb_password(state);
     let sep = if path.contains('?') { '&' } else { '?' };
     let url = format!(
         "{}/api/v1{}{}password={}",
@@ -124,7 +128,7 @@ async fn bb_fetch(
     }
 
     let res = req.send().await.map_err(|e| {
-        tracing::error!("BlueBubbles fetch error: {}", e);
+        tracing::error!("BlueBubbles fetch error: {}", redact_bb_url(&e.to_string()));
         "Backend service error".to_string()
     })?;
 
@@ -157,8 +161,8 @@ async fn bb_fetch(
 // Bridge headers helper
 // ---------------------------------------------------------------------------
 
-fn bridge_headers() -> Vec<(String, String)> {
-    let key = bridge_api_key();
+fn bridge_headers(state: &AppState) -> Vec<(String, String)> {
+    let key = bridge_api_key(state);
     if key.is_empty() {
         vec![]
     } else {
@@ -183,7 +187,22 @@ fn contact_cache() -> &'static RwLock<Option<ContactCache>> {
 
 const CONTACT_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(5 * 60);
 
-async fn get_contact_map(client: &reqwest::Client) -> HashMap<String, String> {
+// Conversation list cache — serves stale data instantly while refreshing in background
+struct ConvCache {
+    conversations: Vec<Value>,
+    contacts: HashMap<String, String>,
+    fetched_at: std::time::Instant,
+}
+
+static CONV_CACHE: OnceLock<RwLock<Option<ConvCache>>> = OnceLock::new();
+
+fn conv_cache() -> &'static RwLock<Option<ConvCache>> {
+    CONV_CACHE.get_or_init(|| RwLock::new(None))
+}
+
+const CONV_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(15);
+
+async fn get_contact_map(client: &reqwest::Client, state: &AppState) -> HashMap<String, String> {
     // Check cache
     {
         let cache = contact_cache().read().await;
@@ -194,7 +213,7 @@ async fn get_contact_map(client: &reqwest::Client) -> HashMap<String, String> {
         }
     }
 
-    let map = fetch_contact_map(client).await;
+    let map = fetch_contact_map(client, state).await;
 
     // Update cache
     {
@@ -208,10 +227,11 @@ async fn get_contact_map(client: &reqwest::Client) -> HashMap<String, String> {
     map
 }
 
-async fn fetch_contact_map(client: &reqwest::Client) -> HashMap<String, String> {
+async fn fetch_contact_map(client: &reqwest::Client, state: &AppState) -> HashMap<String, String> {
     let mut map = HashMap::new();
     let contacts = match bb_fetch(
         client,
+        state,
         "/contact/query",
         reqwest::Method::POST,
         Some(json!({ "limit": 500 })),
@@ -284,7 +304,7 @@ const AVATAR_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(10 
 const MAX_AVATAR_BYTES: usize = 512 * 1024;
 const MAX_CACHE_BYTES: usize = 100 * 1024 * 1024;
 
-async fn get_bb_contact_avatars(client: &reqwest::Client) -> HashMap<String, Vec<u8>> {
+async fn get_bb_contact_avatars(client: &reqwest::Client, state: &AppState) -> HashMap<String, Vec<u8>> {
     // Check cache
     {
         let cache = avatar_cache().read().await;
@@ -295,7 +315,7 @@ async fn get_bb_contact_avatars(client: &reqwest::Client) -> HashMap<String, Vec
         }
     }
 
-    let map = fetch_bb_contact_avatars(client).await;
+    let map = fetch_bb_contact_avatars(client, state).await;
 
     // Update cache
     {
@@ -309,12 +329,12 @@ async fn get_bb_contact_avatars(client: &reqwest::Client) -> HashMap<String, Vec
     map
 }
 
-async fn fetch_bb_contact_avatars(client: &reqwest::Client) -> HashMap<String, Vec<u8>> {
-    let host = bb_host();
+async fn fetch_bb_contact_avatars(client: &reqwest::Client, state: &AppState) -> HashMap<String, Vec<u8>> {
+    let host = bb_host(state);
     if host.is_empty() {
         return HashMap::new();
     }
-    let password = bb_password();
+    let password = bb_password(state);
     let url = format!(
         "{}/api/v1/contact/query?password={}",
         host,
@@ -355,8 +375,7 @@ async fn fetch_bb_contact_avatars(client: &reqwest::Client) -> HashMap<String, V
             _ => continue,
         };
 
-        use base64_decode::decode_base64;
-        let buf = match decode_base64(avatar_b64) {
+        let buf = match base64_decode(avatar_b64) {
             Some(b) => b,
             None => continue,
         };
@@ -393,53 +412,6 @@ async fn fetch_bb_contact_avatars(client: &reqwest::Client) -> HashMap<String, V
     map
 }
 
-// Inline base64 decoder (no external crate needed — mirrors chat.rs pattern)
-mod base64_decode {
-    const TABLE: &[u8; 64] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-    pub fn decode_base64(input: &str) -> Option<Vec<u8>> {
-        let mut lookup = [255u8; 256];
-        for (i, &c) in TABLE.iter().enumerate() {
-            lookup[c as usize] = i as u8;
-        }
-
-        let input = input.trim_end_matches('=');
-        let len = input.len();
-        let mut out = Vec::with_capacity(len * 3 / 4);
-        let bytes = input.as_bytes();
-
-        let mut i = 0;
-        while i < len {
-            let remaining = len - i;
-            let a = lookup[*bytes.get(i).unwrap_or(&b'A') as usize];
-            let b = lookup[*bytes.get(i + 1).unwrap_or(&b'A') as usize];
-            if a == 255 || b == 255 {
-                return None;
-            }
-            out.push((a << 2) | (b >> 4));
-
-            if remaining > 2 {
-                let c = lookup[bytes[i + 2] as usize];
-                if c == 255 {
-                    return None;
-                }
-                out.push((b << 4) | (c >> 2));
-                if remaining > 3 {
-                    let d = lookup[bytes[i + 3] as usize];
-                    if d == 255 {
-                        return None;
-                    }
-                    out.push((c << 6) | d);
-                }
-            }
-            i += 4;
-        }
-
-        Some(out)
-    }
-}
-
 // ---------------------------------------------------------------------------
 // TIFF-to-JPEG conversion using the `image` crate (mirrors sharp usage in TS)
 // ---------------------------------------------------------------------------
@@ -450,27 +422,6 @@ fn to_jpeg(data: &[u8]) -> Result<Vec<u8>, String> {
     img.write_to(&mut buf, image::ImageFormat::Jpeg)
         .map_err(|e| format!("jpeg encode: {}", e))?;
     Ok(buf.into_inner())
-}
-
-// ---------------------------------------------------------------------------
-// UUID helper
-// ---------------------------------------------------------------------------
-
-fn random_uuid() -> String {
-    use rand::Rng;
-    let mut rng = rand::thread_rng();
-    let mut bytes = [0u8; 16];
-    rng.fill(&mut bytes);
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    format!(
-        "{}-{}-{}-{}-{}",
-        hex::encode(&bytes[0..4]),
-        hex::encode(&bytes[4..6]),
-        hex::encode(&bytes[6..8]),
-        hex::encode(&bytes[8..10]),
-        hex::encode(&bytes[10..16]),
-    )
 }
 
 // ---------------------------------------------------------------------------
@@ -639,6 +590,516 @@ fn service_priority(guid: &str) -> i32 {
 }
 
 // ---------------------------------------------------------------------------
+// TODO: Extract into `conversations.rs` — conversation list builder, dedup,
+// contact map, contact cache, avatar cache, and the conversation cache refresh
+// logic (~500 lines). These are self-contained and only used by get_messages
+// and refresh_conv_cache.
+// ---------------------------------------------------------------------------
+// Conversation list builder (shared by cache-miss and background refresh)
+// ---------------------------------------------------------------------------
+
+/// Fetch all conversations from BlueBubbles, deduplicate, resolve contacts,
+/// detect junk, sort by recency. Returns (sorted_conversations, contact_map).
+async fn fetch_and_build_conversations(
+    client: &reqwest::Client,
+    state: &AppState,
+) -> Result<(Vec<Value>, HashMap<String, String>), String> {
+    // BB caps at 1000 per request but its "lastmessage" sort is unreliable —
+    // chats without messages get mixed in, pushing real conversations past 1000.
+    // Fetch two pages in parallel and merge. Cache pre-warming means this
+    // doesn't affect perceived load time.
+    let chat_query_p1 = json!({
+        "limit": 1000,
+        "offset": 0,
+        "sort": "lastmessage",
+        "with": ["lastMessage", "participants"],
+    });
+    let chat_query_p2 = json!({
+        "limit": 1000,
+        "offset": 1000,
+        "sort": "lastmessage",
+        "with": ["lastMessage", "participants"],
+    });
+
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    let fourteen_days_ago = now_ms - 14 * 24 * 60 * 60 * 1000;
+
+    let recent_query = json!({
+        "limit": 500,
+        "sort": "DESC",
+        "after": fourteen_days_ago,
+        "with": ["chat"],
+    });
+
+    let (chats_p1, chats_p2, recent_result, contact_map) = tokio::join!(
+        bb_fetch(client, state, "/chat/query", reqwest::Method::POST, Some(chat_query_p1)),
+        async {
+            bb_fetch(client, state, "/chat/query", reqwest::Method::POST, Some(chat_query_p2))
+                .await
+                .unwrap_or(Value::Array(vec![]))
+        },
+        async {
+            bb_fetch(client, state, "/message/query", reqwest::Method::POST, Some(recent_query))
+                .await
+                .unwrap_or(Value::Array(vec![]))
+        },
+        get_contact_map(client, state),
+    );
+
+    let page1 = chats_p1?;
+
+    let mut chats_arr = page1.as_array().cloned().unwrap_or_default();
+    let page2_arr = chats_p2.as_array().cloned().unwrap_or_default();
+    chats_arr.extend(page2_arr);
+    let recent_arr = recent_result.as_array().cloned().unwrap_or_default();
+
+    tracing::info!(
+        "BB fetch: {} chats, {} recent messages, {} contacts",
+        chats_arr.len(),
+        recent_arr.len(),
+        contact_map.len()
+    );
+
+    // Build conversation map keyed by normalized phone/email
+    let mut best_chat: HashMap<String, Value> = HashMap::new();
+
+    #[derive(Clone)]
+    struct NewestInfo {
+        text: Option<String>,
+        date_created: Option<i64>,
+        is_from_me: Option<bool>,
+        date_read: Option<i64>,
+    }
+    let mut newest_date: HashMap<String, NewestInfo> = HashMap::new();
+
+    for c in &chats_arr {
+        let chat_id = c
+            .get("chatIdentifier")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let this_guid = c.get("guid").and_then(|v| v.as_str()).unwrap_or("");
+        let is_group = this_guid.contains(";+;");
+
+        // Group chats: use chatIdentifier as-is (phone normalization would strip
+        // the "chat" prefix and could cause collisions).
+        // 1:1 chats: normalize phone to dedup iMessage/SMS/any variants.
+        let normalized_id = if is_group {
+            chat_id.to_lowercase()
+        } else {
+            let norm = normalize_phone(chat_id);
+            if !norm.is_empty() {
+                norm
+            } else {
+                chat_id.to_lowercase()
+            }
+        };
+        if normalized_id.is_empty() {
+            continue;
+        }
+
+        let this_priority = service_priority(this_guid);
+
+        let existing_priority = best_chat
+            .get(&normalized_id)
+            .and_then(|e| e.get("guid").and_then(|v| v.as_str()))
+            .map(service_priority)
+            .unwrap_or(-1);
+
+        if !best_chat.contains_key(&normalized_id) || this_priority > existing_priority {
+            best_chat.insert(normalized_id.clone(), c.clone());
+        }
+
+        // Only use the lastMessage date if it's a real message — phantom/system
+        // events (no text, no attachments, itemType != 0) can bump old
+        // conversations to appear recent. Photos/attachments are still valid.
+        let this_date = c
+            .pointer("/lastMessage/dateCreated")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        let last_msg_has_text = c
+            .pointer("/lastMessage/text")
+            .and_then(|v| v.as_str())
+            .map(|s| !s.is_empty())
+            .unwrap_or(false);
+        let last_msg_has_attachments = c
+            .pointer("/lastMessage/attachments")
+            .and_then(|v| v.as_array())
+            .map(|a| !a.is_empty())
+            .unwrap_or(false);
+        let is_real_message = last_msg_has_text || last_msg_has_attachments;
+        let prev = newest_date.get(&normalized_id);
+        let should_update = is_real_message
+            && prev
+                .map(|p| this_date > p.date_created.unwrap_or(0))
+                .unwrap_or(true);
+        if should_update {
+            newest_date.insert(
+                normalized_id,
+                NewestInfo {
+                    text: c
+                        .pointer("/lastMessage/text")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    date_created: c
+                        .pointer("/lastMessage/dateCreated")
+                        .and_then(|v| v.as_i64()),
+                    is_from_me: c
+                        .pointer("/lastMessage/isFromMe")
+                        .and_then(|v| v.as_bool())
+                        .or_else(|| {
+                            c.pointer("/lastMessage/isFromMe")
+                                .and_then(|v| v.as_i64())
+                                .map(|n| n != 0)
+                        }),
+                    date_read: c
+                        .pointer("/lastMessage/dateRead")
+                        .and_then(|v| v.as_i64()),
+                },
+            );
+        }
+    }
+
+    // Supplement with recent messages
+    for msg in &recent_arr {
+        let msg_chats = msg.get("chats").and_then(|v| v.as_array());
+        for chat in msg_chats.unwrap_or(&Vec::new()) {
+            let chat_id = chat
+                .get("chatIdentifier")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let this_guid = chat.get("guid").and_then(|v| v.as_str()).unwrap_or("");
+            let is_group = this_guid.contains(";+;");
+
+            let normalized_id = if is_group {
+                chat_id.to_lowercase()
+            } else {
+                let norm = normalize_phone(chat_id);
+                if !norm.is_empty() {
+                    norm
+                } else {
+                    chat_id.to_lowercase()
+                }
+            };
+            if normalized_id.is_empty() {
+                continue;
+            }
+
+            let this_priority = service_priority(this_guid);
+            let existing_priority = best_chat
+                .get(&normalized_id)
+                .and_then(|e| e.get("guid").and_then(|v| v.as_str()))
+                .map(service_priority)
+                .unwrap_or(-1);
+
+            if !best_chat.contains_key(&normalized_id) {
+                best_chat.insert(normalized_id.clone(), chat.clone());
+            } else if this_priority > existing_priority {
+                let mut merged = chat.clone();
+                if merged.get("participants").is_none()
+                    || merged
+                        .get("participants")
+                        .and_then(|v| v.as_array())
+                        .map(|a| a.is_empty())
+                        .unwrap_or(true)
+                {
+                    if let Some(existing) = best_chat.get(&normalized_id) {
+                        if let Some(p) = existing.get("participants") {
+                            merged
+                                .as_object_mut()
+                                .unwrap()
+                                .insert("participants".into(), p.clone());
+                        }
+                    }
+                }
+                best_chat.insert(normalized_id.clone(), merged);
+            }
+
+            let msg_text = msg.get("text").and_then(|v| v.as_str()).unwrap_or("");
+            let msg_date = msg.get("dateCreated").and_then(|v| v.as_i64()).unwrap_or(0);
+            let has_content = !msg_text.is_empty();
+            let prev = newest_date.get(&normalized_id);
+            let should_update = has_content
+                && prev
+                    .map(|p| msg_date > p.date_created.unwrap_or(0))
+                    .unwrap_or(true);
+            if should_update {
+                newest_date.insert(
+                    normalized_id,
+                    NewestInfo {
+                        text: msg
+                            .get("text")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string()),
+                        date_created: msg.get("dateCreated").and_then(|v| v.as_i64()),
+                        is_from_me: msg
+                            .get("isFromMe")
+                            .and_then(|v| v.as_bool())
+                            .or_else(|| {
+                                msg.get("isFromMe").and_then(|v| v.as_i64()).map(|n| n != 0)
+                            }),
+                        date_read: msg.get("dateRead").and_then(|v| v.as_i64()),
+                    },
+                );
+            }
+        }
+    }
+
+    // Inline-fix 1:1 chats missing participants
+    for (_norm_id, entry) in best_chat.iter_mut() {
+        let has_participants = entry
+            .get("participants")
+            .and_then(|v| v.as_array())
+            .map(|a| !a.is_empty())
+            .unwrap_or(false);
+
+        if !has_participants {
+            let chat_id = entry
+                .get("chatIdentifier")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let guid = entry
+                .get("guid")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let is_group = guid.contains(";+;");
+
+            if !is_group && !chat_id.is_empty() {
+                let guid_service = guid.split(';').next().unwrap_or("").to_string();
+                let service = if !guid_service.is_empty() && guid_service != "any" {
+                    guid_service
+                } else {
+                    "iMessage".to_string()
+                };
+                entry.as_object_mut().unwrap().insert(
+                    "participants".into(),
+                    json!([{ "address": chat_id, "service": service }]),
+                );
+            }
+        }
+    }
+
+    // Build final conversations
+    let mut conversations: Vec<Value> = best_chat
+        .iter()
+        .map(|(normalized_id, c)| {
+            let participants_raw = c
+                .get("participants")
+                .and_then(|v| v.as_array())
+                .cloned()
+                .unwrap_or_default();
+            let participants: Vec<Value> = participants_raw
+                .iter()
+                .map(|p| {
+                    json!({
+                        "address": p.get("address").and_then(|v| v.as_str()).unwrap_or(""),
+                        "service": p.get("service").and_then(|v| v.as_str()).unwrap_or(""),
+                    })
+                })
+                .collect();
+            let chat_id = c
+                .get("chatIdentifier")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let newest = newest_date.get(normalized_id);
+
+            let mut display_name: Option<String> =
+                c.get("displayName").and_then(|v| v.as_str()).and_then(|s| {
+                    if s.is_empty() {
+                        None
+                    } else {
+                        Some(s.to_string())
+                    }
+                });
+            if display_name.is_none() && participants.len() == 1 {
+                let addr = participants[0]
+                    .get("address")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                display_name = contact_map
+                    .get(&normalize_phone(addr))
+                    .or_else(|| contact_map.get(&addr.to_lowercase()))
+                    .cloned();
+            }
+            if display_name.is_none() && !chat_id.is_empty() {
+                display_name = contact_map
+                    .get(&normalize_phone(chat_id))
+                    .or_else(|| contact_map.get(&chat_id.to_lowercase()))
+                    .cloned();
+            }
+
+            let is_unread = newest
+                .as_ref()
+                .map(|n| !n.is_from_me.unwrap_or(true) && n.date_read.is_none())
+                .unwrap_or(false);
+
+            let guid_str = c.get("guid").and_then(|v| v.as_str()).unwrap_or("");
+            let service = {
+                let part_svc = participants
+                    .first()
+                    .and_then(|p| p.get("service").and_then(|v| v.as_str()))
+                    .unwrap_or("");
+                let part_svc_lower = part_svc.to_lowercase();
+                if !part_svc_lower.is_empty() && part_svc_lower != "any" {
+                    part_svc.to_string()
+                } else {
+                    let guid_prefix = guid_str
+                        .split(';')
+                        .next()
+                        .unwrap_or("")
+                        .to_lowercase();
+                    if !guid_prefix.is_empty() && guid_prefix != "any" {
+                        guid_prefix
+                    } else {
+                        let has_sms = participants.iter().any(|p| {
+                            p.get("service")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.eq_ignore_ascii_case("sms"))
+                                .unwrap_or(false)
+                        });
+                        let has_rcs = participants.iter().any(|p| {
+                            p.get("service")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.eq_ignore_ascii_case("rcs"))
+                                .unwrap_or(false)
+                        });
+                        if has_sms {
+                            "SMS".to_string()
+                        } else if has_rcs {
+                            "RCS".to_string()
+                        } else {
+                            "iMessage".to_string()
+                        }
+                    }
+                }
+            };
+
+            // Junk detection
+            let is_group = guid_str.contains(";+;");
+            // Named group chats (user set a display name in iMessage) are never junk
+            let has_bb_display_name = c
+                .get("displayName")
+                .and_then(|v| v.as_str())
+                .map(|s| !s.is_empty())
+                .unwrap_or(false);
+            let all_participants_unknown = !participants.is_empty()
+                && participants.iter().all(|p| {
+                    let addr = p.get("address").and_then(|v| v.as_str()).unwrap_or("");
+                    let norm = normalize_phone(addr);
+                    !contact_map.contains_key(&norm)
+                        && !contact_map.contains_key(&addr.to_lowercase())
+                });
+            // For group chats: also check if ANY participant is known (not just all unknown)
+            let any_participant_known = is_group
+                && participants.iter().any(|p| {
+                    let addr = p.get("address").and_then(|v| v.as_str()).unwrap_or("");
+                    let norm = normalize_phone(addr);
+                    contact_map.contains_key(&norm)
+                        || contact_map.contains_key(&addr.to_lowercase())
+                });
+            let is_short_code = chat_id.chars().all(|c| c.is_ascii_digit())
+                && chat_id.len() <= 6
+                && !chat_id.is_empty();
+            let is_unknown_email = chat_id.contains('@') && display_name.is_none();
+
+            let is_junk = if has_bb_display_name || any_participant_known {
+                // Named group chats or groups with at least one known contact are never junk
+                false
+            } else {
+                (is_group && all_participants_unknown)
+                    || (is_short_code && all_participants_unknown)
+                    || is_unknown_email
+            };
+
+            json!({
+                "guid": guid_str,
+                "chatId": chat_id,
+                "displayName": display_name,
+                "participants": participants,
+                "service": service,
+                "lastMessage": newest.as_ref().and_then(|n| n.text.clone()),
+                "lastDate": newest.as_ref().and_then(|n| n.date_created),
+                "lastFromMe": if newest.as_ref().and_then(|n| n.is_from_me).unwrap_or(false) { 1 } else { 0 },
+                "isUnread": is_unread,
+                "isJunk": is_junk,
+            })
+        })
+        .collect();
+
+    // Sort by most recent message
+    conversations.sort_by(|a, b| {
+        let a_date = a.get("lastDate").and_then(|v| v.as_i64()).unwrap_or(0);
+        let b_date = b.get("lastDate").and_then(|v| v.as_i64()).unwrap_or(0);
+        b_date.cmp(&a_date)
+    });
+
+    Ok((conversations, contact_map))
+}
+
+/// Background cache refresh — fetches fresh data and stores it.
+/// Also called at server startup to pre-warm the cache.
+pub async fn refresh_conv_cache(client: &reqwest::Client, state: &AppState) {
+    match fetch_and_build_conversations(client, state).await {
+        Ok((conversations, contacts)) => {
+            // Persist to SQLite for instant next launch
+            if let Ok(payload) = serde_json::to_string(&json!({
+                "conversations": conversations,
+                "contacts": contacts,
+            })) {
+                state.cache_set("conversations", &payload).await;
+            }
+
+            let mut cache = conv_cache().write().await;
+            *cache = Some(ConvCache {
+                conversations,
+                contacts,
+                fetched_at: std::time::Instant::now(),
+            });
+        }
+        Err(e) => {
+            tracing::warn!("Background conv cache refresh failed: {}", e);
+        }
+    }
+}
+
+/// Load conversations from SQLite into the in-memory cache.
+/// Returns `true` if the cache was populated from disk.
+async fn hydrate_conv_cache_from_db(state: &AppState) -> bool {
+    let cached = match state.cache_get("conversations").await {
+        Some(s) => s,
+        None => return false,
+    };
+    let parsed: Value = match serde_json::from_str(&cached) {
+        Ok(v) => v,
+        Err(_) => return false,
+    };
+    let conversations: Vec<Value> = parsed
+        .get("conversations")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let contacts: HashMap<String, String> = parsed
+        .get("contacts")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default();
+
+    if conversations.is_empty() {
+        return false;
+    }
+
+    let mut cache = conv_cache().write().await;
+    *cache = Some(ConvCache {
+        conversations,
+        contacts,
+        // Mark as stale so a background refresh fires immediately
+        fetched_at: std::time::Instant::now() - CONV_CACHE_TTL - std::time::Duration::from_secs(1),
+    });
+    tracing::info!("Hydrated conversation cache from SQLite");
+    true
+}
+
+// ---------------------------------------------------------------------------
 // GET /messages — list conversations or get messages for a conversation
 // ---------------------------------------------------------------------------
 
@@ -647,6 +1108,11 @@ struct MessagesQuery {
     conversation: Option<String>,
     limit: Option<String>,
     before: Option<String>,
+    /// Epoch ms — only return messages created after this timestamp (delta sync).
+    since: Option<String>,
+    offset: Option<String>,
+    /// "all" (default, excludes junk), "junk" (only junk), "unfiltered" (everything)
+    filter: Option<String>,
 }
 
 async fn get_messages(
@@ -681,6 +1147,20 @@ async fn get_messages(
             "with": ["attachment", "handle"],
         });
 
+        // Delta sync: when `since` is provided, only fetch messages newer
+        // than that timestamp.  The BlueBubbles API uses the `after` field.
+        let since_ts = params
+            .since
+            .as_deref()
+            .and_then(|s| s.parse::<i64>().ok());
+
+        if let Some(ts) = since_ts {
+            query_body
+                .as_object_mut()
+                .unwrap()
+                .insert("after".into(), json!(ts));
+        }
+
         if let Some(ref before_str) = params.before {
             if let Ok(before_ts) = before_str.parse::<i64>() {
                 query_body
@@ -691,8 +1171,8 @@ async fn get_messages(
         }
 
         let (raw_result, contact_map) = tokio::join!(
-            bb_fetch(client, "/message/query", reqwest::Method::POST, Some(query_body)),
-            get_contact_map(client),
+            bb_fetch(client, &state, "/message/query", reqwest::Method::POST, Some(query_body)),
+            get_contact_map(client, &state),
         );
 
         match raw_result {
@@ -704,9 +1184,22 @@ async fn get_messages(
                 arr.reverse(); // chronological order
                 let messages = process_messages_with_reactions(&arr);
 
+                // Track the newest message timestamp for this conversation
+                // so the frontend knows what `since` value to use next time.
+                let newest_ts = messages
+                    .iter()
+                    .filter_map(|m| m.get("dateCreated").and_then(|v| v.as_i64()))
+                    .max();
+
+                if let Some(ts) = newest_ts {
+                    let cache_key = format!("msg-ts-{}", chat_guid);
+                    state.cache_set(&cache_key, &ts.to_string()).await;
+                }
+
                 Json(json!({
                     "messages": messages,
                     "contacts": contact_map,
+                    "newestTimestamp": newest_ts,
                 }))
                 .into_response()
             }
@@ -728,6 +1221,7 @@ async fn get_messages(
         }
     } else {
         // List conversations
+        let filter_mode = params.filter.as_deref().unwrap_or("all").to_string();
         let requested_conv_limit = params
             .limit
             .as_deref()
@@ -736,42 +1230,60 @@ async fn get_messages(
             .max(1)
             .min(500);
 
-        // Always fetch a large batch from BB so we can dedup + sort properly,
-        // then truncate to the requested limit. BB's "lastmessage" sort doesn't
-        // always reflect actual recent activity with unified `any;-;` conversations.
-        let bb_fetch_limit: i64 = 500;
+        let conv_offset = params
+            .offset
+            .as_deref()
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(0);
 
-        let chat_query = json!({
-            "limit": bb_fetch_limit,
-            "offset": 0,
-            "sort": "lastmessage",
-            "with": ["lastMessage", "participants"],
-        });
+        // Serve from in-memory cache if available (stale-while-revalidate)
+        // If empty, try hydrating from SQLite for instant cold-start.
+        {
+            let has_cache = conv_cache().read().await.is_some();
+            if !has_cache {
+                hydrate_conv_cache_from_db(&state).await;
+            }
+        }
+        {
+            let cache = conv_cache().read().await;
+            if let Some(ref c) = *cache {
+                let is_stale = c.fetched_at.elapsed() >= CONV_CACHE_TTL;
 
-        let now_ms = chrono::Utc::now().timestamp_millis();
-        let fourteen_days_ago = now_ms - 14 * 24 * 60 * 60 * 1000;
+                // Apply filter + offset + limit from cached data
+                let mut convs = c.conversations.clone();
+                match filter_mode.as_str() {
+                    "junk" => convs.retain(|c| c.get("isJunk").and_then(|v| v.as_bool()).unwrap_or(false)),
+                    "unfiltered" => {}
+                    _ => convs.retain(|c| !c.get("isJunk").and_then(|v| v.as_bool()).unwrap_or(false)),
+                }
+                if conv_offset > 0 && conv_offset < convs.len() {
+                    convs = convs.split_off(conv_offset);
+                } else if conv_offset >= convs.len() {
+                    convs.clear();
+                }
+                convs.truncate(requested_conv_limit);
 
-        let recent_query = json!({
-            "limit": 500,
-            "sort": "DESC",
-            "after": fourteen_days_ago,
-            "with": ["chat"],
-        });
+                let contacts = c.contacts.clone();
+                drop(cache);
 
-        // Always fetch recent messages to supplement the chat list — this catches
-        // conversations that BB's chat sort misses (e.g. unified any;-; conversations).
-        let (chats_result, recent_result, contact_map) = tokio::join!(
-            bb_fetch(client, "/chat/query", reqwest::Method::POST, Some(chat_query)),
-            async {
-                bb_fetch(client, "/message/query", reqwest::Method::POST, Some(recent_query))
-                    .await
-                    .unwrap_or(Value::Array(vec![]))
-            },
-            get_contact_map(client),
-        );
+                // Trigger background refresh if stale
+                if is_stale {
+                    let client = client.clone();
+                    let bg_state = state.clone();
+                    tokio::spawn(async move {
+                        refresh_conv_cache(&client, &bg_state).await;
+                    });
+                }
 
-        let chats = match chats_result {
-            Ok(v) => v,
+                return (
+                    [(header::CACHE_CONTROL, "private, max-age=5, stale-while-revalidate=30")],
+                    Json(json!({ "conversations": convs, "contacts": contacts })),
+                ).into_response();
+            }
+        }
+
+        let (conversations_all, contact_lookup) = match fetch_and_build_conversations(client, &state).await {
+            Ok(data) => data,
             Err(e) => {
                 if e == "bluebubbles_not_configured" {
                     return Json(json!({
@@ -789,442 +1301,37 @@ async fn get_messages(
             }
         };
 
-        let chats_arr = chats.as_array().cloned().unwrap_or_default();
-        let recent_arr = recent_result.as_array().cloned().unwrap_or_default();
-
-        // Build conversation map keyed by normalized phone/email
-        // Track: best chat entry (prefer iMessage) + newest date across all versions
-        let mut best_chat: HashMap<String, Value> = HashMap::new();
-
-        #[derive(Clone)]
-        struct NewestInfo {
-            text: Option<String>,
-            date_created: Option<i64>,
-            is_from_me: Option<bool>,
-            date_read: Option<i64>,
-        }
-        let mut newest_date: HashMap<String, NewestInfo> = HashMap::new();
-
-        for c in &chats_arr {
-            let chat_id = c
-                .get("chatIdentifier")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            let norm = normalize_phone(chat_id);
-            let normalized_id = if !norm.is_empty() {
-                norm
-            } else {
-                chat_id.to_lowercase()
-            };
-            if normalized_id.is_empty() {
-                continue;
+        // Store in cache for subsequent requests + persist to SQLite
+        {
+            if let Ok(payload) = serde_json::to_string(&json!({
+                "conversations": conversations_all,
+                "contacts": contact_lookup,
+            })) {
+                state.cache_set("conversations", &payload).await;
             }
 
-            let this_guid = c.get("guid").and_then(|v| v.as_str()).unwrap_or("");
-            let this_priority = service_priority(this_guid);
-
-            let existing_priority = best_chat
-                .get(&normalized_id)
-                .and_then(|e| e.get("guid").and_then(|v| v.as_str()))
-                .map(service_priority)
-                .unwrap_or(-1);
-
-            if !best_chat.contains_key(&normalized_id) || this_priority > existing_priority {
-                best_chat.insert(normalized_id.clone(), c.clone());
-            }
-
-            let this_date = c
-                .pointer("/lastMessage/dateCreated")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(0);
-            let prev = newest_date.get(&normalized_id);
-            let should_update = prev
-                .map(|p| this_date > p.date_created.unwrap_or(0))
-                .unwrap_or(true);
-            if should_update {
-                newest_date.insert(
-                    normalized_id,
-                    NewestInfo {
-                        text: c
-                            .pointer("/lastMessage/text")
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string()),
-                        date_created: c
-                            .pointer("/lastMessage/dateCreated")
-                            .and_then(|v| v.as_i64()),
-                        is_from_me: c
-                            .pointer("/lastMessage/isFromMe")
-                            .and_then(|v| v.as_bool())
-                            .or_else(|| {
-                                c.pointer("/lastMessage/isFromMe")
-                                    .and_then(|v| v.as_i64())
-                                    .map(|n| n != 0)
-                            }),
-                        date_read: c
-                            .pointer("/lastMessage/dateRead")
-                            .and_then(|v| v.as_i64()),
-                    },
-                );
-            }
+            let mut cache = conv_cache().write().await;
+            *cache = Some(ConvCache {
+                conversations: conversations_all.clone(),
+                contacts: contact_lookup.clone(),
+                fetched_at: std::time::Instant::now(),
+            });
         }
 
-        // Supplement with recent messages
-        for msg in &recent_arr {
-            let msg_chats = msg.get("chats").and_then(|v| v.as_array());
-            for chat in msg_chats.unwrap_or(&Vec::new()) {
-                let chat_id = chat
-                    .get("chatIdentifier")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                let norm = normalize_phone(chat_id);
-                let normalized_id = if !norm.is_empty() {
-                    norm
-                } else {
-                    chat_id.to_lowercase()
-                };
-                if normalized_id.is_empty() {
-                    continue;
-                }
-
-                let this_guid = chat.get("guid").and_then(|v| v.as_str()).unwrap_or("");
-                let this_priority = service_priority(this_guid);
-                let existing_priority = best_chat
-                    .get(&normalized_id)
-                    .and_then(|e| e.get("guid").and_then(|v| v.as_str()))
-                    .map(service_priority)
-                    .unwrap_or(-1);
-
-                if !best_chat.contains_key(&normalized_id) {
-                    best_chat.insert(normalized_id.clone(), chat.clone());
-                } else if this_priority > existing_priority {
-                    // Preserve participants from existing record
-                    let mut merged = chat.clone();
-                    if merged.get("participants").is_none()
-                        || merged
-                            .get("participants")
-                            .and_then(|v| v.as_array())
-                            .map(|a| a.is_empty())
-                            .unwrap_or(true)
-                    {
-                        if let Some(existing) = best_chat.get(&normalized_id) {
-                            if let Some(p) = existing.get("participants") {
-                                merged
-                                    .as_object_mut()
-                                    .unwrap()
-                                    .insert("participants".into(), p.clone());
-                            }
-                        }
-                    }
-                    best_chat.insert(normalized_id.clone(), merged);
-                }
-
-                let msg_date = msg.get("dateCreated").and_then(|v| v.as_i64()).unwrap_or(0);
-                let prev = newest_date.get(&normalized_id);
-                let should_update = prev
-                    .map(|p| msg_date > p.date_created.unwrap_or(0))
-                    .unwrap_or(true);
-                if should_update {
-                    newest_date.insert(
-                        normalized_id,
-                        NewestInfo {
-                            text: msg
-                                .get("text")
-                                .and_then(|v| v.as_str())
-                                .map(|s| s.to_string()),
-                            date_created: msg.get("dateCreated").and_then(|v| v.as_i64()),
-                            is_from_me: msg
-                                .get("isFromMe")
-                                .and_then(|v| v.as_bool())
-                                .or_else(|| {
-                                    msg.get("isFromMe").and_then(|v| v.as_i64()).map(|n| n != 0)
-                                }),
-                            date_read: msg.get("dateRead").and_then(|v| v.as_i64()),
-                        },
-                    );
-                }
-            }
+        // Apply junk filter
+        let mut conversations = conversations_all;
+        match filter_mode.as_str() {
+            "junk" => conversations.retain(|c| c.get("isJunk").and_then(|v| v.as_bool()).unwrap_or(false)),
+            "unfiltered" => {}
+            _ => conversations.retain(|c| !c.get("isJunk").and_then(|v| v.as_bool()).unwrap_or(false)),
         }
 
-        // Build contact lookup for frontend
-        let contact_lookup: HashMap<String, String> = contact_map.clone();
-
-        // Backfill participants for chats missing them
-        let mut missing_participant_guids: Vec<String> = Vec::new();
-        for (_norm_id, entry) in best_chat.iter_mut() {
-            let has_participants = entry
-                .get("participants")
-                .and_then(|v| v.as_array())
-                .map(|a| !a.is_empty())
-                .unwrap_or(false);
-
-            if !has_participants {
-                let chat_id = entry
-                    .get("chatIdentifier")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                let guid = entry.get("guid").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                let is_group = guid.contains(";+;");
-
-                if is_group {
-                    missing_participant_guids.push(guid);
-                } else if !chat_id.is_empty() {
-                    // 1:1 chat — infer participant from chatIdentifier
-                    let guid_service = guid.split(';').next().unwrap_or("").to_string();
-                    let service = if !guid_service.is_empty() && guid_service != "any" {
-                        guid_service
-                    } else {
-                        "iMessage".to_string()
-                    };
-                    entry.as_object_mut().unwrap().insert(
-                        "participants".into(),
-                        json!([{ "address": chat_id, "service": service }]),
-                    );
-                }
-            }
+        // Apply offset + limit
+        if conv_offset > 0 && conv_offset < conversations.len() {
+            conversations = conversations.split_off(conv_offset);
+        } else if conv_offset >= conversations.len() {
+            conversations.clear();
         }
-
-        // Batch-fetch participants for group chats missing them
-        if !missing_participant_guids.is_empty() {
-            let fetches: Vec<_> = missing_participant_guids
-                .iter()
-                .map(|guid| {
-                    let client = client.clone();
-                    let guid = guid.clone();
-                    async move {
-                        let result = bb_fetch(
-                            &client,
-                            "/chat/query",
-                            reqwest::Method::POST,
-                            Some(json!({ "guid": guid, "with": ["participants"] })),
-                        )
-                        .await;
-                        match result {
-                            Ok(data) => {
-                                let arr = data.as_array().cloned().unwrap_or_default();
-                                arr.into_iter().next()
-                            }
-                            Err(_) => None,
-                        }
-                    }
-                })
-                .collect();
-
-            let results = futures::future::join_all(fetches).await;
-            let mut group_participants_map: HashMap<String, Value> = HashMap::new();
-
-            for (i, chat_data) in results.into_iter().enumerate() {
-                if let Some(cd) = chat_data {
-                    if let Some(participants) = cd.get("participants") {
-                        if participants.as_array().map(|a| !a.is_empty()).unwrap_or(false) {
-                            group_participants_map
-                                .insert(missing_participant_guids[i].clone(), participants.clone());
-                        }
-                    }
-                }
-            }
-
-            // For group chats where BB returned no participants, infer from recent message handles
-            let still_missing: Vec<String> = missing_participant_guids
-                .iter()
-                .filter(|g| !group_participants_map.contains_key(*g))
-                .cloned()
-                .collect();
-
-            if !still_missing.is_empty() {
-                let msg_fetches: Vec<_> = still_missing
-                    .iter()
-                    .map(|guid| {
-                        let client = client.clone();
-                        let guid = guid.clone();
-                        async move {
-                            bb_fetch(
-                                &client,
-                                "/message/query",
-                                reqwest::Method::POST,
-                                Some(json!({
-                                    "chatGuid": guid,
-                                    "limit": 50,
-                                    "sort": "DESC",
-                                    "with": ["handle"],
-                                })),
-                            )
-                            .await
-                            .unwrap_or(Value::Array(vec![]))
-                        }
-                    })
-                    .collect();
-
-                let msg_results = futures::future::join_all(msg_fetches).await;
-                for (i, msgs) in msg_results.into_iter().enumerate() {
-                    let msgs_arr = msgs.as_array().cloned().unwrap_or_default();
-                    let mut seen = std::collections::HashSet::new();
-                    let mut inferred: Vec<Value> = Vec::new();
-                    for m in &msgs_arr {
-                        let addr = m.pointer("/handle/address").and_then(|v| v.as_str());
-                        let handle_svc = m
-                            .pointer("/handle/service")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("");
-                        if let Some(addr) = addr {
-                            if seen.insert(addr.to_string()) {
-                                inferred.push(json!({
-                                    "address": addr,
-                                    "service": handle_svc,
-                                }));
-                            }
-                        }
-                    }
-                    if !inferred.is_empty() {
-                        group_participants_map
-                            .insert(still_missing[i].clone(), json!(inferred));
-                    }
-                }
-            }
-
-            // Patch best_chat entries
-            for (_norm_id, entry) in best_chat.iter_mut() {
-                let has = entry
-                    .get("participants")
-                    .and_then(|v| v.as_array())
-                    .map(|a| !a.is_empty())
-                    .unwrap_or(false);
-                if !has {
-                    let guid = entry
-                        .get("guid")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("");
-                    if let Some(fetched) = group_participants_map.get(guid) {
-                        entry
-                            .as_object_mut()
-                            .unwrap()
-                            .insert("participants".into(), fetched.clone());
-                    }
-                }
-            }
-        }
-
-        // Build final conversations
-        let mut conversations: Vec<Value> = best_chat
-            .iter()
-            .map(|(normalized_id, c)| {
-                let participants_raw = c
-                    .get("participants")
-                    .and_then(|v| v.as_array())
-                    .cloned()
-                    .unwrap_or_default();
-                let participants: Vec<Value> = participants_raw
-                    .iter()
-                    .map(|p| {
-                        json!({
-                            "address": p.get("address").and_then(|v| v.as_str()).unwrap_or(""),
-                            "service": p.get("service").and_then(|v| v.as_str()).unwrap_or(""),
-                        })
-                    })
-                    .collect();
-                let chat_id = c
-                    .get("chatIdentifier")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                let newest = newest_date.get(normalized_id);
-
-                // Resolve display name from contacts
-                let mut display_name: Option<String> =
-                    c.get("displayName").and_then(|v| v.as_str()).and_then(|s| {
-                        if s.is_empty() {
-                            None
-                        } else {
-                            Some(s.to_string())
-                        }
-                    });
-                if display_name.is_none() && participants.len() == 1 {
-                    let addr = participants[0]
-                        .get("address")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("");
-                    display_name = contact_map
-                        .get(&normalize_phone(addr))
-                        .or_else(|| contact_map.get(&addr.to_lowercase()))
-                        .cloned();
-                }
-                if display_name.is_none() && !chat_id.is_empty() {
-                    display_name = contact_map
-                        .get(&normalize_phone(chat_id))
-                        .or_else(|| contact_map.get(&chat_id.to_lowercase()))
-                        .cloned();
-                }
-
-                // Unread = last message is incoming and has no dateRead
-                let is_unread = newest
-                    .as_ref()
-                    .map(|n| !n.is_from_me.unwrap_or(true) && n.date_read.is_none())
-                    .unwrap_or(false);
-
-                // Resolve service — macOS 26+ uses 'any' prefix
-                let guid_str = c.get("guid").and_then(|v| v.as_str()).unwrap_or("");
-                let service = {
-                    let part_svc = participants
-                        .first()
-                        .and_then(|p| p.get("service").and_then(|v| v.as_str()))
-                        .unwrap_or("");
-                    let part_svc_lower = part_svc.to_lowercase();
-                    if !part_svc_lower.is_empty() && part_svc_lower != "any" {
-                        part_svc.to_string()
-                    } else {
-                        let guid_prefix = guid_str
-                            .split(';')
-                            .next()
-                            .unwrap_or("")
-                            .to_lowercase();
-                        if !guid_prefix.is_empty() && guid_prefix != "any" {
-                            guid_prefix
-                        } else {
-                            // 'any' with no explicit SMS -> iMessage (macOS 26+ default)
-                            let has_sms = participants.iter().any(|p| {
-                                p.get("service")
-                                    .and_then(|v| v.as_str())
-                                    .map(|s| s.eq_ignore_ascii_case("sms"))
-                                    .unwrap_or(false)
-                            });
-                            let has_rcs = participants.iter().any(|p| {
-                                p.get("service")
-                                    .and_then(|v| v.as_str())
-                                    .map(|s| s.eq_ignore_ascii_case("rcs"))
-                                    .unwrap_or(false)
-                            });
-                            if has_sms {
-                                "SMS".to_string()
-                            } else if has_rcs {
-                                "RCS".to_string()
-                            } else {
-                                "iMessage".to_string()
-                            }
-                        }
-                    }
-                };
-
-                json!({
-                    "guid": guid_str,
-                    "chatId": chat_id,
-                    "displayName": display_name,
-                    "participants": participants,
-                    "service": service,
-                    "lastMessage": newest.as_ref().and_then(|n| n.text.clone()),
-                    "lastDate": newest.as_ref().and_then(|n| n.date_created),
-                    "lastFromMe": if newest.as_ref().and_then(|n| n.is_from_me).unwrap_or(false) { 1 } else { 0 },
-                    "isUnread": is_unread,
-                })
-            })
-            .collect();
-
-        // Sort by most recent message
-        conversations.sort_by(|a, b| {
-            let a_date = a.get("lastDate").and_then(|v| v.as_i64()).unwrap_or(0);
-            let b_date = b.get("lastDate").and_then(|v| v.as_i64()).unwrap_or(0);
-            b_date.cmp(&a_date)
-        });
-
-        // Truncate to the requested limit (we fetched 500 from BB for proper sorting)
         conversations.truncate(requested_conv_limit);
 
         (
@@ -1240,6 +1347,9 @@ async fn get_messages(
     }
 }
 
+// ---------------------------------------------------------------------------
+// TODO: Extract into `send.rs` — POST /messages and POST /messages/send-attachment
+// handlers with their request structs (~200 lines).
 // ---------------------------------------------------------------------------
 // POST /messages — send a message
 // ---------------------------------------------------------------------------
@@ -1316,6 +1426,7 @@ async fn post_message(
 
     match bb_fetch(
         &state.http,
+        &state,
         "/message/text",
         reqwest::Method::POST,
         Some(send_body),
@@ -1334,6 +1445,9 @@ async fn post_message(
     }
 }
 
+// ---------------------------------------------------------------------------
+// TODO: Extract into `avatars.rs` — avatar fetching, batch avatar endpoint,
+// and avatar cache (~120 lines).
 // ---------------------------------------------------------------------------
 // GET /messages/avatar — fetch contact avatar
 // ---------------------------------------------------------------------------
@@ -1356,7 +1470,7 @@ async fn get_avatar(
     let lowered = address.to_lowercase();
 
     // 1) Try BlueBubbles contact avatars first (already browser-friendly JPEG/PNG)
-    let avatars = get_bb_contact_avatars(&state.http).await;
+    let avatars = get_bb_contact_avatars(&state.http, &state).await;
     let avatar = avatars.get(&normalized).or_else(|| avatars.get(&lowered));
     if let Some(buf) = avatar {
         return (
@@ -1370,7 +1484,7 @@ async fn get_avatar(
     }
 
     // 2) Try MAC_BRIDGE (may return TIFF — convert to JPEG)
-    let bhost = bridge_host();
+    let bhost = bridge_host(&state);
     if !bhost.is_empty() {
         let url = format!(
             "{}/contacts/photo?address={}",
@@ -1378,7 +1492,7 @@ async fn get_avatar(
             percent_encode(&address)
         );
         let mut req = state.http.get(&url);
-        for (k, v) in bridge_headers() {
+        for (k, v) in bridge_headers(&state) {
             req = req.header(&k, &v);
         }
         if let Ok(res) = req.send().await {
@@ -1437,7 +1551,7 @@ async fn post_avatar_batch(
         }
     };
 
-    let avatars = get_bb_contact_avatars(&state.http).await;
+    let avatars = get_bb_contact_avatars(&state.http, &state).await;
     let mut available: Vec<String> = Vec::new();
 
     for addr in addresses {
@@ -1455,6 +1569,9 @@ async fn post_avatar_batch(
         .into_response()
 }
 
+// ---------------------------------------------------------------------------
+// TODO: Extract into `link_preview.rs` — OpenGraph metadata extraction with
+// SSRF protection, blocked-host regexes, and HTML parsing (~400 lines).
 // ---------------------------------------------------------------------------
 // GET /messages/link-preview — extract OpenGraph metadata with SSRF protection
 // ---------------------------------------------------------------------------
@@ -1618,6 +1735,32 @@ async fn get_link_preview(
             .into_response();
     }
 
+    // DNS resolution check: block requests that resolve to private/loopback IPs
+    // This prevents SSRF via DNS rebinding or hostnames pointing to internal IPs
+    if let Ok(addrs) = format!("{}:80", hostname).to_socket_addrs() {
+        for addr in addrs {
+            let blocked = match addr.ip() {
+                std::net::IpAddr::V4(ipv4) => {
+                    ipv4.is_loopback()
+                        || ipv4.is_private()
+                        || ipv4.is_link_local()
+                        || ipv4.is_unspecified()
+                        || ipv4.is_broadcast()
+                }
+                std::net::IpAddr::V6(ipv6) => {
+                    ipv6.is_loopback() || ipv6.is_unspecified()
+                }
+            };
+            if blocked {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({ "error": "Blocked host (resolved to private IP)" })),
+                )
+                    .into_response();
+            }
+        }
+    }
+
     let is_twitter = {
         static RE: OnceLock<Regex> = OnceLock::new();
         let re = RE.get_or_init(|| {
@@ -1727,6 +1870,30 @@ async fn get_link_preview(
                                 Json(json!({ "error": "Blocked redirect target" })),
                             )
                                 .into_response();
+                        }
+                        // DNS check on redirect target
+                        if let Ok(addrs) = format!("{}:80", rh).to_socket_addrs() {
+                            for addr in addrs {
+                                let blocked = match addr.ip() {
+                                    std::net::IpAddr::V4(ipv4) => {
+                                        ipv4.is_loopback()
+                                            || ipv4.is_private()
+                                            || ipv4.is_link_local()
+                                            || ipv4.is_unspecified()
+                                            || ipv4.is_broadcast()
+                                    }
+                                    std::net::IpAddr::V6(ipv6) => {
+                                        ipv6.is_loopback() || ipv6.is_unspecified()
+                                    }
+                                };
+                                if blocked {
+                                    return (
+                                        StatusCode::BAD_REQUEST,
+                                        Json(json!({ "error": "Blocked redirect target (resolved to private IP)" })),
+                                    )
+                                        .into_response();
+                                }
+                            }
                         }
                     }
                 }
@@ -1851,6 +2018,9 @@ async fn get_link_preview(
 }
 
 // ---------------------------------------------------------------------------
+// TODO: Extract into `attachments.rs` — attachment proxying, video transcoding,
+// and send-attachment handler (~400 lines).
+// ---------------------------------------------------------------------------
 // GET /messages/attachment — proxy attachment from BlueBubbles
 // ---------------------------------------------------------------------------
 
@@ -1868,7 +2038,7 @@ async fn get_attachment(
         Some(g) if !g.is_empty() => g.clone(),
         _ => return StatusCode::NOT_FOUND.into_response(),
     };
-    let host = bb_host();
+    let host = bb_host(&state);
     if host.is_empty() {
         return StatusCode::NOT_FOUND.into_response();
     }
@@ -1878,7 +2048,7 @@ async fn get_attachment(
         return StatusCode::BAD_REQUEST.into_response();
     }
 
-    let password = bb_password();
+    let password = bb_password(&state);
     let mut uti = params.uti.clone().unwrap_or_default();
     let mut transfer_name = String::new();
 
@@ -1910,7 +2080,7 @@ async fn get_attachment(
 
     // HEIC/HEICS: fetch original from Mac Bridge (BB strips animation)
     if uti == "public.heics" || uti == "public.heic" {
-        let bhost = bridge_host();
+        let bhost = bridge_host(&state);
         if !bhost.is_empty() {
             let original_name = if !transfer_name.is_empty() {
                 static JPEG_RE: OnceLock<Regex> = OnceLock::new();
@@ -1926,7 +2096,7 @@ async fn get_attachment(
             }
             let bridge_url = format!("{}/messages/attachment-raw?{}", bhost, params_str);
             let mut req = state.http.get(&bridge_url);
-            for (k, v) in bridge_headers() {
+            for (k, v) in bridge_headers(&state) {
                 req = req.header(&k, &v);
             }
             if let Ok(res) = req.send().await {
@@ -1979,6 +2149,26 @@ async fn get_attachment(
 
             match res.bytes().await {
                 Ok(data) => {
+                    // Transcode HEVC/MOV videos to H.264 MP4 for WebKitGTK compatibility
+                    let needs_transcode = safe_type == "video/quicktime"
+                        || uti == "com.apple.quicktime-movie"
+                        || uti == "public.mpeg-4"
+                        || transfer_name.ends_with(".mov")
+                        || transfer_name.ends_with(".MOV");
+                    if needs_transcode || safe_type.starts_with("video/") {
+                        if let Ok(transcoded) = transcode_to_h264(&data).await {
+                            let builder = axum::http::Response::builder()
+                                .status(StatusCode::OK)
+                                .header(header::CONTENT_TYPE, "video/mp4")
+                                .header(header::CONTENT_DISPOSITION, "inline")
+                                .header("x-content-type-options", "nosniff")
+                                .header(header::CACHE_CONTROL, "public, max-age=86400");
+                            if let Ok(resp) = builder.body(axum::body::Body::from(transcoded)) {
+                                return resp.into_response();
+                            }
+                        }
+                    }
+
                     let mut builder =
                         axum::http::Response::builder().status(StatusCode::OK);
                     builder = builder
@@ -2003,6 +2193,54 @@ async fn get_attachment(
     }
 }
 
+/// Transcode video to H.264 MP4 using ffmpeg for browser compatibility.
+async fn transcode_to_h264(input: &[u8]) -> Result<Vec<u8>, String> {
+    use tokio::process::Command;
+    use tokio::io::AsyncWriteExt;
+
+    let mut child = Command::new("ffmpeg")
+        .args([
+            "-i", "pipe:0",          // read from stdin
+            "-c:v", "libx264",       // H.264 video
+            "-preset", "ultrafast",  // speed over compression
+            "-crf", "23",            // reasonable quality
+            "-c:a", "aac",           // AAC audio
+            "-movflags", "+faststart+frag_keyframe+empty_moov", // streaming-friendly
+            "-f", "mp4",             // MP4 container
+            "pipe:1",                // write to stdout
+        ])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("ffmpeg spawn: {}", e))?;
+
+    let mut stdin = child.stdin.take().ok_or("no stdin")?;
+    let input_owned = input.to_vec();
+    tokio::spawn(async move {
+        let _ = stdin.write_all(&input_owned).await;
+        let _ = stdin.shutdown().await;
+    });
+
+    let output = child
+        .wait_with_output()
+        .await
+        .map_err(|e| format!("ffmpeg wait: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::warn!("ffmpeg transcode failed: {}", stderr);
+        return Err(format!("ffmpeg exit: {}", output.status));
+    }
+
+    if output.stdout.is_empty() {
+        return Err("ffmpeg produced empty output".into());
+    }
+
+    tracing::info!("Transcoded video: {}KB -> {}KB", input.len() / 1024, output.stdout.len() / 1024);
+    Ok(output.stdout)
+}
+
 // ---------------------------------------------------------------------------
 // POST /messages/react — send a tapback reaction
 // ---------------------------------------------------------------------------
@@ -2020,7 +2258,7 @@ async fn post_react(
     State(state): State<AppState>,
     Json(body): Json<ReactBody>,
 ) -> Response {
-    if bb_host().is_empty() {
+    if bb_host(&state).is_empty() {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": "bluebubbles_not_configured" })),
@@ -2078,6 +2316,7 @@ async fn post_react(
 
     match bb_fetch(
         &state.http,
+        &state,
         "/message/react",
         reqwest::Method::POST,
         Some(json!({
@@ -2142,7 +2381,7 @@ async fn post_read(
             .into_response();
     }
 
-    let host = bb_host();
+    let host = bb_host(&state);
     if host.is_empty() {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -2151,7 +2390,7 @@ async fn post_read(
             .into_response();
     }
 
-    let password = bb_password();
+    let password = bb_password(&state);
     let endpoint = if action == "unread" { "unread" } else { "read" };
     let url = format!(
         "{}/api/v1/chat/{}/{}?password={}",
@@ -2182,7 +2421,7 @@ async fn post_read(
                 .into_response()
         }
         Err(e) => {
-            tracing::error!("Mark read/unread error: {}", e);
+            tracing::error!("Mark read/unread error: {}", redact_bb_url(&e.to_string()));
             (
                 StatusCode::BAD_GATEWAY,
                 Json(json!({ "error": "Failed to update read status" })),
@@ -2216,7 +2455,7 @@ async fn post_send_attachment(
     State(state): State<AppState>,
     Json(body): Json<SendAttachmentBody>,
 ) -> Response {
-    let host = bb_host();
+    let host = bb_host(&state);
     if host.is_empty() {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -2229,7 +2468,7 @@ async fn post_send_attachment(
     let selected_message_guid = body.selected_message_guid;
     let file_name = body.file_name;
     let file_content_type = body.file_content_type;
-    let file_data: Option<Vec<u8>> = body.file_data.as_deref().and_then(base64_decode::decode_base64);
+    let file_data: Option<Vec<u8>> = body.file_data.as_deref().and_then(base64_decode);
 
     let chat_guid = match body.chat_guid {
         Some(g) if !g.is_empty() && chat_guid_re().is_match(&g) => g,
@@ -2253,6 +2492,53 @@ async fn post_send_attachment(
         }
     };
 
+    // Sanitize filename and content type to prevent header injection
+    let fname = fname.replace(['"', '\r', '\n', '\0'], "_");
+
+    // Validate file name length
+    if fname.len() > 255 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "File name too long (max 255 characters)" })),
+        )
+            .into_response();
+    }
+
+    // Validate content type against whitelist
+    const ALLOWED_CONTENT_TYPES: &[&str] = &[
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "image/heic",
+        "image/heif",
+        "image/tiff",
+        "image/bmp",
+        "video/mp4",
+        "video/quicktime",
+        "video/x-m4v",
+        "audio/mpeg",
+        "audio/mp4",
+        "audio/aac",
+        "audio/x-m4a",
+        "audio/wav",
+        "application/pdf",
+        "application/octet-stream",
+        "text/plain",
+        "text/vcard",
+        "text/x-vcard",
+    ];
+    if let Some(ref ct) = file_content_type {
+        let ct_lower = ct.to_lowercase();
+        if !ALLOWED_CONTENT_TYPES.contains(&ct_lower.as_str()) {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": "Unsupported file content type" })),
+            )
+                .into_response();
+        }
+    }
+
     if let Some(ref reply_guid) = selected_message_guid {
         if !message_guid_re().is_match(reply_guid) {
             return (
@@ -2272,7 +2558,7 @@ async fn post_send_attachment(
             .into_response();
     }
 
-    let password = bb_password();
+    let password = bb_password(&state);
     let url = format!(
         "{}/api/v1/message/attachment?password={}",
         host,
@@ -2282,6 +2568,8 @@ async fn post_send_attachment(
     // Build multipart body manually (reqwest "multipart" feature not enabled)
     let boundary = format!("----MissionControl{}", random_uuid().replace('-', ""));
     let ct = file_content_type.unwrap_or_else(|| "application/octet-stream".to_string());
+    // Sanitize content type to prevent header injection
+    let ct = ct.replace(['\r', '\n', '\0'], "_");
     let temp_guid = format!("temp-{}", random_uuid());
 
     let mut body_bytes: Vec<u8> = Vec::new();
@@ -2347,7 +2635,7 @@ async fn post_send_attachment(
                 .into_response()
         }
         Err(e) => {
-            tracing::error!("Send attachment error: {}", e);
+            tracing::error!("Send attachment error: {}", redact_bb_url(&e.to_string()));
             (
                 StatusCode::BAD_GATEWAY,
                 Json(json!({ "error": "Failed to send attachment" })),
@@ -2356,6 +2644,10 @@ async fn post_send_attachment(
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// TODO: Extract into `stream.rs` — SSE bridge for BlueBubbles events (~100 lines).
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // GET /messages/stream — SSE bridge for BlueBubbles socket.io events
@@ -2371,7 +2663,7 @@ async fn post_send_attachment(
 async fn get_stream(State(state): State<AppState>) -> Response {
     use axum::response::sse::{Event, KeepAlive, Sse};
 
-    let host = bb_host();
+    let host = bb_host(&state);
     if host.is_empty() {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -2381,6 +2673,7 @@ async fn get_stream(State(state): State<AppState>) -> Response {
     }
 
     let client = state.http.clone();
+    let stream_state = state.clone();
 
     let stream = async_stream::stream! {
         // Track last seen message date to detect new messages
@@ -2402,7 +2695,7 @@ async fn get_stream(State(state): State<AppState>) -> Response {
                 "with": ["attachment", "handle", "chat"],
             });
 
-            match bb_fetch(&client, "/message/query", reqwest::Method::POST, Some(query)).await {
+            match bb_fetch(&client, &stream_state, "/message/query", reqwest::Method::POST, Some(query)).await {
                 Ok(data) => {
                     if let Some(messages) = data.as_array() {
                         // Process in chronological order (API returns DESC)
@@ -2413,6 +2706,32 @@ async fn get_stream(State(state): State<AppState>) -> Response {
                             let date = msg.get("dateCreated").and_then(|v| v.as_i64()).unwrap_or(0);
                             if date > last_date {
                                 last_date = date;
+                            }
+
+                            // Show tray notification for incoming messages when window is hidden
+                            let is_from_me = msg.get("isFromMe").and_then(|v| v.as_bool()).unwrap_or(true);
+                            if !is_from_me {
+                                use tauri::Manager;
+                                let window_hidden = stream_state.app
+                                    .get_webview_window("main")
+                                    .map(|w| !w.is_visible().unwrap_or(true))
+                                    .unwrap_or(false);
+                                if window_hidden {
+                                    use tauri_plugin_notification::NotificationExt;
+                                    let sender = msg
+                                        .pointer("/handle/address")
+                                        .and_then(|v| v.as_str())
+                                        .or_else(|| msg.get("address").and_then(|v| v.as_str()))
+                                        .unwrap_or("Unknown");
+                                    let body = msg.get("text")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("New message");
+                                    let _ = stream_state.app.notification()
+                                        .builder()
+                                        .title(sender)
+                                        .body(body)
+                                        .show();
+                                }
                             }
 
                             let event_data = json!({ "type": "new-message", "data": msg });
@@ -2438,8 +2757,39 @@ async fn get_stream(State(state): State<AppState>) -> Response {
 // Router
 // ---------------------------------------------------------------------------
 
+// Debug endpoint — shows all conversations with junk status for troubleshooting
+async fn get_messages_debug(State(state): State<AppState>) -> Response {
+    let client = &state.http;
+    match fetch_and_build_conversations(client, &state).await {
+        Ok((conversations, contacts)) => {
+            let summary: Vec<Value> = conversations
+                .iter()
+                .map(|c| {
+                    json!({
+                        "displayName": c.get("displayName"),
+                        "chatId": c.get("chatId"),
+                        "guid": c.get("guid"),
+                        "lastDate": c.get("lastDate"),
+                        "isJunk": c.get("isJunk"),
+                        "participants": c.get("participants"),
+                    })
+                })
+                .collect();
+            Json(json!({
+                "total": summary.len(),
+                "totalContacts": contacts.len(),
+                "conversations": summary,
+            }))
+            .into_response()
+        }
+        Err(e) => {
+            Json(json!({ "error": e })).into_response()
+        }
+    }
+}
+
 pub fn router() -> Router<AppState> {
-    Router::new()
+    let r = Router::new()
         .route("/messages", get(get_messages).post(post_message))
         .route("/messages/avatar", get(get_avatar).post(post_avatar_batch))
         .route("/messages/link-preview", get(get_link_preview))
@@ -2447,5 +2797,47 @@ pub fn router() -> Router<AppState> {
         .route("/messages/react", post(post_react))
         .route("/messages/read", post(post_read))
         .route("/messages/send-attachment", post(post_send_attachment))
-        .route("/messages/stream", get(get_stream))
+        .route("/messages/stream", get(get_stream));
+
+    #[cfg(debug_assertions)]
+    let r = r.route("/messages/debug", get(get_messages_debug));
+
+    r
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_phone_formatted_us() {
+        assert_eq!(normalize_phone("+1 (555) 123-4567"), "5551234567");
+    }
+
+    #[test]
+    fn normalize_phone_plain_digits() {
+        assert_eq!(normalize_phone("5551234567"), "5551234567");
+    }
+
+    #[test]
+    fn normalize_phone_strips_leading_1_from_11_digits() {
+        assert_eq!(normalize_phone("15551234567"), "5551234567");
+    }
+
+    #[test]
+    fn normalize_phone_non_us_no_strip() {
+        // 12 digits, does not strip even though starts with 1
+        assert_eq!(normalize_phone("447700900123"), "447700900123");
+    }
+
+    #[test]
+    fn normalize_phone_email_passthrough() {
+        // Email has no digits, so result is empty string
+        assert_eq!(normalize_phone("user@icloud.com"), "");
+    }
+
+    #[test]
+    fn normalize_phone_empty() {
+        assert_eq!(normalize_phone(""), "");
+    }
 }

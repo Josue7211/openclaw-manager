@@ -1,5 +1,24 @@
 use axum::{http::StatusCode, response::{IntoResponse, Response}, Json};
-use serde_json::json;
+use serde_json::{json, Value};
+
+// ── Standard API Response Envelope ──────────────────────────────────────────
+//
+// Error responses (produced by AppError):
+//   { "ok": false, "error": "<message>", "code": "<error_code>" }
+//
+// Success responses should use the `success_json` helper for new endpoints:
+//   { "ok": true, "data": <payload> }
+//
+// NOTE: Existing endpoints return ad-hoc success shapes (e.g. { "missions": [...] })
+// for backwards compatibility. Do NOT retrofit them — only use `success_json` for
+// newly created endpoints going forward.
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Wrap a JSON value in the standard success envelope: `{ "ok": true, "data": ... }`.
+/// Use this for **new** endpoints only — do not retrofit existing ones.
+pub fn success_json(data: Value) -> Json<Value> {
+    Json(json!({ "ok": true, "data": data }))
+}
 
 #[derive(Debug)]
 pub enum AppError {

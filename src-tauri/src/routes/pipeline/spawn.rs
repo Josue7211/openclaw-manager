@@ -25,7 +25,7 @@ pub(super) struct SpawnBody {
 }
 
 pub(super) async fn pipeline_spawn(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<SpawnBody>,
 ) -> Result<Json<Value>, AppError> {
     // ── Validate ─────────────────────────────────────────────────
@@ -43,7 +43,7 @@ pub(super) async fn pipeline_spawn(
         ));
     }
 
-    let sb = supabase()?;
+    let sb = supabase(&state)?;
 
     // ── Route ────────────────────────────────────────────────────
     let agent_name = route_agent(body.complexity, task_type);
@@ -85,7 +85,7 @@ pub(super) async fn pipeline_spawn(
 
     // Build image attachment section if images provided
     let chat_images_dir = {
-        let openclaw_dir = std::env::var("OPENCLAW_DIR").unwrap_or_else(|_| {
+        let openclaw_dir = state.secret("OPENCLAW_DIR").unwrap_or_else(|| {
             dirs::home_dir()
                 .map(|h| h.join(".openclaw").to_string_lossy().into_owned())
                 .unwrap_or_else(|| ".openclaw".to_string())

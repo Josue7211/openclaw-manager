@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Query, State},
+    extract::{Query, State, WebSocketUpgrade, ws::{Message, WebSocket}},
     response::{
         sse::{Event, KeepAlive, Sse},
         IntoResponse, Response,
@@ -12,43 +12,55 @@ use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use tokio::time::{interval, Duration};
 
+use std::sync::OnceLock;
+
 use crate::server::AppState;
+use super::util::{percent_encode, random_uuid, base64_decode};
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn openclaw_dir() -> PathBuf {
-    std::env::var("OPENCLAW_DIR")
+fn openclaw_dir_from(state: &AppState) -> PathBuf {
+    state.secret("OPENCLAW_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| {
+        .unwrap_or_else(|| {
             dirs::home_dir()
                 .unwrap_or_else(|| PathBuf::from("/tmp"))
                 .join(".openclaw")
         })
 }
 
-fn openclaw_ws() -> String {
-    std::env::var("OPENCLAW_WS").unwrap_or_else(|_| "ws://127.0.0.1:18789".into())
+/// Stateless fallback used only by `is_safe_path` / `chat_images_dir`
+/// which are called from contexts that already verified the dir.
+fn openclaw_dir_default() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("/tmp"))
+        .join(".openclaw")
 }
 
-fn openclaw_password() -> String {
-    std::env::var("OPENCLAW_PASSWORD").unwrap_or_default()
+fn openclaw_ws(state: &AppState) -> String {
+    let val = state.secret_or_default("OPENCLAW_WS");
+    if val.is_empty() { "ws://127.0.0.1:18789".into() } else { val }
 }
 
-fn openclaw_api_url() -> Option<String> {
-    std::env::var("OPENCLAW_API_URL").ok()
+fn openclaw_password(state: &AppState) -> String {
+    state.secret_or_default("OPENCLAW_PASSWORD")
 }
 
-fn openclaw_api_key() -> String {
-    std::env::var("OPENCLAW_API_KEY").unwrap_or_default()
+fn openclaw_api_url(state: &AppState) -> Option<String> {
+    state.secret("OPENCLAW_API_URL").filter(|s| !s.is_empty())
+}
+
+fn openclaw_api_key(state: &AppState) -> String {
+    state.secret_or_default("OPENCLAW_API_KEY")
 }
 
 /// Fetch chat history from the remote OpenClaw API when local files aren't available.
-async fn fetch_remote_history() -> Option<Vec<ChatMessage>> {
-    let base = openclaw_api_url()?;
+async fn fetch_remote_history(state: &AppState) -> Option<Vec<ChatMessage>> {
+    let base = openclaw_api_url(state)?;
     let url = format!("{}/chat/history", base);
-    let key = openclaw_api_key();
+    let key = openclaw_api_key(state);
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
@@ -83,94 +95,15 @@ async fn fetch_remote_history() -> Option<Vec<ChatMessage>> {
 }
 
 fn chat_images_dir() -> PathBuf {
-    openclaw_dir().join("media/chat-images")
-}
-
-/// Generate a pseudo-UUID v4 string using the `rand` and `hex` crates.
-fn random_uuid() -> String {
-    use rand::Rng;
-    let mut rng = rand::thread_rng();
-    let mut bytes = [0u8; 16];
-    rng.fill(&mut bytes);
-    // Set version 4 and variant bits
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    format!(
-        "{}-{}-{}-{}-{}",
-        hex::encode(&bytes[0..4]),
-        hex::encode(&bytes[4..6]),
-        hex::encode(&bytes[6..8]),
-        hex::encode(&bytes[8..10]),
-        hex::encode(&bytes[10..16]),
-    )
-}
-
-/// Percent-encode a string for use in a URL query parameter.
-fn percent_encode(input: &str) -> String {
-    let mut out = String::with_capacity(input.len() * 3);
-    for b in input.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char);
-            }
-            _ => {
-                // Use uppercase hex digits per RFC 3986 recommendation
-                out.push_str(&format!("%{:02X}", b));
-            }
-        }
-    }
-    out
-}
-
-/// Decode a base64-encoded string to bytes. Supports standard base64 alphabet.
-fn base64_decode(input: &str) -> Option<Vec<u8>> {
-    const TABLE: &[u8; 64] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut lookup = [255u8; 256];
-    for (i, &c) in TABLE.iter().enumerate() {
-        lookup[c as usize] = i as u8;
-    }
-
-    let input = input.trim_end_matches('=');
-    let len = input.len();
-    let mut out = Vec::with_capacity(len * 3 / 4);
-
-    let mut i = 0;
-    while i < len {
-        let remaining = len - i;
-        let a = lookup[input.as_bytes().get(i).copied().unwrap_or(b'A') as usize];
-        let b = lookup[input.as_bytes().get(i + 1).copied().unwrap_or(b'A') as usize];
-        if a == 255 || b == 255 {
-            return None;
-        }
-        out.push((a << 2) | (b >> 4));
-
-        if remaining > 2 {
-            let c = lookup[input.as_bytes()[i + 2] as usize];
-            if c == 255 {
-                return None;
-            }
-            out.push((b << 4) | (c >> 2));
-            if remaining > 3 {
-                let d = lookup[input.as_bytes()[i + 3] as usize];
-                if d == 255 {
-                    return None;
-                }
-                out.push((c << 6) | d);
-            }
-        }
-        i += 4;
-    }
-
-    Some(out)
+    openclaw_dir_default().join("media/chat-images")
 }
 
 // ---------------------------------------------------------------------------
 // Session file lookup (mirrors lib/openclaw.ts getSessionFile)
 // ---------------------------------------------------------------------------
 
-fn get_session_file() -> Option<PathBuf> {
-    let dir = openclaw_dir();
+fn get_session_file(state: &AppState) -> Option<PathBuf> {
+    let dir = openclaw_dir_from(state);
     let sessions_json = dir.join("agents/main/sessions/sessions.json");
     let content = std::fs::read_to_string(sessions_json).ok()?;
     let idx: Value = serde_json::from_str(&content).ok()?;
@@ -178,6 +111,13 @@ fn get_session_file() -> Option<PathBuf> {
         .get("agent:main:main")?
         .get("sessionId")?
         .as_str()?;
+
+    // Validate session_id to prevent directory traversal
+    if !re_session_id().is_match(session_id) {
+        tracing::warn!("Rejected invalid session_id: {}", session_id);
+        return None;
+    }
+
     let path = dir.join(format!("agents/main/sessions/{}.jsonl", session_id));
     if path.exists() {
         Some(path)
@@ -231,14 +171,54 @@ pub struct ChatMessage {
     pub images: Option<Vec<String>>,
 }
 
+// ---- Compiled-once regexes for clean_user_text / clean_assistant_text -----
+
+fn re_image_source() -> &'static regex::Regex {
+    static RE: OnceLock<regex::Regex> = OnceLock::new();
+    RE.get_or_init(|| regex::Regex::new(r"\[Image:\s*source:\s*([^\]]+)\]").unwrap())
+}
+
+fn re_attached() -> &'static regex::Regex {
+    static RE: OnceLock<regex::Regex> = OnceLock::new();
+    RE.get_or_init(|| regex::Regex::new(r"\[Attached image:\s*([^\]]+)\]").unwrap())
+}
+
+fn re_sender() -> &'static regex::Regex {
+    static RE: OnceLock<regex::Regex> = OnceLock::new();
+    RE.get_or_init(|| regex::Regex::new(r"(?ms)^Sender \(untrusted metadata\):\s*```json[\s\S]*?```\s*").unwrap())
+}
+
+fn re_ts_prefix() -> &'static regex::Regex {
+    static RE: OnceLock<regex::Regex> = OnceLock::new();
+    RE.get_or_init(|| regex::Regex::new(r"^\[.*?\]\s+").unwrap())
+}
+
+fn re_collapse_nl() -> &'static regex::Regex {
+    static RE: OnceLock<regex::Regex> = OnceLock::new();
+    RE.get_or_init(|| regex::Regex::new(r"\n{2,}").unwrap())
+}
+
+fn re_reply_current() -> &'static regex::Regex {
+    static RE: OnceLock<regex::Regex> = OnceLock::new();
+    RE.get_or_init(|| regex::Regex::new(r"\[\[\s*reply_to_current\s*\]\]\s*").unwrap())
+}
+
+fn re_reply_to() -> &'static regex::Regex {
+    static RE: OnceLock<regex::Regex> = OnceLock::new();
+    RE.get_or_init(|| regex::Regex::new(r"\[\[\s*reply_to\s*:\s*[^\]]*\]\]\s*").unwrap())
+}
+
+fn re_session_id() -> &'static regex::Regex {
+    static RE: OnceLock<regex::Regex> = OnceLock::new();
+    RE.get_or_init(|| regex::Regex::new(r"^[a-zA-Z0-9_-]+$").unwrap())
+}
+
 /// Strip "[Timestamp] Sender metadata" prefix and extract image path annotations.
 fn clean_user_text(raw: &str) -> (String, Vec<String>) {
     let mut image_paths: Vec<String> = Vec::new();
 
     // Extract [Image: source: /path] annotations
-    let re_image_source =
-        regex::Regex::new(r"\[Image:\s*source:\s*([^\]]+)\]").unwrap();
-    let without1 = re_image_source
+    let without1 = re_image_source()
         .replace_all(raw, |caps: &regex::Captures| {
             image_paths.push(caps[1].trim().to_string());
             String::new()
@@ -246,9 +226,7 @@ fn clean_user_text(raw: &str) -> (String, Vec<String>) {
         .into_owned();
 
     // Extract [Attached image: /path] annotations
-    let re_attached =
-        regex::Regex::new(r"\[Attached image:\s*([^\]]+)\]").unwrap();
-    let without2 = re_attached
+    let without2 = re_attached()
         .replace_all(&without1, |caps: &regex::Captures| {
             image_paths.push(caps[1].trim().to_string());
             String::new()
@@ -256,29 +234,21 @@ fn clean_user_text(raw: &str) -> (String, Vec<String>) {
         .into_owned();
 
     // Strip sender metadata block
-    let re_sender = regex::Regex::new(
-        r"(?ms)^Sender \(untrusted metadata\):\s*```json[\s\S]*?```\s*",
-    )
-    .unwrap();
-    let without3 = re_sender.replace(&without2, "").into_owned();
+    let without3 = re_sender().replace(&without2, "").into_owned();
 
     // Strip leading [timestamp] prefix
-    let re_ts = regex::Regex::new(r"^\[.*?\]\s+").unwrap();
-    let without4 = re_ts.replace(&without3, "").into_owned();
+    let without4 = re_ts_prefix().replace(&without3, "").into_owned();
 
     // Collapse multiple newlines
-    let re_nl = regex::Regex::new(r"\n{2,}").unwrap();
-    let text = re_nl.replace_all(&without4, "\n").trim().to_string();
+    let text = re_collapse_nl().replace_all(&without4, "\n").trim().to_string();
 
     (text, image_paths)
 }
 
 /// Strip [[reply_to_current]] and [[reply_to:...]] tags from assistant messages.
 fn clean_assistant_text(raw: &str) -> String {
-    let re1 = regex::Regex::new(r"\[\[\s*reply_to_current\s*\]\]\s*").unwrap();
-    let r = re1.replace_all(raw, "").into_owned();
-    let re2 = regex::Regex::new(r"\[\[\s*reply_to\s*:\s*[^\]]*\]\]\s*").unwrap();
-    re2.replace_all(&r, "").trim().to_string()
+    let r = re_reply_current().replace_all(raw, "").into_owned();
+    re_reply_to().replace_all(&r, "").trim().to_string()
 }
 
 fn parse_messages(file_path: &Path) -> Vec<ChatMessage> {
@@ -464,14 +434,15 @@ struct ChatSendResult {
 }
 
 async fn openclaw_chat_send(
+    state: &AppState,
     message: &str,
     _attachments: Option<Vec<Value>>,
     _deliver: bool,
 ) -> ChatSendResult {
     // Try remote OpenClaw API first (handles session persistence + AI response)
-    if let Some(base) = openclaw_api_url() {
+    if let Some(base) = openclaw_api_url(state) {
         let url = format!("{}/chat/send", base);
-        let key = openclaw_api_key();
+        let key = openclaw_api_key(state);
 
         let client = match reqwest::Client::builder()
             .timeout(Duration::from_secs(180))
@@ -513,10 +484,10 @@ async fn openclaw_chat_send(
     }
 
     // Fallback: direct gateway HTTP completions (no session persistence)
-    let gateway_url = openclaw_ws()
+    let gateway_url = openclaw_ws(state)
         .replace("ws://", "http://")
         .replace("wss://", "https://");
-    let password = openclaw_password();
+    let password = openclaw_password(state);
     let url = format!("{}/v1/chat/completions", gateway_url);
 
     let client = match reqwest::Client::builder()
@@ -576,7 +547,7 @@ struct PostChatBody {
 }
 
 async fn post_chat(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<PostChatBody>,
 ) -> Response {
     let txt = body.text.unwrap_or_default().trim().to_string();
@@ -586,6 +557,14 @@ async fn post_chat(
         return (
             axum::http::StatusCode::BAD_REQUEST,
             Json(json!({"error": "empty message"})),
+        )
+            .into_response();
+    }
+
+    if txt.len() > 50_000 {
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Message too long (max 50000 characters)"})),
         )
             .into_response();
     }
@@ -633,6 +612,7 @@ async fn post_chat(
     let deliver = txt == "/new" || txt == "/reset";
 
     let result = openclaw_chat_send(
+        &state,
         &annotated_text,
         if attachments.is_empty() {
             None
@@ -658,19 +638,19 @@ async fn post_chat(
 // GET /chat/history -- parse JSONL session file
 // ---------------------------------------------------------------------------
 
-async fn get_history(State(_state): State<AppState>) -> Response {
-    let dir = openclaw_dir();
+async fn get_history(State(state): State<AppState>) -> Response {
+    let dir = openclaw_dir_from(&state);
 
     // Try local session files first
     if dir.exists() {
-        if let Some(file_path) = get_session_file() {
+        if let Some(file_path) = get_session_file(&state) {
             let messages = parse_messages(&file_path);
             return Json(json!({"messages": messages})).into_response();
         }
     }
 
     // Fall back to remote OpenClaw API
-    if let Some(messages) = fetch_remote_history().await {
+    if let Some(messages) = fetch_remote_history(&state).await {
         return Json(json!({"messages": messages})).into_response();
     }
 
@@ -681,13 +661,12 @@ async fn get_history(State(_state): State<AppState>) -> Response {
 // GET /chat/stream -- SSE endpoint polling session file for new messages
 // ---------------------------------------------------------------------------
 
-async fn get_stream(State(_state): State<AppState>) -> Response {
-    let dir = openclaw_dir();
-    let local_mode = dir.exists() && get_session_file().is_some();
+async fn get_stream(State(state): State<AppState>) -> Response {
+    let dir = openclaw_dir_from(&state);
+    let local_session = if dir.exists() { get_session_file(&state) } else { None };
 
-    if local_mode {
+    if let Some(file_path) = local_session {
         // Local mode: poll session file for changes
-        let file_path = get_session_file().unwrap();
         let mut last_size = std::fs::metadata(&file_path)
             .map(|m| m.len())
             .unwrap_or(0);
@@ -737,8 +716,9 @@ async fn get_stream(State(_state): State<AppState>) -> Response {
             .into_response()
     } else {
         // Remote mode: poll OpenClaw API for new messages
-        let initial = fetch_remote_history().await.unwrap_or_default();
+        let initial = fetch_remote_history(&state).await.unwrap_or_default();
         let mut last_count = initial.len();
+        let state_clone = state.clone();
 
         let stream = async_stream::stream! {
             let mut ticker = interval(Duration::from_secs(2));
@@ -746,7 +726,7 @@ async fn get_stream(State(_state): State<AppState>) -> Response {
             loop {
                 ticker.tick().await;
 
-                let messages = match fetch_remote_history().await {
+                let messages = match fetch_remote_history(&state_clone).await {
                     Some(m) => m,
                     None => {
                         yield Ok::<_, std::convert::Infallible>(
@@ -809,7 +789,7 @@ fn is_safe_path(file_path: &str) -> bool {
         return false;
     }
 
-    let oc_dir = openclaw_dir();
+    let oc_dir = openclaw_dir_default();
     let allowed_dirs = [
         oc_dir.join("workspace/chat-uploads"),
         oc_dir.join("workspace"),
@@ -891,6 +871,109 @@ async fn get_image(Query(params): Query<ImageQuery>) -> Response {
 }
 
 // ---------------------------------------------------------------------------
+// GET /chat/ws -- WebSocket endpoint for real-time message delivery
+// ---------------------------------------------------------------------------
+
+async fn ws_upgrade(
+    State(state): State<AppState>,
+    ws: WebSocketUpgrade,
+) -> Response {
+    ws.on_upgrade(move |socket| handle_ws(socket, state))
+}
+
+async fn handle_ws(mut socket: WebSocket, state: AppState) {
+    let dir = openclaw_dir_from(&state);
+    let local_session = if dir.exists() { get_session_file(&state) } else { None };
+
+    if let Some(file_path) = local_session {
+        // Local mode: watch session JSONL file for new messages
+        let mut last_size = std::fs::metadata(&file_path)
+            .map(|m| m.len())
+            .unwrap_or(0);
+        let mut last_count = parse_messages(&file_path).len();
+        let mut ticker = interval(Duration::from_millis(500));
+
+        loop {
+            ticker.tick().await;
+
+            let current_size = match std::fs::metadata(&file_path) {
+                Ok(m) => m.len(),
+                Err(_) => continue,
+            };
+
+            if current_size == last_size {
+                // Send a ping frame to keep the connection alive and detect drops
+                if socket
+                    .send(Message::Ping(vec![]))
+                    .await
+                    .is_err()
+                {
+                    break; // client disconnected
+                }
+                continue;
+            }
+
+            last_size = current_size;
+            let messages = parse_messages(&file_path);
+            if messages.len() > last_count {
+                let new_msgs = &messages[last_count..];
+                last_count = messages.len();
+
+                for msg in new_msgs {
+                    let mut redacted = msg.clone();
+                    redacted.text = crate::redact::redact(&msg.text);
+                    if let Ok(data) = serde_json::to_string(&redacted) {
+                        if socket.send(Message::Text(data)).await.is_err() {
+                            return; // client disconnected
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        // Remote mode: poll OpenClaw API and push new messages over WS
+        let initial = fetch_remote_history(&state).await.unwrap_or_default();
+        let mut last_count = initial.len();
+        let mut ticker = interval(Duration::from_secs(2));
+
+        loop {
+            ticker.tick().await;
+
+            let messages = match fetch_remote_history(&state).await {
+                Some(m) => m,
+                None => {
+                    // Send ping to keep alive
+                    if socket.send(Message::Ping(vec![])).await.is_err() {
+                        break;
+                    }
+                    continue;
+                }
+            };
+
+            if messages.len() > last_count {
+                let new_msgs = &messages[last_count..];
+                last_count = messages.len();
+
+                for msg in new_msgs {
+                    let mut redacted = msg.clone();
+                    redacted.text = crate::redact::redact(&msg.text);
+                    if let Ok(data) = serde_json::to_string(&redacted) {
+                        if socket.send(Message::Text(data)).await.is_err() {
+                            return;
+                        }
+                    }
+                }
+            } else {
+                // Keep alive
+                if socket.send(Message::Ping(vec![])).await.is_err() {
+                    break;
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 
@@ -899,5 +982,6 @@ pub fn router() -> Router<AppState> {
         .route("/", post(post_chat))
         .route("/history", get(get_history))
         .route("/stream", get(get_stream))
+        .route("/ws", get(ws_upgrade))
         .route("/image", get(get_image))
 }

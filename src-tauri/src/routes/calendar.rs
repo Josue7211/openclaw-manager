@@ -32,10 +32,10 @@ pub fn router() -> Router<AppState> {
 async fn get_events(
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let url = std::env::var("CALDAV_URL")
-        .unwrap_or_else(|_| "https://caldav.icloud.com".to_string());
-    let username = std::env::var("CALDAV_USERNAME").unwrap_or_default();
-    let password = std::env::var("CALDAV_PASSWORD").unwrap_or_default();
+    let url = state.secret("CALDAV_URL")
+        .unwrap_or_else(|| "https://caldav.icloud.com".to_string());
+    let username = state.secret_or_default("CALDAV_USERNAME");
+    let password = state.secret_or_default("CALDAV_PASSWORD");
 
     if username.is_empty() || password.is_empty() {
         return (

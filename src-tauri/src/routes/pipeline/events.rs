@@ -11,9 +11,9 @@ use super::helpers::supabase;
 // ── GET /pipeline-events ─────────────────────────────────────────────────────
 
 pub(super) async fn get_pipeline_events(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = supabase()?;
+    let sb = supabase(&state)?;
     let data = sb
         .select(
             "pipeline_events",
@@ -41,7 +41,7 @@ pub(super) struct PipelineEventBody {
 }
 
 pub(super) async fn post_pipeline_event(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<PipelineEventBody>,
 ) -> Result<Json<Value>, AppError> {
     if body.event_type.is_empty() || body.description.is_empty() {
@@ -50,7 +50,7 @@ pub(super) async fn post_pipeline_event(
         ));
     }
 
-    let sb = supabase()?;
+    let sb = supabase(&state)?;
     let row = json!({
         "event_type": body.event_type,
         "agent_id": body.agent_id,

@@ -12,22 +12,20 @@ pub fn router() -> Router<AppState> {
 
 // ── GET /api/memory ─────────────────────────────────────────────────────────
 
-async fn get_memory(State(_state): State<AppState>) -> Result<Json<Value>, AppError> {
+async fn get_memory(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
     // Check for remote OpenClaw API first
-    if let Ok(openclaw_url) = std::env::var("OPENCLAW_API_URL") {
-        if !openclaw_url.is_empty() {
-            let client = reqwest::Client::new();
-            let mut req = client.get(format!("{openclaw_url}/memory"));
-            if let Ok(key) = std::env::var("OPENCLAW_API_KEY") {
-                req = req.header("Authorization", format!("Bearer {key}"));
+    if let Some(openclaw_url) = state.secret("OPENCLAW_API_URL").filter(|s| !s.is_empty()) {
+        let client = reqwest::Client::new();
+        let mut req = client.get(format!("{openclaw_url}/memory"));
+        if let Some(key) = state.secret("OPENCLAW_API_KEY") {
+            req = req.header("Authorization", format!("Bearer {key}"));
+        }
+        match req.send().await {
+            Ok(res) if res.status().is_success() => {
+                let body: Value = res.json().await.unwrap_or(json!({ "entries": [] }));
+                return Ok(Json(body));
             }
-            match req.send().await {
-                Ok(res) if res.status().is_success() => {
-                    let body: Value = res.json().await.unwrap_or(json!({ "entries": [] }));
-                    return Ok(Json(body));
-                }
-                _ => return Ok(Json(json!({ "entries": [] }))),
-            }
+            _ => return Ok(Json(json!({ "entries": [] }))),
         }
     }
 

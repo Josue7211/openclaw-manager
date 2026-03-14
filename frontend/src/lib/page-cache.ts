@@ -1,3 +1,4 @@
+// Used only in tests — provides localStorage-based page cache utilities
 // Module-level cache for instant page navigation
 // Data persists in memory across client-side navigations, cleared on full reload
 
