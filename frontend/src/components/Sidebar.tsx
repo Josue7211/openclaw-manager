@@ -41,9 +41,11 @@ const NavSection = React.memo(function NavSection({
   pathname,
   collapsed,
   textOpacity,
+  width,
   open,
   onToggle,
   onHoverItem,
+  isDragging,
   delayOffset = 0,
 }: {
   label: string
@@ -51,14 +53,33 @@ const NavSection = React.memo(function NavSection({
   pathname: string
   collapsed: boolean
   textOpacity: number
+  width: number
   open: boolean
   onToggle: () => void
   onHoverItem: (href: string) => void
+  isDragging: boolean
   delayOffset?: number
 }) {
+  // Typewriter effect — calculate chars that physically fit in available space
+  const labelCharWidth = 7 // ~10px uppercase font + letter-spacing
+  const labelAvailable = Math.max(0, width - 40) // sidebar minus container + button padding
+  const labelCharsVisible = Math.min(label.length, Math.floor(labelAvailable / labelCharWidth))
+  const labelText = label.slice(0, labelCharsVisible)
+  const labelIsTyping = labelCharsVisible > 0 && labelCharsVisible < label.length
+  const chevronOpacity = Math.min(1, Math.max(0, (width - 180) / 40))
+  // Slide up AFTER search finishes (search: 200→130, labels: 110→70)
+  const labelOpacity = width >= 110 ? 1 : width <= 70 ? 0 : (width - 70) / 40
+  const labelHeight = width >= 110 ? 36 : width <= 70 ? 0 : ((width - 70) / 40) * 36
+
   return (
-    <div style={{ marginBottom: '8px' }}>
-      {!collapsed && (
+    <div style={{ marginBottom: collapsed ? '2px' : '4px' }}>
+      {/* Section label — slides up like search bar below 130px */}
+      <div style={{
+        height: `${labelHeight}px`,
+        opacity: labelOpacity,
+        overflow: 'hidden',
+        transition: isDragging ? 'none' : 'height 0.25s ease, opacity 0.2s ease',
+      }}>
         <button
           onClick={onToggle}
           style={{
@@ -77,21 +98,27 @@ const NavSection = React.memo(function NavSection({
             textTransform: 'uppercase',
             borderRadius: '8px',
             transition: `color var(--duration-fast)`,
-            opacity: textOpacity,
+            whiteSpace: 'nowrap',
           }}
           onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-secondary)')}
           onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
         >
-          {label}
-          <span style={{
-            transition: 'transform 0.3s var(--ease-spring)',
-            transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
-            display: 'flex',
-          }}>
-            <ChevronDown size={12} />
+          <span>
+            {labelText}
+            {labelIsTyping && <span className="type-cursor">|</span>}
           </span>
+          {chevronOpacity > 0 && (
+            <span style={{
+              transition: isDragging ? 'none' : 'transform 0.3s var(--ease-spring), opacity 0.2s ease',
+              transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
+              display: 'flex',
+              opacity: chevronOpacity,
+            }}>
+              <ChevronDown size={12} />
+            </span>
+          )}
         </button>
-      )}
+      </div>
       <div style={{
         display: 'grid',
         gridTemplateRows: (open || collapsed) ? '1fr' : '0fr',
@@ -106,26 +133,13 @@ const NavSection = React.memo(function NavSection({
                 key={href}
                 to={href}
                 title={collapsed ? itemLabel : undefined}
-                onMouseEnter={e => {
-                  onHoverItem(href)
-                  if (!active) {
-                    e.currentTarget.style.background = 'var(--hover-bg)'
-                    e.currentTarget.style.color = 'var(--text-primary)'
-                    e.currentTarget.style.transform = 'translateX(2px)'
-                  }
-                }}
-                onMouseLeave={e => {
-                  if (!active) {
-                    e.currentTarget.style.background = 'transparent'
-                    e.currentTarget.style.color = 'var(--text-secondary)'
-                    e.currentTarget.style.transform = 'translateX(0)'
-                  }
-                }}
+                onMouseEnter={() => onHoverItem(href)}
+                className="hover-bg"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '10px',
-                  padding: collapsed ? '10px 0' : '9px 16px',
+                  padding: '9px 16px',
                   borderRadius: '10px',
                   marginBottom: '2px',
                   color: active ? '#fff' : 'var(--text-secondary)',
@@ -134,36 +148,20 @@ const NavSection = React.memo(function NavSection({
                   textDecoration: 'none',
                   fontSize: '13px',
                   fontWeight: active ? 600 : 450,
-                  transition: `all 0.25s var(--ease-spring)`,
-                  justifyContent: collapsed ? 'center' : 'flex-start',
+                  transition: isDragging ? 'none' : `background 0.25s var(--ease-spring), color 0.25s var(--ease-spring), transform 0.25s var(--ease-spring)`,
+                  justifyContent: 'flex-start',
                   position: 'relative',
                   animation: `fadeInUp 0.4s var(--ease-spring) ${(delayOffset + idx) * 30}ms both`,
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
+                  pointerEvents: isDragging ? 'none' : 'auto',
                 }}
               >
-                {/* Active indicator bar */}
-                {active && (
-                  <span style={{
-                    position: 'absolute',
-                    left: collapsed ? '50%' : '0',
-                    top: collapsed ? 'auto' : '50%',
-                    bottom: collapsed ? '-2px' : 'auto',
-                    transform: collapsed ? 'translateX(-50%)' : 'translateY(-50%)',
-                    width: collapsed ? '16px' : '3px',
-                    height: collapsed ? '3px' : '16px',
-                    borderRadius: '100px',
-                    background: 'var(--accent)',
-                    boxShadow: '0 0 12px rgba(167, 139, 250, 0.4)',
-                    transition: `all 0.3s var(--ease-spring)`,
-                  }} />
-                )}
                 <Icon size={16} style={{
                   flexShrink: 0,
-                  color: active ? 'var(--accent)' : undefined,
                   transition: `color var(--duration-fast)`,
                 }} />
-                {!collapsed && (
+                {textOpacity > 0 && (
                   <span style={{ opacity: textOpacity, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {itemLabel}
                   </span>
@@ -235,7 +233,7 @@ const SidebarQuickCapture = React.memo(function SidebarQuickCapture({
           borderRadius: '10px',
           color: open ? '#fff' : 'var(--text-secondary)',
           cursor: 'pointer',
-          transition: `all 0.25s var(--ease-spring)`,
+          transition: `background 0.25s var(--ease-spring), color 0.25s var(--ease-spring)`,
           fontSize: '13px',
           fontWeight: open ? 600 : 450,
           justifyContent: collapsed ? 'center' : 'flex-start',
@@ -255,7 +253,7 @@ const SidebarQuickCapture = React.memo(function SidebarQuickCapture({
         }}
       >
         <Plus size={16} style={{ flexShrink: 0 }} />
-        {!collapsed && (
+        {textOpacity > 0 && (
           <span style={{ opacity: textOpacity, overflow: 'hidden', textOverflow: 'ellipsis' }}>
             Quick Capture
           </span>
@@ -350,20 +348,15 @@ const SidebarQuickCapture = React.memo(function SidebarQuickCapture({
 
 /* ─── Typewriter title ───────────────────────────────────────────────────── */
 
-function TypewriterTitle({ width }: { width: number }) {
-  const text = 'MISSION\nCONTROL'
-  // Characters revealed based on width: 0 at 80px, full at 200px
-  const progress = Math.min(1, Math.max(0, (width - 80) / 120))
-  const totalChars = text.replace('\n', '').length
-  const visibleCount = Math.floor(progress * totalChars)
+function TypewriterTitle({ availableWidth }: { availableWidth: number }) {
+  const text = 'MISSION CONTROL'
+  // Calculate how many chars physically fit in the available pixel space
+  const charWidth = 15 // conservative for Bitcount Prop Double at 22px + 0.08em spacing
+  const visibleCount = Math.min(text.length, Math.max(0, Math.floor(availableWidth / charWidth)))
+  const visibleText = text.slice(0, visibleCount)
+  const showCursor = visibleCount > 0 && visibleCount < text.length
 
-  // Split into lines
-  const line1 = 'MISSION'
-  const line2 = 'CONTROL'
-  const line1Visible = Math.min(visibleCount, line1.length)
-  const line2Visible = Math.max(0, visibleCount - line1.length)
-
-  const showCursor = progress > 0 && progress < 1
+  if (visibleCount === 0) return null
 
   return (
     <div style={{
@@ -372,26 +365,18 @@ function TypewriterTitle({ width }: { width: number }) {
       fontFamily: "'Bitcount Prop Double', monospace",
       color: 'var(--text-primary)',
       letterSpacing: '0.08em',
-      lineHeight: 0.9,
-      whiteSpace: 'pre',
+      lineHeight: 1,
+      whiteSpace: 'nowrap',
     }}>
-      {line1.slice(0, line1Visible)}
-      {line1Visible < line1.length && showCursor && <span className="type-cursor">|</span>}
-      {line1Visible === line1.length && (
-        <>
-          {'\n'}
-          {line2.slice(0, line2Visible)}
-          {line2Visible < line2.length && showCursor && <span className="type-cursor">|</span>}
-        </>
-      )}
+      {visibleText}
+      {showCursor && <span className="type-cursor">|</span>}
     </div>
   )
 }
 
 /* ─── Gradient divider ───────────────────────────────────────────────────── */
 
-function SectionDivider({ collapsed }: { collapsed: boolean }) {
-  if (collapsed) return null
+function SectionDivider() {
   return (
     <div style={{
       height: '1px',
@@ -409,6 +394,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
 
   const [agentOpen, setAgentOpen] = useState(true)
   const [personalOpen, setPersonalOpen] = useState(true)
+  const [isDragging, setIsDragging] = useState(false)
 
   // External stores
   const headerVisible = useSyncExternalStore(subscribeSidebarSettings, getSidebarHeaderVisible)
@@ -433,6 +419,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     draggingRef.current = true
+    setIsDragging(true)
     const startX = e.clientX
     const startWidth = width
 
@@ -447,6 +434,8 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
     document.addEventListener('mousemove', onMouseMove)
     document.addEventListener('mouseup', function handleUp(ev: MouseEvent) {
       draggingRef.current = false
+      // Brief delay before re-enabling pointer events to prevent instant hover flash
+      setTimeout(() => setIsDragging(false), 100)
       document.removeEventListener('mousemove', onMouseMove)
       document.removeEventListener('mouseup', handleUp)
       document.body.style.cursor = ''
@@ -479,7 +468,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
   /* ── Collapse toggle ───────────────────────────────────────────────────── */
 
   const toggleCollapse = useCallback(() => {
-    onWidthChange(collapsed ? 260 : 64)
+    onWidthChange(collapsed ? 320 : 64)
   }, [collapsed, onWidthChange])
 
   /* ── Render ────────────────────────────────────────────────────────────── */
@@ -493,64 +482,86 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
       background: 'var(--glass-bg)',
       backdropFilter: 'blur(32px) saturate(180%)',
       WebkitBackdropFilter: 'blur(32px) saturate(180%)',
-      borderRight: '1px solid var(--glass-border)',
       display: 'flex',
       flexDirection: 'column',
       transition: draggingRef.current ? 'none' : `width var(--duration-normal) var(--ease-spring), min-width var(--duration-normal) var(--ease-spring)`,
       overflow: 'hidden',
       position: 'relative',
       zIndex: 100,
+      pointerEvents: isDragging ? 'none' : 'auto',
     }}>
 
       {/* ── Logo header ──────────────────────────────────────────────────── */}
-      {headerVisible && (
-        <header style={{
-          padding: collapsed ? '6px 0' : '6px 16px',
-          borderBottom: '1px solid var(--glass-border)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          justifyContent: collapsed ? 'center' : 'flex-start',
-          animation: 'fadeIn 0.5s ease both',
-          flexShrink: 0,
-        }}>
-          <img
-            src="/logo-40.png"
-            alt="Mission Control"
-            width={45}
-            height={45}
-            style={{
-              flexShrink: 0,
-              filter: 'drop-shadow(0 2px 8px rgba(167, 139, 250, 0.3))',
-              transition: `transform 0.3s var(--ease-spring)`,
-            }}
-          />
-          {!collapsed && (
+      {headerVisible && (() => {
+        // Logo always 45px, never shrinks or centers
+        const titleAvailable = Math.max(0, width - 16 - 45 - 14) // padding(16) + logo(45) + gap+buffer(14)
+        return (
+          <header style={{
+            padding: '6px 8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            justifyContent: 'flex-start',
+            animation: 'fadeIn 0.5s ease both',
+            flexShrink: 0,
+          }}>
+            <img
+              src="/logo-128.png"
+              alt="Mission Control"
+              width={45}
+              height={45}
+              style={{
+                flexShrink: 0,
+                width: '45px',
+                height: '45px',
+                minWidth: '45px',
+                filter: 'drop-shadow(0 2px 8px rgba(167, 139, 250, 0.3))',
+              }}
+            />
             <div style={{
-              animation: 'slideInLeft 0.3s var(--ease-spring) both',
               overflow: 'hidden',
+              minWidth: 0,
+              flex: 1,
             }}>
-              <TypewriterTitle width={width} />
+              <TypewriterTitle availableWidth={titleAvailable} />
             </div>
-          )}
-        </header>
-      )}
+          </header>
+        )
+      })()}
 
-      {/* ── Search ───────────────────────────────────────────────────────── */}
+      {/* ── Search — slides up exactly like Messages ─────────────────────── */}
+      {(() => {
+        const searchOpacity = width >= 200 ? 1 : width <= 130 ? 0 : (width - 130) / 70
+        const searchHeight = width >= 200 ? 46 : width <= 130 ? 0 : ((width - 130) / 70) * 46
+        return (
+          <div style={{
+            height: `${searchHeight}px`,
+            opacity: searchOpacity,
+            overflow: 'hidden',
+            transition: draggingRef.current ? 'none' : 'height 0.25s ease, opacity 0.2s ease',
+            flexShrink: 0,
+            pointerEvents: searchOpacity === 0 ? 'none' : 'auto',
+          }}>
+            <GlobalSearch compact collapsed={collapsed} />
+          </div>
+        )
+      })()}
+
+      {/* ── Divider between header/search and nav items ────────────────── */}
       <div style={{
-        padding: collapsed ? 0 : '8px 0 0',
-        animation: 'fadeInUp 0.4s var(--ease-spring) 100ms both',
+        height: '1px',
+        margin: '4px 12px',
+        background: 'linear-gradient(to right, transparent, var(--border-hover), transparent)',
         flexShrink: 0,
-      }}>
-        <GlobalSearch compact collapsed={collapsed} />
-      </div>
+      }} />
 
       {/* ── Scrollable nav items ─────────────────────────────────────────── */}
       <div style={{
         flex: 1,
-        padding: '12px 8px',
+        padding: collapsed ? '4px 8px' : '12px 8px',
         overflowY: 'auto',
         overflowX: 'hidden',
+        transition: draggingRef.current ? 'none' : 'padding 0.25s var(--ease-spring)',
       }}>
         <NavSection
           label="Personal Dashboard"
@@ -558,14 +569,16 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
           pathname={pathname}
           collapsed={collapsed}
           textOpacity={textOpacity}
+          width={width}
           open={personalOpen}
           onToggle={() => setPersonalOpen(o => !o)}
           onHoverItem={handleHoverItem}
+          isDragging={isDragging}
           delayOffset={0}
         />
 
         {/* Gradient divider */}
-        <SectionDivider collapsed={collapsed} />
+        <SectionDivider />
 
         <NavSection
           label="Agent Dashboard"
@@ -573,9 +586,11 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
           pathname={pathname}
           collapsed={collapsed}
           textOpacity={textOpacity}
+          width={width}
           open={agentOpen}
           onToggle={() => setAgentOpen(o => !o)}
           onHoverItem={handleHoverItem}
+          isDragging={isDragging}
           delayOffset={filteredPersonal.length}
         />
       </div>
@@ -583,7 +598,6 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
       {/* ── Bottom section (non-scrollable) ──────────────────────────────── */}
       <div style={{
         flexShrink: 0,
-        borderTop: '1px solid var(--glass-border)',
         padding: '8px 8px 0',
       }}>
         {/* Quick Capture */}
@@ -616,38 +630,23 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
             padding: collapsed ? '10px 0' : '9px 16px',
             borderRadius: '10px',
             marginBottom: '4px',
-            color: settingsActive ? '#fff' : 'var(--text-secondary)',
-            background: settingsActive ? 'var(--active-bg)' : 'transparent',
+            color: (settingsActive && !isDragging) ? '#fff' : 'var(--text-secondary)',
+            background: (settingsActive && !isDragging) ? 'var(--active-bg)' : 'transparent',
             textDecoration: 'none',
             fontSize: '13px',
             fontWeight: settingsActive ? 600 : 450,
-            transition: `all 0.25s var(--ease-spring)`,
+            transition: `background 0.25s var(--ease-spring), color 0.25s var(--ease-spring)`,
             justifyContent: collapsed ? 'center' : 'flex-start',
             position: 'relative',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
           }}
         >
-          {settingsActive && (
-            <span style={{
-              position: 'absolute',
-              left: collapsed ? '50%' : '0',
-              top: collapsed ? 'auto' : '50%',
-              bottom: collapsed ? '-2px' : 'auto',
-              transform: collapsed ? 'translateX(-50%)' : 'translateY(-50%)',
-              width: collapsed ? '16px' : '3px',
-              height: collapsed ? '3px' : '16px',
-              borderRadius: '100px',
-              background: 'var(--accent)',
-              boxShadow: '0 0 12px rgba(167, 139, 250, 0.4)',
-            }} />
-          )}
           <Settings size={16} style={{
             flexShrink: 0,
-            color: settingsActive ? 'var(--accent)' : undefined,
             transition: `color var(--duration-fast)`,
           }} />
-          {!collapsed && (
+          {textOpacity > 0 && (
             <span style={{ opacity: textOpacity, overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Settings
             </span>
@@ -670,7 +669,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            transition: `all 0.25s var(--ease-spring)`,
+            transition: `background 0.25s var(--ease-spring), color 0.25s var(--ease-spring)`,
           }}
           onMouseEnter={e => {
             e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'
@@ -702,12 +701,6 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
           height: '100%',
           cursor: 'col-resize',
           zIndex: 10,
-        }}
-        onMouseEnter={e => {
-          (e.currentTarget as HTMLDivElement).style.background = 'rgba(167, 139, 250, 0.2)'
-        }}
-        onMouseLeave={e => {
-          (e.currentTarget as HTMLDivElement).style.background = 'transparent'
         }}
       />
     </nav>

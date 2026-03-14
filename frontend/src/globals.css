@@ -416,8 +416,9 @@ input, textarea, select {
 }
 
 input:focus, textarea:focus, select:focus {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.06);
+  border-color: var(--border) !important;
+  box-shadow: none;
+  outline: none;
 }
 
 /* ── Page title animation ── */
@@ -466,9 +467,7 @@ body::before {
 }
 
 :focus-visible {
-  outline: 2px solid rgba(167, 139, 250, 0.5) !important;
-  outline-offset: 2px !important;
-  transition: outline-offset 0.15s ease;
+  outline: none !important;
 }
 
 /* ── Hover utilities — replaces inline onMouseEnter/onMouseLeave ── */
