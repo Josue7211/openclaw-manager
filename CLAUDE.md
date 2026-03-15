@@ -91,10 +91,31 @@ cd frontend && npm run dev          # Frontend only (browser mode at localhost:5
 ## Testing
 
 ```bash
-cd frontend && npx vitest run       # 90 frontend tests (12 test files)
+cd frontend && npx vitest run       # 312 frontend tests (20 test files)
+cd frontend && npm run test:e2e     # 21 E2E tests (Playwright)
 cd src-tauri && cargo test          # 50 Rust tests
 ./scripts/pre-commit.sh             # Run everything
 ```
+
+## Supabase CLI
+
+CLI is configured. Run all `db:*` scripts from the **project root** (not `frontend/`).
+
+```bash
+npm run db:tunnel   # Open SSH tunnels — run once per session before any db:* command
+npm run db:push     # Apply pending migrations to remote DB
+npm run db:pull     # Pull remote schema as a new migration file
+npm run db:types    # Generate frontend/src/lib/database.types.ts via pg-meta
+npm run db:diff     # Show schema diff
+```
+
+**Gotchas:**
+- Tunnel must be open before all other db commands (forwards `:15432`→postgres, `:15433`→pg-meta)
+- `PGSSLMODE=disable` is required — the `?sslmode=disable` URL param is ignored by the CLI
+- `db:types` bypasses the CLI (uses pg-meta API directly) — Docker is not installed locally
+- DB user is `supabase_admin`, not `postgres` — all tables are owned by `supabase_admin`
+- Migration files must use 14-digit timestamp format: `YYYYMMDDHHmmss_name.sql`
+- SSH key: `~/.ssh/mission-control` — aliases `services-vm` (10.0.0.109) and `openclaw-vm` (10.0.0.SERVICES)
 
 ## Development Workflow — SUBAGENT-DRIVEN
 
@@ -186,7 +207,7 @@ Import `supabase` from `@/lib/supabase/client` — it's a singleton. Never call 
 
 ### CSS & Styling
 - Use CSS variables from `globals.css` — never hardcode colors, easings, or z-indices
-- Key variables: `--accent`, `--hover-bg`, `--active-bg`, `--ease-spring`, `--z-sidebar`, `--z-modal`, `--apple-blue`, `--text-on-accent`, `--warning`
+- Key variables: `--accent`, `--hover-bg`, `--active-bg`, `--ease-spring`, `--z-sidebar`, `--z-modal`, `--apple-blue`, `--text-on-accent`, `--text-on-color`, `--warning`, `--green-400`, `--green-500`, `--red-500`, `--blue`, `--amber`, `--purple`, `--orange`, `--yellow`, `--gold`
 - Use hover utility classes (`.hover-bg`, `.hover-bg-bright`) instead of inline `onMouseEnter`/`onMouseLeave`
 - Prefer `var(--ease-spring)` over hardcoded `cubic-bezier(0.22, 1, 0.36, 1)`
 - Light theme: `[data-theme="light"]` overrides in globals.css
@@ -195,7 +216,9 @@ Import `supabase` from `@/lib/supabase/client` — it's a singleton. Never call 
 - Wrap frequently-rendered components in `React.memo` (avatars, list items, toggles)
 - Shared components: `Lightbox`, `SecondsAgo`, `Toggle`, `PageErrorBoundary`
 - Shared hooks: `useEscapeKey`, `useLocalStorageState`, `useFocusTrap`
-- Message sub-components live in `components/messages/`
+- Settings page split into sub-components in `pages/settings/` (8 lazy-loaded panels + shared.ts + Toggle.tsx)
+- Messages page split into sub-components in `pages/messages/` (ConversationList, MessageThread, ComposePanel, types, utils)
+- Message UI sub-components live in `components/messages/`
 - Message hooks live in `hooks/messages/`
 
 ### Accessibility (non-negotiable)
