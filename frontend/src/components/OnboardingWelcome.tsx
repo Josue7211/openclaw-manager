@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { CheckCircle, ChevronLeft, ChevronRight, Loader2, SkipForward, Database, MessageSquare, Bot, Rocket } from 'lucide-react'
 import { api } from '@/lib/api'
+import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
+import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
 
 const STORAGE_KEY = 'setup-complete'
 
@@ -112,7 +114,7 @@ function SetupFeature({ icon: Icon, title, desc }: { icon: React.ElementType; ti
     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 0' }}>
       <div style={{
         width: '30px', height: '30px', borderRadius: '8px',
-        background: 'rgba(167,139,250,0.1)',
+        background: 'var(--purple-a10)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
       }}>
         <Icon size={14} style={{ color: 'var(--accent)' }} />
@@ -558,7 +560,7 @@ function ConnectionSummaryRow({ label, connected }: { label: string; connected: 
       }}>
         <span style={{
           width: '6px', height: '6px', borderRadius: '50%',
-          background: connected ? 'var(--green)' : 'rgba(255,255,255,0.15)',
+          background: connected ? 'var(--green)' : 'var(--bg-white-15)',
           display: 'inline-block',
         }} />
         {connected ? 'Configured' : 'Skipped'}
@@ -614,7 +616,7 @@ function ProgressDots({ current, total }: { current: number; total: number }) {
             width: current === i ? '20px' : '6px',
             height: '6px',
             borderRadius: '3px',
-            background: current === i ? 'var(--accent)' : 'rgba(255,255,255,0.15)',
+            background: current === i ? 'var(--accent)' : 'var(--bg-white-15)',
             transition: 'all 0.3s var(--ease-spring)',
           }}
         />
@@ -640,13 +642,16 @@ export default function OnboardingWelcome({ forceOpen, onClose }: { forceOpen?: 
     setMounted(true)
   }, [forceOpen])
 
-  if (!visible || !mounted) return null
-
-  const dismiss = () => {
+  const dismiss = useCallback(() => {
     localStorage.setItem(STORAGE_KEY, 'true')
     setVisible(false)
     onClose?.()
-  }
+  }, [onClose])
+
+  const trapRef = useFocusTrap(visible)
+  useEscapeKey(dismiss, visible)
+
+  if (!visible || !mounted) return null
 
   const next = () => setStep(s => Math.min(s + 1, TOTAL_STEPS - 1))
   const back = () => setStep(s => Math.max(s - 1, 0))
@@ -677,7 +682,7 @@ export default function OnboardingWelcome({ forceOpen, onClose }: { forceOpen?: 
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0, 0, 0, 0.6)',
+          background: 'var(--overlay-heavy)',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
           zIndex: 'var(--z-modal-backdrop)' as React.CSSProperties['zIndex'],
@@ -686,6 +691,7 @@ export default function OnboardingWelcome({ forceOpen, onClose }: { forceOpen?: 
       />
 
       <div
+        ref={trapRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="ob-title"
@@ -706,7 +712,7 @@ export default function OnboardingWelcome({ forceOpen, onClose }: { forceOpen?: 
           border: '1px solid var(--hover-bg-bright)',
           borderRadius: '20px',
           boxShadow:
-            '0 32px 100px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--bg-white-04)',
+            '0 32px 100px var(--overlay-heavy), 0 0 0 1px var(--bg-white-04)',
           zIndex: 'var(--z-modal)' as React.CSSProperties['zIndex'],
           animation: 'ob-scalein 0.25s var(--ease-spring)',
         }}

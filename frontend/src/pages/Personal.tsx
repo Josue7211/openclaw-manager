@@ -1,6 +1,6 @@
 
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { CheckSquare, Cpu, Wifi, RefreshCw, Sun, Sunset, Moon, CalendarDays, Target, ClipboardList, ChevronDown, ChevronRight, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -10,6 +10,8 @@ import SecondsAgo from '@/components/SecondsAgo'
 import { PageHeader } from '@/components/PageHeader'
 
 import { api, ApiError } from '@/lib/api'
+import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
+import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
 import { emit } from '@/lib/event-bus'
 import { queryKeys } from '@/lib/query-keys'
 import { todayISO } from '@/lib/utils'
@@ -62,6 +64,10 @@ function DailyReviewWidget({ todos, missions }: { todos: Todo[]; missions: Missi
 
   useEffect(() => { fetchReview() }, [fetchReview])
 
+  const closeModal = useCallback(() => setModalOpen(false), [])
+  const trapRef = useFocusTrap(modalOpen)
+  useEscapeKey(closeModal, modalOpen)
+
   const openModal = () => {
     setForm({
       accomplishments: review?.accomplishments || '',
@@ -89,7 +95,7 @@ function DailyReviewWidget({ todos, missions }: { todos: Todo[]; missions: Missi
 
   return (
     <>
-      <div className="card" style={{ padding: '0', marginBottom: '24px', border: '1px solid rgba(155,132,236,0.2)', overflow: 'hidden' }}>
+      <div className="card" style={{ padding: '0', marginBottom: '24px', border: '1px solid var(--purple-a20)', overflow: 'hidden' }}>
         {/* Header row */}
         <div
           role="button"
@@ -160,22 +166,23 @@ function DailyReviewWidget({ todos, missions }: { todos: Todo[]; missions: Missi
       {/* Modal */}
       {modalOpen && (
         <div
-          onClick={() => setModalOpen(false)}
+          onClick={closeModal}
           style={{
             position: 'fixed', inset: 0, zIndex: 1000,
-            background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'var(--overlay-heavy)', display: 'flex', alignItems: 'center', justifyContent: 'center',
             backdropFilter: 'blur(4px)',
           }}
         >
           <div
+            ref={trapRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="daily-review-title"
             onClick={e => e.stopPropagation()}
             style={{
-              background: 'rgba(22, 22, 28, 0.65)', border: '1px solid rgba(155,132,236,0.25)',
+              background: 'var(--bg-card)', border: '1px solid var(--border-accent)',
               borderRadius: '14px', padding: '28px', width: '100%', maxWidth: '560px',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '20px',
+              boxShadow: '0 24px 64px var(--overlay-heavy)', display: 'flex', flexDirection: 'column', gap: '20px',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -242,7 +249,7 @@ function DailyReviewWidget({ todos, missions }: { todos: Todo[]; missions: Missi
 
 function ReviewField({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div style={{ background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', padding: '12px', border: '1px solid var(--border)' }}>
+    <div style={{ background: 'var(--bg-white-03)', borderRadius: '10px', padding: '12px', border: '1px solid var(--border)' }}>
       <div style={{ fontSize: '10px', fontWeight: 700, color, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '6px' }}>{label}</div>
       <p style={{ margin: 0, fontSize: '12px', color: value ? 'var(--text-primary)' : 'var(--text-muted)', fontStyle: value ? 'normal' : 'italic', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
         {value || 'Nothing recorded'}
@@ -265,7 +272,7 @@ function ReviewPrompt({ label, placeholder, value, onChange, accentColor }: {
         aria-label={label}
         rows={3}
         style={{
-          width: '100%', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border)',
+          width: '100%', background: 'var(--bg-white-03)', border: '1px solid var(--border)',
           borderRadius: '10px', padding: '10px 12px', fontSize: '13px', color: 'var(--text-primary)',
           outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5,
           boxSizing: 'border-box',
@@ -307,7 +314,7 @@ function DailyReview({ todos, missions, calendarEvents, mounted }: {
   const activeMissionsCount = missions.filter(m => m.status === 'active' || m.status === 'pending').length
 
   return (
-    <div className="card" style={{ padding: '24px', marginBottom: '24px', background: 'var(--bg-panel)', border: '1px solid rgba(155,132,236,0.1)' }}>
+    <div className="card" style={{ padding: '24px', marginBottom: '24px', background: 'var(--bg-panel)', border: '1px solid var(--purple-a10)' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px' }}>
         <div>
@@ -332,7 +339,7 @@ function DailyReview({ todos, missions, calendarEvents, mounted }: {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
 
         {/* Today's Focus */}
-        <div style={{ background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', padding: '14px', border: '1px solid var(--border)' }}>
+        <div style={{ background: 'var(--bg-white-03)', borderRadius: '10px', padding: '14px', border: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
             <CheckSquare size={12} style={{ color: 'var(--green)' }} />
             <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Today&apos;s Focus</span>
@@ -354,7 +361,7 @@ function DailyReview({ todos, missions, calendarEvents, mounted }: {
         </div>
 
         {/* On the Calendar */}
-        <div style={{ background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', padding: '14px', border: '1px solid var(--border)' }}>
+        <div style={{ background: 'var(--bg-white-03)', borderRadius: '10px', padding: '14px', border: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
             <CalendarDays size={12} style={{ color: 'var(--accent-blue)' }} />
             <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>On the Calendar</span>
@@ -379,7 +386,7 @@ function DailyReview({ todos, missions, calendarEvents, mounted }: {
         </div>
 
         {/* Active Missions */}
-        <div style={{ background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', padding: '14px', border: '1px solid var(--border)' }}>
+        <div style={{ background: 'var(--bg-white-03)', borderRadius: '10px', padding: '14px', border: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
             <Target size={12} style={{ color: 'var(--accent)' }} />
             <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Active Missions</span>
@@ -575,7 +582,7 @@ export default function PersonalDashboard() {
             ) : todos.map(t => (
               <div key={t.id} style={{
                 display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px',
-                background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px',
+                background: 'var(--bg-white-03)', borderRadius: '10px',
                 border: `1px solid ${t.done ? 'rgba(59,165,92,0.2)' : 'var(--border)'}`,
               }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, cursor: 'pointer', minWidth: 0 }}>
@@ -600,7 +607,7 @@ export default function PersonalDashboard() {
               onKeyDown={e => e.key === 'Enter' && addTodo()}
               placeholder="Add a task..."
               aria-label="Add task"
-              style={{ flex: 1, minWidth: 0, background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border)', borderRadius: '10px', padding: '6px 10px', fontSize: '12px', color: 'var(--text-primary)', outline: 'none' }}
+              style={{ flex: 1, minWidth: 0, background: 'var(--bg-white-03)', border: '1px solid var(--border)', borderRadius: '10px', padding: '6px 10px', fontSize: '12px', color: 'var(--text-primary)', outline: 'none' }}
             />
             <button onClick={addTodo} style={{ background: 'var(--green)', border: 'none', borderRadius: '10px', color: 'var(--text-on-accent)', padding: '6px 12px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>Add</button>
           </div>
@@ -622,7 +629,7 @@ export default function PersonalDashboard() {
           ) : (
             <>
               {proxmoxNodes.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px', padding: '10px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px', padding: '10px', background: 'var(--bg-white-03)', borderRadius: '10px', border: '1px solid var(--border)' }}>
                   {proxmoxNodes.map(n => {
                     const cpuColor = n.cpuPercent >= 85 ? 'var(--red-bright)' : n.cpuPercent >= 60 ? 'var(--warning)' : 'var(--green)'
                     const memColor = n.memPercent >= 85 ? 'var(--red-bright)' : n.memPercent >= 60 ? 'var(--warning)' : 'var(--green)'
@@ -634,14 +641,14 @@ export default function PersonalDashboard() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span className="mono" style={{ fontSize: '10px', color: 'var(--text-muted)', width: '28px' }}>CPU</span>
-                            <div role="progressbar" aria-valuenow={n.cpuPercent} aria-valuemin={0} aria-valuemax={100} aria-label={`${n.node} CPU usage`} style={{ flex: 1, height: '5px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div role="progressbar" aria-valuenow={n.cpuPercent} aria-valuemin={0} aria-valuemax={100} aria-label={`${n.node} CPU usage`} style={{ flex: 1, height: '5px', background: 'var(--hover-bg)', borderRadius: '3px', overflow: 'hidden' }}>
                               <div style={{ width: `${n.cpuPercent}%`, height: '100%', background: cpuColor, borderRadius: '3px', transition: 'width 0.4s ease' }} />
                             </div>
                             <span className="mono" style={{ fontSize: '10px', color: cpuColor, width: '32px', textAlign: 'right' }}>{n.cpuPercent}%</span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span className="mono" style={{ fontSize: '10px', color: 'var(--text-muted)', width: '28px' }}>RAM</span>
-                            <div role="progressbar" aria-valuenow={n.memPercent} aria-valuemin={0} aria-valuemax={100} aria-label={`${n.node} RAM usage`} style={{ flex: 1, height: '5px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div role="progressbar" aria-valuenow={n.memPercent} aria-valuemin={0} aria-valuemax={100} aria-label={`${n.node} RAM usage`} style={{ flex: 1, height: '5px', background: 'var(--hover-bg)', borderRadius: '3px', overflow: 'hidden' }}>
                               <div style={{ width: `${n.memPercent}%`, height: '100%', background: memColor, borderRadius: '3px', transition: 'width 0.4s ease' }} />
                             </div>
                             <span className="mono" style={{ fontSize: '10px', color: memColor, width: '32px', textAlign: 'right' }}>{n.memPercent}%</span>
@@ -662,7 +669,7 @@ export default function PersonalDashboard() {
                   {proxmoxVMs.map(vm => (
                     <div key={vm.vmid} style={{
                       display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 10px',
-                      background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', border: '1px solid var(--border)',
+                      background: 'var(--bg-white-03)', borderRadius: '10px', border: '1px solid var(--border)',
                     }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -711,11 +718,11 @@ export default function PersonalDashboard() {
           ) : (
             <>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '14px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-white-03)', borderRadius: '10px', border: '1px solid var(--border)' }}>
                   <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>WAN ↓ in</span>
                   <span className="mono" style={{ fontSize: '14px', fontWeight: 600, color: 'var(--green)' }}>{opnsense?.wanIn ?? '—'}</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-white-03)', borderRadius: '10px', border: '1px solid var(--border)' }}>
                   <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>WAN ↑ out</span>
                   <span className="mono" style={{ fontSize: '14px', fontWeight: 600, color: 'var(--accent-blue)' }}>{opnsense?.wanOut ?? '—'}</span>
                 </div>

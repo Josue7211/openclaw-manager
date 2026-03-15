@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
+import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 
 export type LightboxData = { src: string; type: 'image' | 'video' } | null
 
@@ -26,6 +27,7 @@ export default function Lightbox({ data, onClose }: LightboxProps) {
   }, [onClose])
 
   useEscapeKey(handleClose, !!data)
+  const trapRef = useFocusTrap(!!data)
 
   // Keep ref in sync so wheel handler can read latest zoom
   useEffect(() => { loupeRef.current = loupe }, [loupe])
@@ -53,6 +55,7 @@ export default function Lightbox({ data, onClose }: LightboxProps) {
 
   return createPortal(
     <div
+      ref={trapRef}
       onClick={handleClose}
       role="dialog"
       aria-modal="true"
@@ -79,8 +82,8 @@ export default function Lightbox({ data, onClose }: LightboxProps) {
             alt="expanded"
             style={{
               maxWidth: '85vw', maxHeight: '85vh', borderRadius: '10px',
-              border: '1px solid rgba(255,255,255,0.08)', objectFit: 'contain',
-              boxShadow: '0 8px 40px rgba(0,0,0,0.6)', display: 'block',
+              border: '1px solid var(--hover-bg-bright)', objectFit: 'contain',
+              boxShadow: '0 8px 40px var(--overlay-heavy)', display: 'block',
               cursor: loupe ? 'none' : 'zoom-in', userSelect: 'none',
             }}
             onClick={e => {
@@ -143,7 +146,7 @@ export default function Lightbox({ data, onClose }: LightboxProps) {
             style={{
               maxWidth: '85vw', maxHeight: '85vh', display: 'block',
               borderRadius: '10px', outline: 'none', background: '#000',
-              boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
+              boxShadow: '0 8px 40px var(--overlay-heavy)',
             }}
           />
         </div>
@@ -155,12 +158,12 @@ export default function Lightbox({ data, onClose }: LightboxProps) {
         aria-label="Close lightbox"
         style={{
           position: 'fixed', top: '20px', right: '24px',
-          background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
+          background: 'var(--border-hover)', border: '1px solid var(--bg-white-15)',
           borderRadius: '50%', width: '36px', height: '36px', color: 'var(--text-on-color)', cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s',
         }}
         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)' }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'var(--border-hover)' }}
       >
         <X size={18} />
       </button>
