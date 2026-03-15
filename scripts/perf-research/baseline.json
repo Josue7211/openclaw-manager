@@ -1,0 +1,17 @@
+{
+  "total_gzip_kb": 327.56,
+  "measured_at": "2026-03-15",
+  "previous_total_gzip_kb": 357.20,
+  "top_chunks": [
+    {"name": "react-*.js", "gzip_kb": 70.57, "note": "React + ReactDOM — hard to reduce"},
+    {"name": "Chat-*.js", "gzip_kb": 51.98, "note": "LARGE — likely bundled markdown/syntax lib"},
+    {"name": "supabase-*.js", "gzip_kb": 43.00, "note": "Supabase client — could lazy-load"},
+    {"name": "Settings-*.js", "gzip_kb": 21.63, "note": "Large settings page"},
+    {"name": "Messages-*.js", "gzip_kb": 19.94, "note": "iMessage UI"},
+    {"name": "index-*.js", "gzip_kb": 24.13, "note": "Main entry — should be smaller"},
+    {"name": "query-*.js", "gzip_kb": 16.26, "note": "TanStack React Query"},
+    {"name": "Pipeline-*.js", "gzip_kb": 8.14, "note": "CI/CD pipeline page"},
+    {"name": "icons-*.js", "gzip_kb": 10.72, "note": "Lucide icons — may have unused exports"},
+    {"name": "Dashboard-*.js", "gzip_kb": 6.44, "note": "Dashboard page"}
+  ]
+}
