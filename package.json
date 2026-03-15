@@ -11,7 +11,12 @@
     "build": "cd frontend && npm run build",
     "tauri": "tauri",
     "tauri:dev": "WEBKIT_DISABLE_DMABUF_RENDERER=1 tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "db:tunnel": "ssh -f -N -L 15432:172.18.0.4:5432 -L 15433:172.18.0.7:8080 services-vm && echo 'DB tunnels up (postgres :15432, pg-meta :15433)'",
+    "db:push": "PGSSLMODE=disable supabase db push --db-url \"$(grep SUPABASE_DB_URL .env.local | cut -d= -f2-)\"",
+    "db:pull": "PGSSLMODE=disable supabase db pull --db-url \"$(grep SUPABASE_DB_URL .env.local | cut -d= -f2-)\"",
+    "db:types": "curl -s 'http://localhost:15433/generators/typescript?included_schemas=public' > frontend/src/lib/database.types.ts && echo 'Types generated → frontend/src/lib/database.types.ts'",
+    "db:diff": "PGSSLMODE=disable supabase db diff --db-url \"$(grep SUPABASE_DB_URL .env.local | cut -d= -f2-)\""
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.10.1"

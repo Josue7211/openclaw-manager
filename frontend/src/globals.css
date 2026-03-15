@@ -1,4 +1,15 @@
-@import "tailwindcss";
+@import "tailwindcss/preflight";
+
+/* App-like: disable text selection globally, allow on inputs */
+*, *::before, *::after {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input, textarea, [contenteditable="true"], code, pre, kbd {
+  user-select: text;
+  -webkit-user-select: text;
+}
 
 :root {
   /* Surface layers — translucent for glass */
@@ -21,14 +32,59 @@
   /* Green — online, ok, done */
   --green: #34d399;
   --green-bright: #6ee7b7;
+  --green-400: #4ade80;
+  --green-500: #22c55e;
 
   /* Red — error, delete */
   --red: #f87171;
   --red-bright: #fca5a5;
+  --red-500: #ef4444;
+
+  /* Secondary accent */
+  --accent-secondary: #818cf8;
+  --accent-secondary-dim: #6366f1;
+  --accent-secondary-bright: #a5b4fc;
 
   /* Blue — blurple, sessions */
   --accent-blue: #818cf8;
   --blue-bright: #a5b4fc;
+  --blue: #60a5fa;
+
+  /* Purple — calendar, cron */
+  --purple: #9b84ec;
+
+  /* Cyan — read, info */
+  --cyan: #22d3ee;
+
+  /* Pink — user events */
+  --pink: #f472b6;
+
+  /* Orange — search, glob */
+  --orange: #fb923c;
+
+  /* Yellow / Amber / Gold — warnings, status */
+  --amber: #f59e0b;
+  --yellow: #eab308;
+  --yellow-bright: #facc15;
+  --gold: #e6a817;
+  --amber-warm: #f5a623;
+
+  /* Dark surface borders & backgrounds */
+  --border-strong: #2a2a2a;
+  --border-subtle: #1e1e1e;
+  --bg-inset: #141414;
+
+  /* Apple system colors — extended */
+  --apple-cyan: #5ac8fa;
+  --apple-red: #ff3b30;
+  --apple-red-dark: #ff453a;
+  --apple-yellow: #ffcc00;
+
+  /* Top ambient glow — RGB components for opacity control */
+  --glow-top-rgb: 139, 92, 246;
+
+  /* Logo */
+  --logo-color: var(--accent);
 
   /* Glows — subtle Apple-like halos */
   --glow-purple: 0 0 60px rgba(167, 139, 250, 0.04);
@@ -133,6 +189,16 @@
   --glass-border: rgba(0, 0, 0, 0.06);
   --hover-bg: rgba(0, 0, 0, 0.04);
   --active-bg: rgba(0, 0, 0, 0.06);
+
+  /* Dark surface overrides for light theme */
+  --border-strong: rgba(0, 0, 0, 0.12);
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --bg-inset: rgba(0, 0, 0, 0.03);
+
+  /* Slightly darker status colors for light backgrounds */
+  --green-500: #16a34a;
+  --red-500: #dc2626;
+  --yellow: #ca8a04;
 }
 
 /* ── Keyframes ── */
@@ -438,14 +504,14 @@ body::before {
   left: 0;
   right: 0;
   height: 250px;
-  background: linear-gradient(to bottom, rgba(139, 92, 246, 0.10) 0%, transparent 100%);
+  background: linear-gradient(to bottom, rgba(var(--glow-top-rgb), 0.10) 0%, transparent 100%);
   pointer-events: none;
   z-index: 0;
 }
 
 [data-theme="light"] body::before,
 :root[data-theme="light"] body::before {
-  background: linear-gradient(to bottom, rgba(139, 92, 246, 0.06) 0%, transparent 100%);
+  background: linear-gradient(to bottom, rgba(var(--glow-top-rgb), 0.06) 0%, transparent 100%);
 }
 
 /* ── Selection highlight ── */
@@ -649,4 +715,48 @@ html:focus-within .traffic-lights button {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Markdown bubble — styles for marked HTML output in AI chat */
+.md-bubble p { margin: 0 0 8px; line-height: 1.65; }
+.md-bubble h1 { font-size: 16px; font-weight: 700; margin: 8px 0 4px; color: var(--text-primary); }
+.md-bubble h2 { font-size: 14px; font-weight: 700; margin: 8px 0 4px; color: var(--text-primary); }
+.md-bubble h3 { font-size: 13px; font-weight: 600; margin: 6px 0 3px; color: var(--text-primary); }
+.md-bubble strong { color: var(--text-primary); font-weight: 600; }
+.md-bubble a { color: var(--accent-bright); text-decoration: underline; }
+.md-bubble ul, .md-bubble ol { margin: 4px 0 8px; padding-left: 20px; }
+.md-bubble li { margin-bottom: 2px; }
+.md-bubble hr { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+.md-bubble blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 12px;
+  margin: 8px 0;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.md-bubble pre {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  margin: 8px 0;
+  line-height: 1.5;
+}
+.md-bubble code {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  background: rgba(155, 132, 236, 0.12);
+  color: var(--accent-bright);
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(155, 132, 236, 0.2);
+}
+.md-bubble pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
 }
