@@ -26,6 +26,7 @@ export const APP_MODULES: AppModule[] = [
   { id: 'pipeline', name: 'Pipeline', description: 'Code review pipeline', icon: 'GitBranch', route: '/pipeline' },
   { id: 'knowledge', name: 'Knowledge', description: 'Documentation', icon: 'BookOpen', route: '/knowledge' },
   { id: 'notes', name: 'Notes', description: 'Personal notes', icon: 'FileText', route: '/notes' },
+  { id: 'status', name: 'Status', description: 'System health dashboard', icon: 'HeartPulse', route: '/status' },
 ]
 
 const STORAGE_KEY = 'enabled-modules'

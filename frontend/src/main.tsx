@@ -28,6 +28,7 @@ const CronJobs = lazy(() => import('./pages/CronJobs'))
 const Pipeline = lazy(() => import('./pages/Pipeline'))
 const KnowledgeBase = lazy(() => import('./pages/KnowledgeBase'))
 const Notes = lazy(() => import('./pages/Notes'))
+const Status = lazy(() => import('./pages/Status'))
 const Ideas = lazy(() => import('./pages/Ideas'))
 const Capture = lazy(() => import('./pages/Capture'))
 const Settings = lazy(() => import('./pages/Settings'))
@@ -177,7 +178,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/notes" element={<Notes />} />
             <Route path="/ideas" element={<Ideas />} />
             <Route path="/capture" element={<Capture />} />
-            <Route path="/status" element={<Navigate to="/settings?section=status" replace />} />
+            <Route path="/status" element={<Status />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/search" element={<Search />} />
             <Route path="/custom/:id" element={<CustomPage />} />
