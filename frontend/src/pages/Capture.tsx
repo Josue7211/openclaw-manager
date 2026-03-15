@@ -131,7 +131,7 @@ export default function CapturePage() {
       {/* Header */}
       <div style={{ marginBottom: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-          <Zap size={20} style={{ color: '#e6a817' }} />
+          <Zap size={20} style={{ color: 'var(--gold)' }} />
           <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>
             Quick Capture
           </h1>
@@ -154,6 +154,7 @@ export default function CapturePage() {
             value={input}
             onChange={e => setInput(e.target.value)}
             placeholder="Brain dump here. Sort it out later."
+            aria-label="Capture thought"
             autoFocus
             style={{
               flex: 1,

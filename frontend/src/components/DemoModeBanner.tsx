@@ -64,7 +64,7 @@ export function DemoBadge() {
       letterSpacing: '0.08em',
       textTransform: 'uppercase',
       background: 'rgba(251, 191, 36, 0.12)',
-      color: '#fbbf24',
+      color: 'var(--warning)',
       border: '1px solid rgba(251, 191, 36, 0.2)',
     }}>
       demo

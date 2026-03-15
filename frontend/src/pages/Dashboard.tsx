@@ -386,7 +386,7 @@ export default function Dashboard() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {subagentsError && (
             <span style={{
-              fontSize: '11px', color: '#f59e0b',
+              fontSize: '11px', color: 'var(--amber)',
               fontFamily: "'JetBrains Mono', monospace",
               padding: '4px 10px',
               background: 'rgba(245, 158, 11, 0.08)',
@@ -564,7 +564,7 @@ export default function Dashboard() {
                   : isActive
                   ? { cls: 'badge-blue', dot: 'var(--accent-blue)', label: 'Working', pulse: true }
                   : isAwaitingDeploy
-                  ? { cls: '', dot: '#facc15', label: '⏳ Awaiting Deploy', pulse: true, yellow: true }
+                  ? { cls: '', dot: 'var(--yellow-bright)', label: '⏳ Awaiting Deploy', pulse: true, yellow: true }
                   : { cls: 'badge-purple', dot: 'var(--accent)', label: 'Ready', pulse: false }
 
                 return (
@@ -588,7 +588,7 @@ export default function Dashboard() {
                         fontSize: '10px', fontWeight: 700, padding: '2px 7px',
                         borderRadius: '4px',
                         background: 'rgba(250,204,21,0.12)',
-                        color: '#facc15',
+                        color: 'var(--yellow-bright)',
                         border: '1px solid rgba(250,204,21,0.35)',
                         animation: 'pulse-dot 2s ease-in-out infinite',
                         display: 'inline-flex', alignItems: 'center',
@@ -690,7 +690,7 @@ export default function Dashboard() {
           const topIdea = pendingIdeas[0] ?? null
           const pendingCount = pendingIdeas.length
           const effortColor = (v: string | null) =>
-            v === 'low' ? 'var(--green)' : v === 'medium' ? '#f59e0b' : v === 'high' ? 'var(--red-bright)' : 'var(--text-muted)'
+            v === 'low' ? 'var(--green)' : v === 'medium' ? 'var(--amber)' : v === 'high' ? 'var(--red-bright)' : 'var(--text-muted)'
           const pillStyle = (v: string | null): React.CSSProperties => ({
             display: 'inline-block', padding: '2px 8px', borderRadius: '999px', fontSize: '10px',
             fontWeight: 600, background: `${effortColor(v)}22`, color: effortColor(v),
@@ -700,7 +700,7 @@ export default function Dashboard() {
             <div className="card" style={{ padding: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Lightbulb size={14} style={{ color: '#f59e0b' }} />
+                  <Lightbulb size={14} style={{ color: 'var(--amber)' }} />
                   <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Idea Briefing</span>
                 </div>
                 {pendingCount > 0 && (
@@ -827,7 +827,7 @@ export default function Dashboard() {
       {panelIdea !== null && (() => {
         const idea = panelIdea
         const effortColor = (v: string | null) =>
-          v === 'low' ? 'var(--green)' : v === 'medium' ? '#f59e0b' : v === 'high' ? 'var(--red-bright)' : 'var(--text-muted)'
+          v === 'low' ? 'var(--green)' : v === 'medium' ? 'var(--amber)' : v === 'high' ? 'var(--red-bright)' : 'var(--text-muted)'
         const pillStyle = (v: string | null): React.CSSProperties => ({
           display: 'inline-block', padding: '3px 10px', borderRadius: '999px', fontSize: '11px',
           fontWeight: 600, background: `${effortColor(v)}22`, color: effortColor(v),
@@ -864,7 +864,7 @@ export default function Dashboard() {
                 position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 1,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Lightbulb size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                  <Lightbulb size={14} style={{ color: 'var(--amber)', flexShrink: 0 }} />
                   <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Idea Detail</span>
                 </div>
                 <button

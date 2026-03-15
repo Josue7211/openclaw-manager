@@ -72,12 +72,12 @@ function formatBytes(bytes: number): string {
 function statusColor(status: string): string {
   switch (status) {
     case 'ok':
-      return '#22c55e'
+      return 'var(--green-500)'
     case 'error':
     case 'degraded':
-      return '#eab308'
+      return 'var(--yellow)'
     case 'unreachable':
-      return '#ef4444'
+      return 'var(--red-500)'
     case 'not_configured':
       return 'var(--text-muted)'
     default:
@@ -145,7 +145,7 @@ const dotStyle = (online: boolean): React.CSSProperties => ({
   width: '8px',
   height: '8px',
   borderRadius: '50%',
-  background: online ? '#22c55e' : '#ef4444',
+  background: online ? 'var(--green-500)' : 'var(--red-500)',
   boxShadow: online ? '0 0 6px rgba(34,197,94,0.4)' : '0 0 6px rgba(239,68,68,0.4)',
   flexShrink: 0,
 })
@@ -307,7 +307,7 @@ export default function Status() {
                     <span style={{
                       fontSize: '11px',
                       fontWeight: 500,
-                      color: peer.online ? '#22c55e' : '#ef4444',
+                      color: peer.online ? 'var(--green-500)' : 'var(--red-500)',
                     }}>
                       {peer.online ? 'Online' : 'Offline'}
                     </span>
@@ -398,8 +398,8 @@ export default function Status() {
             gap: '16px',
           }}>
             <StatCard label="Total Queries" value={allQueries.length} />
-            <StatCard label="Stale Queries" value={staleQueries.length} accent={staleQueries.length > 0 ? '#eab308' : undefined} />
-            <StatCard label="Active Fetches" value={allQueries.filter(q => q.state.fetchStatus === 'fetching').length} accent="#22c55e" />
+            <StatCard label="Stale Queries" value={staleQueries.length} accent={staleQueries.length > 0 ? 'var(--yellow)' : undefined} />
+            <StatCard label="Active Fetches" value={allQueries.filter(q => q.state.fetchStatus === 'fetching').length} accent="var(--green-500)" />
           </div>
         </div>
       </div>

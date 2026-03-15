@@ -385,21 +385,21 @@ export default function EmailPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div>
                   <label style={labelStyle}>Label</label>
-                  <input style={inputStyle} placeholder="Personal, Work…" value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
+                  <input style={inputStyle} placeholder="Personal, Work…" value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} aria-label="Account label" />
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '8px' }}>
                   <div>
                     <label style={labelStyle}>Host</label>
-                    <input style={inputStyle} placeholder="imap.gmail.com" value={form.host} onChange={e => setForm(f => ({ ...f, host: e.target.value }))} />
+                    <input style={inputStyle} placeholder="imap.gmail.com" value={form.host} onChange={e => setForm(f => ({ ...f, host: e.target.value }))} aria-label="IMAP host" />
                   </div>
                   <div>
                     <label style={labelStyle}>Port</label>
-                    <input style={{ ...inputStyle, width: '70px' }} placeholder="993" value={form.port} onChange={e => setForm(f => ({ ...f, port: e.target.value }))} />
+                    <input style={{ ...inputStyle, width: '70px' }} placeholder="993" value={form.port} onChange={e => setForm(f => ({ ...f, port: e.target.value }))} aria-label="IMAP port" />
                   </div>
                 </div>
                 <div>
                   <label style={labelStyle}>Username</label>
-                  <input style={inputStyle} placeholder="you@example.com" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} />
+                  <input style={inputStyle} placeholder="you@example.com" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} aria-label="Email address" />
                 </div>
                 <div>
                   <label style={labelStyle}>Password {editingAccount && <span style={{ color: 'var(--text-muted)' }}>(leave blank to keep current)</span>}</label>
@@ -410,6 +410,7 @@ export default function EmailPage() {
                       placeholder={editingAccount ? '••••••••' : 'App password'}
                       value={form.password}
                       onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                      aria-label="Email password"
                     />
                     <button
                       onClick={() => setShowPassword(p => !p)}
@@ -435,7 +436,7 @@ export default function EmailPage() {
                 </div>
 
                 {formError && (
-                  <div style={{ fontSize: '11px', color: 'var(--red-bright, #ff5f5f)' }}>{formError}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--red-bright)' }}>{formError}</div>
                 )}
 
                 <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
@@ -588,7 +589,7 @@ export default function EmailPage() {
         <div style={{
           padding: '12px 16px', borderRadius: '8px', marginBottom: '16px',
           background: 'rgba(255,95,95,0.1)', border: '1px solid rgba(255,95,95,0.3)',
-          color: 'var(--red-bright, #ff5f5f)', fontSize: '12px',
+          color: 'var(--red-bright)', fontSize: '12px',
         }}>
           {error}
         </div>
@@ -601,7 +602,7 @@ export default function EmailPage() {
           background: 'rgba(255,200,0,0.08)', border: '1px solid rgba(255,200,0,0.25)',
           color: 'var(--text-secondary)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px',
         }}>
-          <AlertCircle size={14} style={{ color: '#f5a623', flexShrink: 0 }} />
+          <AlertCircle size={14} style={{ color: 'var(--amber-warm)', flexShrink: 0 }} />
           No credentials for this account. Select a different account or add credentials via Manage Accounts.
         </div>
       )}

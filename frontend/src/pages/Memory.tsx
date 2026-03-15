@@ -123,6 +123,7 @@ export default function MemoryPage() {
             placeholder="Search files..."
             value={search}
             onChange={e => setSearch(e.target.value)}
+            aria-label="Search files"
             style={{
               width: '100%',
               padding: '8px 12px',
@@ -259,7 +260,7 @@ export default function MemoryPage() {
                         fontSize: '12px',
                         borderRadius: 6,
                         border: 'none',
-                        background: saveMutation.isPending ? 'var(--text-muted)' : '#7c3aed',
+                        background: saveMutation.isPending ? 'var(--text-muted)' : 'var(--accent-dim)',
                         color: '#fff',
                         cursor: saveMutation.isPending ? 'not-allowed' : 'pointer',
                         fontWeight: 700,
@@ -275,9 +276,9 @@ export default function MemoryPage() {
                           padding: '5px 14px',
                           fontSize: '12px',
                           borderRadius: 6,
-                          border: '1px solid #dc2626',
+                          border: '1px solid var(--red-500)',
                           background: 'transparent',
-                          color: '#dc2626',
+                          color: 'var(--red-500)',
                           cursor: deleteMutation.isPending ? 'not-allowed' : 'pointer',
                           fontWeight: 600,
                         }}
@@ -321,6 +322,7 @@ export default function MemoryPage() {
               <textarea
                 value={editContent}
                 onChange={e => setEditContent(e.target.value)}
+                aria-label="Edit file content"
                 style={{
                   flex: 1,
                   background: 'var(--bg-base)',

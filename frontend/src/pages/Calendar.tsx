@@ -25,7 +25,7 @@ interface CalendarResponse {
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 const PALETTE = [
-  '#9b84ec', '#5865f2', '#3ba55c', '#ed4245', '#f5a623',
+  'var(--purple)', '#5865f2', '#3ba55c', '#ed4245', 'var(--amber-warm)',
   '#57d687', '#818cf8', '#b9a8ff', '#ff6467',
 ]
 

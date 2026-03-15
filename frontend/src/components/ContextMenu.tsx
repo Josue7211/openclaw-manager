@@ -76,7 +76,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuState & { onClo
               background: 'transparent',
               border: 'none',
               borderRadius: '5px',
-              color: item.danger ? '#f87171' : item.disabled ? 'var(--text-muted)' : 'var(--text-primary)',
+              color: item.danger ? 'var(--red)' : item.disabled ? 'var(--text-muted)' : 'var(--text-primary)',
               fontSize: '12px',
               cursor: item.disabled ? 'default' : 'pointer',
               opacity: item.disabled ? 0.4 : 1,

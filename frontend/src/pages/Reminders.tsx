@@ -21,8 +21,8 @@ interface Reminder {
 type FilterTab = 'all' | 'today' | 'scheduled' | 'flagged'
 
 function priorityColor(p: number): string {
-  if (p === 1) return 'var(--red-bright, #ff5f5f)'
-  if (p <= 4) return '#f5a623'
+  if (p === 1) return 'var(--red-bright)'
+  if (p <= 4) return 'var(--amber-warm)'
   return 'var(--text-muted)'
 }
 
@@ -58,9 +58,9 @@ function dueColor(dateStr: string | null): string {
   if (!dateStr) return 'var(--text-muted)'
   const d = new Date(dateStr)
   const now = new Date()
-  if (d < now) return 'var(--red-bright, #ff5f5f)'
-  if (isToday(dateStr)) return '#f5a623'
-  return 'var(--accent-blue, #5ac8fa)'
+  if (d < now) return 'var(--red-bright)'
+  if (isToday(dateStr)) return 'var(--amber-warm)'
+  return 'var(--apple-cyan)'
 }
 
 interface RemindersResponse {
@@ -231,7 +231,7 @@ export default function RemindersPage() {
         <div style={{
           padding: '12px 16px', borderRadius: '8px', marginBottom: '16px',
           background: 'rgba(255,95,95,0.1)', border: '1px solid rgba(255,95,95,0.3)',
-          color: 'var(--red-bright, #ff5f5f)', fontSize: '12px',
+          color: 'var(--red-bright)', fontSize: '12px',
         }}>
           {errorMsg}
         </div>
@@ -298,6 +298,7 @@ export default function RemindersPage() {
                             type="checkbox"
                             checked={isCompleted}
                             onChange={() => toggle(reminder.id, isCompleted)}
+                            aria-label={`Toggle "${reminder.title}"`}
                             style={{ cursor: 'pointer', accentColor: 'var(--accent)', width: '16px', height: '16px', flexShrink: 0, marginTop: '1px' }}
                           />
 

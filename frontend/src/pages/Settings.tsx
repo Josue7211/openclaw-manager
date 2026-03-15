@@ -202,9 +202,9 @@ function formatBytes(bytes: number): string {
 
 function svcStatusColor(status: string): string {
   switch (status) {
-    case 'ok': return '#22c55e'
-    case 'error': case 'degraded': return '#eab308'
-    case 'unreachable': return '#ef4444'
+    case 'ok': return 'var(--green-500)'
+    case 'error': case 'degraded': return 'var(--yellow)'
+    case 'unreachable': return 'var(--red-500)'
     case 'not_configured': return 'var(--text-muted)'
     default: return 'var(--text-muted)'
   }
@@ -263,7 +263,7 @@ const dotStyle = (online: boolean): React.CSSProperties => ({
   width: '8px',
   height: '8px',
   borderRadius: '50%',
-  background: online ? '#22c55e' : '#ef4444',
+  background: online ? 'var(--green-500)' : 'var(--red-500)',
   boxShadow: online ? '0 0 6px rgba(34,197,94,0.4)' : '0 0 6px rgba(239,68,68,0.4)',
   flexShrink: 0,
 })
@@ -548,7 +548,7 @@ const StatusSection = memo(function StatusSection() {
                     <span style={{ ...statusVal, fontSize: '11px' }}>{peer.ip}</span>
                     <span style={{
                       fontSize: '11px', fontWeight: 500,
-                      color: peer.online ? '#22c55e' : '#ef4444',
+                      color: peer.online ? 'var(--green-500)' : 'var(--red-500)',
                     }}>
                       {peer.online ? 'Online' : 'Offline'}
                     </span>
@@ -639,8 +639,8 @@ const StatusSection = memo(function StatusSection() {
             gap: '16px',
           }}>
             <StatusStatCard label="Total Queries" value={allQueries.length} />
-            <StatusStatCard label="Stale Queries" value={staleQueries.length} accent={staleQueries.length > 0 ? '#eab308' : undefined} />
-            <StatusStatCard label="Active Fetches" value={allQueries.filter(q => q.state.fetchStatus === 'fetching').length} accent="#22c55e" />
+            <StatusStatCard label="Stale Queries" value={staleQueries.length} accent={staleQueries.length > 0 ? 'var(--yellow)' : undefined} />
+            <StatusStatCard label="Active Fetches" value={allQueries.filter(q => q.state.fetchStatus === 'fetching').length} accent="var(--green-500)" />
           </div>
         </div>
       </div>
@@ -711,7 +711,7 @@ export default function SettingsPage() {
     })
     // Load expected hostnames from user preferences
     api.get<{ ok: boolean; data: Record<string, unknown> }>('/api/user-preferences').then(resp => {
-      const prefs = (resp as any)?.data ?? resp
+      const prefs = resp?.data ?? resp
       if (prefs?.['bluebubbles.expected-host']) setBbExpectedHost(String(prefs['bluebubbles.expected-host']))
       if (prefs?.['openclaw.expected-host']) setOcExpectedHost(String(prefs['openclaw.expected-host']))
     }).catch(() => {})
@@ -1024,6 +1024,7 @@ export default function SettingsPage() {
               ) : (
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                   <input value={nameInput} onChange={e => setNameInput(e.target.value)} autoFocus
+                    aria-label="Display name"
                     style={{ ...inputStyle, width: '160px' }}
                     onKeyDown={e => {
                       if (e.key === 'Enter') { setUserName(nameInput); setEditingName(false); setNameSaved(true); setTimeout(() => setNameSaved(false), 1500) }
@@ -1047,6 +1048,7 @@ export default function SettingsPage() {
               ) : (
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                   <input value={avatarInput} onChange={e => setAvatarInput(e.target.value)} autoFocus
+                    aria-label="Avatar emoji"
                     style={{ ...inputStyle, width: '80px', fontSize: '20px', textAlign: 'center' }}
                     onKeyDown={e => {
                       if (e.key === 'Enter') { setUserAvatar(avatarInput); setEditingAvatar(false); setAvatarSaved(true); setTimeout(() => setAvatarSaved(false), 1500) }
@@ -1176,7 +1178,7 @@ export default function SettingsPage() {
           if (r.peer_verified === true) {
             parts.push(<span key="pv" style={{ fontSize: '10px', color: 'var(--green)', fontFamily: 'monospace', marginLeft: '8px' }} title={`Peer: ${r.peer_hostname}`}>peer ok</span>)
           } else if (r.peer_verified === false) {
-            parts.push(<span key="pv" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: '#e5a00d', fontFamily: 'monospace', marginLeft: '8px' }} title={`Peer hostname "${r.peer_hostname}" does not match expected`}><AlertTriangle size={11} />peer mismatch</span>)
+            parts.push(<span key="pv" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: 'var(--gold)', fontFamily: 'monospace', marginLeft: '8px' }} title={`Peer hostname "${r.peer_hostname}" does not match expected`}><AlertTriangle size={11} />peer mismatch</span>)
           } else if (r.peer_hostname) {
             parts.push(<span key="pv" style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace', marginLeft: '8px' }} title="No expected hostname configured">peer: {r.peer_hostname}</span>)
           }
@@ -1186,7 +1188,7 @@ export default function SettingsPage() {
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '(not set)'
         return (
           <div>
-            {isDemoMode() && (<div style={{ background: 'rgba(251, 191, 36, 0.08)', border: '1px solid rgba(251, 191, 36, 0.25)', borderRadius: 'var(--radius-md)', padding: '16px 20px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><AlertTriangle size={16} style={{ color: '#fbbf24', flexShrink: 0 }} /><span style={{ fontSize: '14px', fontWeight: 700, color: '#fbbf24' }}>You're in demo mode</span></div><p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>No services are connected. The app is showing sample data so you can explore the interface. To use real data, set the following environment variables and restart:</p><div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '6px', padding: '10px 14px', fontFamily: 'monospace', fontSize: '11px', color: 'var(--text-primary)', lineHeight: 1.8 }}><div><span style={{ color: 'var(--accent)' }}>VITE_SUPABASE_URL</span>=https://your-project.supabase.co</div><div><span style={{ color: 'var(--accent)' }}>VITE_SUPABASE_ANON_KEY</span>=your-anon-key</div></div><p style={{ margin: 0, fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5 }}>Then configure BlueBubbles and OpenClaw URLs below (saved to OS keychain).</p></div>)}
+            {isDemoMode() && (<div style={{ background: 'rgba(251, 191, 36, 0.08)', border: '1px solid rgba(251, 191, 36, 0.25)', borderRadius: 'var(--radius-md)', padding: '16px 20px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><AlertTriangle size={16} style={{ color: 'var(--warning)', flexShrink: 0 }} /><span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--warning)' }}>You're in demo mode</span></div><p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>No services are connected. The app is showing sample data so you can explore the interface. To use real data, set the following environment variables and restart:</p><div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '6px', padding: '10px 14px', fontFamily: 'monospace', fontSize: '11px', color: 'var(--text-primary)', lineHeight: 1.8 }}><div><span style={{ color: 'var(--accent)' }}>VITE_SUPABASE_URL</span>=https://your-project.supabase.co</div><div><span style={{ color: 'var(--accent)' }}>VITE_SUPABASE_ANON_KEY</span>=your-anon-key</div></div><p style={{ margin: 0, fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5 }}>Then configure BlueBubbles and OpenClaw URLs below (saved to OS keychain).</p></div>)}
             <div style={sectionLabel}>Service Connections</div>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 16px' }}>
               Configure URLs for external services. Changes are saved to the OS keychain and take effect on restart.
@@ -1489,6 +1491,7 @@ export default function SettingsPage() {
                   <input
                     autoFocus
                     readOnly
+                    aria-label="Press a modifier key"
                     onKeyDown={e => {
                       e.preventDefault()
                       if (e.key === 'Escape') { setDetectingMod(false); return }
@@ -1917,6 +1920,7 @@ export default function SettingsPage() {
                   {editingModCat === cat.id ? (
                     <input
                       autoFocus
+                      aria-label="Rename category"
                       value={modEditValue}
                       onChange={e => setModEditValue(e.target.value)}
                       onBlur={confirmEditCategory}
@@ -2045,6 +2049,7 @@ export default function SettingsPage() {
                             {editingModItem === href ? (
                               <input
                                 autoFocus
+                                aria-label="Rename module"
                                 value={modEditValue}
                                 onChange={e => setModEditValue(e.target.value)}
                                 onBlur={confirmEditItem}
@@ -2378,6 +2383,7 @@ export default function SettingsPage() {
                   ) : (
                     <input
                       autoFocus
+                      aria-label="Sidebar title text"
                       defaultValue={sidebarTitleText}
                       onBlur={e => {
                         const v = e.currentTarget.value.trim()
@@ -2513,7 +2519,7 @@ export default function SettingsPage() {
                           </button>
                           <button
                             onClick={() => permanentlyDelete(d.href)}
-                            style={{ display: 'flex', alignItems: 'center', padding: '2px 6px', background: 'transparent', border: '1px solid rgba(248,113,113,0.3)', borderRadius: '4px', color: '#f87171', cursor: 'pointer', fontSize: '10px', fontWeight: 600 }}
+                            style={{ display: 'flex', alignItems: 'center', padding: '2px 6px', background: 'transparent', border: '1px solid rgba(248,113,113,0.3)', borderRadius: '4px', color: 'var(--red)', cursor: 'pointer', fontSize: '10px', fontWeight: 600 }}
                           >
                             Delete
                           </button>
@@ -2524,7 +2530,7 @@ export default function SettingsPage() {
                       <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', marginTop: '4px' }}>
                         <button
                           onClick={emptyRecycleBin}
-                          style={{ ...btnSecondary, padding: '4px 10px', fontSize: '10px', color: '#f87171', borderColor: 'rgba(248,113,113,0.3)' }}
+                          style={{ ...btnSecondary, padding: '4px 10px', fontSize: '10px', color: 'var(--red)', borderColor: 'rgba(248,113,113,0.3)' }}
                         >
                           Empty Recycle Bin
                         </button>
@@ -3057,7 +3063,7 @@ export default function SettingsPage() {
                       position: 'fixed', top: '16px', right: '16px', zIndex: '10000',
                       padding: '12px 20px', borderRadius: '12px', fontSize: '13px', fontWeight: '600',
                       background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.3)',
-                      color: '#f87171', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                      color: 'var(--red)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
                       animation: 'fadeInUp 0.3s ease',
                     })
                     document.body.appendChild(el)
@@ -3067,7 +3073,7 @@ export default function SettingsPage() {
                   // Chime
                   if (notifSound) {
                     try {
-                      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+                      const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
                       if (ctx.state === 'suspended') await ctx.resume()
                       const osc = ctx.createOscillator()
                       const gain = ctx.createGain()
@@ -3097,7 +3103,7 @@ export default function SettingsPage() {
                       position: 'fixed', top: '16px', right: '16px', zIndex: '10000',
                       padding: '12px 20px', borderRadius: '12px', fontSize: '13px', fontWeight: '600',
                       background: 'rgba(18,18,24,0.95)', border: '1px solid rgba(255,255,255,0.1)',
-                      color: '#e4e4ec', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                      color: 'var(--text-primary)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
                       animation: 'fadeInUp 0.3s ease',
                     })
                     document.body.appendChild(el)

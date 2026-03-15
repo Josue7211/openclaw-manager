@@ -21,7 +21,7 @@ import { MButton } from '@/components/messages/MessageMenu'
 import { ContactAvatar, GroupAvatar } from '@/components/messages/ContactAvatar'
 import Lightbox, { type LightboxData } from '@/components/Lightbox'
 
-import { useConversationList, useMessageCompose, useMessagesSSE, cleanPayloadText } from '@/hooks/messages'
+import { useConversationList, useMessageCompose, useMessagesSSE, cleanPayloadText, type SSEMessage } from '@/hooks/messages'
 import { setRecentConversations } from '@/components/CommandPalette'
 import { usePageTitle } from '@/lib/hooks/usePageTitle'
 import { MessagesConversationSkeleton, MessagesThreadSkeleton } from '@/components/Skeleton'
@@ -392,7 +392,7 @@ export default function MessagesPage() {
     selectedGuidRef,
     mutedConvsRef,
     contactLookupRef,
-    onNewMessage: useCallback((msg: any, msgChats: string[]) => {
+    onNewMessage: useCallback((msg: SSEMessage, msgChats: string[]) => {
       // Update the newest timestamp so the next delta sync skips this message
       if (msg.dateCreated) {
         for (const cg of msgChats) {
@@ -428,7 +428,7 @@ export default function MessagesPage() {
         }).sort((a, b) => (b.lastDate ?? 0) - (a.lastDate ?? 0))
       })
     }, [setConversations]),
-    onUpdateMessage: useCallback((msg: any) => {
+    onUpdateMessage: useCallback((msg: SSEMessage) => {
       setMessages(prev => prev.map(m => m.guid === msg.guid ? { ...m, ...msg } : m))
     }, []),
     onRefreshConvos: useCallback(() => {
@@ -1375,7 +1375,7 @@ export default function MessagesPage() {
             <button onClick={() => batchMarkReadStatus('read')} style={{
               flex: 1, padding: '8px', fontSize: '12px', fontWeight: 600,
               background: 'rgba(0,122,255,0.12)', border: '1px solid rgba(0,122,255,0.2)',
-              borderRadius: '8px', color: '#5ac8fa', cursor: 'pointer',
+              borderRadius: '8px', color: 'var(--apple-cyan)', cursor: 'pointer',
             }}>
               Mark Read ({selectedConvs.size})
             </button>
@@ -1395,7 +1395,7 @@ export default function MessagesPage() {
             }} style={{
               flex: 1, padding: '8px', fontSize: '12px', fontWeight: 600,
               background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.2)',
-              borderRadius: '8px', color: '#f87171', cursor: 'pointer',
+              borderRadius: '8px', color: 'var(--red)', cursor: 'pointer',
             }}>
               Delete ({selectedConvs.size})
             </button>
@@ -1448,7 +1448,7 @@ export default function MessagesPage() {
               <div style={{ fontSize: '14px', fontWeight: 600 }}>{contactLabel(selected)}</div>
               <div style={{
                 fontSize: '10px',
-                color: isIMessage(selected) ? '#5ac8fa' : 'var(--apple-green)',
+                color: isIMessage(selected) ? 'var(--apple-cyan)' : 'var(--apple-green)',
                 fontFamily: "'JetBrains Mono', monospace",
               }}>
                 {isIMessage(selected) ? 'iMessage' : 'SMS'}
@@ -1460,11 +1460,11 @@ export default function MessagesPage() {
                 <span style={{
                   display: 'inline-flex', alignItems: 'center', gap: '4px',
                   marginLeft: '8px', fontSize: '9px',
-                  color: sseConnected ? 'var(--apple-green, #34c759)' : '#ffcc00',
+                  color: sseConnected ? 'var(--apple-green)' : 'var(--apple-yellow)',
                 }}>
                   <span style={{
                     width: '6px', height: '6px', borderRadius: '50%',
-                    background: sseConnected ? '#34c759' : '#ffcc00',
+                    background: sseConnected ? 'var(--apple-green)' : 'var(--apple-yellow)',
                     boxShadow: sseConnected ? '0 0 4px rgba(52,199,89,0.5)' : '0 0 4px rgba(255,204,0,0.5)',
                     display: 'inline-block', flexShrink: 0,
                     animation: sseConnected ? undefined : 'pulse 1.5s ease-in-out infinite',
@@ -1534,6 +1534,7 @@ export default function MessagesPage() {
                 placeholder="Search in conversation..."
                 value={messageSearch}
                 onChange={e => setMessageSearch(e.target.value)}
+                aria-label="Search in conversation"
                 onKeyDown={e => {
                   if (e.key === 'Enter') {
                     if (e.shiftKey) jumpToPrevMatch()
@@ -1802,7 +1803,7 @@ export default function MessagesPage() {
                             ? '3px' : '8px 14px',
                           borderRadius: `${br.topLeft} ${br.topRight} ${br.bottomRight} ${br.bottomLeft}`,
                           background: isStickerMsg ? 'transparent' : fromMe
-                            ? (imsg ? 'linear-gradient(135deg, #5ac8fa, #007aff)' : 'linear-gradient(135deg, #34c759, #30b04e)')
+                            ? (imsg ? 'linear-gradient(135deg, var(--apple-cyan), var(--apple-blue))' : 'linear-gradient(135deg, var(--apple-green), #30b04e)')
                             : 'var(--bg-elevated)',
                           color: fromMe ? '#fff' : 'var(--text-primary)',
                           fontSize: '13px', lineHeight: 1.45, wordBreak: 'break-word',
@@ -1859,7 +1860,7 @@ export default function MessagesPage() {
                                     }}>
                                     <div style={{
                                       width: '32px', height: '32px', borderRadius: '6px',
-                                      background: '#ff3b30', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      background: 'var(--apple-red)', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                       fontSize: '10px', fontWeight: 700, color: '#fff', flexShrink: 0,
                                     }}>PDF</div>
                                     <div style={{ minWidth: 0 }}>
@@ -1961,7 +1962,7 @@ export default function MessagesPage() {
 
                   {fromMe && msg._failed && (
                     <div style={{
-                      textAlign: 'right', fontSize: '10px', color: '#ff453a',
+                      textAlign: 'right', fontSize: '10px', color: 'var(--apple-red-dark)',
                       padding: '2px 4px 0', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '5px',
                       fontFamily: "'JetBrains Mono', monospace",
                     }}>
@@ -1971,7 +1972,7 @@ export default function MessagesPage() {
                         onClick={() => retryMessage(msg)}
                         style={{
                           background: 'transparent', border: 'none', cursor: 'pointer',
-                          color: 'var(--apple-blue, #007aff)', fontSize: '10px', fontWeight: 500,
+                          color: 'var(--apple-blue)', fontSize: '10px', fontWeight: 500,
                           padding: '0 2px', fontFamily: "'JetBrains Mono', monospace",
                         }}
                       >
@@ -2005,7 +2006,7 @@ export default function MessagesPage() {
                     <div style={{
                       textAlign: 'right', fontSize: '10px',
                       color: deliveryMarkers[msg.guid].startsWith('Read')
-                        ? 'var(--apple-blue, #007aff)'
+                        ? 'var(--apple-blue)'
                         : 'var(--text-muted)',
                       padding: '2px 4px 0',
                       fontFamily: "'JetBrains Mono', monospace",
@@ -2153,7 +2154,7 @@ export default function MessagesPage() {
               style={{
                 width: '36px', height: '36px', borderRadius: '50%', border: 'none',
                 background: (hasDraft || attachmentFile)
-                  ? (isIMessage(selected) ? 'linear-gradient(135deg, #5ac8fa, #007aff)' : 'linear-gradient(135deg, #34c759, #30b04e)')
+                  ? (isIMessage(selected) ? 'linear-gradient(135deg, var(--apple-cyan), var(--apple-blue))' : 'linear-gradient(135deg, var(--apple-green), #30b04e)')
                   : 'var(--bg-elevated)',
                 color: (hasDraft || attachmentFile) ? '#fff' : 'var(--text-muted)',
                 cursor: (hasDraft || attachmentFile) ? 'pointer' : 'default',
@@ -2200,6 +2201,7 @@ export default function MessagesPage() {
               value={composeTo}
               onChange={e => setComposeTo(e.target.value)}
               placeholder="Phone number or email"
+              aria-label="Recipient phone number or email"
               autoFocus
               style={{
                 flex: 1, background: 'transparent', border: 'none', outline: 'none',
@@ -2256,7 +2258,7 @@ export default function MessagesPage() {
               style={{
                 width: '36px', height: '36px', borderRadius: '50%', border: 'none',
                 background: (composeHasDraft && composeTo.trim())
-                  ? 'linear-gradient(135deg, #5ac8fa, #007aff)'
+                  ? 'linear-gradient(135deg, var(--apple-cyan), var(--apple-blue))'
                   : 'var(--bg-elevated)',
                 color: (composeHasDraft && composeTo.trim()) ? '#fff' : 'var(--text-muted)',
                 cursor: (composeHasDraft && composeTo.trim()) ? 'pointer' : 'default',

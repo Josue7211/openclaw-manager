@@ -46,7 +46,7 @@ function StatusDot({ active }: { active: boolean }) {
       width: '8px',
       height: '8px',
       borderRadius: '50%',
-      background: active ? '#4ade80' : '#71717a',
+      background: active ? 'var(--green-400)' : 'var(--text-muted)',
       animation: active ? 'pulse-dot 1.5s ease-in-out infinite' : 'none',
       flexShrink: 0,
     }} />
@@ -103,6 +103,7 @@ function AgentCard({ agent, onSave, activeMission }: AgentCardProps) {
           <input
             value={emoji}
             onChange={e => setEmoji(e.target.value)}
+            aria-label="Agent emoji"
             style={{
               width: '48px', fontSize: '28px',
               background: 'var(--bg)', border: '1px solid var(--border)',
@@ -112,6 +113,7 @@ function AgentCard({ agent, onSave, activeMission }: AgentCardProps) {
           <input
             value={name}
             onChange={e => setName(e.target.value)}
+            aria-label="Agent name"
             style={{
               flex: 1, fontSize: '16px', fontWeight: 700,
               background: 'var(--bg)', border: '1px solid var(--border)',
@@ -136,6 +138,7 @@ function AgentCard({ agent, onSave, activeMission }: AgentCardProps) {
               value={role}
               onChange={e => setRole(e.target.value)}
               placeholder="Role"
+              aria-label="Agent role"
               style={{
                 fontSize: '12px', background: 'var(--bg)', border: '1px solid var(--border)',
                 borderRadius: '10px', padding: '5px 8px', color: 'var(--text-primary)',
@@ -145,6 +148,7 @@ function AgentCard({ agent, onSave, activeMission }: AgentCardProps) {
               value={model}
               onChange={e => setModel(e.target.value)}
               placeholder="Model (e.g. claude-sonnet-4-6)"
+              aria-label="Agent model"
               style={{
                 fontSize: '11px', fontFamily: 'monospace',
                 background: 'var(--bg)', border: '1px solid var(--border)',
@@ -178,7 +182,7 @@ function AgentCard({ agent, onSave, activeMission }: AgentCardProps) {
         {awaitingDeploy ? (
           <span style={{
             fontSize: '11px', fontWeight: 700,
-            color: '#facc15',
+            color: 'var(--yellow-bright)',
             background: 'rgba(250,204,21,0.12)',
             border: '1px solid rgba(250,204,21,0.35)',
             borderRadius: '10px', padding: '2px 8px',
@@ -189,7 +193,7 @@ function AgentCard({ agent, onSave, activeMission }: AgentCardProps) {
         ) : (
           <>
             <StatusDot active={active} />
-            <span style={{ fontSize: '11px', color: active ? '#4ade80' : '#8b8fa3', fontWeight: 600 }}>
+            <span style={{ fontSize: '11px', color: active ? 'var(--green-400)' : 'var(--text-muted)', fontWeight: 600 }}>
               {active ? 'Working' : 'Idle'}
             </span>
           </>
@@ -209,7 +213,7 @@ function AgentCard({ agent, onSave, activeMission }: AgentCardProps) {
               height: '100%',
               width: `${activeMission.progress}%`,
               borderRadius: '3px',
-              background: 'var(--accent-blue, #3b82f6)',
+              background: 'var(--accent-blue)',
               transition: 'width 0.4s ease',
             }} />
           </div>
@@ -333,7 +337,7 @@ function LiveProcesses({ agents }: { agents: Agent[] }) {
           {processes.length > 0 && (
             <span style={{
               fontSize: '10px', fontWeight: 700,
-              background: 'rgba(74,222,128,0.15)', color: '#4ade80',
+              background: 'rgba(74,222,128,0.15)', color: 'var(--green-400)',
               border: '1px solid rgba(74,222,128,0.3)',
               borderRadius: '10px', padding: '1px 7px',
             }}>
@@ -350,7 +354,7 @@ function LiveProcesses({ agents }: { agents: Agent[] }) {
                 fontSize: '11px', fontWeight: 700, padding: '4px 12px', borderRadius: '10px',
                 border: '1px solid rgba(250,204,21,0.5)',
                 background: deploying ? 'rgba(250,204,21,0.1)' : 'rgba(250,204,21,0.15)',
-                color: '#facc15', cursor: deploying ? 'not-allowed' : 'pointer',
+                color: 'var(--yellow-bright)', cursor: deploying ? 'not-allowed' : 'pointer',
                 opacity: deploying ? 0.7 : 1,
               }}
             >
@@ -367,7 +371,7 @@ function LiveProcesses({ agents }: { agents: Agent[] }) {
           fontSize: '11px', fontFamily: 'monospace', padding: '6px 10px',
           borderRadius: '10px', marginBottom: '10px',
           background: deployOk ? 'rgba(74,222,128,0.1)' : 'rgba(239,68,68,0.1)',
-          color: deployOk ? '#4ade80' : '#f87171',
+          color: deployOk ? 'var(--green-400)' : 'var(--red)',
           border: `1px solid ${deployOk ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'}`,
         }}>
           {deployOk ? '' : ''} {deployLog}
@@ -390,7 +394,7 @@ function LiveProcesses({ agents }: { agents: Agent[] }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{
                   display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%',
-                  background: '#4ade80', animation: 'pulse-dot 1.5s ease-in-out infinite', flexShrink: 0,
+                  background: 'var(--green-400)', animation: 'pulse-dot 1.5s ease-in-out infinite', flexShrink: 0,
                 }} />
                 {p.agentEmoji && (
                   <span style={{ fontSize: '14px' }}>{p.agentEmoji}</span>
@@ -411,7 +415,7 @@ function LiveProcesses({ agents }: { agents: Agent[] }) {
                 </div>
               )}
               <div style={{ display: 'flex', gap: '12px', fontFamily: 'monospace', fontSize: '10px', paddingLeft: '16px' }}>
-                <span style={{ color: '#4ade80' }}>cpu {p.cpu}%</span>
+                <span style={{ color: 'var(--green-400)' }}>cpu {p.cpu}%</span>
                 <span style={{ color: 'var(--text-secondary)' }}>mem {p.mem}%</span>
                 {p.elapsed && <span style={{ color: 'var(--text-muted)' }}>{p.elapsed}</span>}
               </div>

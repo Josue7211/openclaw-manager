@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo, useSyncExternalStore } from 'react'
+import React, { useState, useCallback, useEffect, useRef, useMemo, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { Bell, X, Check, CheckCheck, MessageSquare, AlertTriangle, Info, ChevronDown, ChevronRight } from 'lucide-react'
@@ -142,9 +142,9 @@ function groupNotifications(items: Notification[]): NotificationGroup[] {
 
 function TypeIcon({ type }: { type: NotificationType }) {
   switch (type) {
-    case 'message': return <MessageSquare size={14} style={{ color: '#60a5fa', flexShrink: 0 }} />
-    case 'alert': return <AlertTriangle size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
-    case 'system': return <Info size={14} style={{ color: '#a78bfa', flexShrink: 0 }} />
+    case 'message': return <MessageSquare size={14} style={{ color: 'var(--blue)', flexShrink: 0 }} />
+    case 'alert': return <AlertTriangle size={14} style={{ color: 'var(--amber)', flexShrink: 0 }} />
+    case 'system': return <Info size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
   }
 }
 
@@ -191,7 +191,7 @@ export function NotificationBell({ collapsed, textOpacity = 1 }: { collapsed: bo
   }, [open])
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: 'relative', flex: 1 }}>
       <button
         ref={btnRef}
         onClick={() => {
@@ -289,7 +289,7 @@ export function NotificationBell({ collapsed, textOpacity = 1 }: { collapsed: bo
 
 /* ─── Single notification row ────────────────────────────────────────────── */
 
-function NotificationRow({
+const NotificationRow = React.memo(function NotificationRow({
   notif,
   onClick,
   indent = false,
@@ -337,7 +337,7 @@ function NotificationRow({
             width: '6px',
             height: '6px',
             borderRadius: '50%',
-            background: notif.read ? 'transparent' : '#60a5fa',
+            background: notif.read ? 'transparent' : 'var(--blue)',
             flexShrink: 0,
             animation: notif.read ? 'none' : 'unreadPulse 2s ease-in-out infinite',
           }} />
@@ -387,11 +387,11 @@ function NotificationRow({
       </div>
     </button>
   )
-}
+})
 
 /* ─── Grouped notification row ───────────────────────────────────────────── */
 
-function GroupedNotificationRow({
+const GroupedNotificationRow = React.memo(function GroupedNotificationRow({
   group,
   onClickItem,
 }: {
@@ -457,7 +457,7 @@ function GroupedNotificationRow({
             width: '6px',
             height: '6px',
             borderRadius: '50%',
-            background: group.hasUnread ? '#60a5fa' : 'transparent',
+            background: group.hasUnread ? 'var(--blue)' : 'transparent',
             flexShrink: 0,
             animation: group.hasUnread ? 'unreadPulse 2s ease-in-out infinite' : 'none',
           }} />
@@ -491,7 +491,7 @@ function GroupedNotificationRow({
               <span style={{
                 fontSize: '10px',
                 fontWeight: 600,
-                color: '#60a5fa',
+                color: 'var(--blue)',
                 background: 'rgba(96,165,250,0.15)',
                 padding: '1px 6px',
                 borderRadius: '8px',
@@ -577,7 +577,7 @@ function GroupedNotificationRow({
       )}
     </div>
   )
-}
+})
 
 /* ─── Notification panel dropdown ────────────────────────────────────────── */
 
@@ -655,7 +655,7 @@ const NotificationPanel = forwardRef<HTMLDivElement, { onClose: () => void; posi
               <span style={{
                 fontSize: '10px',
                 fontWeight: 600,
-                color: '#60a5fa',
+                color: 'var(--blue)',
                 background: 'rgba(96,165,250,0.12)',
                 padding: '2px 6px',
                 borderRadius: '10px',

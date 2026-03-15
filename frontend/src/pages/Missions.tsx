@@ -52,10 +52,10 @@ type Tab = 'all' | 'active' | 'pending' | 'done' | 'review'
 
 function statusColor(status: string): string {
   switch (status) {
-    case 'done': return 'var(--green, #4ade80)'
+    case 'done': return 'var(--green-400)'
     case 'active': return 'var(--accent-bright)'
-    case 'awaiting_review': return '#f59e0b'
-    case 'failed': return '#ef4444'
+    case 'awaiting_review': return 'var(--amber)'
+    case 'failed': return 'var(--red-500)'
     case 'pending': return 'var(--text-muted)'
     default: return 'var(--text-muted)'
   }
@@ -63,25 +63,25 @@ function statusColor(status: string): string {
 
 function statusIcon(status: string) {
   switch (status) {
-    case 'done': return <CheckCircle size={14} color="var(--green, #4ade80)" />
+    case 'done': return <CheckCircle size={14} color="var(--green-400)" />
     case 'active': return <Zap size={14} color="var(--accent-bright)" />
-    case 'awaiting_review': return <Eye size={14} color="#f59e0b" />
-    case 'failed': return <XCircle size={14} color="#ef4444" />
+    case 'awaiting_review': return <Eye size={14} color="var(--amber)" />
+    case 'failed': return <XCircle size={14} color="var(--red-500)" />
     case 'pending': return <Clock size={14} color="var(--text-muted)" />
     default: return <Clock size={14} color="var(--text-muted)" />
   }
 }
 
 const EVENT_META: Record<string, { tickColor: string; icon: React.ReactNode; label: string; labelColor: string; bg: string; border: string }> = {
-  user:   { tickColor: '#ec4899', icon: <User size={11} />,      label: 'User',   labelColor: '#f472b6', bg: 'rgba(236,72,153,0.12)',  border: 'rgba(236,72,153,0.3)' },
-  think:  { tickColor: '#9b84ec', icon: <Lightbulb size={11} />, label: 'Think',  labelColor: '#c4b5fd', bg: 'rgba(155,132,236,0.12)', border: 'rgba(155,132,236,0.25)' },
-  write:  { tickColor: '#22c55e', icon: <FileText size={11} />,  label: 'Write',  labelColor: '#4ade80', bg: 'rgba(34,197,94,0.15)',   border: 'rgba(34,197,94,0.35)' },
-  edit:   { tickColor: '#10b981', icon: <Pencil size={11} />,    label: 'Edit',   labelColor: '#34d399', bg: 'rgba(16,185,129,0.15)',  border: 'rgba(16,185,129,0.35)' },
-  bash:   { tickColor: '#3b82f6', icon: <Terminal size={11} />,  label: 'Bash',   labelColor: '#60a5fa', bg: 'rgba(59,130,246,0.15)',  border: 'rgba(59,130,246,0.35)' },
-  read:   { tickColor: '#06b6d4', icon: <Eye size={11} />,       label: 'Read',   labelColor: '#22d3ee', bg: 'rgba(6,182,212,0.12)',   border: 'rgba(6,182,212,0.3)' },
-  glob:   { tickColor: '#f97316', icon: <Search size={11} />,    label: 'Glob',   labelColor: '#fb923c', bg: 'rgba(249,115,22,0.12)',  border: 'rgba(249,115,22,0.3)' },
-  grep:   { tickColor: '#f97316', icon: <Search size={11} />,    label: 'Grep',   labelColor: '#fb923c', bg: 'rgba(249,115,22,0.12)',  border: 'rgba(249,115,22,0.3)' },
-  result: { tickColor: '#f59e0b', icon: <CircleDot size={11} />, label: 'Result', labelColor: '#fbbf24', bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.35)' },
+  user:   { tickColor: '#ec4899', icon: <User size={11} />,      label: 'User',   labelColor: 'var(--pink)', bg: 'rgba(236,72,153,0.12)',  border: 'rgba(236,72,153,0.3)' },
+  think:  { tickColor: 'var(--purple)', icon: <Lightbulb size={11} />, label: 'Think',  labelColor: 'var(--accent-bright)', bg: 'rgba(155,132,236,0.12)', border: 'rgba(155,132,236,0.25)' },
+  write:  { tickColor: 'var(--green-500)', icon: <FileText size={11} />,  label: 'Write',  labelColor: 'var(--green-400)', bg: 'rgba(34,197,94,0.15)',   border: 'rgba(34,197,94,0.35)' },
+  edit:   { tickColor: '#10b981', icon: <Pencil size={11} />,    label: 'Edit',   labelColor: 'var(--green)', bg: 'rgba(16,185,129,0.15)',  border: 'rgba(16,185,129,0.35)' },
+  bash:   { tickColor: '#3b82f6', icon: <Terminal size={11} />,  label: 'Bash',   labelColor: 'var(--blue)', bg: 'rgba(59,130,246,0.15)',  border: 'rgba(59,130,246,0.35)' },
+  read:   { tickColor: '#06b6d4', icon: <Eye size={11} />,       label: 'Read',   labelColor: 'var(--cyan)', bg: 'rgba(6,182,212,0.12)',   border: 'rgba(6,182,212,0.3)' },
+  glob:   { tickColor: '#f97316', icon: <Search size={11} />,    label: 'Glob',   labelColor: 'var(--orange)', bg: 'rgba(249,115,22,0.12)',  border: 'rgba(249,115,22,0.3)' },
+  grep:   { tickColor: '#f97316', icon: <Search size={11} />,    label: 'Grep',   labelColor: 'var(--orange)', bg: 'rgba(249,115,22,0.12)',  border: 'rgba(249,115,22,0.3)' },
+  result: { tickColor: 'var(--amber)', icon: <CircleDot size={11} />, label: 'Result', labelColor: 'var(--warning)', bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.35)' },
 }
 
 function formatElapsed(seconds: number): string {
@@ -153,7 +153,7 @@ function ReplayEventRow({
         flexShrink: 0,
         fontSize: '11px',
         fontFamily: 'monospace',
-        color: isActive ? meta.labelColor : '#71717a',
+        color: isActive ? meta.labelColor : 'var(--text-muted)',
         minWidth: '44px',
       }}>
         {formatElapsed(elapsed)}
@@ -189,7 +189,7 @@ function ReplayEventRow({
         <div style={{
           fontSize: '13px',
           fontFamily: isFile || isBash ? 'monospace' : 'inherit',
-          color: isThink ? '#a1a1aa' : isError ? '#fca5a5' : '#e4e4e7',
+          color: isThink ? 'var(--text-muted)' : isError ? 'var(--red-bright)' : 'var(--text-primary)',
           fontStyle: isThink ? 'italic' : 'normal',
           overflow: isThink && isExpanded ? 'visible' : 'hidden',
           textOverflow: isThink && isExpanded ? undefined : 'ellipsis',
@@ -203,7 +203,7 @@ function ReplayEventRow({
           <div style={{
             marginTop: '4px',
             fontSize: '11px',
-            color: isThink ? '#a1a1aa' : 'var(--text-primary)',
+            color: isThink ? 'var(--text-muted)' : 'var(--text-primary)',
             fontStyle: isThink ? 'italic' : 'normal',
             lineHeight: 1.5,
             background: 'rgba(255,255,255,0.02)',
@@ -488,7 +488,7 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
             background: 'rgba(6,182,212,0.1)',
             border: '1px solid rgba(6,182,212,0.25)',
             borderRadius: '10px', padding: '1px 6px',
-            color: '#22d3ee', flexShrink: 0,
+            color: 'var(--cyan)', flexShrink: 0,
           }}>
             <Cpu size={9} />
             {detectedModel.replace('claude-', '')}
@@ -558,7 +558,7 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
           transform: 'translateX(-50%)',
           width: '2px',
           height: 'calc(100% + 8px)',
-          background: '#e4e4e7',
+          background: 'var(--text-primary)',
           borderRadius: '2px',
           boxShadow: '0 0 4px 1px rgba(155,132,236,0.9), 0 0 8px 3px rgba(155,132,236,0.4)',
           zIndex: 3,
@@ -573,7 +573,7 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
             transform: 'translateX(-50%) translateY(-50%) rotate(45deg)',
             width: '5px',
             height: '5px',
-            background: '#e4e4e7',
+            background: 'var(--text-primary)',
             borderRadius: '1px',
             boxShadow: '0 0 6px 1px rgba(155,132,236,0.9), 0 0 12px 2px rgba(155,132,236,0.5)',
           }} />
@@ -617,8 +617,8 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
       {(filesModified.length > 0 || filesRead.length > 0) && (() => {
         const modifiedPaths = new Set(filesModified.map(([p]) => p))
         const allFiles = [
-          ...filesModified.map(([p]) => ({ path: p, color: '#4ade80' })),
-          ...filesRead.filter(([p]) => !modifiedPaths.has(p)).map(([p]) => ({ path: p, color: '#52525b' })),
+          ...filesModified.map(([p]) => ({ path: p, color: 'var(--green-400)' })),
+          ...filesRead.filter(([p]) => !modifiedPaths.has(p)).map(([p]) => ({ path: p, color: 'var(--text-muted)' })),
         ]
         const shown = allFiles.slice(0, 6)
         const extra = allFiles.length - 6
@@ -882,7 +882,7 @@ export default function MissionsPage() {
           <div style={{
             padding: '20px', borderRadius: '10px',
             background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-            color: 'var(--red, #ef4444)', fontSize: '13px', fontFamily: 'monospace',
+            color: 'var(--red-500)', fontSize: '13px', fontFamily: 'monospace',
           }}>
             Error: {error}
           </div>
@@ -900,7 +900,7 @@ export default function MissionsPage() {
               const canMarkDone = !done
               const barPct = done ? 100 : (mission.progress ?? 0)
               const barColor = done
-                ? 'var(--green, #4ade80)'
+                ? 'var(--green-400)'
                 : mission.status === 'active'
                   ? 'var(--accent)'
                   : 'var(--text-muted)'
@@ -958,7 +958,7 @@ export default function MissionsPage() {
                           textDecoration: done ? 'line-through' : 'none',
                           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                         }}>
-                          {done && <span style={{ color: 'var(--green, #4ade80)', marginRight: '6px', textDecoration: 'none', display: 'inline-block' }}>✓</span>}
+                          {done && <span style={{ color: 'var(--green-400)', marginRight: '6px', textDecoration: 'none', display: 'inline-block' }}>✓</span>}
                           {mission.title}
                         </div>
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: '2px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -976,7 +976,7 @@ export default function MissionsPage() {
                             <>
                               <span>·</span>
                               <span style={{
-                                color: mission.complexity > 70 ? '#ef4444' : mission.complexity > 40 ? '#f59e0b' : '#4ade80',
+                                color: mission.complexity > 70 ? 'var(--red-500)' : mission.complexity > 40 ? 'var(--amber)' : 'var(--green-400)',
                               }}>
                                 {mission.complexity}%
                               </span>
@@ -987,7 +987,7 @@ export default function MissionsPage() {
                               fontSize: '9px', padding: '1px 5px', borderRadius: '10px',
                               background: mission.task_type === 'code' ? 'rgba(59,130,246,0.12)' : 'rgba(155,132,236,0.12)',
                               border: `1px solid ${mission.task_type === 'code' ? 'rgba(59,130,246,0.3)' : 'rgba(155,132,236,0.3)'}`,
-                              color: mission.task_type === 'code' ? '#60a5fa' : '#c4b5fd',
+                              color: mission.task_type === 'code' ? 'var(--blue)' : 'var(--accent-bright)',
                             }}>
                               {mission.task_type}
                             </span>
@@ -996,7 +996,7 @@ export default function MissionsPage() {
                             <span style={{
                               fontSize: '9px', padding: '1px 5px', borderRadius: '10px',
                               background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.3)',
-                              color: '#fbbf24', fontWeight: 600,
+                              color: 'var(--warning)', fontWeight: 600,
                             }}>
                               needs review
                             </span>
@@ -1005,7 +1005,7 @@ export default function MissionsPage() {
                             <span style={{
                               fontSize: '9px', padding: '1px 5px', borderRadius: '10px',
                               background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)',
-                              color: '#fca5a5', fontWeight: 600,
+                              color: 'var(--red-bright)', fontWeight: 600,
                             }}>
                               rejected
                             </span>
@@ -1013,7 +1013,7 @@ export default function MissionsPage() {
                           {(mission.retry_count ?? 0) > 0 && (
                             <>
                               <span>·</span>
-                              <span style={{ color: '#ef4444' }}>
+                              <span style={{ color: 'var(--red-500)' }}>
                                 {mission.retry_count} retries
                               </span>
                             </>
@@ -1033,7 +1033,7 @@ export default function MissionsPage() {
                             padding: '3px 8px', borderRadius: '10px',
                             border: '1px solid rgba(74,222,128,0.25)',
                             background: 'rgba(74,222,128,0.06)',
-                            color: 'var(--green, #4ade80)',
+                            color: 'var(--green-400)',
                             fontSize: '11px', cursor: isMarkingThis ? 'wait' : 'pointer',
                             opacity: isMarkingThis ? 0.5 : 1,
                             transition: 'all 0.25s var(--ease-spring)',
@@ -1075,7 +1075,7 @@ export default function MissionsPage() {
                     <div style={{
                       position: 'absolute', top: 0, left: 0, bottom: 0,
                       width: `${barPct}%`,
-                      background: done ? 'var(--green, #4ade80)' : 'var(--accent)',
+                      background: done ? 'var(--green-400)' : 'var(--accent)',
                       transition: 'width 0.4s ease',
                     }} />
                   </div>

@@ -120,7 +120,7 @@ export const ContactAvatar = memo(function ContactAvatar({ address, name, isImsg
       width: `${size}px`, height: `${size}px`, minWidth: `${size}px`, minHeight: `${size}px`,
       borderRadius: '50%', flexShrink: 0,
       background: isImsg !== undefined
-        ? (isImsg ? 'linear-gradient(135deg, #5ac8fa, #007aff)' : 'linear-gradient(135deg, #34c759, #30b04e)')
+        ? (isImsg ? 'linear-gradient(135deg, var(--apple-cyan), var(--apple-blue))' : 'linear-gradient(135deg, var(--apple-green), #30b04e)')
         : bgColor,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       color: '#fff',

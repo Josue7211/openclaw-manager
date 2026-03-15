@@ -533,6 +533,7 @@ export default function LoginPage() {
               placeholder="Email"
               autoFocus
               autoComplete="email"
+              aria-label="Email"
               style={inputStyle}
             />
             <input
@@ -541,6 +542,7 @@ export default function LoginPage() {
               onChange={e => setPassword(e.target.value)}
               placeholder="Password"
               autoComplete="current-password"
+              aria-label="Password"
               style={inputStyle}
             />
             <button
@@ -629,6 +631,7 @@ export default function LoginPage() {
               placeholder="000000"
               autoFocus
               autoComplete="one-time-code"
+              aria-label="MFA verification code"
               style={{
                 ...inputStyle,
                 textAlign: 'center',
@@ -739,7 +742,7 @@ export default function LoginPage() {
               border: '1px solid rgba(251, 191, 36, 0.2)',
               borderRadius: '8px',
               fontSize: '12px',
-              color: '#fbbf24',
+              color: 'var(--warning)',
               textAlign: 'center',
             }}>
               Two-factor authentication is required to continue
@@ -817,6 +820,7 @@ export default function LoginPage() {
                 placeholder="000000"
                 autoFocus
                 autoComplete="one-time-code"
+                aria-label="MFA verification code"
                 style={{
                   ...inputStyle,
                   textAlign: 'center',

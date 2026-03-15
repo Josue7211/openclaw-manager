@@ -57,7 +57,7 @@ function formatBytes(bytes: number): string {
 
 function cpuColor(cpu: number): string {
   if (cpu > 0.7) return 'var(--red)'
-  if (cpu > 0.5) return '#f0a500'
+  if (cpu > 0.5) return 'var(--gold)'
   return 'var(--green)'
 }
 
@@ -90,7 +90,7 @@ function CpuBar({ value }: { value: number }) {
 
 function MemBar({ used, total }: { used: number; total: number }) {
   const pct = total > 0 ? Math.round((used / total) * 100) : 0
-  const color = pct > 85 ? 'var(--red)' : pct > 65 ? '#f0a500' : 'var(--accent-blue)'
+  const color = pct > 85 ? 'var(--red)' : pct > 65 ? 'var(--gold)' : 'var(--accent-blue)'
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
       <div style={{

@@ -28,8 +28,8 @@ function DueDateBadge({ due_date }: { due_date: string | null | undefined }) {
   if (!status || !due_date) return null
 
   const styles: Record<string, { bg: string; color: string; label: string }> = {
-    overdue: { bg: 'rgba(239,68,68,0.12)', color: '#f87171', label: 'Overdue' },
-    today: { bg: 'rgba(250,204,21,0.12)', color: '#fbbf24', label: 'Today' },
+    overdue: { bg: 'rgba(239,68,68,0.12)', color: 'var(--red)', label: 'Overdue' },
+    today: { bg: 'rgba(250,204,21,0.12)', color: 'var(--warning)', label: 'Today' },
     future: { bg: 'rgba(100,116,139,0.12)', color: 'var(--text-muted)', label: due_date },
   }
   const s = styles[status]
@@ -159,6 +159,7 @@ export default function TodosPage() {
           onChange={e => setTodoInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && addTodo()}
           placeholder="Add a new task..."
+          aria-label="Add todo"
           style={{
             flex: 1, background: 'rgba(22, 22, 28, 0.65)', border: '1px solid var(--border)',
             borderRadius: '10px', padding: '10px 14px', fontSize: '13px',
@@ -190,8 +191,8 @@ export default function TodosPage() {
               border: '1px solid rgba(239,68,68,0.18)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '12px' }}>
-                <Flame size={13} style={{ color: '#f87171' }} />
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                <Flame size={13} style={{ color: 'var(--red)' }} />
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                   Today&apos;s Focus
                 </span>
               </div>
@@ -204,6 +205,7 @@ export default function TodosPage() {
                   }}>
                     <input
                       type="checkbox" checked={false} onChange={() => toggleTodo(t.id, t.done)}
+                      aria-label={`Mark "${t.text}" as done`}
                       style={{ cursor: 'pointer', accentColor: 'var(--green)', width: '15px', height: '15px', flexShrink: 0 }}
                     />
                     <span style={{ flex: 1, fontSize: '13px', color: 'var(--text-primary)', lineHeight: 1.4 }}>{t.text}</span>
@@ -231,6 +233,7 @@ export default function TodosPage() {
                   }}>
                     <input
                       type="checkbox" checked={false} onChange={() => toggleTodo(t.id, t.done)}
+                      aria-label={`Mark "${t.text}" as done`}
                       style={{ cursor: 'pointer', accentColor: 'var(--green)', width: '16px', height: '16px', flexShrink: 0 }}
                     />
                     <span style={{ flex: 1, fontSize: '13px', color: 'var(--text-primary)', lineHeight: 1.4 }}>{t.text}</span>
@@ -242,6 +245,7 @@ export default function TodosPage() {
                           value={t.due_date || ''}
                           onChange={e => updateDueDate(t.id, e.target.value || null)}
                           title="Set due date"
+                          aria-label={`Set due date for "${t.text}"`}
                           style={{
                             background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border)',
                             borderRadius: '10px', padding: '3px 6px', fontSize: '11px',
@@ -273,6 +277,7 @@ export default function TodosPage() {
                   }}>
                     <input
                       type="checkbox" checked onChange={() => toggleTodo(t.id, t.done)}
+                      aria-label={`Mark "${t.text}" as not done`}
                       style={{ cursor: 'pointer', accentColor: 'var(--green)', width: '16px', height: '16px', flexShrink: 0 }}
                     />
                     <span style={{ flex: 1, fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'line-through', lineHeight: 1.4 }}>{t.text}</span>

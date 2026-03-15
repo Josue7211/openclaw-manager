@@ -350,7 +350,7 @@ export default function PomodoroPage() {
 
   const isWork = mode === 'work'
   const accentColor = isWork ? 'var(--accent)' : 'var(--green)'
-  const accentBright = isWork ? 'var(--accent-bright)' : '#4ade80'
+  const accentBright = isWork ? 'var(--accent-bright)' : 'var(--green-400)'
   const accentBg = isWork ? 'rgba(155,132,236,0.12)' : 'rgba(59,165,92,0.12)'
   const accentBorder = isWork ? 'rgba(155,132,236,0.25)' : 'rgba(59,165,92,0.25)'
 
@@ -591,6 +591,7 @@ export default function PomodoroPage() {
                   <input
                     ref={editInputRef}
                     autoFocus
+                    aria-label="Edit timer duration"
                     value={editValue}
                     onChange={e => setEditValue(e.target.value)}
                     onBlur={confirmTimeEdit}
@@ -702,6 +703,7 @@ export default function PomodoroPage() {
                     min={1} max={99}
                     value={durations[m]}
                     onChange={e => handleDurationChange(m, parseInt(e.target.value) || 1)}
+                    aria-label={`${MODE_LABELS[m]} duration in minutes`}
                     style={{
                       width: '46px', background: 'var(--bg-elevated)', border: '1px solid var(--border)',
                       borderRadius: '5px', padding: '4px 6px', fontSize: '12px',
@@ -824,6 +826,7 @@ export default function PomodoroPage() {
               value={focusText}
               onChange={e => setFocusText(e.target.value)}
               placeholder="What are you focusing on?"
+              aria-label="Focus task"
               style={{
                 width: '100%', background: 'var(--bg-base)', border: '1px solid var(--border)',
                 borderRadius: '8px', padding: '9px 12px', fontSize: '13px',

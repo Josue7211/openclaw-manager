@@ -57,7 +57,7 @@ type StaleItem = {
 const CATEGORIES = ['routing', 'delegation', 'user-preferences', 'lessons']
 
 const CATEGORY_COLORS: Record<string, string> = {
-  routing: '#7c3aed',
+  routing: 'var(--accent-dim)',
   delegation: '#0891b2',
   'user-preferences': '#059669',
   lessons: '#d97706',
@@ -66,7 +66,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 const STALE_TYPE_COLORS: Record<ItemType, { bg: string; color: string; border: string }> = {
   todo: { bg: 'rgba(59,165,92,0.12)', color: 'var(--green)', border: 'rgba(59,165,92,0.25)' },
   mission: { bg: 'rgba(155,132,236,0.12)', color: 'var(--accent-bright)', border: 'rgba(155,132,236,0.25)' },
-  idea: { bg: 'rgba(230,168,23,0.12)', color: '#e6a817', border: 'rgba(230,168,23,0.25)' },
+  idea: { bg: 'rgba(230,168,23,0.12)', color: 'var(--gold)', border: 'rgba(230,168,23,0.25)' },
 }
 
 const STALE_TYPE_ICONS: Record<ItemType, React.ElementType> = {
@@ -92,13 +92,13 @@ interface Idea {
 
 const IDEA_LEVEL_COLORS: Record<string, string> = {
   low: 'var(--green)',
-  medium: '#e6a817',
+  medium: 'var(--gold)',
   high: 'var(--red)',
 }
 
 const IDEA_STATUS_META: { status: IdeaStatus; label: string; color: string }[] = [
-  { status: 'pending', label: 'Pending', color: '#e6a817' },
-  { status: 'approved', label: 'Approved', color: '#34d399' },
+  { status: 'pending', label: 'Pending', color: 'var(--gold)' },
+  { status: 'approved', label: 'Approved', color: 'var(--green)' },
   { status: 'built', label: 'Built', color: 'var(--accent-bright)' },
   { status: 'rejected', label: 'Rejected', color: 'var(--red)' },
   { status: 'deferred', label: 'Deferred', color: 'var(--text-muted)' },
@@ -813,14 +813,14 @@ export default function PipelinePage() {
                             {idea.status === 'pending' && (
                               <button onClick={() => updateIdeaStatus(idea.id, 'deferred')} title="Defer" style={{
                                 padding: '4px 8px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                                fontSize: '11px', fontWeight: 600, background: 'rgba(230,168,23,0.12)', color: '#e6a817',
+                                fontSize: '11px', fontWeight: 600, background: 'rgba(230,168,23,0.12)', color: 'var(--gold)',
                                 transition: 'all 0.12s',
                               }}>Defer</button>
                             )}
                           </>
                         )}
                         {idea.status === 'approved' && idea.mission_id && (
-                          <span style={{ fontSize: '11px', fontWeight: 500, color: '#34d399', opacity: 0.8 }}>Queued</span>
+                          <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--green)', opacity: 0.8 }}>Queued</span>
                         )}
                         {idea.status === 'approved' && !idea.mission_id && (
                           <button onClick={() => updateIdeaStatus(idea.id, 'built')} style={{
@@ -922,7 +922,7 @@ export default function PipelinePage() {
               }}>Reject</button>
               <button onClick={() => bulkUpdateStatus('deferred')} disabled={bulkActing} style={{
                 padding: '6px 14px', borderRadius: '8px', border: 'none', cursor: bulkActing ? 'wait' : 'pointer',
-                fontSize: '12px', fontWeight: 600, background: 'rgba(230,168,23,0.15)', color: '#e6a817',
+                fontSize: '12px', fontWeight: 600, background: 'rgba(230,168,23,0.15)', color: 'var(--gold)',
                 opacity: bulkActing ? 0.5 : 1, transition: 'all 0.12s',
               }}>Defer</button>
               <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.08)' }} />
@@ -1002,7 +1002,7 @@ export default function PipelinePage() {
                           background: n.applied ? 'rgba(5, 150, 105, 0.15)' : 'transparent',
                           border: n.applied ? '1px solid rgba(5, 150, 105, 0.3)' : '1px solid rgba(255,255,255,0.1)',
                           borderRadius: '6px',
-                          color: n.applied ? '#34d399' : 'var(--text-muted)',
+                          color: n.applied ? 'var(--green)' : 'var(--text-muted)',
                           fontSize: '11px',
                           cursor: 'pointer',
                           whiteSpace: 'nowrap',
@@ -1057,7 +1057,7 @@ export default function PipelinePage() {
                 </div>
                 {r.wins?.length > 0 && (
                   <div style={{ marginBottom: '8px' }}>
-                    <div style={{ fontSize: '11px', color: '#34d399', fontWeight: 600, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Wins</div>
+                    <div style={{ fontSize: '11px', color: 'var(--green)', fontWeight: 600, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Wins</div>
                     {r.wins.map((w, i) => (
                       <div key={i} style={{ fontSize: '13px', color: 'var(--text-secondary)', paddingLeft: '8px' }}>• {w}</div>
                     ))}
@@ -1065,7 +1065,7 @@ export default function PipelinePage() {
                 )}
                 {r.failures?.length > 0 && (
                   <div>
-                    <div style={{ fontSize: '11px', color: '#f87171', fontWeight: 600, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Failures</div>
+                    <div style={{ fontSize: '11px', color: 'var(--red)', fontWeight: 600, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Failures</div>
                     {r.failures.map((f, i) => (
                       <div key={i} style={{ fontSize: '13px', color: 'var(--text-secondary)', paddingLeft: '8px' }}>• {f}</div>
                     ))}
@@ -1191,6 +1191,7 @@ export default function PipelinePage() {
                     onChange={e => setShipForm(f => ({ ...f, title: e.target.value }))}
                     placeholder="Title — what did you ship?"
                     required
+                    aria-label="Ship log title"
                     style={{
                       background: 'var(--bg-dark)',
                       border: '1px solid var(--border)',
@@ -1210,6 +1211,7 @@ export default function PipelinePage() {
                       value={shipForm.date}
                       onChange={e => setShipForm(f => ({ ...f, date: e.target.value }))}
                       required
+                      aria-label="Ship date"
                       style={{
                         background: 'var(--bg-dark)',
                         border: '1px solid var(--border)',
@@ -1227,6 +1229,7 @@ export default function PipelinePage() {
                   value={shipForm.description}
                   onChange={e => setShipForm(f => ({ ...f, description: e.target.value }))}
                   placeholder="Description (supports **bold**, *italic*, `code`, - lists)"
+                  aria-label="Ship log description"
                   rows={4}
                   style={{
                     width: '100%',
@@ -1250,6 +1253,7 @@ export default function PipelinePage() {
                     value={shipForm.tags}
                     onChange={e => setShipForm(f => ({ ...f, tags: e.target.value }))}
                     placeholder="Tags: feature, bugfix, infra (comma separated)"
+                    aria-label="Ship log tags"
                     style={{
                       flex: 1,
                       background: 'var(--bg-dark)',
@@ -1424,7 +1428,7 @@ export default function PipelinePage() {
       {tab === 'stale' && (
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
-            <AlertTriangle size={16} style={{ color: '#e6a817' }} />
+            <AlertTriangle size={16} style={{ color: 'var(--gold)' }} />
             <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>Stale Items</span>
             {!staleLoading && staleItems.length > 0 && (
               <span style={{
@@ -1433,7 +1437,7 @@ export default function PipelinePage() {
                 fontSize: '11px',
                 fontWeight: 600,
                 background: 'rgba(230,168,23,0.12)',
-                color: '#e6a817',
+                color: 'var(--gold)',
                 border: '1px solid rgba(230,168,23,0.25)',
               }}>
                 {staleItems.length}
@@ -1460,7 +1464,7 @@ export default function PipelinePage() {
                 const title = item.title || item.text || 'Untitled'
                 const TypeIcon = STALE_TYPE_ICONS[item.type]
                 const colors = STALE_TYPE_COLORS[item.type]
-                const staleColor = days > 14 ? 'var(--red)' : days > 7 ? '#e6a817' : 'var(--text-muted)'
+                const staleColor = days > 14 ? 'var(--red)' : days > 7 ? 'var(--gold)' : 'var(--text-muted)'
 
                 return (
                   <div
@@ -1551,7 +1555,7 @@ export default function PipelinePage() {
                           fontSize: '11px',
                           fontWeight: 600,
                           background: 'rgba(230,168,23,0.15)',
-                          color: '#e6a817',
+                          color: 'var(--gold)',
                           opacity: staleActing === `${item.id}-snooze` ? 0.5 : 1,
                           display: 'flex',
                           alignItems: 'center',

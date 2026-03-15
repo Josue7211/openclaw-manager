@@ -134,6 +134,7 @@ export default function SearchPage() {
           value={query}
           onChange={handleChange}
           placeholder="Search todos, missions, calendar, email..."
+          aria-label="Search"
           style={{
             width: '100%',
             padding: '12px 14px 12px 40px',
@@ -203,7 +204,7 @@ export default function SearchPage() {
                       padding: '1px 7px',
                       borderRadius: '4px',
                       background: todo.done ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.06)',
-                      color: todo.done ? '#4ade80' : 'var(--text-muted)',
+                      color: todo.done ? 'var(--green-400)' : 'var(--text-muted)',
                       flexShrink: 0,
                     }}>
                       {todo.done ? 'done' : 'open'}

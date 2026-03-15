@@ -31,7 +31,7 @@ interface CronJob {
   enabled?: boolean
 }
 
-const COLORS = ['#9b84ec', '#60a5fa', '#4ade80', '#fb923c', '#f472b6', '#2dd4bf', '#facc15']
+const COLORS = ['var(--purple)', 'var(--blue)', 'var(--green-400)', 'var(--orange)', 'var(--pink)', '#2dd4bf', 'var(--yellow-bright)']
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const HOUR_HEIGHT = 60 // px per hour (60px = 60min, 1px per minute)
 const TOTAL_HEIGHT = 24 * HOUR_HEIGHT // 1440px
@@ -42,7 +42,7 @@ const navBtnStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: '4px',
   background: 'transparent',
-  border: '1px solid #2a2a2a',
+  border: '1px solid var(--border-strong)',
   borderRadius: '6px',
   color: 'var(--text-secondary)',
   padding: '6px 10px',
@@ -212,8 +212,8 @@ export default function CronsPage() {
             style={{
               ...navBtnStyle,
               background: isCurrentWeek ? 'rgba(155,132,236,0.15)' : 'transparent',
-              borderColor: isCurrentWeek ? '#9b84ec' : '#2a2a2a',
-              color: isCurrentWeek ? '#9b84ec' : 'var(--text-secondary)',
+              borderColor: isCurrentWeek ? 'var(--purple)' : 'var(--border-strong)',
+              color: isCurrentWeek ? 'var(--purple)' : 'var(--text-secondary)',
             }}
           >
             Today
@@ -223,10 +223,10 @@ export default function CronsPage() {
 
       {/* Frequent bar */}
       {frequentJobs.length > 0 && (
-        <div style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '12px 16px', flexShrink: 0 }}>
+        <div style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)', borderRadius: '10px', padding: '12px 16px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
-            <Zap size={12} style={{ color: '#fb923c' }} />
-            <span style={{ fontSize: '10px', fontWeight: 700, color: '#fb923c', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            <Zap size={12} style={{ color: 'var(--orange)' }} />
+            <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
               Frequent
             </span>
             <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>&lt; 1h interval</span>
@@ -260,10 +260,10 @@ export default function CronsPage() {
       )}
 
       {/* Week grid */}
-      <div style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: '10px', overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0, flexShrink: 0 }}>
+      <div style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)', borderRadius: '10px', overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0, flexShrink: 0 }}>
         {/* Day headers */}
-        <div style={{ display: 'grid', gridTemplateColumns: '52px repeat(7, 1fr)', borderBottom: '1px solid #2a2a2a', flexShrink: 0 }}>
-          <div style={{ borderRight: '1px solid #2a2a2a' }} />
+        <div style={{ display: 'grid', gridTemplateColumns: '52px repeat(7, 1fr)', borderBottom: '1px solid var(--border-strong)', flexShrink: 0 }}>
+          <div style={{ borderRight: '1px solid var(--border-strong)' }} />
           {weekDays.map((d, i) => {
             const isToday = isCurrentWeek && i === todayDow
             return (
@@ -272,14 +272,14 @@ export default function CronsPage() {
                 style={{
                   padding: '10px 8px',
                   textAlign: 'center',
-                  borderRight: i < 6 ? '1px solid #2a2a2a' : undefined,
+                  borderRight: i < 6 ? '1px solid var(--border-strong)' : undefined,
                   background: isToday ? 'rgba(155,132,236,0.08)' : undefined,
                 }}
               >
-                <div style={{ fontSize: '10px', fontWeight: 700, color: isToday ? '#9b84ec' : 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: isToday ? 'var(--purple)' : 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                   {DAY_NAMES[i]}
                 </div>
-                <div style={{ fontSize: '22px', fontWeight: 700, color: isToday ? '#9b84ec' : 'var(--text-secondary)', marginTop: '2px', lineHeight: 1 }}>
+                <div style={{ fontSize: '22px', fontWeight: 700, color: isToday ? 'var(--purple)' : 'var(--text-secondary)', marginTop: '2px', lineHeight: 1 }}>
                   {d.getDate()}
                 </div>
               </div>
@@ -291,7 +291,7 @@ export default function CronsPage() {
         <div ref={scrollRef} style={{ overflowY: 'auto', maxHeight: '580px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '52px repeat(7, 1fr)', height: `${TOTAL_HEIGHT}px`, position: 'relative' }}>
             {/* Time axis */}
-            <div style={{ borderRight: '1px solid #2a2a2a', position: 'relative' }}>
+            <div style={{ borderRight: '1px solid var(--border-strong)', position: 'relative' }}>
               {hours.map(h => (
                 <div
                   key={h}
@@ -301,7 +301,7 @@ export default function CronsPage() {
                     left: 0,
                     right: 0,
                     height: HOUR_HEIGHT,
-                    borderTop: h > 0 ? '1px solid #1e1e1e' : undefined,
+                    borderTop: h > 0 ? '1px solid var(--border-subtle)' : undefined,
                     display: 'flex',
                     alignItems: 'flex-start',
                     padding: '3px 5px 0',
@@ -351,7 +351,7 @@ export default function CronsPage() {
                   key={colIdx}
                   style={{
                     position: 'relative',
-                    borderRight: colIdx < 6 ? '1px solid #2a2a2a' : undefined,
+                    borderRight: colIdx < 6 ? '1px solid var(--border-strong)' : undefined,
                     background: isToday ? 'rgba(155,132,236,0.025)' : undefined,
                   }}
                 >
@@ -365,7 +365,7 @@ export default function CronsPage() {
                         left: 0,
                         right: 0,
                         height: HOUR_HEIGHT,
-                        borderTop: '1px solid #1e1e1e',
+                        borderTop: '1px solid var(--border-subtle)',
                         pointerEvents: 'none',
                       }}
                     />
@@ -380,12 +380,12 @@ export default function CronsPage() {
                         left: 0,
                         right: 0,
                         height: '2px',
-                        background: '#9b84ec',
+                        background: 'var(--purple)',
                         zIndex: 10,
                         pointerEvents: 'none',
                       }}
                     >
-                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#9b84ec', marginTop: '-3px', marginLeft: '-1px' }} />
+                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--purple)', marginTop: '-3px', marginLeft: '-1px' }} />
                     </div>
                   )}
 
@@ -430,9 +430,9 @@ export default function CronsPage() {
       </div>
 
       {/* Job list */}
-      <div style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '16px 20px', flexShrink: 0 }}>
+      <div style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)', borderRadius: '10px', padding: '16px 20px', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-          <Clock size={13} style={{ color: '#9b84ec' }} />
+          <Clock size={13} style={{ color: 'var(--purple)' }} />
           <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
             All Cron Jobs
           </span>
@@ -488,8 +488,8 @@ export default function CronsPage() {
                     borderRadius: '4px',
                     fontWeight: 600,
                     background: enabled ? 'rgba(74,222,128,0.12)' : 'transparent',
-                    color: enabled ? '#4ade80' : 'var(--text-muted)',
-                    border: `1px solid ${enabled ? 'rgba(74,222,128,0.3)' : '#2a2a2a'}`,
+                    color: enabled ? 'var(--green-400)' : 'var(--text-muted)',
+                    border: `1px solid ${enabled ? 'rgba(74,222,128,0.3)' : 'var(--border-strong)'}`,
                     flexShrink: 0,
                     minWidth: '60px',
                     textAlign: 'center',
