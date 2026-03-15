@@ -28,7 +28,7 @@ export default function NotFound() {
       </h2>
       <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)', maxWidth: '360px', lineHeight: 1.6 }}>
         <code style={{
-          background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: '4px',
+          background: 'var(--active-bg)', padding: '2px 6px', borderRadius: '4px',
           fontSize: '12px',
         }}>
           {pathname}
@@ -42,7 +42,7 @@ export default function NotFound() {
             to={l.to}
             style={{
               padding: '6px 14px', borderRadius: '10px',
-              border: '1px solid var(--border)', background: 'rgba(255,255,255,0.03)',
+              border: '1px solid var(--border)', background: 'var(--bg-white-03)',
               textDecoration: 'none', color: 'var(--text-secondary)',
               fontSize: '12px', fontWeight: 500,
               transition: 'all 0.15s ease',

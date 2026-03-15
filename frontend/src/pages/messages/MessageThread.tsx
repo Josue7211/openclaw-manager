@@ -493,8 +493,8 @@ export default function MessageThread({
                       <div style={{
                         fontSize: '11px', padding: '5px 10px', marginBottom: '2px',
                         borderRadius: '10px',
-                        background: fromMe ? 'rgba(255,255,255,0.1)' : 'rgba(120,120,140,0.1)',
-                        border: fromMe ? '1px solid rgba(255,255,255,0.1)' : '1px solid var(--border)',
+                        background: fromMe ? 'var(--border-hover)' : 'rgba(120,120,140,0.1)',
+                        border: fromMe ? '1px solid var(--border-hover)' : '1px solid var(--border)',
                         color: fromMe ? 'rgba(255,255,255,0.65)' : 'var(--text-secondary)',
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                         alignSelf: fromMe ? 'flex-end' : 'flex-start',
@@ -567,9 +567,9 @@ export default function MessageThread({
                               <a key={att.guid} href={src} target="_blank" rel="noreferrer"
                                 onClick={e => e.stopPropagation()} style={{
                                   display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px',
-                                  background: fromMe ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)',
+                                  background: fromMe ? 'rgba(255,255,255,0.12)' : 'var(--bg-white-04)',
                                   borderRadius: '10px', textDecoration: 'none',
-                                  border: fromMe ? '1px solid rgba(255,255,255,0.15)' : '1px solid var(--border)',
+                                  border: fromMe ? '1px solid var(--bg-white-15)' : '1px solid var(--border)',
                                 }}>
                                 <div style={{
                                   width: '32px', height: '32px', borderRadius: '6px',

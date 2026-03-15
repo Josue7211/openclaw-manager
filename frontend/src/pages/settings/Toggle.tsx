@@ -9,7 +9,7 @@ const Toggle = memo(function Toggle({ on, onToggle, label }: { on: boolean; onTo
       onClick={() => onToggle(!on)}
       style={{
         width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
-        background: on ? 'var(--accent)' : 'rgba(255,255,255,0.15)',
+        background: on ? 'var(--accent)' : 'var(--bg-white-15)',
         position: 'relative', transition: 'background 0.25s var(--ease-spring)', padding: 0, flexShrink: 0,
         boxShadow: on ? '0 0 8px rgba(167,139,250,0.15)' : 'none',
       }}

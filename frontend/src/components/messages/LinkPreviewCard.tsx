@@ -45,9 +45,9 @@ function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
         style={{
           display: 'flex', alignItems: 'center', gap: '8px',
           padding: '8px 10px', marginTop: '4px',
-          background: fromMe ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)',
+          background: fromMe ? 'rgba(255,255,255,0.12)' : 'var(--bg-white-04)',
           borderRadius: '10px', textDecoration: 'none',
-          border: fromMe ? '1px solid rgba(255,255,255,0.15)' : '1px solid var(--border)',
+          border: fromMe ? '1px solid var(--bg-white-15)' : '1px solid var(--border)',
           maxWidth: '100%', overflow: 'hidden',
         }}
       >
@@ -70,7 +70,7 @@ function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
       style={{
         display: 'flex', flexDirection: 'column',
         marginTop: '4px', borderRadius: '12px', overflow: 'hidden',
-        background: fromMe ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)',
+        background: fromMe ? 'var(--border-hover)' : 'var(--bg-white-03)',
         border: fromMe ? '1px solid rgba(255,255,255,0.12)' : '1px solid var(--border)',
         textDecoration: 'none', maxWidth: '280px',
         transition: 'background 0.15s',

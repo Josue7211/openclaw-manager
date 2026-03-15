@@ -408,7 +408,7 @@ export default function Dashboard() {
             fontSize: '11px', color: 'var(--text-muted)',
             fontFamily: "'JetBrains Mono', monospace",
             padding: '4px 10px',
-            background: 'rgba(255, 255, 255, 0.03)',
+            background: 'var(--bg-white-03)',
             borderRadius: '8px',
           }}>
             <SecondsAgo sinceMs={lastRefreshMs} />
@@ -639,7 +639,7 @@ export default function Dashboard() {
               ) : missions.map(m => (
                 <div key={m.id} style={{
                   display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px',
-                  background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', border: '1px solid var(--border)', transition: 'all 0.2s var(--ease-spring)',
+                  background: 'var(--bg-white-03)', borderRadius: '10px', border: '1px solid var(--border)', transition: 'all 0.2s var(--ease-spring)',
                 }}>
                   <span style={{ flex: 1, fontSize: '12px', color: 'var(--text-primary)' }}>{m.title}</span>
                   <span style={{
@@ -680,7 +680,7 @@ export default function Dashboard() {
             <div style={{ position: 'relative' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '240px', overflowY: 'auto' }}>
                 {memory.map((entry) => (
-                  <div key={entry.date} style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', border: '1px solid var(--border)', transition: 'all 0.2s var(--ease-spring)' }}>
+                  <div key={entry.date} style={{ padding: '10px 12px', background: 'var(--bg-white-03)', borderRadius: '10px', border: '1px solid var(--border)', transition: 'all 0.2s var(--ease-spring)' }}>
                     <div className="mono" style={{ color: 'var(--accent-bright)', fontSize: '11px', marginBottom: '3px' }}>{entry.date}</div>
                     <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
                       {entry.preview || <em style={{ color: 'var(--text-muted)' }}>empty</em>}
@@ -847,7 +847,7 @@ export default function Dashboard() {
             <div
               onClick={() => setPanelIdea(null)}
               style={{
-                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', zIndex: 200,
+                position: 'fixed', inset: 0, background: 'var(--overlay-light)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', zIndex: 200,
                 animation: 'fadeIn 0.25s var(--ease-spring)',
               }}
             />

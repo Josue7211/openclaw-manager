@@ -216,7 +216,7 @@ RADARR_API_KEY=your-radarr-api-key`}
                 {item.year && <span style={{ marginRight: '6px' }}>{item.year}</span>}
                 <span style={{
                   padding: '1px 6px', borderRadius: '10px', fontSize: '10px',
-                  background: item.type === 'movie' ? 'rgba(155,132,236,0.1)' : 'rgba(59,165,92,0.1)',
+                  background: item.type === 'movie' ? 'var(--purple-a10)' : 'rgba(59,165,92,0.1)',
                   color: item.type === 'movie' ? 'var(--accent)' : 'var(--green)',
                 }}>
                   {item.type === 'movie' ? 'Movie' : 'Show'}
@@ -261,8 +261,8 @@ RADARR_API_KEY=your-radarr-api-key`}
                 <span style={{
                   fontSize: '11px', fontFamily: 'monospace', fontWeight: 600,
                   padding: '3px 10px', borderRadius: '20px',
-                  background: 'rgba(155,132,236,0.1)', color: 'var(--accent-bright)',
-                  border: '1px solid rgba(155,132,236,0.2)',
+                  background: 'var(--purple-a10)', color: 'var(--accent-bright)',
+                  border: '1px solid var(--purple-a20)',
                 }}>
                   {formatAirDate(ep.air_date)}
                 </span>

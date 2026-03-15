@@ -14,7 +14,7 @@ export function SkeletonRows({ count = 3 }: { count?: number }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} style={{ padding: '8px 10px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', border: '1px solid var(--border)' }}>
+        <div key={i} style={{ padding: '8px 10px', background: 'var(--bg-white-03)', borderRadius: '10px', border: '1px solid var(--border)' }}>
           <Skeleton width={`${60 + (i % 3) * 15}%`} height={16} style={{ marginBottom: '4px' }} />
           <Skeleton width={`${40 + (i % 2) * 20}%`} height={11} />
         </div>
@@ -25,7 +25,7 @@ export function SkeletonRows({ count = 3 }: { count?: number }) {
 
 export function SkeletonCard({ lines = 3, style }: { lines?: number; style?: React.CSSProperties }) {
   return (
-    <div style={{ background: 'var(--bg-card, rgba(255,255,255,0.03))', borderRadius: 12, padding: 20, border: '1px solid var(--border)', ...style }}>
+    <div style={{ background: 'var(--bg-card, var(--bg-white-03))', borderRadius: 12, padding: 20, border: '1px solid var(--border)', ...style }}>
       <Skeleton width="40%" height={14} style={{ marginBottom: 12 }} />
       {Array.from({ length: lines }).map((_, i) => (
         <Skeleton key={i} width={i === lines - 1 ? '60%' : '100%'} height={12} style={{ marginBottom: 8 }} />
@@ -65,7 +65,7 @@ export function PersonalSkeleton() {
       {/* Greeting card */}
       <div style={{
         background: 'var(--bg-panel)', borderRadius: 16, padding: 24, marginBottom: 24,
-        border: '1px solid rgba(155,132,236,0.1)',
+        border: '1px solid var(--purple-a10)',
       }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
@@ -80,7 +80,7 @@ export function PersonalSkeleton() {
         {/* 3 summary columns */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
           {[0, 1, 2].map(i => (
-            <div key={i} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: 14, border: '1px solid var(--border)' }}>
+            <div key={i} style={{ background: 'var(--bg-white-03)', borderRadius: 10, padding: 14, border: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                 <Skeleton width={12} height={12} radius={3} />
                 <Skeleton width={80} height={10} />

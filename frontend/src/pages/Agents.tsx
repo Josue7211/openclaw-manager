@@ -87,7 +87,7 @@ function AgentCard({ agent, onSave, activeMission }: AgentCardProps) {
 
   return (
     <div style={{
-      background: 'rgba(22, 22, 28, 0.65)',
+      background: 'var(--bg-card)',
       backdropFilter: 'blur(24px)',
       WebkitBackdropFilter: 'blur(24px)',
       border: `1px solid ${active ? 'rgba(74,222,128,0.3)' : awaitingDeploy ? 'rgba(250,204,21,0.35)' : 'var(--accent)44'}`,
@@ -160,7 +160,7 @@ function AgentCard({ agent, onSave, activeMission }: AgentCardProps) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
             <span style={{
               fontSize: '10px', fontWeight: 600, color: 'var(--accent-bright)',
-              background: 'rgba(155,132,236,0.12)', border: '1px solid rgba(155,132,236,0.25)',
+              background: 'var(--purple-a12)', border: '1px solid var(--border-accent)',
               borderRadius: '4px', padding: '2px 8px',
             }}>
               {agent.role}
@@ -168,7 +168,7 @@ function AgentCard({ agent, onSave, activeMission }: AgentCardProps) {
             {agent.model && (
               <span style={{
                 fontSize: '10px', fontFamily: 'monospace', color: 'var(--text-muted)',
-                background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border)',
+                background: 'var(--hover-bg)', border: '1px solid var(--border)',
                 borderRadius: '4px', padding: '2px 7px',
               }}>
                 {agent.model}
@@ -208,7 +208,7 @@ function AgentCard({ agent, onSave, activeMission }: AgentCardProps) {
 
       {active && activeMission && activeMission.progress > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <div style={{ height: '6px', borderRadius: '3px', background: 'rgba(255, 255, 255, 0.05)', overflow: 'hidden' }}>
+          <div style={{ height: '6px', borderRadius: '3px', background: 'var(--hover-bg)', overflow: 'hidden' }}>
             <div style={{
               height: '100%',
               width: `${activeMission.progress}%`,
@@ -322,7 +322,7 @@ function LiveProcesses({ agents }: { agents: Agent[] }) {
 
   return (
     <div style={{
-      background: 'rgba(22, 22, 28, 0.65)',
+      background: 'var(--bg-card)',
       backdropFilter: 'blur(24px)',
       WebkitBackdropFilter: 'blur(24px)',
       border: '1px solid var(--border)',
@@ -388,7 +388,7 @@ function LiveProcesses({ agents }: { agents: Agent[] }) {
             <div key={i} style={{
               display: 'flex', flexDirection: 'column', gap: '4px',
               padding: '10px 12px', borderRadius: '10px',
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: 'var(--hover-bg)',
               border: '1px solid rgba(74,222,128,0.2)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

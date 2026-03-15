@@ -855,7 +855,7 @@ export default function SettingsModules() {
                   if (e.key === 'Escape') { setSidebarTitleText(sidebarTitleText); setEditingTitle(false) }
                 }}
                 style={{
-                  width: '90px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)',
+                  width: '90px', background: 'var(--bg-white-04)', border: '1px solid var(--border)',
                   borderRadius: '6px', padding: '4px 8px', color: 'var(--text-primary)',
                   fontSize: '11px', fontFamily: 'monospace', textAlign: 'right', outline: 'none',
                 }}

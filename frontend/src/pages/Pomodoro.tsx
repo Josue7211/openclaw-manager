@@ -76,7 +76,7 @@ function toDateKey(date: Date): string {
 
 function getHeatColor(count: number): string {
   if (count === 0) return 'var(--bg-elevated)'
-  if (count === 1) return 'rgba(155, 132, 236, 0.3)'
+  if (count === 1) return 'var(--purple-a30)'
   if (count === 2) return 'rgba(155, 132, 236, 0.55)'
   if (count === 3) return 'rgba(155, 132, 236, 0.75)'
   return 'var(--accent-bright)'
@@ -351,8 +351,8 @@ export default function PomodoroPage() {
   const isWork = mode === 'work'
   const accentColor = isWork ? 'var(--accent)' : 'var(--green)'
   const accentBright = isWork ? 'var(--accent-bright)' : 'var(--green-400)'
-  const accentBg = isWork ? 'rgba(155,132,236,0.12)' : 'rgba(59,165,92,0.12)'
-  const accentBorder = isWork ? 'rgba(155,132,236,0.25)' : 'rgba(59,165,92,0.25)'
+  const accentBg = isWork ? 'var(--purple-a12)' : 'rgba(59,165,92,0.12)'
+  const accentBorder = isWork ? 'var(--border-accent)' : 'rgba(59,165,92,0.25)'
 
   const todaySessions = sessions.filter(s => new Date(s.completedAt).toDateString() === todayStr())
   const todayWork = todaySessions.filter(s => s.type === 'work').length
@@ -445,7 +445,7 @@ export default function PomodoroPage() {
           top: tooltip.y,
           transform: 'translate(-50%, -100%)',
           background: 'rgba(20, 18, 30, 0.95)',
-          border: '1px solid rgba(255,255,255,0.1)',
+          border: '1px solid var(--border-hover)',
           borderRadius: '6px',
           padding: '5px 8px',
           fontSize: '8px',
@@ -540,8 +540,8 @@ export default function PomodoroPage() {
               {focusText.trim() && (
                 <div style={{
                   fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '20px',
-                  padding: '8px 12px', background: 'rgba(155,132,236,0.08)',
-                  borderRadius: '8px', border: '1px solid rgba(155,132,236,0.15)',
+                  padding: '8px 12px', background: 'var(--purple-a08)',
+                  borderRadius: '8px', border: '1px solid var(--purple-a15)',
                 }}>
                   {focusText}
                 </div>
@@ -733,8 +733,8 @@ export default function PomodoroPage() {
               fontSize: '8px', fontWeight: 700, color: 'var(--accent-bright)',
               fontFamily: 'monospace', letterSpacing: '0.04em',
               padding: '1px 6px', borderRadius: '3px',
-              background: 'rgba(155,132,236,0.12)',
-              border: '1px solid rgba(155,132,236,0.3)',
+              background: 'var(--purple-a12)',
+              border: '1px solid var(--purple-a30)',
               transition: 'all 0.3s ease',
               userSelect: 'none',
             }}>

@@ -109,7 +109,7 @@ export default function SettingsNotifications() {
                 position: 'fixed', top: '16px', right: '16px', zIndex: '10000',
                 padding: '12px 20px', borderRadius: '12px', fontSize: '13px', fontWeight: '600',
                 background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.3)',
-                color: 'var(--red)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                color: 'var(--red)', boxShadow: '0 8px 32px var(--overlay-light)',
                 animation: 'fadeInUp 0.3s ease',
               })
               document.body.appendChild(el)
@@ -148,8 +148,8 @@ export default function SettingsNotifications() {
               Object.assign(el.style, {
                 position: 'fixed', top: '16px', right: '16px', zIndex: '10000',
                 padding: '12px 20px', borderRadius: '12px', fontSize: '13px', fontWeight: '600',
-                background: 'rgba(18,18,24,0.95)', border: '1px solid rgba(255,255,255,0.1)',
-                color: 'var(--text-primary)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                background: 'rgba(18,18,24,0.95)', border: '1px solid var(--border-hover)',
+                color: 'var(--text-primary)', boxShadow: '0 8px 32px var(--overlay-light)',
                 animation: 'fadeInUp 0.3s ease',
               })
               document.body.appendChild(el)

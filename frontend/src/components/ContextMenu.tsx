@@ -57,7 +57,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuState & { onClo
       borderRadius: '8px',
       padding: '4px',
       minWidth: '160px',
-      boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+      boxShadow: '0 8px 32px var(--overlay)',
       animation: 'fadeInUp 0.1s ease',
     }}>
       {items.map((item, i) => {

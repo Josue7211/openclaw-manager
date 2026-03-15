@@ -295,7 +295,7 @@ export default function EmailPage() {
         <div
           onClick={() => { setManageOpen(false); setEditingAccount(null); setForm(EMPTY_FORM) }}
           style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 99,
+            position: 'fixed', inset: 0, background: 'var(--overlay-light)', zIndex: 99,
           }}
         />
         {/* Slide-in panel */}
@@ -326,7 +326,7 @@ export default function EmailPage() {
                 {accounts.map(acc => (
                   <div key={acc.id} style={{
                     borderRadius: '8px', border: '1px solid var(--border)',
-                    background: editingAccount?.id === acc.id ? 'rgba(155,132,236,0.08)' : 'var(--bg-elevated)',
+                    background: editingAccount?.id === acc.id ? 'var(--purple-a08)' : 'var(--bg-elevated)',
                     padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '8px',
                   }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -338,7 +338,7 @@ export default function EmailPage() {
                     {acc.is_default && (
                       <span style={{
                         fontSize: '10px', padding: '2px 6px', borderRadius: '4px',
-                        background: 'rgba(155,132,236,0.15)', color: 'var(--accent)', fontWeight: 600,
+                        background: 'var(--purple-a15)', color: 'var(--accent)', fontWeight: 600,
                       }}>default</span>
                     )}
                     {!acc.is_default && (
@@ -511,7 +511,7 @@ export default function EmailPage() {
                 <div style={{
                   position: 'absolute', top: 'calc(100% + 6px)', right: 0,
                   background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: '8px',
-                  minWidth: '180px', zIndex: 50, boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                  minWidth: '180px', zIndex: 50, boxShadow: '0 4px 16px var(--overlay-light)',
                   overflow: 'hidden',
                 }}>
                   {accounts.map(acc => (
@@ -522,7 +522,7 @@ export default function EmailPage() {
                         display: 'flex', alignItems: 'center', gap: '8px',
                         width: '100%', padding: '9px 12px', border: 'none',
                         cursor: 'pointer', textAlign: 'left',
-                        background: acc.id === selectedAccountId ? 'rgba(155,132,236,0.1)' : 'none',
+                        background: acc.id === selectedAccountId ? 'var(--purple-a10)' : 'none',
                       }}
                     >
                       <div style={{ flex: 1 }}>
@@ -628,8 +628,8 @@ export default function EmailPage() {
                     key={email.id}
                     style={{
                       borderRadius: '8px',
-                      border: email.read ? '1px solid var(--border)' : '1px solid rgba(155, 132, 236, 0.35)',
-                      background: email.read ? 'var(--bg-panel)' : 'rgba(155, 132, 236, 0.06)',
+                      border: email.read ? '1px solid var(--border)' : '1px solid var(--purple-a30)',
+                      background: email.read ? 'var(--bg-panel)' : 'var(--purple-a08)',
                       transition: 'all 0.15s',
                       overflow: 'hidden',
                     }}

@@ -206,7 +206,7 @@ export default function CalendarPage() {
 
   const activeTabStyle: React.CSSProperties = {
     ...btnStyle,
-    background: 'rgba(155,132,236,0.15)',
+    background: 'var(--purple-a15)',
     border: '1px solid rgba(155,132,236,0.4)',
     color: 'var(--accent-bright)',
   }
@@ -466,14 +466,14 @@ export default function CalendarPage() {
                   onClick={() => setSelectedDate(isSelected ? null : dateKey)}
                   style={{
                     background: isSelected
-                      ? 'rgba(155, 132, 236, 0.18)'
+                      ? 'var(--purple-a20)'
                       : isToday
-                        ? 'rgba(155, 132, 236, 0.08)'
+                        ? 'var(--purple-a08)'
                         : 'transparent',
                     border: isSelected
                       ? '1px solid rgba(155, 132, 236, 0.4)'
                       : isToday
-                        ? '1px solid rgba(155, 132, 236, 0.25)'
+                        ? '1px solid var(--border-accent)'
                         : '1px solid transparent',
                     borderRadius: '8px',
                     cursor: 'pointer',
@@ -621,8 +621,8 @@ export default function CalendarPage() {
       {missingCreds && (
         <div style={{
           marginBottom: '20px', padding: '20px 24px',
-          background: 'rgba(155, 132, 236, 0.08)',
-          border: '1px solid rgba(155, 132, 236, 0.25)',
+          background: 'var(--purple-a08)',
+          border: '1px solid var(--border-accent)',
           borderRadius: '12px', flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>

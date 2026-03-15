@@ -103,8 +103,8 @@ export default function SettingsKeybindings() {
                 padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 500,
                 fontFamily: "'JetBrains Mono', monospace",
                 color: i === 0 ? 'var(--text-on-color)' : 'var(--text-primary)',
-                background: i === 0 ? 'rgba(167,139,250,0.15)' : 'rgba(255,255,255,0.08)',
-                border: `1px solid ${i === 0 ? 'var(--border-accent)' : 'rgba(255,255,255,0.1)'}`,
+                background: i === 0 ? 'var(--purple-a15)' : 'var(--hover-bg-bright)',
+                border: `1px solid ${i === 0 ? 'var(--border-accent)' : 'var(--border-hover)'}`,
                 pointerEvents: 'none',
               }}>{modLabel(m)}</kbd>
               {modList.length > 1 && (
@@ -156,7 +156,7 @@ export default function SettingsKeybindings() {
                 onClick={() => setDetectingMod(true)}
                 style={{
                   width: '26px', height: '26px', borderRadius: '6px', fontSize: '14px',
-                  background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)',
+                  background: 'var(--bg-white-04)', border: '1px solid var(--border)',
                   color: 'var(--text-muted)', cursor: 'pointer', display: 'flex',
                   alignItems: 'center', justifyContent: 'center',
                 }}
@@ -173,8 +173,8 @@ export default function SettingsKeybindings() {
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           minWidth: '24px', height: '26px', padding: '0 8px', borderRadius: '6px',
           fontSize: '12px', fontWeight: 500, fontFamily: "'JetBrains Mono', monospace",
-          color: 'var(--text-primary)', background: 'rgba(255,255,255,0.08)',
-          border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+          color: 'var(--text-primary)', background: 'var(--hover-bg-bright)',
+          border: '1px solid var(--border-hover)', boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
         }
         const isEditing = editingBindingId === b.id
         return (
@@ -202,7 +202,7 @@ export default function SettingsKeybindings() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <kbd style={{
                     ...kbdStyle,
-                    background: 'rgba(167,139,250,0.15)', border: '1px solid var(--accent)',
+                    background: 'var(--purple-a15)', border: '1px solid var(--accent)',
                     color: 'var(--accent)', animation: 'pulse-dot 1.5s infinite',
                     padding: '0 12px',
                   }}>

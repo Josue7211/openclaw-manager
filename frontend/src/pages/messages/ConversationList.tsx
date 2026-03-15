@@ -332,7 +332,7 @@ export default function ConversationList({
                 style={{
                   display: 'flex', alignItems: 'center', gap: '10px',
                   padding: '10px 12px', borderRadius: '10px',
-                  background: 'rgba(255,255,255,0.03)',
+                  background: 'var(--bg-white-03)',
                   border: '1px solid var(--border)',
                   cursor: 'default', opacity: 0.7,
                 }}
@@ -414,9 +414,9 @@ export default function ConversationList({
                     textAlign: 'left', transition: 'background 0.15s', marginBottom: '2px',
                     outline: isFocused ? '1px solid rgba(167,139,250,0.4)' : 'none',
                     outlineOffset: '-1px',
-                    borderTop: isPinnedDivider ? '1px solid rgba(255,255,255,0.06)' : 'none',
+                    borderTop: isPinnedDivider ? '1px solid var(--active-bg)' : 'none',
                   }}
-                  onMouseEnter={e => { if (!isSel && !isFocused) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+                  onMouseEnter={e => { if (!isSel && !isFocused) e.currentTarget.style.background = 'var(--bg-white-04)' }}
                   onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = isFocused ? 'rgba(167,139,250,0.10)' : 'transparent' }}
                 >
                   {(() => {

@@ -211,7 +211,7 @@ export default function CronsPage() {
             onClick={() => setWeekOffset(0)}
             style={{
               ...navBtnStyle,
-              background: isCurrentWeek ? 'rgba(155,132,236,0.15)' : 'transparent',
+              background: isCurrentWeek ? 'var(--purple-a15)' : 'transparent',
               borderColor: isCurrentWeek ? 'var(--purple)' : 'var(--border-strong)',
               color: isCurrentWeek ? 'var(--purple)' : 'var(--text-secondary)',
             }}
@@ -273,7 +273,7 @@ export default function CronsPage() {
                   padding: '10px 8px',
                   textAlign: 'center',
                   borderRight: i < 6 ? '1px solid var(--border-strong)' : undefined,
-                  background: isToday ? 'rgba(155,132,236,0.08)' : undefined,
+                  background: isToday ? 'var(--purple-a08)' : undefined,
                 }}
               >
                 <div style={{ fontSize: '10px', fontWeight: 700, color: isToday ? 'var(--purple)' : 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>

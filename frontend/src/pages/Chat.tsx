@@ -417,7 +417,7 @@ export default function ChatPage() {
             value={model}
             onChange={e => setModel(e.target.value)}
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: 'var(--hover-bg)',
               border: '1px solid var(--border)',
               borderRadius: '8px',
               color: 'var(--text-secondary)',
@@ -447,8 +447,8 @@ export default function ChatPage() {
             title="System prompt"
             aria-label="Toggle system prompt"
             style={{
-              background: showSysPrompt ? 'rgba(155, 132, 236, 0.15)' : 'transparent',
-              border: showSysPrompt ? '1px solid rgba(155, 132, 236, 0.3)' : '1px solid transparent',
+              background: showSysPrompt ? 'var(--purple-a15)' : 'transparent',
+              border: showSysPrompt ? '1px solid var(--purple-a30)' : '1px solid transparent',
               borderRadius: '6px',
               color: showSysPrompt ? 'var(--accent-bright)' : 'var(--text-muted)',
               cursor: 'pointer',
@@ -481,8 +481,8 @@ export default function ChatPage() {
       {showSysPrompt && (
         <div style={{
           marginBottom: '12px', flexShrink: 0,
-          background: 'rgba(155, 132, 236, 0.05)',
-          border: '1px solid rgba(155, 132, 236, 0.15)',
+          background: 'var(--purple-a08)',
+          border: '1px solid var(--purple-a15)',
           borderRadius: '10px',
           padding: '10px 12px',
         }}>
@@ -632,8 +632,8 @@ OPENCLAW_API_KEY=your-api-key`}
             <div style={{
               flexShrink: 0,
               width: '26px', height: '26px', borderRadius: '50%',
-              background: msg.role === 'user' ? 'var(--accent-blue)' : 'rgba(155,132,236,0.12)',
-              border: `1px solid ${msg.role === 'user' ? 'var(--accent-blue)' : 'rgba(155,132,236,0.25)'}`,
+              background: msg.role === 'user' ? 'var(--accent-blue)' : 'var(--purple-a12)',
+              border: `1px solid ${msg.role === 'user' ? 'var(--accent-blue)' : 'var(--border-accent)'}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: '13px',
             }}>
@@ -653,7 +653,7 @@ OPENCLAW_API_KEY=your-api-key`}
                 <div style={{
                   padding: '9px 13px',
                   borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                  background: msg.role === 'user' ? 'var(--accent-blue)' : 'rgba(22, 22, 28, 0.65)',
+                  background: msg.role === 'user' ? 'var(--accent-blue)' : 'var(--bg-card)',
                   border: `1px solid ${msg.role === 'user' ? 'transparent' : 'var(--border)'}`,
                   fontSize: '13px', lineHeight: 1.65,
                   color: msg.role === 'user' ? 'var(--text-on-color)' : 'var(--text-primary)',
@@ -744,13 +744,13 @@ OPENCLAW_API_KEY=your-api-key`}
           <div style={{ display: 'flex', flexDirection: 'row', gap: '8px', alignItems: 'flex-end' }}>
             <div style={{
               flexShrink: 0, width: '26px', height: '26px', borderRadius: '50%',
-              background: 'rgba(155,132,236,0.12)', border: '1px solid rgba(155,132,236,0.25)',
+              background: 'var(--purple-a12)', border: '1px solid var(--border-accent)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px',
             }}>🦬</div>
             <div style={{
               display: 'flex', alignItems: 'center', gap: '4px',
               padding: '12px 16px',
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: 'var(--hover-bg)',
               border: '1px solid var(--border)',
               borderRadius: '18px 18px 18px 4px',
               width: 'fit-content',
@@ -802,10 +802,10 @@ OPENCLAW_API_KEY=your-api-key`}
         <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
           <button onClick={scrollToBottom} style={{
             display: 'flex', alignItems: 'center', gap: '5px',
-            background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border)',
+            background: 'var(--hover-bg)', border: '1px solid var(--border)',
             borderRadius: '20px', padding: '5px 14px',
             color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.4)', transition: 'all 0.25s var(--ease-spring)',
+            boxShadow: '0 2px 8px var(--overlay-light)', transition: 'all 0.25s var(--ease-spring)',
           }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
@@ -818,7 +818,7 @@ OPENCLAW_API_KEY=your-api-key`}
       {/* Input */}
       <div style={{
         flexShrink: 0,
-        background: 'rgba(22, 22, 28, 0.65)', border: '1px solid var(--border)', borderRadius: '16px',
+        background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '16px',
         padding: '10px 12px', display: 'flex', alignItems: 'flex-end', gap: '8px',
       }}>
         <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleFileChange} style={{ display: 'none' }} />
@@ -849,7 +849,7 @@ OPENCLAW_API_KEY=your-api-key`}
         <button onClick={send} disabled={sending || (!input.trim() && images.length === 0)} aria-label="Send message"
           style={{
             flexShrink: 0,
-            background: (sending || (!input.trim() && images.length === 0)) ? 'rgba(255, 255, 255, 0.05)' : 'var(--accent)',
+            background: (sending || (!input.trim() && images.length === 0)) ? 'var(--hover-bg)' : 'var(--accent)',
             border: 'none', borderRadius: '10px',
             color: (sending || (!input.trim() && images.length === 0)) ? 'var(--text-muted)' : 'var(--text-on-color)',
             padding: '7px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all 0.25s var(--ease-spring)',

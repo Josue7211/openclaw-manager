@@ -69,7 +69,7 @@ export function MButton({ icon, label, onClick }: { icon: React.ReactNode; label
         cursor: 'pointer', borderRadius: '8px',
         transition: 'background 0.1s',
       }}
-      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
+      onMouseEnter={e => { e.currentTarget.style.background = 'var(--active-bg)' }}
       onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
     >
       <span style={{ color: 'var(--text-secondary)', display: 'flex' }}>{icon}</span>
@@ -126,11 +126,11 @@ function MessageMenu({ x, y, msg, onReact, onReply, onCopy, onClose }: {
           background: 'rgba(30,30,38,0.85)',
           backdropFilter: 'blur(40px)',
           WebkitBackdropFilter: 'blur(40px)',
-          border: '1px solid rgba(255,255,255,0.1)',
+          border: '1px solid var(--border-hover)',
           borderRadius: '28px',
           padding: '6px 8px',
           display: 'flex', gap: '2px',
-          boxShadow: '0 12px 48px rgba(0,0,0,0.6)',
+          boxShadow: '0 12px 48px var(--overlay-heavy)',
         }}>
           {REACTION_NAMES.map((r, i) => (
             <button
@@ -157,10 +157,10 @@ function MessageMenu({ x, y, msg, onReact, onReply, onCopy, onClose }: {
           background: 'rgba(30,30,38,0.85)',
           backdropFilter: 'blur(40px)',
           WebkitBackdropFilter: 'blur(40px)',
-          border: '1px solid rgba(255,255,255,0.1)',
+          border: '1px solid var(--border-hover)',
           borderRadius: '12px',
           padding: '4px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          boxShadow: '0 8px 32px var(--overlay-light)',
         }}>
           <MButton icon={<CornerUpLeft size={16} />} label="Reply" onClick={onReply} />
           {msg.text && <MButton icon={<Copy size={16} />} label="Copy" onClick={onCopy} />}

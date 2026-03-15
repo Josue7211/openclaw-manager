@@ -62,7 +62,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         <img src="/logo-128.png" alt="Mission Control" width={48} height={48} style={{ borderRadius: '12px' }} />
         <div style={{
           width: '24px', height: '24px',
-          border: '2px solid var(--border, rgba(255,255,255,0.1))',
+          border: '2px solid var(--border, var(--border-hover))',
           borderTopColor: 'var(--accent, #a78bfa)',
           borderRadius: '50%',
           animation: 'spin 0.8s linear infinite',
