@@ -1,18 +1,17 @@
 
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Send, Image as ImageIcon, X, ChevronDown, Settings } from 'lucide-react'
 import Lightbox, { type LightboxData } from '@/components/Lightbox'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { formatTime } from '@/lib/utils'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 import { useChatSocket, type WsMessage } from '@/lib/hooks/useChatSocket'
-
 import { api, ApiError } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { PageHeader } from '@/components/PageHeader'
+
+const MarkdownBubble = lazy(() => import('@/components/MarkdownBubble'))
 
 const MODEL_OPTIONS = [
   { value: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
@@ -493,6 +492,7 @@ export default function ChatPage() {
             value={sysPrompt}
             onChange={e => setSysPrompt(e.target.value)}
             placeholder="Custom instructions for the assistant..."
+            aria-label="System prompt"
             rows={3}
             style={{
               width: '100%',
@@ -661,39 +661,9 @@ OPENCLAW_API_KEY=your-api-key`}
                   {msg.role === 'user' ? (
                     <span style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</span>
                   ) : (
-                    <div className="md-bubble"><ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        p: ({ children }) => <p style={{ margin: '0 0 8px', lineHeight: 1.65 }}>{children}</p>,
-                        code: ({ children, className, ...props }) => {
-                          const isBlock = typeof className === 'string' && /language-/.test(className)
-                          return isBlock
-                            ? <code className={className} {...props}>{children}</code>
-                            : <code style={{
-                                fontFamily: 'JetBrains Mono, Fira Code, monospace',
-                                fontSize: '12px',
-                                background: 'rgba(155,132,236,0.12)',
-                                color: 'var(--accent-bright)',
-                                padding: '1px 5px',
-                                borderRadius: '4px',
-                                border: '1px solid rgba(155,132,236,0.2)',
-                              }} {...props}>{children}</code>
-                        },
-                        pre: ({ children }) => <div style={{ fontFamily: 'JetBrains Mono, Fira Code, monospace', fontSize: '12px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px 14px', overflowX: 'auto', margin: '8px 0', lineHeight: 1.5 }}><code>{children}</code></div>,
-                        ul: ({ children }) => <ul style={{ margin: '4px 0 8px', paddingLeft: '20px' }}>{children}</ul>,
-                        ol: ({ children }) => <ol style={{ margin: '4px 0 8px', paddingLeft: '20px' }}>{children}</ol>,
-                        li: ({ children }) => <li style={{ marginBottom: '2px' }}>{children}</li>,
-                        strong: ({ children }) => <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{children}</strong>,
-                        a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-bright)', textDecoration: 'underline' }}>{children}</a>,
-                        blockquote: ({ children }) => <blockquote style={{ borderLeft: '3px solid var(--accent)', paddingLeft: '12px', margin: '8px 0', color: 'var(--text-secondary)', fontStyle: 'italic' }}>{children}</blockquote>,
-                        h1: ({ children }) => <h1 style={{ fontSize: '16px', fontWeight: 700, margin: '8px 0 4px', color: 'var(--text-primary)' }}>{children}</h1>,
-                        h2: ({ children }) => <h2 style={{ fontSize: '14px', fontWeight: 700, margin: '8px 0 4px', color: 'var(--text-primary)' }}>{children}</h2>,
-                        h3: ({ children }) => <h3 style={{ fontSize: '13px', fontWeight: 600, margin: '6px 0 3px', color: 'var(--text-primary)' }}>{children}</h3>,
-                        hr: () => <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '8px 0' }} />,
-                      }}
-                    >
-                      {msg.text}
-                    </ReactMarkdown></div>
+                    <Suspense fallback={<span style={{ whiteSpace: 'pre-wrap', opacity: 0.7 }}>{msg.text}</span>}>
+                      <MarkdownBubble>{msg.text}</MarkdownBubble>
+                    </Suspense>
                   )}
                 </div>
               )}
@@ -870,6 +840,7 @@ OPENCLAW_API_KEY=your-api-key`}
           }}
           onKeyDown={onKeyDown}
           placeholder="Message Bjorn… (paste or drag images)"
+          aria-label="Chat message"
           rows={1}
           style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: '13px', lineHeight: 1.6, resize: 'none', fontFamily: 'inherit', maxHeight: '160px', overflowY: 'auto' }}
         />

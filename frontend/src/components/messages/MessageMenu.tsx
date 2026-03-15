@@ -136,6 +136,7 @@ function MessageMenu({ x, y, msg, onReact, onReply, onCopy, onClose }: {
             <button
               key={r.key}
               onClick={() => onReact(r.key)}
+              aria-label={`React with ${r.emoji}`}
               style={{
                 background: 'transparent', border: 'none', borderRadius: '50%',
                 width: '40px', height: '36px', fontSize: '22px',

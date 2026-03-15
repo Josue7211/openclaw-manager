@@ -262,6 +262,7 @@ function ReviewPrompt({ label, placeholder, value, onChange, accentColor }: {
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
+        aria-label={label}
         rows={3}
         style={{
           width: '100%', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border)',
@@ -598,6 +599,7 @@ export default function PersonalDashboard() {
               onChange={e => setTodoInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && addTodo()}
               placeholder="Add a task..."
+              aria-label="Add task"
               style={{ flex: 1, minWidth: 0, background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border)', borderRadius: '10px', padding: '6px 10px', fontSize: '12px', color: 'var(--text-primary)', outline: 'none' }}
             />
             <button onClick={addTodo} style={{ background: 'var(--green)', border: 'none', borderRadius: '10px', color: 'var(--text-on-accent)', padding: '6px 12px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>Add</button>

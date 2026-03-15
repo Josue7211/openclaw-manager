@@ -64,7 +64,7 @@ function AudioWaveform({ src, fromMe, guid }: { src: string; fromMe: boolean; gu
     else { a.play(); setPlaying(true) }
   }
 
-  function seek(e: React.MouseEvent<HTMLDivElement>) {
+  function seek(e: React.MouseEvent<HTMLButtonElement>) {
     const a = audioRef.current
     if (!a || !a.duration) return
     const rect = e.currentTarget.getBoundingClientRect()
@@ -88,9 +88,10 @@ function AudioWaveform({ src, fromMe, guid }: { src: string; fromMe: boolean; gu
       }}>
         {playing ? <Pause size={13} /> : <Play size={13} style={{ marginLeft: '2px' }} />}
       </button>
-      <div onClick={seek} style={{
+      <button onClick={seek} aria-label="Seek audio" style={{
         flex: 1, display: 'flex', alignItems: 'center', gap: '1.5px',
         height: '32px', cursor: 'pointer',
+        background: 'none', border: 'none', padding: 0,
       }}>
         {bars.map((h, i) => (
           <div key={i} style={{
@@ -101,7 +102,7 @@ function AudioWaveform({ src, fromMe, guid }: { src: string; fromMe: boolean; gu
             transition: 'background 0.1s',
           }} />
         ))}
-      </div>
+      </button>
       <span style={{
         fontSize: '10px', minWidth: '30px', textAlign: 'right',
         color: fromMe ? 'rgba(255,255,255,0.6)' : 'var(--text-secondary)',

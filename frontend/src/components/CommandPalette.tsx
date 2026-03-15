@@ -452,7 +452,7 @@ export default function CommandPalette({
           background: query.trim() ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.5)',
           backdropFilter: query.trim() ? 'blur(16px)' : 'blur(8px)',
           WebkitBackdropFilter: query.trim() ? 'blur(16px)' : 'blur(8px)',
-          zIndex: 'var(--z-modal-backdrop)' as any,
+          zIndex: 'var(--z-modal-backdrop)' as React.CSSProperties['zIndex'],
           animation: 'cp-fadein 0.15s ease',
           transition: 'backdrop-filter 0.3s ease, -webkit-backdrop-filter 0.3s ease, background 0.3s ease',
         }}
@@ -479,7 +479,7 @@ export default function CommandPalette({
           borderRadius: '16px',
           boxShadow:
             '0 24px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04)',
-          zIndex: 'var(--z-modal)' as any,
+          zIndex: 'var(--z-modal)' as React.CSSProperties['zIndex'],
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -513,6 +513,7 @@ export default function CommandPalette({
             }}
             onKeyDown={handleKeyDown}
             placeholder="Search everything..."
+            aria-label="Command palette search"
             role="combobox"
             aria-expanded={true}
             aria-controls="cp-results"

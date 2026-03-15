@@ -192,6 +192,7 @@ const NavSection = React.memo(function NavSection({
                   <Icon size={16} style={{ flexShrink: 0, color: 'var(--accent)' }} />
                   <input
                     autoFocus
+                    aria-label="Rename sidebar item"
                     defaultValue={editingValue || ''}
                     onBlur={e => onEditingComplete?.(e.currentTarget.value)}
                     onKeyDown={e => {
@@ -509,6 +510,7 @@ const SidebarQuickCapture = React.memo(function SidebarQuickCapture({
               onChange={e => setText(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={`New ${captureType}...`}
+              aria-label="Quick capture"
               style={{
                 flex: 1,
                 background: 'rgba(255,255,255,0.04)',
@@ -1123,6 +1125,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
                 <div style={{ marginBottom: collapsed ? '2px' : '4px', padding: '8px 12px' }}>
                   <input
                     autoFocus
+                    aria-label="Rename sidebar category"
                     defaultValue={editingCatValue}
                     onBlur={e => handleCatEditComplete(e.currentTarget.value)}
                     onKeyDown={e => {

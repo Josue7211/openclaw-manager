@@ -291,6 +291,7 @@ function AddEntryModal({ onClose, onAdded }: { onClose: () => void; onAdded: () 
               onChange={e => setTitle(e.target.value)}
               placeholder="Entry title"
               required
+              aria-label="Entry title"
               style={inputStyle}
             />
           </div>
@@ -301,6 +302,7 @@ function AddEntryModal({ onClose, onAdded }: { onClose: () => void; onAdded: () 
               value={content}
               onChange={e => setContent(e.target.value)}
               placeholder="Notes, article content, learnings..."
+              aria-label="Entry content"
               rows={6}
               style={{ ...inputStyle, resize: 'vertical' }}
             />
@@ -313,6 +315,7 @@ function AddEntryModal({ onClose, onAdded }: { onClose: () => void; onAdded: () 
               value={tagsRaw}
               onChange={e => setTagsRaw(e.target.value)}
               placeholder="ai, productivity, design"
+              aria-label="Tags"
               style={inputStyle}
             />
           </div>
@@ -324,6 +327,7 @@ function AddEntryModal({ onClose, onAdded }: { onClose: () => void; onAdded: () 
               value={sourceUrl}
               onChange={e => setSourceUrl(e.target.value)}
               placeholder="https://..."
+              aria-label="Source URL"
               style={inputStyle}
             />
           </div>
@@ -530,6 +534,7 @@ export default function KnowledgePage() {
           value={search}
           onChange={e => handleSearchChange(e.target.value)}
           placeholder="Search title, content..."
+          aria-label="Search knowledge base"
           style={{
             width: '100%',
             padding: '10px 14px 10px 36px',
