@@ -35,13 +35,13 @@ describe('getKeybindings', () => {
 
 describe('updateKeybinding', () => {
   it('changes the key for a binding', () => {
-    updateKeybinding('palette', 'j')
+    updateKeybinding('palette', { key: 'j' })
     const palette = getKeybindings().find(b => b.id === 'palette')
     expect(palette!.key).toBe('j')
   })
 
   it('persists overrides to localStorage', () => {
-    updateKeybinding('palette', 'x')
+    updateKeybinding('palette', { key: 'x' })
     const stored = JSON.parse(localStorage.getItem('keybindings')!)
     expect(stored).toEqual(
       expect.arrayContaining([
@@ -52,8 +52,8 @@ describe('updateKeybinding', () => {
 
   it('does not persist bindings that match the default', () => {
     // Change then change back to the default key
-    updateKeybinding('palette', 'z')
-    updateKeybinding('palette', 'k') // 'k' is the default
+    updateKeybinding('palette', { key: 'z' })
+    updateKeybinding('palette', { key: 'k' }) // 'k' is the default
     const stored = JSON.parse(localStorage.getItem('keybindings')!)
     const paletteOverride = stored.find((s: { id: string }) => s.id === 'palette')
     expect(paletteOverride).toBeUndefined()
@@ -62,7 +62,7 @@ describe('updateKeybinding', () => {
 
 describe('resetKeybindings', () => {
   it('restores defaults and clears localStorage', () => {
-    updateKeybinding('palette', 'z')
+    updateKeybinding('palette', { key: 'z' })
     expect(getKeybindings().find(b => b.id === 'palette')!.key).toBe('z')
 
     resetKeybindings()
@@ -73,20 +73,15 @@ describe('resetKeybindings', () => {
 })
 
 describe('formatKey', () => {
-  it('returns modifier and uppercased key on Mac', () => {
-    Object.defineProperty(navigator, 'platform', { value: 'MacIntel', configurable: true })
+  it('returns modifier label and uppercased key with default mod (ctrl)', () => {
+    // Default modifier is 'ctrl', so formatKey returns 'Ctrl' regardless of platform
     const parts = formatKey({ id: 'test', label: 'Test', key: 'k', mod: true })
-    expect(parts).toEqual(['⌘', 'K'])
+    expect(parts).toEqual(['Ctrl', 'K'])
   })
 
-  it('returns Ctrl and uppercased key on non-Mac', () => {
-    Object.defineProperty(navigator, 'platform', { value: 'Linux x86_64', configurable: true })
-    Object.defineProperty(navigator, 'userAgent', {
-      value: 'Mozilla/5.0 (X11; Linux x86_64)',
-      configurable: true,
-    })
-    const parts = formatKey({ id: 'test', label: 'Test', key: 'd', mod: true })
-    expect(parts).toEqual(['Ctrl', 'D'])
+  it('returns meta modifier label when binding overrides modifier to meta', () => {
+    const parts = formatKey({ id: 'test', label: 'Test', key: 'd', mod: true, modifier: 'meta' })
+    expect(parts).toEqual(['⌘ Cmd', 'D'])
   })
 
   it('returns only the uppercased key when mod is false', () => {
@@ -99,7 +94,7 @@ describe('subscribeKeybindings', () => {
   it('fires callback on updateKeybinding', () => {
     const cb = vi.fn()
     subscribeKeybindings(cb)
-    updateKeybinding('palette', 'q')
+    updateKeybinding('palette', { key: 'q' })
     expect(cb).toHaveBeenCalledTimes(1)
   })
 
@@ -114,7 +109,7 @@ describe('subscribeKeybindings', () => {
     const cb = vi.fn()
     const unsub = subscribeKeybindings(cb)
     unsub()
-    updateKeybinding('palette', 'w')
+    updateKeybinding('palette', { key: 'w' })
     expect(cb).not.toHaveBeenCalled()
   })
 })

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiError } from '@/lib/api'
 import { ensureAvatarBatchCheck } from '@/components/messages/ContactAvatar'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
+import { getReadOverrides } from './readOverrides'
 
 interface Participant { address: string; service: string }
 
@@ -75,7 +76,12 @@ export function useConversationList() {
       if (data.error) {
         if (!silent) setError(data.error)
       } else {
-        const convs = data.conversations ?? []
+        let convs = data.conversations ?? []
+        // Preserve locally-toggled read states
+        const overrides = getReadOverrides()
+        if (overrides.size > 0) {
+          convs = convs.map(c => overrides.has(c.guid) ? { ...c, isUnread: overrides.get(c.guid)! } : c)
+        }
         setConversations(convs)
         hasMoreConvsRef.current = convs.length >= 25
         if (data.contacts) setContactLookup(prev => {

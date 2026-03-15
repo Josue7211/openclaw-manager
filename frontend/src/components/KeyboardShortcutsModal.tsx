@@ -43,7 +43,7 @@ export default function KeyboardShortcutsModal({
       <div onClick={onClose} style={{
         position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)',
         backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-        zIndex: 'var(--z-modal-backdrop)' as any, animation: 'ks-fadein 0.15s ease',
+        zIndex: 'var(--z-modal-backdrop)' as React.CSSProperties['zIndex'], animation: 'ks-fadein 0.15s ease',
       }} />
 
       <div
@@ -58,7 +58,7 @@ export default function KeyboardShortcutsModal({
         WebkitBackdropFilter: 'blur(32px) saturate(180%)',
         border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '16px',
         boxShadow: '0 24px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04)',
-        zIndex: 'var(--z-modal)' as any, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        zIndex: 'var(--z-modal)' as React.CSSProperties['zIndex'], display: 'flex', flexDirection: 'column', overflow: 'hidden',
         animation: 'ks-scalein 0.2s var(--ease-spring)',
       }}>
         <div style={{

@@ -83,7 +83,7 @@ export default function LayoutShell() {
 
   // Auto-hide title bar: track mouse position globally
   useEffect(() => {
-    if (!autoHideTitleBar && !isFullscreen) return
+    if (!autoHideTitleBar && !isFullscreen) return () => {}
     const handler = (e: MouseEvent) => {
       if (e.clientY <= 6) {
         setTitleBarHover(true)

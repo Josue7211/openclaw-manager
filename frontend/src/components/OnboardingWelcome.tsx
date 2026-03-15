@@ -680,7 +680,7 @@ export default function OnboardingWelcome({ forceOpen, onClose }: { forceOpen?: 
           background: 'rgba(0, 0, 0, 0.6)',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
-          zIndex: 'var(--z-modal-backdrop)' as any,
+          zIndex: 'var(--z-modal-backdrop)' as React.CSSProperties['zIndex'],
           animation: 'ob-fadein 0.2s ease',
         }}
       />
@@ -707,7 +707,7 @@ export default function OnboardingWelcome({ forceOpen, onClose }: { forceOpen?: 
           borderRadius: '20px',
           boxShadow:
             '0 32px 100px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04)',
-          zIndex: 'var(--z-modal)' as any,
+          zIndex: 'var(--z-modal)' as React.CSSProperties['zIndex'],
           animation: 'ob-scalein 0.25s var(--ease-spring)',
         }}
       >

@@ -5,7 +5,7 @@ import { addNotification } from '@/components/NotificationCenter'
 import { emit } from '@/lib/event-bus'
 import { cleanPayloadText } from './shared'
 
-interface SSEMessage {
+export interface SSEMessage {
   guid: string
   text: string
   isFromMe: boolean
@@ -106,7 +106,16 @@ export function useMessagesSSE({
                 if (first) notifiedGuids.delete(first)
               }
 
-              const senderName = contactLookupRef.current[senderAddr] || senderAddr
+              // Try exact match, then normalized (strip leading +/1)
+              const normalize = (s: string) => s.replace(/^\+?1?/, '').replace(/\D/g, '')
+              let senderName = contactLookupRef.current[senderAddr]
+              if (!senderName) {
+                const norm = normalize(senderAddr)
+                for (const [k, v] of Object.entries(contactLookupRef.current)) {
+                  if (normalize(k) === norm) { senderName = v; break }
+                }
+              }
+              if (!senderName) senderName = senderAddr
               const preview = cleanPayloadText(msg.text).slice(0, 80) || 'New message'
               const dnd = localStorage.getItem('dnd-enabled') === 'true'
               const isMuted = msgChats.some(g => mutedConvsRef.current.includes(g))
@@ -166,6 +175,7 @@ export function useMessagesSSE({
       es?.close()
       if (retryTimeout) clearTimeout(retryTimeout)
       if (debounceTimer) clearTimeout(debounceTimer)
+      if (toastTimeout.current) clearTimeout(toastTimeout.current)
       clearInterval(convPoll)
     }
   }, []) // stable — uses refs for all callbacks

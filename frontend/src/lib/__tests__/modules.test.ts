@@ -22,10 +22,14 @@ describe('getEnabledModules', () => {
     expect(enabled).toEqual(allIds)
   })
 
-  it('returns stored array from localStorage', () => {
+  it('returns stored array from localStorage', async () => {
+    // Must set localStorage BEFORE importing the module, since _cached
+    // is computed at module load time via the IIFE initializer
     const subset = ['chat', 'todos']
     localStorage.setItem('enabled-modules', JSON.stringify(subset))
-    expect(getEnabledModules()).toEqual(subset)
+    vi.resetModules()
+    const mod = await import('../modules')
+    expect(mod.getEnabledModules()).toEqual(subset)
   })
 
   it('falls back to all modules on invalid JSON', () => {
