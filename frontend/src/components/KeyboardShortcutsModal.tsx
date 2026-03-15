@@ -40,7 +40,7 @@ export default function KeyboardShortcutsModal({
         @keyframes ks-scalein { from { opacity: 0; transform: translate(-50%, -50%) scale(0.96); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
       `}</style>
 
-      <div onClick={onClose} style={{
+      <div role="presentation" onClick={onClose} style={{
         position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)',
         backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
         zIndex: 'var(--z-modal-backdrop)' as React.CSSProperties['zIndex'], animation: 'ks-fadein 0.15s ease',

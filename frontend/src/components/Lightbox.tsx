@@ -54,7 +54,9 @@ export default function Lightbox({ data, onClose }: LightboxProps) {
   return createPortal(
     <div
       onClick={handleClose}
-      aria-hidden="true"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Media viewer"
       style={{
         position: 'fixed', inset: 0, zIndex: 10000,
         background: 'rgba(0,0,0,0.88)',
@@ -70,7 +72,7 @@ export default function Lightbox({ data, onClose }: LightboxProps) {
       `}</style>
 
       {data.type === 'image' ? (
-        <div onClick={e => e.stopPropagation()} style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+        <div role="presentation" onClick={e => e.stopPropagation()} style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
           <img
             ref={imgRef}
             src={data.src}
@@ -132,7 +134,7 @@ export default function Lightbox({ data, onClose }: LightboxProps) {
           })()}
         </div>
       ) : (
-        <div onClick={e => e.stopPropagation()}>
+        <div role="presentation" onClick={e => e.stopPropagation()}>
           <video
             src={data.src}
             controls

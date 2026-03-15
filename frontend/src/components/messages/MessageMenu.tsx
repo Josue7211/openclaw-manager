@@ -109,7 +109,7 @@ function MessageMenu({ x, y, msg, onReact, onReply, onCopy, onClose }: {
 
   return (
     <>
-      <div onClick={onClose} style={{
+      <div role="presentation" onClick={onClose} style={{
         position: 'fixed', inset: 0, zIndex: 998,
         background: 'rgba(0,0,0,0.25)',
         backdropFilter: 'blur(2px)',

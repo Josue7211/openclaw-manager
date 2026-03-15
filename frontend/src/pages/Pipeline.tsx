@@ -797,7 +797,7 @@ export default function PipelinePage() {
                       </div>
 
                       {/* Inline actions */}
-                      <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: '4px', flexShrink: 0, alignItems: 'center' }}>
+                      <div role="presentation" onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: '4px', flexShrink: 0, alignItems: 'center' }}>
                         {(idea.status === 'pending' || idea.status === 'deferred') && (
                           <>
                             <button onClick={() => updateIdeaStatus(idea.id, 'approved')} title="Approve" style={{
