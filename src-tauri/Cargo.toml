@@ -17,7 +17,7 @@ hex = "0.4"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 axum = { version = "0.7", features = ["ws", "macros"] }
 axum-extra = { version = "0.9", features = ["typed-header"] }
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "fs", "io-util", "process"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"], default-features = false }
@@ -41,3 +41,9 @@ dotenvy = "0.15"
 url = "2"
 # TODO: Uncomment to enable auto-updates (requires rebuild):
 # tauri-plugin-updater = "2"
+
+[profile.dev]
+debug = 1
+
+[profile.dev.package."*"]
+opt-level = 1
