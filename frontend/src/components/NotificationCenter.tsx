@@ -240,39 +240,41 @@ export function NotificationBell({ collapsed, textOpacity = 1 }: { collapsed: bo
       >
         <Bell size={16} style={{ flexShrink: 0 }} />
         {!collapsed && <span style={{ opacity: textOpacity, overflow: 'hidden', textOverflow: 'ellipsis' }}>Notifications</span>}
-        {unreadCount > 0 && (
-          collapsed ? (
-            <span style={{
-              position: 'absolute',
-              top: '6px',
-              right: collapsed ? '16px' : undefined,
-              width: '8px',
-              height: '8px',
-              background: 'var(--red)',
-              borderRadius: '50%',
-              border: '2px solid var(--glass-bg)',
-            }} />
-          ) : (
-            <span style={{
-              marginLeft: 'auto',
-              minWidth: '18px',
-              height: '18px',
-              background: 'var(--red)',
-              borderRadius: '9px',
-              fontSize: '10px',
-              fontWeight: 700,
-              color: 'var(--text-on-color)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              lineHeight: 1,
-              flexShrink: 0,
-              padding: '0 5px',
-            }}>
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
-          )
-        )}
+        <span aria-live="polite" aria-atomic="true" style={{ display: 'contents' }}>
+          {unreadCount > 0 && (
+            collapsed ? (
+              <span style={{
+                position: 'absolute',
+                top: '6px',
+                right: collapsed ? '16px' : undefined,
+                width: '8px',
+                height: '8px',
+                background: 'var(--red)',
+                borderRadius: '50%',
+                border: '2px solid var(--glass-bg)',
+              }} />
+            ) : (
+              <span style={{
+                marginLeft: 'auto',
+                minWidth: '18px',
+                height: '18px',
+                background: 'var(--red)',
+                borderRadius: '9px',
+                fontSize: '10px',
+                fontWeight: 700,
+                color: 'var(--text-on-color)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                lineHeight: 1,
+                flexShrink: 0,
+                padding: '0 5px',
+              }}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )
+          )}
+        </span>
       </button>
 
       {open && panelPos && createPortal(
@@ -727,11 +729,14 @@ const NotificationPanel = forwardRef<HTMLDivElement, { onClose: () => void; posi
         </div>
 
         {/* Notification list */}
-        <div style={{
-          flex: 1,
-          overflowY: 'auto',
-          overflowX: 'hidden',
-        }}>
+        <div
+          aria-live="polite"
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+          }}
+        >
           {notifications.length === 0 ? (
             <div style={{
               display: 'flex',

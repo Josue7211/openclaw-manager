@@ -254,7 +254,7 @@ export default function LayoutShell() {
       }}>
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px', display: 'flex', flexDirection: 'column' }}>
         {(offline || pendingCount > 0) && (
-          <div role="alert" style={{
+          <div role="alert" aria-live="assertive" style={{
             background: 'rgba(245, 158, 11, 0.1)',
             border: '1px solid rgba(245, 158, 11, 0.3)',
             borderRadius: '6px',

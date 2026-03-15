@@ -179,6 +179,7 @@ export default function TodosPage() {
         </button>
       </div>
 
+      <div aria-live="polite" aria-busy={isLoading}>
       {isLoading ? (
         <SkeletonList count={3} lines={3} />
       ) : (
@@ -247,7 +248,7 @@ export default function TodosPage() {
                           title="Set due date"
                           aria-label={`Set due date for "${t.text}"`}
                           style={{
-                            background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border)',
+                            background: 'var(--bg-white-03)', border: '1px solid var(--border)',
                             borderRadius: '10px', padding: '3px 6px', fontSize: '11px',
                             color: 'var(--text-muted)', cursor: 'pointer', outline: 'none',
                             colorScheme: 'dark',
@@ -272,7 +273,7 @@ export default function TodosPage() {
                 {done.map(t => (
                   <div key={t.id} style={{
                     display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px',
-                    background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px',
+                    background: 'var(--bg-white-03)', borderRadius: '10px',
                     border: '1px solid rgba(59,165,92,0.15)',
                   }}>
                     <input
@@ -295,6 +296,7 @@ export default function TodosPage() {
           )}
         </>
       )}
+      </div>
     </div>
   )
 }

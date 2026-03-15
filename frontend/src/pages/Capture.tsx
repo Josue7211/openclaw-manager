@@ -192,6 +192,7 @@ export default function CapturePage() {
       </form>
 
       {/* Items */}
+      <div aria-live="polite" aria-busy={isLoading}>
       {isLoading ? (
         <SkeletonList count={3} lines={3} />
       ) : (
@@ -275,9 +276,9 @@ export default function CapturePage() {
                           opacity: routing === item.id + dest ? 0.5 : 1,
                         }}
                         onMouseEnter={e => {
-                          e.currentTarget.style.background = 'rgba(155,132,236,0.12)'
+                          e.currentTarget.style.background = 'var(--purple-a12)'
                           e.currentTarget.style.color = 'var(--accent-bright)'
-                          e.currentTarget.style.borderColor = 'rgba(155,132,236,0.3)'
+                          e.currentTarget.style.borderColor = 'var(--purple-a30)'
                         }}
                         onMouseLeave={e => {
                           e.currentTarget.style.background = 'transparent'
@@ -313,7 +314,7 @@ export default function CapturePage() {
                   key={item.id}
                   style={{
                     background: 'transparent',
-                    border: '1px solid rgba(255,255,255,0.05)',
+                    border: '1px solid var(--hover-bg)',
                     borderRadius: '10px',
                     padding: '12px 16px',
                     opacity: 0.5,
@@ -358,6 +359,7 @@ export default function CapturePage() {
           )}
         </div>
       )}
+      </div>
     </div>
   )
 }

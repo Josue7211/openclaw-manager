@@ -151,6 +151,8 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
           id={LISTBOX_ID}
           role="listbox"
           aria-label="Search results"
+          aria-live="polite"
+          aria-busy={loading}
           style={{ overflowY: 'auto', flex: 1 }}
         >
           {loading && flat.length === 0 && (

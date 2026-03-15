@@ -108,7 +108,7 @@ export const ConnectionStatus = memo(function ConnectionStatus({
   const anyUnreachable = items.some(s => s.status === 'unreachable')
 
   return (
-    <div style={{ padding: '0 8px', marginBottom: '2px' }}>
+    <div style={{ padding: '0 8px', marginBottom: '2px' }} aria-live="polite">
       <button
         onClick={toggle}
         title={collapsed ? `Services: ${items.map(s => `${s.shortName} ${STATUS_LABELS[s.status]}`).join(', ')}` : undefined}
@@ -178,7 +178,7 @@ export const ConnectionStatus = memo(function ConnectionStatus({
         <div style={{
           margin: '2px 4px 4px',
           padding: '8px 12px',
-          background: 'rgba(255, 255, 255, 0.03)',
+          background: 'var(--bg-white-03)',
           border: '1px solid var(--border)',
           borderRadius: '10px',
           animation: 'fadeIn 0.15s ease',

@@ -551,6 +551,7 @@ export default function CommandPalette({
           ref={listRef}
           id="cp-results"
           role="listbox"
+          aria-live="polite"
           style={{
             overflowY: 'auto',
             flex: 1,

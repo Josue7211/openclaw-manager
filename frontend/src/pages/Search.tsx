@@ -31,7 +31,7 @@ function SectionHeader({ icon: Icon, label, count }: { icon: React.ElementType; 
       </span>
       <span style={{
         fontSize: '10px',
-        background: 'rgba(155, 132, 236, 0.15)',
+        background: 'var(--purple-a15)',
         color: 'var(--accent)',
         borderRadius: '10px',
         padding: '1px 7px',
@@ -47,19 +47,19 @@ function ResultCard({ children, href }: { children: React.ReactNode; href: strin
       <div style={{
         padding: '10px 14px',
         borderRadius: '8px',
-        background: 'rgba(255,255,255,0.03)',
-        border: '1px solid rgba(255,255,255,0.06)',
+        background: 'var(--bg-white-03)',
+        border: '1px solid var(--active-bg)',
         marginBottom: '6px',
         transition: 'background 0.15s, border-color 0.15s',
         cursor: 'pointer',
       }}
         onMouseEnter={e => {
-          (e.currentTarget as HTMLDivElement).style.background = 'rgba(155,132,236,0.08)'
-          ;(e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(155,132,236,0.2)'
+          (e.currentTarget as HTMLDivElement).style.background = 'var(--purple-a08)'
+          ;(e.currentTarget as HTMLDivElement).style.borderColor = 'var(--purple-a20)'
         }}
         onMouseLeave={e => {
-          (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.03)'
-          ;(e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(255,255,255,0.06)'
+          (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-white-03)'
+          ;(e.currentTarget as HTMLDivElement).style.borderColor = 'var(--active-bg)'
         }}
       >
         {children}
@@ -138,8 +138,8 @@ export default function SearchPage() {
           style={{
             width: '100%',
             padding: '12px 14px 12px 40px',
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.1)',
+            background: 'var(--hover-bg)',
+            border: '1px solid var(--border-hover)',
             borderRadius: '10px',
             color: 'var(--text-primary)',
             fontSize: '15px',
@@ -150,7 +150,7 @@ export default function SearchPage() {
             e.currentTarget.style.borderColor = 'rgba(155,132,236,0.4)'
           }}
           onBlur={e => {
-            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
+            e.currentTarget.style.borderColor = 'var(--border-hover)'
           }}
         />
         {loading && (
@@ -167,6 +167,7 @@ export default function SearchPage() {
 
 
 
+      <div aria-live="polite" aria-busy={loading}>
       {/* Empty state */}
       {!query && !loading && (
         <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '64px', fontSize: '14px' }}>
@@ -203,7 +204,7 @@ export default function SearchPage() {
                       fontSize: '12px',
                       padding: '1px 7px',
                       borderRadius: '4px',
-                      background: todo.done ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.06)',
+                      background: todo.done ? 'rgba(74,222,128,0.1)' : 'var(--active-bg)',
                       color: todo.done ? 'var(--green-400)' : 'var(--text-muted)',
                       flexShrink: 0,
                     }}>
@@ -234,7 +235,7 @@ export default function SearchPage() {
                       fontSize: '12px',
                       padding: '1px 7px',
                       borderRadius: '4px',
-                      background: 'rgba(155,132,236,0.12)',
+                      background: 'var(--purple-a12)',
                       color: 'var(--accent)',
                       flexShrink: 0,
                       textTransform: 'capitalize',
@@ -302,6 +303,7 @@ export default function SearchPage() {
           )}
         </div>
       )}
+      </div>
     </div>
   )
 }

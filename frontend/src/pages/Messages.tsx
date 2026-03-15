@@ -847,9 +847,9 @@ export default function MessagesPage() {
             position: 'fixed', left: convCtx.x, top: convCtx.y, zIndex: 999,
             background: 'rgba(30,30,38,0.9)',
             backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
-            border: '1px solid rgba(255,255,255,0.1)',
+            border: '1px solid var(--border-hover)',
             borderRadius: '10px', padding: '4px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.5)', minWidth: '180px',
+            boxShadow: '0 8px 32px var(--overlay)', minWidth: '180px',
             animation: 'ctxIn 0.15s var(--ease-spring)',
           }}>
             <MButton
@@ -889,7 +889,7 @@ export default function MessagesPage() {
       <Lightbox data={lightbox} onClose={() => setLightbox(null)} />
 
       {/* ═══ Toast notification ═══ */}
-      <div aria-live="polite">
+      <div aria-live="assertive" role="alert">
         {toast && (
           <button
             onClick={() => {
@@ -903,9 +903,9 @@ export default function MessagesPage() {
               position: 'fixed', top: '16px', right: '20px', zIndex: 1100,
               background: 'rgba(30,30,38,0.92)',
               backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
-              border: '1px solid rgba(255,255,255,0.1)',
+              border: '1px solid var(--border-hover)',
               borderRadius: '14px', padding: '12px 16px',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              boxShadow: '0 8px 32px var(--overlay)',
               maxWidth: '320px', cursor: 'pointer',
               animation: 'toastIn 0.3s var(--ease-spring)',
               display: 'flex', alignItems: 'center', gap: '10px',

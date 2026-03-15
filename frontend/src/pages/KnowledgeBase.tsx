@@ -1,10 +1,12 @@
 
 
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { BookOpen, X, ExternalLink, Trash2, Plus, Search } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
+import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
 import { SkeletonList } from '@/components/Skeleton'
 import { PageHeader } from '@/components/PageHeader'
 
@@ -27,9 +29,9 @@ function TagChip({ tag, active, onClick }: { tag: string; active?: boolean; onCl
         borderRadius: '20px',
         fontSize: '11px',
         fontWeight: active ? 600 : 400,
-        background: active ? 'rgba(155,132,236,0.25)' : 'rgba(155,132,236,0.08)',
+        background: active ? 'var(--border-accent)' : 'var(--purple-a08)',
         color: active ? 'var(--accent-bright)' : 'var(--accent)',
-        border: `1px solid ${active ? 'rgba(155,132,236,0.4)' : 'rgba(155,132,236,0.15)'}`,
+        border: `1px solid ${active ? 'rgba(155,132,236,0.4)' : 'var(--purple-a15)'}`,
         cursor: 'pointer',
         transition: 'all 0.15s',
         whiteSpace: 'nowrap',
@@ -41,6 +43,9 @@ function TagChip({ tag, active, onClick }: { tag: string; active?: boolean; onCl
 }
 
 function SlidePanel({ entry, onClose, onDelete }: { entry: KnowledgeEntry; onClose: () => void; onDelete: () => void }) {
+  const trapRef = useFocusTrap(true)
+  useEscapeKey(onClose)
+
   return (
     <>
       {/* Backdrop */}
@@ -49,12 +54,12 @@ function SlidePanel({ entry, onClose, onDelete }: { entry: KnowledgeEntry; onClo
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0,0,0,0.4)',
+          background: 'var(--overlay-light)',
           zIndex: 200,
         }}
       />
       {/* Panel */}
-      <div style={{
+      <div ref={trapRef} role="dialog" aria-modal="true" aria-label={entry.title} style={{
         position: 'fixed',
         top: 0,
         right: 0,
@@ -132,9 +137,9 @@ function SlidePanel({ entry, onClose, onDelete }: { entry: KnowledgeEntry; onClo
                   borderRadius: '20px',
                   fontSize: '11px',
                   fontWeight: 500,
-                  background: 'rgba(155,132,236,0.08)',
+                  background: 'var(--purple-a08)',
                   color: 'var(--accent)',
-                  border: '1px solid rgba(155,132,236,0.15)',
+                  border: '1px solid var(--purple-a15)',
                 }}>
                   {tag}
                 </span>
@@ -156,9 +161,9 @@ function SlidePanel({ entry, onClose, onDelete }: { entry: KnowledgeEntry; onClo
                 color: 'var(--accent)',
                 textDecoration: 'none',
                 padding: '6px 10px',
-                background: 'rgba(155,132,236,0.08)',
+                background: 'var(--purple-a08)',
                 borderRadius: '6px',
-                border: '1px solid rgba(155,132,236,0.15)',
+                border: '1px solid var(--purple-a15)',
                 width: 'fit-content',
               }}
             >
@@ -208,6 +213,9 @@ function SlidePanel({ entry, onClose, onDelete }: { entry: KnowledgeEntry; onClo
 }
 
 function AddEntryModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+  const trapRef = useFocusTrap(true)
+  useEscapeKey(onClose)
+
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [tagsRaw, setTagsRaw] = useState('')
@@ -257,12 +265,16 @@ function AddEntryModal({ onClose, onAdded }: { onClose: () => void; onAdded: () 
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 300,
-        background: 'rgba(0,0,0,0.6)',
+        background: 'var(--overlay-heavy)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
       onClick={onClose}
     >
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-knowledge-title"
         style={{
           background: 'var(--bg-panel)',
           border: '1px solid var(--border)',
@@ -276,7 +288,7 @@ function AddEntryModal({ onClose, onAdded }: { onClose: () => void; onAdded: () 
         onClick={e => e.stopPropagation()}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-          <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>Add Knowledge Entry</h2>
+          <h2 id="add-knowledge-title" style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>Add Knowledge Entry</h2>
           <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
             <X size={18} />
           </button>
@@ -346,7 +358,7 @@ function AddEntryModal({ onClose, onAdded }: { onClose: () => void; onAdded: () 
               borderRadius: '8px',
               border: 'none',
               cursor: loading ? 'not-allowed' : 'pointer',
-              background: 'rgba(155,132,236,0.2)',
+              background: 'var(--purple-a20)',
               color: 'var(--accent-bright)',
               fontWeight: 600,
               fontSize: '13px',
@@ -381,8 +393,8 @@ function EntryCard({ entry, onClick }: { entry: KnowledgeEntry; onClick: () => v
         transition: 'border-color 0.15s, box-shadow 0.15s',
       }}
       onMouseEnter={e => {
-        (e.currentTarget as HTMLElement).style.borderColor = 'rgba(155,132,236,0.3)'
-        ;(e.currentTarget as HTMLElement).style.boxShadow = '0 0 0 1px rgba(155,132,236,0.1)'
+        (e.currentTarget as HTMLElement).style.borderColor = 'var(--purple-a30)'
+        ;(e.currentTarget as HTMLElement).style.boxShadow = '0 0 0 1px var(--purple-a10)'
       }}
       onMouseLeave={e => {
         (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'
@@ -412,9 +424,9 @@ function EntryCard({ entry, onClick }: { entry: KnowledgeEntry; onClick: () => v
               borderRadius: '20px',
               fontSize: '10px',
               fontWeight: 500,
-              background: 'rgba(155,132,236,0.08)',
+              background: 'var(--purple-a08)',
               color: 'var(--accent)',
-              border: '1px solid rgba(155,132,236,0.15)',
+              border: '1px solid var(--purple-a15)',
             }}>
               {tag}
             </span>
@@ -507,7 +519,7 @@ export default function KnowledgePage() {
             borderRadius: '8px',
             border: 'none',
             cursor: 'pointer',
-            background: 'rgba(155,132,236,0.2)',
+            background: 'var(--purple-a20)',
             color: 'var(--accent-bright)',
             fontWeight: 600,
             fontSize: '13px',
@@ -566,6 +578,7 @@ export default function KnowledgePage() {
       )}
 
       {/* Grid */}
+      <div aria-live="polite" aria-busy={isLoading}>
       {isLoading ? (
         <SkeletonList count={3} lines={3} layout="grid" />
       ) : entries.length === 0 ? (
@@ -590,6 +603,7 @@ export default function KnowledgePage() {
           ))}
         </div>
       )}
+      </div>
 
       {/* Slide-in panel */}
       {selected && (
