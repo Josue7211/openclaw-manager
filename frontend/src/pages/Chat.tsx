@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Send, Image as ImageIcon, X, ChevronDown, Settings } from 'lucide-react'
-import Lightbox, { type LightboxData } from '@/components/Lightbox'
+import { type LightboxData } from '@/components/Lightbox'
+const Lightbox = lazy(() => import('@/components/Lightbox'))
 import { formatTime } from '@/lib/utils'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 import { useChatSocket, type WsMessage } from '@/lib/hooks/useChatSocket'
@@ -864,7 +865,9 @@ OPENCLAW_API_KEY=your-api-key`}
         .md-bubble p:last-child { margin-bottom: 0 !important; }
       `}</style>
 
-      <Lightbox data={lightbox} onClose={() => setLightbox(null)} />
+      <Suspense fallback={null}>
+        <Lightbox data={lightbox} onClose={() => setLightbox(null)} />
+      </Suspense>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 
 
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo, lazy, Suspense } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   MessageSquare, Send, RefreshCw, ArrowLeft, AlertCircle, Mic,
@@ -19,7 +19,8 @@ import VideoThumbnail from '@/components/messages/VideoThumbnail'
 import MessageMenu, { type MessageMenuState } from '@/components/messages/MessageMenu'
 import { MButton } from '@/components/messages/MessageMenu'
 import { ContactAvatar, GroupAvatar } from '@/components/messages/ContactAvatar'
-import Lightbox, { type LightboxData } from '@/components/Lightbox'
+import { type LightboxData } from '@/components/Lightbox'
+const Lightbox = lazy(() => import('@/components/Lightbox'))
 
 import { useConversationList, useMessageCompose, useMessagesSSE, cleanPayloadText, type SSEMessage } from '@/hooks/messages'
 import { setRecentConversations } from '@/components/CommandPalette'
@@ -2290,7 +2291,7 @@ export default function MessagesPage() {
       {/* ═══ Conversation Context Menu ═══ */}
       {convCtx && (
         <>
-          <div onClick={() => setConvCtx(null)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+          <div role="presentation" onClick={() => setConvCtx(null)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
           <div style={{
             position: 'fixed', left: convCtx.x, top: convCtx.y, zIndex: 999,
             background: 'rgba(30,30,38,0.9)',
@@ -2334,7 +2335,9 @@ export default function MessagesPage() {
         </>
       )}
 
-      <Lightbox data={lightbox} onClose={() => setLightbox(null)} />
+      <Suspense fallback={null}>
+        <Lightbox data={lightbox} onClose={() => setLightbox(null)} />
+      </Suspense>
 
       {/* ═══ Toast notification ═══ */}
       <div aria-live="polite">
