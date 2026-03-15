@@ -2,8 +2,7 @@
  * Lightweight internal event bus.
  *
  * Provides a single, typed pub/sub channel that any data source (SSE,
- * Supabase Realtime, polling, local mutations) can publish to. Consumers
- * subscribe via `on()` or the `useEventBus` React hook.
+ * Supabase Realtime, polling, local mutations) can publish to.
  *
  * This does NOT replace existing data flows — it runs alongside them so
  * future features can react to cross-cutting events without tight coupling.
@@ -40,28 +39,5 @@ export function emit(type: EventType, data?: unknown, source?: string): void {
         console.error(`[event-bus] handler error for "${type}":`, err)
       }
     })
-  }
-}
-
-/**
- * Subscribe to events of a given type.
- * Returns an unsubscribe function for convenience.
- */
-export function on(type: EventType, handler: Handler): () => void {
-  let set = listeners.get(type)
-  if (!set) {
-    set = new Set()
-    listeners.set(type, set)
-  }
-  set.add(handler)
-  return () => off(type, handler)
-}
-
-/** Unsubscribe a previously registered handler. */
-export function off(type: EventType, handler: Handler): void {
-  const set = listeners.get(type)
-  if (set) {
-    set.delete(handler)
-    if (set.size === 0) listeners.delete(type)
   }
 }

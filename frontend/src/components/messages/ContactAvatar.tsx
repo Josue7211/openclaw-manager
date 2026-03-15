@@ -13,7 +13,7 @@ const AVATAR_COLORS = [
 
 /* ─── Utilities ────────────────────────────────────────────────────────── */
 
-export function hashColor(str: string): string {
+function hashColor(str: string): string {
   let hash = 0
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash)
@@ -23,10 +23,10 @@ export function hashColor(str: string): string {
 
 /* ─── Module-level avatar cache ──────────────────────────────────────── */
 
-export const avatarCache = new Map<string, 'ok' | 'miss'>()
-export const MAX_AVATAR_CACHE = 500
+const avatarCache = new Map<string, 'ok' | 'miss'>()
+const MAX_AVATAR_CACHE = 500
 
-export function avatarCacheSet(key: string, value: 'ok' | 'miss') {
+function avatarCacheSet(key: string, value: 'ok' | 'miss') {
   if (avatarCache.size >= MAX_AVATAR_CACHE && !avatarCache.has(key)) {
     const oldest = avatarCache.keys().next().value
     if (oldest !== undefined) avatarCache.delete(oldest)
@@ -35,7 +35,7 @@ export function avatarCacheSet(key: string, value: 'ok' | 'miss') {
 }
 
 // Batch-check which addresses have avatars (called once per conversation list load)
-export let batchCheckPromise: Promise<void> | null = null
+let batchCheckPromise: Promise<void> | null = null
 
 export function ensureAvatarBatchCheck(addresses: string[]) {
   const unchecked = addresses.filter(a => a && !avatarCache.has(a))
