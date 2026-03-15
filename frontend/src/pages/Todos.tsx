@@ -12,6 +12,7 @@ import { queryKeys } from '@/lib/query-keys'
 import { todayISO } from '@/lib/utils'
 import { SkeletonList } from '@/components/Skeleton'
 import { useTodos } from '@/lib/hooks/useTodos'
+import { PageHeader } from '@/components/PageHeader'
 import type { Todo } from '@/lib/types'
 
 function getDueDateStatus(due_date: string | null | undefined): 'overdue' | 'today' | 'future' | null {
@@ -141,16 +142,13 @@ export default function TodosPage() {
       <div style={{ marginBottom: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
           <CheckSquare size={20} style={{ color: 'var(--green)' }} />
-          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>Todos</h1>
+          <PageHeader defaultTitle="Todos" defaultSubtitle="real-time · personal task list" />
           {!isLoading && (
             <span className="badge badge-green" style={{ marginLeft: '4px' }}>
               {pending.length} pending
             </span>
           )}
         </div>
-        <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-          real-time · personal task list
-        </p>
       </div>
 
       {/* Add input */}

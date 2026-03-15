@@ -23,6 +23,7 @@ import Lightbox, { type LightboxData } from '@/components/Lightbox'
 
 import { useConversationList, useMessageCompose, useMessagesSSE, cleanPayloadText } from '@/hooks/messages'
 import { setRecentConversations } from '@/components/CommandPalette'
+import { usePageTitle } from '@/lib/hooks/usePageTitle'
 import { MessagesConversationSkeleton, MessagesThreadSkeleton } from '@/components/Skeleton'
 import { isDemoMode, DEMO_CONVERSATIONS } from '@/lib/demo-data'
 import { DemoBadge } from '@/components/DemoModeBanner'
@@ -250,9 +251,12 @@ function highlightSearchText(
   }).flat()
 }
 
+import { getReadOverrides, setReadOverride, clearReadOverride } from '@/hooks/messages/readOverrides'
+
 /* ─── Main Page ─────────────────────────────────────────────────────────── */
 
 export default function MessagesPage() {
+  const pageTitle = usePageTitle('Messages')
   const [searchParams, setSearchParams] = useSearchParams()
   const [messages, setMessages] = useState<Message[]>([])
   const [selected, setSelected] = useState<Conversation | null>(null)
@@ -314,6 +318,7 @@ export default function MessagesPage() {
     mutedConvs, setMutedConvs,
     pinnedConvs, setPinnedConvs,
   } = useConversationList()
+
 
   // Keep a ref so SSE handler can read muted state without re-subscribing
   const mutedConvsRef = useRef(mutedConvs)
@@ -409,7 +414,20 @@ export default function MessagesPage() {
           return [...prev, msg]
         })
       }
-    }, []),
+      // Instantly update conversation list (don't wait for debounced re-fetch)
+      setConversations(prev => {
+        const preview = msg.text || (msg.attachments?.length ? '📎 Attachment' : '')
+        return prev.map(c => {
+          if (!msgChats.includes(c.guid)) return c
+          return {
+            ...c,
+            lastMessage: (msg.isFromMe ? 'You: ' : '') + preview,
+            lastDate: msg.dateCreated ?? Date.now(),
+            isUnread: !msg.isFromMe && c.guid !== selectedGuidRef.current ? true : c.isUnread,
+          }
+        }).sort((a, b) => (b.lastDate ?? 0) - (a.lastDate ?? 0))
+      })
+    }, [setConversations]),
     onUpdateMessage: useCallback((msg: any) => {
       setMessages(prev => prev.map(m => m.guid === msg.guid ? { ...m, ...msg } : m))
     }, []),
@@ -668,12 +686,17 @@ export default function MessagesPage() {
 
   const toggleReadStatus = useCallback(async (convGuid: string, markUnread: boolean) => {
     setConvCtx(null)
+    // Protect this override from SSE refreshes for 10 seconds
+    setReadOverride(convGuid, markUnread)
     const prev = [...conversations]
     setConversations(p => p.map(c =>
       c.guid === convGuid ? { ...c, isUnread: markUnread } : c
     ))
     api.post('/api/messages/read', { chatGuid: convGuid, action: markUnread ? 'unread' : 'read' })
-      .catch(() => setConversations(prev))
+      .catch(() => {
+        clearReadOverride(convGuid)
+        setConversations(prev)
+      })
   }, [conversations, setConversations])
 
   const batchMarkReadStatus = useCallback(async (action: 'read' | 'unread') => {
@@ -948,7 +971,7 @@ export default function MessagesPage() {
           flexShrink: 0,
         }}>
           {(() => {
-            const title = 'Messages'
+            const title = pageTitle
             const charsVisible = panelWidth >= 260 ? title.length
               : panelWidth <= 80 ? 0
               : Math.round(((panelWidth - 80) / 180) * title.length)

@@ -6,6 +6,7 @@ import { Bell, RefreshCw, AlertCircle } from 'lucide-react'
 import { useTauriQuery } from '@/hooks/useTauriQuery'
 import { useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { PageHeader } from '@/components/PageHeader'
 
 interface Reminder {
   id: string
@@ -170,7 +171,7 @@ export default function RemindersPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Bell size={20} style={{ color: 'var(--accent)' }} />
-          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>Reminders</h1>
+          <PageHeader defaultTitle="Reminders" />
           {!loading && (
             <span className="badge badge-green" style={{ marginLeft: '4px' }}>
               {displayReminders.filter(r => !r.completed).length} pending

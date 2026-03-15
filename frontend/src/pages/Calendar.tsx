@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { useTauriQuery } from '@/hooks/useTauriQuery'
 import { formatHour } from '@/lib/utils'
+import { PageHeader } from '@/components/PageHeader'
 
 interface CalendarEvent {
   id: string
@@ -591,7 +592,7 @@ export default function CalendarPage() {
       {/* Top bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)' }}>Calendar</h1>
+          <PageHeader defaultTitle="Calendar" />
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <button onClick={goPrev} aria-label="Previous" style={btnStyle}><ChevronLeft size={14} /></button>
             <button onClick={goNext} aria-label="Next" style={btnStyle}><ChevronRight size={14} /></button>

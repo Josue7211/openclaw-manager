@@ -1,7 +1,7 @@
 
 
 
-import { Settings, Bell, Shield, LogOut, Monitor, User, Server, Cpu, Zap, ChevronRight, ArrowLeft, Keyboard, Database, Sun, Moon, Laptop, Blocks, Plug, AlertTriangle, Download, EyeOff, FolderOpen, FileText, HeartPulse, Wifi, Info, RefreshCw, Clock, HardDrive, Layers } from 'lucide-react'
+import { Settings, Bell, Shield, LogOut, Palette, User, Server, Cpu, Zap, ChevronRight, ArrowLeft, Keyboard, Database, Sun, Moon, Laptop, Blocks, Plug, AlertTriangle, Download, EyeOff, FolderOpen, FileText, HeartPulse, Wifi, Info, RefreshCw, Clock, HardDrive, Layers, GripVertical, Plus, Trash2, Check, X, Pencil, ArrowUp, ArrowDown } from 'lucide-react'
 import { useState, useEffect, useSyncExternalStore, memo, useRef, useCallback } from 'react'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 import { useSearchParams } from 'react-router-dom'
@@ -11,11 +11,18 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode } from '@/lib/demo-data'
-import { getKeybindings, subscribeKeybindings, updateKeybinding, resetKeybindings, formatKey } from '@/lib/keybindings'
-import { getSidebarHeaderVisible, setSidebarHeaderVisible, subscribeSidebarSettings } from '@/lib/sidebar-settings'
+import { getKeybindings, subscribeKeybindings, updateKeybinding, resetKeybindings, formatKey, getModifierKey, setModifierKey, getModifierList, addModifier, removeModifier, reorderModifiers, getBindingMod, keyToModifier, modLabel, type ModifierKey } from '@/lib/keybindings'
+import { getSidebarHeaderVisible, setSidebarHeaderVisible, getSidebarDefaultWidth, setSidebarDefaultWidth, getSidebarTitleLayout, setSidebarTitleLayout, getSidebarTitleText, setSidebarTitleText, getSidebarSearchVisible, setSidebarSearchVisible, subscribeSidebarSettings } from '@/lib/sidebar-settings'
 import { setTitleBarVisible, setTitleBarAutoHide, getTitleBarVisible, getTitleBarAutoHide, subscribeTitleBarSettings } from '@/lib/titlebar-settings'
-import { ACCENT_PRESETS, DEFAULT_ACCENT, applyAccentColor } from '@/lib/themes'
+import { ACCENT_PRESETS, DEFAULT_ACCENT, DEFAULT_GLOW, DEFAULT_SECONDARY, DEFAULT_LOGO, applyAccentColor, applyGlowColor, applySecondaryColor, applyLogoColor } from '@/lib/themes'
 import { APP_MODULES, getEnabledModules, setEnabledModules, subscribeModules } from '@/lib/modules'
+import {
+  getSidebarConfig, setSidebarConfig, resetSidebarConfig, subscribeSidebarConfig,
+  renameItem, renameCategory, moveItem, createCustomModule, deleteCustomModule,
+} from '@/lib/sidebar-config'
+import { navItemsByHref } from '@/lib/nav-items'
+import { ContextMenu, type ContextMenuState } from '@/components/ContextMenu'
+import { ResizablePanel } from '@/components/ResizablePanel'
 import OnboardingWelcome, { resetSetupWizard } from '@/components/OnboardingWelcome'
 
 const row: React.CSSProperties = {
@@ -120,7 +127,7 @@ interface Pref {
   value: string
 }
 
-type SettingsSection = 'agent' | 'gateway' | 'app' | 'user' | 'connections' | 'display' | 'keybindings' | 'modules' | 'notifications' | 'privacy' | 'security' | 'data' | 'status'
+type SettingsSection = 'agent' | 'gateway' | 'app' | 'user' | 'connections' | 'display' | 'keybindings' | 'modules' | 'notifications' | 'privacy' | 'data' | 'status'
 
 const SECTIONS: { key: SettingsSection; label: string; icon: React.ElementType; group: string }[] = [
   { key: 'agent', label: 'Agent', icon: Zap, group: 'General' },
@@ -128,12 +135,11 @@ const SECTIONS: { key: SettingsSection; label: string; icon: React.ElementType; 
   { key: 'app', label: 'Mission Control', icon: Cpu, group: 'General' },
   { key: 'user', label: 'User', icon: User, group: 'General' },
   { key: 'connections', label: 'Connections', icon: Plug, group: 'General' },
-  { key: 'display', label: 'Display', icon: Monitor, group: 'App Settings' },
-  { key: 'keybindings', label: 'Keybindings', icon: Keyboard, group: 'App Settings' },
-  { key: 'modules', label: 'Modules', icon: Blocks, group: 'App Settings' },
+  { key: 'display', label: 'Personalization', icon: Palette, group: 'App Settings' },
+  { key: 'keybindings', label: 'Keybinds', icon: Keyboard, group: 'App Settings' },
+  { key: 'modules', label: 'Sidebar', icon: Blocks, group: 'App Settings' },
   { key: 'notifications', label: 'Notifications', icon: Bell, group: 'App Settings' },
   { key: 'privacy', label: 'Privacy', icon: EyeOff, group: 'App Settings' },
-  { key: 'security', label: 'Account & Security', icon: Shield, group: 'App Settings' },
   { key: 'data', label: 'Data & Backup', icon: Database, group: 'App Settings' },
   { key: 'status', label: 'System Status', icon: HeartPulse, group: 'App Settings' },
 ]
@@ -659,6 +665,24 @@ export default function SettingsPage() {
   const bindings = useSyncExternalStore(subscribeKeybindings, getKeybindings)
   const [editingBindingId, setEditingBindingId] = useState<string | null>(null)
   const keybindHandlerRef = useRef<((e: KeyboardEvent) => void) | null>(null)
+  const [detectingMod, setDetectingMod] = useState(false)
+  const modKey = useSyncExternalStore(subscribeKeybindings, getModifierKey)
+  const modList = useSyncExternalStore(subscribeKeybindings, getModifierList)
+  const dragModRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!detectingMod) return
+    const handler = (e: KeyboardEvent) => {
+      e.preventDefault()
+      const mod = keyToModifier(e.key)
+      if (mod) {
+        addModifier(mod)
+        setDetectingMod(false)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [detectingMod])
 
   // Clean up stale keydown listener when editingBindingId is cleared (e.g. Cancel click)
   useEffect(() => {
@@ -741,9 +765,56 @@ export default function SettingsPage() {
   const titleBarVisible = useSyncExternalStore(subscribeTitleBarSettings, getTitleBarVisible)
   const titleBarAutoHide = useSyncExternalStore(subscribeTitleBarSettings, getTitleBarAutoHide)
   const sidebarHeaderVisible = useSyncExternalStore(subscribeSidebarSettings, getSidebarHeaderVisible)
+  const sidebarSearchVisible = useSyncExternalStore(subscribeSidebarSettings, getSidebarSearchVisible)
+  const sidebarDefaultWidth = useSyncExternalStore(subscribeSidebarSettings, getSidebarDefaultWidth)
+  const sidebarTitleLayout = useSyncExternalStore(subscribeSidebarSettings, getSidebarTitleLayout)
+  const sidebarTitleText = useSyncExternalStore(subscribeSidebarSettings, getSidebarTitleText)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState('')
+  const titleBeforeEdit = useRef('')
+  const titleSaved = useRef(false)
   const [theme, setThemeState] = useLocalStorageState<'dark' | 'light' | 'system'>('theme', 'dark')
   const [accentColor, setAccentColor] = useLocalStorageState('accent-color', DEFAULT_ACCENT)
+  const [glowColor, setGlowColor] = useLocalStorageState('glow-color', DEFAULT_GLOW)
+  const [secondaryColor, setSecondaryColor] = useLocalStorageState('secondary-color', DEFAULT_SECONDARY)
+  const [logoColor, setLogoColor] = useLocalStorageState('logo-color', DEFAULT_LOGO)
   const enabledModules = useSyncExternalStore(subscribeModules, getEnabledModules)
+  const sidebarConfig = useSyncExternalStore(subscribeSidebarConfig, getSidebarConfig)
+
+  // Module drag-and-drop state
+  const [modDragHref, setModDragHref] = useState<string | null>(null)
+  const [modDragFromCat, setModDragFromCat] = useState<string | null>(null)
+  const [modDropCat, setModDropCat] = useState<string | null>(null)
+  const [modDropIdx, setModDropIdx] = useState<number>(-1)
+  const [editingModItem, setEditingModItem] = useState<string | null>(null)
+  const [editingModCat, setEditingModCat] = useState<string | null>(null)
+  const [modEditValue, setModEditValue] = useState('')
+  const [settingsCtxMenu, setSettingsCtxMenu] = useState<ContextMenuState | null>(null)
+
+  // Sidebar settings column widths (resizable)
+  const [sbLeftW, setSbLeftW] = useState(420)
+  const [sbMidW, setSbMidW] = useState(200)
+
+  const handleColResize = useCallback((setter: (w: number) => void, min: number, max: number) => (e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const el = e.currentTarget.previousElementSibling as HTMLElement
+    const startW = el?.offsetWidth || 200
+    const onMove = (ev: MouseEvent) => {
+      const w = Math.max(min, Math.min(max, startW + (ev.clientX - startX)))
+      setter(w)
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [])
 
   const setAccent = (color: string) => {
     setAccentColor(color)
@@ -753,6 +824,21 @@ export default function SettingsPage() {
     } else {
       document.documentElement.dataset.accent = color
     }
+  }
+
+  const setGlow = (color: string) => {
+    setGlowColor(color)
+    applyGlowColor(color)
+  }
+
+  const setSecondary = (color: string) => {
+    setSecondaryColor(color)
+    applySecondaryColor(color)
+  }
+
+  const setLogo = (color: string) => {
+    setLogoColor(color)
+    applyLogoColor(color)
   }
 
   const applyTheme = (t: 'dark' | 'light' | 'system') => {
@@ -910,7 +996,7 @@ export default function SettingsPage() {
                 </div>
               )}
             </div>
-            <div style={rowLast}>
+            <div style={row}>
               <span>Avatar</span>
               {!editingAvatar ? (
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -932,6 +1018,107 @@ export default function SettingsPage() {
                   <button style={btnSecondary} onClick={() => setEditingAvatar(false)}>Cancel</button>
                 </div>
               )}
+            </div>
+
+            {/* Account & Security — merged from security section */}
+            <div style={{ ...sectionLabel, marginTop: '24px' }}>Account & Security</div>
+            {isDemoMode() && (<div style={{ background: 'rgba(251, 191, 36, 0.08)', border: '1px solid rgba(251, 191, 36, 0.25)', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', fontSize: '12px', color: 'var(--warning)' }}>Account & security features are unavailable in demo mode.</div>)}
+            {setupMfaRequired && !mfaEnabled && (
+              <div style={{
+                background: 'rgba(251, 191, 36, 0.08)', border: '1px solid rgba(251, 191, 36, 0.25)',
+                borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', fontSize: '13px',
+                color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: '10px',
+              }}>
+                <Shield size={16} />
+                Two-factor authentication is required. Set up your authenticator below.
+              </div>
+            )}
+            <div style={row}><span>Email</span><span style={val}>{userEmail ?? '—'}</span></div>
+            {hasPassword && (
+              <div style={row}>
+                <span>Password</span>
+                {!changingPw ? (
+                  <button style={btnSecondary} onClick={() => { setChangingPw(true); setPwStatus(null) }}>Change</button>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+                    <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="New password" autoComplete="new-password" aria-label="New password" style={{ ...inputStyle, width: '200px' }} />
+                    <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Confirm password" autoComplete="new-password" aria-label="Confirm password" style={{ ...inputStyle, width: '200px' }} />
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button style={btnSecondary} onClick={() => { setChangingPw(false); setNewPw(''); setConfirmPw(''); setPwStatus(null) }}>Cancel</button>
+                      <button
+                        style={newPw.length >= 8 && newPw === confirmPw ? btnStyle : { ...btnStyle, opacity: 0.4, cursor: 'not-allowed' }}
+                        disabled={newPw.length < 8 || newPw !== confirmPw}
+                        onClick={async () => {
+                          setPwStatus(null)
+                          const { error } = await supabase!.auth.updateUser({ password: newPw })
+                          if (error) { setPwStatus(`Error: ${error.message}`) }
+                          else { setPwStatus('Password updated.'); setChangingPw(false); setNewPw(''); setConfirmPw('') }
+                        }}
+                      >Save</button>
+                    </div>
+                    {pwStatus && <span style={{ fontSize: '11px', fontFamily: 'monospace', color: pwStatus.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{pwStatus}</span>}
+                  </div>
+                )}
+              </div>
+            )}
+            <div style={row}>
+              <span>Two-factor (TOTP)</span>
+              <span style={{ ...val, color: mfaEnabled ? 'var(--green)' : 'var(--text-muted)' }}>{mfaEnabled ? 'Enabled' : 'Not set up'}</span>
+            </div>
+            {!mfaEnabled && !mfaEnrolling && (
+              <div style={{ padding: '8px 0' }}>
+                <button style={btnStyle} onClick={async () => {
+                  setMfaStatus(null)
+                  const { data, error } = await supabase!.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Mission Control' })
+                  if (error) { setMfaStatus(`Error: ${error.message}`); return }
+                  setMfaFactorId(data.id); setMfaQr(data.totp.qr_code); setMfaSecret(data.totp.secret); setMfaEnrolling(true)
+                }}>Set up authenticator</button>
+                {mfaStatus && <span style={{ fontSize: '12px', fontFamily: 'monospace', color: mfaStatus.startsWith('Error') ? 'var(--red)' : 'var(--green)', marginLeft: '10px' }}>{mfaStatus}</span>}
+              </div>
+            )}
+            {mfaEnrolling && (
+              <div style={{ padding: '16px 0 4px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Scan with your authenticator app:</p>
+                {mfaQr && <div style={{ display: 'flex', justifyContent: 'center', padding: '16px', background: '#fff', borderRadius: '10px', width: 'fit-content' }}><img src={mfaQr} alt="TOTP QR" width={180} height={180} /></div>}
+                {mfaSecret && <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>Key: <span style={{ color: 'var(--text-secondary)', userSelect: 'all' }}>{mfaSecret}</span></div>}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} value={mfaCode} onChange={e => setMfaCode(e.target.value.replace(/\D/g, ''))} placeholder="6-digit code" autoFocus aria-label="MFA verification code" style={{ ...inputStyle, width: '140px', textAlign: 'center', letterSpacing: '0.15em' }} />
+                  <button style={mfaCode.length === 6 ? btnStyle : { ...btnStyle, opacity: 0.4, cursor: 'not-allowed' }} disabled={mfaCode.length !== 6} onClick={async () => {
+                    setMfaStatus(null); if (!mfaFactorId) return
+                    const { data: ch, error: chErr } = await supabase!.auth.mfa.challenge({ factorId: mfaFactorId })
+                    if (chErr) { setMfaStatus(`Error: ${chErr.message}`); return }
+                    const { error: vErr } = await supabase!.auth.mfa.verify({ factorId: mfaFactorId, challengeId: ch.id, code: mfaCode })
+                    if (vErr) { setMfaStatus(`Error: ${vErr.message}`); setMfaCode(''); return }
+                    setMfaEnabled(true); setMfaEnrolling(false); setMfaQr(null); setMfaSecret(null); setMfaCode(''); setMfaStatus(null)
+                    if (setupMfaRequired) window.location.href = '/'
+                  }}>Verify</button>
+                  <button style={btnSecondary} onClick={async () => { if (mfaFactorId) await supabase!.auth.mfa.unenroll({ factorId: mfaFactorId }); setMfaEnrolling(false); setMfaQr(null); setMfaSecret(null); setMfaCode(''); setMfaFactorId(null); setMfaStatus(null) }}>Cancel</button>
+                </div>
+                {mfaStatus && <span style={{ fontSize: '12px', fontFamily: 'monospace', color: mfaStatus.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{mfaStatus}</span>}
+              </div>
+            )}
+            {mfaEnabled && !mfaEnrolling && (
+              <div style={{ padding: '12px 0 0' }}>
+                <button style={{ ...btnSecondary, color: 'var(--red)', borderColor: 'rgba(248, 113, 113, 0.3)' }} onClick={async () => {
+                  const { data } = await supabase!.auth.mfa.listFactors()
+                  const totp = data?.totp?.find(f => f.status === 'verified')
+                  if (totp) { await supabase!.auth.mfa.unenroll({ factorId: totp.id }); setMfaEnabled(false) }
+                }}>Remove authenticator</button>
+              </div>
+            )}
+            <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+              <button
+                onClick={async () => { await supabase!.auth.signOut(); window.location.href = '/login' }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontSize: '13px', fontWeight: 500,
+                  background: 'transparent', border: '1px solid rgba(248, 113, 113, 0.25)', borderRadius: '8px',
+                  color: 'var(--red)', cursor: 'pointer',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(248, 113, 113, 0.08)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+              >
+                <LogOut size={14} />Sign out
+              </button>
             </div>
           </div>
         )
@@ -1105,118 +1292,281 @@ export default function SettingsPage() {
                 })}
               </div>
             </div>
-            <div style={row}>
-              <span>Accent color</span>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                {ACCENT_PRESETS.map(preset => {
-                  const active = accentColor === preset.color
-                  return (
-                    <button
-                      key={preset.id}
-                      onClick={() => setAccent(preset.color)}
-                      aria-label={preset.label}
-                      title={preset.label}
+            {[
+              { label: 'Accent color', value: accentColor, onChange: setAccent },
+              { label: 'Secondary color', value: secondaryColor, onChange: setSecondary },
+              { label: 'Glow color', value: glowColor, onChange: setGlow },
+              { label: 'Logo color', value: logoColor, onChange: setLogo },
+            ].map(({ label, value, onChange }) => (
+              <div key={label} style={row}>
+                <span>{label}</span>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {ACCENT_PRESETS.map(preset => {
+                    const active = value === preset.color
+                    return (
+                      <button
+                        key={preset.id}
+                        onClick={() => onChange(preset.color)}
+                        aria-label={`${label} ${preset.label}`}
+                        title={preset.label}
+                        style={{
+                          width: 24, height: 24,
+                          borderRadius: '50%',
+                          background: preset.color,
+                          border: active ? '2px solid var(--text-primary)' : '2px solid transparent',
+                          outline: active ? `2px solid ${preset.color}` : 'none',
+                          outlineOffset: '2px',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          transform: active ? 'scale(1.15)' : 'scale(1)',
+                          padding: 0,
+                        }}
+                      />
+                    )
+                  })}
+                  <label
+                    title="Pick custom color"
+                    style={{
+                      width: 24, height: 24,
+                      borderRadius: '50%',
+                      background: `conic-gradient(from 0deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)`,
+                      cursor: 'pointer',
+                      position: 'relative',
+                      border: ACCENT_PRESETS.every(p => p.color !== value) ? '2px solid var(--text-primary)' : '2px solid transparent',
+                      outline: ACCENT_PRESETS.every(p => p.color !== value) ? `2px solid ${value}` : 'none',
+                      outlineOffset: '2px',
+                      transition: 'all 0.15s ease',
+                      transform: ACCENT_PRESETS.every(p => p.color !== value) ? 'scale(1.15)' : 'scale(1)',
+                    }}
+                  >
+                    <input
+                      type="color"
+                      value={value}
+                      onChange={e => onChange(e.target.value)}
+                      aria-label={`${label} custom color picker`}
                       style={{
-                        width: 24, height: 24,
-                        borderRadius: '50%',
-                        background: preset.color,
-                        border: active ? '2px solid var(--text-primary)' : '2px solid transparent',
-                        outline: active ? `2px solid ${preset.color}` : 'none',
-                        outlineOffset: '2px',
+                        position: 'absolute',
+                        inset: 0,
+                        opacity: 0,
+                        width: '100%',
+                        height: '100%',
                         cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        transform: active ? 'scale(1.15)' : 'scale(1)',
+                        border: 'none',
                         padding: 0,
                       }}
                     />
-                  )
-                })}
+                  </label>
+                </div>
               </div>
-            </div>
-            <div style={row}>
-              <span>Window title bar</span>
-              <Toggle on={titleBarVisible} onToggle={v => toggleTitleBar(v)} label="Window title bar" />
-            </div>
-            <div style={row}>
-              <div>
-                <span>Auto-hide title bar</span>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Hide title bar until you hover at the top</div>
-              </div>
-              <Toggle on={titleBarAutoHide} onToggle={v => {
-                setTitleBarAutoHide(v)
-              }} label="Auto-hide title bar" />
-            </div>
-            <div style={rowLast}>
-              <span>Sidebar header</span>
-              <Toggle on={sidebarHeaderVisible} onToggle={v => {
-                setSidebarHeaderVisible(v)
-              }} label="Sidebar header" />
-            </div>
+            ))}
           </div>
         )
       case 'keybindings':
         return (
           <div>
-            <div style={sectionLabel}>Keybindings</div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-              Click a keybinding to change it. All shortcuts use ⌘/Ctrl as modifier.
-            </div>
-            {bindings.map(b => (
-              <div key={b.id} style={row}>
-                <span>{b.label}</span>
-                {editingBindingId === b.id ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <kbd style={{
-                      padding: '6px 14px', borderRadius: '8px', fontSize: '13px',
-                      background: 'rgba(167,139,250,0.15)', border: '1px solid var(--accent)',
-                      color: 'var(--accent-bright)', fontFamily: "'JetBrains Mono', monospace",
-                      animation: 'pulse-dot 1.5s infinite',
-                    }}>
-                      Press a key...
-                    </kbd>
-                    <button style={{ ...btnSecondary, padding: '4px 10px', fontSize: '11px' }}
-                      onClick={() => setEditingBindingId(null)}>Cancel</button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setEditingBindingId(b.id)
-                      // Remove any previous listener before attaching a new one
-                      if (keybindHandlerRef.current) {
-                        window.removeEventListener('keydown', keybindHandlerRef.current)
+            <div style={sectionLabel}>Keybinds</div>
+            <div style={row}>
+              <span>Modifier keys</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                {modList.map((m, i) => (
+                  <div
+                    key={m}
+                    onMouseDown={e => {
+                      if ((e.target as HTMLElement).tagName === 'BUTTON') return
+                      e.preventDefault()
+                      const el = e.currentTarget as HTMLElement
+                      const startX = e.clientX
+                      const container = el.parentElement!
+                      const siblings = Array.from(container.querySelectorAll<HTMLElement>('[data-mod-drag]'))
+                      const centers = siblings.map(s => {
+                        const r = s.getBoundingClientRect()
+                        return r.left + r.width / 2
+                      })
+
+                      el.style.zIndex = '10'
+                      el.style.transition = 'none'
+                      document.body.style.cursor = 'grabbing'
+
+                      const onMove = (ev: MouseEvent) => {
+                        const dx = ev.clientX - startX
+                        el.style.transform = `translateX(${dx}px) scale(1.05)`
+                        el.style.opacity = '0.9'
                       }
-                      const handler = (e: KeyboardEvent) => {
-                        e.preventDefault()
-                        window.removeEventListener('keydown', handler)
-                        keybindHandlerRef.current = null
-                        if (e.key === 'Escape') { setEditingBindingId(null); return }
-                        const key = e.key.toLowerCase()
-                        if (key.length === 1 || key === '/') {
-                          updateKeybinding(b.id, key)
-                          setEditingBindingId(null)
+                      const onUp = (ev: MouseEvent) => {
+                        document.removeEventListener('mousemove', onMove)
+                        document.removeEventListener('mouseup', onUp)
+                        document.body.style.cursor = ''
+                        el.style.transform = ''
+                        el.style.opacity = ''
+                        el.style.zIndex = ''
+                        el.style.transition = ''
+
+                        // Find drop target based on final mouse position
+                        const finalX = ev.clientX
+                        let target = i
+                        for (let j = 0; j < centers.length; j++) {
+                          if (j < i && finalX < centers[j]) { target = j; break }
+                          if (j > i && finalX > centers[j]) { target = j }
+                        }
+                        if (target !== i) {
+                          const next = [...modList]
+                          const [moved] = next.splice(i, 1)
+                          next.splice(target, 0, moved)
+                          reorderModifiers(next)
                         }
                       }
-                      keybindHandlerRef.current = handler
-                      setTimeout(() => window.addEventListener('keydown', handler, { once: true }), 50)
+                      document.addEventListener('mousemove', onMove)
+                      document.addEventListener('mouseup', onUp)
                     }}
+                    data-mod-drag
                     style={{
-                      display: 'flex', gap: '4px', background: 'none', border: 'none',
-                      cursor: 'pointer', padding: '4px',
+                      display: 'flex', alignItems: 'center', gap: '2px', cursor: 'grab',
+                      position: 'relative', transition: 'transform 0.15s ease',
                     }}
                   >
-                    {formatKey(b).map((k, i) => (
-                      <kbd key={i} style={{
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        minWidth: '24px', height: '26px', padding: '0 8px', borderRadius: '6px',
-                        fontSize: '12px', fontWeight: 500, fontFamily: "'JetBrains Mono', monospace",
-                        color: 'var(--text-primary)', background: 'rgba(255,255,255,0.08)',
-                        border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
-                      }}>{k}</kbd>
-                    ))}
-                  </button>
+                    <kbd style={{
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 500,
+                      fontFamily: "'JetBrains Mono', monospace",
+                      color: i === 0 ? '#fff' : 'var(--text-primary)',
+                      background: i === 0 ? 'rgba(167,139,250,0.15)' : 'rgba(255,255,255,0.08)',
+                      border: `1px solid ${i === 0 ? 'var(--border-accent)' : 'rgba(255,255,255,0.1)'}`,
+                      pointerEvents: 'none',
+                    }}>{modLabel(m)}</kbd>
+                    {modList.length > 1 && (
+                      <button
+                        onClick={e => { e.stopPropagation(); removeModifier(m) }}
+                        aria-label={`Remove ${modLabel(m)}`}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer',
+                          color: 'var(--text-muted)', fontSize: '10px', padding: '2px',
+                          lineHeight: 1, display: 'flex',
+                        }}
+                      >✕</button>
+                    )}
+                  </div>
+                ))}
+                {detectingMod ? (
+                  <input
+                    autoFocus
+                    readOnly
+                    onKeyDown={e => {
+                      e.preventDefault()
+                      if (e.key === 'Escape') { setDetectingMod(false); return }
+                      const mod = keyToModifier(e.key)
+                      if (!modList.includes(mod)) {
+                        addModifier(mod)
+                      }
+                      setDetectingMod(false)
+                    }}
+                    onBlur={() => setDetectingMod(false)}
+                    placeholder="Press key..."
+                    style={{
+                      width: '90px',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontFamily: "'JetBrains Mono', monospace",
+                      background: 'rgba(167,139,250,0.1)',
+                      border: '1px solid var(--accent)',
+                      color: 'var(--accent)',
+                      textAlign: 'center',
+                      caretColor: 'transparent',
+                      animation: 'pulse-dot 1.5s infinite',
+                    }}
+                  />
+                ) : (
+                  modList.length < 4 && (
+                    <button
+                      onClick={() => setDetectingMod(true)}
+                      style={{
+                        width: '26px', height: '26px', borderRadius: '6px', fontSize: '14px',
+                        background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)',
+                        color: 'var(--text-muted)', cursor: 'pointer', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >+</button>
+                  )
                 )}
               </div>
-            ))}
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+              Click a keybinding to change it.
+            </div>
+            {bindings.map(b => {
+              const kbdStyle: React.CSSProperties = {
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                minWidth: '24px', height: '26px', padding: '0 8px', borderRadius: '6px',
+                fontSize: '12px', fontWeight: 500, fontFamily: "'JetBrains Mono', monospace",
+                color: 'var(--text-primary)', background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+              }
+              const isEditing = editingBindingId === b.id
+              return (
+                <div key={b.id} style={row}>
+                  <span>{b.label}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {/* Modifier selector — cycle through options on click */}
+                    {b.mod && (
+                      <button
+                        onClick={() => {
+                          const mods = getModifierList()
+                          const current = getBindingMod(b)
+                          const idx = mods.indexOf(current)
+                          const next = mods[(idx + 1) % mods.length]
+                          updateKeybinding(b.id, { modifier: next })
+                        }}
+                        title="Click to change modifier"
+                        style={{ ...kbdStyle, cursor: 'pointer', background: 'rgba(167,139,250,0.1)' }}
+                      >
+                        {modLabel(getBindingMod(b))}
+                      </button>
+                    )}
+                    {/* Key — click to detect */}
+                    {isEditing ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <kbd style={{
+                          ...kbdStyle,
+                          background: 'rgba(167,139,250,0.15)', border: '1px solid var(--accent)',
+                          color: 'var(--accent)', animation: 'pulse-dot 1.5s infinite',
+                          padding: '0 12px',
+                        }}>
+                          Press key...
+                        </kbd>
+                        <button style={{ ...kbdStyle, cursor: 'pointer', fontSize: '10px', padding: '0 6px' }}
+                          onClick={() => setEditingBindingId(null)}>✕</button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setEditingBindingId(b.id)
+                          if (keybindHandlerRef.current) {
+                            window.removeEventListener('keydown', keybindHandlerRef.current)
+                          }
+                          const handler = (e: KeyboardEvent) => {
+                            e.preventDefault()
+                            window.removeEventListener('keydown', handler)
+                            keybindHandlerRef.current = null
+                            if (e.key === 'Escape') { setEditingBindingId(null); return }
+                            if (keyToModifier(e.key)) return // ignore modifier-only presses
+                            const key = e.key.toLowerCase()
+                            if (key.length === 1 || key === '/') {
+                              updateKeybinding(b.id, { key })
+                              setEditingBindingId(null)
+                            }
+                          }
+                          keybindHandlerRef.current = handler
+                          setTimeout(() => window.addEventListener('keydown', handler, { once: true }), 50)
+                        }}
+                        style={{ ...kbdStyle, cursor: 'pointer' }}
+                      >
+                        {b.key.toUpperCase()}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
             <div style={{ marginTop: '16px' }}>
               <button style={{ ...btnSecondary, color: 'var(--text-muted)' }} onClick={() => { resetKeybindings(); setEditingBindingId(null) }}>
                 Reset to defaults
@@ -1232,45 +1582,656 @@ export default function SettingsPage() {
             : [...current, id]
           setEnabledModules(next)
         }
-        const allEnabled = APP_MODULES.every(m => enabledModules.includes(m.id))
+
+        // Resolve a nav item by href (built-in or custom module)
+        const resolveItem = (href: string): { icon: React.ElementType; label: string; moduleId?: string } | null => {
+          const navItem = navItemsByHref.get(href)
+          if (navItem) return navItem
+          if (href.startsWith('/custom/')) {
+            const modId = href.slice('/custom/'.length)
+            const customMod = (sidebarConfig.customModules || []).find(m => m.id === modId)
+            if (customMod) return { icon: FileText, label: customMod.name }
+          }
+          return null
+        }
+
+        const handleModDragStart = (href: string, catId: string) => (e: React.DragEvent) => {
+          setModDragHref(href)
+          setModDragFromCat(catId)
+          e.dataTransfer.setData('text/plain', href)
+          e.dataTransfer.effectAllowed = 'move'
+          if (e.currentTarget instanceof HTMLElement) {
+            e.currentTarget.style.opacity = '0.4'
+          }
+        }
+
+        const handleModDragEnd = (e: React.DragEvent) => {
+          setModDragHref(null)
+          setModDragFromCat(null)
+          setModDropCat(null)
+          setModDropIdx(-1)
+          if (e.currentTarget instanceof HTMLElement) {
+            e.currentTarget.style.opacity = '1'
+          }
+        }
+
+        const handleModDragOver = (catId: string, index: number) => (e: React.DragEvent) => {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+          setModDropCat(catId)
+          setModDropIdx(index)
+        }
+
+        const handleModDrop = (catId: string, index: number) => (e: React.DragEvent) => {
+          e.preventDefault()
+          const draggedHref = modDragHref || e.dataTransfer.getData('text/plain')
+          const fromCat = modDragFromCat
+          if (!draggedHref || !fromCat) return
+
+          // Dragging from Unused into a category — just re-enable (item is already in category list)
+          if (fromCat === '__unused__') {
+            const item = resolveItem(draggedHref)
+            if (item?.moduleId && !enabledModules.includes(item.moduleId)) {
+              toggleModule(item.moduleId)
+            }
+            setModDragHref(null)
+            setModDragFromCat(null)
+            setModDropCat(null)
+            setModDropIdx(-1)
+            return
+          }
+
+          const config = getSidebarConfig()
+          const newCategories = config.categories.map(c => ({ ...c, items: [...c.items] }))
+
+          const sourceCat = newCategories.find(c => c.id === fromCat)
+          if (sourceCat) {
+            sourceCat.items = sourceCat.items.filter(h => h !== draggedHref)
+          }
+
+          const targetCat = newCategories.find(c => c.id === catId)
+          if (targetCat) {
+            let adjustedIndex = index
+            if (fromCat === catId) {
+              const oldIndex = config.categories.find(c => c.id === catId)!.items.indexOf(draggedHref)
+              if (oldIndex < index) adjustedIndex = Math.max(0, index - 1)
+            }
+            targetCat.items.splice(adjustedIndex, 0, draggedHref)
+          }
+
+          setSidebarConfig({ ...config, categories: newCategories })
+          setModDragHref(null)
+          setModDragFromCat(null)
+          setModDropCat(null)
+          setModDropIdx(-1)
+        }
+
+        const startEditCategory = (catId: string, currentName: string) => {
+          setEditingModCat(catId)
+          setEditingModItem(null)
+          setModEditValue(currentName)
+        }
+
+        const confirmEditCategory = () => {
+          if (!editingModCat || !modEditValue.trim()) {
+            setEditingModCat(null)
+            return
+          }
+          renameCategory(editingModCat, modEditValue.trim())
+          setEditingModCat(null)
+        }
+
+        const startEditItem = (href: string) => {
+          const item = resolveItem(href)
+          if (!item) return
+          setEditingModItem(href)
+          setEditingModCat(null)
+          setModEditValue(sidebarConfig.customNames[href] || item.label)
+        }
+
+        const confirmEditItem = () => {
+          if (!editingModItem) return
+          renameItem(editingModItem, modEditValue.trim())
+          setEditingModItem(null)
+        }
+
+        const addCategory = () => {
+          const config = getSidebarConfig()
+          const id = `custom-${Date.now()}`
+          setSidebarConfig({
+            ...config,
+            categories: [...config.categories, { id, name: 'New Category', items: [] }],
+          })
+          setEditingModCat(id)
+          setModEditValue('New Category')
+        }
+
+        const deleteCategory = (catId: string) => {
+          const config = getSidebarConfig()
+          const cat = config.categories.find(c => c.id === catId)
+          if (!cat || cat.items.length > 0) return
+          setSidebarConfig({
+            ...config,
+            categories: config.categories.filter(c => c.id !== catId),
+          })
+        }
+
+        const handleCreateModule = (catId?: string) => {
+          const href = createCustomModule('New Module', catId)
+          // Auto-start editing the new module name
+          setTimeout(() => {
+            setEditingModItem(href)
+            setModEditValue('New Module')
+          }, 50)
+        }
+
+        const handleDeleteModule = (href: string) => {
+          if (!href.startsWith('/custom/')) return
+          const modId = href.slice('/custom/'.length)
+          deleteCustomModule(modId)
+        }
+
+        const dropIndicator = (
+          <div style={{
+            height: '2px',
+            background: 'var(--accent)',
+            borderRadius: '1px',
+            margin: '0 8px',
+            boxShadow: '0 0 6px var(--accent)',
+          }} />
+        )
+
         return (
-          <div>
-            <div style={sectionLabel}>Modules</div>
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 16px' }}>
-              Enable or disable integrations. Disabled modules are hidden from the sidebar but their routes remain accessible.
-            </p>
-            <div style={{ ...row, justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+            <div style={{ flexShrink: 0 }}>
+              <div style={sectionLabel}>Sidebar</div>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 12px' }}>
+                Drag to reorder. Double-click or right-click to rename. Move items between categories.
+              </p>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
               <button
-                style={{ ...btnSecondary, padding: '4px 12px', fontSize: '11px' }}
-                onClick={() => {
-                  if (allEnabled) {
-                    setEnabledModules([])
-                  } else {
-                    setEnabledModules(APP_MODULES.map(m => m.id))
+                style={{ ...btnSecondary, padding: '6px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                onClick={addCategory}
+              >
+                <Plus size={12} />
+                Add Category
+              </button>
+              <button
+                style={{ ...btnSecondary, padding: '6px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                onClick={() => handleCreateModule()}
+              >
+                <FileText size={12} />
+                Create Module
+              </button>
+              <button
+                style={{ ...btnSecondary, padding: '6px 12px', fontSize: '11px', color: 'var(--text-muted)' }}
+                onClick={() => { resetSidebarConfig(); setEditingModItem(null); setEditingModCat(null) }}
+              >
+                Reset to Default
+              </button>
+              </div>
+            </div>{/* end header */}
+
+            <div style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+            {/* Categories panel */}
+            <ResizablePanel storageKey="sb-modules" title="Modules" initialX={0} initialY={0} initialW={420} initialH={500} minW={250} minH={200}>
+            {sidebarConfig.categories.map((cat) => (
+              <div
+                key={cat.id}
+                style={{
+                  marginBottom: '16px',
+                  borderRadius: '10px',
+                  border: '1px solid var(--border)',
+                  background: modDropCat === cat.id && modDragHref ? 'rgba(155, 132, 236, 0.04)' : 'transparent',
+                  transition: 'background 0.15s',
+                  overflow: 'hidden',
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'move'
+                  if (cat.items.length === 0) {
+                    setModDropCat(cat.id)
+                    setModDropIdx(0)
                   }
                 }}
+                onDrop={cat.items.length === 0 ? handleModDrop(cat.id, 0) : undefined}
               >
-                {allEnabled ? 'Disable all' : 'Enable all'}
-              </button>
-            </div>
-            {APP_MODULES.map((mod, idx) => (
-              <div key={mod.id} style={idx === APP_MODULES.length - 1 ? rowLast : row}>
-                <div>
-                  <span>{mod.name}</span>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    {mod.description}
-                    {mod.platform && mod.platform !== 'all' && (
-                      <span style={{ marginLeft: '6px', fontSize: '10px', opacity: 0.7 }}>({mod.platform} only)</span>
+                {/* Category header */}
+                <div
+                  onContextMenu={(e) => {
+                    e.preventDefault()
+                    setSettingsCtxMenu({
+                      x: e.clientX, y: e.clientY,
+                      items: [
+                        { label: 'Rename Category', icon: Pencil, onClick: () => startEditCategory(cat.id, cat.name) },
+                        { label: 'Create Module Here', icon: FileText, onClick: () => handleCreateModule(cat.id) },
+                        ...(cat.items.length === 0 ? [{ label: 'Delete Category', icon: Trash2, onClick: () => deleteCategory(cat.id), danger: true }] : []),
+                      ],
+                    })
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 12px',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    borderBottom: '1px solid var(--border)',
+                  }}
+                >
+                  {editingModCat === cat.id ? (
+                    <input
+                      autoFocus
+                      value={modEditValue}
+                      onChange={e => setModEditValue(e.target.value)}
+                      onBlur={confirmEditCategory}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') confirmEditCategory()
+                        if (e.key === 'Escape') setEditingModCat(null)
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: '1px solid var(--accent)',
+                        color: 'var(--text-primary)',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        outline: 'none',
+                        padding: '2px 0',
+                        width: '200px',
+                        fontFamily: 'inherit',
+                      }}
+                    />
+                  ) : (
+                    <span
+                      onDoubleClick={() => startEditCategory(cat.id, cat.name)}
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        color: 'var(--text-muted)',
+                        cursor: 'text',
+                        userSelect: 'none',
+                      }}
+                      title="Double-click or right-click to edit"
+                    >
+                      {cat.name}
+                    </span>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                      {cat.items.length}
+                    </span>
+                    {cat.items.length === 0 && (
+                      <button
+                        onClick={() => deleteCategory(cat.id)}
+                        aria-label={`Delete ${cat.name} category`}
+                        style={{
+                          display: 'flex', alignItems: 'center', padding: '2px',
+                          background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                          cursor: 'pointer', borderRadius: '4px',
+                        }}
+                        title="Delete empty category"
+                      >
+                        <Trash2 size={12} />
+                      </button>
                     )}
                   </div>
                 </div>
-                <Toggle
-                  on={enabledModules.includes(mod.id)}
-                  onToggle={() => toggleModule(mod.id)}
-                  label={`Toggle ${mod.name}`}
-                />
+
+                {/* Items */}
+                <div style={{ padding: cat.items.length > 0 ? '4px 0' : '0' }}>
+                  {cat.items.length === 0 && modDragHref && (
+                    <div
+                      style={{ padding: '12px', textAlign: 'center', color: 'var(--accent)', fontSize: '11px', fontWeight: 600 }}
+                      onDragOver={(e) => { e.preventDefault(); setModDropCat(cat.id); setModDropIdx(0) }}
+                      onDrop={handleModDrop(cat.id, 0)}
+                    >
+                      Drop here
+                    </div>
+                  )}
+                  {cat.items.length === 0 && !modDragHref && (
+                    <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px', fontStyle: 'italic' }}>
+                      Empty — drag items here or right-click to create
+                    </div>
+                  )}
+                  {cat.items.map((href, idx) => {
+                    const resolved = resolveItem(href)
+                    if (!resolved) return null
+                    const Icon = resolved.icon
+                    const displayName = sidebarConfig.customNames[href] || resolved.label
+                    const isEnabled = !resolved.moduleId || enabledModules.includes(resolved.moduleId)
+                    if (!isEnabled) return null
+                    const isDragTarget = modDropCat === cat.id && modDropIdx === idx && modDragHref !== href
+                    const isDragTargetAfter = modDropCat === cat.id && modDropIdx === idx + 1 && idx === cat.items.length - 1 && modDragHref !== href
+                    const isBeingDragged = modDragHref === href
+                    const isCustom = href.startsWith('/custom/')
+                    const originalName = resolved.label
+
+                    return (
+                      <div key={href}>
+                        {isDragTarget && dropIndicator}
+                        <div
+                          draggable
+                          onDragStart={handleModDragStart(href, cat.id)}
+                          onDragEnd={handleModDragEnd}
+                          onDragOver={handleModDragOver(cat.id, idx)}
+                          onDrop={handleModDrop(cat.id, idx)}
+                          onContextMenu={(e) => {
+                            e.preventDefault()
+                            const menuItems: { label: string; icon: React.ElementType; onClick: () => void; danger?: boolean; disabled?: boolean }[] = [
+                              { label: 'Rename', icon: Pencil, onClick: () => startEditItem(href) },
+                              { label: 'Move Up', icon: ArrowUp, onClick: () => moveItem(href, 'up'), disabled: idx === 0 },
+                              { label: 'Move Down', icon: ArrowDown, onClick: () => moveItem(href, 'down'), disabled: idx === cat.items.length - 1 },
+                            ]
+                            if (isCustom) {
+                              menuItems.push({ label: 'Delete Module', icon: Trash2, onClick: () => handleDeleteModule(href), danger: true })
+                            }
+                            setSettingsCtxMenu({ x: e.clientX, y: e.clientY, items: menuItems })
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '8px 12px',
+                            opacity: isBeingDragged ? 0.3 : isEnabled ? 1 : 0.45,
+                            transition: 'opacity 0.15s, background 0.1s',
+                            cursor: 'grab',
+                            borderRadius: '6px',
+                            margin: '0 4px',
+                          }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--hover-bg)' }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                        >
+                          <GripVertical size={14} style={{ color: 'var(--text-muted)', flexShrink: 0, cursor: 'grab' }} />
+                          <Icon size={16} style={{ flexShrink: 0, color: isEnabled ? 'var(--text-secondary)' : 'var(--text-muted)' }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            {editingModItem === href ? (
+                              <input
+                                autoFocus
+                                value={modEditValue}
+                                onChange={e => setModEditValue(e.target.value)}
+                                onBlur={confirmEditItem}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') confirmEditItem()
+                                  if (e.key === 'Escape') setEditingModItem(null)
+                                }}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  borderBottom: '1px solid var(--accent)',
+                                  color: 'var(--text-primary)',
+                                  fontSize: '13px',
+                                  outline: 'none',
+                                  padding: '1px 0',
+                                  width: '100%',
+                                  minWidth: 0,
+                                  fontFamily: 'inherit',
+                                }}
+                              />
+                            ) : (
+                              <span
+                                onDoubleClick={(e) => { e.stopPropagation(); startEditItem(href) }}
+                                style={{
+                                  fontSize: '13px',
+                                  color: isEnabled ? 'var(--text-primary)' : 'var(--text-muted)',
+                                  cursor: 'text',
+                                  userSelect: 'none',
+                                }}
+                                title="Double-click or right-click to edit"
+                              >
+                                {displayName}
+                                {sidebarConfig.customNames[href] && !isCustom && (
+                                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: '6px', fontStyle: 'italic' }}>
+                                    ({originalName})
+                                  </span>
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {isDragTargetAfter && dropIndicator}
+                      </div>
+                    )
+                  })}
+                  {/* Drop zone at end of category */}
+                  {cat.items.length > 0 && (
+                    <div
+                      style={{ height: '8px' }}
+                      onDragOver={handleModDragOver(cat.id, cat.items.length)}
+                      onDrop={handleModDrop(cat.id, cat.items.length)}
+                    >
+                      {modDropCat === cat.id && modDropIdx === cat.items.length && modDragHref && dropIndicator}
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
+
+            </ResizablePanel>
+
+            {/* Unused Modules */}
+            {(() => {
+              const allCatHrefs = new Set(sidebarConfig.categories.flatMap(c => c.items))
+              const disabledItems = Array.from(allCatHrefs).filter(href => {
+                const item = resolveItem(href)
+                if (!item || !item.moduleId) return false
+                return !enabledModules.includes(item.moduleId)
+              })
+              return (
+                <ResizablePanel storageKey="sb-unused" title={`Unused ${disabledItems.length || ''}`} initialX={440} initialY={0} initialW={220} initialH={300} minW={160} minH={100}>
+                <div
+                  onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setModDropCat('__unused__') }}
+                  onDragLeave={() => { if (modDropCat === '__unused__') setModDropCat(null) }}
+                  onDrop={e => {
+                    e.preventDefault()
+                    const href = modDragHref || e.dataTransfer.getData('text/plain')
+                    if (!href) return
+                    const item = resolveItem(href)
+                    if (item?.moduleId && enabledModules.includes(item.moduleId)) {
+                      toggleModule(item.moduleId)
+                    }
+                    setModDragHref(null)
+                    setModDragFromCat(null)
+                    setModDropCat(null)
+                    setModDropIdx(-1)
+                  }}
+                  style={{
+                    height: '100%',
+                    background: modDropCat === '__unused__' ? 'rgba(155, 132, 236, 0.06)' : 'transparent',
+                    transition: 'background 0.15s',
+                  }}
+                >
+                  {disabledItems.length === 0 ? (
+                    <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px', fontStyle: 'italic' }}>
+                      {modDragHref ? 'Drop here to disable' : 'All modules active'}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '4px 0' }}>
+                      {disabledItems.map(href => {
+                        const item = resolveItem(href)
+                        if (!item) return null
+                        const Icon = item.icon
+                        const displayName = sidebarConfig.customNames[href] || item.label
+                        return (
+                          <div
+                            key={href}
+                            draggable
+                            onDragStart={handleModDragStart(href, '__unused__')}
+                            onDragEnd={handleModDragEnd}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              padding: '7px 12px',
+                              cursor: 'grab',
+                              borderRadius: '6px',
+                              margin: '0 4px',
+                              opacity: 0.6,
+                            }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--hover-bg)'; (e.currentTarget as HTMLElement).style.opacity = '1' }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.opacity = '0.6' }}
+                          >
+                            <Icon size={14} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
+                            <span style={{ fontSize: '12px', color: 'var(--text-muted)', flex: 1 }}>{displayName}</span>
+                            <button
+                              onClick={() => item.moduleId && toggleModule(item.moduleId)}
+                              aria-label={`Enable ${displayName}`}
+                              style={{
+                                display: 'flex', alignItems: 'center', padding: '2px 6px',
+                                background: 'transparent', border: '1px solid var(--border)',
+                                borderRadius: '4px', color: 'var(--text-muted)', cursor: 'pointer',
+                                fontSize: '10px', fontWeight: 600,
+                              }}
+                            >
+                              Enable
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+                </ResizablePanel>
+              )
+            })()}
+
+            {/* Customize panel */}
+            <ResizablePanel storageKey="sb-customize" title="Customize" initialX={680} initialY={0} initialW={350} initialH={400} minW={200} minH={200}>
+              <div style={{ padding: '8px 12px' }}>
+                <div style={{ ...row, padding: '8px 0' }}>
+                  <span style={{ fontSize: '12px' }}>Header</span>
+                  <Toggle on={sidebarHeaderVisible} onToggle={v => setSidebarHeaderVisible(v)} label="Sidebar header" />
+                </div>
+                <div style={{ ...row, padding: '8px 0' }}>
+                  <span style={{ fontSize: '12px' }}>Search bar</span>
+                  <Toggle on={sidebarSearchVisible} onToggle={v => setSidebarSearchVisible(v)} label="Search bar" />
+                </div>
+                <div style={{ ...row, padding: '8px 0' }}>
+                  <span style={{ fontSize: '12px' }}>Width</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <input
+                      type="range"
+                      min={100}
+                      max={400}
+                      defaultValue={sidebarDefaultWidth}
+                      onInput={e => {
+                        const label = (e.target as HTMLInputElement).nextElementSibling
+                        if (label) label.textContent = (e.target as HTMLInputElement).value + 'px'
+                      }}
+                      onMouseUp={e => setSidebarDefaultWidth(Number((e.target as HTMLInputElement).value))}
+                      onTouchEnd={e => setSidebarDefaultWidth(Number((e.target as HTMLInputElement).value))}
+                      aria-label="Default sidebar width"
+                      style={{ width: '70px', accentColor: 'var(--accent)' }}
+                    />
+                    <span
+                      onDoubleClick={e => {
+                        const span = e.currentTarget
+                        const current = sidebarDefaultWidth
+                        const input = document.createElement('input')
+                        input.type = 'text'
+                        input.inputMode = 'numeric'
+                        input.value = String(current)
+                        Object.assign(input.style, {
+                          width: '40px', background: 'transparent', border: 'none',
+                          borderBottom: '1px solid var(--accent)', color: 'var(--text-primary)',
+                          fontSize: '10px', fontFamily: 'monospace', textAlign: 'center',
+                          outline: 'none', padding: '0',
+                        })
+                        span.textContent = ''
+                        span.appendChild(input)
+                        input.focus()
+                        input.select()
+                        const commit = () => {
+                          const w = Math.max(100, Math.min(400, parseInt(input.value, 10) || 200))
+                          setSidebarDefaultWidth(w)
+                          span.textContent = w + 'px'
+                        }
+                        input.addEventListener('blur', commit)
+                        input.addEventListener('keydown', ev => {
+                          if (ev.key === 'Enter') input.blur()
+                          if (ev.key === 'Escape') { span.textContent = current + 'px' }
+                        })
+                      }}
+                      style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace', cursor: 'text', userSelect: 'none' }}
+                    >
+                      {sidebarDefaultWidth}px
+                    </span>
+                  </div>
+                </div>
+                <div style={{ ...row, padding: '8px 0' }}>
+                  <span style={{ fontSize: '12px' }}>Title</span>
+                  {!editingTitle ? (
+                    <span
+                      onDoubleClick={() => {
+                        titleBeforeEdit.current = sidebarTitleText
+                        titleSaved.current = false
+                        setTitleDraft(sidebarTitleText)
+                        setEditingTitle(true)
+                      }}
+                      style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace', cursor: 'text', userSelect: 'none' }}
+                    >
+                      {sidebarTitleText || 'OPENCLAW'}
+                    </span>
+                  ) : (
+                    <input
+                      autoFocus
+                      defaultValue={sidebarTitleText}
+                      onBlur={e => {
+                        const v = e.currentTarget.value.trim()
+                        if (v) setSidebarTitleText(v)
+                        setEditingTitle(false)
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') { const v = e.currentTarget.value.trim(); if (v) setSidebarTitleText(v); setEditingTitle(false) }
+                        if (e.key === 'Escape') { setSidebarTitleText(titleBeforeEdit.current); setEditingTitle(false) }
+                      }}
+                      style={{
+                        width: '90px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)',
+                        borderRadius: '6px', padding: '4px 8px', color: 'var(--text-primary)',
+                        fontSize: '11px', fontFamily: 'monospace', textAlign: 'right', outline: 'none',
+                      }}
+                    />
+                  )}
+                </div>
+                <div style={{ ...row, padding: '8px 0', borderBottom: 'none' }}>
+                  <span style={{ fontSize: '12px' }}>Layout</span>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {(['one-line', 'two-line'] as const).map(opt => (
+                      <button
+                        key={opt}
+                        onClick={() => setSidebarTitleLayout(opt)}
+                        style={{
+                          padding: '3px 8px', fontSize: '10px',
+                          fontWeight: sidebarTitleLayout === opt ? 600 : 450,
+                          color: sidebarTitleLayout === opt ? '#fff' : 'var(--text-secondary)',
+                          background: sidebarTitleLayout === opt ? 'rgba(167, 139, 250, 0.15)' : 'transparent',
+                          border: `1px solid ${sidebarTitleLayout === opt ? 'var(--border-accent)' : 'var(--border)'}`,
+                          borderRadius: '6px', cursor: 'pointer',
+                        }}
+                      >
+                        {opt === 'one-line' ? '1 line' : '2 lines'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ ...row, padding: '8px 0' }}>
+                  <span style={{ fontSize: '12px' }}>Title bar</span>
+                  <Toggle on={titleBarVisible} onToggle={v => toggleTitleBar(v)} label="Window title bar" />
+                </div>
+                <div style={{ ...row, padding: '8px 0', borderBottom: 'none' }}>
+                  <span style={{ fontSize: '12px' }}>Auto-hide</span>
+                  <Toggle on={titleBarAutoHide} onToggle={v => setTitleBarAutoHide(v)} label="Auto-hide title bar" />
+                </div>
+              </div>
+            </ResizablePanel>
+
+            </div>{/* end scratchpad */}
+
+            {/* Context menu for settings modules */}
+            {settingsCtxMenu && <ContextMenu {...settingsCtxMenu} onClose={() => setSettingsCtxMenu(null)} />}
           </div>
         )
       }
@@ -1423,112 +2384,6 @@ export default function SettingsPage() {
                 <br />
                 <strong style={{ color: 'var(--text-secondary)' }}>Never collected:</strong> message content, contact names, API keys, URLs, or IP addresses.
               </div>
-            </div>
-          </div>
-        )
-      case 'security':
-        return (
-          <div>
-            <div style={sectionLabel}>Account & Security</div>
-            {isDemoMode() && (<div style={{ background: 'rgba(251, 191, 36, 0.08)', border: '1px solid rgba(251, 191, 36, 0.25)', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', fontSize: '12px', color: 'var(--warning)' }}>Account & security features are unavailable in demo mode. Connect Supabase to enable authentication.</div>)}
-            {setupMfaRequired && !mfaEnabled && (
-              <div style={{
-                background: 'rgba(251, 191, 36, 0.08)', border: '1px solid rgba(251, 191, 36, 0.25)',
-                borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', fontSize: '13px',
-                color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: '10px',
-              }}>
-                <Shield size={16} />
-                Two-factor authentication is required. Set up your authenticator below.
-              </div>
-            )}
-            <div style={row}><span>Email</span><span style={val}>{userEmail ?? '—'}</span></div>
-            {hasPassword && (
-              <div style={row}>
-                <span>Password</span>
-                {!changingPw ? (
-                  <button style={btnSecondary} onClick={() => { setChangingPw(true); setPwStatus(null) }}>Change</button>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
-                    <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="New password" autoComplete="new-password" aria-label="New password" style={{ ...inputStyle, width: '200px' }} />
-                    <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Confirm password" autoComplete="new-password" aria-label="Confirm password" style={{ ...inputStyle, width: '200px' }} />
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button style={btnSecondary} onClick={() => { setChangingPw(false); setNewPw(''); setConfirmPw(''); setPwStatus(null) }}>Cancel</button>
-                      <button
-                        style={newPw.length >= 8 && newPw === confirmPw ? btnStyle : { ...btnStyle, opacity: 0.4, cursor: 'not-allowed' }}
-                        disabled={newPw.length < 8 || newPw !== confirmPw}
-                        onClick={async () => {
-                          setPwStatus(null)
-                          const { error } = await supabase!.auth.updateUser({ password: newPw })
-                          if (error) { setPwStatus(`Error: ${error.message}`) }
-                          else { setPwStatus('Password updated.'); setChangingPw(false); setNewPw(''); setConfirmPw('') }
-                        }}
-                      >Save</button>
-                    </div>
-                    {pwStatus && <span style={{ fontSize: '11px', fontFamily: 'monospace', color: pwStatus.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{pwStatus}</span>}
-                  </div>
-                )}
-              </div>
-            )}
-            <div style={row}>
-              <span>Two-factor (TOTP)</span>
-              <span style={{ ...val, color: mfaEnabled ? 'var(--green)' : 'var(--text-muted)' }}>{mfaEnabled ? 'Enabled' : 'Not set up'}</span>
-            </div>
-            {!mfaEnabled && !mfaEnrolling && (
-              <div style={{ ...rowLast, flexDirection: 'column', alignItems: 'flex-start', gap: '10px' }}>
-                <button style={btnStyle} onClick={async () => {
-                  setMfaStatus(null)
-                  const { data, error } = await supabase!.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Mission Control' })
-                  if (error) { setMfaStatus(`Error: ${error.message}`); return }
-                  setMfaFactorId(data.id); setMfaQr(data.totp.qr_code); setMfaSecret(data.totp.secret); setMfaEnrolling(true)
-                }}>Set up authenticator</button>
-                {mfaStatus && <span style={{ fontSize: '12px', fontFamily: 'monospace', color: mfaStatus.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{mfaStatus}</span>}
-              </div>
-            )}
-            {mfaEnrolling && (
-              <div style={{ padding: '16px 0 4px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Scan with your authenticator app:</p>
-                {mfaQr && <div style={{ display: 'flex', justifyContent: 'center', padding: '16px', background: '#fff', borderRadius: '10px', width: 'fit-content' }}><img src={mfaQr} alt="TOTP QR" width={180} height={180} /></div>}
-                {mfaSecret && <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>Key: <span style={{ color: 'var(--text-secondary)', userSelect: 'all' }}>{mfaSecret}</span></div>}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} value={mfaCode} onChange={e => setMfaCode(e.target.value.replace(/\D/g, ''))} placeholder="6-digit code" autoFocus aria-label="MFA verification code" style={{ ...inputStyle, width: '140px', textAlign: 'center', letterSpacing: '0.15em' }} />
-                  <button style={mfaCode.length === 6 ? btnStyle : { ...btnStyle, opacity: 0.4, cursor: 'not-allowed' }} disabled={mfaCode.length !== 6} onClick={async () => {
-                    setMfaStatus(null); if (!mfaFactorId) return
-                    const { data: ch, error: chErr } = await supabase!.auth.mfa.challenge({ factorId: mfaFactorId })
-                    if (chErr) { setMfaStatus(`Error: ${chErr.message}`); return }
-                    const { error: vErr } = await supabase!.auth.mfa.verify({ factorId: mfaFactorId, challengeId: ch.id, code: mfaCode })
-                    if (vErr) { setMfaStatus(`Error: ${vErr.message}`); setMfaCode(''); return }
-                    setMfaEnabled(true); setMfaEnrolling(false); setMfaQr(null); setMfaSecret(null); setMfaCode(''); setMfaStatus(null)
-                    if (setupMfaRequired) window.location.href = '/'
-                  }}>Verify</button>
-                  <button style={btnSecondary} onClick={async () => { if (mfaFactorId) await supabase!.auth.mfa.unenroll({ factorId: mfaFactorId }); setMfaEnrolling(false); setMfaQr(null); setMfaSecret(null); setMfaCode(''); setMfaFactorId(null); setMfaStatus(null) }}>Cancel</button>
-                </div>
-                {mfaStatus && <span style={{ fontSize: '12px', fontFamily: 'monospace', color: mfaStatus.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{mfaStatus}</span>}
-              </div>
-            )}
-            {mfaEnabled && !mfaEnrolling && (
-              <div style={{ padding: '12px 0 0' }}>
-                <button style={{ ...btnSecondary, color: 'var(--red)', borderColor: 'rgba(248, 113, 113, 0.3)' }} onClick={async () => {
-                  const { data } = await supabase!.auth.mfa.listFactors()
-                  const totp = data?.totp?.find(f => f.status === 'verified')
-                  if (totp) { await supabase!.auth.mfa.unenroll({ factorId: totp.id }); setMfaEnabled(false) }
-                }}>Remove authenticator</button>
-              </div>
-            )}
-
-            {/* Sign out */}
-            <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
-              <button
-                onClick={async () => { await supabase!.auth.signOut(); window.location.href = '/login' }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontSize: '13px', fontWeight: 500,
-                  background: 'transparent', border: '1px solid rgba(248, 113, 113, 0.25)', borderRadius: '8px',
-                  color: 'var(--red)', cursor: 'pointer',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(248, 113, 113, 0.08)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-              >
-                <LogOut size={14} />Sign out
-              </button>
             </div>
           </div>
         )
@@ -1749,8 +2604,17 @@ export default function SettingsPage() {
               ) : null
             })()}
           </div>
-          <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
-            <div style={{ maxWidth: '600px' }}>
+          <div style={{
+            flex: 1,
+            overflowY: selected === 'modules' ? 'hidden' : 'auto',
+            padding: '20px 28px',
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+          }}>
+            <div style={{
+              ...(selected === 'modules' ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : { maxWidth: '600px' }),
+            }}>
               {renderDetail()}
             </div>
           </div>

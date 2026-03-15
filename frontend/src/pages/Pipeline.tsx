@@ -5,6 +5,7 @@ import { Plus, X, Tag, Trash2, Calendar, AlertTriangle, CheckSquare, Target, Lig
 import { supabase } from '@/lib/supabase/client'
 
 import { api } from '@/lib/api'
+import { PageHeader } from '@/components/PageHeader'
 
 type WorkflowNote = {
   id: string
@@ -332,6 +333,7 @@ export default function PipelinePage() {
   const [crons, setCrons] = useState<CronJob[]>([])
   const [ideas, setIdeas] = useState<Idea[]>([])
   const [ideasFilter, setIdeasFilter] = useState<IdeaStatus | null>(null)
+  const ideasFilterInitialized = useRef(false)
   const [effortFilter, setEffortFilter] = useState<string | null>(null)
   const [impactFilter, setImpactFilter] = useState<string | null>(null)
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
@@ -394,7 +396,14 @@ export default function PipelinePage() {
 
   const fetchIdeas = useCallback(async () => {
     const json = await api.get<{ ideas?: Idea[] }>('/api/ideas')
-    setIdeas(json.ideas || [])
+    const list = json.ideas || []
+    setIdeas(list)
+    if (!ideasFilterInitialized.current && list.length > 0) {
+      ideasFilterInitialized.current = true
+      if (list.some(i => i.status === 'pending')) {
+        setIdeasFilter('pending')
+      }
+    }
   }, [])
 
   const fetchShipLog = useCallback(() => {
@@ -524,12 +533,7 @@ export default function PipelinePage() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px', marginBottom: '20px' }}>
-        <h1 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-          Pipeline
-        </h1>
-        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-          Ideas, lessons, retrospectives & scheduled runs
-        </span>
+        <PageHeader defaultTitle="Pipeline" defaultSubtitle="Ideas, lessons, retrospectives & scheduled runs" />
       </div>
 
       {/* Tabs */}

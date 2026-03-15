@@ -6,6 +6,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { timeAgo } from '@/lib/utils'
 import { SkeletonList } from '@/components/Skeleton'
+import { PageHeader } from '@/components/PageHeader'
 
 interface FileItem {
   name: string
@@ -109,14 +110,11 @@ export default function MemoryPage() {
         minWidth: 200,
         borderRight: '1px solid var(--border)',
         overflowY: 'auto',
-        paddingRight: 0,
+        padding: '0 16px',
         flexShrink: 0,
       }}>
         <div style={{ padding: '0 0 8px 0', marginBottom: 8 }}>
-          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>Memory</h1>
-          <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-            workspace files + daily logs
-          </p>
+          <PageHeader defaultTitle="Memory" defaultSubtitle="workspace files + daily logs" />
         </div>
 
         <div style={{ padding: '0 0 8px 0' }}>
@@ -127,12 +125,12 @@ export default function MemoryPage() {
             onChange={e => setSearch(e.target.value)}
             style={{
               width: '100%',
-              padding: '6px 10px',
+              padding: '8px 12px',
               fontSize: '12px',
               fontFamily: 'monospace',
               background: 'var(--bg-base)',
               border: '1px solid var(--border)',
-              borderRadius: 6,
+              borderRadius: 10,
               color: 'var(--text-primary)',
               outline: 'none',
               boxSizing: 'border-box',
@@ -350,26 +348,22 @@ function FileRow({ file, active, onClick }: { file: FileItem; active: boolean; o
   return (
     <button
       onClick={onClick}
+      className={active ? undefined : 'hover-bg'}
       style={{
         display: 'block',
         width: '100%',
         textAlign: 'left',
-        background: active ? 'rgba(124, 58, 237, 0.1)' : 'transparent',
+        background: active ? 'var(--active-bg)' : 'transparent',
         border: 'none',
-        borderLeft: active ? '3px solid #7c3aed' : '3px solid transparent',
-        padding: '7px 12px 7px 10px',
+        borderRadius: 8,
+        padding: '8px 12px',
+        marginBottom: 2,
         cursor: 'pointer',
-        color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+        color: active ? '#fff' : 'var(--text-secondary)',
         fontSize: '13px',
         fontFamily: 'monospace',
         fontWeight: active ? 600 : 400,
-        transition: 'background 0.1s',
-      }}
-      onMouseEnter={e => {
-        if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)'
-      }}
-      onMouseLeave={e => {
-        if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'
+        transition: 'background 0.15s ease',
       }}
     >
       {file.name}

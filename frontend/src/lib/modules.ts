@@ -24,7 +24,8 @@ export const APP_MODULES: AppModule[] = [
   { id: 'memory', name: 'Memory', description: 'Agent memory files', icon: 'Brain', route: '/memory' },
   { id: 'crons', name: 'Cron Jobs', description: 'Scheduled tasks', icon: 'CalendarDays', route: '/crons' },
   { id: 'pipeline', name: 'Pipeline', description: 'Code review pipeline', icon: 'GitBranch', route: '/pipeline' },
-  { id: 'knowledge', name: 'Knowledge Base', description: 'Documentation', icon: 'BookOpen', route: '/knowledge' },
+  { id: 'knowledge', name: 'Knowledge', description: 'Documentation', icon: 'BookOpen', route: '/knowledge' },
+  { id: 'notes', name: 'Notes', description: 'Personal notes', icon: 'FileText', route: '/notes' },
 ]
 
 const STORAGE_KEY = 'enabled-modules'
@@ -34,7 +35,8 @@ const ALL_MODULE_IDS = APP_MODULES.map(m => m.id)
 
 const _listeners = new Set<() => void>()
 
-export function getEnabledModules(): string[] {
+// Cached snapshot — useSyncExternalStore requires stable references
+let _cached: string[] = (() => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored !== null) {
@@ -43,9 +45,14 @@ export function getEnabledModules(): string[] {
     }
   } catch { /* fall through */ }
   return ALL_MODULE_IDS
+})()
+
+export function getEnabledModules(): string[] {
+  return _cached
 }
 
 export function setEnabledModules(ids: string[]): void {
+  _cached = ids
   localStorage.setItem(STORAGE_KEY, JSON.stringify(ids))
   _listeners.forEach(fn => fn())
 }

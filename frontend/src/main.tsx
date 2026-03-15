@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-
 import LayoutShell from './components/LayoutShell'
 import ErrorBoundary from './components/ErrorBoundary'
 import AuthGuard from './components/AuthGuard'
-import { applyAccentColor, getSavedAccent } from './lib/themes'
+import { applyAccentColor, getSavedAccent, applyGlowColor, getSavedGlowColor, applySecondaryColor, getSavedSecondaryColor, applyLogoColor, getSavedLogoColor } from './lib/themes'
 import { PersonalSkeleton, DashboardSkeleton } from './components/Skeleton'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -27,11 +27,13 @@ const Memory = lazy(() => import('./pages/Memory'))
 const CronJobs = lazy(() => import('./pages/CronJobs'))
 const Pipeline = lazy(() => import('./pages/Pipeline'))
 const KnowledgeBase = lazy(() => import('./pages/KnowledgeBase'))
+const Notes = lazy(() => import('./pages/Notes'))
 const Ideas = lazy(() => import('./pages/Ideas'))
 const Capture = lazy(() => import('./pages/Capture'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Search = lazy(() => import('./pages/Search'))
 const Login = lazy(() => import('./pages/Login'))
+const CustomPage = lazy(() => import('./pages/CustomPage'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 
 const queryClient = new QueryClient({
@@ -90,6 +92,12 @@ if (window.__TAURI_INTERNALS__) {
     applyAccentColor(accent)
     document.documentElement.dataset.accent = accent
   }
+  const glow = getSavedGlowColor()
+  if (glow) applyGlowColor(glow)
+  const secondary = getSavedSecondaryColor()
+  if (secondary) applySecondaryColor(secondary)
+  const logo = getSavedLogoColor()
+  if (logo) applyLogoColor(logo)
 })()
 
 // Listen for system theme changes when in 'system' mode
@@ -166,11 +174,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/crons" element={<CronJobs />} />
             <Route path="/pipeline" element={<Pipeline />} />
             <Route path="/knowledge" element={<KnowledgeBase />} />
+            <Route path="/notes" element={<Notes />} />
             <Route path="/ideas" element={<Ideas />} />
             <Route path="/capture" element={<Capture />} />
             <Route path="/status" element={<Navigate to="/settings?section=status" replace />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/search" element={<Search />} />
+            <Route path="/custom/:id" element={<CustomPage />} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>

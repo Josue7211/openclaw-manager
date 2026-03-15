@@ -8,8 +8,9 @@ import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 const CommandPalette = React.lazy(() => import('@/components/CommandPalette'))
 const KeyboardShortcutsModal = React.lazy(() => import('@/components/KeyboardShortcutsModal'))
 const OnboardingWelcome = React.lazy(() => import('@/components/OnboardingWelcome'))
-import { getKeybindings, subscribeKeybindings } from '@/lib/keybindings'
+import { getKeybindings, subscribeKeybindings, isBindingModPressed } from '@/lib/keybindings'
 import { getTitleBarVisible, getTitleBarAutoHide, subscribeTitleBarSettings } from '@/lib/titlebar-settings'
+import { getSidebarTitleText, getSidebarDefaultWidth, subscribeSidebarSettings } from '@/lib/sidebar-settings'
 import { processQueue, getQueueLength, subscribeQueue } from '@/lib/offline-queue'
 import { isDemoMode } from '@/lib/demo-data'
 import { DemoModeBanner } from '@/components/DemoModeBanner'
@@ -28,6 +29,15 @@ export default function LayoutShell() {
   const [sidebarWidth, setSidebarWidth] = useLocalStorageState('sidebar-width', 260)
   const sidebarDraggingRef = useRef(false)
   const bindings = useSyncExternalStore(subscribeKeybindings, getKeybindings)
+  const titleText = useSyncExternalStore(subscribeSidebarSettings, getSidebarTitleText)
+
+  // Sync sidebar width from settings store changes
+  useEffect(() => {
+    return subscribeSidebarSettings(() => {
+      setSidebarWidth(getSidebarDefaultWidth())
+    })
+  }, [setSidebarWidth])
+
 
   useEffect(() => {
     const on = () => {
@@ -46,11 +56,16 @@ export default function LayoutShell() {
 
   const handleGlobalKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey
       const key = e.key.toLowerCase()
+      const tag = (e.target as HTMLElement)?.tagName
+      const inInput = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable
+
+      // Skip all keybindings when focused in an input — let native shortcuts work
+      if (inInput) return
 
       for (const b of bindings) {
-        if (b.mod && mod && key === b.key) {
+        if (b.mod && isBindingModPressed(e, b) && key === b.key) {
+          if (b.action === 'undo' || b.action === 'redo') continue
           e.preventDefault()
           if (b.action === 'palette') { setPaletteOpen(prev => !prev); return }
           if (b.action === 'shortcuts') { setShortcutsOpen(prev => !prev); return }
@@ -111,10 +126,9 @@ export default function LayoutShell() {
       zIndex: 1,
     }}>
       {/* Custom macOS-style title bar */}
-      {showTitleBar && (
-        <>
+      <>
         {/* Hover trigger zone when title bar is auto-hidden */}
-        {(isFullscreen || autoHideTitleBar) && !titleBarHover && (
+        {showTitleBar && (isFullscreen || autoHideTitleBar) && !titleBarHover && (
           <div
             onMouseEnter={() => setTitleBarHover(true)}
             style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '6px', zIndex: 9999 }}
@@ -123,23 +137,26 @@ export default function LayoutShell() {
         <div
           data-tauri-drag-region
           style={{
-            height: '30px',
-            minHeight: '30px',
+            height: showTitleBar ? '30px' : '0px',
+            minHeight: showTitleBar ? '30px' : '0px',
+            opacity: showTitleBar ? 1 : 0,
             background: 'rgba(10, 10, 12, 0.95)',
-            borderBottom: '1px solid var(--border)',
+            borderBottom: showTitleBar ? '1px solid var(--border)' : 'none',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             WebkitAppRegion: 'drag',
             userSelect: 'none',
             flexShrink: 0,
-            position: (isFullscreen || autoHideTitleBar) ? 'fixed' : 'relative',
+            overflow: 'hidden',
+            position: (showTitleBar && (isFullscreen || autoHideTitleBar)) ? 'fixed' : 'relative',
             top: 0,
             left: 0,
             right: 0,
-            zIndex: (isFullscreen || autoHideTitleBar) ? 9999 : undefined,
-            transform: (isFullscreen || autoHideTitleBar) && !titleBarHover ? 'translateY(-100%)' : 'translateY(0)',
-            transition: 'transform 0.25s var(--ease-spring)',
+            zIndex: (showTitleBar && (isFullscreen || autoHideTitleBar)) ? 9999 : undefined,
+            transform: (showTitleBar && (isFullscreen || autoHideTitleBar)) && !titleBarHover ? 'translateY(-100%)' : 'translateY(0)',
+            transition: 'height 0.3s ease, min-height 0.3s ease, opacity 0.3s ease, transform 0.4s var(--ease-spring)',
+            pointerEvents: showTitleBar ? 'auto' : 'none',
           } as React.CSSProperties}
         >
           {/* Window controls — left side (macOS style) */}
@@ -194,11 +211,10 @@ export default function LayoutShell() {
           </div>
           {/* Title centered */}
           <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500 }}>
-            Mission Control
+            {titleText || 'OpenClaw'}
           </span>
         </div>
-        </>
-      )}
+      </>
       <div style={{
         display: 'flex',
         flex: 1,

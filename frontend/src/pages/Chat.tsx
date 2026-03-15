@@ -12,6 +12,7 @@ import { useChatSocket, type WsMessage } from '@/lib/hooks/useChatSocket'
 
 import { api, ApiError } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
+import { PageHeader } from '@/components/PageHeader'
 
 const MODEL_OPTIONS = [
   { value: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
@@ -409,7 +410,7 @@ export default function ChatPage() {
       {/* Header */}
       <div style={{ marginBottom: '16px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>Chat</h1>
+          <PageHeader defaultTitle="Chat" />
 
           {/* Model selector */}
           <select

@@ -10,6 +10,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { timeAgo } from '@/lib/utils'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
+import { PageHeader } from '@/components/PageHeader'
 
 interface Mission {
   id: string
@@ -811,7 +812,7 @@ export default function MissionsPage() {
       {/* Header */}
       <div style={{ marginBottom: '20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>Missions</h1>
+          <PageHeader defaultTitle="Missions" />
           <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: '3px' }}>
             {missions.length} total · {counts.active} active · {counts.done} done
           </div>

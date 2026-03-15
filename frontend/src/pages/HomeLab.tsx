@@ -2,6 +2,7 @@
 
 
 import { useTauriQuery } from '@/hooks/useTauriQuery'
+import { PageHeader } from '@/components/PageHeader'
 
 interface VMInfo {
   name: string
@@ -169,13 +170,8 @@ export default function HomelabPage() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '22px' }}>🖥️</span>
-            <h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-              Home Lab Vitals
-            </h1>
+            <PageHeader defaultTitle="Home Lab Vitals" defaultSubtitle="Proxmox + OPNsense infrastructure health" />
           </div>
-          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '4px' }}>
-            Proxmox + OPNsense infrastructure health
-          </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {lastUpdated && (

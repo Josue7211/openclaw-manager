@@ -15,6 +15,7 @@ import { queryKeys } from '@/lib/query-keys'
 import { api, ApiError } from '@/lib/api'
 import { emit } from '@/lib/event-bus'
 import type { Mission } from '@/lib/types'
+import { PageHeader } from '@/components/PageHeader'
 
 interface StatusData {
   name: string; emoji: string; model: string; status: string; lastActive: string; host: string; ip: string;
@@ -376,20 +377,11 @@ export default function Dashboard() {
       {backendError && <BackendErrorBanner label={backendError} />}
       {/* ── Header ── */}
       <div style={{
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '32px',
-        animation: 'fadeInUp 0.5s var(--ease-spring) both',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px',
+        animation: 'fadeInUp 0.5s var(--ease-spring) both', flexShrink: 0,
       }}>
         <div>
-          <h1 style={{
-            margin: 0, fontSize: '26px', fontWeight: 800, color: 'var(--text-primary)',
-            letterSpacing: '-0.03em', lineHeight: 1.2,
-          }}>Dashboard</h1>
-          <p style={{
-            margin: '6px 0 0', fontSize: '12px', color: 'var(--text-muted)',
-            fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.02em',
-          }}>
-            system overview · realtime
-          </p>
+          <PageHeader defaultTitle="Dashboard" defaultSubtitle="system overview · realtime" />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {subagentsError && (
@@ -434,11 +426,11 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Grid: left = general activity, right = today's sessions ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '20px', alignItems: 'start' }}>
+      {/* ── Grid: responsive cards ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: 'min-content', gap: '16px' }}>
 
-        {/* ── Left Column: General Activity ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
+        {/* ── Cards ── */}
+        <>
 
         {/* ── Agent Status — PURPLE ── */}
         <div className="card" style={{ padding: '20px' }}>
@@ -523,7 +515,7 @@ export default function Dashboard() {
                 <span className="mono" style={{ color: 'var(--text-muted)' }}>{formatTime(heartbeat?.lastCheck || null)}</span>
               </div>
               <div style={{ position: 'relative' }}>
-                <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
                   {heartbeat?.tasks && heartbeat.tasks.length > 0 ? (
                     <div>
                       <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Tasks</div>
@@ -538,7 +530,6 @@ export default function Dashboard() {
                     Last check: {timeAgo(heartbeat?.lastCheck || null)}
                   </div>
                 </div>
-                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '28px', background: 'linear-gradient(to bottom, transparent, var(--bg-card-solid))', pointerEvents: 'none' }} />
               </div>
             </>
           )}
@@ -559,9 +550,9 @@ export default function Dashboard() {
             <SkeletonRows count={3} />
           ) : (
             <div style={{ position: 'relative' }}>
-            <div className="hidden-scrollbar" style={{ maxHeight: '280px', overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {sortedAgents.map(agent => {
+            <div className="hidden-scrollbar" style={{ maxHeight: '320px', overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {sortedAgents.map((agent) => {
                 const isMain = agent.id === 'main'
                 const isCodingWorking = agent.id === 'coding' && activeSubagents.active
                 const isActive = agent.status === 'active' || isCodingWorking || (agentsData?.activeSessions || []).some(s => s.includes(agent.id))
@@ -579,8 +570,8 @@ export default function Dashboard() {
                 return (
                   <div key={agent.id} style={{
                     display: 'flex', alignItems: 'center', gap: '10px',
-                    padding: '8px 10px', background: 'var(--bg-base)',
-                    borderRadius: '6px', border: '1px solid var(--border)',
+                    padding: '10px 12px', background: 'var(--bg-base)',
+                    borderRadius: '12px', border: '1px solid var(--border)',
                   }}>
                     <span style={{ fontSize: '18px' }}>{agent.emoji}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -619,7 +610,6 @@ export default function Dashboard() {
               })}
             </div>
             </div>
-            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '28px', background: 'linear-gradient(to bottom, transparent, var(--bg-card-solid))', pointerEvents: 'none' }} />
             </div>
           )}
         </div>
@@ -634,7 +624,7 @@ export default function Dashboard() {
             <SkeletonRows count={3} />
           ) : (
             <div style={{ position: 'relative' }}>
-            <div className="hidden-scrollbar" style={{ maxHeight: '280px', overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
+            <div className="hidden-scrollbar" style={{ maxHeight: '320px', overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {missions.length === 0 ? (
                 <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>No missions assigned</div>
@@ -680,7 +670,7 @@ export default function Dashboard() {
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>No memory files yet</div>
           ) : (
             <div style={{ position: 'relative' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '240px', overflowY: 'auto' }}>
                 {memory.map((entry) => (
                   <div key={entry.date} style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', border: '1px solid var(--border)', transition: 'all 0.2s var(--ease-spring)' }}>
                     <div className="mono" style={{ color: 'var(--accent-bright)', fontSize: '11px', marginBottom: '3px' }}>{entry.date}</div>
@@ -798,10 +788,10 @@ export default function Dashboard() {
           </div>
         </div>
 
-        </div>{/* end Left Column */}
+        </>{/* end Cards */}
 
         {/* ── Right Column: Today's Sessions — BLUE ── */}
-        <div className="card" style={{ padding: '20px', position: 'sticky', top: '16px' }}>
+        <div className="card" style={{ padding: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
             <MessageSquare size={14} style={{ color: 'var(--accent-blue)' }} />
             <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Today&apos;s Sessions</span>

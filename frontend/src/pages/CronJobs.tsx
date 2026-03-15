@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Zap, Clock } from 'lucide-react'
 import { useTauriQuery } from '@/hooks/useTauriQuery'
 import { SkeletonList } from '@/components/Skeleton'
 import { formatHour, formatTimeMs } from '@/lib/utils'
+import { PageHeader } from '@/components/PageHeader'
 
 interface CronSchedule {
   kind: string
@@ -195,14 +196,7 @@ export default function CronsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '16px' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', flexShrink: 0 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>
-            Cron Calendar
-          </h1>
-          <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-            automated routines · week view
-          </p>
-        </div>
+        <PageHeader defaultTitle="Cron Calendar" defaultSubtitle="automated routines · week view" />
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button onClick={() => setWeekOffset(w => w - 1)} style={navBtnStyle}>
             <ChevronLeft size={13} /> Prev

@@ -25,7 +25,7 @@ const MODE_LABELS: Record<Mode, string> = {
 }
 
 const MIN_CELL_SIZE = 4
-const MAX_CELL_SIZE = 18
+const MAX_CELL_SIZE = 50
 const CELL_SIZE_STORAGE_KEY = 'pomodoro-heatmap-cellsize'
 
 function playChime(type: 'work' | 'break') {
@@ -134,7 +134,7 @@ export default function PomodoroPage() {
   const [completionPrompt, setCompletionPrompt] = useState(false)
 
   // Heatmap zoom — cell size controlled by scroll wheel
-  const [cellSizeTarget, setCellSizeTarget] = useState(8)
+  const [cellSizeTarget, setCellSizeTarget] = useState(MAX_CELL_SIZE)
   const heatmapGridRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(0)
   const [containerHeight, setContainerHeight] = useState(0)
@@ -155,14 +155,8 @@ export default function PomodoroPage() {
   useEffect(() => {
     setSessions(loadSessions())
     setMounted(true)
-    // Load zoom preference
-    try {
-      const saved = localStorage.getItem(CELL_SIZE_STORAGE_KEY)
-      if (saved) {
-        const n = parseInt(saved)
-        if (n >= MIN_CELL_SIZE && n <= MAX_CELL_SIZE) setCellSizeTarget(n)
-      }
-    } catch { /* ignore */ }
+    // Clear old zoom preference — cells now auto-fill height
+    try { localStorage.removeItem(CELL_SIZE_STORAGE_KEY) } catch { /* ignore */ }
   }, [])
 
   // Measure heatmap container dimensions
@@ -364,16 +358,21 @@ export default function PomodoroPage() {
   const todayWork = todaySessions.filter(s => s.type === 'work').length
   const nextPomodoro = (pomodoroCount % 4) + 1
 
-  // Heatmap: cell size from scroll wheel, capped by container height
-  const monthLabelH = cellSizeTarget >= 8 ? 11 : 0
+  // Heatmap: auto-fill height, scroll-to-zoom override, min 3 months visible
+  const MIN_WEEKS = 13
+  const monthLabelH = 11
   const maxCellFromHeight = containerHeight > 0
     ? Math.max(MIN_CELL_SIZE, Math.floor((containerHeight - monthLabelH - 6 * CELL_GAP) / 7))
     : MAX_CELL_SIZE
-  const cellSize = Math.min(cellSizeTarget, maxCellFromHeight)
+  // Ensure at least MIN_WEEKS columns fit horizontally
+  const maxCellForMinWeeks = containerWidth > 0
+    ? Math.max(MIN_CELL_SIZE, Math.floor(containerWidth / MIN_WEEKS) - CELL_GAP)
+    : MAX_CELL_SIZE
+  const cellSize = Math.min(cellSizeTarget, maxCellFromHeight, maxCellForMinWeeks)
   const visibleWeeks = containerWidth > 0
-    ? Math.max(4, Math.floor(containerWidth / (cellSize + CELL_GAP)))
-    : 13
-  const showMonthLabels = cellSize >= 8
+    ? Math.max(MIN_WEEKS, Math.floor(containerWidth / (cellSize + CELL_GAP)))
+    : MIN_WEEKS
+  const showMonthLabels = cellSize >= 6
 
   // Zoom label
   const totalDays = visibleWeeks * 7

@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Skeleton, SkeletonRows } from '@/components/Skeleton'
 import { BackendErrorBanner } from '@/components/BackendErrorBanner'
 import SecondsAgo from '@/components/SecondsAgo'
+import { PageHeader } from '@/components/PageHeader'
 
 import { api, ApiError } from '@/lib/api'
 import { emit } from '@/lib/event-bus'
@@ -529,10 +530,7 @@ export default function PersonalDashboard() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>Personal Dashboard</h1>
-          <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-            home · todos · infra
-          </p>
+          <PageHeader defaultTitle="Personal Dashboard" defaultSubtitle="home · todos · infra" />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>

@@ -16,6 +16,7 @@ import {
   Film,
   BookOpen,
   Smartphone,
+  FileText,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -36,6 +37,7 @@ export const personalDashboardItems: NavItem[] = [
   { href: '/email', label: 'Email', icon: Mail, moduleId: 'email' },
   { href: '/homelab', label: 'Home Lab', icon: Server, moduleId: 'homelab' },
   { href: '/media', label: 'Media Radar', icon: Film, moduleId: 'media' },
+  { href: '/notes', label: 'Notes', icon: FileText, moduleId: 'notes' },
 ]
 
 export const agentDashboardItems: NavItem[] = [
@@ -45,7 +47,7 @@ export const agentDashboardItems: NavItem[] = [
   { href: '/memory', label: 'Memory', icon: Brain, moduleId: 'memory' },
   { href: '/crons', label: 'Cron Jobs', icon: CalendarDays, moduleId: 'crons' },
   { href: '/pipeline', label: 'Pipeline', icon: GitBranch, moduleId: 'pipeline' },
-  { href: '/knowledge', label: 'Knowledge Base', icon: BookOpen, moduleId: 'knowledge' },
+  { href: '/knowledge', label: 'Knowledge', icon: BookOpen, moduleId: 'knowledge' },
 ]
 
 export const allNavItems: NavItem[] = [
@@ -53,3 +55,8 @@ export const allNavItems: NavItem[] = [
   ...agentDashboardItems,
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
+
+/** Lookup any nav item by its href */
+export const navItemsByHref = new Map<string, NavItem>(
+  allNavItems.map(item => [item.href, item])
+)

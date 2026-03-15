@@ -9,6 +9,7 @@ import { SkeletonList } from '@/components/Skeleton'
 
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
+import { PageHeader } from '@/components/PageHeader'
 import type { Mission } from '@/lib/types'
 
 interface Agent {
@@ -476,12 +477,7 @@ export default function AgentsPage() {
   return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>
-            Agents
-          </h1>
-          <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-            Your AI workforce · real-time
-          </p>
+          <PageHeader defaultTitle="Agents" defaultSubtitle="Your AI workforce · real-time" />
         </div>
 
         {loading ? (

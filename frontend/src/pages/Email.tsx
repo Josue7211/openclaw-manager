@@ -7,6 +7,7 @@ import { Mail, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Settings, Trash2,
 import { SkeletonList } from '@/components/Skeleton'
 
 import { api } from '@/lib/api'
+import { PageHeader } from '@/components/PageHeader'
 
 interface Email {
   id: string
@@ -481,7 +482,7 @@ export default function EmailPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Mail size={20} style={{ color: 'var(--accent)' }} />
-          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>Email</h1>
+          <PageHeader defaultTitle="Email" />
           {!loading && unreadCount > 0 && (
             <span className="badge badge-green" style={{ marginLeft: '4px' }}>
               {unreadCount} unread

@@ -22,7 +22,7 @@ function flattenResults(results: SearchResults): FlatSearchResult[] {
   return flat
 }
 
-export default function GlobalSearch({ compact, collapsed }: { compact?: boolean; collapsed?: boolean } = {}) {
+export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { compact?: boolean; collapsed?: boolean; sidebarWidth?: number } = {}) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResults | null>(null)
   const [loading, setLoading] = useState(false)
@@ -273,31 +273,63 @@ export default function GlobalSearch({ compact, collapsed }: { compact?: boolean
             padding: '0 10px',
           }}>
             <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-            <input
-              ref={inputRef}
-              value={query}
-              onChange={handleChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Search..."
-              aria-label="Search"
-              role="combobox"
-              aria-expanded={open}
-              aria-controls={LISTBOX_ID}
-              aria-activedescendant={activeItemId}
-              style={{
-                flex: 1,
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                color: 'var(--text-primary)',
-                fontSize: '13px',
-                minWidth: 0,
-              }}
-            />
-            {loading
-              ? <Loader2 size={13} style={{ color: 'var(--accent)', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
-              : <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace', flexShrink: 0 }}>⌘K</span>
-            }
+            {(() => {
+              // Typewriter placeholder with blinking cursor
+              const fullText = 'Search'
+              const charW = 8
+              const textAvail = Math.max(0, (sidebarWidth || 200) - 58)
+              const charsVisible = Math.min(fullText.length, Math.floor(textAvail / charW))
+              const visibleText = fullText.slice(0, charsVisible)
+              const isTyping = charsVisible > 0
+              return (
+                <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
+                  <input
+                    ref={inputRef}
+                    value={query}
+                    onChange={handleChange}
+                    onKeyDown={handleKeyDown}
+                    placeholder=""
+                    aria-label="Search"
+                    role="combobox"
+                    aria-expanded={open}
+                    aria-controls={LISTBOX_ID}
+                    aria-activedescendant={activeItemId}
+                    style={{
+                      width: '100%',
+                      background: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      color: 'var(--text-primary)',
+                      fontSize: '13px',
+                      minWidth: 0,
+                      position: 'relative',
+                      zIndex: 1,
+                    }}
+                  />
+                  {!query && charsVisible > 0 && (
+                    <span style={{
+                      position: 'absolute',
+                      left: 0,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      fontSize: '13px',
+                      color: 'var(--text-muted)',
+                      pointerEvents: 'none',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {visibleText}
+                      {isTyping && <span className="type-cursor">|</span>}
+                    </span>
+                  )}
+                </div>
+              )
+            })()}
+            {(() => {
+              const sw = sidebarWidth || 200
+              if (loading) return <Loader2 size={13} style={{ color: 'var(--accent)', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+              if (sw < 130) return null
+              return <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace', flexShrink: 0 }}>⌘K</span>
+            })()}
           </div>
         </div>
       ) : (
