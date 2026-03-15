@@ -65,10 +65,10 @@ export default function Dashboard() {
   const memory = memoryData ?? []
 
   // ── React Query: pending ideas ──
+  // No refetchInterval — driven by Supabase realtime subscription below
   const { data: pendingIdeasData } = useQuery({
     queryKey: queryKeys.ideas('pending'),
     queryFn: () => api.get<{ ideas?: Idea[] }>('/api/ideas?status=pending').then(d => d.ideas || []),
-    refetchInterval: 60_000,
   })
   const pendingIdeas = pendingIdeasData ?? []
   const lastRefreshMs = memoryUpdatedAt || Date.now()
@@ -82,10 +82,10 @@ export default function Dashboard() {
   const activeSubagents = activeSubagentsData ?? { active: false, count: 0, tasks: [] }
 
   // ── React Query: missions ──
+  // No refetchInterval — driven by Supabase realtime subscription below
   const { data: missionsData } = useQuery<{ missions?: Mission[] }>({
     queryKey: queryKeys.missions,
     queryFn: () => api.get<{ missions?: Mission[] }>('/api/missions'),
-    refetchInterval: 30_000,
   })
   const allMissions = missionsData?.missions ?? []
   const missions = useMemo(() => {
@@ -222,7 +222,7 @@ export default function Dashboard() {
     return () => clearTimeout(t)
   }, [])
 
-  // ── Real-time subscriptions for missions and agents ──
+  // ── Real-time subscriptions for missions, agents, and ideas ──
   useEffect(() => {
     if (!supabase) return
 
@@ -252,9 +252,17 @@ export default function Dashboard() {
       })
       .subscribe()
 
+    const ideasChannel = supabase
+      .channel('ideas-dash-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ideas' }, () => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.ideas('pending') })
+      })
+      .subscribe()
+
     return () => {
       supabase?.removeChannel(missionsChannel)
       supabase?.removeChannel(agentsSub)
+      supabase?.removeChannel(ideasChannel)
     }
   }, [queryClient])
 
