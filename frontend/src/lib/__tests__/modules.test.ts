@@ -4,6 +4,7 @@ let APP_MODULES: typeof import('../modules').APP_MODULES
 let getEnabledModules: typeof import('../modules').getEnabledModules
 let setEnabledModules: typeof import('../modules').setEnabledModules
 let subscribeModules: typeof import('../modules').subscribeModules
+let notifyModulesChanged: typeof import('../modules').notifyModulesChanged
 
 beforeEach(async () => {
   localStorage.clear()
@@ -13,6 +14,7 @@ beforeEach(async () => {
   getEnabledModules = mod.getEnabledModules
   setEnabledModules = mod.setEnabledModules
   subscribeModules = mod.subscribeModules
+  notifyModulesChanged = mod.notifyModulesChanged
 })
 
 describe('getEnabledModules', () => {
@@ -81,5 +83,90 @@ describe('subscribeModules', () => {
 
     setEnabledModules(['todos'])
     expect(cb).not.toHaveBeenCalled()
+  })
+
+  it('supports multiple independent listeners', () => {
+    const cb1 = vi.fn()
+    const cb2 = vi.fn()
+    subscribeModules(cb1)
+    const unsub2 = subscribeModules(cb2)
+
+    setEnabledModules(['chat'])
+    expect(cb1).toHaveBeenCalledTimes(1)
+    expect(cb2).toHaveBeenCalledTimes(1)
+
+    unsub2()
+    setEnabledModules(['todos'])
+    expect(cb1).toHaveBeenCalledTimes(2)
+    expect(cb2).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('APP_MODULES structure', () => {
+  it('has at least 10 modules defined', () => {
+    expect(APP_MODULES.length).toBeGreaterThanOrEqual(10)
+  })
+
+  it('every module has required fields', () => {
+    for (const mod of APP_MODULES) {
+      expect(mod.id).toBeTruthy()
+      expect(mod.name).toBeTruthy()
+      expect(mod.description).toBeTruthy()
+      expect(mod.icon).toBeTruthy()
+      expect(mod.route).toMatch(/^\//)
+    }
+  })
+
+  it('all module IDs are unique', () => {
+    const ids = APP_MODULES.map(m => m.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('all module routes are unique', () => {
+    const routes = APP_MODULES.map(m => m.route)
+    expect(new Set(routes).size).toBe(routes.length)
+  })
+
+  it('platform values are restricted to valid options', () => {
+    const validPlatforms = ['macos', 'linux', 'windows', 'all']
+    for (const mod of APP_MODULES) {
+      if (mod.platform !== undefined) {
+        expect(validPlatforms).toContain(mod.platform)
+      }
+    }
+  })
+
+  it('messages module requires macos platform', () => {
+    const messages = APP_MODULES.find(m => m.id === 'messages')
+    expect(messages).toBeDefined()
+    expect(messages!.platform).toBe('macos')
+  })
+})
+
+describe('notifyModulesChanged', () => {
+  it('fires all subscribed listeners without changing cached value', () => {
+    const cb = vi.fn()
+    subscribeModules(cb)
+
+    const before = getEnabledModules()
+    notifyModulesChanged()
+    const after = getEnabledModules()
+
+    expect(cb).toHaveBeenCalledTimes(1)
+    expect(after).toEqual(before)
+  })
+})
+
+describe('setEnabledModules edge cases', () => {
+  it('updates cached value returned by getEnabledModules', () => {
+    const subset = ['chat', 'todos', 'email']
+    setEnabledModules(subset)
+    expect(getEnabledModules()).toEqual(subset)
+  })
+
+  it('allows setting an empty array', () => {
+    setEnabledModules([])
+    expect(getEnabledModules()).toEqual([])
+    expect(JSON.parse(localStorage.getItem('enabled-modules')!)).toEqual([])
   })
 })
