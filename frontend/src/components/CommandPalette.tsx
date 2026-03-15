@@ -7,12 +7,14 @@ import { useNavigate as useRouterNavigate, useLocation } from 'react-router-dom'
 import {
   Search, Plus, Settings, ArrowRight, PenSquare, CheckSquare,
   Sun, Moon, BellOff, CheckCheck, Download, MessageSquare,
+  Target, CalendarDays, Mail, Bell, BookOpen, Loader2,
 } from 'lucide-react'
 import { allNavItems } from '@/lib/nav-items'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { getKeybindings, subscribeKeybindings, formatKey } from '@/lib/keybindings'
 import { markAllRead } from '@/components/NotificationCenter'
 import { formatContactLabel } from '@/lib/utils'
+import { api } from '@/lib/api'
 
 interface PaletteItem {
   id: string
@@ -20,7 +22,7 @@ interface PaletteItem {
   icon?: React.ReactNode
   action: () => void
   shortcut?: string
-  category: 'page' | 'action' | 'conversation'
+  category: 'page' | 'action' | 'conversation' | 'search'
   /** Optional secondary text shown dimmer to the right of the label */
   hint?: string
 }
@@ -138,6 +140,9 @@ export default function CommandPalette({
   const [query, setQuery] = useState('')
   const [selectedIdx, setSelectedIdx] = useState(0)
   const [mounted, setMounted] = useState(false)
+  const [searchResults, setSearchResults] = useState<PaletteItem[]>([])
+  const [searching, setSearching] = useState(false)
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const router = useRouterNavigate()
@@ -159,6 +164,61 @@ export default function CommandPalette({
       })
     }
   }, [open])
+
+  // Debounced global search via API
+  useEffect(() => {
+    if (!query.trim() || query.trim().length < 2) {
+      setSearchResults([])
+      setSearching(false)
+      return
+    }
+    setSearching(true)
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const data = await api.get<Record<string, unknown[]>>(`/api/search?q=${encodeURIComponent(query.trim())}`)
+        const results: PaletteItem[] = []
+        const iconMap: Record<string, React.ReactNode> = {
+          todos: <CheckSquare size={16} />,
+          missions: <Target size={16} />,
+          calendar: <CalendarDays size={16} />,
+          emails: <Mail size={16} />,
+          reminders: <Bell size={16} />,
+          knowledge: <BookOpen size={16} />,
+        }
+        const routeMap: Record<string, string> = {
+          todos: '/todos',
+          missions: '/missions',
+          calendar: '/calendar',
+          emails: '/email',
+          reminders: '/reminders',
+          knowledge: '/knowledge',
+        }
+        for (const [type, items] of Object.entries(data)) {
+          if (!Array.isArray(items)) continue
+          for (const item of items) {
+            const r = item as Record<string, unknown>
+            const label = String(r.title || r.text || r.subject || r.name || '')
+            if (!label) continue
+            results.push({
+              id: `search-${type}-${r.id || label}`,
+              label,
+              icon: iconMap[type] || <Search size={16} />,
+              hint: type,
+              action: () => { router(routeMap[type] || '/'); onClose() },
+              category: 'search',
+            })
+          }
+        }
+        setSearchResults(results)
+      } catch {
+        setSearchResults([])
+      } finally {
+        setSearching(false)
+      }
+    }, 300)
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current) }
+  }, [query, router, onClose])
 
   const navigate = useCallback(
     (href: string) => {
@@ -323,8 +383,8 @@ export default function CommandPalette({
 
   // Flat list for keyboard navigation
   const flatList = useMemo(
-    () => [...groupedPages, ...groupedActions, ...groupedConversations],
-    [groupedPages, groupedActions, groupedConversations],
+    () => [...groupedPages, ...groupedActions, ...groupedConversations, ...searchResults],
+    [groupedPages, groupedActions, groupedConversations, searchResults],
   )
 
   // Clamp selected index when list changes
@@ -452,7 +512,7 @@ export default function CommandPalette({
               setSelectedIdx(0)
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Search pages, actions, conversations..."
+            placeholder="Search everything..."
             role="combobox"
             aria-expanded={true}
             aria-controls="cp-results"
@@ -496,7 +556,7 @@ export default function CommandPalette({
             padding: '6px 0',
           }}
         >
-          {flatList.length === 0 && (
+          {flatList.length === 0 && !searching && (
             <div
               style={{
                 padding: '32px',
@@ -505,7 +565,13 @@ export default function CommandPalette({
                 fontSize: '13px',
               }}
             >
-              No results for &ldquo;{query}&rdquo;
+              {query.trim() ? <>No results for &ldquo;{query}&rdquo;</> : 'Start typing to search...'}
+            </div>
+          )}
+          {flatList.length === 0 && searching && (
+            <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+              Searching...
             </div>
           )}
 
@@ -606,6 +672,45 @@ export default function CommandPalette({
                 Recent Conversations
               </div>
               {groupedConversations.map((item) => {
+                const idx = flatIdx++
+                const active = idx === selectedIdx
+                return (
+                  <PaletteRow
+                    key={item.id}
+                    item={item}
+                    active={active}
+                    dataIdx={idx}
+                    onMouseEnter={() => setSelectedIdx(idx)}
+                    onClick={() => item.action()}
+                  />
+                )
+              })}
+            </div>
+          )}
+
+          {/* Global search results */}
+          {(searchResults.length > 0 || searching) && (
+            <div>
+              <div
+                style={{
+                  padding: flatIdx > 0 ? '12px 18px 6px' : '8px 18px 6px',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  color: 'var(--text-muted)',
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  borderTop: flatIdx > 0 ? '1px solid rgba(255, 255, 255, 0.04)' : undefined,
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                  marginBottom: '2px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                Results
+                {searching && <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />}
+              </div>
+              {searchResults.map((item) => {
                 const idx = flatIdx++
                 const active = idx === selectedIdx
                 return (

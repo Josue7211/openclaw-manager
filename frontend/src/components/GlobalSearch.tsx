@@ -24,6 +24,7 @@ function flattenResults(results: SearchResults): FlatSearchResult[] {
 
 export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { compact?: boolean; collapsed?: boolean; sidebarWidth?: number } = {}) {
   const [query, setQuery] = useState('')
+  const [focused, setFocused] = useState(false)
   const [results, setResults] = useState<SearchResults | null>(null)
   const [loading, setLoading] = useState(false)
   const [activeIdx, setActiveIdx] = useState(0)
@@ -288,6 +289,8 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
                     value={query}
                     onChange={handleChange}
                     onKeyDown={handleKeyDown}
+                    onFocus={() => setFocused(true)}
+                    onBlur={() => setFocused(false)}
                     placeholder=""
                     aria-label="Search"
                     role="combobox"
@@ -306,7 +309,7 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
                       zIndex: 1,
                     }}
                   />
-                  {!query && charsVisible > 0 && (
+                  {!query && !focused && charsVisible > 0 && (
                     <span style={{
                       position: 'absolute',
                       left: 0,

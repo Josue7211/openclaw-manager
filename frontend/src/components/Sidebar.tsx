@@ -1,17 +1,17 @@
 import React, { useState, useCallback, useRef, useMemo, useSyncExternalStore, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronRight, ChevronDown, Settings, Plus, StickyNote, CheckSquare, Lightbulb, Flag, FileText, ArrowUp, ArrowDown, Pencil, Trash2, FolderPlus } from 'lucide-react'
+import { ChevronRight, ChevronDown, Settings, Plus, StickyNote, CheckSquare, Lightbulb, Flag, FileText, ArrowUp, ArrowDown, Pencil, Trash2, FolderPlus, EyeOff } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import GlobalSearch from './GlobalSearch'
 import { NotificationBell } from './NotificationCenter'
 import { ContextMenu, type ContextMenuState, type ContextMenuItem } from './ContextMenu'
 import { type NavItem, navItemsByHref } from '@/lib/nav-items'
-import { subscribeSidebarSettings, getSidebarHeaderVisible, getSidebarDefaultWidth, getSidebarTitleLayout, getSidebarTitleText, getSidebarSearchVisible } from '@/lib/sidebar-settings'
-import { subscribeModules, getEnabledModules } from '@/lib/modules'
+import { subscribeSidebarSettings, getSidebarHeaderVisible, getSidebarDefaultWidth, setSidebarDefaultWidth, getSidebarTitleLayout, getSidebarTitleText, getSidebarSearchVisible, getSidebarLogoVisible, getSidebarTitleSize } from '@/lib/sidebar-settings'
+import { subscribeModules, getEnabledModules, setEnabledModules } from '@/lib/modules'
 import {
   getSidebarConfig, setSidebarConfig, subscribeSidebarConfig,
-  moveItem, renameItem, renameCategory, createCustomModule, deleteCustomModule,
+  moveItem, renameItem, renameCategory, createCustomModule, deleteCustomModule, softDeleteItem,
 } from '@/lib/sidebar-config'
 import { queryKeys } from '@/lib/query-keys'
 import { api } from '@/lib/api'
@@ -85,7 +85,7 @@ const NavSection = React.memo(function NavSection({
   editingHref?: string | null
   editingValue?: string
   onEditingChange?: (v: string) => void
-  onEditingComplete?: () => void
+  onEditingComplete?: (val?: string) => void
   onEditingCancel?: () => void
   // Drag-to-reorder
   onDragStart?: (href: string, catId: string) => void
@@ -193,9 +193,9 @@ const NavSection = React.memo(function NavSection({
                   <input
                     autoFocus
                     defaultValue={editingValue || ''}
-                    onBlur={e => { onEditingChange?.(e.currentTarget.value); setTimeout(() => onEditingComplete?.(), 0) }}
+                    onBlur={e => onEditingComplete?.(e.currentTarget.value)}
                     onKeyDown={e => {
-                      if (e.key === 'Enter') { onEditingChange?.(e.currentTarget.value); onEditingComplete?.() }
+                      if (e.key === 'Enter') onEditingComplete?.(e.currentTarget.value)
                       if (e.key === 'Escape') onEditingCancel?.()
                     }}
                     style={{
@@ -553,8 +553,9 @@ const SidebarQuickCapture = React.memo(function SidebarQuickCapture({
 function TypewriterTitle({ availableWidth }: { availableWidth: number }) {
   const layout = useSyncExternalStore(subscribeSidebarSettings, getSidebarTitleLayout)
   const titleText = useSyncExternalStore(subscribeSidebarSettings, getSidebarTitleText)
+  const titleSize = useSyncExternalStore(subscribeSidebarSettings, getSidebarTitleSize)
   const twoLine = layout === 'two-line'
-  const charWidth = 15
+  const charWidth = Math.round(titleSize * 0.68)
 
   if (twoLine) {
     const words = titleText.toUpperCase().split(' ')
@@ -573,13 +574,14 @@ function TypewriterTitle({ availableWidth }: { availableWidth: number }) {
 
     return (
       <div style={{
-        fontSize: '22px',
+        fontSize: `${titleSize}px`,
         fontWeight: 700,
         fontFamily: "'Bitcount Prop Double', monospace",
         color: 'var(--text-primary)',
         letterSpacing: '0.08em',
         lineHeight: 0.9,
         whiteSpace: 'pre',
+        width: 'fit-content',
       }}>
         {line1.slice(0, line1Visible)}
         {line1Cursor && <span className="type-cursor">|</span>}
@@ -603,13 +605,14 @@ function TypewriterTitle({ availableWidth }: { availableWidth: number }) {
 
   return (
     <div style={{
-      fontSize: '22px',
+      fontSize: `${titleSize}px`,
       fontWeight: 700,
       fontFamily: "'Bitcount Prop Double', monospace",
       color: 'var(--text-primary)',
       letterSpacing: '0.08em',
       lineHeight: 1,
       whiteSpace: 'nowrap',
+      width: 'fit-content',
     }}>
       {visibleText}
       {showCursor && <span className="type-cursor">|</span>}
@@ -657,6 +660,8 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
 
   // External stores
   const headerVisible = useSyncExternalStore(subscribeSidebarSettings, getSidebarHeaderVisible)
+  const logoVisible = useSyncExternalStore(subscribeSidebarSettings, getSidebarLogoVisible)
+  const titleSize = useSyncExternalStore(subscribeSidebarSettings, getSidebarTitleSize)
   const searchVisible = useSyncExternalStore(subscribeSidebarSettings, getSidebarSearchVisible)
   const enabledModules = useSyncExternalStore(subscribeModules, getEnabledModules)
   const sidebarConfig = useSyncExternalStore(subscribeSidebarConfig, getSidebarConfig)
@@ -785,18 +790,15 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
       },
     ]
 
-    if (isCustom) {
-      items.push({
-        label: 'Delete Module',
-        icon: Trash2,
-        onClick: () => {
-          const modId = href.slice('/custom/'.length)
-          deleteCustomModule(modId)
-          if (pathname === href) navigate('/')
-        },
-        danger: true,
-      })
-    }
+    items.push({
+      label: 'Delete',
+      icon: Trash2,
+      onClick: () => {
+        softDeleteItem(href)
+        if (pathname === href) navigate('/')
+      },
+      danger: true,
+    })
 
     setCtxMenu({ x: e.clientX, y: e.clientY, items })
   }, [pathname, navigate])
@@ -822,12 +824,46 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
         onClick: () => {
           const href = createCustomModule('New Module', catId)
           navigate(href)
-          // Auto-start editing the new module's name
           setTimeout(() => {
             setEditingHref(href)
             setEditingValue('New Module')
           }, 50)
         },
+      },
+      {
+        label: 'Move to Unused',
+        icon: EyeOff,
+        onClick: () => {
+          const cfg = getSidebarConfig()
+          const c = cfg.categories.find(cc => cc.id === catId)
+          if (!c) return
+          setSidebarConfig({
+            ...cfg,
+            categories: cfg.categories.filter(cc => cc.id !== catId),
+            unusedCategories: [...(cfg.unusedCategories || []), c],
+          })
+        },
+      },
+      {
+        label: 'Delete Category',
+        icon: Trash2,
+        onClick: () => {
+          const cfg = getSidebarConfig()
+          const c = cfg.categories.find(cc => cc.id === catId)
+          if (!c) return
+          if (c.items.length > 0) {
+            // Move items to first remaining category
+            const remaining = cfg.categories.filter(cc => cc.id !== catId)
+            if (remaining.length > 0) {
+              remaining[0].items = [...remaining[0].items, ...c.items]
+            }
+            setSidebarConfig({ ...cfg, categories: remaining })
+          } else {
+            setSidebarConfig({ ...cfg, categories: cfg.categories.filter(cc => cc.id !== catId) })
+          }
+        },
+        danger: true,
+        disabled: config.categories.length <= 1,
       },
     ]
 
@@ -836,9 +872,10 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
 
   /* ── Inline editing handlers ─────────────────────────────────────────── */
 
-  const handleEditComplete = useCallback(() => {
-    if (editingHref && editingValue.trim()) {
-      renameItem(editingHref, editingValue.trim())
+  const handleEditComplete = useCallback((val?: string) => {
+    const name = val ?? editingValue
+    if (editingHref && name.trim()) {
+      renameItem(editingHref, name.trim())
     }
     setEditingHref(null)
   }, [editingHref, editingValue])
@@ -847,9 +884,10 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
     setEditingHref(null)
   }, [])
 
-  const handleCatEditComplete = useCallback(() => {
-    if (editingCatId && editingCatValue.trim()) {
-      renameCategory(editingCatId, editingCatValue.trim())
+  const handleCatEditComplete = useCallback((val?: string) => {
+    const name = val ?? editingCatValue
+    if (editingCatId && name.trim()) {
+      renameCategory(editingCatId, name.trim())
     }
     setEditingCatId(null)
   }, [editingCatId, editingCatValue])
@@ -884,16 +922,16 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
       const needsSnap = snapWidth !== finalWidth
 
       if (needsSnap) {
-        // Re-enable transitions first, then set snap target so it animates
         draggingRef.current = false
         setIsDragging(false)
-        // Small rAF delay so the browser picks up the transition re-enable
         requestAnimationFrame(() => onWidthChange(snapWidth))
       } else {
         onWidthChange(snapWidth)
         draggingRef.current = false
         setTimeout(() => setIsDragging(false), 100)
       }
+      // Save as default width (unless collapsed)
+      if (snapWidth > 64) setSidebarDefaultWidth(snapWidth)
     })
   }, [width, onWidthChange, draggingRef])
 
@@ -943,8 +981,10 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
 
       {/* ── Logo header — slides up like search when hidden ────────────── */}
       {(() => {
-        const titleAvailable = Math.max(0, width - 16 - 45 - 14)
-        const headerHeight = headerVisible ? 57 : 0
+        const titleAvailable = logoVisible ? Math.max(0, width - 16 - 45 - 14) : Math.max(0, width - 32)
+        const titleH = titleSize + 16 // font size + padding
+        const logoH = 57
+        const headerHeight = headerVisible ? Math.max(logoVisible ? logoH : 0, titleH) : 0
         const headerOpacity = headerVisible ? 1 : 0
         return (
           <div style={{
@@ -955,38 +995,44 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
             flexShrink: 0,
           }}>
             <header style={{
-              padding: '6px 8px',
+              padding: '0 8px',
+              height: '100%',
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              justifyContent: 'flex-start',
+              justifyContent: logoVisible ? 'flex-start' : 'center',
             }}>
-              <div
-                role="img"
-                aria-label="Mission Control"
-                style={{
-                  flexShrink: 0,
-                  width: '45px',
-                  height: '45px',
-                  minWidth: '45px',
-                  WebkitMaskImage: 'url(/logo-128.png)',
-                  WebkitMaskSize: 'contain',
-                  WebkitMaskRepeat: 'no-repeat',
-                  WebkitMaskPosition: 'center',
-                  maskImage: 'url(/logo-128.png)',
-                  maskSize: 'contain',
-                  maskRepeat: 'no-repeat',
-                  maskPosition: 'center',
-                  background: 'var(--logo-color)',
-                  filter: 'drop-shadow(0 2px 8px var(--logo-color))',
-                } as React.CSSProperties}
-              />
+              {logoVisible && (
+                <div
+                  role="img"
+                  aria-label="Mission Control"
+                  style={{
+                    flexShrink: 0,
+                    width: '45px',
+                    height: '45px',
+                    minWidth: '45px',
+                    WebkitMaskImage: 'url(/logo-128.png)',
+                    WebkitMaskSize: 'contain',
+                    WebkitMaskRepeat: 'no-repeat',
+                    WebkitMaskPosition: 'center',
+                    maskImage: 'url(/logo-128.png)',
+                    maskSize: 'contain',
+                    maskRepeat: 'no-repeat',
+                    maskPosition: 'center',
+                    background: 'var(--logo-color)',
+                    filter: 'drop-shadow(0 2px 8px var(--logo-color))',
+                  } as React.CSSProperties}
+                />
+              )}
               <div style={{
                 overflow: 'hidden',
                 minWidth: 0,
-                flex: 1,
+                flex: logoVisible ? 1 : undefined,
+                width: logoVisible ? undefined : '100%',
+                display: 'flex',
+                justifyContent: logoVisible ? 'flex-start' : 'center',
               }}>
-                <TypewriterTitle availableWidth={titleAvailable} />
+                <TypewriterTitle availableWidth={logoVisible ? titleAvailable : Math.max(0, width - 32)} />
               </div>
             </header>
           </div>
@@ -1001,8 +1047,9 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
             height: show ? '46px' : '0px',
             opacity: show ? 1 : 0,
             overflow: 'hidden',
-            transition: 'height 0.25s ease, opacity 0.2s ease',
+            transition: 'height 0.25s ease, opacity 0.2s ease, padding 0.25s ease',
             flexShrink: 0,
+            paddingTop: show && !headerVisible ? '8px' : 0,
             pointerEvents: show ? 'auto' : 'none',
           }}>
             <GlobalSearch compact collapsed={collapsed} sidebarWidth={width} />
@@ -1077,9 +1124,9 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
                   <input
                     autoFocus
                     defaultValue={editingCatValue}
-                    onBlur={e => { setEditingCatValue(e.currentTarget.value); setTimeout(handleCatEditComplete, 0) }}
+                    onBlur={e => handleCatEditComplete(e.currentTarget.value)}
                     onKeyDown={e => {
-                      if (e.key === 'Enter') { setEditingCatValue(e.currentTarget.value); handleCatEditComplete() }
+                      if (e.key === 'Enter') handleCatEditComplete(e.currentTarget.value)
                       if (e.key === 'Escape') setEditingCatId(null)
                     }}
                     style={{

@@ -3,14 +3,18 @@ const WIDTH_KEY = 'sidebar-default-width'
 const TITLE_LAYOUT_KEY = 'sidebar-title-layout'
 const TITLE_TEXT_KEY = 'sidebar-title-text'
 const SEARCH_KEY = 'sidebar-search-visible'
+const LOGO_KEY = 'sidebar-logo-visible'
+const TITLE_SIZE_KEY = 'sidebar-title-size'
 
 let _visible = localStorage.getItem(STORAGE_KEY) !== 'false'
 let _searchVisible = localStorage.getItem(SEARCH_KEY) !== 'false'
+let _logoVisible = localStorage.getItem(LOGO_KEY) !== 'false'
 let _defaultWidth = (() => {
   const w = parseInt(localStorage.getItem(WIDTH_KEY) || '320', 10)
   return w
 })()
 let _titleLayout: 'one-line' | 'two-line' = (localStorage.getItem(TITLE_LAYOUT_KEY) as 'one-line' | 'two-line') || 'one-line'
+let _titleSize = parseInt(localStorage.getItem(TITLE_SIZE_KEY) || '22', 10)
 let _titleText = localStorage.getItem(TITLE_TEXT_KEY) || 'OPENCLAW'
 const _listeners = new Set<() => void>()
 
@@ -51,6 +55,26 @@ export function getSidebarTitleText(): string {
 export function setSidebarTitleText(v: string) {
   _titleText = v
   if (v.trim()) localStorage.setItem(TITLE_TEXT_KEY, v)
+  _listeners.forEach(fn => fn())
+}
+
+export function getSidebarLogoVisible(): boolean {
+  return _logoVisible
+}
+
+export function setSidebarLogoVisible(v: boolean) {
+  _logoVisible = v
+  localStorage.setItem(LOGO_KEY, String(v))
+  _listeners.forEach(fn => fn())
+}
+
+export function getSidebarTitleSize(): number {
+  return _titleSize
+}
+
+export function setSidebarTitleSize(v: number) {
+  _titleSize = Math.max(10, Math.min(40, v))
+  localStorage.setItem(TITLE_SIZE_KEY, String(_titleSize))
   _listeners.forEach(fn => fn())
 }
 

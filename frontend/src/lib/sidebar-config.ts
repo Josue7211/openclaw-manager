@@ -11,10 +11,18 @@ export interface CustomModule {
   name: string
 }
 
+export interface DeletedItem {
+  href: string
+  fromCatId: string
+  deletedAt: number
+}
+
 export interface SidebarConfig {
   categories: SidebarCategory[]
   customNames: Record<string, string> // href -> custom display name
   customModules: CustomModule[]
+  deletedItems?: DeletedItem[]
+  unusedCategories?: SidebarCategory[] // categories moved to Unused
 }
 
 const STORAGE_KEY = 'sidebar-config'
@@ -302,4 +310,70 @@ export function deleteCustomModule(modId: string): void {
       Object.entries(config.customNames).filter(([k]) => k !== href)
     ),
   })
+}
+
+/** Soft-delete an item — move to recycle bin */
+export function softDeleteItem(href: string): void {
+  const config = getSidebarConfig()
+  let fromCatId = ''
+  for (const cat of config.categories) {
+    if (cat.items.includes(href)) { fromCatId = cat.id; break }
+  }
+  const deleted: DeletedItem = { href, fromCatId, deletedAt: Date.now() }
+  setSidebarConfig({
+    ...config,
+    categories: config.categories.map(c => ({
+      ...c,
+      items: c.items.filter(h => h !== href),
+    })),
+    deletedItems: [...(config.deletedItems || []), deleted],
+  })
+}
+
+/** Restore an item from recycle bin */
+export function restoreItem(href: string): void {
+  const config = getSidebarConfig()
+  const deleted = (config.deletedItems || []).find(d => d.href === href)
+  if (!deleted) return
+  const targetCat = config.categories.find(c => c.id === deleted.fromCatId) || config.categories[0]
+  setSidebarConfig({
+    ...config,
+    categories: config.categories.map(c =>
+      c === targetCat ? { ...c, items: [...c.items, href] } : c
+    ),
+    deletedItems: (config.deletedItems || []).filter(d => d.href !== href),
+  })
+}
+
+/** Permanently delete from recycle bin */
+export function permanentlyDelete(href: string): void {
+  const config = getSidebarConfig()
+  const isCustom = href.startsWith('/custom/')
+  setSidebarConfig({
+    ...config,
+    deletedItems: (config.deletedItems || []).filter(d => d.href !== href),
+    ...(isCustom ? {
+      customModules: (config.customModules || []).filter(m => `/custom/${m.id}` !== href),
+      customNames: Object.fromEntries(
+        Object.entries(config.customNames).filter(([k]) => k !== href && !k.startsWith(href + '::'))
+      ),
+    } : {}),
+  })
+}
+
+/** Clear recycle bin */
+export function emptyRecycleBin(): void {
+  const config = getSidebarConfig()
+  const deleted = config.deletedItems || []
+  let newCustomModules = config.customModules || []
+  let newCustomNames = { ...config.customNames }
+  for (const d of deleted) {
+    if (d.href.startsWith('/custom/')) {
+      newCustomModules = newCustomModules.filter(m => `/custom/${m.id}` !== d.href)
+      newCustomNames = Object.fromEntries(
+        Object.entries(newCustomNames).filter(([k]) => k !== d.href && !k.startsWith(d.href + '::'))
+      )
+    }
+  }
+  setSidebarConfig({ ...config, deletedItems: [], customModules: newCustomModules, customNames: newCustomNames })
 }
