@@ -279,7 +279,7 @@ export default function LoginPage() {
     padding: '11px 14px',
     fontSize: '13px',
     fontFamily: "'JetBrains Mono', monospace",
-    background: 'rgba(255, 255, 255, 0.03)',
+    background: 'var(--bg-white-03)',
     border: '1px solid var(--border)',
     borderRadius: '10px',
     color: 'var(--text-primary)',
@@ -294,7 +294,7 @@ export default function LoginPage() {
     fontSize: '13px',
     fontWeight: 600,
     background: 'var(--accent)',
-    color: '#fff',
+    color: 'var(--text-on-color)',
     border: 'none',
     borderRadius: '10px',
     cursor: 'pointer',
@@ -303,7 +303,7 @@ export default function LoginPage() {
 
   const disabledBtnStyle: React.CSSProperties = {
     ...primaryBtnStyle,
-    background: 'rgba(167, 139, 250, 0.12)',
+    background: 'var(--purple-a12)',
     color: 'var(--text-muted)',
     cursor: 'not-allowed',
   }
@@ -313,7 +313,7 @@ export default function LoginPage() {
     padding: '11px',
     fontSize: '13px',
     fontWeight: 500,
-    background: 'rgba(255, 255, 255, 0.04)',
+    background: 'var(--bg-white-04)',
     color: 'var(--text-primary)',
     border: '1px solid var(--border)',
     borderRadius: '10px',
@@ -440,12 +440,12 @@ export default function LoginPage() {
               disabled={loading}
               style={oauthBtnStyle}
               onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'
+                e.currentTarget.style.background = 'var(--hover-bg-bright)'
                 e.currentTarget.style.borderColor = 'var(--border-hover)'
                 e.currentTarget.style.transform = 'translateY(-1px)'
               }}
               onMouseLeave={e => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)'
+                e.currentTarget.style.background = 'var(--bg-white-04)'
                 e.currentTarget.style.borderColor = 'var(--border)'
                 e.currentTarget.style.transform = 'translateY(0)'
               }}
@@ -461,12 +461,12 @@ export default function LoginPage() {
               disabled={loading}
               style={oauthBtnStyle}
               onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'
+                e.currentTarget.style.background = 'var(--hover-bg-bright)'
                 e.currentTarget.style.borderColor = 'var(--border-hover)'
                 e.currentTarget.style.transform = 'translateY(-1px)'
               }}
               onMouseLeave={e => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)'
+                e.currentTarget.style.background = 'var(--bg-white-04)'
                 e.currentTarget.style.borderColor = 'var(--border)'
                 e.currentTarget.style.transform = 'translateY(0)'
               }}
@@ -558,7 +558,7 @@ export default function LoginPage() {
               }}
               onMouseLeave={e => {
                 e.currentTarget.style.background = (loading || !email || !password)
-                  ? 'rgba(167, 139, 250, 0.12)' : 'var(--accent)'
+                  ? 'var(--purple-a12)' : 'var(--accent)'
                 e.currentTarget.style.transform = 'translateY(0)'
                 e.currentTarget.style.boxShadow = 'none'
               }}
@@ -600,8 +600,8 @@ export default function LoginPage() {
                 width: '48px',
                 height: '48px',
                 borderRadius: '14px',
-                background: 'rgba(167, 139, 250, 0.1)',
-                border: '1px solid rgba(167, 139, 250, 0.2)',
+                background: 'var(--purple-a10)',
+                border: '1px solid var(--purple-a20)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -653,7 +653,7 @@ export default function LoginPage() {
               }}
               onMouseLeave={e => {
                 e.currentTarget.style.background = (loading || mfaCode.length !== 6)
-                  ? 'rgba(167, 139, 250, 0.12)' : 'var(--accent)'
+                  ? 'var(--purple-a12)' : 'var(--accent)'
                 e.currentTarget.style.transform = 'translateY(0)'
                 e.currentTarget.style.boxShadow = 'none'
               }}
@@ -842,7 +842,7 @@ export default function LoginPage() {
                 }}
                 onMouseLeave={e => {
                   e.currentTarget.style.background = (loading || mfaCode.length !== 6)
-                    ? 'rgba(167, 139, 250, 0.12)' : 'var(--accent)'
+                    ? 'var(--purple-a12)' : 'var(--accent)'
                   e.currentTarget.style.transform = 'translateY(0)'
                   e.currentTarget.style.boxShadow = 'none'
                 }}

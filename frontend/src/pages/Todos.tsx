@@ -169,7 +169,7 @@ export default function TodosPage() {
         <button
           onClick={addTodo}
           style={{
-            background: 'var(--green)', border: 'none', borderRadius: '10px', color: '#fff',
+            background: 'var(--green)', border: 'none', borderRadius: '10px', color: 'var(--text-on-color)',
             padding: '10px 16px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: '6px',
           }}

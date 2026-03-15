@@ -102,7 +102,7 @@ export default function SettingsKeybindings() {
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                 padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 500,
                 fontFamily: "'JetBrains Mono', monospace",
-                color: i === 0 ? '#fff' : 'var(--text-primary)',
+                color: i === 0 ? 'var(--text-on-color)' : 'var(--text-primary)',
                 background: i === 0 ? 'rgba(167,139,250,0.15)' : 'rgba(255,255,255,0.08)',
                 border: `1px solid ${i === 0 ? 'var(--border-accent)' : 'rgba(255,255,255,0.1)'}`,
                 pointerEvents: 'none',

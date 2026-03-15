@@ -123,7 +123,7 @@ export const ContactAvatar = memo(function ContactAvatar({ address, name, isImsg
         ? (isImsg ? 'linear-gradient(135deg, var(--apple-cyan), var(--apple-blue))' : 'linear-gradient(135deg, var(--apple-green), #30b04e)')
         : bgColor,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: '#fff',
+      color: 'var(--text-on-color)',
     }}>
       {initial ? (
         <span style={{ fontSize: `${Math.round(size * 0.38)}px`, fontWeight: 700 }}>{initial}</span>
@@ -178,7 +178,7 @@ export const GroupAvatar = memo(function GroupAvatar({ conv, size = 40 }: { conv
       width: `${size}px`, height: `${size}px`, borderRadius: '50%', flexShrink: 0,
       background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: '#fff',
+      color: 'var(--text-on-color)',
     }}>
       <Users size={Math.round(size * 0.44)} strokeWidth={2} />
     </div>

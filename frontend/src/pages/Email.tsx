@@ -277,7 +277,7 @@ export default function EmailPage() {
             onClick={() => { setManageOpen(true); openAddForm() }}
             style={{
               padding: '8px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 600,
-              background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer',
+              background: 'var(--accent)', color: 'var(--text-on-color)', border: 'none', cursor: 'pointer',
             }}
           >
             Add Account
@@ -445,7 +445,7 @@ export default function EmailPage() {
                     disabled={formSaving}
                     style={{
                       flex: 1, padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
-                      background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer',
+                      background: 'var(--accent)', color: 'var(--text-on-color)', border: 'none', cursor: 'pointer',
                     }}
                   >
                     {formSaving ? 'Saving…' : editingAccount ? 'Save Changes' : 'Add Account'}
@@ -575,7 +575,7 @@ export default function EmailPage() {
               padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 500,
               cursor: 'pointer', transition: 'all 0.15s',
               background: folder === f.id ? 'var(--accent)' : 'var(--bg-panel)',
-              color: folder === f.id ? '#fff' : 'var(--text-secondary)',
+              color: folder === f.id ? 'var(--text-on-color)' : 'var(--text-secondary)',
               border: folder === f.id ? '1px solid var(--accent)' : '1px solid var(--border)',
             }}
           >

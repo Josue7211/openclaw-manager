@@ -208,7 +208,7 @@ export default function RemindersPage() {
               padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 500,
               cursor: 'pointer', transition: 'all 0.15s',
               background: filter === tab.id ? 'var(--accent)' : 'var(--bg-panel)',
-              color: filter === tab.id ? '#fff' : 'var(--text-secondary)',
+              color: filter === tab.id ? 'var(--text-on-color)' : 'var(--text-secondary)',
               border: filter === tab.id ? '1px solid var(--accent)' : '1px solid var(--border)',
             }}
           >

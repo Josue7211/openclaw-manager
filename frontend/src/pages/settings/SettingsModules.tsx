@@ -924,7 +924,7 @@ export default function SettingsModules() {
                   style={{
                     padding: '3px 8px', fontSize: '10px',
                     fontWeight: sidebarTitleLayout === opt ? 600 : 450,
-                    color: sidebarTitleLayout === opt ? '#fff' : 'var(--text-secondary)',
+                    color: sidebarTitleLayout === opt ? 'var(--text-on-color)' : 'var(--text-secondary)',
                     background: sidebarTitleLayout === opt ? 'rgba(167, 139, 250, 0.15)' : 'transparent',
                     border: `1px solid ${sidebarTitleLayout === opt ? 'var(--border-accent)' : 'var(--border)'}`,
                     borderRadius: '6px', cursor: 'pointer',

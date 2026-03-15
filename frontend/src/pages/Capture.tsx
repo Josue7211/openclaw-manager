@@ -179,7 +179,7 @@ export default function CapturePage() {
               border: 'none',
               cursor: input.trim() && !submitting ? 'pointer' : 'not-allowed',
               background: input.trim() && !submitting ? 'var(--accent)' : 'var(--bg-panel)',
-              color: input.trim() && !submitting ? '#fff' : 'var(--text-muted)',
+              color: input.trim() && !submitting ? 'var(--text-on-color)' : 'var(--text-muted)',
               fontSize: '14px',
               fontWeight: 600,
               transition: 'all 0.15s',

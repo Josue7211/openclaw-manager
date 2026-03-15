@@ -552,7 +552,7 @@ export default function PomodoroPage() {
                   style={{
                     display: 'flex', alignItems: 'center', gap: '6px',
                     padding: '9px 20px', borderRadius: '8px', border: 'none',
-                    background: 'var(--green)', color: '#fff', fontSize: '13px',
+                    background: 'var(--green)', color: 'var(--text-on-color)', fontSize: '13px',
                     fontWeight: 600, cursor: 'pointer',
                   }}
                 >
@@ -662,7 +662,7 @@ export default function PomodoroPage() {
               style={{
                 display: 'flex', alignItems: 'center', gap: '8px',
                 padding: '8px 28px', borderRadius: '8px', border: 'none',
-                background: accentColor, color: '#fff', fontSize: '13px',
+                background: accentColor, color: 'var(--text-on-color)', fontSize: '13px',
                 fontWeight: 700, cursor: 'pointer', transition: 'all 0.25s',
                 letterSpacing: '0.04em',
               }}

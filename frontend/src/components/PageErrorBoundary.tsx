@@ -99,7 +99,7 @@ export default class PageErrorBoundary extends Component<Props, State> {
                   background: 'var(--accent)',
                   border: 'none',
                   borderRadius: '10px',
-                  color: '#fff',
+                  color: 'var(--text-on-color)',
                   padding: '8px 20px',
                   fontSize: '13px',
                   fontWeight: 600,

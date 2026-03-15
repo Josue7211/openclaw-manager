@@ -119,7 +119,7 @@ export default function ComposePanel({
             background: (composeHasDraft && composeTo.trim())
               ? 'linear-gradient(135deg, var(--apple-cyan), var(--apple-blue))'
               : 'var(--bg-elevated)',
-            color: (composeHasDraft && composeTo.trim()) ? '#fff' : 'var(--text-muted)',
+            color: (composeHasDraft && composeTo.trim()) ? 'var(--text-on-color)' : 'var(--text-muted)',
             cursor: (composeHasDraft && composeTo.trim()) ? 'pointer' : 'default',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0, transition: 'all 0.2s var(--ease-spring)',

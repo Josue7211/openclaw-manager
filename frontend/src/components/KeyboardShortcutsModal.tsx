@@ -41,7 +41,7 @@ export default function KeyboardShortcutsModal({
       `}</style>
 
       <div role="presentation" onClick={onClose} style={{
-        position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)',
+        position: 'fixed', inset: 0, background: 'var(--overlay)',
         backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
         zIndex: 'var(--z-modal-backdrop)' as React.CSSProperties['zIndex'], animation: 'ks-fadein 0.15s ease',
       }} />
@@ -56,14 +56,14 @@ export default function KeyboardShortcutsModal({
         width: '480px', maxWidth: 'calc(100vw - 32px)', maxHeight: 'calc(100vh - 120px)',
         background: 'rgba(18, 18, 24, 0.96)', backdropFilter: 'blur(32px) saturate(180%)',
         WebkitBackdropFilter: 'blur(32px) saturate(180%)',
-        border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '16px',
-        boxShadow: '0 24px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04)',
+        border: '1px solid var(--hover-bg-bright)', borderRadius: '16px',
+        boxShadow: '0 24px 80px var(--overlay-heavy), 0 0 0 1px var(--bg-white-04)',
         zIndex: 'var(--z-modal)' as React.CSSProperties['zIndex'], display: 'flex', flexDirection: 'column', overflow: 'hidden',
         animation: 'ks-scalein 0.2s var(--ease-spring)',
       }}>
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '16px 20px', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', flexShrink: 0,
+          padding: '16px 20px', borderBottom: '1px solid var(--active-bg)', flexShrink: 0,
         }}>
           <h2 id="ks-title" style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
             Keyboard Shortcuts
@@ -71,7 +71,7 @@ export default function KeyboardShortcutsModal({
           <button onClick={onClose} aria-label="Close" className="hover-bg-bright" style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             width: '28px', height: '28px', borderRadius: '8px', border: 'none',
-            background: 'rgba(255, 255, 255, 0.06)', color: 'var(--text-secondary)', cursor: 'pointer',
+            background: 'var(--active-bg)', color: 'var(--text-secondary)', cursor: 'pointer',
             transition: 'background 0.15s ease',
           }}>
             <X size={14} />
@@ -101,8 +101,8 @@ export default function KeyboardShortcutsModal({
                           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                           minWidth: '24px', height: '24px', padding: '0 6px', borderRadius: '6px',
                           fontSize: '12px', fontWeight: 500, fontFamily: "'JetBrains Mono', monospace",
-                          color: 'var(--text-primary)', background: 'rgba(255, 255, 255, 0.08)',
-                          border: '1px solid rgba(255, 255, 255, 0.1)', boxShadow: '0 1px 2px rgba(0, 0, 0, 0.2)',
+                          color: 'var(--text-primary)', background: 'var(--hover-bg-bright)',
+                          border: '1px solid var(--border-hover)', boxShadow: '0 1px 2px var(--overlay-light)',
                           lineHeight: 1,
                         }}>{k}</kbd>
                       ))}

@@ -518,7 +518,7 @@ export default function MessageThread({
                       background: isStickerMsg ? 'transparent' : fromMe
                         ? (imsg ? 'linear-gradient(135deg, var(--apple-cyan), var(--apple-blue))' : 'linear-gradient(135deg, var(--apple-green), #30b04e)')
                         : 'var(--bg-elevated)',
-                      color: fromMe ? '#fff' : 'var(--text-primary)',
+                      color: fromMe ? 'var(--text-on-color)' : 'var(--text-primary)',
                       fontSize: '13px', lineHeight: 1.45, wordBreak: 'break-word',
                       border: isStickerMsg ? 'none' : fromMe ? 'none' : '1px solid var(--border)',
                       cursor: 'default', overflow: 'hidden',
@@ -574,7 +574,7 @@ export default function MessageThread({
                                 <div style={{
                                   width: '32px', height: '32px', borderRadius: '6px',
                                   background: 'var(--apple-red)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  fontSize: '10px', fontWeight: 700, color: '#fff', flexShrink: 0,
+                                  fontSize: '10px', fontWeight: 700, color: 'var(--text-on-color)', flexShrink: 0,
                                 }}>PDF</div>
                                 <div style={{ minWidth: 0 }}>
                                   <div style={{
@@ -869,7 +869,7 @@ export default function MessageThread({
             background: (hasDraft || attachmentFile)
               ? (imsg ? 'linear-gradient(135deg, var(--apple-cyan), var(--apple-blue))' : 'linear-gradient(135deg, var(--apple-green), #30b04e)')
               : 'var(--bg-elevated)',
-            color: (hasDraft || attachmentFile) ? '#fff' : 'var(--text-muted)',
+            color: (hasDraft || attachmentFile) ? 'var(--text-on-color)' : 'var(--text-muted)',
             cursor: (hasDraft || attachmentFile) ? 'pointer' : 'default',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0, transition: 'all 0.2s var(--ease-spring)',

@@ -251,7 +251,7 @@ export default function ConversationList({
                     <button key={f} onClick={() => { setServiceFilter(f); if (showJunk) setShowJunk(() => false) }} style={{
                       flex: 1, padding: '6px 8px', fontSize: '11px',
                       fontWeight: act ? 600 : 450,
-                      color: act ? '#fff' : 'var(--text-secondary)',
+                      color: act ? 'var(--text-on-color)' : 'var(--text-secondary)',
                       background: act
                         ? (f === 'iMessage' ? 'rgba(0,122,255,0.25)' : f === 'SMS' ? 'rgba(52,199,89,0.2)' : 'rgba(167,139,250,0.15)')
                         : 'transparent',
@@ -265,7 +265,7 @@ export default function ConversationList({
                 <button onClick={() => setShowJunk(j => !j)} style={{
                   flex: 1, padding: '6px 8px', fontSize: '11px',
                   fontWeight: showJunk ? 600 : 450,
-                  color: showJunk ? '#fff' : 'var(--text-muted)',
+                  color: showJunk ? 'var(--text-on-color)' : 'var(--text-muted)',
                   background: showJunk ? 'rgba(248,113,113,0.2)' : 'transparent',
                   border: showJunk ? 'none' : '1px solid var(--border)',
                   borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s',
@@ -436,7 +436,7 @@ export default function ConversationList({
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             opacity: textOpacity,
                           }}>
-                            {isSel && <Check size={13} color="#fff" strokeWidth={3} />}
+                            {isSel && <Check size={13} color="var(--text-on-color)" strokeWidth={3} />}
                           </div>
                         )}
 
@@ -466,7 +466,7 @@ export default function ConversationList({
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
                               <span style={{
                                 fontSize: '13px', fontWeight: conv.isUnread ? 700 : 600,
-                                color: active ? '#fff' : 'var(--text-primary)',
+                                color: active ? 'var(--text-on-color)' : 'var(--text-primary)',
                                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                                 display: 'flex', alignItems: 'center', gap: '4px',
                               }}>

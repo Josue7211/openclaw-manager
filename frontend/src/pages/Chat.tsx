@@ -656,7 +656,7 @@ OPENCLAW_API_KEY=your-api-key`}
                   background: msg.role === 'user' ? 'var(--accent-blue)' : 'rgba(22, 22, 28, 0.65)',
                   border: `1px solid ${msg.role === 'user' ? 'transparent' : 'var(--border)'}`,
                   fontSize: '13px', lineHeight: 1.65,
-                  color: msg.role === 'user' ? '#fff' : 'var(--text-primary)',
+                  color: msg.role === 'user' ? 'var(--text-on-color)' : 'var(--text-primary)',
                   wordBreak: 'break-word',
                 }}>
                   {msg.role === 'user' ? (
@@ -700,7 +700,7 @@ OPENCLAW_API_KEY=your-api-key`}
                   background: 'var(--accent-blue)',
                   border: '1px solid transparent',
                   fontSize: '13px', lineHeight: 1.65,
-                  color: '#fff',
+                  color: 'var(--text-on-color)',
                   wordBreak: 'break-word',
                   opacity: msg.status === 'sending' ? 0.85 : 1,
                   transition: 'opacity 0.3s',
@@ -730,7 +730,7 @@ OPENCLAW_API_KEY=your-api-key`}
                 >
                   <span style={{
                     width: '16px', height: '16px', borderRadius: '50%',
-                    background: 'var(--red)', color: '#fff',
+                    background: 'var(--red)', color: 'var(--text-on-color)',
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: '10px', fontWeight: 700, flexShrink: 0,
                   }}>!</span>
@@ -788,7 +788,7 @@ OPENCLAW_API_KEY=your-api-key`}
                   return next
                 })}
                 aria-label="Remove image"
-                style={{ position: 'absolute', top: '-6px', right: '-6px', width: '18px', height: '18px', borderRadius: '50%', background: 'var(--red)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                style={{ position: 'absolute', top: '-6px', right: '-6px', width: '18px', height: '18px', borderRadius: '50%', background: 'var(--red)', border: 'none', color: 'var(--text-on-color)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 <X size={10} />
               </button>
@@ -851,7 +851,7 @@ OPENCLAW_API_KEY=your-api-key`}
             flexShrink: 0,
             background: (sending || (!input.trim() && images.length === 0)) ? 'rgba(255, 255, 255, 0.05)' : 'var(--accent)',
             border: 'none', borderRadius: '10px',
-            color: (sending || (!input.trim() && images.length === 0)) ? 'var(--text-muted)' : '#fff',
+            color: (sending || (!input.trim() && images.length === 0)) ? 'var(--text-muted)' : 'var(--text-on-color)',
             padding: '7px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all 0.25s var(--ease-spring)',
           }}
         >

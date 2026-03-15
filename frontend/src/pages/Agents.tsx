@@ -231,7 +231,7 @@ function AgentCard({ agent, onSave, activeMission }: AgentCardProps) {
               disabled={saving}
               style={{
                 fontSize: '11px', padding: '4px 12px', borderRadius: '10px',
-                border: 'none', background: 'var(--accent)', color: '#fff',
+                border: 'none', background: 'var(--accent)', color: 'var(--text-on-color)',
                 cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
               }}
             >

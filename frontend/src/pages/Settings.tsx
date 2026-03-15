@@ -797,7 +797,7 @@ export default function SettingsPage() {
                       display: 'flex', alignItems: 'center', gap: '10px', width: '100%',
                       padding: '8px 16px', borderRadius: '10px', marginBottom: '2px',
                       background: active ? 'var(--active-bg)' : isFocused ? 'rgba(167,139,250,0.10)' : 'transparent',
-                      border: 'none', color: active ? '#fff' : 'var(--text-secondary)',
+                      border: 'none', color: active ? 'var(--text-on-color)' : 'var(--text-secondary)',
                       fontSize: '13px', fontWeight: active ? 600 : 450, cursor: 'pointer',
                       textAlign: 'left', whiteSpace: 'nowrap',
                       transition: 'all 0.15s',
@@ -805,7 +805,7 @@ export default function SettingsPage() {
                       outlineOffset: '-1px',
                     }}
                     onMouseEnter={e => { if (!active) { e.currentTarget.style.background = isFocused ? 'rgba(167,139,250,0.10)' : 'var(--hover-bg)'; e.currentTarget.style.color = 'var(--text-primary)' } }}
-                    onMouseLeave={e => { e.currentTarget.style.background = active ? 'var(--active-bg)' : isFocused ? 'rgba(167,139,250,0.10)' : 'transparent'; e.currentTarget.style.color = active ? '#fff' : 'var(--text-secondary)' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = active ? 'var(--active-bg)' : isFocused ? 'rgba(167,139,250,0.10)' : 'transparent'; e.currentTarget.style.color = active ? 'var(--text-on-color)' : 'var(--text-secondary)' }}
                   >
                     <s.icon size={16} style={{ flexShrink: 0, color: active ? 'var(--accent)' : undefined }} />
                     {s.label}

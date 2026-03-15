@@ -135,10 +135,31 @@ input, textarea, [contenteditable="true"], code, pre, kbd {
   /* Semantic colors */
   --warning: #fbbf24;
   --text-on-accent: #fff;
+  --text-on-color: #fff;
 
   /* Hover/active backgrounds */
   --hover-bg: rgba(255, 255, 255, 0.05);
+  --hover-bg-bright: rgba(255, 255, 255, 0.08);
   --active-bg: rgba(255, 255, 255, 0.06);
+
+  /* White-alpha surface tints */
+  --bg-white-02: rgba(255, 255, 255, 0.02);
+  --bg-white-03: rgba(255, 255, 255, 0.03);
+  --bg-white-04: rgba(255, 255, 255, 0.04);
+  --bg-white-15: rgba(255, 255, 255, 0.15);
+
+  /* Purple-alpha tints (accent decorations) */
+  --purple-a08: rgba(155, 132, 236, 0.08);
+  --purple-a10: rgba(155, 132, 236, 0.1);
+  --purple-a12: rgba(155, 132, 236, 0.12);
+  --purple-a15: rgba(155, 132, 236, 0.15);
+  --purple-a20: rgba(155, 132, 236, 0.2);
+  --purple-a30: rgba(155, 132, 236, 0.3);
+
+  /* Black-alpha overlays */
+  --overlay-light: rgba(0, 0, 0, 0.4);
+  --overlay: rgba(0, 0, 0, 0.5);
+  --overlay-heavy: rgba(0, 0, 0, 0.6);
 
   /* ── Spacing scale — 4px/8px grid ── */
   --space-1: 4px;
@@ -188,7 +209,12 @@ input, textarea, [contenteditable="true"], code, pre, kbd {
   --glass-bg: rgba(255, 255, 255, 0.7);
   --glass-border: rgba(0, 0, 0, 0.06);
   --hover-bg: rgba(0, 0, 0, 0.04);
+  --hover-bg-bright: rgba(0, 0, 0, 0.08);
   --active-bg: rgba(0, 0, 0, 0.06);
+  --bg-white-02: rgba(0, 0, 0, 0.02);
+  --bg-white-03: rgba(0, 0, 0, 0.03);
+  --bg-white-04: rgba(0, 0, 0, 0.04);
+  --bg-white-15: rgba(0, 0, 0, 0.1);
 
   /* Dark surface overrides for light theme */
   --border-strong: rgba(0, 0, 0, 0.12);
@@ -543,7 +569,7 @@ body::before {
 }
 
 .hover-bg-bright:hover {
-  background: rgba(255, 255, 255, 0.08) !important;
+  background: var(--hover-bg-bright) !important;
 }
 
 .hover-text-primary:hover {

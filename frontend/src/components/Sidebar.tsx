@@ -258,7 +258,7 @@ const NavSection = React.memo(function NavSection({
                     padding: '9px 16px',
                     borderRadius: '10px',
                     marginBottom: '2px',
-                    color: active ? '#fff' : 'var(--text-secondary)',
+                    color: active ? 'var(--text-on-color)' : 'var(--text-secondary)',
                     background: active ? 'var(--active-bg)' : 'transparent',
                     border: 'none',
                     textDecoration: 'none',
@@ -392,7 +392,7 @@ const SidebarQuickCapture = React.memo(function SidebarQuickCapture({
           background: open ? 'var(--active-bg)' : 'transparent',
           border: 'none',
           borderRadius: '10px',
-          color: open ? '#fff' : 'var(--text-secondary)',
+          color: open ? 'var(--text-on-color)' : 'var(--text-secondary)',
           cursor: 'pointer',
           transition: `background 0.25s var(--ease-spring), color 0.25s var(--ease-spring)`,
           fontSize: '13px',
@@ -410,7 +410,7 @@ const SidebarQuickCapture = React.memo(function SidebarQuickCapture({
         }}
         onMouseLeave={e => {
           e.currentTarget.style.background = open ? 'var(--active-bg)' : 'transparent'
-          e.currentTarget.style.color = open ? '#fff' : 'var(--text-secondary)'
+          e.currentTarget.style.color = open ? 'var(--text-on-color)' : 'var(--text-secondary)'
         }}
       >
         <Plus size={16} style={{ flexShrink: 0 }} />
@@ -430,7 +430,7 @@ const SidebarQuickCapture = React.memo(function SidebarQuickCapture({
           background: 'var(--bg-panel)',
           border: '1px solid var(--border)',
           borderRadius: '12px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          boxShadow: '0 8px 32px var(--overlay-light)',
           minWidth: '260px',
           zIndex: 10000,
           animation: 'fadeInUp 0.15s var(--ease-spring)',
@@ -485,7 +485,7 @@ const SidebarQuickCapture = React.memo(function SidebarQuickCapture({
                   justifyContent: 'center',
                   gap: '4px',
                   padding: '4px 6px',
-                  background: captureType === type ? 'rgba(167, 139, 250, 0.15)' : 'transparent',
+                  background: captureType === type ? 'var(--purple-a15)' : 'transparent',
                   border: `1px solid ${captureType === type ? 'var(--border-accent)' : 'var(--border)'}`,
                   borderRadius: '6px',
                   color: captureType === type ? 'var(--accent)' : 'var(--text-muted)',
@@ -513,7 +513,7 @@ const SidebarQuickCapture = React.memo(function SidebarQuickCapture({
               aria-label="Quick capture"
               style={{
                 flex: 1,
-                background: 'rgba(255,255,255,0.04)',
+                background: 'var(--bg-white-04)',
                 border: '1px solid var(--border)',
                 borderRadius: '8px',
                 padding: '6px 10px',
@@ -528,10 +528,10 @@ const SidebarQuickCapture = React.memo(function SidebarQuickCapture({
               disabled={!text.trim() || saving}
               style={{
                 padding: '6px 10px',
-                background: text.trim() ? 'var(--accent)' : 'rgba(255,255,255,0.04)',
+                background: text.trim() ? 'var(--accent)' : 'var(--bg-white-04)',
                 border: 'none',
                 borderRadius: '8px',
-                color: text.trim() ? '#fff' : 'var(--text-muted)',
+                color: text.trim() ? 'var(--text-on-color)' : 'var(--text-muted)',
                 cursor: text.trim() ? 'pointer' : 'default',
                 fontSize: '11px',
                 fontWeight: 600,
@@ -1235,7 +1235,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
             width: '100%',
             margin: '4px 0 12px',
             padding: '8px',
-            background: 'rgba(255, 255, 255, 0.04)',
+            background: 'var(--bg-white-04)',
             border: '1px solid var(--border)',
             borderRadius: '10px',
             color: 'var(--text-secondary)',
@@ -1246,11 +1246,11 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
             transition: `background 0.25s var(--ease-spring), color 0.25s var(--ease-spring)`,
           }}
           onMouseEnter={e => {
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'
+            e.currentTarget.style.background = 'var(--hover-bg-bright)'
             e.currentTarget.style.borderColor = 'var(--border-hover)'
           }}
           onMouseLeave={e => {
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)'
+            e.currentTarget.style.background = 'var(--bg-white-04)'
             e.currentTarget.style.borderColor = 'var(--border)'
           }}
         >

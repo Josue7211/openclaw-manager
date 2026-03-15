@@ -65,7 +65,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 const STALE_TYPE_COLORS: Record<ItemType, { bg: string; color: string; border: string }> = {
   todo: { bg: 'rgba(59,165,92,0.12)', color: 'var(--green)', border: 'rgba(59,165,92,0.25)' },
-  mission: { bg: 'rgba(155,132,236,0.12)', color: 'var(--accent-bright)', border: 'rgba(155,132,236,0.25)' },
+  mission: { bg: 'var(--purple-a12)', color: 'var(--accent-bright)', border: 'var(--border-accent)' },
   idea: { bg: 'rgba(230,168,23,0.12)', color: 'var(--gold)', border: 'rgba(230,168,23,0.25)' },
 }
 
@@ -137,7 +137,7 @@ function daysAgo(dateStr: string) {
 
 function MarkdownText({ text }: { text: string }) {
   const codeStyle: React.CSSProperties = {
-    background: 'rgba(155,132,236,0.15)',
+    background: 'var(--purple-a15)',
     padding: '1px 5px',
     borderRadius: '4px',
     fontFamily: 'monospace',
@@ -250,11 +250,11 @@ function FilterDropdown({ label, value, options, onChange, colorMap }: {
           padding: '4px 10px',
           borderRadius: '8px',
           border: '1px solid',
-          borderColor: value ? (activeColor ? `${activeColor}66` : 'rgba(155,132,236,0.3)') : 'rgba(255,255,255,0.08)',
+          borderColor: value ? (activeColor ? `${activeColor}66` : 'var(--purple-a30)') : 'var(--hover-bg-bright)',
           cursor: 'pointer',
           fontSize: '11px',
           fontWeight: 500,
-          background: value ? (activeColor ? `${activeColor}15` : 'rgba(155,132,236,0.08)') : 'transparent',
+          background: value ? (activeColor ? `${activeColor}15` : 'var(--purple-a08)') : 'transparent',
           color: value ? (activeColor || 'var(--accent-bright)') : 'var(--text-muted)',
           display: 'flex',
           alignItems: 'center',
@@ -277,11 +277,11 @@ function FilterDropdown({ label, value, options, onChange, colorMap }: {
           background: 'rgba(18, 18, 24, 0.96)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255,255,255,0.1)',
+          border: '1px solid var(--border-hover)',
           borderRadius: '10px',
           padding: '4px',
           zIndex: 100,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          boxShadow: '0 8px 24px var(--overlay-light)',
           animation: 'fadeInUp 0.12s var(--ease-spring) both',
         }}>
           {value && (
@@ -308,12 +308,12 @@ function FilterDropdown({ label, value, options, onChange, colorMap }: {
                 style={{
                   width: '100%', textAlign: 'left', padding: '6px 10px', borderRadius: '6px',
                   border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: active ? 600 : 450,
-                  background: active ? 'rgba(155,132,236,0.12)' : 'transparent',
+                  background: active ? 'var(--purple-a12)' : 'transparent',
                   color: active ? (optColor || 'var(--accent-bright)') : (optColor || 'var(--text-secondary)'),
                   transition: 'background 0.1s',
                   textTransform: 'capitalize',
                 }}
-                onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--active-bg)' }}
                 onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
               >
                 {opt}
@@ -537,14 +537,14 @@ export default function PipelinePage() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '2px', marginBottom: '20px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '3px' }}>
+      <div style={{ display: 'flex', gap: '2px', marginBottom: '20px', background: 'var(--bg-white-03)', borderRadius: '10px', padding: '3px' }}>
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             style={{
               padding: '6px 14px',
-              background: tab === t.key ? 'rgba(155,132,236,0.15)' : 'transparent',
+              background: tab === t.key ? 'var(--purple-a15)' : 'transparent',
               border: 'none',
               borderRadius: '8px',
               color: tab === t.key ? 'var(--accent-bright)' : 'var(--text-muted)',
@@ -591,7 +591,7 @@ export default function PipelinePage() {
                 cursor: 'pointer',
                 fontSize: '12px',
                 fontWeight: 600,
-                background: ideasFilter === null ? 'rgba(255,255,255,0.08)' : 'transparent',
+                background: ideasFilter === null ? 'var(--hover-bg-bright)' : 'transparent',
                 color: ideasFilter === null ? 'var(--text-primary)' : 'var(--text-muted)',
                 transition: 'all 0.15s var(--ease-spring)',
               }}
@@ -681,11 +681,11 @@ export default function PipelinePage() {
                   padding: '5px 12px',
                   borderRadius: '8px',
                   border: '1px solid',
-                  borderColor: allSelected ? 'rgba(155,132,236,0.3)' : 'transparent',
+                  borderColor: allSelected ? 'var(--purple-a30)' : 'transparent',
                   cursor: 'pointer',
                   fontSize: '12px',
                   fontWeight: 500,
-                  background: allSelected ? 'rgba(155,132,236,0.1)' : 'transparent',
+                  background: allSelected ? 'var(--purple-a10)' : 'transparent',
                   color: allSelected ? 'var(--accent-bright)' : 'var(--text-muted)',
                   transition: 'all 0.15s var(--ease-spring)',
                 }}
@@ -714,9 +714,9 @@ export default function PipelinePage() {
                     key={idea.id}
                     style={{
                       borderRadius: idx === 0 ? '10px 10px 2px 2px' : idx === filtered.length - 1 ? '2px 2px 10px 10px' : '2px',
-                      background: isExpanded ? 'rgba(255,255,255,0.04)' : isSelected ? 'rgba(155,132,236,0.06)' : 'rgba(255,255,255,0.02)',
+                      background: isExpanded ? 'var(--bg-white-04)' : isSelected ? 'rgba(155,132,236,0.06)' : 'var(--bg-white-02)',
                       border: '1px solid',
-                      borderColor: isExpanded ? 'rgba(155,132,236,0.3)' : isSelected ? 'rgba(155,132,236,0.2)' : 'var(--border)',
+                      borderColor: isExpanded ? 'var(--purple-a30)' : isSelected ? 'var(--purple-a20)' : 'var(--border)',
                       transition: 'all 0.15s var(--ease-spring)',
                       marginBottom: '-1px',
                       position: 'relative',
@@ -742,7 +742,7 @@ export default function PipelinePage() {
                           width: '20px',
                           height: '20px',
                           borderRadius: '50%',
-                          border: `1.5px solid ${isSelected ? 'var(--accent)' : 'rgba(255,255,255,0.15)'}`,
+                          border: `1.5px solid ${isSelected ? 'var(--accent)' : 'var(--bg-white-15)'}`,
                           background: isSelected ? 'var(--accent)' : 'transparent',
                           display: 'flex',
                           alignItems: 'center',
@@ -778,7 +778,7 @@ export default function PipelinePage() {
                           {idea.category && (
                             <span style={{
                               padding: '1px 7px', borderRadius: '6px', fontSize: '10px', fontWeight: 500,
-                              background: 'rgba(155,132,236,0.1)', color: 'var(--accent)',
+                              background: 'var(--purple-a10)', color: 'var(--accent)',
                             }}>
                               {idea.category}
                             </span>
@@ -825,7 +825,7 @@ export default function PipelinePage() {
                         {idea.status === 'approved' && !idea.mission_id && (
                           <button onClick={() => updateIdeaStatus(idea.id, 'built')} style={{
                             padding: '4px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                            fontSize: '11px', fontWeight: 600, background: 'rgba(155,132,236,0.12)', color: 'var(--accent-bright)',
+                            fontSize: '11px', fontWeight: 600, background: 'var(--purple-a12)', color: 'var(--accent-bright)',
                             transition: 'all 0.12s',
                           }}>Built</button>
                         )}
@@ -901,15 +901,15 @@ export default function PipelinePage() {
               background: 'rgba(18, 18, 24, 0.95)',
               backdropFilter: 'blur(20px)',
               WebkitBackdropFilter: 'blur(20px)',
-              border: '1px solid rgba(155,132,236,0.25)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04)',
+              border: '1px solid var(--border-accent)',
+              boxShadow: '0 8px 32px var(--overlay), 0 0 0 1px var(--bg-white-04)',
               zIndex: 1000,
               animation: 'fadeInUp 0.2s var(--ease-spring) both',
             }}>
               <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--accent-bright)' }}>
                 {selectedIds.size} selected
               </span>
-              <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.08)' }} />
+              <div style={{ width: '1px', height: '20px', background: 'var(--hover-bg-bright)' }} />
               <button onClick={() => bulkUpdateStatus('approved')} disabled={bulkActing} style={{
                 padding: '6px 14px', borderRadius: '8px', border: 'none', cursor: bulkActing ? 'wait' : 'pointer',
                 fontSize: '12px', fontWeight: 600, background: 'rgba(52,211,153,0.15)', color: 'var(--green)',
@@ -925,7 +925,7 @@ export default function PipelinePage() {
                 fontSize: '12px', fontWeight: 600, background: 'rgba(230,168,23,0.15)', color: 'var(--gold)',
                 opacity: bulkActing ? 0.5 : 1, transition: 'all 0.12s',
               }}>Defer</button>
-              <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.08)' }} />
+              <div style={{ width: '1px', height: '20px', background: 'var(--hover-bg-bright)' }} />
               <button onClick={() => setSelectedIds(new Set())} style={{
                 padding: '6px 10px', borderRadius: '8px', border: 'none', cursor: 'pointer',
                 fontSize: '12px', fontWeight: 500, background: 'transparent', color: 'var(--text-muted)',
@@ -975,8 +975,8 @@ export default function PipelinePage() {
                     <div
                       key={n.id}
                       style={{
-                        background: 'rgba(255,255,255,0.02)',
-                        border: '1px solid rgba(255,255,255,0.06)',
+                        background: 'var(--bg-white-02)',
+                        border: '1px solid var(--active-bg)',
                         borderRadius: '8px',
                         padding: '10px 14px',
                         display: 'flex',
@@ -1000,7 +1000,7 @@ export default function PipelinePage() {
                           flexShrink: 0,
                           padding: '4px 10px',
                           background: n.applied ? 'rgba(5, 150, 105, 0.15)' : 'transparent',
-                          border: n.applied ? '1px solid rgba(5, 150, 105, 0.3)' : '1px solid rgba(255,255,255,0.1)',
+                          border: n.applied ? '1px solid rgba(5, 150, 105, 0.3)' : '1px solid var(--border-hover)',
                           borderRadius: '6px',
                           color: n.applied ? 'var(--green)' : 'var(--text-muted)',
                           fontSize: '11px',
@@ -1020,7 +1020,7 @@ export default function PipelinePage() {
             <div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Other</div>
               {notes.filter((n) => !CATEGORIES.includes(n.category)).map((n) => (
-                <div key={n.id} style={{ fontSize: '13px', color: 'var(--text-primary)', padding: '8px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <div key={n.id} style={{ fontSize: '13px', color: 'var(--text-primary)', padding: '8px', borderBottom: '1px solid var(--bg-white-04)' }}>
                   [{n.category}] {n.note}
                 </div>
               ))}
@@ -1039,8 +1039,8 @@ export default function PipelinePage() {
               <div
                 key={r.id}
                 style={{
-                  background: 'rgba(255,255,255,0.03)',
-                  border: '1px solid rgba(255,255,255,0.08)',
+                  background: 'var(--bg-white-03)',
+                  border: '1px solid var(--hover-bg-bright)',
                   borderRadius: '10px',
                   padding: '16px 20px',
                 }}
@@ -1092,8 +1092,8 @@ export default function PipelinePage() {
               <div
                 key={i}
                 style={{
-                  background: 'rgba(255,255,255,0.03)',
-                  border: '1px solid rgba(255,255,255,0.08)',
+                  background: 'var(--bg-white-03)',
+                  border: '1px solid var(--hover-bg-bright)',
                   borderRadius: '10px',
                   padding: '14px 18px',
                   display: 'flex',
@@ -1118,7 +1118,7 @@ export default function PipelinePage() {
               </div>
             ))
           )}
-          <div style={{ marginTop: '16px', padding: '12px 16px', background: 'rgba(155, 132, 236, 0.06)', border: '1px solid rgba(155, 132, 236, 0.15)', borderRadius: '8px' }}>
+          <div style={{ marginTop: '16px', padding: '12px 16px', background: 'var(--purple-a08)', border: '1px solid var(--purple-a15)', borderRadius: '8px' }}>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Expected schedule</div>
             <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.8 }}>
               🤖 Ideas agent — every 3 hours<br />
@@ -1142,9 +1142,9 @@ export default function PipelinePage() {
                   borderRadius: '20px',
                   fontSize: '11px',
                   fontWeight: 600,
-                  background: 'rgba(155,132,236,0.12)',
+                  background: 'var(--purple-a12)',
                   color: 'var(--accent)',
-                  border: '1px solid rgba(155,132,236,0.2)',
+                  border: '1px solid var(--purple-a20)',
                 }}>
                   {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
                 </span>
@@ -1158,11 +1158,11 @@ export default function PipelinePage() {
                 gap: '6px',
                 padding: '6px 12px',
                 borderRadius: '8px',
-                border: '1px solid rgba(155,132,236,0.3)',
+                border: '1px solid var(--purple-a30)',
                 cursor: 'pointer',
                 fontSize: '12px',
                 fontWeight: 600,
-                background: showShipForm ? 'rgba(155,132,236,0.15)' : 'transparent',
+                background: showShipForm ? 'var(--purple-a15)' : 'transparent',
                 color: 'var(--accent-bright)',
                 transition: 'all 0.15s',
               }}
@@ -1178,7 +1178,7 @@ export default function PipelinePage() {
               <form onSubmit={handleShipSubmit} style={{
                 background: 'var(--bg-panel)',
                 borderRadius: '12px',
-                border: '1px solid rgba(155,132,236,0.25)',
+                border: '1px solid var(--border-accent)',
                 padding: '20px',
                 marginBottom: '24px',
               }}>
@@ -1292,7 +1292,7 @@ export default function PipelinePage() {
                       cursor: 'pointer',
                       fontSize: '13px',
                       fontWeight: 600,
-                      background: 'rgba(155,132,236,0.2)',
+                      background: 'var(--purple-a20)',
                       color: 'var(--accent-bright)',
                       opacity: shipSubmitting ? 0.6 : 1,
                     }}
@@ -1346,9 +1346,9 @@ export default function PipelinePage() {
                                     borderRadius: '20px',
                                     fontSize: '10px',
                                     fontWeight: 600,
-                                    background: 'rgba(155,132,236,0.12)',
+                                    background: 'var(--purple-a12)',
                                     color: 'var(--accent)',
-                                    border: '1px solid rgba(155,132,236,0.2)',
+                                    border: '1px solid var(--purple-a20)',
                                   }}>
                                     {tag}
                                   </span>
@@ -1393,7 +1393,7 @@ export default function PipelinePage() {
             )}
           </div>
           {/* Ideas stats cards — overview */}
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '32px', paddingTop: '24px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--active-bg)' }}>
             {IDEA_STATUS_META.map(({ status, label, color }) => {
               const count = ideas.filter(i => i.status === status).length
               const active = ideasFilter === status

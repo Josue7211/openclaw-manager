@@ -216,7 +216,7 @@ export function NotificationBell({ collapsed, textOpacity = 1 }: { collapsed: bo
           background: open ? 'var(--active-bg)' : 'transparent',
           border: 'none',
           borderRadius: '10px',
-          color: open ? '#fff' : 'var(--text-secondary)',
+          color: open ? 'var(--text-on-color)' : 'var(--text-secondary)',
           cursor: 'pointer',
           position: 'relative',
           transition: 'all 0.25s var(--ease-spring)',
@@ -235,7 +235,7 @@ export function NotificationBell({ collapsed, textOpacity = 1 }: { collapsed: bo
         }}
         onMouseLeave={e => {
           e.currentTarget.style.background = open ? 'var(--active-bg)' : 'transparent'
-          e.currentTarget.style.color = open ? '#fff' : 'var(--text-secondary)'
+          e.currentTarget.style.color = open ? 'var(--text-on-color)' : 'var(--text-secondary)'
         }}
       >
         <Bell size={16} style={{ flexShrink: 0 }} />
@@ -261,7 +261,7 @@ export function NotificationBell({ collapsed, textOpacity = 1 }: { collapsed: bo
               borderRadius: '9px',
               fontSize: '10px',
               fontWeight: 700,
-              color: '#fff',
+              color: 'var(--text-on-color)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -309,14 +309,14 @@ const NotificationRow = React.memo(function NotificationRow({
         padding: indent ? '6px 14px 6px 40px' : '10px 14px',
         background: notif.read ? 'transparent' : 'rgba(96,165,250,0.04)',
         border: 'none',
-        borderBottom: '1px solid rgba(255,255,255,0.04)',
+        borderBottom: '1px solid var(--bg-white-04)',
         cursor: notif.route ? 'pointer' : 'default',
         textAlign: 'left',
         transition: 'background 0.15s ease, transform 0.15s ease',
         color: 'inherit',
       }}
       onMouseEnter={e => {
-        e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
+        e.currentTarget.style.background = 'var(--active-bg)'
         if (notif.route) e.currentTarget.style.transform = 'translateX(2px)'
       }}
       onMouseLeave={e => {
@@ -432,14 +432,14 @@ const GroupedNotificationRow = React.memo(function GroupedNotificationRow({
           width: '100%',
           padding: '10px 14px',
           background: group.hasUnread ? 'rgba(96,165,250,0.04)' : 'transparent',
-          borderBottom: '1px solid rgba(255,255,255,0.04)',
+          borderBottom: '1px solid var(--bg-white-04)',
           textAlign: 'left',
           transition: 'background 0.15s ease',
           color: 'inherit',
           cursor: 'pointer',
         }}
         onMouseEnter={e => {
-          e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+          e.currentTarget.style.background = 'var(--bg-white-04)'
         }}
         onMouseLeave={e => {
           e.currentTarget.style.background = group.hasUnread ? 'rgba(96,165,250,0.04)' : 'transparent'
@@ -544,7 +544,7 @@ const GroupedNotificationRow = React.memo(function GroupedNotificationRow({
             transition: 'all 0.15s ease',
           }}
           onMouseEnter={e => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
+            e.currentTarget.style.background = 'var(--hover-bg-bright)'
             e.currentTarget.style.color = 'var(--text-secondary)'
           }}
           onMouseLeave={e => {
@@ -563,7 +563,7 @@ const GroupedNotificationRow = React.memo(function GroupedNotificationRow({
       {expanded && (
         <div style={{
           background: 'rgba(0,0,0,0.15)',
-          borderBottom: '1px solid rgba(255,255,255,0.04)',
+          borderBottom: '1px solid var(--bg-white-04)',
         }}>
           {group.items.map(notif => (
             <NotificationRow
@@ -623,9 +623,9 @@ const NotificationPanel = forwardRef<HTMLDivElement, { onClose: () => void; posi
           background: 'rgba(16, 16, 22, 0.98)',
           backdropFilter: 'blur(24px) saturate(180%)',
           WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-          border: '1px solid rgba(255,255,255,0.1)',
+          border: '1px solid var(--border-hover)',
           borderRadius: '12px',
-          boxShadow: '0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05) inset',
+          boxShadow: '0 16px 48px var(--overlay), 0 0 0 1px var(--hover-bg) inset',
           zIndex: 1000,
           display: 'flex',
           flexDirection: 'column',
@@ -640,7 +640,7 @@ const NotificationPanel = forwardRef<HTMLDivElement, { onClose: () => void; posi
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '12px 14px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          borderBottom: '1px solid var(--active-bg)',
           flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -684,7 +684,7 @@ const NotificationPanel = forwardRef<HTMLDivElement, { onClose: () => void; posi
                   transition: 'all 0.15s ease',
                 }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
+                  e.currentTarget.style.background = 'var(--active-bg)'
                   e.currentTarget.style.color = 'var(--text-secondary)'
                 }}
                 onMouseLeave={e => {
@@ -713,7 +713,7 @@ const NotificationPanel = forwardRef<HTMLDivElement, { onClose: () => void; posi
                 transition: 'all 0.15s ease',
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
+                e.currentTarget.style.background = 'var(--active-bg)'
                 e.currentTarget.style.color = 'var(--text-secondary)'
               }}
               onMouseLeave={e => {
@@ -768,7 +768,7 @@ const NotificationPanel = forwardRef<HTMLDivElement, { onClose: () => void; posi
         {notifications.length > 0 && (
           <div style={{
             padding: '8px 14px',
-            borderTop: '1px solid rgba(255,255,255,0.06)',
+            borderTop: '1px solid var(--active-bg)',
             display: 'flex',
             justifyContent: 'center',
             flexShrink: 0,
@@ -788,7 +788,7 @@ const NotificationPanel = forwardRef<HTMLDivElement, { onClose: () => void; posi
               }}
               onMouseEnter={e => {
                 e.currentTarget.style.color = 'var(--text-secondary)'
-                e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                e.currentTarget.style.background = 'var(--bg-white-04)'
               }}
               onMouseLeave={e => {
                 e.currentTarget.style.color = 'var(--text-muted)'

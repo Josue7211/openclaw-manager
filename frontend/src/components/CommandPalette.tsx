@@ -449,7 +449,7 @@ export default function CommandPalette({
         style={{
           position: 'fixed',
           inset: 0,
-          background: query.trim() ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.5)',
+          background: query.trim() ? 'var(--overlay-heavy)' : 'var(--overlay)',
           backdropFilter: query.trim() ? 'blur(16px)' : 'blur(8px)',
           WebkitBackdropFilter: query.trim() ? 'blur(16px)' : 'blur(8px)',
           zIndex: 'var(--z-modal-backdrop)' as React.CSSProperties['zIndex'],
@@ -475,10 +475,10 @@ export default function CommandPalette({
           background: 'rgba(18, 18, 24, 0.96)',
           backdropFilter: 'blur(32px) saturate(180%)',
           WebkitBackdropFilter: 'blur(32px) saturate(180%)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          border: '1px solid var(--hover-bg-bright)',
           borderRadius: '16px',
           boxShadow:
-            '0 24px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04)',
+            '0 24px 80px var(--overlay-heavy), 0 0 0 1px var(--bg-white-04)',
           zIndex: 'var(--z-modal)' as React.CSSProperties['zIndex'],
           display: 'flex',
           flexDirection: 'column',
@@ -496,7 +496,7 @@ export default function CommandPalette({
             alignItems: 'center',
             gap: '12px',
             padding: '14px 18px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+            borderBottom: '1px solid var(--active-bg)',
             flexShrink: 0,
           }}
         >
@@ -535,8 +535,8 @@ export default function CommandPalette({
               borderRadius: '5px',
               fontSize: '11px',
               color: 'var(--text-muted)',
-              background: 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'var(--active-bg)',
+              border: '1px solid var(--hover-bg-bright)',
               fontFamily: "'JetBrains Mono', monospace",
               lineHeight: 1.4,
               flexShrink: 0,
@@ -586,7 +586,7 @@ export default function CommandPalette({
                   color: 'var(--text-muted)',
                   letterSpacing: '0.1em',
                   textTransform: 'uppercase',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                  borderBottom: '1px solid var(--bg-white-04)',
                   marginBottom: '2px',
                 }}
               >
@@ -624,9 +624,9 @@ export default function CommandPalette({
                   textTransform: 'uppercase',
                   borderTop:
                     groupedPages.length > 0
-                      ? '1px solid rgba(255, 255, 255, 0.04)'
+                      ? '1px solid var(--bg-white-04)'
                       : undefined,
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                  borderBottom: '1px solid var(--bg-white-04)',
                   marginBottom: '2px',
                 }}
               >
@@ -664,9 +664,9 @@ export default function CommandPalette({
                   textTransform: 'uppercase',
                   borderTop:
                     (groupedPages.length > 0 || groupedActions.length > 0)
-                      ? '1px solid rgba(255, 255, 255, 0.04)'
+                      ? '1px solid var(--bg-white-04)'
                       : undefined,
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                  borderBottom: '1px solid var(--bg-white-04)',
                   marginBottom: '2px',
                 }}
               >
@@ -700,8 +700,8 @@ export default function CommandPalette({
                   color: 'var(--text-muted)',
                   letterSpacing: '0.1em',
                   textTransform: 'uppercase',
-                  borderTop: flatIdx > 0 ? '1px solid rgba(255, 255, 255, 0.04)' : undefined,
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                  borderTop: flatIdx > 0 ? '1px solid var(--bg-white-04)' : undefined,
+                  borderBottom: '1px solid var(--bg-white-04)',
                   marginBottom: '2px',
                   display: 'flex',
                   alignItems: 'center',
@@ -733,7 +733,7 @@ export default function CommandPalette({
         <div
           style={{
             padding: '8px 18px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+            borderTop: '1px solid var(--active-bg)',
             fontSize: '11px',
             color: 'var(--text-muted)',
             display: 'flex',
@@ -786,7 +786,7 @@ function PaletteRow({
         margin: '0 6px',
         borderRadius: '10px',
         cursor: 'pointer',
-        background: active ? 'rgba(167, 139, 250, 0.1)' : 'transparent',
+        background: active ? 'var(--purple-a10)' : 'transparent',
         transition: 'background 0.15s ease, transform 0.15s var(--ease-spring)',
         transform: active ? 'translateX(1px)' : 'translateX(0)',
       }}
@@ -800,8 +800,8 @@ function PaletteRow({
           height: '28px',
           borderRadius: '8px',
           background: active
-            ? 'rgba(167, 139, 250, 0.15)'
-            : 'rgba(255, 255, 255, 0.04)',
+            ? 'var(--purple-a15)'
+            : 'var(--bg-white-04)',
           color: active ? 'var(--accent)' : 'var(--text-secondary)',
           flexShrink: 0,
           transition: 'all 0.15s ease',
@@ -870,8 +870,8 @@ const kbdHint: React.CSSProperties = {
   fontWeight: 500,
   fontFamily: "'JetBrains Mono', monospace",
   color: 'var(--text-muted)',
-  background: 'rgba(255, 255, 255, 0.06)',
-  border: '1px solid rgba(255, 255, 255, 0.08)',
+  background: 'var(--active-bg)',
+  border: '1px solid var(--hover-bg-bright)',
   lineHeight: 1,
 }
 
@@ -884,8 +884,8 @@ const kbdSmall: React.CSSProperties = {
   fontSize: '10px',
   fontFamily: "'JetBrains Mono', monospace",
   color: 'var(--text-muted)',
-  background: 'rgba(255, 255, 255, 0.06)',
-  border: '1px solid rgba(255, 255, 255, 0.06)',
+  background: 'var(--active-bg)',
+  border: '1px solid var(--active-bg)',
   marginRight: '4px',
   lineHeight: 1.5,
 }

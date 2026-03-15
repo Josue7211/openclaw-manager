@@ -274,7 +274,7 @@ export default function CalendarPage() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: '13px', fontWeight: isToday ? 700 : 400,
                   background: isToday ? 'var(--accent)' : 'transparent',
-                  color: isToday ? '#fff' : 'var(--text-primary)',
+                  color: isToday ? 'var(--text-on-color)' : 'var(--text-primary)',
                 }}>
                   {d.getDate()}
                 </span>
@@ -492,7 +492,7 @@ export default function CalendarPage() {
                     fontSize: '12px',
                     fontWeight: isToday ? 700 : 400,
                     background: isToday ? 'var(--accent)' : 'transparent',
-                    color: isToday ? '#fff' : 'var(--text-secondary)',
+                    color: isToday ? 'var(--text-on-color)' : 'var(--text-secondary)',
                     flexShrink: 0,
                   }}>
                     {day}

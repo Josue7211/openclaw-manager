@@ -72,7 +72,7 @@ export default function NotFound() {
             display: 'flex', alignItems: 'center', gap: '6px',
             padding: '8px 16px', borderRadius: '10px',
             border: 'none', background: 'var(--accent)',
-            color: '#fff', fontSize: '12px', fontWeight: 600,
+            color: 'var(--text-on-color)', fontSize: '12px', fontWeight: 600,
             textDecoration: 'none', cursor: 'pointer',
           }}
         >

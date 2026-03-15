@@ -156,7 +156,7 @@ export default function Lightbox({ data, onClose }: LightboxProps) {
         style={{
           position: 'fixed', top: '20px', right: '24px',
           background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
-          borderRadius: '50%', width: '36px', height: '36px', color: '#fff', cursor: 'pointer',
+          borderRadius: '50%', width: '36px', height: '36px', color: 'var(--text-on-color)', cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s',
         }}
         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)' }}

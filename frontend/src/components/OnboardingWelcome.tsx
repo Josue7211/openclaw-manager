@@ -24,7 +24,7 @@ const primaryBtn: React.CSSProperties = {
   borderRadius: '10px',
   border: 'none',
   background: 'var(--accent)',
-  color: '#fff',
+  color: 'var(--text-on-color)',
   fontSize: '13px',
   fontWeight: 600,
   cursor: 'pointer',
@@ -89,7 +89,7 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
       <div style={{
         display: 'flex', flexDirection: 'column', gap: '6px', width: '100%',
         padding: '12px 16px', borderRadius: '12px',
-        background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)',
+        background: 'var(--bg-white-03)', border: '1px solid var(--bg-white-04)',
       }}>
         <SetupFeature icon={Database} title="Supabase" desc="Database and authentication (required)" />
         <SetupFeature icon={Bot} title="OpenClaw" desc="AI agent workspace (required)" />
@@ -524,7 +524,7 @@ function StepDone({ onFinish }: { onFinish: () => void }) {
         <div style={{
           width: '100%', display: 'flex', flexDirection: 'column', gap: '6px',
           padding: '12px 16px', borderRadius: '12px',
-          background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)',
+          background: 'var(--bg-white-03)', border: '1px solid var(--bg-white-04)',
         }}>
           <ConnectionSummaryRow label="Supabase" connected={supabaseOk} />
           <ConnectionSummaryRow label="BlueBubbles" connected={bbOk} />
@@ -703,10 +703,10 @@ export default function OnboardingWelcome({ forceOpen, onClose }: { forceOpen?: 
           background: 'rgba(18, 18, 24, 0.97)',
           backdropFilter: 'blur(32px) saturate(180%)',
           WebkitBackdropFilter: 'blur(32px) saturate(180%)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          border: '1px solid var(--hover-bg-bright)',
           borderRadius: '20px',
           boxShadow:
-            '0 32px 100px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04)',
+            '0 32px 100px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--bg-white-04)',
           zIndex: 'var(--z-modal)' as React.CSSProperties['zIndex'],
           animation: 'ob-scalein 0.25s var(--ease-spring)',
         }}

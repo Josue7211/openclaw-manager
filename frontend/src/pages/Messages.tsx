@@ -924,7 +924,7 @@ export default function MessagesPage() {
                 </span>
                 {toast.count > 1 && (
                   <span style={{
-                    fontSize: '10px', fontWeight: 700, color: '#fff',
+                    fontSize: '10px', fontWeight: 700, color: 'var(--text-on-color)',
                     background: 'var(--apple-blue)', borderRadius: '8px',
                     padding: '1px 5px', flexShrink: 0, lineHeight: '14px',
                   }}>

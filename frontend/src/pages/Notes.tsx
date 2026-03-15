@@ -119,7 +119,7 @@ export default function NotesPage() {
                 background: selectedId === note.id ? 'var(--active-bg)' : 'transparent',
                 border: 'none',
                 borderRadius: '8px',
-                color: selectedId === note.id ? '#fff' : 'var(--text-secondary)',
+                color: selectedId === note.id ? 'var(--text-on-color)' : 'var(--text-secondary)',
                 cursor: 'pointer',
                 textAlign: 'left',
                 marginBottom: '2px',

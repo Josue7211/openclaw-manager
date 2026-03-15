@@ -74,7 +74,7 @@ function statusIcon(status: string) {
 
 const EVENT_META: Record<string, { tickColor: string; icon: React.ReactNode; label: string; labelColor: string; bg: string; border: string }> = {
   user:   { tickColor: '#ec4899', icon: <User size={11} />,      label: 'User',   labelColor: 'var(--pink)', bg: 'rgba(236,72,153,0.12)',  border: 'rgba(236,72,153,0.3)' },
-  think:  { tickColor: 'var(--purple)', icon: <Lightbulb size={11} />, label: 'Think',  labelColor: 'var(--accent-bright)', bg: 'rgba(155,132,236,0.12)', border: 'rgba(155,132,236,0.25)' },
+  think:  { tickColor: 'var(--purple)', icon: <Lightbulb size={11} />, label: 'Think',  labelColor: 'var(--accent-bright)', bg: 'var(--purple-a12)', border: 'var(--border-accent)' },
   write:  { tickColor: 'var(--green-500)', icon: <FileText size={11} />,  label: 'Write',  labelColor: 'var(--green-400)', bg: 'rgba(34,197,94,0.15)',   border: 'rgba(34,197,94,0.35)' },
   edit:   { tickColor: '#10b981', icon: <Pencil size={11} />,    label: 'Edit',   labelColor: 'var(--green)', bg: 'rgba(16,185,129,0.15)',  border: 'rgba(16,185,129,0.35)' },
   bash:   { tickColor: '#3b82f6', icon: <Terminal size={11} />,  label: 'Bash',   labelColor: 'var(--blue)', bg: 'rgba(59,130,246,0.15)',  border: 'rgba(59,130,246,0.35)' },
@@ -142,7 +142,7 @@ function ReplayEventRow({
         transition: 'background 0.08s, border-color 0.08s',
       }}
       onMouseEnter={e => {
-        if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+        if (!isActive) e.currentTarget.style.background = 'var(--bg-white-04)'
       }}
       onMouseLeave={e => {
         if (!isActive) e.currentTarget.style.background = 'transparent'
@@ -206,7 +206,7 @@ function ReplayEventRow({
             color: isThink ? 'var(--text-muted)' : 'var(--text-primary)',
             fontStyle: isThink ? 'italic' : 'normal',
             lineHeight: 1.5,
-            background: 'rgba(255,255,255,0.02)',
+            background: 'var(--bg-white-02)',
             borderRadius: '4px',
             padding: '6px 8px',
             whiteSpace: 'pre-wrap',
@@ -414,7 +414,7 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
       {[1, 2, 3].map(i => (
         <div key={i} style={{
           height: '32px', borderRadius: '10px',
-          background: 'linear-gradient(90deg, rgba(255, 255, 255, 0.05) 25%, rgba(22, 22, 28, 0.65) 50%, rgba(255, 255, 255, 0.05) 75%)',
+          background: 'linear-gradient(90deg, var(--hover-bg) 25%, var(--bg-card) 50%, var(--hover-bg) 75%)',
           backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite',
           opacity: 1 - i * 0.15,
         }} />
@@ -432,7 +432,7 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
     }}>
       <div style={{
         width: '20px', height: '20px', borderRadius: '50%',
-        border: '2px solid rgba(155,132,236,0.3)',
+        border: '2px solid var(--purple-a30)',
         borderTopColor: 'var(--accent-bright)',
         animation: 'spin 0.8s linear infinite',
       }} />
@@ -522,7 +522,7 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
           cursor: 'col-resize',
           marginBottom: '10px',
           userSelect: 'none',
-          background: 'rgba(255,255,255,0.04)',
+          background: 'var(--bg-white-04)',
           borderRadius: '4px',
         }}
       >
@@ -587,7 +587,7 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
             left: `${events.length > 1 ? (hoveredTick / (events.length - 1)) * 100 : 0}%`,
             transform: 'translateX(-50%)',
             marginBottom: '4px',
-            background: 'rgba(22, 22, 28, 0.65)',
+            background: 'var(--bg-card)',
             border: '1px solid var(--border)',
             borderRadius: '4px',
             padding: '3px 6px',
@@ -602,10 +602,10 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
         )}
 
         {/* Time labels */}
-        <span style={{ position: 'absolute', bottom: '-14px', left: '0', fontSize: '9px', color: 'rgba(255,255,255,0.25)', fontFamily: 'monospace', pointerEvents: 'none' }}>
+        <span style={{ position: 'absolute', bottom: '-14px', left: '0', fontSize: '9px', color: 'var(--bg-white-15)', fontFamily: 'monospace', pointerEvents: 'none' }}>
           +0:00
         </span>
-        <span style={{ position: 'absolute', bottom: '-14px', right: '0', fontSize: '9px', color: 'rgba(255,255,255,0.25)', fontFamily: 'monospace', pointerEvents: 'none' }}>
+        <span style={{ position: 'absolute', bottom: '-14px', right: '0', fontSize: '9px', color: 'var(--bg-white-15)', fontFamily: 'monospace', pointerEvents: 'none' }}>
           {formatElapsed(totalElapsed)}
         </span>
       </div>
@@ -660,7 +660,7 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             width: '22px', height: '22px', borderRadius: '50%',
             border: '1px solid var(--border)',
-            background: playing ? 'rgba(155,132,236,0.15)' : 'rgba(255, 255, 255, 0.05)',
+            background: playing ? 'var(--purple-a15)' : 'var(--hover-bg)',
             color: playing ? 'var(--accent-bright)' : 'var(--text-secondary)',
             cursor: 'pointer', flexShrink: 0,
           }}
@@ -675,7 +675,7 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
             fontSize: '9px', fontFamily: 'monospace', fontWeight: 700,
             padding: '1px 5px', borderRadius: '4px',
             border: '1px solid var(--border)',
-            background: 'rgba(255, 255, 255, 0.05)',
+            background: 'var(--hover-bg)',
             color: 'var(--text-secondary)',
             cursor: 'pointer',
           }}
@@ -821,7 +821,7 @@ export default function MissionsPage() {
           onClick={refreshMissions}
           style={{
             display: 'flex', alignItems: 'center', gap: '6px',
-            background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border)',
+            background: 'var(--hover-bg)', border: '1px solid var(--border)',
             borderRadius: '10px', padding: '7px 12px',
             color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer',
             transition: 'all 0.25s var(--ease-spring)',
@@ -845,7 +845,7 @@ export default function MissionsPage() {
               style={{
                 padding: '5px 14px', borderRadius: '20px',
                 border: `1px solid ${active ? 'rgba(155,132,236,0.4)' : 'var(--border)'}`,
-                background: active ? 'rgba(155,132,236,0.12)' : 'transparent',
+                background: active ? 'var(--purple-a12)' : 'transparent',
                 color: active ? 'var(--accent-bright)' : 'var(--text-secondary)',
                 fontSize: '12px', fontWeight: active ? 600 : 400,
                 cursor: 'pointer', transition: 'all 0.25s var(--ease-spring)',
@@ -855,7 +855,7 @@ export default function MissionsPage() {
               {label}
               <span style={{
                 fontSize: '10px', fontFamily: 'monospace',
-                background: active ? 'rgba(155,132,236,0.2)' : 'rgba(255, 255, 255, 0.05)',
+                background: active ? 'var(--purple-a20)' : 'var(--hover-bg)',
                 padding: '1px 5px', borderRadius: '10px',
                 color: active ? 'var(--accent-bright)' : 'var(--text-muted)',
               }}>
@@ -873,7 +873,7 @@ export default function MissionsPage() {
             {[1, 2, 3, 4].map(i => (
               <div key={i} style={{
                 height: '68px', borderRadius: '10px',
-                background: 'linear-gradient(90deg, rgba(255, 255, 255, 0.05) 25%, rgba(22, 22, 28, 0.65) 50%, rgba(255, 255, 255, 0.05) 75%)',
+                background: 'linear-gradient(90deg, var(--hover-bg) 25%, var(--bg-card) 50%, var(--hover-bg) 75%)',
                 backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite',
               }} />
             ))}
@@ -916,7 +916,7 @@ export default function MissionsPage() {
                   key={mission.id}
                   style={{
                     borderRadius: '10px',
-                    background: isExpanded ? 'rgba(255, 255, 255, 0.05)' : 'rgba(22, 22, 28, 0.65)',
+                    background: isExpanded ? 'var(--hover-bg)' : 'var(--bg-card)',
                     border: `1px solid ${isExpanded ? 'rgba(155,132,236,0.35)' : done ? 'rgba(74,222,128,0.15)' : 'var(--border)'}`,
                     opacity: done ? 0.88 : 1,
                     transition: 'border-color 0.15s, background 0.15s',
@@ -934,15 +934,15 @@ export default function MissionsPage() {
                     onMouseEnter={e => {
                       if (!isExpanded) {
                         const card = e.currentTarget.parentElement!
-                        card.style.borderColor = 'rgba(155,132,236,0.25)'
-                        card.style.background  = 'rgba(255, 255, 255, 0.05)'
+                        card.style.borderColor = 'var(--border-accent)'
+                        card.style.background  = 'var(--hover-bg)'
                       }
                     }}
                     onMouseLeave={e => {
                       if (!isExpanded) {
                         const card = e.currentTarget.parentElement!
                         card.style.borderColor = done ? 'rgba(74,222,128,0.15)' : 'var(--border)'
-                        card.style.background  = 'rgba(22, 22, 28, 0.65)'
+                        card.style.background  = 'var(--bg-card)'
                       }
                     }}
                   >
@@ -985,8 +985,8 @@ export default function MissionsPage() {
                           {mission.task_type && mission.task_type !== 'non-code' && (
                             <span style={{
                               fontSize: '9px', padding: '1px 5px', borderRadius: '10px',
-                              background: mission.task_type === 'code' ? 'rgba(59,130,246,0.12)' : 'rgba(155,132,236,0.12)',
-                              border: `1px solid ${mission.task_type === 'code' ? 'rgba(59,130,246,0.3)' : 'rgba(155,132,236,0.3)'}`,
+                              background: mission.task_type === 'code' ? 'rgba(59,130,246,0.12)' : 'var(--purple-a12)',
+                              border: `1px solid ${mission.task_type === 'code' ? 'rgba(59,130,246,0.3)' : 'var(--purple-a30)'}`,
                               color: mission.task_type === 'code' ? 'var(--blue)' : 'var(--accent-bright)',
                             }}>
                               {mission.task_type}
@@ -1051,8 +1051,8 @@ export default function MissionsPage() {
                         flexShrink: 0, fontSize: '10px', fontFamily: 'monospace',
                         padding: '2px 8px', borderRadius: '10px',
                         color: statusColor(mission.status),
-                        background: done ? 'rgba(74,222,128,0.08)' : mission.status === 'active' ? 'rgba(155,132,236,0.1)' : 'rgba(255, 255, 255, 0.05)',
-                        border: `1px solid ${done ? 'rgba(74,222,128,0.2)' : mission.status === 'active' ? 'rgba(155,132,236,0.2)' : 'var(--border)'}`,
+                        background: done ? 'rgba(74,222,128,0.08)' : mission.status === 'active' ? 'var(--purple-a10)' : 'var(--hover-bg)',
+                        border: `1px solid ${done ? 'rgba(74,222,128,0.2)' : mission.status === 'active' ? 'var(--purple-a20)' : 'var(--border)'}`,
                       }}>
                         {mission.status}
                       </div>
@@ -1071,7 +1071,7 @@ export default function MissionsPage() {
                   </div>
 
                   {/* Progress bar — thin strip at bottom of card header */}
-                  <div style={{ height: '3px', background: 'rgba(255,255,255,0.06)', position: 'relative', overflow: 'hidden' }}>
+                  <div style={{ height: '3px', background: 'var(--active-bg)', position: 'relative', overflow: 'hidden' }}>
                     <div style={{
                       position: 'absolute', top: 0, left: 0, bottom: 0,
                       width: `${barPct}%`,

@@ -228,7 +228,7 @@ export default function MemoryPage() {
                     borderRadius: 6,
                     border: '1px solid var(--border)',
                     background: mode === 'view' ? 'var(--accent)' : 'transparent',
-                    color: mode === 'view' ? '#fff' : 'var(--text-secondary)',
+                    color: mode === 'view' ? 'var(--text-on-color)' : 'var(--text-secondary)',
                     cursor: 'pointer',
                     fontWeight: 600,
                   }}
@@ -243,7 +243,7 @@ export default function MemoryPage() {
                     borderRadius: 6,
                     border: '1px solid var(--border)',
                     background: mode === 'edit' ? 'var(--accent)' : 'transparent',
-                    color: mode === 'edit' ? '#fff' : 'var(--text-secondary)',
+                    color: mode === 'edit' ? 'var(--text-on-color)' : 'var(--text-secondary)',
                     cursor: 'pointer',
                     fontWeight: 600,
                   }}
@@ -261,7 +261,7 @@ export default function MemoryPage() {
                         borderRadius: 6,
                         border: 'none',
                         background: saveMutation.isPending ? 'var(--text-muted)' : 'var(--accent-dim)',
-                        color: '#fff',
+                        color: 'var(--text-on-color)',
                         cursor: saveMutation.isPending ? 'not-allowed' : 'pointer',
                         fontWeight: 700,
                       }}
@@ -361,7 +361,7 @@ function FileRow({ file, active, onClick }: { file: FileItem; active: boolean; o
         padding: '8px 12px',
         marginBottom: 2,
         cursor: 'pointer',
-        color: active ? '#fff' : 'var(--text-secondary)',
+        color: active ? 'var(--text-on-color)' : 'var(--text-secondary)',
         fontSize: '13px',
         fontFamily: 'monospace',
         fontWeight: active ? 600 : 400,
