@@ -1,8 +1,8 @@
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::header,
     response::{Html, IntoResponse},
-    routing::get,
+    routing::{delete, get, post},
     Json, Router,
 };
 use serde::Deserialize;
@@ -11,7 +11,8 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::gotrue::GoTrueClient;
+use crate::server::{AppState, UserSession};
 
 use super::util::random_uuid;
 
@@ -28,9 +29,10 @@ static OAUTH_NONCE: Mutex<Option<String>> = Mutex::new(None);
 // Router
 // ---------------------------------------------------------------------------
 
-/// Build the `/auth` sub-router (OAuth callback, nonce, tauri-session).
+/// Build the `/auth` sub-router.
 pub fn router() -> Router<AppState> {
     Router::new()
+        // Existing routes
         .route(
             "/tauri-session",
             get(get_tauri_session).post(post_tauri_session),
@@ -39,6 +41,432 @@ pub fn router() -> Router<AppState> {
         .route("/callback", get(oauth_callback))
         .route("/favicon.png", get(serve_favicon))
         .route("/logo.png", get(serve_logo))
+        // Auth proxy routes
+        .route("/login", post(login))
+        .route("/signup", post(signup))
+        .route("/session", get(get_session))
+        .route("/logout", post(logout))
+        .route("/refresh", post(refresh))
+        .route("/password", post(change_password))
+        .route("/oauth/{provider}", get(start_oauth))
+        // MFA routes
+        .route("/mfa/enroll", post(mfa_enroll))
+        .route("/mfa/challenge", post(mfa_challenge))
+        .route("/mfa/verify", post(mfa_verify))
+        .route("/mfa/unenroll/{factor_id}", delete(mfa_unenroll))
+}
+
+// ---------------------------------------------------------------------------
+// Helpers: epoch seconds
+// ---------------------------------------------------------------------------
+
+fn epoch_secs() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
+}
+
+// ---------------------------------------------------------------------------
+// POST /auth/login
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+struct LoginBody {
+    email: String,
+    password: String,
+}
+
+async fn login(
+    State(state): State<AppState>,
+    Json(body): Json<LoginBody>,
+) -> Result<Json<Value>, AppError> {
+    let gotrue = GoTrueClient::from_state(&state)
+        .map_err(|e| AppError::Internal(e))?;
+
+    let auth = gotrue
+        .sign_in_with_password(&body.email, &body.password)
+        .await
+        .map_err(|e| AppError::BadRequest(format!("login failed: {e}")))?;
+
+    // Derive encryption key from password for user_secrets
+    let user_id = auth.user["id"].as_str().unwrap_or("").to_string();
+    let encryption_key = crate::crypto::derive_key(&body.password, &user_id);
+
+    let now = epoch_secs();
+
+    // Check MFA factors — if the user has verified TOTP factors, they need
+    // to complete MFA verification before getting full access.
+    let factors = auth.user.get("factors").and_then(|v| v.as_array());
+    let has_verified_factors = factors
+        .map(|fs| {
+            fs.iter().any(|f| {
+                f.get("status")
+                    .and_then(|s| s.as_str())
+                    .map(|s| s == "verified")
+                    .unwrap_or(false)
+            })
+        })
+        .unwrap_or(false);
+
+    // Store session
+    let session = UserSession {
+        access_token: auth.access_token,
+        refresh_token: auth.refresh_token,
+        user_id: user_id.clone(),
+        email: body.email.clone(),
+        expires_at: now + auth.expires_in,
+        encryption_key,
+    };
+    *state.session.write().await = Some(session);
+
+    tracing::info!(user_id = %user_id, "user logged in");
+
+    Ok(Json(json!({
+        "ok": true,
+        "user": { "id": user_id, "email": body.email },
+        "mfa_required": has_verified_factors,
+    })))
+}
+
+// ---------------------------------------------------------------------------
+// POST /auth/signup
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+struct SignupBody {
+    email: String,
+    password: String,
+    #[allow(dead_code)]
+    invite_token: Option<String>,
+}
+
+async fn signup(
+    State(state): State<AppState>,
+    Json(body): Json<SignupBody>,
+) -> Result<Json<Value>, AppError> {
+    // TODO: Validate invite_token against a stored list
+    // For now, signup is open (will be restricted later)
+
+    let gotrue = GoTrueClient::from_state(&state)
+        .map_err(|e| AppError::Internal(e))?;
+
+    let auth = gotrue
+        .sign_up(&body.email, &body.password)
+        .await
+        .map_err(|e| AppError::BadRequest(format!("signup failed: {e}")))?;
+
+    let user_id = auth.user["id"].as_str().unwrap_or("").to_string();
+    tracing::info!(user_id = %user_id, "user signed up");
+
+    Ok(Json(json!({
+        "ok": true,
+        "user": { "id": user_id, "email": body.email },
+    })))
+}
+
+// ---------------------------------------------------------------------------
+// GET /auth/session
+// ---------------------------------------------------------------------------
+
+async fn get_session(State(state): State<AppState>) -> Json<Value> {
+    let session = state.session.read().await;
+    match session.as_ref() {
+        Some(s) => Json(json!({
+            "authenticated": true,
+            "user": { "id": s.user_id, "email": s.email },
+        })),
+        None => Json(json!({ "authenticated": false })),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// POST /auth/logout
+// ---------------------------------------------------------------------------
+
+async fn logout(State(state): State<AppState>) -> Json<Value> {
+    let session = state.session.read().await.clone();
+    if let Some(sess) = session {
+        if let Ok(gotrue) = GoTrueClient::from_state(&state) {
+            if let Err(e) = gotrue.sign_out(&sess.access_token).await {
+                tracing::warn!("gotrue sign_out failed (non-fatal): {e}");
+            }
+        }
+        tracing::info!(user_id = %sess.user_id, "user logged out");
+    }
+    *state.session.write().await = None;
+    Json(json!({ "ok": true }))
+}
+
+// ---------------------------------------------------------------------------
+// POST /auth/refresh
+// ---------------------------------------------------------------------------
+
+async fn refresh(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    let session = state
+        .session
+        .read()
+        .await
+        .clone()
+        .ok_or(AppError::Unauthorized)?;
+
+    // Serialise refresh attempts so concurrent requests don't all hit GoTrue
+    let _guard = state.refresh_mutex.lock().await;
+
+    // Re-check after acquiring the lock — another request may have refreshed already
+    {
+        let current = state.session.read().await;
+        if let Some(ref s) = *current {
+            if s.expires_at > session.expires_at {
+                // Already refreshed by another concurrent request
+                return Ok(Json(json!({ "ok": true })));
+            }
+        }
+    }
+
+    let gotrue = GoTrueClient::from_state(&state)
+        .map_err(|e| AppError::Internal(e))?;
+
+    let auth = gotrue
+        .refresh_token(&session.refresh_token)
+        .await
+        .map_err(|e| AppError::Internal(e))?;
+
+    let now = epoch_secs();
+
+    let mut write = state.session.write().await;
+    if let Some(ref mut s) = *write {
+        s.access_token = auth.access_token;
+        s.refresh_token = auth.refresh_token;
+        s.expires_at = now + auth.expires_in;
+    }
+
+    tracing::debug!("session refreshed, expires_at={}", now + auth.expires_in);
+
+    Ok(Json(json!({ "ok": true })))
+}
+
+// ---------------------------------------------------------------------------
+// POST /auth/password
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+struct PasswordBody {
+    current_password: String,
+    new_password: String,
+}
+
+async fn change_password(
+    State(state): State<AppState>,
+    Json(body): Json<PasswordBody>,
+) -> Result<Json<Value>, AppError> {
+    let session = state
+        .session
+        .read()
+        .await
+        .clone()
+        .ok_or(AppError::Unauthorized)?;
+
+    let gotrue = GoTrueClient::from_state(&state)
+        .map_err(|e| AppError::Internal(e))?;
+
+    // Re-verify current password
+    gotrue
+        .sign_in_with_password(&session.email, &body.current_password)
+        .await
+        .map_err(|_| AppError::BadRequest("current password incorrect".into()))?;
+
+    // Update password
+    gotrue
+        .update_user(&session.access_token, json!({ "password": body.new_password }))
+        .await
+        .map_err(|e| AppError::Internal(e))?;
+
+    // Re-derive encryption key with new password
+    let new_key = crate::crypto::derive_key(&body.new_password, &session.user_id);
+    let mut write = state.session.write().await;
+    if let Some(ref mut s) = *write {
+        s.encryption_key = new_key;
+    }
+
+    tracing::info!(user_id = %session.user_id, "password changed");
+
+    Ok(Json(json!({ "ok": true })))
+}
+
+// ---------------------------------------------------------------------------
+// GET /auth/oauth/:provider
+// ---------------------------------------------------------------------------
+
+async fn start_oauth(
+    State(state): State<AppState>,
+    Path(provider): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    // Validate provider
+    if !["github", "google"].contains(&provider.as_str()) {
+        return Err(AppError::BadRequest(format!(
+            "unsupported OAuth provider: {provider}"
+        )));
+    }
+
+    let (verifier, challenge) = crate::gotrue::generate_pkce();
+
+    // Store verifier for the callback
+    *state.pkce_verifier.write().await = Some(verifier);
+
+    let supabase_url = state
+        .secret("SUPABASE_URL")
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("SUPABASE_URL not set")))?;
+
+    let url = crate::gotrue::build_oauth_url(
+        &supabase_url,
+        &provider,
+        "http://127.0.0.1:3000/api/auth/callback",
+        &challenge,
+    );
+
+    // Also generate nonce for CSRF protection (existing pattern)
+    let nonce = random_uuid();
+    {
+        let mut guard = OAUTH_NONCE.lock().unwrap_or_else(|e| e.into_inner());
+        *guard = Some(nonce.clone());
+    }
+
+    tracing::info!(provider = %provider, "OAuth flow initiated");
+
+    Ok(Json(json!({ "url": url, "nonce": nonce })))
+}
+
+// ---------------------------------------------------------------------------
+// MFA endpoints
+// ---------------------------------------------------------------------------
+
+// POST /auth/mfa/enroll
+async fn mfa_enroll(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    let session = state
+        .session
+        .read()
+        .await
+        .clone()
+        .ok_or(AppError::Unauthorized)?;
+
+    let gotrue = GoTrueClient::from_state(&state)
+        .map_err(|e| AppError::Internal(e))?;
+
+    let resp = gotrue
+        .mfa_enroll(&session.access_token, "Mission Control")
+        .await
+        .map_err(|e| AppError::Internal(e))?;
+
+    tracing::info!(user_id = %session.user_id, factor_id = %resp.id, "MFA factor enrolled");
+
+    Ok(Json(json!({
+        "id": resp.id,
+        "qr_code": resp.totp.qr_code,
+        "secret": resp.totp.secret,
+        "uri": resp.totp.uri,
+    })))
+}
+
+// POST /auth/mfa/challenge
+
+#[derive(Deserialize)]
+struct MfaChallengeBody {
+    factor_id: String,
+}
+
+async fn mfa_challenge(
+    State(state): State<AppState>,
+    Json(body): Json<MfaChallengeBody>,
+) -> Result<Json<Value>, AppError> {
+    let session = state
+        .session
+        .read()
+        .await
+        .clone()
+        .ok_or(AppError::Unauthorized)?;
+
+    let gotrue = GoTrueClient::from_state(&state)
+        .map_err(|e| AppError::Internal(e))?;
+
+    let resp = gotrue
+        .mfa_challenge(&session.access_token, &body.factor_id)
+        .await
+        .map_err(|e| AppError::Internal(e))?;
+
+    Ok(Json(json!({ "id": resp.id })))
+}
+
+// POST /auth/mfa/verify
+
+#[derive(Deserialize)]
+struct MfaVerifyBody {
+    factor_id: String,
+    challenge_id: String,
+    code: String,
+}
+
+async fn mfa_verify(
+    State(state): State<AppState>,
+    Json(body): Json<MfaVerifyBody>,
+) -> Result<Json<Value>, AppError> {
+    let session = state
+        .session
+        .read()
+        .await
+        .clone()
+        .ok_or(AppError::Unauthorized)?;
+
+    let gotrue = GoTrueClient::from_state(&state)
+        .map_err(|e| AppError::Internal(e))?;
+
+    let auth = gotrue
+        .mfa_verify(
+            &session.access_token,
+            &body.factor_id,
+            &body.challenge_id,
+            &body.code,
+        )
+        .await
+        .map_err(|e| AppError::Internal(e))?;
+
+    // Update session with upgraded token (aal2)
+    let now = epoch_secs();
+    let mut write = state.session.write().await;
+    if let Some(ref mut s) = *write {
+        s.access_token = auth.access_token;
+        s.refresh_token = auth.refresh_token;
+        s.expires_at = now + auth.expires_in;
+    }
+
+    tracing::info!(user_id = %session.user_id, "MFA verified (aal2)");
+
+    Ok(Json(json!({ "ok": true })))
+}
+
+// DELETE /auth/mfa/unenroll/:factor_id
+async fn mfa_unenroll(
+    State(state): State<AppState>,
+    Path(factor_id): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    let session = state
+        .session
+        .read()
+        .await
+        .clone()
+        .ok_or(AppError::Unauthorized)?;
+
+    let gotrue = GoTrueClient::from_state(&state)
+        .map_err(|e| AppError::Internal(e))?;
+
+    gotrue
+        .mfa_unenroll(&session.access_token, &factor_id)
+        .await
+        .map_err(|e| AppError::Internal(e))?;
+
+    tracing::info!(user_id = %session.user_id, factor_id = %factor_id, "MFA factor unenrolled");
+
+    Ok(Json(json!({ "ok": true })))
 }
 
 // ---------------------------------------------------------------------------
@@ -185,8 +613,9 @@ async fn post_tauri_session(
 // GET /auth/callback?code=...
 //
 // The system browser lands here after the OAuth provider redirects back.
-// We extract the authorization code, store it for the WebView to pick up,
-// and return a simple HTML page telling the user to go back to the app.
+// We extract the authorization code, attempt PKCE exchange to establish a
+// session, store it for the WebView to pick up (legacy flow), and return a
+// simple HTML page telling the user to go back to the app.
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
@@ -252,6 +681,7 @@ fn callback_page(title: &str, heading: &str, msg: &str, is_error: bool) -> Strin
 }
 
 async fn oauth_callback(
+    State(state): State<AppState>,
     Query(params): Query<CallbackQuery>,
 ) -> Result<Html<String>, AppError> {
     if let Some(err) = params.error {
@@ -301,7 +731,47 @@ async fn oauth_callback(
     }
 
     if let Some(code) = params.code {
+        // Try PKCE exchange to establish a server-side session immediately
+        let verifier = state.pkce_verifier.read().await.clone();
+        if let Some(verifier) = verifier {
+            if let Ok(gotrue) = GoTrueClient::from_state(&state) {
+                match gotrue.exchange_code_for_session(&code, &verifier).await {
+                    Ok(auth) => {
+                        let now = epoch_secs();
+                        let user_id =
+                            auth.user["id"].as_str().unwrap_or("").to_string();
+                        let email = auth.user["email"]
+                            .as_str()
+                            .unwrap_or("")
+                            .to_string();
+
+                        let session = UserSession {
+                            access_token: auth.access_token,
+                            refresh_token: auth.refresh_token,
+                            user_id: user_id.clone(),
+                            email,
+                            expires_at: now + auth.expires_in,
+                            // OAuth sessions don't have a password, so no
+                            // encryption key can be derived. Leave empty.
+                            encryption_key: Vec::new(),
+                        };
+                        *state.session.write().await = Some(session);
+                        *state.pkce_verifier.write().await = None;
+                        tracing::info!(
+                            user_id = %user_id,
+                            "[oauth-callback] PKCE exchange succeeded — session stored"
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!("[oauth-callback] PKCE exchange failed: {e}");
+                    }
+                }
+            }
+        }
+
+        // Still store code for legacy tauri-session polling
         set_pending_code(&code).await?;
+
         Ok(Html(callback_page(
             "Signed In",
             "Signed in!",
@@ -391,5 +861,13 @@ mod tests {
 
         let value = OAUTH_NONCE.lock().unwrap().clone();
         assert_eq!(value, Some("second".to_string()));
+    }
+
+    #[test]
+    fn epoch_secs_returns_reasonable_value() {
+        let now = epoch_secs();
+        // Should be after 2024-01-01 (1704067200) and before 2100-01-01
+        assert!(now > 1_704_067_200, "epoch_secs should be a recent timestamp");
+        assert!(now < 4_102_444_800, "epoch_secs should not be in the far future");
     }
 }
