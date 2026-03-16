@@ -1,8 +1,8 @@
 import type { VaultNote } from '@/pages/notes/types'
 
 const STORAGE_KEY = 'mc-notes-vault'
-const COUCHDB_URL = import.meta.env.VITE_COUCHDB_URL || 'https://COUCHDB_HOST'
-const COUCHDB_DB = 'COUCHDB_DB'
+const COUCHDB_URL = import.meta.env.VITE_COUCHDB_URL || ''
+const COUCHDB_DB = import.meta.env.VITE_COUCHDB_DB || ''
 const COUCHDB_USER = import.meta.env.VITE_COUCHDB_USER || ''
 const COUCHDB_PASS = import.meta.env.VITE_COUCHDB_PASSWORD || ''
 
