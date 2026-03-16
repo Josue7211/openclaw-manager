@@ -65,9 +65,9 @@ export const AgentsCard = React.memo(function AgentsCard({ mounted, sortedAgents
                   <span style={{
                     fontSize: '10px', fontWeight: 700, padding: '2px 7px',
                     borderRadius: '4px',
-                    background: 'rgba(250,204,21,0.12)',
+                    background: 'var(--yellow-bright-a12)',
                     color: 'var(--yellow-bright)',
-                    border: '1px solid rgba(250,204,21,0.35)',
+                    border: '1px solid var(--yellow-bright-a35)',
                     animation: 'pulse-dot 2s ease-in-out infinite',
                     display: 'inline-flex', alignItems: 'center',
                   }}>
