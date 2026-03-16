@@ -1,7 +1,7 @@
 # Security Hardening Design
 
 **Date**: 2026-03-16
-**Status**: Approved
+**Status**: Approved (revised after review)
 **Scope**: Remove Supabase from frontend, enable RLS, auth/realtime proxy, offline-first architecture
 
 ## Context
@@ -27,16 +27,18 @@ Mission Control is a Tauri v2 desktop app that will be shared with family member
 
 ## Architecture
 
+**Important clarification**: Each user runs their own Tauri app with an embedded Axum server on `localhost:3000`. The Cloudflare Tunnel fronts **Supabase only** (on the homelab VM), not the embedded Axum. The Axum server connects to Supabase through the CF Tunnel URL.
+
 ```
-+------------------------------+
-|  Tauri Desktop / Mobile App  |
-|  - Only knows server URL     |
-|  - No Supabase SDK           |
-|  - Auth via /api/auth/*      |
-|  - Realtime via /api/events  |
-|  - Session in HTTP-only cookie|
-+--------------+---------------+
-               | HTTPS
++------------------------------+     +------------------------------+
+|  User A's machine            |     |  User B's machine            |
+|  Tauri App                   |     |  Tauri App                   |
+|  Frontend -> Axum :3000      |     |  Frontend -> Axum :3000      |
+|  (local, never exposed)      |     |  (local, never exposed)      |
++--------------+---------------+     +--------------+---------------+
+               |                                    |
+               +-------- HTTPS (CF Tunnel) ---------+
+               |
                v
 +------------------------------+
 |  Cloudflare Tunnel + Access  |
@@ -47,23 +49,12 @@ Mission Control is a Tauri v2 desktop app that will be shared with family member
                |
                v
 +------------------------------+
-|  Axum Backend (homelab)      |
-|  - API key (local process)   |
-|  - JWT from HTTP-only cookie |
-|  - Forwards user JWT to Supa |
-|  - Service role: admin only  |
-|  - Local SQLite (primary)    |
-|  - Sync engine to Supabase   |
-+--------------+---------------+
-               | local network
-               v
-+------------------------------+
-|  Supabase (homelab)          |
+|  Homelab VM                  |
+|  Supabase (PostgreSQL)       |
 |  - RLS on all 19 tables      |
 |  - user_id isolation          |
 |  - user_secrets per user     |
-|  - Sync/backup layer          |
-|  - Not publicly exposed       |
+|  - Not directly exposed       |
 +------------------------------+
 ```
 
@@ -76,7 +67,7 @@ Every table gets `user_id UUID NOT NULL REFERENCES auth.users ON DELETE CASCADE`
 1. missions
 2. mission_events
 3. todos
-4. agents
+4. agents (per-user — each user gets their own agent roster copy)
 5. user_preferences (migrate from TEXT user_id to UUID referencing auth.users)
 6. ideas
 7. captures
@@ -95,14 +86,15 @@ Every table gets `user_id UUID NOT NULL REFERENCES auth.users ON DELETE CASCADE`
 
 ### New table: user_secrets
 
-Per-user encrypted service credentials:
+Per-user service credentials, encrypted at the application layer:
 
 ```sql
 CREATE TABLE user_secrets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users ON DELETE CASCADE,
   service TEXT NOT NULL,
-  credentials JSONB NOT NULL,
+  encrypted_credentials TEXT NOT NULL, -- AES-256-GCM encrypted, base64-encoded
+  nonce TEXT NOT NULL,                 -- encryption nonce, base64-encoded
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(user_id, service)
@@ -113,40 +105,75 @@ CREATE POLICY "user isolation" ON user_secrets
   WITH CHECK (auth.uid() = user_id);
 ```
 
+**Encryption**: Credentials are encrypted with AES-256-GCM before storage. The encryption key is derived from the user's password via Argon2id (key derivation happens in the Axum backend at login time). The derived key is held in Axum's in-memory session state for the duration of the session — never stored to disk. This means credentials are unreadable even with direct database access.
+
 Services stored: bluebubbles, openclaw, proxmox, opnsense, plex, sonarr, radarr, email, caldav, ntfy.
 
 ### Soft deletes for sync
 
 All tables get `deleted_at TIMESTAMPTZ DEFAULT NULL`. Deleted rows are soft-deleted (set `deleted_at = now()`), synced, then purged after 30 days.
 
+### Missing updated_at columns
+
+Many tables only have `created_at`. The migration must add `updated_at TIMESTAMPTZ DEFAULT now()` to: mission_events, captures, knowledge_entries, changelog_entries, retrospectives, habits, habit_entries, workflow_notes, activity_log, pipeline_events, daily_reviews, weekly_reviews. A trigger function `update_updated_at_column()` will auto-update this on row changes.
+
 ## Section 2: Auth Proxy
 
 All auth flows move from frontend Supabase SDK to Axum endpoints.
+
+### Session management — Rust-side JWT (NOT cookies)
+
+**Critical design decision**: HTTP-only cookies do not work in Tauri's cross-origin setup (webview origin `tauri://localhost` differs from API origin `http://127.0.0.1:3000`, and `Secure` flag requires HTTPS which the local server doesn't have).
+
+Instead, JWTs are stored **in Rust-side memory** within `AppState`:
+
+```rust
+pub struct UserSession {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub user_id: String,
+    pub expires_at: i64,
+    pub encryption_key: Vec<u8>, // derived from password, for user_secrets
+}
+```
+
+- The frontend never sees raw JWTs — it only knows "am I logged in or not"
+- The frontend sends requests to `localhost:3000` with the existing `X-API-Key` header (CSRF protection)
+- Axum attaches the user's JWT server-side when forwarding to Supabase
+- Token refresh uses a `tokio::sync::Mutex` to prevent concurrent refresh races
+- On app close/restart, the session is lost (user must re-login) — acceptable for security
 
 ### New Axum auth endpoints
 
 | Endpoint | Method | Purpose |
 |---|---|---|
-| `/api/auth/login` | POST | Email/password login, returns HTTP-only cookie with JWT |
-| `/api/auth/oauth/:provider` | GET | Initiates OAuth flow (GitHub, Google) |
-| `/api/auth/oauth/callback` | GET | OAuth callback, exchanges code, sets cookie |
+| `/api/auth/login` | POST | Email/password login, stores JWT in AppState |
+| `/api/auth/oauth/:provider` | GET | Initiates OAuth+PKCE flow (Axum generates code_verifier) |
+| `/api/auth/oauth/callback` | GET | Exchanges code for session using stored code_verifier |
 | `/api/auth/mfa/enroll` | POST | Enrolls TOTP factor, returns QR/secret |
 | `/api/auth/mfa/challenge` | POST | Creates MFA challenge |
 | `/api/auth/mfa/verify` | POST | Verifies TOTP code, upgrades session |
 | `/api/auth/mfa/unenroll/:id` | DELETE | Unenrolls MFA factor |
-| `/api/auth/session` | GET | Validates JWT from cookie, returns user info |
-| `/api/auth/refresh` | POST | Refreshes access token using refresh token |
+| `/api/auth/session` | GET | Returns { authenticated, user, mfa_level } |
+| `/api/auth/refresh` | POST | Manually trigger token refresh |
 | `/api/auth/password` | POST | Changes password |
-| `/api/auth/logout` | POST | Clears cookie, calls Supabase signOut |
-| `/api/auth/signup` | POST | Creates new account |
+| `/api/auth/logout` | POST | Clears session from AppState |
+| `/api/auth/signup` | POST | Creates account (invitation token required) |
 
-### Session management
+### OAuth PKCE flow (moved to server-side)
 
-- Access token + refresh token stored in HTTP-only, Secure, SameSite=Strict cookies
-- Frontend never sees raw JWTs
-- Axum middleware extracts JWT from cookie on every request
-- Token refresh happens server-side (Axum detects expiry, refreshes transparently)
-- Cookie attributes: `HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800` (7 days for refresh token)
+1. Frontend calls `GET /api/auth/oauth/github`
+2. Axum generates PKCE `code_verifier` + `code_challenge`, stores verifier in memory
+3. Axum returns the Supabase OAuth URL with `code_challenge` embedded
+4. Frontend opens URL in system browser
+5. After OAuth, browser redirects to `GET /api/auth/callback?code=...`
+6. Axum exchanges code using stored `code_verifier` via Supabase GoTrue `/token?grant_type=pkce`
+7. Axum stores resulting JWT in AppState, clears code_verifier
+8. Frontend polls `GET /api/auth/session` and sees `authenticated: true`
+
+### Signup restrictions
+
+`POST /api/auth/signup` requires an invitation token. The admin (first user) can generate invite tokens via a settings panel. This prevents arbitrary account creation on a family Supabase instance exposed via CF Tunnel.
 
 ### Frontend auth changes
 
@@ -155,6 +182,7 @@ All auth flows move from frontend Supabase SDK to Axum endpoints.
 - MFA flows: call `/api/auth/mfa/*` instead of `supabase.auth.mfa.*`
 - Settings password change: calls `POST /api/auth/password`
 - Logout: calls `POST /api/auth/logout`
+- X-API-Key header continues to provide CSRF protection on all requests
 
 ## Section 3: Realtime Proxy via SSE
 
@@ -162,9 +190,9 @@ Replace direct Supabase Realtime subscriptions with a single Axum SSE endpoint.
 
 ### Axum SSE endpoint
 
-`GET /api/events` — Server-Sent Events stream, authenticated via cookie JWT.
+`GET /api/events` — Server-Sent Events stream, authenticated via AppState session.
 
-Axum subscribes to Supabase Realtime using the service role key (admin — needs to see all events), then filters events by the connected user's `user_id` before forwarding.
+**Per-user Realtime subscription**: Each SSE connection subscribes to Supabase Realtime using the **user's JWT** (not service role key). Supabase Realtime respects RLS, so only that user's events are delivered. This eliminates the risk of cross-user data leakage from a filtering bug.
 
 Event format:
 ```
@@ -173,11 +201,7 @@ data: {"table":"todos","event":"UPDATE","id":"uuid-here"}
 
 ### Tables proxied (currently subscribed)
 
-- agents
-- todos
-- ideas
-- missions
-- cache
+- agents, todos, ideas, missions, cache
 
 ### Frontend changes
 
@@ -190,11 +214,11 @@ function useRealtimeSSE(tables: string[], options: {
 })
 ```
 
-Single SSE connection shared across all components (via a React context or module-level singleton). Each component registers which tables it cares about.
+Single SSE connection shared across all components (module-level singleton). Each component registers which tables it cares about.
 
 ## Section 4: RLS Migration
 
-Single migration file: `supabase/migrations/YYYYMMDDHHMMSS_rls_user_isolation.sql`
+Single migration file: `supabase/migrations/20260316000000_rls_user_isolation.sql`
 
 ### Pattern per table
 
@@ -221,6 +245,25 @@ CREATE POLICY "user isolation" ON {table}
 
 -- 7. Add soft-delete column
 ALTER TABLE {table} ADD COLUMN deleted_at TIMESTAMPTZ DEFAULT NULL;
+
+-- 8. Add updated_at if missing (with auto-update trigger)
+ALTER TABLE {table} ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+```
+
+### Auto-update trigger
+
+```sql
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Applied to every table:
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON {table}
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 ```
 
 ### Special cases
@@ -230,6 +273,17 @@ ALTER TABLE {table} ADD COLUMN deleted_at TIMESTAMPTZ DEFAULT NULL;
 - `daily_reviews`: unique constraint changes from `(date)` to `(user_id, date)`.
 - `weekly_reviews`: unique constraint changes from `(week_start)` to `(user_id, week_start)`.
 - `habit_entries`: unique constraint changes from `(habit_id, date)` to `(user_id, habit_id, date)`.
+- `agents`: seed data re-inserted per-user. New users get the default agent roster on signup.
+
+### Realtime publication
+
+After enabling RLS, update the publication to ensure Realtime works with RLS filtering:
+```sql
+ALTER TABLE missions REPLICA IDENTITY FULL;
+ALTER TABLE todos REPLICA IDENTITY FULL;
+ALTER TABLE agents REPLICA IDENTITY FULL;
+ALTER TABLE mission_events REPLICA IDENTITY FULL;
+```
 
 ## Section 5: Backend Query Changes
 
@@ -251,33 +305,21 @@ impl SupabaseClient {
 }
 ```
 
-These use `Authorization: Bearer {user_jwt}` instead of the service role key. RLS enforces user isolation automatically.
-
 ### Service role key usage (admin only)
 
 Reserved for:
 - Health checks
-- Realtime subscription (SSE endpoint needs to see all events for filtering)
+- Auth operations (login, signup, token exchange via GoTrue admin API)
 - Schema migrations
-- Any future admin operations
+- Seeding default agent roster for new users
 
 ### Route migration
 
-Every Axum route handler gains a `user_jwt: String` parameter extracted by middleware from the cookie. All `client.select()` calls become `client.select_as_user(..., &user_jwt)`.
+Axum middleware extracts `UserSession` from AppState. All route handlers receive the JWT via an extractor. All `client.select()` calls become `client.select_as_user(..., &session.access_token)`.
 
 ### Per-user service credentials
 
-Routes that proxy to external services (BlueBubbles, OpenClaw, etc.) fetch that user's credentials from the `user_secrets` table:
-
-```rust
-let creds = client.select_as_user(
-    "user_secrets",
-    &format!("service=eq.{}", service_name),
-    &user_jwt
-).await?;
-```
-
-This means each family member can have different service connections (or none — Messages only works if they have BlueBubbles configured).
+Routes that proxy to external services fetch that user's encrypted credentials from `user_secrets`, decrypt with the session's `encryption_key`, and use them for the proxied request.
 
 ## Section 6: Frontend Cleanup
 
@@ -286,15 +328,16 @@ This means each family member can have different service connections (or none �
 - `@supabase/supabase-js` from `package.json`
 - `frontend/src/lib/supabase/client.ts`
 - `VITE_SUPABASE_URL` env var
-- `VITE_SUPABASE_ANON_KEY` env var
+- Supabase anon key env var
 - All imports of `supabase` from `@/lib/supabase/client`
+- `frontend/src/lib/offline-queue.ts` (replaced by backend sync engine)
 
 ### Replace
 
 | Before | After |
 |---|---|
 | `supabase.auth.signInWithPassword()` | `api.post('/api/auth/login', { email, password })` |
-| `supabase.auth.signInWithOAuth()` | `window.open('/api/auth/oauth/github')` |
+| `supabase.auth.signInWithOAuth()` | `api.get('/api/auth/oauth/github')` then open URL |
 | `supabase.auth.getSession()` | `api.get('/api/auth/session')` |
 | `supabase.auth.onAuthStateChange()` | Poll `/api/auth/session` or SSE auth events |
 | `supabase.auth.mfa.*` | `api.post('/api/auth/mfa/*')` |
@@ -318,6 +361,12 @@ This means each family member can have different service connections (or none �
 - `pages/pipeline/PipelineShipLog.tsx` — realtime subscription
 - `pages/dashboard/useDashboardData.ts` — realtime subscriptions
 - `lib/hooks/useSupabaseRealtime.ts` — delete, replace with useRealtimeSSE
+- `lib/api.ts` — update ServiceName type (remove 'Supabase')
+- `lib/preferences-sync.ts` — remove direct Supabase references
+
+### Demo mode
+
+Demo mode (`isDemoMode()`) continues to work. `GET /api/auth/session` returns a synthetic authenticated session when Supabase is not configured. All data operations fall back to local SQLite (which is populated with demo data).
 
 ## Section 7: Offline-First Architecture
 
@@ -333,7 +382,7 @@ Sync path:   Axum background task: pull remote changes, push local changes
 
 ### Local SQLite schema
 
-Mirror all 19 Supabase tables in local SQLite. Plus sync metadata:
+Mirror all 19 Supabase tables in local SQLite (except `user_secrets` — credentials stay in Supabase only, decrypted in-memory per session). Plus sync metadata:
 
 ```sql
 CREATE TABLE _sync_log (
@@ -341,15 +390,25 @@ CREATE TABLE _sync_log (
   table_name TEXT NOT NULL,
   row_id TEXT NOT NULL,
   operation TEXT NOT NULL CHECK (operation IN ('INSERT', 'UPDATE', 'DELETE')),
-  payload TEXT,           -- JSON of the row data
-  synced_at TIMESTAMPTZ,  -- NULL if not yet synced
-  created_at TIMESTAMPTZ DEFAULT (datetime('now'))
+  payload TEXT,              -- JSON of the row data
+  synced_at INTEGER,         -- epoch seconds, NULL if not yet synced
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
 CREATE TABLE _sync_state (
   table_name TEXT PRIMARY KEY,
-  last_synced_at TIMESTAMPTZ,  -- latest updated_at we've seen from Supabase
-  last_pushed_at TIMESTAMPTZ   -- latest local change we've pushed
+  last_synced_at TEXT,       -- ISO-8601 timestamp of latest remote updated_at
+  last_pushed_at INTEGER     -- epoch seconds of latest push
+);
+
+CREATE TABLE _conflict_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  table_name TEXT NOT NULL,
+  row_id TEXT NOT NULL,
+  local_data TEXT,
+  remote_data TEXT,
+  resolution TEXT NOT NULL,  -- 'local_wins' or 'remote_wins'
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 ```
 
@@ -360,23 +419,27 @@ Runs on app startup, on reconnect, and every 30 seconds while online.
 **Push** (local -> Supabase):
 1. Query `_sync_log` for rows where `synced_at IS NULL`
 2. For each, call Supabase upsert/delete using user JWT
-3. On success, set `synced_at = now()`
+3. On success, set `synced_at = unixepoch()`
 
 **Pull** (Supabase -> local):
 1. For each table, query Supabase: `SELECT * FROM {table} WHERE updated_at > {last_synced_at}`
 2. Upsert into local SQLite
 3. Update `_sync_state.last_synced_at`
 
-**Conflict resolution**: Last-write-wins using `updated_at`. If remote `updated_at` > local `updated_at`, remote wins. Otherwise local wins.
+**Conflict resolution**: Last-write-wins using `updated_at`. Conflicts are logged to `_conflict_log` for debugging. If remote `updated_at` > local `updated_at`, remote wins. Otherwise local wins.
 
-**Soft deletes**: Rows with `deleted_at` set are synced (so deletion propagates to other devices), then purged from both local and remote after 30 days.
+**Soft deletes**: Rows with `deleted_at` set are synced, then purged from both local and remote after 30 days.
+
+### Phased rollout
+
+Start with high-value tables: todos, missions, habits, agents, ideas. Low-churn tables (changelog_entries, decisions, retrospectives) can remain Supabase-only initially and be added to sync incrementally.
 
 ### What changes in Axum
 
 - All route handlers read/write to local SQLite, not Supabase
 - New `sync` module with background sync task
-- SQLite connection pool (already using rusqlite for missions/messages cache)
-- Existing SQLite caches (missions, messages) get absorbed into the unified local store
+- SQLite connection pool (already using sqlx::SqlitePool)
+- Existing SQLite tables (api_cache, notifications, audit_log, cache) coexist with new synced tables
 
 ### Connection status
 
@@ -384,6 +447,69 @@ Runs on app startup, on reconnect, and every 30 seconds while online.
 - Frontend `ConnectionStatus.tsx` already exists and shows online/offline
 - When offline, app works normally (reads/writes to local SQLite)
 - When back online, sync engine catches up automatically
+
+## Section 8: Additional Security Hardening
+
+### Per-user rate limiting
+
+Current: single global 100 req/sec counter. New: per-user rate limits stored in a `HashMap<UserId, RateBucket>`:
+
+- **Auth endpoints** (login, signup): 5 req/min per IP (brute-force protection)
+- **Mutations** (POST/PATCH/DELETE): 30 req/min per user
+- **Reads** (GET): 120 req/min per user
+- **AI/chat endpoints**: 10 req/min per user (these cost money)
+- **Global**: keep existing 100 req/sec as burst ceiling
+
+Failed attempts (wrong password, invalid MFA) increment a lockout counter. After 5 failures in 15 minutes, the account is temporarily locked for 30 minutes.
+
+### Sensitive operation protection
+
+Certain operations require re-authentication (password confirmation) before proceeding:
+
+- Changing password
+- Enrolling/unenrolling MFA
+- Deleting account
+- Modifying service credentials (user_secrets)
+- Exporting data
+
+These endpoints accept an additional `confirm_password` field. Axum re-verifies the password against Supabase Auth before executing.
+
+### Budget caps / spending limits
+
+For API calls that cost money (OpenClaw AI chat, any future paid API):
+
+```sql
+CREATE TABLE user_usage (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users ON DELETE CASCADE,
+  service TEXT NOT NULL,       -- 'openclaw', 'anthropic', etc.
+  period TEXT NOT NULL,        -- '2026-03' (monthly)
+  request_count INTEGER NOT NULL DEFAULT 0,
+  token_count INTEGER NOT NULL DEFAULT 0,
+  cost_cents INTEGER NOT NULL DEFAULT 0,
+  limit_cents INTEGER NOT NULL DEFAULT 0, -- 0 = unlimited
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id, service, period)
+);
+ALTER TABLE user_usage ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "user isolation" ON user_usage
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+```
+
+- Before each AI request, check `cost_cents < limit_cents` for the current period
+- If limit exceeded, return 429 with a clear message
+- Admin (first user) can set limits for other family members
+- Usage dashboard in Settings showing per-user, per-service consumption
+
+### Secret hygiene
+
+- **Error messages**: Internal errors return generic "Something went wrong" to the frontend. Detailed errors only in server logs (with credential redaction via existing `redact.rs`).
+- **Response filtering**: Axum middleware strips any field named `password`, `secret`, `token`, `key`, `credentials` from JSON responses before sending to frontend.
+- **Log redaction**: Extend existing `redact.rs` patterns to cover all new secret types (encryption keys, PKCE verifiers, refresh tokens).
+- **Frontend**: No `console.log` of auth responses, tokens, or credentials. Lint rule to enforce.
+- **Supabase URL**: Never exposed to frontend — only the Axum backend knows it.
 
 ## Security Summary
 
@@ -399,15 +525,18 @@ Runs on app startup, on reconnect, and every 30 seconds while online.
 
 | Before | After |
 |---|---|
-| Supabase URL in frontend | Only Axum URL known to frontend |
+| Supabase URL in frontend | Frontend only knows localhost:3000 |
 | Anon key in frontend | No Supabase keys in frontend |
 | Service role key for all queries | User JWT for queries, service role admin-only |
 | No RLS | RLS on all 19 tables + user_secrets |
-| Direct Realtime connection | Proxied SSE, filtered per-user |
+| Direct Realtime connection | Proxied SSE with per-user JWT (RLS enforced) |
 | Data only on remote server | Data lives locally, synced to Supabase |
+| Plaintext service credentials | AES-256-GCM encrypted, key derived from password |
+| No signup restrictions | Invitation-token required for new accounts |
 
 ### Remaining attack vectors
 
 - Cloudflare sees traffic in cleartext at their edge (accepted trade-off for family usability)
 - Local SQLite is unencrypted at rest (can add SQLCipher later if needed)
 - Service role key on the Axum server could be extracted by local malware (mitigated by OS keychain)
+- user_secrets credentials are only accessible while the user is logged in (encryption key in memory)
