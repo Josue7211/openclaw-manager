@@ -70,6 +70,65 @@ const resizeHandleStyle: React.CSSProperties = {
 
 const plusIconStyle: React.CSSProperties = { flexShrink: 0 }
 const settingsIconStyle: React.CSSProperties = { flexShrink: 0 }
+const overflowHiddenStyle: React.CSSProperties = { overflow: 'hidden' }
+
+const sectionLabelBtnStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  width: '100%',
+  padding: '8px 12px',
+  background: 'transparent',
+  border: 'none',
+  cursor: 'pointer',
+  color: 'var(--text-muted)',
+  fontSize: '10px',
+  fontWeight: 700,
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  borderRadius: '8px',
+  transition: `color var(--duration-fast)`,
+  whiteSpace: 'nowrap',
+}
+
+const editingRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '10px',
+  padding: '5px 16px',
+  borderRadius: '10px',
+  marginBottom: '2px',
+  background: 'var(--active-bg)',
+}
+
+const editingInputStyle: React.CSSProperties = {
+  flex: 1,
+  background: 'transparent',
+  border: 'none',
+  borderBottom: '1px solid var(--accent)',
+  color: '#fff',
+  fontSize: '13px',
+  fontWeight: 600,
+  outline: 'none',
+  padding: '4px 0',
+  minWidth: 0,
+  fontFamily: 'inherit',
+}
+
+const catRenameInputStyle: React.CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  borderBottom: '1px solid var(--accent)',
+  color: 'var(--text-primary)',
+  fontSize: '10px',
+  fontWeight: 700,
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  outline: 'none',
+  padding: '2px 0',
+  width: '100%',
+  fontFamily: 'inherit',
+}
 
 /* ─── NavSection (memoized) ──────────────────────────────────────────────── */
 
@@ -150,24 +209,7 @@ const NavSection = React.memo(function NavSection({
         <button
           onClick={onToggle}
           onContextMenu={categoryId && onCategoryContextMenu ? (e) => { e.preventDefault(); onCategoryContextMenu(categoryId, e) } : undefined}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            width: '100%',
-            padding: '8px 12px',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            color: 'var(--text-muted)',
-            fontSize: '10px',
-            fontWeight: 700,
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-            borderRadius: '8px',
-            transition: `color var(--duration-fast)`,
-            whiteSpace: 'nowrap',
-          }}
+          style={sectionLabelBtnStyle}
           onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-secondary)')}
           onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
         >
@@ -193,7 +235,7 @@ const NavSection = React.memo(function NavSection({
         transition: 'grid-template-rows var(--duration-normal) var(--ease-spring)',
         overflow: 'hidden',
       }}>
-        <div style={{ overflow: 'hidden' }}>
+        <div style={overflowHiddenStyle}>
           {items.map(({ href, label: itemLabel, icon: Icon }, idx) => {
             const active = pathname === href
             const isEditing = editingHref === href
@@ -211,15 +253,7 @@ const NavSection = React.memo(function NavSection({
               return (
                 <div
                   key={href}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    padding: '5px 16px',
-                    borderRadius: '10px',
-                    marginBottom: '2px',
-                    background: 'var(--active-bg)',
-                  }}
+                  style={editingRowStyle}
                 >
                   <Icon size={16} style={{ flexShrink: 0, color: 'var(--accent)' }} />
                   <input
@@ -664,6 +698,11 @@ const dividerStyle: React.CSSProperties = {
   background: 'linear-gradient(to right, transparent, var(--border-hover), transparent)',
 }
 
+const fixedDividerStyle: React.CSSProperties = {
+  ...dividerStyle,
+  flexShrink: 0,
+}
+
 const SectionDivider = React.memo(function SectionDivider() {
   return <div style={dividerStyle} />
 })
@@ -976,6 +1015,8 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
     setEditingCatId(null)
   }, [editingCatId, editingCatValue])
 
+  const closeCtxMenu = useCallback(() => setCtxMenu(null), [])
+
   /* ── Resize handle ─────────────────────────────────────────────────────── */
 
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
@@ -1042,8 +1083,6 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
 
   /* ── Render ────────────────────────────────────────────────────────────── */
 
-  const settingsActive = pathname === '/settings'
-
   return (
     <nav aria-label="Main navigation" data-testid="sidebar" style={{
       width: `${width}px`,
@@ -1061,74 +1100,55 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
     }}>
 
       {/* ── Context menu ─────────────────────────────────────────────────── */}
-      {ctxMenu && <ContextMenu {...ctxMenu} onClose={() => setCtxMenu(null)} />}
+      {ctxMenu && <ContextMenu {...ctxMenu} onClose={closeCtxMenu} />}
 
       {/* ── Logo header — slides up like search when hidden ────────────── */}
-      {(() => {
-        const titleAvailable = logoVisible ? Math.max(0, width - 16 - 45 - 14) : Math.max(0, width - 32)
-        const titleH = titleSize + 16 // font size + padding
-        const logoH = 57
-        const headerHeight = headerVisible ? Math.max(logoVisible ? logoH : 0, titleH) : 0
-        const headerOpacity = headerVisible ? 1 : 0
-        return (
+      <div style={{
+        height: `${headerLayout.headerHeight}px`,
+        opacity: headerLayout.headerOpacity,
+        overflow: 'hidden',
+        transition: 'height 0.25s ease, opacity 0.2s ease',
+        flexShrink: 0,
+      }}>
+        <header style={{
+          padding: '0 8px',
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          justifyContent: logoVisible ? 'flex-start' : 'center',
+        }}>
+          {logoVisible && (
+            <div role="img" aria-label="Mission Control" style={logoStyle} />
+          )}
           <div style={{
-            height: `${headerHeight}px`,
-            opacity: headerOpacity,
             overflow: 'hidden',
-            transition: 'height 0.25s ease, opacity 0.2s ease',
-            flexShrink: 0,
+            minWidth: 0,
+            flex: logoVisible ? 1 : undefined,
+            width: logoVisible ? undefined : '100%',
+            display: 'flex',
+            justifyContent: logoVisible ? 'flex-start' : 'center',
           }}>
-            <header style={{
-              padding: '0 8px',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              justifyContent: logoVisible ? 'flex-start' : 'center',
-            }}>
-              {logoVisible && (
-                <div role="img" aria-label="Mission Control" style={logoStyle} />
-              )}
-              <div style={{
-                overflow: 'hidden',
-                minWidth: 0,
-                flex: logoVisible ? 1 : undefined,
-                width: logoVisible ? undefined : '100%',
-                display: 'flex',
-                justifyContent: logoVisible ? 'flex-start' : 'center',
-              }}>
-                <TypewriterTitle availableWidth={logoVisible ? titleAvailable : Math.max(0, width - 32)} />
-              </div>
-            </header>
+            <TypewriterTitle availableWidth={headerLayout.titleWidth} />
           </div>
-        )
-      })()}
+        </header>
+      </div>
 
       {/* ── Search — full size when on, animates away below 140px ── */}
-      {(() => {
-        const show = searchVisible && width >= 100
-        return (
-          <div style={{
-            height: show ? '46px' : '0px',
-            opacity: show ? 1 : 0,
-            overflow: 'hidden',
-            transition: 'height 0.25s ease, opacity 0.2s ease, padding 0.25s ease',
-            flexShrink: 0,
-            paddingTop: show && !headerVisible ? '8px' : 0,
-            pointerEvents: show ? 'auto' : 'none',
-          }}>
-            <GlobalSearch compact collapsed={collapsed} sidebarWidth={width} />
-          </div>
-        )
-      })()}
+      <div style={{
+        height: searchLayout.show ? '46px' : '0px',
+        opacity: searchLayout.show ? 1 : 0,
+        overflow: 'hidden',
+        transition: 'height 0.25s ease, opacity 0.2s ease, padding 0.25s ease',
+        flexShrink: 0,
+        paddingTop: searchLayout.show && !headerVisible ? '8px' : 0,
+        pointerEvents: searchLayout.show ? 'auto' : 'none',
+      }}>
+        <GlobalSearch compact collapsed={collapsed} sidebarWidth={width} />
+      </div>
 
       {/* ── Divider between header/search and nav items ────────────────── */}
-      <div style={{
-        height: '1px',
-        margin: '4px 12px',
-        background: 'linear-gradient(to right, transparent, var(--border-hover), transparent)',
-        flexShrink: 0,
-      }} />
+      <div style={fixedDividerStyle} />
 
       {/* ── Scrollable nav items ─────────────────────────────────────────── */}
       <div
@@ -1178,7 +1198,6 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
         }}
       >
         {resolvedCategories.map((cat, idx) => {
-          const prevItemCount = resolvedCategories.slice(0, idx).reduce((sum, c) => sum + c.items.length, 0)
           const isEditingThisCat = editingCatId === cat.id
           return (
             <React.Fragment key={cat.id}>
@@ -1220,10 +1239,10 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
                   textOpacity={textOpacity}
                   width={width}
                   open={openCategories[cat.id] ?? true}
-                  onToggle={() => toggleCategory(cat.id)}
+                  onToggle={categoryToggleCallbacks.get(cat.id)!}
                   onHoverItem={handleHoverItem}
                   isDragging={isDragging}
-                  delayOffset={prevItemCount}
+                  delayOffset={categoryDelayOffsets[idx]}
                   categoryId={cat.id}
                   onItemContextMenu={handleItemContextMenu}
                   onCategoryContextMenu={handleCategoryContextMenu}
@@ -1246,12 +1265,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
       </div>
 
       {/* ── Divider before bottom section ──────────────────────────────── */}
-      <div style={{
-        height: '1px',
-        margin: '4px 12px',
-        background: 'linear-gradient(to right, transparent, var(--border-hover), transparent)',
-        flexShrink: 0,
-      }} />
+      <div style={fixedDividerStyle} />
 
       {/* ── Bottom section (non-scrollable) ──────────────────────────────── */}
       <div style={{

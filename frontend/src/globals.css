@@ -159,6 +159,66 @@ input, textarea, [contenteditable="true"], code, pre, kbd {
   --purple-a15: rgba(155, 132, 236, 0.15);
   --purple-a20: rgba(155, 132, 236, 0.2);
   --purple-a30: rgba(155, 132, 236, 0.3);
+  --purple-a40: rgba(155, 132, 236, 0.4);
+
+  /* Accent-alpha tints (167, 139, 250 — lighter purple) */
+  --accent-a10: rgba(167, 139, 250, 0.1);
+  --accent-a12: rgba(167, 139, 250, 0.12);
+  --accent-a15: rgba(167, 139, 250, 0.15);
+  --accent-a30: rgba(167, 139, 250, 0.3);
+  --accent-a40: rgba(167, 139, 250, 0.4);
+
+  /* Red-alpha tints (248, 113, 113 — --red) */
+  --red-a08: rgba(248, 113, 113, 0.08);
+  --red-a12: rgba(248, 113, 113, 0.12);
+  --red-a15: rgba(248, 113, 113, 0.15);
+  --red-a30: rgba(248, 113, 113, 0.3);
+
+  /* Red-500-alpha tints (239, 68, 68 — --red-500) */
+  --red-500-a12: rgba(239, 68, 68, 0.12);
+  --red-500-a20: rgba(239, 68, 68, 0.2);
+  --red-500-a25: rgba(239, 68, 68, 0.25);
+
+  /* Green-alpha tints (74, 222, 128 — --green-400) */
+  --green-400-a12: rgba(74, 222, 128, 0.12);
+  --green-400-a15: rgba(74, 222, 128, 0.15);
+  --green-400-a30: rgba(74, 222, 128, 0.3);
+
+  /* Emerald-alpha tints (59, 165, 92 — status green) */
+  --emerald-a12: rgba(59, 165, 92, 0.12);
+  --emerald-a15: rgba(59, 165, 92, 0.15);
+
+  /* Teal-alpha tints (52, 211, 153 — --green base) */
+  --green-a12: rgba(52, 211, 153, 0.12);
+  --green-a15: rgba(52, 211, 153, 0.15);
+
+  /* Gold-alpha tints (230, 168, 23 — --gold) */
+  --gold-a12: rgba(230, 168, 23, 0.12);
+  --gold-a25: rgba(230, 168, 23, 0.25);
+
+  /* Yellow-bright-alpha tints (250, 204, 21 — --yellow-bright) */
+  --yellow-bright-a12: rgba(250, 204, 21, 0.12);
+  --yellow-bright-a35: rgba(250, 204, 21, 0.35);
+
+  /* Warning-alpha tints (251, 191, 36 — --warning) */
+  --warning-a08: rgba(251, 191, 36, 0.08);
+  --warning-a12: rgba(251, 191, 36, 0.12);
+  --warning-a20: rgba(251, 191, 36, 0.2);
+  --warning-a25: rgba(251, 191, 36, 0.25);
+  --warning-a30: rgba(251, 191, 36, 0.3);
+
+  /* Blue-alpha tints (59, 130, 246 / 96, 165, 250) */
+  --blue-a04: rgba(96, 165, 250, 0.04);
+  --blue-a08: rgba(59, 130, 246, 0.08);
+  --blue-a25: rgba(59, 130, 246, 0.25);
+  --blue-solid: rgba(96, 165, 250, 1);
+
+  /* White-alpha — extended */
+  --bg-white-12: rgba(255, 255, 255, 0.12);
+
+  /* Surface layers — popover & modal */
+  --bg-popover: rgba(30, 30, 38, 0.85);
+  --bg-modal: rgba(18, 18, 24, 0.96);
 
   /* Black-alpha overlays */
   --overlay-light: rgba(0, 0, 0, 0.4);
@@ -298,6 +358,56 @@ input, textarea, [contenteditable="true"], code, pre, kbd {
   --purple-a15: rgba(124, 58, 237, 0.12);
   --purple-a20: rgba(124, 58, 237, 0.15);
   --purple-a30: rgba(124, 58, 237, 0.2);
+  --purple-a40: rgba(124, 58, 237, 0.3);
+
+  /* ── Accent-alpha tints — light ── */
+  --accent-a10: rgba(124, 58, 237, 0.1);
+  --accent-a12: rgba(124, 58, 237, 0.1);
+  --accent-a15: rgba(124, 58, 237, 0.12);
+  --accent-a30: rgba(124, 58, 237, 0.2);
+  --accent-a40: rgba(124, 58, 237, 0.3);
+
+  /* ── Red-alpha tints — light ── */
+  --red-a08: rgba(220, 38, 38, 0.08);
+  --red-a12: rgba(220, 38, 38, 0.1);
+  --red-a15: rgba(220, 38, 38, 0.12);
+  --red-a30: rgba(220, 38, 38, 0.2);
+  --red-500-a12: rgba(220, 38, 38, 0.1);
+  --red-500-a20: rgba(220, 38, 38, 0.15);
+  --red-500-a25: rgba(220, 38, 38, 0.2);
+
+  /* ── Green-alpha tints — light ── */
+  --green-400-a12: rgba(22, 163, 74, 0.1);
+  --green-400-a15: rgba(22, 163, 74, 0.12);
+  --green-400-a30: rgba(22, 163, 74, 0.2);
+  --emerald-a12: rgba(5, 150, 105, 0.1);
+  --emerald-a15: rgba(5, 150, 105, 0.12);
+  --green-a12: rgba(5, 150, 105, 0.1);
+  --green-a15: rgba(5, 150, 105, 0.12);
+
+  /* ── Gold/Yellow-alpha tints — light ── */
+  --gold-a12: rgba(180, 83, 9, 0.1);
+  --gold-a25: rgba(180, 83, 9, 0.2);
+  --yellow-bright-a12: rgba(234, 179, 8, 0.1);
+  --yellow-bright-a35: rgba(234, 179, 8, 0.25);
+  --warning-a08: rgba(217, 119, 6, 0.08);
+  --warning-a12: rgba(217, 119, 6, 0.1);
+  --warning-a20: rgba(217, 119, 6, 0.15);
+  --warning-a25: rgba(217, 119, 6, 0.2);
+  --warning-a30: rgba(217, 119, 6, 0.25);
+
+  /* ── Blue-alpha tints — light ── */
+  --blue-a04: rgba(37, 99, 235, 0.04);
+  --blue-a08: rgba(37, 99, 235, 0.08);
+  --blue-a25: rgba(37, 99, 235, 0.2);
+  --blue-solid: #2563eb;
+
+  /* ── White-alpha extended — light (inverted to black-alpha) ── */
+  --bg-white-12: rgba(0, 0, 0, 0.08);
+
+  /* ── Surface layers — light ── */
+  --bg-popover: rgba(255, 255, 255, 0.92);
+  --bg-modal: rgba(255, 255, 255, 0.97);
 
   /* ── Overlays — heavier on light to dim properly ── */
   --overlay-light: rgba(0, 0, 0, 0.3);
