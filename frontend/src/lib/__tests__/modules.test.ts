@@ -170,3 +170,88 @@ describe('setEnabledModules edge cases', () => {
     expect(JSON.parse(localStorage.getItem('enabled-modules')!)).toEqual([])
   })
 })
+
+describe('APP_MODULES completeness — every module route has a matching nav item', () => {
+  it('every APP_MODULE with a moduleId has a corresponding nav item', async () => {
+    const { allNavItems } = await import('../nav-items')
+    const navModuleIds = allNavItems
+      .filter(n => n.moduleId)
+      .map(n => n.moduleId!)
+
+    // Every nav item with a moduleId must reference a valid APP_MODULE
+    for (const moduleId of navModuleIds) {
+      const mod = APP_MODULES.find(m => m.id === moduleId)
+      expect(mod, `nav item moduleId "${moduleId}" has no matching APP_MODULE`).toBeDefined()
+    }
+  })
+
+  it('every APP_MODULE route matches a nav item href', async () => {
+    const { allNavItems } = await import('../nav-items')
+    const navHrefs = new Set(allNavItems.map(n => n.href))
+
+    for (const mod of APP_MODULES) {
+      expect(
+        navHrefs.has(mod.route),
+        `APP_MODULE "${mod.id}" route "${mod.route}" has no matching nav item href`
+      ).toBe(true)
+    }
+  })
+
+  it('nav item labels match APP_MODULE names', async () => {
+    const { allNavItems } = await import('../nav-items')
+    for (const navItem of allNavItems) {
+      if (!navItem.moduleId) continue
+      const mod = APP_MODULES.find(m => m.id === navItem.moduleId)
+      if (mod) {
+        expect(navItem.label).toBe(mod.name)
+      }
+    }
+  })
+})
+
+describe('disabling a module removes it from getEnabledModules', () => {
+  it('removing a single module excludes it from the result', () => {
+    const allIds = APP_MODULES.map(m => m.id)
+    const withoutChat = allIds.filter(id => id !== 'chat')
+    setEnabledModules(withoutChat)
+
+    const enabled = getEnabledModules()
+    expect(enabled).not.toContain('chat')
+    expect(enabled.length).toBe(allIds.length - 1)
+  })
+
+  it('removing multiple modules excludes all of them', () => {
+    const toRemove = ['chat', 'todos', 'email', 'homelab']
+    const remaining = APP_MODULES.map(m => m.id).filter(id => !toRemove.includes(id))
+    setEnabledModules(remaining)
+
+    const enabled = getEnabledModules()
+    for (const id of toRemove) {
+      expect(enabled, `"${id}" should not be in enabled modules`).not.toContain(id)
+    }
+    expect(enabled.length).toBe(APP_MODULES.length - toRemove.length)
+  })
+
+  it('re-enabling a disabled module restores it', () => {
+    const allIds = APP_MODULES.map(m => m.id)
+    // Disable chat
+    setEnabledModules(allIds.filter(id => id !== 'chat'))
+    expect(getEnabledModules()).not.toContain('chat')
+
+    // Re-enable
+    setEnabledModules(allIds)
+    expect(getEnabledModules()).toContain('chat')
+  })
+
+  it('preserves order of remaining modules after disabling', () => {
+    const allIds = APP_MODULES.map(m => m.id)
+    const withoutMiddle = allIds.filter(id => id !== 'todos')
+    setEnabledModules(withoutMiddle)
+
+    const enabled = getEnabledModules()
+    // Chat comes before calendar in the original order
+    const chatIdx = enabled.indexOf('chat')
+    const calendarIdx = enabled.indexOf('calendar')
+    expect(chatIdx).toBeLessThan(calendarIdx)
+  })
+})
