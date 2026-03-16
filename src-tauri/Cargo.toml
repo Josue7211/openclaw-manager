@@ -40,6 +40,11 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png"]
 dotenvy = "0.15"
 url = "2"
 subtle = "2"
+base64 = "0.22"
+sha2 = "0.10"
+aes-gcm = "0.10"
+argon2 = "0.5"
+urlencoding = "2"
 # TODO: Uncomment to enable auto-updates (requires rebuild):
 # tauri-plugin-updater = "2"
 

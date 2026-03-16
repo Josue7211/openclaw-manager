@@ -1,8 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+pub mod crypto;
 mod db;
 mod error;
+pub mod gotrue;
 mod logging;
 mod redact;
 mod routes;
