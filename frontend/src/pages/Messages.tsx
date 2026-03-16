@@ -842,7 +842,7 @@ export default function MessagesPage() {
       {/* ═══ Conversation Context Menu ═══ */}
       {convCtx && (
         <>
-          <div onClick={() => setConvCtx(null)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+          <div role="presentation" onClick={() => setConvCtx(null)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
           <div style={{
             position: 'fixed', left: convCtx.x, top: convCtx.y, zIndex: 999,
             background: 'rgba(30,30,38,0.9)',

@@ -11,11 +11,19 @@ cd frontend && npm install && cd ..
 cargo tauri dev
 ```
 
+## Setup git hooks
+
+Install the pre-commit hook so checks run automatically on `git commit`:
+
+```bash
+ln -sf ../../scripts/pre-commit.sh .git/hooks/pre-commit
+```
+
 ## Workflow
 
 1. Create a feature branch from `master`
 2. Make your changes
-3. Run the pre-commit checks: `./scripts/pre-commit.sh`
+3. The pre-commit hook runs checks automatically, or run manually: `./scripts/pre-commit.sh`
 4. Open a pull request describing what changed and why
 
 ## Testing
