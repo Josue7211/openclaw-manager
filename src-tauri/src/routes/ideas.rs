@@ -4,8 +4,7 @@ use serde_json::{json, Value};
 
 use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
-use crate::supabase::SupabaseClient;
-use crate::validation::{sanitize_postgrest_value, validate_uuid};
+use crate::validation::validate_uuid;
 
 /// Build the ideas router (CRUD with auto-mission creation on approval).
 pub fn router() -> Router<AppState> {
@@ -25,16 +24,58 @@ async fn get_ideas(
     RequireAuth(session): RequireAuth,
     Query(params): Query<IdeasQuery>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_state(&state)?;
+    let rows: Vec<(
+        String, String, Option<String>, Option<String>, Option<String>,
+        Option<String>, Option<String>, String, Option<String>, Option<String>,
+        String, String,
+    )> = if let Some(ref status) = params.status {
+        sqlx::query_as(
+            "SELECT id, title, description, why, effort, \
+             impact, category, status, priority, mission_id, \
+             created_at, updated_at \
+             FROM ideas WHERE user_id = ? AND deleted_at IS NULL AND status = ? \
+             ORDER BY created_at DESC",
+        )
+        .bind(&session.user_id)
+        .bind(status)
+        .fetch_all(&state.db)
+        .await?
+    } else {
+        sqlx::query_as(
+            "SELECT id, title, description, why, effort, \
+             impact, category, status, priority, mission_id, \
+             created_at, updated_at \
+             FROM ideas WHERE user_id = ? AND deleted_at IS NULL \
+             ORDER BY created_at DESC",
+        )
+        .bind(&session.user_id)
+        .fetch_all(&state.db)
+        .await?
+    };
 
-    let mut query = "select=*&order=created_at.desc".to_string();
-    if let Some(status) = &params.status {
-        sanitize_postgrest_value(status)?;
-        query.push_str(&format!("&status=eq.{status}"));
-    }
+    let ideas: Vec<Value> = rows
+        .iter()
+        .map(
+            |(id, title, description, why, effort, impact, category, status, priority, mission_id, created_at, updated_at)| {
+                json!({
+                    "id": id,
+                    "title": title,
+                    "description": description,
+                    "why": why,
+                    "effort": effort,
+                    "impact": impact,
+                    "category": category,
+                    "status": status,
+                    "priority": priority,
+                    "mission_id": mission_id,
+                    "created_at": created_at,
+                    "updated_at": updated_at,
+                })
+            },
+        )
+        .collect();
 
-    let data = sb.select_as_user("ideas", &query, &session.access_token).await?;
-    Ok(Json(json!({ "ideas": data })))
+    Ok(Json(json!({ "ideas": ideas })))
 }
 
 #[derive(Debug, Deserialize)]
@@ -52,31 +93,69 @@ async fn post_idea(
     RequireAuth(session): RequireAuth,
     Json(body): Json<PostIdeaBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_state(&state)?;
-    let jwt = &session.access_token;
-
     let title = body.title.as_deref().unwrap_or("").trim();
     if title.is_empty() {
         return Err(AppError::BadRequest("Title required".into()));
     }
 
-    let data = sb
-        .insert_as_user(
-            "ideas",
-            json!({
-                "title": title,
-                "description": body.description,
-                "why": body.why,
-                "effort": body.effort,
-                "impact": body.impact,
-                "category": body.category,
-                "status": "pending",
-            }),
-            jwt,
-        )
-        .await?;
+    let id = crate::routes::util::random_uuid();
+    let now = chrono::Utc::now().to_rfc3339();
+    let description = value_to_opt_string(&body.description);
+    let why = value_to_opt_string(&body.why);
+    let effort = value_to_opt_string(&body.effort);
+    let impact = value_to_opt_string(&body.impact);
+    let category = value_to_opt_string(&body.category);
 
-    Ok(Json(json!({ "idea": data })))
+    sqlx::query(
+        "INSERT INTO ideas (id, user_id, title, description, why, effort, impact, category, status, created_at, updated_at) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)",
+    )
+    .bind(&id)
+    .bind(&session.user_id)
+    .bind(title)
+    .bind(&description)
+    .bind(&why)
+    .bind(&effort)
+    .bind(&impact)
+    .bind(&category)
+    .bind(&now)
+    .bind(&now)
+    .execute(&state.db)
+    .await?;
+
+    let idea = json!({
+        "id": id,
+        "title": title,
+        "description": body.description,
+        "why": body.why,
+        "effort": body.effort,
+        "impact": body.impact,
+        "category": body.category,
+        "status": "pending",
+        "created_at": now,
+        "updated_at": now,
+    });
+
+    let payload = serde_json::to_string(&json!({
+        "id": id,
+        "user_id": session.user_id,
+        "title": title,
+        "description": description,
+        "why": why,
+        "effort": effort,
+        "impact": impact,
+        "category": category,
+        "status": "pending",
+        "created_at": now,
+        "updated_at": now,
+    }))
+    .map_err(|e| AppError::Internal(e.into()))?;
+
+    crate::sync::log_mutation(&state.db, "ideas", &id, "INSERT", Some(&payload))
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?;
+
+    Ok(Json(json!({ "idea": idea })))
 }
 
 #[derive(Debug, Deserialize)]
@@ -91,55 +170,132 @@ async fn patch_idea(
     RequireAuth(session): RequireAuth,
     Json(body): Json<PatchIdeaBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_state(&state)?;
-    let jwt = &session.access_token;
-
     let id = body.id.as_ref().ok_or_else(|| AppError::BadRequest("id required".into()))?;
     validate_uuid(id)?;
 
-    let mut update = serde_json::Map::new();
-    if let Some(ref s) = body.status {
-        update.insert("status".into(), json!(s));
-    }
-    if let Some(ref m) = body.mission_id {
-        update.insert("mission_id".into(), m.clone());
-    }
-
-    if update.is_empty() {
+    if body.status.is_none() && body.mission_id.is_none() {
         return Err(AppError::BadRequest(
             "At least one field (status or mission_id) must be provided".into(),
         ));
     }
 
-    // If approving, auto-create a mission
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut mission_id_to_set = body.mission_id.clone();
+
+    // If approving, auto-create a mission in local SQLite
     if body.status.as_deref() == Some("approved") {
-        let idea_data = sb.select_as_user("ideas", &format!("select=*&id=eq.{id}"), jwt).await?;
-        if let Some(idea) = idea_data.as_array().and_then(|a| a.first()) {
-            let idea_title = idea.get("title").and_then(|v| v.as_str()).unwrap_or("Untitled");
-            match sb
-                .insert_as_user(
-                    "missions",
-                    json!({ "title": idea_title, "assignee": "koda", "status": "pending" }),
-                    jwt,
-                )
+        let idea_row: Option<(String,)> = sqlx::query_as(
+            "SELECT title FROM ideas WHERE id = ? AND user_id = ?",
+        )
+        .bind(id)
+        .bind(&session.user_id)
+        .fetch_optional(&state.db)
+        .await?;
+
+        if let Some((idea_title,)) = idea_row {
+            let mission_id = crate::routes::util::random_uuid();
+            sqlx::query(
+                "INSERT INTO missions (id, user_id, title, assignee, status, progress, created_at, updated_at) \
+                 VALUES (?, ?, ?, 'koda', 'pending', 0, ?, ?)",
+            )
+            .bind(&mission_id)
+            .bind(&session.user_id)
+            .bind(&idea_title)
+            .bind(&now)
+            .bind(&now)
+            .execute(&state.db)
+            .await?;
+
+            let mission_payload = serde_json::to_string(&json!({
+                "id": mission_id,
+                "user_id": session.user_id,
+                "title": idea_title,
+                "assignee": "koda",
+                "status": "pending",
+                "progress": 0,
+                "created_at": now,
+                "updated_at": now,
+            }))
+            .map_err(|e| AppError::Internal(e.into()))?;
+
+            crate::sync::log_mutation(&state.db, "missions", &mission_id, "INSERT", Some(&mission_payload))
                 .await
-            {
-                Ok(mission) => {
-                    if let Some(mid) = mission.get("id") {
-                        update.insert("mission_id".into(), mid.clone());
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("[ideas] Failed to create mission: {e}");
-                }
-            }
+                .map_err(|e| AppError::Internal(e.into()))?;
+
+            mission_id_to_set = Some(json!(mission_id));
         }
     }
 
-    let data = sb
-        .update_as_user("ideas", &format!("id=eq.{id}"), Value::Object(update), jwt)
-        .await?;
-    Ok(Json(json!({ "idea": data })))
+    // Build dynamic UPDATE
+    let mut sets = vec!["updated_at = ?"];
+    if body.status.is_some() { sets.push("status = ?"); }
+    if mission_id_to_set.is_some() { sets.push("mission_id = ?"); }
+    let sql = format!(
+        "UPDATE ideas SET {} WHERE id = ? AND user_id = ?",
+        sets.join(", ")
+    );
+
+    let mut query = sqlx::query(&sql).bind(&now);
+    if let Some(ref status) = body.status { query = query.bind(status); }
+    if let Some(ref mid) = mission_id_to_set {
+        let mid_str = mid.as_str().map(|s| s.to_string()).or_else(|| {
+            if mid.is_null() { None } else { Some(mid.to_string()) }
+        });
+        query = query.bind(mid_str);
+    }
+    query = query.bind(id).bind(&session.user_id);
+    query.execute(&state.db).await?;
+
+    // Read back updated row
+    let updated: Option<(
+        String, String, Option<String>, Option<String>, Option<String>,
+        Option<String>, Option<String>, String, Option<String>, Option<String>,
+        String, String,
+    )> = sqlx::query_as(
+        "SELECT id, title, description, why, effort, \
+         impact, category, status, priority, mission_id, \
+         created_at, updated_at \
+         FROM ideas WHERE id = ? AND user_id = ?",
+    )
+    .bind(id)
+    .bind(&session.user_id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    let idea = match updated {
+        Some((
+            rid, title, description, why, effort,
+            impact, category, status, priority, mission_id,
+            created_at, updated_at,
+        )) => {
+            let val = json!({
+                "id": rid,
+                "user_id": session.user_id,
+                "title": title,
+                "description": description,
+                "why": why,
+                "effort": effort,
+                "impact": impact,
+                "category": category,
+                "status": status,
+                "priority": priority,
+                "mission_id": mission_id,
+                "created_at": created_at,
+                "updated_at": updated_at,
+            });
+
+            let payload = serde_json::to_string(&val)
+                .map_err(|e| AppError::Internal(e.into()))?;
+            crate::sync::log_mutation(&state.db, "ideas", &rid, "UPDATE", Some(&payload))
+                .await
+                .map_err(|e| AppError::Internal(e.into()))?;
+
+            val
+        }
+        None => Value::Null,
+    };
+
+    Ok(Json(json!({ "idea": idea })))
 }
 
 #[derive(Debug, Deserialize)]
@@ -163,7 +319,29 @@ async fn delete_idea(
     }
     validate_uuid(&id)?;
 
-    let sb = SupabaseClient::from_state(&state)?;
-    sb.delete_as_user("ideas", &format!("id=eq.{id}"), &session.access_token).await?;
+    let now = chrono::Utc::now().to_rfc3339();
+    sqlx::query(
+        "UPDATE ideas SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+    )
+    .bind(&now)
+    .bind(&now)
+    .bind(&id)
+    .bind(&session.user_id)
+    .execute(&state.db)
+    .await?;
+
+    crate::sync::log_mutation(&state.db, "ideas", &id, "DELETE", None)
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?;
+
     Ok(Json(json!({ "ok": true })))
+}
+
+/// Convert a serde_json::Value to an Option<String> for SQLite TEXT storage.
+fn value_to_opt_string(val: &Option<Value>) -> Option<String> {
+    match val {
+        Some(Value::String(s)) => Some(s.clone()),
+        Some(Value::Null) | None => None,
+        Some(v) => Some(v.to_string()),
+    }
 }

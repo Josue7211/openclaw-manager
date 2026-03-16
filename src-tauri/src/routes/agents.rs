@@ -10,8 +10,7 @@ use tokio::time::Duration;
 
 use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
-use crate::supabase::SupabaseClient;
-use crate::validation::sanitize_postgrest_value;
+use crate::validation::validate_uuid;
 
 fn openclaw_api_url(state: &AppState) -> Option<String> {
     state.secret("OPENCLAW_API_URL").filter(|s| !s.is_empty())
@@ -26,18 +25,6 @@ fn openclaw_api_key(state: &AppState) -> String {
 /// Friendly names assigned to detected subagent processes.
 const SUBAGENT_NAMES: &[&str] = &[
     "Axel", "Nova", "Pixel", "Hex", "Byte", "Flux", "Cipher", "Sage",
-];
-
-/// Allowed fields for PATCH /agents updates.
-const ALLOWED_FIELDS: &[&str] = &[
-    "display_name",
-    "emoji",
-    "role",
-    "status",
-    "current_task",
-    "color",
-    "model",
-    "sort_order",
 ];
 
 // ── Router ───────────────────────────────────────────────────────────────────
@@ -56,11 +43,44 @@ async fn get_agents(
     State(state): State<AppState>,
     RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_state(&state)?;
-    let data = sb
-        .select_as_user("agents", "select=*&order=sort_order.asc", &session.access_token)
-        .await?;
-    Ok(Json(json!({ "agents": data })))
+    let rows: Vec<(
+        String, String, Option<String>, Option<String>, Option<String>,
+        String, String, Option<String>, Option<String>, i64,
+        String, String,
+    )> = sqlx::query_as(
+        "SELECT id, name, display_name, emoji, role, \
+         status, current_task, model, color, sort_order, \
+         created_at, updated_at \
+         FROM agents WHERE user_id = ? AND deleted_at IS NULL \
+         ORDER BY sort_order ASC",
+    )
+    .bind(&session.user_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let agents: Vec<Value> = rows
+        .iter()
+        .map(
+            |(id, name, display_name, emoji, role, status, current_task, model, color, sort_order, created_at, updated_at)| {
+                json!({
+                    "id": id,
+                    "name": name,
+                    "display_name": display_name,
+                    "emoji": emoji,
+                    "role": role,
+                    "status": status,
+                    "current_task": current_task,
+                    "model": model,
+                    "color": color,
+                    "sort_order": sort_order,
+                    "created_at": created_at,
+                    "updated_at": updated_at,
+                })
+            },
+        )
+        .collect();
+
+    Ok(Json(json!({ "agents": agents })))
 }
 
 // ── PATCH /agents ────────────────────────────────────────────────────────────
@@ -87,38 +107,89 @@ async fn update_agent(
         .id
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("id required".into()))?;
-    sanitize_postgrest_value(id)?;
+    validate_uuid(id)?;
 
-    let mut update = serde_json::Map::new();
-    update.insert(
-        "updated_at".into(),
-        json!(chrono::Utc::now().to_rfc3339()),
+    let now = chrono::Utc::now().to_rfc3339();
+
+    // Build dynamic UPDATE from allowed fields
+    let mut sets = vec!["updated_at = ?"];
+    if body.display_name.is_some() { sets.push("display_name = ?"); }
+    if body.emoji.is_some() { sets.push("emoji = ?"); }
+    if body.role.is_some() { sets.push("role = ?"); }
+    if body.status.is_some() { sets.push("status = ?"); }
+    if body.current_task.is_some() { sets.push("current_task = ?"); }
+    if body.color.is_some() { sets.push("color = ?"); }
+    if body.model.is_some() { sets.push("model = ?"); }
+    if body.sort_order.is_some() { sets.push("sort_order = ?"); }
+
+    let sql = format!(
+        "UPDATE agents SET {} WHERE id = ? AND user_id = ?",
+        sets.join(", ")
     );
 
-    // Build update map from allowed fields
-    let body_value = json!({
-        "display_name": body.display_name,
-        "emoji": body.emoji,
-        "role": body.role,
-        "status": body.status,
-        "current_task": body.current_task,
-        "color": body.color,
-        "model": body.model,
-        "sort_order": body.sort_order,
-    });
-
-    for key in ALLOWED_FIELDS {
-        if let Some(val) = body_value.get(*key) {
-            if !val.is_null() {
-                update.insert((*key).to_string(), val.clone());
-            }
-        }
+    let mut query = sqlx::query(&sql).bind(&now);
+    if let Some(ref v) = body.display_name { query = query.bind(v); }
+    if let Some(ref v) = body.emoji { query = query.bind(v); }
+    if let Some(ref v) = body.role { query = query.bind(v); }
+    if let Some(ref v) = body.status { query = query.bind(v); }
+    if let Some(ref v) = body.current_task { query = query.bind(v); }
+    if let Some(ref v) = body.color { query = query.bind(v); }
+    if let Some(ref v) = body.model { query = query.bind(v); }
+    if let Some(ref v) = body.sort_order {
+        let sort_val = v.as_i64().unwrap_or(0);
+        query = query.bind(sort_val);
     }
+    query = query.bind(id).bind(&session.user_id);
+    query.execute(&state.db).await?;
 
-    let sb = SupabaseClient::from_state(&state)?;
-    let data = sb
-        .update_as_user("agents", &format!("id=eq.{id}"), Value::Object(update), &session.access_token)
-        .await?;
+    // Read back the updated row
+    let row: Option<(
+        String, String, Option<String>, Option<String>, Option<String>,
+        String, String, Option<String>, Option<String>, i64,
+        String, String,
+    )> = sqlx::query_as(
+        "SELECT id, name, display_name, emoji, role, \
+         status, current_task, model, color, sort_order, \
+         created_at, updated_at \
+         FROM agents WHERE id = ? AND user_id = ?",
+    )
+    .bind(id)
+    .bind(&session.user_id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    let agent = match row {
+        Some((
+            rid, name, display_name, emoji, role,
+            status, current_task, model, color, sort_order,
+            created_at, updated_at,
+        )) => {
+            let val = json!({
+                "id": rid,
+                "user_id": session.user_id,
+                "name": name,
+                "display_name": display_name,
+                "emoji": emoji,
+                "role": role,
+                "status": status,
+                "current_task": current_task,
+                "model": model,
+                "color": color,
+                "sort_order": sort_order,
+                "created_at": created_at,
+                "updated_at": updated_at,
+            });
+
+            let payload = serde_json::to_string(&val)
+                .map_err(|e| AppError::Internal(e.into()))?;
+            crate::sync::log_mutation(&state.db, "agents", &rid, "UPDATE", Some(&payload))
+                .await
+                .map_err(|e| AppError::Internal(e.into()))?;
+
+            val
+        }
+        None => Value::Null,
+    };
 
     // Sync model change to OpenClaw via API (fire-and-forget)
     if let Some(model) = &body.model {
@@ -149,7 +220,6 @@ async fn update_agent(
         }
     }
 
-    let agent = data.get(0).cloned().unwrap_or(Value::Null);
     Ok(Json(json!({ "agent": agent })))
 }
 

@@ -4,7 +4,6 @@ use serde_json::{json, Value};
 
 use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
-use crate::supabase::SupabaseClient;
 use crate::validation::{validate_date, validate_uuid};
 
 // ── Router ──────────────────────────────────────────────────────────────────
@@ -22,11 +21,31 @@ async fn get_habits(
     State(state): State<AppState>,
     RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_state(&state)?;
-    let data = sb
-        .select_as_user("habits", "select=*&order=sort_order,created_at", &session.access_token)
-        .await?;
-    Ok(Json(json!({ "habits": data })))
+    let rows: Vec<(String, String, String, String, i64, String, String)> = sqlx::query_as(
+        "SELECT id, name, emoji, color, sort_order, created_at, updated_at \
+         FROM habits WHERE user_id = ? AND deleted_at IS NULL \
+         ORDER BY sort_order ASC, created_at ASC",
+    )
+    .bind(&session.user_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let habits: Vec<Value> = rows
+        .iter()
+        .map(|(id, name, emoji, color, sort_order, created_at, updated_at)| {
+            json!({
+                "id": id,
+                "name": name,
+                "emoji": emoji,
+                "color": color,
+                "sort_order": sort_order,
+                "created_at": created_at,
+                "updated_at": updated_at,
+            })
+        })
+        .collect();
+
+    Ok(Json(json!({ "habits": habits })))
 }
 
 // ── POST /api/habits ────────────────────────────────────────────────────────
@@ -43,26 +62,55 @@ async fn post_habit(
     RequireAuth(session): RequireAuth,
     Json(body): Json<PostHabitBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_state(&state)?;
-
     let name = body.name.as_deref().unwrap_or("").trim();
     if name.is_empty() {
         return Err(AppError::BadRequest("Name required".into()));
     }
 
-    let data = sb
-        .insert_as_user(
-            "habits",
-            json!({
-                "name": name,
-                "emoji": body.emoji.as_deref().unwrap_or("\u{2705}"),
-                "color": body.color.as_deref().unwrap_or("#9b84ec"),
-            }),
-            &session.access_token,
-        )
-        .await?;
+    let id = crate::routes::util::random_uuid();
+    let now = chrono::Utc::now().to_rfc3339();
+    let emoji = body.emoji.as_deref().unwrap_or("\u{2705}");
+    let color = body.color.as_deref().unwrap_or("#9b84ec");
 
-    Ok(Json(json!({ "habit": data })))
+    sqlx::query(
+        "INSERT INTO habits (id, user_id, name, emoji, color, created_at, updated_at) \
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(&session.user_id)
+    .bind(name)
+    .bind(emoji)
+    .bind(color)
+    .bind(&now)
+    .bind(&now)
+    .execute(&state.db)
+    .await?;
+
+    let habit = json!({
+        "id": id,
+        "name": name,
+        "emoji": emoji,
+        "color": color,
+        "created_at": now,
+        "updated_at": now,
+    });
+
+    let payload = serde_json::to_string(&json!({
+        "id": id,
+        "user_id": session.user_id,
+        "name": name,
+        "emoji": emoji,
+        "color": color,
+        "created_at": now,
+        "updated_at": now,
+    }))
+    .map_err(|e| AppError::Internal(e.into()))?;
+
+    crate::sync::log_mutation(&state.db, "habits", &id, "INSERT", Some(&payload))
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?;
+
+    Ok(Json(json!({ "habit": habit })))
 }
 
 // ── DELETE /api/habits ──────────────────────────────────────────────────────
@@ -72,13 +120,27 @@ async fn delete_habit(
     RequireAuth(session): RequireAuth,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_state(&state)?;
     let id = body
         .get("id")
         .and_then(|v| v.as_str())
         .ok_or_else(|| AppError::BadRequest("id required".into()))?;
     validate_uuid(id)?;
-    sb.delete_as_user("habits", &format!("id=eq.{id}"), &session.access_token).await?;
+
+    let now = chrono::Utc::now().to_rfc3339();
+    sqlx::query(
+        "UPDATE habits SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+    )
+    .bind(&now)
+    .bind(&now)
+    .bind(id)
+    .bind(&session.user_id)
+    .execute(&state.db)
+    .await?;
+
+    crate::sync::log_mutation(&state.db, "habits", id, "DELETE", None)
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?;
+
     Ok(Json(json!({ "ok": true })))
 }
 
@@ -94,16 +156,41 @@ async fn get_habit_entries(
     RequireAuth(session): RequireAuth,
     Query(params): Query<HabitEntriesQuery>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_state(&state)?;
-
-    let mut query = "select=*&order=date".to_string();
-    if let Some(since) = &params.since {
+    let rows: Vec<(String, String, String, String)> = if let Some(ref since) = params.since {
         validate_date(since)?;
-        query.push_str(&format!("&date=gte.{since}"));
-    }
+        sqlx::query_as(
+            "SELECT id, habit_id, date, created_at \
+             FROM habit_entries WHERE user_id = ? AND deleted_at IS NULL AND date >= ? \
+             ORDER BY date ASC",
+        )
+        .bind(&session.user_id)
+        .bind(since)
+        .fetch_all(&state.db)
+        .await?
+    } else {
+        sqlx::query_as(
+            "SELECT id, habit_id, date, created_at \
+             FROM habit_entries WHERE user_id = ? AND deleted_at IS NULL \
+             ORDER BY date ASC",
+        )
+        .bind(&session.user_id)
+        .fetch_all(&state.db)
+        .await?
+    };
 
-    let data = sb.select_as_user("habit_entries", &query, &session.access_token).await?;
-    Ok(Json(json!({ "entries": data })))
+    let entries: Vec<Value> = rows
+        .iter()
+        .map(|(id, habit_id, date, created_at)| {
+            json!({
+                "id": id,
+                "habit_id": habit_id,
+                "date": date,
+                "created_at": created_at,
+            })
+        })
+        .collect();
+
+    Ok(Json(json!({ "entries": entries })))
 }
 
 // ── POST /api/habits/entries (toggle) ───────────────────────────────────────
@@ -119,9 +206,6 @@ async fn post_habit_entry(
     RequireAuth(session): RequireAuth,
     Json(body): Json<PostHabitEntryBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_state(&state)?;
-    let jwt = &session.access_token;
-
     let habit_id = body
         .habit_id
         .as_ref()
@@ -135,30 +219,67 @@ async fn post_habit_entry(
     validate_date(date)?;
 
     // Check if entry already exists
-    let existing = sb
-        .select_as_user(
-            "habit_entries",
-            &format!("select=id&habit_id=eq.{habit_id}&date=eq.{date}&limit=1"),
-            jwt,
+    let existing: Option<(String,)> = sqlx::query_as(
+        "SELECT id FROM habit_entries \
+         WHERE user_id = ? AND habit_id = ? AND date = ? AND deleted_at IS NULL \
+         LIMIT 1",
+    )
+    .bind(&session.user_id)
+    .bind(habit_id)
+    .bind(date)
+    .fetch_optional(&state.db)
+    .await?;
+
+    if let Some((existing_id,)) = existing {
+        // Toggle off — soft-delete the entry
+        let now = chrono::Utc::now().to_rfc3339();
+        sqlx::query(
+            "UPDATE habit_entries SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?",
         )
+        .bind(&now)
+        .bind(&now)
+        .bind(&existing_id)
+        .bind(&session.user_id)
+        .execute(&state.db)
         .await?;
 
-    let existing_arr = existing.as_array();
-    if let Some(rows) = existing_arr {
-        if let Some(row) = rows.first() {
-            // Toggle off — delete existing entry
-            let existing_id = row
-                .get("id")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Missing id on existing entry")))?;
-            validate_uuid(existing_id)?;
-            sb.delete_as_user("habit_entries", &format!("id=eq.{existing_id}"), jwt).await?;
-            return Ok(Json(json!({ "done": false })));
-        }
+        crate::sync::log_mutation(&state.db, "habit_entries", &existing_id, "DELETE", None)
+            .await
+            .map_err(|e| AppError::Internal(e.into()))?;
+
+        return Ok(Json(json!({ "done": false })));
     }
 
     // Toggle on — insert new entry
-    sb.insert_as_user("habit_entries", json!({ "habit_id": habit_id, "date": date }), jwt)
-        .await?;
+    let id = crate::routes::util::random_uuid();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    sqlx::query(
+        "INSERT INTO habit_entries (id, user_id, habit_id, date, created_at, updated_at) \
+         VALUES (?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(&session.user_id)
+    .bind(habit_id)
+    .bind(date)
+    .bind(&now)
+    .bind(&now)
+    .execute(&state.db)
+    .await?;
+
+    let payload = serde_json::to_string(&json!({
+        "id": id,
+        "user_id": session.user_id,
+        "habit_id": habit_id,
+        "date": date,
+        "created_at": now,
+        "updated_at": now,
+    }))
+    .map_err(|e| AppError::Internal(e.into()))?;
+
+    crate::sync::log_mutation(&state.db, "habit_entries", &id, "INSERT", Some(&payload))
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?;
+
     Ok(Json(json!({ "done": true })))
 }

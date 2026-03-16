@@ -4,7 +4,6 @@ use serde_json::{json, Value};
 
 use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
-use crate::supabase::SupabaseClient;
 
 /// Build the quick-capture router (Note/Task/Idea/Decision inbox).
 pub fn router() -> Router<AppState> {
@@ -27,9 +26,6 @@ async fn post_quick_capture(
     RequireAuth(session): RequireAuth,
     Json(body): Json<QuickCaptureBody>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_state(&state)?;
-    let jwt = &session.access_token;
-
     let content = body.content.as_deref().unwrap_or("").trim().to_string();
     if content.is_empty() {
         return Err(AppError::BadRequest("content is required".into()));
@@ -46,62 +42,101 @@ async fn post_quick_capture(
 
     let now = chrono::Utc::now().to_rfc3339();
     let source = body.source.as_deref().unwrap_or("ios-shortcut");
+    let id = crate::routes::util::random_uuid();
 
     match capture_type {
         "Task" => {
-            let row = sb
-                .insert_as_user(
-                    "todos",
-                    json!({ "title": content, "completed": false, "created_at": now }),
-                    jwt,
-                )
-                .await?;
-            let id = row.get("id").and_then(|v| v.as_i64()).map(|v| v.to_string()).unwrap_or_default();
+            // Insert into local todos table
+            sqlx::query(
+                "INSERT INTO todos (id, user_id, text, done, created_at, updated_at) \
+                 VALUES (?, ?, ?, 0, ?, ?)",
+            )
+            .bind(&id)
+            .bind(&session.user_id)
+            .bind(&content)
+            .bind(&now)
+            .bind(&now)
+            .execute(&state.db)
+            .await?;
+
+            let payload = serde_json::to_string(&json!({
+                "id": id,
+                "user_id": session.user_id,
+                "text": content,
+                "done": false,
+                "created_at": now,
+                "updated_at": now,
+            }))
+            .map_err(|e| AppError::Internal(e.into()))?;
+
+            crate::sync::log_mutation(&state.db, "todos", &id, "INSERT", Some(&payload))
+                .await
+                .map_err(|e| AppError::Internal(e.into()))?;
+
             Ok(Json(json!({ "ok": true, "id": id })))
         }
         "Idea" => {
-            let row = sb
-                .insert_as_user(
-                    "ideas",
-                    json!({ "title": content, "status": "pending", "created_at": now }),
-                    jwt,
-                )
-                .await?;
-            let id = row.get("id").and_then(|v| v.as_i64()).map(|v| v.to_string()).unwrap_or_default();
+            // Insert into local ideas table
+            sqlx::query(
+                "INSERT INTO ideas (id, user_id, title, status, created_at, updated_at) \
+                 VALUES (?, ?, ?, 'pending', ?, ?)",
+            )
+            .bind(&id)
+            .bind(&session.user_id)
+            .bind(&content)
+            .bind(&now)
+            .bind(&now)
+            .execute(&state.db)
+            .await?;
+
+            let payload = serde_json::to_string(&json!({
+                "id": id,
+                "user_id": session.user_id,
+                "title": content,
+                "status": "pending",
+                "created_at": now,
+                "updated_at": now,
+            }))
+            .map_err(|e| AppError::Internal(e.into()))?;
+
+            crate::sync::log_mutation(&state.db, "ideas", &id, "INSERT", Some(&payload))
+                .await
+                .map_err(|e| AppError::Internal(e.into()))?;
+
             Ok(Json(json!({ "ok": true, "id": id })))
         }
         _ => {
-            // Note or Decision — try captures table, fall back to todos
-            let captures_result = sb
-                .insert_as_user(
-                    "captures",
-                    json!({ "title": content, "type": capture_type, "source": source, "created_at": now }),
-                    jwt,
-                )
-                .await;
+            // Note or Decision — insert into captures table
+            sqlx::query(
+                "INSERT INTO captures (id, user_id, title, type, source, created_at, updated_at) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+            )
+            .bind(&id)
+            .bind(&session.user_id)
+            .bind(&content)
+            .bind(capture_type)
+            .bind(source)
+            .bind(&now)
+            .bind(&now)
+            .execute(&state.db)
+            .await?;
 
-            match captures_result {
-                Ok(row) => {
-                    let id = row.get("id").and_then(|v| v.as_i64()).map(|v| v.to_string()).unwrap_or_default();
-                    Ok(Json(json!({ "ok": true, "id": id })))
-                }
-                Err(_) => {
-                    // Fallback to todos table
-                    let row = sb
-                        .insert_as_user(
-                            "todos",
-                            json!({
-                                "title": format!("[{capture_type}] {content}"),
-                                "completed": false,
-                                "created_at": now,
-                            }),
-                            jwt,
-                        )
-                        .await?;
-                    let id = row.get("id").and_then(|v| v.as_i64()).map(|v| v.to_string()).unwrap_or_default();
-                    Ok(Json(json!({ "ok": true, "id": id })))
-                }
-            }
+            let payload = serde_json::to_string(&json!({
+                "id": id,
+                "user_id": session.user_id,
+                "title": content,
+                "type": capture_type,
+                "source": source,
+                "created_at": now,
+                "updated_at": now,
+            }))
+            .map_err(|e| AppError::Internal(e.into()))?;
+
+            crate::sync::log_mutation(&state.db, "captures", &id, "INSERT", Some(&payload))
+                .await
+                .map_err(|e| AppError::Internal(e.into()))?;
+
+            Ok(Json(json!({ "ok": true, "id": id })))
         }
     }
 }

@@ -14,6 +14,9 @@ use crate::server::{AppState, RequireAuth};
 use crate::supabase::SupabaseClient;
 use crate::validation::validate_uuid;
 
+// Supabase client is still used for: mission-events (ingestion comes from
+// OpenClaw VM), bjorn_event, ingest_events, sync_agents.
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const VALID_STATUSES: &[&str] = &["pending", "active", "done", "failed", "awaiting_review"];
@@ -47,49 +50,54 @@ async fn get_missions(
     State(state): State<AppState>,
     RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    // Try SQLite cache first for instant response
-    let cached = state.cache_get("missions").await;
-    let jwt = &session.access_token;
+    let rows: Vec<(
+        String, String, Option<String>, String, i64,
+        String, Option<String>, Option<i64>, Option<String>,
+        Option<String>, Option<String>, Option<String>, i64,
+        String, String,
+    )> = sqlx::query_as(
+        "SELECT id, title, assignee, status, progress, \
+         task_type, log_path, complexity, spawn_command, \
+         routed_agent, review_status, review_notes, retry_count, \
+         created_at, updated_at \
+         FROM missions WHERE user_id = ? AND deleted_at IS NULL \
+         ORDER BY created_at ASC",
+    )
+    .bind(&session.user_id)
+    .fetch_all(&state.db)
+    .await?;
 
-    // Always fetch fresh data from Supabase (or try to)
-    let sb = SupabaseClient::from_state(&state);
-    match sb {
-        Ok(sb) => {
-            match sb.select_as_user("missions", "select=*&order=created_at.asc", jwt).await {
-                Ok(data) => {
-                    // Persist to SQLite in background
-                    let response = json!({ "missions": data });
-                    if let Ok(payload) = serde_json::to_string(&response) {
-                        let bg = state.clone();
-                        tokio::spawn(async move {
-                            bg.cache_set("missions", &payload).await;
-                        });
-                    }
-                    Ok(Json(response))
-                }
-                Err(e) => {
-                    // Network failed — serve stale cache if available
-                    if let Some(ref data) = cached {
-                        if let Ok(v) = serde_json::from_str::<Value>(data) {
-                            tracing::warn!("Missions fetch failed, serving from SQLite cache");
-                            return Ok(Json(v));
-                        }
-                    }
-                    Err(AppError::Internal(e))
-                }
-            }
-        }
-        Err(e) => {
-            // Supabase not configured — serve stale cache if available
-            if let Some(ref data) = cached {
-                if let Ok(v) = serde_json::from_str::<Value>(data) {
-                    tracing::warn!("Supabase not configured, serving missions from SQLite cache");
-                    return Ok(Json(v));
-                }
-            }
-            Err(AppError::Internal(e))
-        }
-    }
+    let missions: Vec<Value> = rows
+        .iter()
+        .map(
+            |(
+                id, title, assignee, status, progress,
+                task_type, log_path, complexity, spawn_command,
+                routed_agent, review_status, review_notes, retry_count,
+                created_at, updated_at,
+            )| {
+                json!({
+                    "id": id,
+                    "title": title,
+                    "assignee": assignee,
+                    "status": status,
+                    "progress": progress,
+                    "task_type": task_type,
+                    "log_path": log_path,
+                    "complexity": complexity,
+                    "spawn_command": spawn_command,
+                    "routed_agent": routed_agent,
+                    "review_status": review_status,
+                    "review_notes": review_notes,
+                    "retry_count": retry_count,
+                    "created_at": created_at,
+                    "updated_at": updated_at,
+                })
+            },
+        )
+        .collect();
+
+    Ok(Json(json!({ "missions": missions })))
 }
 
 // ── POST /missions ───────────────────────────────────────────────────────────
@@ -110,15 +118,49 @@ async fn create_mission(
         return Err(AppError::BadRequest("Empty title".into()));
     }
 
-    let sb = SupabaseClient::from_state(&state)?;
-    let jwt = &session.access_token;
-    let row = json!({
+    let id = crate::routes::util::random_uuid();
+    let now = chrono::Utc::now().to_rfc3339();
+    let assignee = body.assignee.as_deref().unwrap_or("team");
+
+    sqlx::query(
+        "INSERT INTO missions (id, user_id, title, assignee, status, progress, created_at, updated_at) \
+         VALUES (?, ?, ?, ?, 'pending', 0, ?, ?)",
+    )
+    .bind(&id)
+    .bind(&session.user_id)
+    .bind(title)
+    .bind(assignee)
+    .bind(&now)
+    .bind(&now)
+    .execute(&state.db)
+    .await?;
+
+    let mission = json!({
+        "id": id,
         "title": title,
-        "assignee": body.assignee.as_deref().unwrap_or("team"),
+        "assignee": assignee,
         "status": "pending",
+        "progress": 0,
+        "created_at": now,
+        "updated_at": now,
     });
-    let data = sb.insert_as_user("missions", row, jwt).await?;
-    let mission = data.get(0).cloned().unwrap_or(Value::Null);
+
+    let payload = serde_json::to_string(&json!({
+        "id": id,
+        "user_id": session.user_id,
+        "title": title,
+        "assignee": assignee,
+        "status": "pending",
+        "progress": 0,
+        "created_at": now,
+        "updated_at": now,
+    }))
+    .map_err(|e| AppError::Internal(e.into()))?;
+
+    crate::sync::log_mutation(&state.db, "missions", &id, "INSERT", Some(&payload))
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?;
+
     Ok(Json(json!({ "mission": mission })))
 }
 
@@ -153,29 +195,99 @@ async fn update_mission(
         }
     }
 
-    let mut updates = serde_json::Map::new();
+    let now = chrono::Utc::now().to_rfc3339();
 
+    // Build dynamic UPDATE
+    let mut sets = vec!["updated_at = ?"];
+    if body.status.is_some() {
+        sets.push("status = ?");
+    }
+    if body.assignee.is_some() {
+        sets.push("assignee = ?");
+    }
+    if body.progress.is_some() {
+        sets.push("progress = ?");
+    }
+    if body.log_path.is_some() {
+        sets.push("log_path = ?");
+    }
+    let sql = format!(
+        "UPDATE missions SET {} WHERE id = ? AND user_id = ?",
+        sets.join(", ")
+    );
+
+    let mut query = sqlx::query(&sql).bind(&now);
     if let Some(ref status) = body.status {
-        updates.insert("status".into(), json!(status));
-        updates.insert("updated_at".into(), json!(chrono::Utc::now().to_rfc3339()));
+        query = query.bind(status);
     }
     if let Some(ref assignee) = body.assignee {
-        updates.insert("assignee".into(), json!(assignee));
+        query = query.bind(assignee);
     }
     if let Some(progress) = body.progress {
         let clamped = progress.max(0.0).min(100.0) as i64;
-        updates.insert("progress".into(), json!(clamped));
+        query = query.bind(clamped);
     }
     if let Some(ref log_path) = body.log_path {
-        updates.insert("log_path".into(), json!(log_path));
+        query = query.bind(log_path);
     }
+    query = query.bind(id).bind(&session.user_id);
+    query.execute(&state.db).await?;
 
-    let sb = SupabaseClient::from_state(&state)?;
-    let jwt = session.access_token.clone();
-    let data = sb
-        .update_as_user("missions", &format!("id=eq.{id}"), Value::Object(updates), &jwt)
-        .await?;
-    let mission = data.get(0).cloned().unwrap_or(Value::Null);
+    // Read back updated row for response and sync
+    let row: Option<(
+        String, String, Option<String>, String, i64,
+        String, Option<String>, Option<i64>, Option<String>,
+        Option<String>, Option<String>, Option<String>, i64,
+        String, String,
+    )> = sqlx::query_as(
+        "SELECT id, title, assignee, status, progress, \
+         task_type, log_path, complexity, spawn_command, \
+         routed_agent, review_status, review_notes, retry_count, \
+         created_at, updated_at \
+         FROM missions WHERE id = ? AND user_id = ?",
+    )
+    .bind(id)
+    .bind(&session.user_id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    let mission = match row {
+        Some((
+            rid, title, assignee_val, status_val, progress_val,
+            task_type, log_path_val, complexity, spawn_command,
+            routed_agent, review_status, review_notes, retry_count,
+            created_at, updated_at,
+        )) => {
+            let val = json!({
+                "id": rid,
+                "user_id": session.user_id,
+                "title": title,
+                "assignee": assignee_val,
+                "status": status_val,
+                "progress": progress_val,
+                "task_type": task_type,
+                "log_path": log_path_val,
+                "complexity": complexity,
+                "spawn_command": spawn_command,
+                "routed_agent": routed_agent,
+                "review_status": review_status,
+                "review_notes": review_notes,
+                "retry_count": retry_count,
+                "created_at": created_at,
+                "updated_at": updated_at,
+            });
+
+            // Log for sync
+            let payload = serde_json::to_string(&val)
+                .map_err(|e| AppError::Internal(e.into()))?;
+            crate::sync::log_mutation(&state.db, "missions", &rid, "UPDATE", Some(&payload))
+                .await
+                .map_err(|e| AppError::Internal(e.into()))?;
+
+            val
+        }
+        None => Value::Null,
+    };
 
     // Send push notification for terminal status changes
     if let Some(ref status) = body.status {
@@ -190,7 +302,6 @@ async fn update_mission(
                 ("Mission Failed", "x", 4)
             };
 
-            // Fire-and-forget notification
             let ntfy_url = state.secret("NTFY_URL").unwrap_or_default();
             let ntfy_topic = state.secret("NTFY_TOPIC").unwrap_or_else(|| "mission-control".into());
             let http = state.http.clone();
@@ -203,13 +314,14 @@ async fn update_mission(
         }
     }
 
-    // Log activity for status changes
+    // Log activity for status changes (still to Supabase activity_log)
+    let jwt = session.access_token.clone();
     if let Some(ref status) = body.status {
         let title_text = mission
             .get("title")
             .and_then(|v| v.as_str())
             .unwrap_or("Unknown");
-        let assignee_val = mission
+        let assignee_str = mission
             .get("assignee")
             .and_then(|v| v.as_str())
             .unwrap_or("");
@@ -224,13 +336,12 @@ async fn update_mission(
         if let Some(sb_log) = sb_log {
             let log_row = json!({
                 "mission_id": id,
-                "agent_id": if assignee_val.is_empty() { Value::Null } else { json!(assignee_val) },
+                "agent_id": if assignee_str.is_empty() { Value::Null } else { json!(assignee_str) },
                 "event_type": "mission_status_change",
                 "description": desc,
                 "metadata": { "status": status, "progress": clamped },
             });
             let jwt_clone = jwt.clone();
-            // Fire-and-forget
             tokio::spawn(async move {
                 let _ = sb_log.insert_as_user("activity_log", log_row, &jwt_clone).await;
             });
@@ -286,8 +397,21 @@ async fn delete_mission(
 ) -> Result<Json<Value>, AppError> {
     validate_uuid(&body.id)?;
 
-    let sb = SupabaseClient::from_state(&state)?;
-    sb.delete_as_user("missions", &format!("id=eq.{}", body.id), &session.access_token).await?;
+    let now = chrono::Utc::now().to_rfc3339();
+    sqlx::query(
+        "UPDATE missions SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+    )
+    .bind(&now)
+    .bind(&now)
+    .bind(&body.id)
+    .bind(&session.user_id)
+    .execute(&state.db)
+    .await?;
+
+    crate::sync::log_mutation(&state.db, "missions", &body.id, "DELETE", None)
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?;
+
     Ok(Json(json!({ "ok": true })))
 }
 
