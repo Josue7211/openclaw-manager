@@ -17,7 +17,6 @@ import {
   BookOpen,
   Smartphone,
   FileText,
-  HeartPulse,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -39,7 +38,6 @@ export const personalDashboardItems: NavItem[] = [
   { href: '/homelab', label: 'Home Lab', icon: Server, moduleId: 'homelab' },
   { href: '/media', label: 'Media Radar', icon: Film, moduleId: 'media' },
   { href: '/notes', label: 'Notes', icon: FileText, moduleId: 'notes' },
-  { href: '/status', label: 'Status', icon: HeartPulse, moduleId: 'status' },
 ]
 
 export const agentDashboardItems: NavItem[] = [

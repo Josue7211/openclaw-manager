@@ -443,9 +443,7 @@ export default function ConversationList({
                         {!selectMode && conv.isUnread && (
                           <div style={{
                             position: 'absolute',
-                            ...(textOpacity === 0
-                              ? { top: '2px', right: '2px', left: 'auto', transform: 'none' }
-                              : { left: '4px', top: '50%', transform: 'translateY(-50%)' }),
+                            top: '2px', right: '2px',
                             width: '8px', height: '8px', borderRadius: '50%', background: 'var(--apple-blue)',
                           }} />
                         )}

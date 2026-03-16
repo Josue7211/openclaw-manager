@@ -28,7 +28,6 @@ const CronJobs = lazy(() => import('./pages/CronJobs'))
 const Pipeline = lazy(() => import('./pages/Pipeline'))
 const KnowledgeBase = lazy(() => import('./pages/KnowledgeBase'))
 const Notes = lazy(() => import('./pages/notes/Notes'))
-const Status = lazy(() => import('./pages/Status'))
 const Ideas = lazy(() => import('./pages/Ideas'))
 const Capture = lazy(() => import('./pages/Capture'))
 const Settings = lazy(() => import('./pages/Settings'))
@@ -178,7 +177,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/notes" element={<Suspense fallback={<GenericPageSkeleton />}><Notes /></Suspense>} />
             <Route path="/ideas" element={<Suspense fallback={<GenericPageSkeleton />}><Ideas /></Suspense>} />
             <Route path="/capture" element={<Suspense fallback={<GenericPageSkeleton />}><Capture /></Suspense>} />
-            <Route path="/status" element={<Suspense fallback={<GenericPageSkeleton />}><Status /></Suspense>} />
             <Route path="/settings" element={<Suspense fallback={<SettingsSkeleton />}><Settings /></Suspense>} />
             <Route path="/search" element={<Suspense fallback={<GenericPageSkeleton />}><Search /></Suspense>} />
             <Route path="/custom/:id" element={<Suspense fallback={<GenericPageSkeleton />}><CustomPage /></Suspense>} />
