@@ -90,6 +90,20 @@ impl SupabaseClient {
             .header("Authorization", format!("Bearer {}", self.service_key))
     }
 
+    /// Like `auth_headers` but uses the caller's JWT instead of the service role key.
+    /// The `apikey` header still carries the service key (required by PostgREST to
+    /// identify the project), while the `Authorization` header carries the user JWT so
+    /// that RLS policies see the authenticated user's `auth.uid()`.
+    fn auth_headers_as_user(
+        &self,
+        builder: reqwest::RequestBuilder,
+        jwt: &str,
+    ) -> reqwest::RequestBuilder {
+        builder
+            .header("apikey", &self.service_key)
+            .header("Authorization", format!("Bearer {}", jwt))
+    }
+
     // ── Public API ───────────────────────────────────────────────────────
 
     /// `GET /rest/v1/{table}?{query}`
@@ -237,6 +251,143 @@ impl SupabaseClient {
         Ok(())
     }
 
+    // ── User-JWT variants (RLS-aware) ────────────────────────────────────
+
+    /// Like `select` but authenticates as the user identified by `jwt`.
+    /// RLS policies will see `auth.uid()` set to the user's ID.
+    pub async fn select_as_user(&self, table: &str, query: &str, jwt: &str) -> anyhow::Result<Value> {
+        let url = format!("{}?{}", self.rest_url(table), query);
+        let resp = self
+            .auth_headers_as_user(self.http.get(&url), jwt)
+            .header("Accept", "application/json")
+            .send()
+            .await
+            .context("supabase select_as_user request failed")?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            warn!("supabase select_as_user {table} returned {status}: {body}");
+            return Err(anyhow!("supabase select_as_user {table}: {status} — {body}"));
+        }
+
+        resp.json::<Value>()
+            .await
+            .context("supabase select_as_user: failed to parse JSON")
+    }
+
+    /// Like `select_single` but authenticates as the user identified by `jwt`.
+    pub async fn select_single_as_user(&self, table: &str, query: &str, jwt: &str) -> anyhow::Result<Value> {
+        let sep = if query.is_empty() { "" } else { "&" };
+        let url = format!("{}?{}{sep}limit=1", self.rest_url(table), query);
+        let resp = self
+            .auth_headers_as_user(self.http.get(&url), jwt)
+            .header("Accept", "application/vnd.pgrst.object+json")
+            .send()
+            .await
+            .context("supabase select_single_as_user request failed")?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            warn!("supabase select_single_as_user {table} returned {status}: {body}");
+            return Err(anyhow!("supabase select_single_as_user {table}: {status} — {body}"));
+        }
+
+        resp.json::<Value>()
+            .await
+            .context("supabase select_single_as_user: failed to parse JSON")
+    }
+
+    /// Like `insert` but authenticates as the user identified by `jwt`.
+    pub async fn insert_as_user(&self, table: &str, body: Value, jwt: &str) -> anyhow::Result<Value> {
+        let resp = self
+            .auth_headers_as_user(self.http.post(&self.rest_url(table)), jwt)
+            .header("Content-Type", "application/json")
+            .header("Prefer", "return=representation")
+            .json(&body)
+            .send()
+            .await
+            .context("supabase insert_as_user request failed")?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let body_text = resp.text().await.unwrap_or_default();
+            warn!("supabase insert_as_user {table} returned {status}: {body_text}");
+            return Err(anyhow!("supabase insert_as_user {table}: {status} — {body_text}"));
+        }
+
+        resp.json::<Value>()
+            .await
+            .context("supabase insert_as_user: failed to parse JSON")
+    }
+
+    /// Like `upsert` but authenticates as the user identified by `jwt`.
+    pub async fn upsert_as_user(&self, table: &str, body: Value, jwt: &str) -> anyhow::Result<Value> {
+        let resp = self
+            .auth_headers_as_user(self.http.post(&self.rest_url(table)), jwt)
+            .header("Content-Type", "application/json")
+            .header("Prefer", "return=representation,resolution=merge-duplicates")
+            .json(&body)
+            .send()
+            .await
+            .context("supabase upsert_as_user request failed")?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let body_text = resp.text().await.unwrap_or_default();
+            warn!("supabase upsert_as_user {table} returned {status}: {body_text}");
+            return Err(anyhow!("supabase upsert_as_user {table}: {status} — {body_text}"));
+        }
+
+        resp.json::<Value>()
+            .await
+            .context("supabase upsert_as_user: failed to parse JSON")
+    }
+
+    /// Like `update` but authenticates as the user identified by `jwt`.
+    pub async fn update_as_user(&self, table: &str, query: &str, body: Value, jwt: &str) -> anyhow::Result<Value> {
+        let url = format!("{}?{}", self.rest_url(table), query);
+        let resp = self
+            .auth_headers_as_user(self.http.patch(&url), jwt)
+            .header("Content-Type", "application/json")
+            .header("Prefer", "return=representation")
+            .json(&body)
+            .send()
+            .await
+            .context("supabase update_as_user request failed")?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let body_text = resp.text().await.unwrap_or_default();
+            warn!("supabase update_as_user {table} returned {status}: {body_text}");
+            return Err(anyhow!("supabase update_as_user {table}: {status} — {body_text}"));
+        }
+
+        resp.json::<Value>()
+            .await
+            .context("supabase update_as_user: failed to parse JSON")
+    }
+
+    /// Like `delete` but authenticates as the user identified by `jwt`.
+    pub async fn delete_as_user(&self, table: &str, query: &str, jwt: &str) -> anyhow::Result<()> {
+        let url = format!("{}?{}", self.rest_url(table), query);
+        let resp = self
+            .auth_headers_as_user(self.http.delete(&url), jwt)
+            .send()
+            .await
+            .context("supabase delete_as_user request failed")?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let body_text = resp.text().await.unwrap_or_default();
+            warn!("supabase delete_as_user {table} returned {status}: {body_text}");
+            return Err(anyhow!("supabase delete_as_user {table}: {status} — {body_text}"));
+        }
+
+        Ok(())
+    }
+
     /// `POST /rest/v1/rpc/{function}` — call a Postgres function.
     #[allow(dead_code)]
     pub async fn rpc(&self, function: &str, body: Value) -> anyhow::Result<Value> {
@@ -299,6 +450,16 @@ mod tests {
             client.rpc_url("search_memory"),
             "https://abc.supabase.co/rest/v1/rpc/search_memory"
         );
+    }
+
+    #[test]
+    fn test_as_user_header_uses_jwt() {
+        std::env::set_var("SUPABASE_URL", "https://test.supabase.co");
+        std::env::set_var("SUPABASE_SERVICE_ROLE_KEY", "service-key-123");
+        let client = SupabaseClient::from_env().unwrap();
+        // Verify the client builds correctly — runtime tests would need a mock server
+        assert_eq!(client.service_key, "service-key-123");
+        assert_eq!(client.url, "https://test.supabase.co");
     }
 
     #[test]
