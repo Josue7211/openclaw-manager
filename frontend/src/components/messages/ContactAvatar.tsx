@@ -1,6 +1,7 @@
 import { useEffect, useState, memo } from 'react'
 import { User, Users } from 'lucide-react'
 import { API_BASE, api } from '@/lib/api'
+import { LRUCache } from '@/lib/lru-cache'
 
 /* ─── Constants ────────────────────────────────────────────────────────── */
 
@@ -21,18 +22,9 @@ function hashColor(str: string): string {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
 }
 
-/* ─── Module-level avatar cache ──────────────────────────────────────── */
+/* ─── Module-level avatar cache (LRU, 500 entries) ───────────────────── */
 
-const avatarCache = new Map<string, 'ok' | 'miss'>()
-const MAX_AVATAR_CACHE = 500
-
-function avatarCacheSet(key: string, value: 'ok' | 'miss') {
-  if (avatarCache.size >= MAX_AVATAR_CACHE && !avatarCache.has(key)) {
-    const oldest = avatarCache.keys().next().value
-    if (oldest !== undefined) avatarCache.delete(oldest)
-  }
-  avatarCache.set(key, value)
-}
+const avatarCache = new LRUCache<string, 'ok' | 'miss'>(500)
 
 // Batch-check which addresses have avatars (called once per conversation list load)
 let batchCheckPromise: Promise<void> | null = null
@@ -44,12 +36,12 @@ export function ensureAvatarBatchCheck(addresses: string[]) {
     .then(data => {
       const available = new Set(data.available || [])
       for (const addr of unchecked) {
-        avatarCacheSet(addr, available.has(addr) ? 'ok' : 'miss')
+        avatarCache.set(addr, available.has(addr) ? 'ok' : 'miss')
       }
     })
     .catch(() => {
       // On failure, mark all as miss to avoid retry storm
-      for (const addr of unchecked) avatarCacheSet(addr, 'miss')
+      for (const addr of unchecked) avatarCache.set(addr, 'miss')
     })
     .finally(() => { batchCheckPromise = null })
 }
@@ -95,10 +87,10 @@ export const ContactAvatar = memo(function ContactAvatar({ address, name, isImsg
     const url = `${API_BASE}/api/messages/avatar?address=${encodeURIComponent(address)}`
     const img = new Image()
     img.onload = () => {
-      if (!cancelled) { setPhotoUrl(url); avatarCacheSet(address, 'ok') }
+      if (!cancelled) { setPhotoUrl(url); avatarCache.set(address, 'ok') }
     }
     img.onerror = () => {
-      if (!cancelled) { setPhotoUrl(null); avatarCacheSet(address, 'miss') }
+      if (!cancelled) { setPhotoUrl(null); avatarCache.set(address, 'miss') }
     }
     img.src = url
     return () => { cancelled = true }

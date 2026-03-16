@@ -1,18 +1,10 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
+import { LRUCache } from '@/lib/lru-cache'
 
-/* ─── Module-level link preview cache ─────────────────────────────────── */
+/* ─── Module-level link preview cache (LRU, 500 entries) ─────────────── */
 
-const linkPreviewCache = new Map<string, { title: string; description: string; image: string; siteName: string }>()
-const MAX_PREVIEW_CACHE = 500
-
-function previewCacheSet(url: string, data: { title: string; description: string; image: string; siteName: string }) {
-  if (linkPreviewCache.size >= MAX_PREVIEW_CACHE && !linkPreviewCache.has(url)) {
-    const oldest = linkPreviewCache.keys().next().value
-    if (oldest !== undefined) linkPreviewCache.delete(oldest)
-  }
-  linkPreviewCache.set(url, data)
-}
+const linkPreviewCache = new LRUCache<string, { title: string; description: string; image: string; siteName: string }>(500)
 
 /* ─── LinkPreviewCard — rich OG preview like iMessage ────────────────── */
 
@@ -28,7 +20,7 @@ function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
     api.get<{ title: string; description: string; image: string; siteName: string; error?: string }>(`/api/messages/link-preview?url=${encodeURIComponent(url)}`)
       .then(data => {
         if (cancelled || data.error) return
-        previewCacheSet(url, data)
+        linkPreviewCache.set(url, data)
         setMeta(data)
       })
       .catch(() => {})
