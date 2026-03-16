@@ -17,6 +17,12 @@ mod tailscale;
 pub mod validation;
 
 fn main() {
+    // Hyprland/Wayland: must be set before any GTK/WebKit initialization
+    #[cfg(target_os = "linux")]
+    {
+        std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+    }
+
     // Suppress harmless GTK theme parsing warnings from WebKitGTK
     std::env::set_var("GTK_A11Y", "none");
 
