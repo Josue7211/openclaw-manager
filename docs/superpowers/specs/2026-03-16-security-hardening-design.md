@@ -649,6 +649,161 @@ Minor family:      Filtered chat (content filter enabled), no tool use, lower ra
 
 Tier is stored in `user_preferences` or a new `user_roles` field. Enforced in Axum before forwarding to OpenClaw.
 
+## Section 10: Vulnerability Fixes (Found via Attacker Simulation)
+
+### Fix 1: PostgREST Query Injection — CRITICAL
+
+**Problem**: 40+ routes use `format!("id=eq.{}", body.id)` with zero input sanitization. An attacker injects `&` to add extra PostgREST operators, reading/modifying/deleting arbitrary rows.
+
+**Fix**: Add a `sanitize_postgrest_value()` function that rejects any value containing PostgREST control characters:
+
+```rust
+/// Reject input containing PostgREST query injection characters.
+/// PostgREST uses &, =, (, ), ., and comma as operators.
+/// A valid UUID or text ID should never contain these.
+fn sanitize_postgrest_value(input: &str) -> Result<&str, AppError> {
+    if input.contains('&') || input.contains('=') || input.contains('(')
+        || input.contains(')') || input.contains(';') || input.contains('\n')
+        || input.contains('\r') || input.is_empty() || input.len() > 255 {
+        return Err(AppError::BadRequest("invalid identifier".into()));
+    }
+    Ok(input)
+}
+```
+
+Apply to every route handler that interpolates user input into PostgREST queries. For UUID fields, additionally validate the UUID format with a regex.
+
+### Fix 2: Command Injection via Pipeline Spawn — CRITICAL
+
+**Problem**: `pipeline/helpers.rs` builds a bash command string by interpolating variables that may originate from database fields (which can be user-controlled after the multi-user migration).
+
+**Fix**:
+- Validate all interpolated values against strict patterns (alphanumeric + dash + underscore only)
+- Use `shell-escape` crate to properly escape values
+- For mission IDs and agent IDs: validate UUID format before interpolation
+- For working directory: canonicalize and verify it's within an allowed parent directory
+- For flags: allowlist only known Claude CLI flags, reject anything else
+
+```rust
+const ALLOWED_FLAGS: &[&str] = &["--model", "--max-turns", "--verbose", "-v"];
+
+fn validate_flags(flags: &str) -> Result<String, AppError> {
+    let parts: Vec<&str> = flags.split_whitespace().collect();
+    for part in &parts {
+        if !ALLOWED_FLAGS.iter().any(|f| part.starts_with(f)) && !part.starts_with('-') {
+            // Could be a flag value (like model name) — validate it's alphanumeric
+            if !part.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.') {
+                return Err(AppError::BadRequest(format!("invalid flag: {}", part)));
+            }
+        }
+    }
+    Ok(flags.to_string())
+}
+```
+
+### Fix 3: SSRF via Link Preview — HIGH
+
+**Problem**: The link preview endpoint fetches arbitrary URLs provided by the user, enabling internal network scanning and data exfiltration.
+
+**Fix**:
+- Validate URL scheme: only `https://` (block `http://`, `file://`, `ftp://`, etc.)
+- Block private/internal IPs: `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `::1`, `fc00::/7`
+- Block localhost: any URL resolving to `127.0.0.1` or `::1`
+- DNS rebinding protection: resolve hostname BEFORE fetching and check the resolved IP
+- Timeout: 5 seconds max
+- Response size limit: 1MB max
+- Do not follow redirects to private IPs
+
+### Fix 4: API Key Timing Attack — MEDIUM
+
+**Problem**: `server.rs` uses `provided == expected` for API key comparison, which leaks timing information.
+
+**Fix**: Use constant-time comparison:
+
+```rust
+use subtle::ConstantTimeEq;
+
+fn verify_api_key(provided: &str, expected: &str) -> bool {
+    if provided.len() != expected.len() {
+        return false; // length comparison is already leaked by HTTP, this is fine
+    }
+    provided.as_bytes().ct_eq(expected.as_bytes()).into()
+}
+```
+
+Add `subtle` crate to `Cargo.toml`.
+
+### Fix 5: System Prompt Override — HIGH
+
+**Problem**: `POST /chat` accepts a `systemPrompt` field from the frontend, allowing any client to override the AI's behavior instructions.
+
+**Fix**: Remove the `systemPrompt` field from the `PostChatBody` struct. Define the system prompt in the Rust backend only. If different system prompts are needed (e.g., for different contexts), use an allowlisted enum:
+
+```rust
+#[derive(Deserialize)]
+enum ChatContext {
+    General,
+    Coding,
+    Research,
+}
+```
+
+The backend maps each variant to a hardcoded system prompt. The frontend can request a context but never set the actual prompt text.
+
+### Fix 6: Request Body Size Limit — MEDIUM
+
+**Problem**: No `DefaultBodyLimit` configured on the Axum server. An attacker can send multi-GB payloads to crash the app.
+
+**Fix**: Add to `server.rs`:
+
+```rust
+use axum::extract::DefaultBodyLimit;
+
+let app = Router::new()
+    .nest("/api", routes::router())
+    .layer(DefaultBodyLimit::max(10 * 1024 * 1024)) // 10MB max
+    // ... existing layers
+```
+
+For specific routes that need larger uploads (image attachments): override with per-route limits.
+
+### Fix 7: Link URL Validation — MEDIUM
+
+**Problem**: `LinkPreviewCard` renders `<a href={url}>` where `url` comes from message content. A `javascript:` URL could execute code.
+
+**Fix**: Validate URLs in the frontend before rendering:
+
+```typescript
+function isSafeUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+  } catch {
+    return false
+  }
+}
+```
+
+Apply to all `<a href>` and `<img src>` that render user/external content.
+
+### Fix 8: Shell Escape for Spawned Processes — HIGH
+
+**Problem**: `pipeline/helpers.rs` and `status.rs` use `bash -c` with interpolated strings. While most inputs come from hardcoded strings, after multi-user migration, database-sourced values could be manipulated.
+
+**Fix**: Use the `shell-escape` crate for all values interpolated into shell commands. Better yet, pass arguments as separate `Command::arg()` calls instead of building a bash string:
+
+```rust
+// BEFORE (vulnerable):
+Command::new("bash").arg("-c").arg(format!("cd {} && ...", wd))
+
+// AFTER (safe):
+Command::new("claude")
+    .current_dir(&validated_wd)
+    .args(&validated_flags)
+    .arg("-p")
+    .arg(&prompt_file)
+```
+
 ## Security Summary
 
 ### Three-layer auth (defense in depth)
