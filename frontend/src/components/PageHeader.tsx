@@ -101,7 +101,7 @@ export function PageHeader({
           defaultValue={title}
           onBlur={saveTitle}
           onKeyDown={e => handleInputKeyDown(e, saveTitle, () => setEditingTitle(false))}
-          aria-label="Search"
+          aria-label="Edit page title"
           style={{
             margin: 0,
             fontSize: 'var(--text-2xl)',
@@ -137,7 +137,7 @@ export function PageHeader({
           defaultValue={subtitle}
           onBlur={saveSub}
           onKeyDown={e => handleInputKeyDown(e, saveSub, () => setEditingSub(false))}
-          aria-label="Search"
+          aria-label="Edit page subtitle"
           style={{
             margin: '4px 0 0',
             fontSize: '12px',
