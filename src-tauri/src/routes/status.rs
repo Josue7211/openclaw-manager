@@ -413,7 +413,7 @@ async fn test_openclaw(http: &reqwest::Client, base_url: &str, api_key: &str) ->
     if base_url.is_empty() {
         return json!({ "status": "not_configured" });
     }
-    let url = format!("{}/health", base_url.trim_end_matches('/'));
+    let url = format!("{}/files", base_url.trim_end_matches('/'));
     let mut req = http.get(&url);
     if !api_key.is_empty() {
         req = req.header("Authorization", format!("Bearer {api_key}"));
