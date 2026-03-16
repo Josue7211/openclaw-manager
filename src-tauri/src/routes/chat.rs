@@ -14,7 +14,7 @@ use tokio::time::{interval, Duration};
 
 use std::sync::OnceLock;
 
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 use super::util::{percent_encode, random_uuid, base64_decode};
 
 /// Server-side system prompt — never settable from the frontend.
@@ -570,6 +570,7 @@ struct PostChatBody {
 
 async fn post_chat(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Json(body): Json<PostChatBody>,
 ) -> Response {
     let txt = body.text.unwrap_or_default().trim().to_string();
@@ -662,7 +663,7 @@ async fn post_chat(
 // GET /chat/history -- parse JSONL session file
 // ---------------------------------------------------------------------------
 
-async fn get_history(State(state): State<AppState>) -> Response {
+async fn get_history(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Response {
     let dir = openclaw_dir_from(&state);
 
     // Try local session files first
@@ -685,7 +686,7 @@ async fn get_history(State(state): State<AppState>) -> Response {
 // GET /chat/stream -- SSE endpoint polling session file for new messages
 // ---------------------------------------------------------------------------
 
-async fn get_stream(State(state): State<AppState>) -> Response {
+async fn get_stream(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Response {
     let dir = openclaw_dir_from(&state);
     let local_session = if dir.exists() { get_session_file(&state) } else { None };
 
@@ -851,7 +852,7 @@ fn guess_mime(file_path: &str) -> &'static str {
     }
 }
 
-async fn get_image(Query(params): Query<ImageQuery>) -> Response {
+async fn get_image(RequireAuth(_session): RequireAuth, Query(params): Query<ImageQuery>) -> Response {
     let file_path = match params.path {
         Some(p) if !p.is_empty() => p,
         _ => {
@@ -874,17 +875,20 @@ async fn get_image(Query(params): Query<ImageQuery>) -> Response {
     match tokio::fs::read(&file_path).await {
         Ok(data) => {
             let mime = guess_mime(&file_path);
-            (
+            use axum::http::{header, HeaderName, HeaderValue};
+            let mut resp = (
                 [
-                    (axum::http::header::CONTENT_TYPE, mime),
-                    (
-                        axum::http::header::CACHE_CONTROL,
-                        "public, max-age=86400",
-                    ),
+                    (header::CONTENT_TYPE, mime),
+                    (header::CACHE_CONTROL, "public, max-age=86400"),
                 ],
                 data,
             )
-                .into_response()
+                .into_response();
+            resp.headers_mut().insert(
+                HeaderName::from_static("x-content-type-options"),
+                HeaderValue::from_static("nosniff"),
+            );
+            resp
         }
         Err(_) => (
             axum::http::StatusCode::NOT_FOUND,
@@ -900,6 +904,7 @@ async fn get_image(Query(params): Query<ImageQuery>) -> Response {
 
 async fn ws_upgrade(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     ws: WebSocketUpgrade,
 ) -> Response {
     ws.on_upgrade(move |socket| handle_ws(socket, state))
@@ -1001,7 +1006,7 @@ async fn handle_ws(mut socket: WebSocket, state: AppState) {
 // GET /chat/models -- fetch available models from OpenClaw API
 // ---------------------------------------------------------------------------
 
-async fn get_models(State(state): State<AppState>) -> Response {
+async fn get_models(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Response {
     let base = match openclaw_api_url(&state) {
         Some(b) => b,
         None => {
@@ -1049,6 +1054,7 @@ struct SetModelBody {
 
 async fn set_model(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Json(body): Json<SetModelBody>,
 ) -> Response {
     let base = match openclaw_api_url(&state) {

@@ -74,6 +74,13 @@ impl FileLogLayer {
             eprintln!("Failed to create log directory {:?}: {}", dir, e);
         }
 
+        // Restrict log directory permissions to owner only
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(&dir, fs::Permissions::from_mode(0o700));
+        }
+
         let file = Self::open_log_file();
         let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
@@ -84,11 +91,20 @@ impl FileLogLayer {
 
     fn open_log_file() -> Option<File> {
         let path = log_file_path();
-        OpenOptions::new()
+        let file = OpenOptions::new()
             .create(true)
             .append(true)
             .open(&path)
-            .ok()
+            .ok()?;
+
+        // Restrict log file permissions to owner only
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+        }
+
+        Some(file)
     }
 
     /// Ensure the file handle points to today's log (rotate at midnight).

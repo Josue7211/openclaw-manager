@@ -124,6 +124,32 @@ impl SyncEngine {
         info!("sync: pushing {} pending changes", pending.len());
 
         for (log_id, table, row_id, operation, payload) in &pending {
+            // Validate table name against allowlist
+            if !SYNC_TABLES.contains(&table.as_str()) {
+                tracing::warn!("sync: skipping unknown table in _sync_log: {table}");
+                sqlx::query("UPDATE _sync_log SET synced_at = unixepoch() WHERE id = ?")
+                    .bind(log_id)
+                    .execute(&self.db)
+                    .await?;
+                continue;
+            }
+
+            // Validate row_id — reject PostgREST injection characters
+            if row_id.is_empty()
+                || row_id.contains('&')
+                || row_id.contains('=')
+                || row_id.contains('(')
+                || row_id.contains(')')
+                || row_id.contains(';')
+            {
+                tracing::warn!("sync: skipping invalid row_id in _sync_log: {row_id}");
+                sqlx::query("UPDATE _sync_log SET synced_at = unixepoch() WHERE id = ?")
+                    .bind(log_id)
+                    .execute(&self.db)
+                    .await?;
+                continue;
+            }
+
             let result = match operation.as_str() {
                 "INSERT" | "UPDATE" => {
                     if let Some(data) = payload {

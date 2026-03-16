@@ -133,8 +133,9 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
-            warn!("supabase select {table} returned {status}: {body}");
-            return Err(anyhow!("supabase select {table}: {status} — {body}"));
+            let truncated = if body.len() > 200 { &body[..200] } else { &body };
+            warn!("supabase select {table} returned {status}: {truncated}");
+            return Err(anyhow!("supabase select {table}: {status} — {truncated}"));
         }
 
         resp.json::<Value>()
@@ -158,8 +159,9 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
-            warn!("supabase select_single {table} returned {status}: {body}");
-            return Err(anyhow!("supabase select_single {table}: {status} — {body}"));
+            let truncated = if body.len() > 200 { &body[..200] } else { &body };
+            warn!("supabase select_single {table} returned {status}: {truncated}");
+            return Err(anyhow!("supabase select_single {table}: {status} — {truncated}"));
         }
 
         resp.json::<Value>()
@@ -183,8 +185,9 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            warn!("supabase insert {table} returned {status}: {body_text}");
-            return Err(anyhow!("supabase insert {table}: {status} — {body_text}"));
+            let truncated = if body_text.len() > 200 { &body_text[..200] } else { &body_text };
+            warn!("supabase insert {table} returned {status}: {truncated}");
+            return Err(anyhow!("supabase insert {table}: {status} — {truncated}"));
         }
 
         resp.json::<Value>()
@@ -208,8 +211,9 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            warn!("supabase upsert {table} returned {status}: {body_text}");
-            return Err(anyhow!("supabase upsert {table}: {status} — {body_text}"));
+            let truncated = if body_text.len() > 200 { &body_text[..200] } else { &body_text };
+            warn!("supabase upsert {table} returned {status}: {truncated}");
+            return Err(anyhow!("supabase upsert {table}: {status} — {truncated}"));
         }
 
         resp.json::<Value>()
@@ -234,8 +238,9 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            warn!("supabase update {table} returned {status}: {body_text}");
-            return Err(anyhow!("supabase update {table}: {status} — {body_text}"));
+            let truncated = if body_text.len() > 200 { &body_text[..200] } else { &body_text };
+            warn!("supabase update {table} returned {status}: {truncated}");
+            return Err(anyhow!("supabase update {table}: {status} — {truncated}"));
         }
 
         resp.json::<Value>()
@@ -255,8 +260,9 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            warn!("supabase delete {table} returned {status}: {body_text}");
-            return Err(anyhow!("supabase delete {table}: {status} — {body_text}"));
+            let truncated = if body_text.len() > 200 { &body_text[..200] } else { &body_text };
+            warn!("supabase delete {table} returned {status}: {truncated}");
+            return Err(anyhow!("supabase delete {table}: {status} — {truncated}"));
         }
 
         Ok(())
@@ -278,8 +284,9 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
-            warn!("supabase select_as_user {table} returned {status}: {body}");
-            return Err(anyhow!("supabase select_as_user {table}: {status} — {body}"));
+            let truncated = if body.len() > 200 { &body[..200] } else { &body };
+            warn!("supabase select_as_user {table} returned {status}: {truncated}");
+            return Err(anyhow!("supabase select_as_user {table}: {status} — {truncated}"));
         }
 
         resp.json::<Value>()
@@ -301,8 +308,9 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
-            warn!("supabase select_single_as_user {table} returned {status}: {body}");
-            return Err(anyhow!("supabase select_single_as_user {table}: {status} — {body}"));
+            let truncated = if body.len() > 200 { &body[..200] } else { &body };
+            warn!("supabase select_single_as_user {table} returned {status}: {truncated}");
+            return Err(anyhow!("supabase select_single_as_user {table}: {status} — {truncated}"));
         }
 
         resp.json::<Value>()
@@ -324,8 +332,9 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            warn!("supabase insert_as_user {table} returned {status}: {body_text}");
-            return Err(anyhow!("supabase insert_as_user {table}: {status} — {body_text}"));
+            let truncated = if body_text.len() > 200 { &body_text[..200] } else { &body_text };
+            warn!("supabase insert_as_user {table} returned {status}: {truncated}");
+            return Err(anyhow!("supabase insert_as_user {table}: {status} — {truncated}"));
         }
 
         resp.json::<Value>()
@@ -347,8 +356,9 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            warn!("supabase upsert_as_user {table} returned {status}: {body_text}");
-            return Err(anyhow!("supabase upsert_as_user {table}: {status} — {body_text}"));
+            let truncated = if body_text.len() > 200 { &body_text[..200] } else { &body_text };
+            warn!("supabase upsert_as_user {table} returned {status}: {truncated}");
+            return Err(anyhow!("supabase upsert_as_user {table}: {status} — {truncated}"));
         }
 
         resp.json::<Value>()
@@ -371,8 +381,9 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            warn!("supabase update_as_user {table} returned {status}: {body_text}");
-            return Err(anyhow!("supabase update_as_user {table}: {status} — {body_text}"));
+            let truncated = if body_text.len() > 200 { &body_text[..200] } else { &body_text };
+            warn!("supabase update_as_user {table} returned {status}: {truncated}");
+            return Err(anyhow!("supabase update_as_user {table}: {status} — {truncated}"));
         }
 
         resp.json::<Value>()
@@ -392,8 +403,9 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            warn!("supabase delete_as_user {table} returned {status}: {body_text}");
-            return Err(anyhow!("supabase delete_as_user {table}: {status} — {body_text}"));
+            let truncated = if body_text.len() > 200 { &body_text[..200] } else { &body_text };
+            warn!("supabase delete_as_user {table} returned {status}: {truncated}");
+            return Err(anyhow!("supabase delete_as_user {table}: {status} — {truncated}"));
         }
 
         Ok(())
@@ -413,8 +425,9 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            warn!("supabase rpc {function} returned {status}: {body_text}");
-            return Err(anyhow!("supabase rpc {function}: {status} — {body_text}"));
+            let truncated = if body_text.len() > 200 { &body_text[..200] } else { &body_text };
+            warn!("supabase rpc {function} returned {status}: {truncated}");
+            return Err(anyhow!("supabase rpc {function}: {status} — {truncated}"));
         }
 
         resp.json::<Value>()
