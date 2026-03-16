@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
+use crate::validation::sanitize_search_query;
 
 /// Build the search router (cross-table search across todos and missions).
 pub fn router() -> Router<AppState> {
@@ -33,7 +34,8 @@ async fn get_search(
     }
 
     let sb = SupabaseClient::from_state(&state)?;
-    let pattern = format!("%25{q}%25");
+    let safe_q = sanitize_search_query(&q);
+    let pattern = format!("%25{safe_q}%25");
 
     // Search todos and missions in parallel
     let todos_query = format!("select=id,text,done,created_at&text=ilike.{pattern}&limit=20");

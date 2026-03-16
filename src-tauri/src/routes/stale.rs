@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
+use crate::validation::validate_uuid;
 
 /// Stale-items threshold: items untouched for more than 3 days.
 const STALE_DAYS: i64 = 3;
@@ -109,6 +110,7 @@ async fn patch_stale(
     Json(body): Json<PatchStaleBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
+    validate_uuid(&body.id)?;
     let query = format!("id=eq.{}", body.id);
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -147,6 +149,7 @@ async fn delete_stale(
     Json(body): Json<DeleteStaleBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
+    validate_uuid(&body.id)?;
     let table = type_to_table(&body.item_type)?;
     sb.delete(table, &format!("id=eq.{}", body.id)).await?;
     Ok(Json(json!({ "ok": true })))

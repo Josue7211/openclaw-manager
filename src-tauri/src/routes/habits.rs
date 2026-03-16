@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
+use crate::validation::{validate_date, validate_uuid};
 
 // ── Router ──────────────────────────────────────────────────────────────────
 
@@ -68,7 +69,9 @@ async fn delete_habit(
     let sb = SupabaseClient::from_state(&state)?;
     let id = body
         .get("id")
+        .and_then(|v| v.as_str())
         .ok_or_else(|| AppError::BadRequest("id required".into()))?;
+    validate_uuid(id)?;
     sb.delete("habits", &format!("id=eq.{id}")).await?;
     Ok(Json(json!({ "ok": true })))
 }
@@ -88,6 +91,7 @@ async fn get_habit_entries(
 
     let mut query = "select=*&order=date".to_string();
     if let Some(since) = &params.since {
+        validate_date(since)?;
         query.push_str(&format!("&date=gte.{since}"));
     }
 
@@ -112,11 +116,14 @@ async fn post_habit_entry(
     let habit_id = body
         .habit_id
         .as_ref()
+        .and_then(|v| v.as_str())
         .ok_or_else(|| AppError::BadRequest("habit_id and date required".into()))?;
+    validate_uuid(habit_id)?;
     let date = body
         .date
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("habit_id and date required".into()))?;
+    validate_date(date)?;
 
     // Check if entry already exists
     let existing = sb
@@ -132,7 +139,9 @@ async fn post_habit_entry(
             // Toggle off — delete existing entry
             let existing_id = row
                 .get("id")
+                .and_then(|v| v.as_str())
                 .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Missing id on existing entry")))?;
+            validate_uuid(existing_id)?;
             sb.delete("habit_entries", &format!("id=eq.{existing_id}")).await?;
             return Ok(Json(json!({ "done": false })));
         }

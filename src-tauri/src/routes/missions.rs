@@ -12,6 +12,7 @@ use crate::error::AppError;
 use crate::redact::redact;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
+use crate::validation::validate_uuid;
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -136,6 +137,7 @@ async fn update_mission(
     if id.is_empty() {
         return Err(AppError::BadRequest("Valid mission id required".into()));
     }
+    validate_uuid(id)?;
 
     if let Some(ref status) = body.status {
         if !VALID_STATUSES.contains(&status.as_str()) {
@@ -273,15 +275,7 @@ async fn delete_mission(
     State(state): State<AppState>,
     Json(body): Json<DeleteMissionBody>,
 ) -> Result<Json<Value>, AppError> {
-    // Validate UUID format to prevent filter injection
-    let uuid_re = {
-        use std::sync::OnceLock;
-        static RE: OnceLock<regex::Regex> = OnceLock::new();
-        RE.get_or_init(|| regex::Regex::new(r"^[0-9a-fA-F-]{36}$").unwrap())
-    };
-    if !uuid_re.is_match(&body.id) {
-        return Err(AppError::BadRequest("Invalid mission id format".into()));
-    }
+    validate_uuid(&body.id)?;
 
     let sb = SupabaseClient::from_state(&state)?;
     sb.delete("missions", &format!("id=eq.{}", body.id)).await?;
@@ -303,6 +297,7 @@ async fn get_mission_events(
             .mission_id
             .as_deref()
             .ok_or_else(|| AppError::BadRequest("mission_id required".into()))?;
+        validate_uuid(mission_id)?;
         let log_path = params
             .log_path
             .as_deref()
@@ -406,6 +401,7 @@ async fn get_mission_events(
         .mission_id
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("mission_id required".into()))?;
+    validate_uuid(mission_id)?;
 
     let data = sb
         .select(
@@ -434,6 +430,7 @@ async fn ingest_events(
         .mission_id
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("mission_id required".into()))?;
+    validate_uuid(mission_id)?;
 
     let log_content = match body.log_content.as_deref() {
         Some(c) if !c.is_empty() => c,
@@ -494,6 +491,7 @@ async fn bjorn_event(
         .mission_id
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("mission_id required".into()))?;
+    validate_uuid(mission_id)?;
     let event_type = body
         .event_type
         .as_deref()

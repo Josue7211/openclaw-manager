@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
+use crate::validation::{validate_date, validate_uuid};
 
 // ── Router ──────────────────────────────────────────────────────────────────
 
@@ -32,6 +33,7 @@ async fn get_daily_review(
     let date = params
         .date
         .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string());
+    validate_date(&date)?;
 
     let data = sb
         .select(
@@ -69,6 +71,7 @@ async fn post_daily_review(
         .date
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("Missing date".into()))?;
+    validate_date(date)?;
 
     // Upsert by date — check if a review already exists for this date
     let existing = sb
@@ -86,7 +89,9 @@ async fn post_daily_review(
     });
 
     let data = if let Some(row) = existing.as_array().and_then(|a| a.first()) {
-        let id = row.get("id").ok_or_else(|| AppError::Internal(anyhow::anyhow!("Missing id")))?;
+        let id = row.get("id").and_then(|v| v.as_str())
+            .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Missing id")))?;
+        validate_uuid(id)?;
         sb.update("daily_reviews", &format!("id=eq.{id}"), review_data).await?
     } else {
         sb.insert("daily_reviews", review_data).await?
@@ -109,6 +114,7 @@ async fn get_weekly_review(
     let sb = SupabaseClient::from_state(&state)?;
 
     let query = if let Some(week_start) = &params.week_start {
+        validate_date(week_start)?;
         format!("select=*&order=week_start.desc&week_start=eq.{week_start}")
     } else {
         "select=*&order=week_start.desc&limit=10".to_string()
@@ -139,6 +145,7 @@ async fn post_weekly_review(
         .week_start
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("week_start required".into()))?;
+    validate_date(week_start)?;
 
     let review_data = json!({
         "week_start": week_start,
@@ -157,7 +164,9 @@ async fn post_weekly_review(
         .await?;
 
     let data = if let Some(row) = existing.as_array().and_then(|a| a.first()) {
-        let id = row.get("id").ok_or_else(|| AppError::Internal(anyhow::anyhow!("Missing id")))?;
+        let id = row.get("id").and_then(|v| v.as_str())
+            .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Missing id")))?;
+        validate_uuid(id)?;
         sb.update("weekly_reviews", &format!("id=eq.{id}"), review_data).await?
     } else {
         sb.insert("weekly_reviews", review_data).await?
@@ -196,7 +205,9 @@ async fn post_retrospective(
     let mission_id = body
         .mission_id
         .as_ref()
+        .and_then(|v| v.as_str())
         .ok_or_else(|| AppError::BadRequest("mission_id required".into()))?;
+    validate_uuid(mission_id)?;
 
     let data = sb
         .insert(

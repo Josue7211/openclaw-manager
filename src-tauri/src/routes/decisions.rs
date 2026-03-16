@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
+use crate::validation::{sanitize_search_query, validate_uuid};
 
 /// Build the decisions router (CRUD with search).
 pub fn router() -> Router<AppState> {
@@ -27,10 +28,12 @@ async fn get_decisions(
 
     let mut query = "select=*&order=created_at.desc".to_string();
     if let Some(q) = &params.q {
-        let safe: String = q.chars().filter(|c| *c != ',' && *c != '(' && *c != ')').collect();
-        query.push_str(&format!(
-            "&or=(title.ilike.%25{safe}%25,decision.ilike.%25{safe}%25,rationale.ilike.%25{safe}%25)"
-        ));
+        let safe = sanitize_search_query(q.trim());
+        if !safe.is_empty() {
+            query.push_str(&format!(
+                "&or=(title.ilike.%25{safe}%25,decision.ilike.%25{safe}%25,rationale.ilike.%25{safe}%25)"
+            ));
+        }
     }
 
     let data = sb.select("decisions", &query).await?;
@@ -103,7 +106,10 @@ async fn patch_decision(
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
 
-    let id = body.id.as_ref().ok_or_else(|| AppError::BadRequest("id required".into()))?;
+    let id = body.id.as_ref()
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::BadRequest("id required".into()))?;
+    validate_uuid(id)?;
 
     let mut update = json!({ "updated_at": chrono::Utc::now().to_rfc3339() });
     let obj = update.as_object_mut().unwrap();
@@ -125,7 +131,10 @@ async fn delete_decision(
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
 
-    let id = body.get("id").ok_or_else(|| AppError::BadRequest("id required".into()))?;
+    let id = body.get("id")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::BadRequest("id required".into()))?;
+    validate_uuid(id)?;
     sb.delete("decisions", &format!("id=eq.{id}")).await?;
     Ok(Json(json!({ "ok": true })))
 }

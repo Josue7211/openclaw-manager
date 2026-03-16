@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
+use crate::validation::{sanitize_postgrest_value, validate_uuid};
 
 /// Build the ideas router (CRUD with auto-mission creation on approval).
 pub fn router() -> Router<AppState> {
@@ -27,6 +28,7 @@ async fn get_ideas(
 
     let mut query = "select=*&order=created_at.desc".to_string();
     if let Some(status) = &params.status {
+        sanitize_postgrest_value(status)?;
         query.push_str(&format!("&status=eq.{status}"));
     }
 
@@ -87,6 +89,7 @@ async fn patch_idea(
     let sb = SupabaseClient::from_state(&state)?;
 
     let id = body.id.as_ref().ok_or_else(|| AppError::BadRequest("id required".into()))?;
+    validate_uuid(id)?;
 
     let mut update = serde_json::Map::new();
     if let Some(ref s) = body.status {
@@ -150,6 +153,7 @@ async fn delete_idea(
     if id.is_empty() {
         return Err(AppError::BadRequest("id required".into()));
     }
+    validate_uuid(&id)?;
 
     let sb = SupabaseClient::from_state(&state)?;
     sb.delete("ideas", &format!("id=eq.{id}")).await?;

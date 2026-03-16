@@ -11,6 +11,7 @@ mod server;
 mod service_client;
 mod supabase;
 mod tailscale;
+pub mod validation;
 
 fn main() {
     // Suppress harmless GTK theme parsing warnings from WebKitGTK

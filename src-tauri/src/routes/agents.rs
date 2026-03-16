@@ -6,10 +6,20 @@ use axum::{
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tokio::process::Command;
+use tokio::time::Duration;
 
 use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
+use crate::validation::sanitize_postgrest_value;
+
+fn openclaw_api_url(state: &AppState) -> Option<String> {
+    state.secret("OPENCLAW_API_URL").filter(|s| !s.is_empty())
+}
+
+fn openclaw_api_key(state: &AppState) -> String {
+    state.secret_or_default("OPENCLAW_API_KEY")
+}
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -75,6 +85,7 @@ async fn update_agent(
         .id
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("id required".into()))?;
+    sanitize_postgrest_value(id)?;
 
     let mut update = serde_json::Map::new();
     update.insert(
@@ -106,6 +117,35 @@ async fn update_agent(
     let data = sb
         .update("agents", &format!("id=eq.{id}"), Value::Object(update))
         .await?;
+
+    // Sync model change to OpenClaw via API (fire-and-forget)
+    if let Some(model) = &body.model {
+        if !model.is_empty() {
+            if let Some(base) = openclaw_api_url(&state) {
+                let url = format!("{}/agents/model", base);
+                let key = openclaw_api_key(&state);
+                let agent_id = id.to_string();
+                let model_clone = model.clone();
+                tokio::spawn(async move {
+                    let client = reqwest::Client::builder()
+                        .timeout(Duration::from_secs(15))
+                        .build()
+                        .ok();
+                    if let Some(client) = client {
+                        let mut req = client
+                            .post(&url)
+                            .json(&json!({"agentId": agent_id, "model": model_clone}));
+                        if !key.is_empty() {
+                            req = req.header("Authorization", format!("Bearer {}", key));
+                        }
+                        if let Err(e) = req.send().await {
+                            tracing::warn!("Failed to sync agent model to OpenClaw: {}", e);
+                        }
+                    }
+                });
+            }
+        }
+    }
 
     let agent = data.get(0).cloned().unwrap_or(Value::Null);
     Ok(Json(json!({ "agent": agent })))

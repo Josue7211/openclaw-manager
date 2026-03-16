@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
+use crate::validation::{sanitize_postgrest_value, sanitize_search_query, validate_uuid};
 
 /// Build the knowledge router (search, create, delete entries).
 pub fn router() -> Router<AppState> {
@@ -32,10 +33,11 @@ async fn get_knowledge(
     if let Some(ref q) = params.q {
         let q = q.trim();
         if !q.is_empty() {
+            let safe_q = sanitize_search_query(q);
             // Search title and content with case-insensitive like
             query.push_str(&format!(
                 "&or=(title.ilike.*{}*,content.ilike.*{}*)",
-                q, q
+                safe_q, safe_q
             ));
         }
     }
@@ -43,6 +45,7 @@ async fn get_knowledge(
     if let Some(ref tag) = params.tag {
         let tag = tag.trim();
         if !tag.is_empty() {
+            sanitize_postgrest_value(tag)?;
             query.push_str(&format!("&tags=cs.{{{}}}", tag));
         }
     }
@@ -116,6 +119,7 @@ async fn delete_knowledge(
     if id.is_empty() {
         return Err(AppError::BadRequest("id required".into()));
     }
+    validate_uuid(&id)?;
 
     let sb = SupabaseClient::from_state(&state)?;
     sb.delete("knowledge_entries", &format!("id=eq.{}", id)).await?;

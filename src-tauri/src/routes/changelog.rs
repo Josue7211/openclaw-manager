@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
+use crate::validation::{validate_date, validate_uuid};
 
 /// Build the changelog router (list, create, delete entries).
 pub fn router() -> Router<AppState> {
@@ -39,6 +40,7 @@ async fn post_changelog(
         return Err(AppError::BadRequest("Title required".into()));
     }
     let date = body.date.as_deref().ok_or_else(|| AppError::BadRequest("Date required".into()))?;
+    validate_date(date)?;
 
     let data = sb
         .insert(
@@ -60,7 +62,10 @@ async fn delete_changelog(
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
-    let id = body.get("id").ok_or_else(|| AppError::BadRequest("id required".into()))?;
+    let id = body.get("id")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::BadRequest("id required".into()))?;
+    validate_uuid(id)?;
     sb.delete("changelog_entries", &format!("id=eq.{id}")).await?;
     Ok(Json(json!({ "ok": true })))
 }

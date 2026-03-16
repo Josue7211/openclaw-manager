@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
+use crate::validation::validate_uuid;
 
 /// Build the todos router (CRUD via Supabase).
 pub fn router() -> Router<AppState> {
@@ -57,6 +58,7 @@ async fn patch_todo(
     if update.is_empty() {
         return Err(AppError::BadRequest("nothing to update".into()));
     }
+    validate_uuid(&body.id)?;
     let data = sb
         .update("todos", &format!("id=eq.{}", body.id), Value::Object(update))
         .await?;
@@ -73,6 +75,7 @@ async fn delete_todo(
     Json(body): Json<DeleteTodoBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
+    validate_uuid(&body.id)?;
     sb.delete("todos", &format!("id=eq.{}", body.id)).await?;
     Ok(Json(json!({ "ok": true })))
 }

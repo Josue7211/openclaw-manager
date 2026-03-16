@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
+use crate::validation::{sanitize_postgrest_value, validate_uuid};
 
 /// Build the workflow-notes router (list, create, mark as applied).
 pub fn router() -> Router<AppState> {
@@ -27,6 +28,7 @@ async fn get_workflow_notes(
 
     let mut query = "select=*&order=created_at.desc".to_string();
     if let Some(cat) = &params.category {
+        sanitize_postgrest_value(cat)?;
         query.push_str(&format!("&category=eq.{cat}"));
     }
 
@@ -70,7 +72,10 @@ async fn patch_workflow_note(
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
 
-    let id = body.id.as_ref().ok_or_else(|| AppError::BadRequest("id required".into()))?;
+    let id = body.id.as_ref()
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::BadRequest("id required".into()))?;
+    validate_uuid(id)?;
     let data = sb
         .update("workflow_notes", &format!("id=eq.{id}"), json!({ "applied": body.applied }))
         .await?;
