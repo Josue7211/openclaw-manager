@@ -45,7 +45,7 @@ export default function ChatPage() {
   } = useChatState()
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ position: 'absolute', inset: 0, margin: '-20px -28px', display: 'flex', flexDirection: 'column', padding: '20px 28px' }}>
 
       {/* Header with PageHeader + DemoBadge */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>

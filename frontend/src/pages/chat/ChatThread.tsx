@@ -99,7 +99,7 @@ export default function ChatThread({
           </div>
         )}
 
-        {messages.map(msg => (
+        {messages.filter(msg => msg.role !== 'system').map(msg => (
           <div key={msg.id} style={{
             display: 'flex',
             flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
