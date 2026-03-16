@@ -420,6 +420,7 @@ function DailyReview({ todos, missions, calendarEvents, mounted }: {
 
 export default function PersonalDashboard() {
   const queryClient = useQueryClient()
+  const _demo = isDemoMode()
   const [todoInput, setTodoInput] = useState('')
   const [proxmoxVMs, setProxmoxVMs] = useState<ProxmoxVM[]>(_demo ? DEMO_PROXMOX_VMS : [])
   const [proxmoxNodes, setProxmoxNodes] = useState<ProxmoxNodeStat[]>(_demo ? DEMO_PROXMOX_NODES : [])
@@ -427,8 +428,6 @@ export default function PersonalDashboard() {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [backendError, setBackendError] = useState<string | false>(false)
   const { addMutation, toggleMutation, deleteMutation, invalidateTodos } = useTodos()
-
-  const _demo = isDemoMode()
 
   const { data: todosData, isSuccess: todosMounted } = useQuery<{ todos?: Todo[] }>({
     queryKey: queryKeys.todos,
