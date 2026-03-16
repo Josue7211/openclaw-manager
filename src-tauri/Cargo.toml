@@ -39,6 +39,7 @@ tokio-util = { version = "0.7", features = ["compat"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 dotenvy = "0.15"
 url = "2"
+subtle = "2"
 # TODO: Uncomment to enable auto-updates (requires rebuild):
 # tauri-plugin-updater = "2"
 

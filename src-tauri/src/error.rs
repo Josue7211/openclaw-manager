@@ -34,7 +34,13 @@ impl IntoResponse for AppError {
             AppError::NotFound(m) => (StatusCode::NOT_FOUND, "not_found", m),
             AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized", "Unauthorized".into()),
             AppError::BadRequest(m) => (StatusCode::BAD_REQUEST, "bad_request", m),
-            AppError::Internal(e) => (StatusCode::INTERNAL_SERVER_ERROR, "internal_error", e.to_string()),
+            AppError::Internal(e) => {
+                tracing::error!("internal error: {e:?}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "ok": false, "error": "Something went wrong", "code": "internal_error" })),
+                ).into_response();
+            }
         };
         (status, Json(json!({ "ok": false, "error": message, "code": code }))).into_response()
     }

@@ -1,9 +1,11 @@
 use axum::Router;
 use axum::body::Body;
+use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderValue, Request, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use std::net::SocketAddr;
+use subtle::ConstantTimeEq;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -129,6 +131,7 @@ pub async fn start(
 
     let app = Router::new()
         .nest("/api", routes::router())
+        .layer(DefaultBodyLimit::max(10 * 1024 * 1024)) // 10 MB
         .layer(middleware::from_fn(request_logger))
         .layer(middleware::from_fn(api_key_auth))
         .layer(middleware::from_fn(rate_limit))
@@ -266,9 +269,9 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
         }
     };
 
-    // Check X-API-Key header (Tauri app path)
+    // Check X-API-Key header (Tauri app path) — constant-time comparison
     if let Some(provided) = req.headers().get("x-api-key").and_then(|v| v.to_str().ok()) {
-        if provided == expected {
+        if provided.as_bytes().ct_eq(expected.as_bytes()).into() {
             return next.run(req).await;
         }
     }
@@ -279,7 +282,7 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
         if let Some(query) = req.uri().query() {
             for pair in query.split('&') {
                 if let Some(val) = pair.strip_prefix("apiKey=") {
-                    if val == expected {
+                    if val.as_bytes().ct_eq(expected.as_bytes()).into() {
                         return next.run(req).await;
                     }
                 }
