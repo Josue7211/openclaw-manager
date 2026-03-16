@@ -12,6 +12,7 @@ mod secrets;
 mod server;
 mod service_client;
 mod supabase;
+pub mod sync;
 mod tailscale;
 pub mod validation;
 

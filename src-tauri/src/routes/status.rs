@@ -115,6 +115,7 @@ pub fn router() -> Router<AppState> {
         .route("/status/connections", get(get_connections))
         .route("/status/health", get(get_health))
         .route("/status/tailscale", get(get_tailscale_peers))
+        .route("/health/supabase", get(supabase_health))
         .route("/heartbeat", get(heartbeat))
         .route("/processes", get(get_processes).post(post_process))
         .route("/feature-flags", get(get_feature_flags))
@@ -275,6 +276,18 @@ async fn get_health(State(state): State<AppState>) -> Result<Json<Value>, AppErr
             "supabase": sb,
         },
     })))
+}
+
+// ── GET /api/health/supabase ──────────────────────────────────────────────────
+//
+// Lightweight check for whether Supabase is reachable. Used by the frontend
+// to show online/offline sync status.
+
+async fn supabase_health(State(state): State<AppState>) -> Json<Value> {
+    let url = state.secret_or_default("SUPABASE_URL");
+    let key = state.secret_or_default("SUPABASE_SERVICE_ROLE_KEY");
+    let reachable = crate::sync::is_supabase_reachable(&url, &key).await;
+    Json(json!({ "reachable": reachable }))
 }
 
 // ── GET /api/status/tailscale ─────────────────────────────────────────────────

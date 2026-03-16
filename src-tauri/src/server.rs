@@ -199,6 +199,20 @@ pub async fn start(
         pkce_verifier: Arc::new(RwLock::new(None)),
     };
 
+    // Start the background sync engine (offline-first SQLite <-> Supabase)
+    {
+        let supabase_url = state.secret_or_default("SUPABASE_URL");
+        let service_key = state.secret_or_default("SUPABASE_SERVICE_ROLE_KEY");
+        let sync_engine = crate::sync::SyncEngine::new(
+            state.db.clone(),
+            supabase_url,
+            service_key,
+            state.session.clone(),
+        );
+        sync_engine.start();
+        tracing::info!("Sync engine started (30s interval)");
+    }
+
     // Pre-warm the messages conversation cache in the background
     let prewarm_state = state.clone();
 

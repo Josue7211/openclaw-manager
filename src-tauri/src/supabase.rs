@@ -16,6 +16,17 @@ pub struct SupabaseClient {
 }
 
 impl SupabaseClient {
+    /// Build a client from explicit URL and service key.
+    /// Use this when constructing a client outside of request handlers
+    /// (e.g. in the sync engine background task).
+    pub fn new(url: &str, service_key: &str) -> Self {
+        Self {
+            http: Client::new(),
+            url: url.trim_end_matches('/').to_string(),
+            service_key: service_key.to_string(),
+        }
+    }
+
     /// Build a client from environment variables.
     /// Returns `Err` if either `SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY` is missing.
     ///
