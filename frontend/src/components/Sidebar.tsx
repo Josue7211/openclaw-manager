@@ -39,6 +39,38 @@ const PREFETCH_ROUTES: Record<string, { key: readonly string[]; path: string }> 
   '/settings': { key: queryKeys.prefs, path: '/api/prefs' },
 }
 
+/* ─── Stable style objects (hoisted to module level to avoid re-creation) ── */
+
+const logoStyle: React.CSSProperties = {
+  flexShrink: 0,
+  width: '45px',
+  height: '45px',
+  minWidth: '45px',
+  WebkitMaskImage: 'url(/logo-128.png)',
+  WebkitMaskSize: 'contain',
+  WebkitMaskRepeat: 'no-repeat',
+  WebkitMaskPosition: 'center',
+  maskImage: 'url(/logo-128.png)',
+  maskSize: 'contain',
+  maskRepeat: 'no-repeat',
+  maskPosition: 'center',
+  background: 'var(--logo-color)',
+  filter: 'drop-shadow(0 2px 8px var(--logo-color))',
+} as React.CSSProperties
+
+const resizeHandleStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 0,
+  right: 0,
+  width: '5px',
+  height: '100%',
+  cursor: 'col-resize',
+  zIndex: 10,
+}
+
+const plusIconStyle: React.CSSProperties = { flexShrink: 0 }
+const settingsIconStyle: React.CSSProperties = { flexShrink: 0 }
+
 /* ─── NavSection (memoized) ──────────────────────────────────────────────── */
 
 const NavSection = React.memo(function NavSection({
@@ -224,6 +256,7 @@ const NavSection = React.memo(function NavSection({
                 )}
                 <Link
                   to={href}
+                  data-testid={`nav-${href}`}
                   draggable
                   onDragStart={categoryId && onItemDragStart ? (e) => {
                     e.dataTransfer.setData('text/plain', href)
@@ -378,6 +411,7 @@ const SidebarQuickCapture = React.memo(function SidebarQuickCapture({
     <div style={{ position: 'relative', flex: 1 }}>
       <button
         ref={btnRef}
+        data-testid="quick-capture"
         onClick={() => {
           setOpenAndNotify(o => !o)
           setTimeout(() => inputRef.current?.focus(), 100)
@@ -413,7 +447,7 @@ const SidebarQuickCapture = React.memo(function SidebarQuickCapture({
           e.currentTarget.style.color = open ? 'var(--text-on-color)' : 'var(--text-secondary)'
         }}
       >
-        <Plus size={16} style={{ flexShrink: 0 }} />
+        <Plus size={16} style={plusIconStyle} />
         {textOpacity > 0 && (
           <span style={{ opacity: textOpacity, overflow: 'hidden', textOverflow: 'ellipsis' }}>
             Quick Capture
@@ -552,7 +586,7 @@ const SidebarQuickCapture = React.memo(function SidebarQuickCapture({
 
 /* ─── Typewriter title ───────────────────────────────────────────────────── */
 
-function TypewriterTitle({ availableWidth }: { availableWidth: number }) {
+const TypewriterTitle = React.memo(function TypewriterTitle({ availableWidth }: { availableWidth: number }) {
   const layout = useSyncExternalStore(subscribeSidebarSettings, getSidebarTitleLayout)
   const titleText = useSyncExternalStore(subscribeSidebarSettings, getSidebarTitleText)
   const titleSize = useSyncExternalStore(subscribeSidebarSettings, getSidebarTitleSize)
@@ -620,19 +654,19 @@ function TypewriterTitle({ availableWidth }: { availableWidth: number }) {
       {showCursor && <span className="type-cursor">|</span>}
     </div>
   )
-}
+})
 
 /* ─── Gradient divider ───────────────────────────────────────────────────── */
 
-function SectionDivider() {
-  return (
-    <div style={{
-      height: '1px',
-      margin: '4px 12px',
-      background: 'linear-gradient(to right, transparent, var(--border-hover), transparent)',
-    }} />
-  )
+const dividerStyle: React.CSSProperties = {
+  height: '1px',
+  margin: '4px 12px',
+  background: 'linear-gradient(to right, transparent, var(--border-hover), transparent)',
 }
+
+const SectionDivider = React.memo(function SectionDivider() {
+  return <div style={dividerStyle} />
+})
 
 /* ─── Main Sidebar ───────────────────────────────────────────────────────── */
 
@@ -704,9 +738,57 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
     }))
   }, [sidebarConfig, enabledModules])
 
+  // Memoize header layout computations
+  const headerLayout = useMemo(() => {
+    const titleAvailable = logoVisible ? Math.max(0, width - 16 - 45 - 14) : Math.max(0, width - 32)
+    const titleH = titleSize + 16
+    const logoH = 57
+    const headerHeight = headerVisible ? Math.max(logoVisible ? logoH : 0, titleH) : 0
+    const headerOpacity = headerVisible ? 1 : 0
+    const titleWidth = logoVisible ? titleAvailable : Math.max(0, width - 32)
+    return { headerHeight, headerOpacity, titleWidth }
+  }, [logoVisible, width, titleSize, headerVisible])
+
+  // Memoize search visibility
+  const searchLayout = useMemo(() => {
+    const show = searchVisible && width >= 100
+    return { show }
+  }, [searchVisible, width])
+
+  // Memoize category toggle map — stable callbacks per category id
+  const toggleCallbacksRef = useRef<Map<string, () => void>>(new Map())
+
   const toggleCategory = useCallback((id: string) => {
     setOpenCategories(prev => ({ ...prev, [id]: !(prev[id] ?? true) }))
   }, [])
+
+  // Build stable toggle callbacks — only recreate when categories change
+  const categoryToggleCallbacks = useMemo(() => {
+    const map = toggleCallbacksRef.current
+    const currentIds = new Set(resolvedCategories.map(c => c.id))
+    // Clean up stale entries
+    for (const key of map.keys()) {
+      if (!currentIds.has(key)) map.delete(key)
+    }
+    // Add missing entries
+    for (const id of currentIds) {
+      if (!map.has(id)) {
+        map.set(id, () => toggleCategory(id))
+      }
+    }
+    return map
+  }, [resolvedCategories, toggleCategory])
+
+  // Memoize per-category delay offsets to avoid recalculating in render loop
+  const categoryDelayOffsets = useMemo(() => {
+    const offsets: number[] = []
+    let running = 0
+    for (const cat of resolvedCategories) {
+      offsets.push(running)
+      running += cat.items.length
+    }
+    return offsets
+  }, [resolvedCategories])
 
   /* ── Sidebar drag-to-reorder handlers ──────────────────────────────── */
 
@@ -963,7 +1045,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
   const settingsActive = pathname === '/settings'
 
   return (
-    <nav aria-label="Main navigation" style={{
+    <nav aria-label="Main navigation" data-testid="sidebar" style={{
       width: `${width}px`,
       minWidth: `${width}px`,
       background: 'var(--glass-bg)',
@@ -1005,26 +1087,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
               justifyContent: logoVisible ? 'flex-start' : 'center',
             }}>
               {logoVisible && (
-                <div
-                  role="img"
-                  aria-label="Mission Control"
-                  style={{
-                    flexShrink: 0,
-                    width: '45px',
-                    height: '45px',
-                    minWidth: '45px',
-                    WebkitMaskImage: 'url(/logo-128.png)',
-                    WebkitMaskSize: 'contain',
-                    WebkitMaskRepeat: 'no-repeat',
-                    WebkitMaskPosition: 'center',
-                    maskImage: 'url(/logo-128.png)',
-                    maskSize: 'contain',
-                    maskRepeat: 'no-repeat',
-                    maskPosition: 'center',
-                    background: 'var(--logo-color)',
-                    filter: 'drop-shadow(0 2px 8px var(--logo-color))',
-                  } as React.CSSProperties}
-                />
+                <div role="img" aria-label="Mission Control" style={logoStyle} />
               )}
               <div style={{
                 overflow: 'hidden',
@@ -1220,7 +1283,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
                 justifyContent: 'center',
               }}
             >
-              <Settings size={16} style={{ flexShrink: 0 }} />
+              <Settings size={16} style={settingsIconStyle} />
             </Link>
           )}
           {!captureOpen && <NotificationBell collapsed={true} textOpacity={0} />}
@@ -1267,15 +1330,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
       {/* ── Resize handle (right edge) ───────────────────────────────────── */}
       <div
         onMouseDown={handleResizeStart}
-        style={{
-          position: 'absolute',
-          top: 0,
-          right: 0,
-          width: '5px',
-          height: '100%',
-          cursor: 'col-resize',
-          zIndex: 10,
-        }}
+        style={resizeHandleStyle}
       />
     </nav>
   )

@@ -288,6 +288,7 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
                 <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
                   <input
                     ref={inputRef}
+                    data-testid="global-search"
                     value={query}
                     onChange={handleChange}
                     onKeyDown={handleKeyDown}
@@ -354,6 +355,7 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
           <Search size={14} style={{ color: 'var(--text-muted)', marginRight: '10px', flexShrink: 0 }} />
           <input
             ref={inputRef}
+            data-testid="global-search"
             value={query}
             onChange={handleChange}
             onKeyDown={handleKeyDown}

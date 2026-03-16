@@ -464,6 +464,7 @@ export default function CommandPalette({
         role="dialog"
         aria-modal="true"
         aria-labelledby="cp-title"
+        data-testid="command-palette"
         style={{
           position: 'fixed',
           top: '50%',

@@ -194,6 +194,7 @@ export function NotificationBell({ collapsed, textOpacity = 1 }: { collapsed: bo
     <div style={{ position: 'relative', flex: 1 }}>
       <button
         ref={btnRef}
+        data-testid="notification-bell"
         onClick={() => {
           if (!open && btnRef.current) {
             const rect = btnRef.current.getBoundingClientRect()

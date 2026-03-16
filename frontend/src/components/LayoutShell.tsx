@@ -228,7 +228,7 @@ export default function LayoutShell() {
         onWidthChange={setSidebarWidth}
         draggingRef={sidebarDraggingRef}
       />
-      <main id="main-content" style={{
+      <main id="main-content" data-testid="main-content" style={{
         flex: 1,
         overflow: 'hidden',
         background: 'transparent',
