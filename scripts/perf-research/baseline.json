@@ -1,17 +1,19 @@
 {
-  "total_gzip_kb": 327.56,
+  "total_gzip_kb": 338.84,
   "measured_at": "2026-03-15",
-  "previous_total_gzip_kb": 357.20,
+  "previous_total_gzip_kb": 327.56,
+  "css_gzip_kb": 4.70,
+  "chunk_count": 58,
   "top_chunks": [
     {"name": "react-*.js", "gzip_kb": 70.57, "note": "React + ReactDOM — hard to reduce"},
-    {"name": "Chat-*.js", "gzip_kb": 51.98, "note": "LARGE — likely bundled markdown/syntax lib"},
-    {"name": "supabase-*.js", "gzip_kb": 43.00, "note": "Supabase client — could lazy-load"},
-    {"name": "Settings-*.js", "gzip_kb": 21.63, "note": "Large settings page"},
-    {"name": "Messages-*.js", "gzip_kb": 19.94, "note": "iMessage UI"},
-    {"name": "index-*.js", "gzip_kb": 24.13, "note": "Main entry — should be smaller"},
+    {"name": "supabase-*.js", "gzip_kb": 43.00, "note": "Supabase client — AuthGuard needs it at startup"},
+    {"name": "index-*.js", "gzip_kb": 24.28, "note": "Main entry — Sidebar + LayoutShell, legitimately eager"},
+    {"name": "Messages-*.js", "gzip_kb": 21.17, "note": "iMessage UI"},
+    {"name": "MarkdownBubble-*.js", "gzip_kb": 20.70, "note": "marked + DOMPurify (was 46.30 with react-markdown)"},
     {"name": "query-*.js", "gzip_kb": 16.26, "note": "TanStack React Query"},
-    {"name": "Pipeline-*.js", "gzip_kb": 8.14, "note": "CI/CD pipeline page"},
-    {"name": "icons-*.js", "gzip_kb": 10.72, "note": "Lucide icons — may have unused exports"},
-    {"name": "Dashboard-*.js", "gzip_kb": 6.44, "note": "Dashboard page"}
+    {"name": "icons-*.js", "gzip_kb": 10.78, "note": "Lucide icons — 85 named imports, well tree-shaken"},
+    {"name": "SettingsModules-*.js", "gzip_kb": 8.85, "note": "Module configuration page"},
+    {"name": "Pipeline-*.js", "gzip_kb": 8.17, "note": "CI/CD pipeline page"},
+    {"name": "Missions-*.js", "gzip_kb": 6.83, "note": "Mission management page"}
   ]
 }

@@ -1,6 +1,38 @@
 # Performance Autoresearch Learnings
 
-Baseline: **327.56 kB** total gzip JS (2026-03-15) — down from 357.20 kB
+## Final Session Summary (2026-03-15)
+
+| Metric | Before session | After session | Delta |
+|--------|---------------|---------------|-------|
+| **Total gzip JS** | 357.20 kB | 338.84 kB | **-18.36 kB (-5.1%)** |
+| **Total gzip CSS** | 8.69 kB | 4.70 kB | **-3.99 kB (-45.9%)** |
+| **JS chunks** | — | 58 | — |
+| **Hardcoded hex colors** | 248 | 55 (source) / 85 (incl. tests) | **-193 source (-78%)** |
+| **Inputs without aria-label** | 68 | 73 | +5 (new pages added) |
+| **div-onClick violations** | 7 | — | fixed 5 in session |
+
+### What shipped
+1. **react-markdown to marked + DOMPurify** — biggest single win: -25.60 kB gzip (-55% on MarkdownBubble chunk)
+2. **Tailwind trimmed to preflight only** — -4.34 kB gzip CSS (-50%), no utility classes were in use
+3. **CSS variable cleanup** — replaced 23 hardcoded hex values with CSS vars across 7+ files
+4. **A11y top-5 fixes** — AudioWaveform, Lightbox, MessageMenu, PageHeader, Sidebar
+
+### What we learned
+- Supabase client (43 kB gzip) cannot be lazy-loaded because AuthGuard needs it at startup
+- Lucide icons chunk (10.78 kB) is already well tree-shaken with 85 named imports
+- Index chunk (24.28 kB) contains Sidebar + LayoutShell, legitimately eager-loaded
+- Many hardcoded hex colors (e.g. `#4ade80`, `#ef4444`, `#60a5fa`) have no exact CSS var match — need new vars defined
+- Total JS grew +11.28 kB from mid-session (327.56 kB) to final (338.84 kB) due to new pages (Notes, SettingsModules) and feature additions
+
+### Remaining opportunities
+- Split Settings (21+ kB gzip across Settings + SettingsModules) into lazy sub-routes
+- Define new CSS vars for remaining Tailwind palette colors used in source (55 occurrences)
+- Label 73 remaining inputs without `aria-label`
+- Check for duplicate deps across chunks
+
+---
+
+Current baseline: **338.84 kB** total gzip JS + **4.70 kB** gzip CSS (2026-03-15)
 
 ## Confirmed Improvements
 
