@@ -48,12 +48,12 @@ pub fn router() -> Router<AppState> {
         .route("/logout", post(logout))
         .route("/refresh", post(refresh))
         .route("/password", post(change_password))
-        .route("/oauth/{provider}", get(start_oauth))
+        .route("/oauth/:provider", get(start_oauth))
         // MFA routes
         .route("/mfa/enroll", post(mfa_enroll))
         .route("/mfa/challenge", post(mfa_challenge))
         .route("/mfa/verify", post(mfa_verify))
-        .route("/mfa/unenroll/{factor_id}", delete(mfa_unenroll))
+        .route("/mfa/unenroll/:factor_id", delete(mfa_unenroll))
 }
 
 // ---------------------------------------------------------------------------
