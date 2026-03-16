@@ -91,9 +91,9 @@ cd frontend && npm run dev          # Frontend only (browser mode at localhost:5
 ## Testing
 
 ```bash
-cd frontend && npx vitest run       # 312 frontend tests (20 test files)
-cd frontend && npm run test:e2e     # 21 E2E tests (Playwright)
-cd src-tauri && cargo test          # 50 Rust tests
+cd frontend && npx vitest run       # 837 frontend tests (48 test files)
+cd frontend && npm run test:e2e     # 21 E2E tests (Playwright via scripts/e2e.sh)
+cd src-tauri && cargo test          # 142 Rust tests
 ./scripts/pre-commit.sh             # Run everything
 ```
 
@@ -208,6 +208,7 @@ Import `supabase` from `@/lib/supabase/client` — it's a singleton. Never call 
 ### CSS & Styling
 - Use CSS variables from `globals.css` — never hardcode colors, easings, or z-indices
 - Key variables: `--accent`, `--hover-bg`, `--active-bg`, `--ease-spring`, `--z-sidebar`, `--z-modal`, `--apple-blue`, `--text-on-accent`, `--text-on-color`, `--warning`, `--green-400`, `--green-500`, `--red-500`, `--blue`, `--amber`, `--purple`, `--orange`, `--yellow`, `--gold`
+- WCAG contrast-safe solid variants: `--accent-solid`, `--green-solid`, `--red-solid` — use these for text/icons on white backgrounds
 - Use hover utility classes (`.hover-bg`, `.hover-bg-bright`) instead of inline `onMouseEnter`/`onMouseLeave`
 - Prefer `var(--ease-spring)` over hardcoded `cubic-bezier(0.22, 1, 0.36, 1)`
 - Light theme: `[data-theme="light"]` overrides in globals.css
@@ -215,7 +216,8 @@ Import `supabase` from `@/lib/supabase/client` — it's a singleton. Never call 
 ### Components
 - Wrap frequently-rendered components in `React.memo` (avatars, list items, toggles)
 - Shared components: `Lightbox`, `SecondsAgo`, `Toggle`, `PageErrorBoundary`
-- Shared hooks: `useEscapeKey`, `useLocalStorageState`, `useFocusTrap`
+- Shared hooks: `useEscapeKey`, `useLocalStorageState`, `useFocusTrap`, `useApiError`, `useSupabaseRealtime`
+- Generic `LRUCache` in `lib/lru-cache.ts` — used for avatar and link preview caches
 - Settings page split into sub-components in `pages/settings/` (8 lazy-loaded panels + shared.ts + Toggle.tsx)
 - Messages page split into sub-components in `pages/messages/` (ConversationList, MessageThread, ComposePanel, types, utils)
 - Message UI sub-components live in `components/messages/`
@@ -270,13 +272,18 @@ frontend/src/
 │   ├── ConnectionStatus.tsx    # Service health indicator
 │   ├── DemoModeBanner.tsx  # Demo mode notification bar
 │   └── SecondsAgo.tsx      # Live-updating relative timestamps
-├── hooks/messages/         # useMessagesSSE, useMessageCompose, useConversationList
+├── hooks/
+│   ├── messages/           # useMessagesSSE, useMessageCompose, useConversationList
+│   └── notes/              # useVault
 ├── lib/
 │   ├── api.ts              # Fetch wrapper with 30s timeout + API key + offline queue
 │   ├── types.ts            # Shared interfaces (Todo, Mission, SearchResults, etc.)
 │   ├── query-keys.ts       # Centralized React Query keys
 │   ├── keybindings.ts      # Configurable Cmd+key shortcuts (useSyncExternalStore)
 │   ├── audio.ts            # Notification chime
+│   ├── lru-cache.ts        # Generic LRU cache (used by avatar + link preview caches)
+│   ├── vault.ts            # Obsidian-style vault filesystem abstraction
+│   ├── page-cache.ts       # Page-level cache helpers
 │   ├── sidebar-settings.ts # useSyncExternalStore for sidebar prefs
 │   ├── titlebar-settings.ts # useSyncExternalStore for title bar visibility/auto-hide
 │   ├── modules.ts          # 16 toggleable app modules (useSyncExternalStore)
@@ -287,10 +294,31 @@ frontend/src/
 │   ├── demo-data.ts        # Demo mode with fake data for open-source showcase
 │   ├── error-reporter.ts   # Centralized error reporting
 │   ├── themes.ts           # Theme definitions
-│   ├── hooks/              # useEscapeKey, useLocalStorageState, useFocusTrap, useChatSocket, useTodos, useEventBus
-│   └── __tests__/          # Unit tests for api, audio, keybindings, migrations, modules, sidebar-settings
+│   ├── hooks/              # useEscapeKey, useLocalStorageState, useFocusTrap, useChatSocket, useTodos, useEventBus, useApiError, useSupabaseRealtime
+│   └── __tests__/          # Unit tests for api, audio, keybindings, migrations, modules, sidebar-settings, lru-cache, page-cache
 ├── pages/                  # All lazy-loaded route pages
+│   ├── settings/           # 8 lazy-loaded Settings sub-components + shared.ts + Toggle.tsx
+│   ├── messages/           # ConversationList, MessageThread, ComposePanel, types, utils
+│   ├── dashboard/          # AgentStatusCard, HeartbeatCard, AgentsCard, MissionsCard, MemoryCard, IdeaBriefingCard, NetworkCard, SessionsCard, IdeaDetailPanel, types
+│   ├── chat/               # ChatThread, ChatInput, types
+│   ├── personal/           # MorningBrief, DailyReviewWidget, TodoSection, HomelabSection, types
+│   ├── pipeline/           # PipelineIdeas, PipelineNotes, PipelineRetros, PipelineStatus, PipelineShipLog, PipelineStale, FilterDropdown, MarkdownText, types, utils
+│   ├── missions/           # MissionCard, AccordionBody, ReplayEventRow, MissionFilters, types, utils
+│   ├── pomodoro/           # TimerDisplay, TimerControls, ActivityHeatmap, SessionSidebar, types
+│   ├── login/              # MainView, EmailForm, MfaVerifyForm, WaitingView, MfaEnrollView, shared
+│   ├── calendar/           # WeekView, MonthView, shared
+│   ├── knowledge/          # EntryCard, SlidePanel, AddEntryModal, TagChip, shared
+│   ├── email/              # ManagePanel, AccountSwitcher, EmailList, types
+│   ├── agents/             # AgentCard, LiveProcesses, types
+│   ├── crons/              # WeekGrid, FrequentBar, JobList, types
+│   └── notes/              # Notes, NoteEditor, FileTree, GraphView, types
 └── globals.css             # CSS variables, keyframes, hover utilities, theme overrides
+
+scripts/e2e.sh              # E2E tests (Playwright)
+scripts/perf-research/      # Autoresearch performance tracking
+
+docs/                       # CONFIGURATION.md, HYPRLAND.md, SOUL.md, api-reference.md, ntfy-setup.md, openclaw-api-setup.md, testing-checklist.md
+.github/workflows/ci.yml   # CI pipeline
 
 src-tauri/src/
 ├── main.rs                 # Entry, secrets, system tray, window management
@@ -311,7 +339,12 @@ src-tauri/src/
 └── supabase.rs             # Supabase client helpers
 
 supabase/
-├── migrations/001_initial.sql  # 19 tables, realtime publication, seeds
+├── config.toml
+├── migrations/
+│   ├── 20260301000000_initial.sql       # 19 tables, realtime publication, seeds
+│   ├── 20260308000000_habits.sql        # Habits tracking tables
+│   ├── 20260308000001_mission_events.sql # Mission event ingestion
+│   └── 20260309000000_pipeline_columns.sql # Pipeline schema additions
 └── docker-compose.example.yml  # Self-hosted Supabase setup
 ```
 
