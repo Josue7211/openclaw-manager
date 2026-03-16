@@ -118,6 +118,117 @@ CREATE TABLE IF NOT EXISTS captures (
     deleted_at TEXT
 );
 
+-- Changelog entries
+CREATE TABLE IF NOT EXISTS changelog_entries (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    date TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    tags TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    deleted_at TEXT
+);
+
+-- Decisions
+CREATE TABLE IF NOT EXISTS decisions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    decision TEXT NOT NULL,
+    alternatives TEXT,
+    rationale TEXT NOT NULL,
+    outcome TEXT,
+    tags TEXT NOT NULL DEFAULT '[]',
+    linked_mission_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    deleted_at TEXT
+);
+
+-- Knowledge entries
+CREATE TABLE IF NOT EXISTS knowledge_entries (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT,
+    tags TEXT NOT NULL DEFAULT '[]',
+    source_url TEXT,
+    source_type TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    deleted_at TEXT
+);
+
+-- Daily reviews
+CREATE TABLE IF NOT EXISTS daily_reviews (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    date TEXT NOT NULL,
+    accomplishments TEXT DEFAULT '',
+    priorities TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    deleted_at TEXT,
+    UNIQUE(user_id, date)
+);
+
+-- Weekly reviews
+CREATE TABLE IF NOT EXISTS weekly_reviews (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    week_start TEXT NOT NULL,
+    wins TEXT,
+    incomplete_count TEXT,
+    priorities TEXT,
+    reflection TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    deleted_at TEXT,
+    UNIQUE(user_id, week_start)
+);
+
+-- Retrospectives
+CREATE TABLE IF NOT EXISTS retrospectives (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    mission_id TEXT NOT NULL,
+    what_went_well TEXT,
+    what_went_wrong TEXT,
+    improvements TEXT,
+    tags TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    deleted_at TEXT
+);
+
+-- Workflow notes
+CREATE TABLE IF NOT EXISTS workflow_notes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    category TEXT NOT NULL,
+    note TEXT NOT NULL,
+    applied INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    deleted_at TEXT
+);
+
+-- Cache (key-value store)
+-- Drop the old cache table from migration 0001 (different schema: key, value, expires_at)
+-- and recreate with per-user columns for offline sync.
+DROP TABLE IF EXISTS cache;
+CREATE TABLE cache (
+    key TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    value TEXT NOT NULL DEFAULT '{}',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    deleted_at TEXT,
+    PRIMARY KEY (key, user_id)
+);
+
 -- Sync metadata: tracks local mutations that need to be pushed to Supabase
 CREATE TABLE IF NOT EXISTS _sync_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -159,5 +270,18 @@ CREATE INDEX IF NOT EXISTS idx_habits_user ON habits(user_id);
 CREATE INDEX IF NOT EXISTS idx_habit_entries_user ON habit_entries(user_id);
 CREATE INDEX IF NOT EXISTS idx_habit_entries_habit ON habit_entries(habit_id);
 CREATE INDEX IF NOT EXISTS idx_captures_user ON captures(user_id);
+CREATE INDEX IF NOT EXISTS idx_changelog_user ON changelog_entries(user_id);
+CREATE INDEX IF NOT EXISTS idx_changelog_date ON changelog_entries(date);
+CREATE INDEX IF NOT EXISTS idx_decisions_user ON decisions(user_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_user ON knowledge_entries(user_id);
+CREATE INDEX IF NOT EXISTS idx_daily_reviews_user ON daily_reviews(user_id);
+CREATE INDEX IF NOT EXISTS idx_daily_reviews_date ON daily_reviews(user_id, date);
+CREATE INDEX IF NOT EXISTS idx_weekly_reviews_user ON weekly_reviews(user_id);
+CREATE INDEX IF NOT EXISTS idx_weekly_reviews_week ON weekly_reviews(user_id, week_start);
+CREATE INDEX IF NOT EXISTS idx_retrospectives_user ON retrospectives(user_id);
+CREATE INDEX IF NOT EXISTS idx_retrospectives_mission ON retrospectives(mission_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_notes_user ON workflow_notes(user_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_notes_category ON workflow_notes(user_id, category);
+CREATE INDEX IF NOT EXISTS idx_cache_user ON cache(user_id);
 CREATE INDEX IF NOT EXISTS idx_sync_log_unsynced ON _sync_log(synced_at) WHERE synced_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_sync_log_table ON _sync_log(table_name, row_id);
