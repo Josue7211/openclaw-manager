@@ -528,7 +528,7 @@ const SidebarQuickCapture = React.memo(function SidebarQuickCapture({
               disabled={!text.trim() || saving}
               style={{
                 padding: '6px 10px',
-                background: text.trim() ? 'var(--accent)' : 'var(--bg-white-04)',
+                background: text.trim() ? 'var(--accent-solid)' : 'var(--bg-white-04)',
                 border: 'none',
                 borderRadius: '8px',
                 color: text.trim() ? 'var(--text-on-color)' : 'var(--text-muted)',

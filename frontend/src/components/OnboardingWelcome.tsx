@@ -25,7 +25,7 @@ const primaryBtn: React.CSSProperties = {
   padding: '10px 20px',
   borderRadius: '10px',
   border: 'none',
-  background: 'var(--accent)',
+  background: 'var(--accent-solid)',
   color: 'var(--text-on-color)',
   fontSize: '13px',
   fontWeight: 600,

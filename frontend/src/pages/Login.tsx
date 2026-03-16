@@ -293,7 +293,7 @@ export default function LoginPage() {
     padding: '11px',
     fontSize: '13px',
     fontWeight: 600,
-    background: 'var(--accent)',
+    background: 'var(--accent-solid)',
     color: 'var(--text-on-color)',
     border: 'none',
     borderRadius: '10px',
