@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 use crate::supabase::SupabaseClient;
 use crate::validation::{sanitize_postgrest_value, validate_uuid};
 
@@ -22,6 +22,7 @@ struct IdeasQuery {
 
 async fn get_ideas(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Query(params): Query<IdeasQuery>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
@@ -32,7 +33,7 @@ async fn get_ideas(
         query.push_str(&format!("&status=eq.{status}"));
     }
 
-    let data = sb.select("ideas", &query).await?;
+    let data = sb.select_as_user("ideas", &query, &session.access_token).await?;
     Ok(Json(json!({ "ideas": data })))
 }
 
@@ -48,9 +49,11 @@ struct PostIdeaBody {
 
 async fn post_idea(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<PostIdeaBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = &session.access_token;
 
     let title = body.title.as_deref().unwrap_or("").trim();
     if title.is_empty() {
@@ -58,7 +61,7 @@ async fn post_idea(
     }
 
     let data = sb
-        .insert(
+        .insert_as_user(
             "ideas",
             json!({
                 "title": title,
@@ -69,6 +72,7 @@ async fn post_idea(
                 "category": body.category,
                 "status": "pending",
             }),
+            jwt,
         )
         .await?;
 
@@ -84,9 +88,11 @@ struct PatchIdeaBody {
 
 async fn patch_idea(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<PatchIdeaBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = &session.access_token;
 
     let id = body.id.as_ref().ok_or_else(|| AppError::BadRequest("id required".into()))?;
     validate_uuid(id)?;
@@ -107,13 +113,14 @@ async fn patch_idea(
 
     // If approving, auto-create a mission
     if body.status.as_deref() == Some("approved") {
-        let idea_data = sb.select("ideas", &format!("select=*&id=eq.{id}")).await?;
+        let idea_data = sb.select_as_user("ideas", &format!("select=*&id=eq.{id}"), jwt).await?;
         if let Some(idea) = idea_data.as_array().and_then(|a| a.first()) {
             let idea_title = idea.get("title").and_then(|v| v.as_str()).unwrap_or("Untitled");
             match sb
-                .insert(
+                .insert_as_user(
                     "missions",
                     json!({ "title": idea_title, "assignee": "koda", "status": "pending" }),
+                    jwt,
                 )
                 .await
             {
@@ -130,7 +137,7 @@ async fn patch_idea(
     }
 
     let data = sb
-        .update("ideas", &format!("id=eq.{id}"), Value::Object(update))
+        .update_as_user("ideas", &format!("id=eq.{id}"), Value::Object(update), jwt)
         .await?;
     Ok(Json(json!({ "idea": data })))
 }
@@ -142,6 +149,7 @@ struct DeleteIdeaParams {
 
 async fn delete_idea(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     axum::extract::Query(params): axum::extract::Query<DeleteIdeaParams>,
 ) -> Result<Json<Value>, AppError> {
     let id = params
@@ -156,6 +164,6 @@ async fn delete_idea(
     validate_uuid(&id)?;
 
     let sb = SupabaseClient::from_state(&state)?;
-    sb.delete("ideas", &format!("id=eq.{id}")).await?;
+    sb.delete_as_user("ideas", &format!("id=eq.{id}"), &session.access_token).await?;
     Ok(Json(json!({ "ok": true })))
 }

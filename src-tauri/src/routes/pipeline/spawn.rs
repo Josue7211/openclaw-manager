@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 use tracing::{debug, error};
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 
 use super::agents::{status, route_agent, routing_table};
 use super::helpers::{
@@ -26,8 +26,11 @@ pub(super) struct SpawnBody {
 
 pub(super) async fn pipeline_spawn(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<SpawnBody>,
 ) -> Result<Json<Value>, AppError> {
+    let jwt = &session.access_token;
+
     // ── Validate ─────────────────────────────────────────────────
     let title = body.title.trim();
     if title.is_empty() {
@@ -53,7 +56,7 @@ pub(super) async fn pipeline_spawn(
 
     // ── Check agent availability ─────────────────────────────────
     let agent_data = sb
-        .select_single("agents", &format!("select=status,current_task&id=eq.{}", route.agent_id))
+        .select_single_as_user("agents", &format!("select=status,current_task&id=eq.{}", route.agent_id), jwt)
         .await;
 
     if let Ok(ref agent) = agent_data {
@@ -138,7 +141,7 @@ pub(super) async fn pipeline_spawn(
         "log_path": log_file,
     });
 
-    let mission_result = sb.insert("missions", mission_insert).await.map_err(|e| {
+    let mission_result = sb.insert_as_user("missions", mission_insert, jwt).await.map_err(|e| {
         error!("[pipeline/spawn] mission create: {e}");
         AppError::Internal(anyhow::anyhow!("Failed to create mission"))
     })?;
@@ -173,17 +176,18 @@ pub(super) async fn pipeline_spawn(
     let sb2 = sb.clone();
     let mid = mission_id.clone();
     let sc = spawn_command.clone();
+    let jwt_clone = jwt.to_string();
     tokio::spawn(async move {
         let _ = sb2
-            .update("missions", &format!("id=eq.{mid}"), json!({ "spawn_command": sc }))
+            .update_as_user("missions", &format!("id=eq.{mid}"), json!({ "spawn_command": sc }), &jwt_clone)
             .await;
     });
 
     // ── Mark agent active ────────────────────────────────────────
-    if let Err(e) = set_agent_active(&sb, route.agent_id, title).await {
+    if let Err(e) = set_agent_active(&sb, route.agent_id, title, jwt).await {
         error!("[pipeline/spawn] agent activate: {e}");
         // Rollback: delete the mission
-        let _ = sb.delete("missions", &format!("id=eq.{mission_id}")).await;
+        let _ = sb.delete_as_user("missions", &format!("id=eq.{mission_id}"), jwt).await;
         return Err(AppError::Internal(anyhow::anyhow!("Failed to activate agent")));
     }
 
@@ -205,6 +209,7 @@ pub(super) async fn pipeline_spawn(
                 "model": route.model,
             },
         }),
+        jwt,
     );
 
     send_notify(

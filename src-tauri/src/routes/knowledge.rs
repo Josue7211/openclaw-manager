@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 use crate::supabase::SupabaseClient;
 use crate::validation::{sanitize_postgrest_value, sanitize_search_query, validate_uuid};
 
@@ -24,6 +24,7 @@ struct GetKnowledgeParams {
 
 async fn get_knowledge(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     axum::extract::Query(params): axum::extract::Query<GetKnowledgeParams>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
@@ -50,7 +51,7 @@ async fn get_knowledge(
         }
     }
 
-    let data = sb.select("knowledge_entries", &query).await?;
+    let data = sb.select_as_user("knowledge_entries", &query, &session.access_token).await?;
     Ok(Json(json!({ "entries": data })))
 }
 
@@ -65,6 +66,7 @@ struct PostKnowledgeBody {
 
 async fn post_knowledge(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<PostKnowledgeBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
@@ -102,12 +104,13 @@ async fn post_knowledge(
         }
     }
 
-    let data = sb.insert("knowledge_entries", Value::Object(row)).await?;
+    let data = sb.insert_as_user("knowledge_entries", Value::Object(row), &session.access_token).await?;
     Ok(Json(json!({ "entry": data })))
 }
 
 async fn delete_knowledge(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     axum::extract::Query(params): axum::extract::Query<GetKnowledgeParams>,
 ) -> Result<Json<Value>, AppError> {
     let id = params
@@ -122,6 +125,6 @@ async fn delete_knowledge(
     validate_uuid(&id)?;
 
     let sb = SupabaseClient::from_state(&state)?;
-    sb.delete("knowledge_entries", &format!("id=eq.{}", id)).await?;
+    sb.delete_as_user("knowledge_entries", &format!("id=eq.{}", id), &session.access_token).await?;
     Ok(Json(json!({ "ok": true })))
 }

@@ -4,6 +4,7 @@ use tracing::{error, info, warn};
 
 use crate::error::AppError;
 use crate::supabase::SupabaseClient;
+use crate::validation::sanitize_postgrest_value;
 
 use super::agents::{status, AgentRoute, MC_BASE_URL};
 use super::registry::register_process;
@@ -106,8 +107,9 @@ pub(super) fn supabase(state: &crate::server::AppState) -> Result<SupabaseClient
 }
 
 /// Set agent status to active with current task.
-pub(super) async fn set_agent_active(sb: &SupabaseClient, agent_id: &str, task: &str) -> anyhow::Result<Value> {
-    sb.update(
+pub(super) async fn set_agent_active(sb: &SupabaseClient, agent_id: &str, task: &str, jwt: &str) -> anyhow::Result<Value> {
+    sanitize_postgrest_value(agent_id).map_err(|e| anyhow::anyhow!("{e:?}"))?;
+    sb.update_as_user(
         "agents",
         &format!("id=eq.{agent_id}"),
         json!({
@@ -115,13 +117,15 @@ pub(super) async fn set_agent_active(sb: &SupabaseClient, agent_id: &str, task: 
             "current_task": task,
             "updated_at": chrono::Utc::now().to_rfc3339(),
         }),
+        jwt,
     )
     .await
 }
 
 /// Set agent status to idle.
-pub(super) async fn set_agent_idle(sb: &SupabaseClient, agent_id: &str) -> anyhow::Result<Value> {
-    sb.update(
+pub(super) async fn set_agent_idle(sb: &SupabaseClient, agent_id: &str, jwt: &str) -> anyhow::Result<Value> {
+    sanitize_postgrest_value(agent_id).map_err(|e| anyhow::anyhow!("{e:?}"))?;
+    sb.update_as_user(
         "agents",
         &format!("id=eq.{agent_id}"),
         json!({
@@ -129,15 +133,17 @@ pub(super) async fn set_agent_idle(sb: &SupabaseClient, agent_id: &str) -> anyho
             "current_task": "",
             "updated_at": chrono::Utc::now().to_rfc3339(),
         }),
+        jwt,
     )
     .await
 }
 
 /// Fire-and-forget activity log insert.
-pub(super) fn log_activity(sb: &SupabaseClient, params: Value) {
+pub(super) fn log_activity(sb: &SupabaseClient, params: Value, jwt: &str) {
     let sb = sb.clone();
+    let jwt = jwt.to_string();
     tokio::spawn(async move {
-        if let Err(e) = sb.insert("activity_log", params).await {
+        if let Err(e) = sb.insert_as_user("activity_log", params, &jwt).await {
             warn!("activity_log insert failed: {e}");
         }
     });

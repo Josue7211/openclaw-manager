@@ -9,7 +9,7 @@ use tracing::{error, warn};
 
 use crate::error::AppError;
 use crate::redact::redact;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 
 const LOG_PATH_RE: &str = r"^/tmp/[a-zA-Z0-9._-]+\.log$";
 
@@ -21,7 +21,7 @@ fn log_path_re() -> &'static Regex {
 use super::agents::{status, escalation_target, CODEX, MAX_RETRIES};
 use super::helpers::{
     extract_workdir, log_activity, send_notify, set_agent_active, set_agent_idle,
-    spawn_agent_process, supabase,
+    spawn_agent_process, supabase, validate_uuid,
 };
 use super::registry::clean_registry_by_mission_id;
 
@@ -36,11 +36,13 @@ pub(super) struct CompleteBody {
 
 pub(super) async fn pipeline_complete(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<CompleteBody>,
 ) -> Result<Json<Value>, AppError> {
     if body.mission_id.is_empty() {
         return Err(AppError::BadRequest("mission_id is required".into()));
     }
+    validate_uuid(&body.mission_id)?;
     if body.status != "done" && body.status != "failed" {
         return Err(AppError::BadRequest(
             "status must be \"done\" or \"failed\"".into(),
@@ -48,13 +50,15 @@ pub(super) async fn pipeline_complete(
     }
 
     let sb = supabase(&state)?;
+    let jwt = &session.access_token;
     let mission_id = &body.mission_id;
 
     // Fetch mission
     let mission = sb
-        .select_single(
+        .select_single_as_user(
             "missions",
             &format!("select=*&id=eq.{mission_id}"),
+            jwt,
         )
         .await
         .map_err(|_| AppError::NotFound("Mission not found".into()))?;
@@ -87,7 +91,7 @@ pub(super) async fn pipeline_complete(
         // Update mission + idle agent
         let mission_query = format!("id=eq.{mission_id}");
         let _ = tokio::join!(
-            sb.update(
+            sb.update_as_user(
                 "missions",
                 &mission_query,
                 json!({
@@ -95,8 +99,9 @@ pub(super) async fn pipeline_complete(
                     "retry_count": retry_count,
                     "updated_at": chrono::Utc::now().to_rfc3339(),
                 }),
+                jwt,
             ),
-            set_agent_idle(&sb, &agent_id),
+            set_agent_idle(&sb, &agent_id, jwt),
         );
 
         if should_escalate {
@@ -118,6 +123,7 @@ pub(super) async fn pipeline_complete(
                         "reason": body.failure_reason.as_deref().unwrap_or("unknown"),
                     },
                 }),
+                jwt,
             );
             send_notify(
                 "Mission Escalated",
@@ -151,6 +157,7 @@ pub(super) async fn pipeline_complete(
                     "reason": failure_reason,
                 },
             }),
+            jwt,
         );
         send_notify(
             "Mission Failed",
@@ -186,7 +193,7 @@ pub(super) async fn pipeline_complete(
         let mission_query = format!("id=eq.{mission_id}");
         let review_task = format!("Review: {}", mission_title);
         let _ = tokio::join!(
-            sb.update(
+            sb.update_as_user(
                 "missions",
                 &mission_query,
                 json!({
@@ -195,9 +202,10 @@ pub(super) async fn pipeline_complete(
                     "progress": 90,
                     "updated_at": chrono::Utc::now().to_rfc3339(),
                 }),
+                jwt,
             ),
-            set_agent_idle(&sb, &agent_id),
-            set_agent_active(&sb, codex_route.agent_id, &review_task),
+            set_agent_idle(&sb, &agent_id, jwt),
+            set_agent_active(&sb, codex_route.agent_id, &review_task, jwt),
         );
 
         // Build Codex review prompt
@@ -232,7 +240,7 @@ pub(super) async fn pipeline_complete(
             Ok(pid) => codex_pid = pid,
             Err(e) => {
                 error!("[pipeline/complete] Failed to spawn Codex: {e:?}");
-                let _ = set_agent_idle(&sb, codex_route.agent_id).await;
+                let _ = set_agent_idle(&sb, codex_route.agent_id, jwt).await;
             }
         }
 
@@ -249,6 +257,7 @@ pub(super) async fn pipeline_complete(
                     "log_file": codex_log_file,
                 },
             }),
+            jwt,
         );
         send_notify(
             "Codex Reviewing",
@@ -270,7 +279,7 @@ pub(super) async fn pipeline_complete(
     // ── Success: non-code task -> done immediately ────────────────
     let mission_query = format!("id=eq.{mission_id}");
     let _ = tokio::join!(
-        sb.update(
+        sb.update_as_user(
             "missions",
             &mission_query,
             json!({
@@ -278,8 +287,9 @@ pub(super) async fn pipeline_complete(
                 "progress": 100,
                 "updated_at": chrono::Utc::now().to_rfc3339(),
             }),
+            jwt,
         ),
-        set_agent_idle(&sb, &agent_id),
+        set_agent_idle(&sb, &agent_id, jwt),
     );
 
     // Read last 2000 chars of log for notification (best-effort)
@@ -314,6 +324,7 @@ pub(super) async fn pipeline_complete(
             "description": format!("Mission \"{}\" completed successfully", mission_title),
             "metadata": { "status": "done" },
         }),
+        jwt,
     );
     send_notify(
         "Mission Complete",

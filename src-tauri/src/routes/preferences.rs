@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::error::{success_json, AppError};
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 use crate::supabase::SupabaseClient;
 
 // ── Required Supabase table ─────────────────────────────────────────────────
@@ -17,7 +17,6 @@ use crate::supabase::SupabaseClient;
 // ─────────────────────────────────────────────────────────────────────────────
 
 const TABLE: &str = "user_preferences";
-const USER_ID: &str = "default";
 
 /// Build the user-preferences router (get/patch JSONB preferences in Supabase).
 pub fn router() -> Router<AppState> {
@@ -29,16 +28,19 @@ pub fn router() -> Router<AppState> {
 
 // ── GET /api/user-preferences ───────────────────────────────────────────────
 //
-// Returns the full preferences JSONB object for the default user.
+// Returns the full preferences JSONB object for the authenticated user.
 // If no row exists yet, returns an empty object.
 
 async fn get_preferences(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = &session.access_token;
+    let user_id = &session.user_id;
 
-    let query = format!("select=preferences&user_id=eq.{USER_ID}");
-    match sb.select_single(TABLE, &query).await {
+    let query = format!("select=preferences&user_id=eq.{user_id}");
+    match sb.select_single_as_user(TABLE, &query, jwt).await {
         Ok(row) => {
             let prefs = row.get("preferences").cloned().unwrap_or(json!({}));
             Ok(success_json(prefs))
@@ -62,6 +64,7 @@ struct PatchBody {
 
 async fn patch_preferences(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<PatchBody>,
 ) -> Result<Json<Value>, AppError> {
     if !body.preferences.is_object() {
@@ -71,10 +74,12 @@ async fn patch_preferences(
     }
 
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = &session.access_token;
+    let user_id = &session.user_id;
 
     // Read existing preferences (if any)
-    let query = format!("select=preferences&user_id=eq.{USER_ID}");
-    let existing = match sb.select_single(TABLE, &query).await {
+    let query = format!("select=preferences&user_id=eq.{user_id}");
+    let existing = match sb.select_single_as_user(TABLE, &query, jwt).await {
         Ok(row) => row
             .get("preferences")
             .and_then(|v| v.as_object().cloned())
@@ -92,12 +97,12 @@ async fn patch_preferences(
 
     let now = chrono::Utc::now().to_rfc3339();
     let row = json!({
-        "user_id": USER_ID,
+        "user_id": user_id,
         "preferences": Value::Object(merged.clone()),
         "updated_at": now,
     });
 
-    sb.upsert(TABLE, row).await?;
+    sb.upsert_as_user(TABLE, row, jwt).await?;
 
     Ok(success_json(Value::Object(merged)))
 }

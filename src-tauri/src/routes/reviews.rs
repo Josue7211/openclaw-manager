@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 use crate::supabase::SupabaseClient;
 use crate::validation::{validate_date, validate_uuid};
 
@@ -26,9 +26,11 @@ struct DailyReviewQuery {
 
 async fn get_daily_review(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Query(params): Query<DailyReviewQuery>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = &session.access_token;
 
     let date = params
         .date
@@ -36,9 +38,10 @@ async fn get_daily_review(
     validate_date(&date)?;
 
     let data = sb
-        .select(
+        .select_as_user(
             "daily_reviews",
             &format!("select=*&date=eq.{date}&order=created_at.desc&limit=1"),
+            jwt,
         )
         .await?;
 
@@ -63,9 +66,11 @@ struct PostDailyReviewBody {
 
 async fn post_daily_review(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<PostDailyReviewBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = &session.access_token;
 
     let date = body
         .date
@@ -75,9 +80,10 @@ async fn post_daily_review(
 
     // Upsert by date — check if a review already exists for this date
     let existing = sb
-        .select(
+        .select_as_user(
             "daily_reviews",
             &format!("select=id&date=eq.{date}&limit=1"),
+            jwt,
         )
         .await?;
 
@@ -92,9 +98,9 @@ async fn post_daily_review(
         let id = row.get("id").and_then(|v| v.as_str())
             .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Missing id")))?;
         validate_uuid(id)?;
-        sb.update("daily_reviews", &format!("id=eq.{id}"), review_data).await?
+        sb.update_as_user("daily_reviews", &format!("id=eq.{id}"), review_data, jwt).await?
     } else {
-        sb.insert("daily_reviews", review_data).await?
+        sb.insert_as_user("daily_reviews", review_data, jwt).await?
     };
 
     Ok(Json(json!({ "review": data })))
@@ -109,9 +115,11 @@ struct WeeklyReviewQuery {
 
 async fn get_weekly_review(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Query(params): Query<WeeklyReviewQuery>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = &session.access_token;
 
     let query = if let Some(week_start) = &params.week_start {
         validate_date(week_start)?;
@@ -120,7 +128,7 @@ async fn get_weekly_review(
         "select=*&order=week_start.desc&limit=10".to_string()
     };
 
-    let data = sb.select("weekly_reviews", &query).await.unwrap_or(json!([]));
+    let data = sb.select_as_user("weekly_reviews", &query, jwt).await.unwrap_or(json!([]));
     Ok(Json(json!({ "reviews": data })))
 }
 
@@ -137,9 +145,11 @@ struct PostWeeklyReviewBody {
 
 async fn post_weekly_review(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<PostWeeklyReviewBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = &session.access_token;
 
     let week_start = body
         .week_start
@@ -157,9 +167,10 @@ async fn post_weekly_review(
 
     // Upsert by week_start
     let existing = sb
-        .select(
+        .select_as_user(
             "weekly_reviews",
             &format!("select=id&week_start=eq.{week_start}&limit=1"),
+            jwt,
         )
         .await?;
 
@@ -167,9 +178,9 @@ async fn post_weekly_review(
         let id = row.get("id").and_then(|v| v.as_str())
             .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Missing id")))?;
         validate_uuid(id)?;
-        sb.update("weekly_reviews", &format!("id=eq.{id}"), review_data).await?
+        sb.update_as_user("weekly_reviews", &format!("id=eq.{id}"), review_data, jwt).await?
     } else {
-        sb.insert("weekly_reviews", review_data).await?
+        sb.insert_as_user("weekly_reviews", review_data, jwt).await?
     };
 
     Ok(Json(json!({ "review": data })))
@@ -177,10 +188,13 @@ async fn post_weekly_review(
 
 // ── GET /api/retrospectives ─────────────────────────────────────────────────
 
-async fn get_retrospectives(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+async fn get_retrospectives(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
     let data = sb
-        .select("retrospectives", "select=*&order=created_at.desc")
+        .select_as_user("retrospectives", "select=*&order=created_at.desc", &session.access_token)
         .await?;
     Ok(Json(json!({ "retrospectives": data })))
 }
@@ -198,6 +212,7 @@ struct PostRetrospectiveBody {
 
 async fn post_retrospective(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<PostRetrospectiveBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
@@ -210,7 +225,7 @@ async fn post_retrospective(
     validate_uuid(mission_id)?;
 
     let data = sb
-        .insert(
+        .insert_as_user(
             "retrospectives",
             json!({
                 "mission_id": mission_id,
@@ -219,6 +234,7 @@ async fn post_retrospective(
                 "improvements": body.improvements,
                 "tags": body.tags.clone().unwrap_or(json!([])),
             }),
+            &session.access_token,
         )
         .await?;
 

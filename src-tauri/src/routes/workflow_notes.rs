@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 use crate::supabase::SupabaseClient;
 use crate::validation::{sanitize_postgrest_value, validate_uuid};
 
@@ -22,6 +22,7 @@ struct WorkflowNotesQuery {
 
 async fn get_workflow_notes(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Query(params): Query<WorkflowNotesQuery>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
@@ -32,7 +33,7 @@ async fn get_workflow_notes(
         query.push_str(&format!("&category=eq.{cat}"));
     }
 
-    let data = sb.select("workflow_notes", &query).await?;
+    let data = sb.select_as_user("workflow_notes", &query, &session.access_token).await?;
     Ok(Json(json!({ "notes": data })))
 }
 
@@ -44,6 +45,7 @@ struct PostWorkflowNoteBody {
 
 async fn post_workflow_note(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<PostWorkflowNoteBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
@@ -55,7 +57,7 @@ async fn post_workflow_note(
     }
 
     let data = sb
-        .insert("workflow_notes", json!({ "category": category, "note": note }))
+        .insert_as_user("workflow_notes", json!({ "category": category, "note": note }), &session.access_token)
         .await?;
     Ok(Json(json!({ "note": data })))
 }
@@ -68,6 +70,7 @@ struct PatchWorkflowNoteBody {
 
 async fn patch_workflow_note(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<PatchWorkflowNoteBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
@@ -77,7 +80,7 @@ async fn patch_workflow_note(
         .ok_or_else(|| AppError::BadRequest("id required".into()))?;
     validate_uuid(id)?;
     let data = sb
-        .update("workflow_notes", &format!("id=eq.{id}"), json!({ "applied": body.applied }))
+        .update_as_user("workflow_notes", &format!("id=eq.{id}"), json!({ "applied": body.applied }), &session.access_token)
         .await?;
     Ok(Json(json!({ "note": data })))
 }

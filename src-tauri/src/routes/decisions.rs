@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 use crate::supabase::SupabaseClient;
 use crate::validation::{sanitize_search_query, validate_uuid};
 
@@ -22,6 +22,7 @@ struct DecisionsQuery {
 
 async fn get_decisions(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Query(params): Query<DecisionsQuery>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
@@ -36,7 +37,7 @@ async fn get_decisions(
         }
     }
 
-    let data = sb.select("decisions", &query).await?;
+    let data = sb.select_as_user("decisions", &query, &session.access_token).await?;
     Ok(Json(json!({ "decisions": data })))
 }
 
@@ -53,6 +54,7 @@ struct PostDecisionBody {
 
 async fn post_decision(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<PostDecisionBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
@@ -71,7 +73,7 @@ async fn post_decision(
     }
 
     let data = sb
-        .insert(
+        .insert_as_user(
             "decisions",
             json!({
                 "title": title,
@@ -82,6 +84,7 @@ async fn post_decision(
                 "tags": body.tags.clone().unwrap_or(json!([])),
                 "linked_mission_id": body.linked_mission_id.clone(),
             }),
+            &session.access_token,
         )
         .await?;
 
@@ -102,6 +105,7 @@ struct PatchDecisionBody {
 
 async fn patch_decision(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<PatchDecisionBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
@@ -121,12 +125,13 @@ async fn patch_decision(
     if let Some(v) = &body.tags { obj.insert("tags".into(), v.clone()); }
     if let Some(v) = &body.linked_mission_id { obj.insert("linked_mission_id".into(), v.clone()); }
 
-    let data = sb.update("decisions", &format!("id=eq.{id}"), update).await?;
+    let data = sb.update_as_user("decisions", &format!("id=eq.{id}"), update, &session.access_token).await?;
     Ok(Json(json!({ "decision": data })))
 }
 
 async fn delete_decision(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
@@ -135,6 +140,6 @@ async fn delete_decision(
         .and_then(|v| v.as_str())
         .ok_or_else(|| AppError::BadRequest("id required".into()))?;
     validate_uuid(id)?;
-    sb.delete("decisions", &format!("id=eq.{id}")).await?;
+    sb.delete_as_user("decisions", &format!("id=eq.{id}"), &session.access_token).await?;
     Ok(Json(json!({ "ok": true })))
 }

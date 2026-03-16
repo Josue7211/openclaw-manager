@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 use crate::supabase::SupabaseClient;
 use crate::validation::sanitize_search_query;
 
@@ -22,6 +22,7 @@ struct SearchQuery {
 
 async fn get_search(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Query(params): Query<SearchQuery>,
 ) -> Result<Json<Value>, AppError> {
     let q = params.q.as_deref().unwrap_or("").trim().to_string();
@@ -34,6 +35,7 @@ async fn get_search(
     }
 
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = &session.access_token;
     let safe_q = sanitize_search_query(&q);
     let pattern = format!("%25{safe_q}%25");
 
@@ -41,8 +43,8 @@ async fn get_search(
     let todos_query = format!("select=id,text,done,created_at&text=ilike.{pattern}&limit=20");
     let missions_query = format!("select=id,title,status,created_at&title=ilike.{pattern}&limit=20");
     let (todos_result, missions_result) = tokio::join!(
-        sb.select("todos", &todos_query),
-        sb.select("missions", &missions_query),
+        sb.select_as_user("todos", &todos_query, jwt),
+        sb.select_as_user("missions", &missions_query, jwt),
     );
 
     let todos = todos_result.unwrap_or(json!([]));

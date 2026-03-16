@@ -4,7 +4,8 @@ use serde_json::{json, Value};
 use tracing::error;
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
+use crate::validation::{sanitize_postgrest_value, validate_uuid};
 
 use super::helpers::supabase;
 
@@ -12,12 +13,14 @@ use super::helpers::supabase;
 
 pub(super) async fn get_pipeline_events(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
     let sb = supabase(&state)?;
     let data = sb
-        .select(
+        .select_as_user(
             "pipeline_events",
             "select=*&order=created_at.desc&limit=50",
+            &session.access_token,
         )
         .await
         .map_err(|e| {
@@ -42,12 +45,22 @@ pub(super) struct PipelineEventBody {
 
 pub(super) async fn post_pipeline_event(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<PipelineEventBody>,
 ) -> Result<Json<Value>, AppError> {
     if body.event_type.is_empty() || body.description.is_empty() {
         return Err(AppError::BadRequest(
             "event_type and description required".into(),
         ));
+    }
+    if let Some(ref mid) = body.mission_id {
+        validate_uuid(mid)?;
+    }
+    if let Some(ref aid) = body.agent_id {
+        sanitize_postgrest_value(aid)?;
+    }
+    if let Some(ref iid) = body.idea_id {
+        validate_uuid(iid)?;
     }
 
     let sb = supabase(&state)?;
@@ -60,7 +73,7 @@ pub(super) async fn post_pipeline_event(
         "metadata": body.metadata,
     });
 
-    let result = sb.insert("pipeline_events", row).await.map_err(|e| {
+    let result = sb.insert_as_user("pipeline_events", row, &session.access_token).await.map_err(|e| {
         error!("pipeline_events insert: {e}");
         AppError::Internal(anyhow::anyhow!("Database error"))
     })?;

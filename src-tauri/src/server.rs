@@ -7,7 +7,6 @@ use axum::response::{IntoResponse, Response};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use subtle::ConstantTimeEq;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
@@ -326,52 +325,95 @@ async fn request_logger(req: Request<Body>, next: Next) -> Response {
 }
 
 /// Paths exempt from API key authentication.
+/// All `/api/auth/*` routes are exempt because auth endpoints handle their
+/// own authentication internally (session checks, password verification, etc.).
 const AUTH_EXEMPT_PATHS: &[&str] = &[
     "/api/health",
-    "/api/auth/callback",
-    "/api/auth/favicon.png",
-    "/api/auth/logo.png",
+];
+
+/// Path prefixes exempt from API key authentication.
+const AUTH_EXEMPT_PREFIXES: &[&str] = &[
+    "/api/auth/",
 ];
 
 // ---------------------------------------------------------------------------
-// Global rate limiter: 100 requests per second (burst protection)
+// Per-user rate limiting
 // ---------------------------------------------------------------------------
 
-/// Epoch-second of the current rate-limit window.
-static RATE_LIMIT_WINDOW: AtomicU64 = AtomicU64::new(0);
-/// Number of requests seen in the current window.
-static RATE_LIMIT_COUNT: AtomicU64 = AtomicU64::new(0);
-/// Maximum requests allowed per second.
-const RATE_LIMIT_MAX: u64 = 100;
+/// Per-key rate-limit bucket: tracks request count within a 60-second window.
+struct RateBucket {
+    count: u64,
+    window_start: u64,
+}
 
-/// Middleware that enforces a global rate limit of 100 requests/second.
-/// Returns 429 Too Many Requests when the limit is exceeded.
+/// Global map of rate-limit buckets keyed by `"{user_or_ip}:{category}"`.
+static RATE_LIMITS: OnceLock<std::sync::Mutex<std::collections::HashMap<String, RateBucket>>> =
+    OnceLock::new();
+
+fn rate_map() -> &'static std::sync::Mutex<std::collections::HashMap<String, RateBucket>> {
+    RATE_LIMITS.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
+}
+
+/// Check and increment a rate-limit bucket. Returns `true` if the request
+/// should be allowed, `false` if the limit has been exceeded.
+fn check_rate(key: &str, max_per_minute: u64, now_secs: u64) -> bool {
+    let mut map = rate_map().lock().unwrap_or_else(|e| e.into_inner());
+    let bucket = map.entry(key.to_string()).or_insert(RateBucket {
+        count: 0,
+        window_start: now_secs,
+    });
+
+    // Reset window if more than 60 seconds have elapsed
+    if now_secs - bucket.window_start >= 60 {
+        bucket.count = 1;
+        bucket.window_start = now_secs;
+        return true;
+    }
+
+    bucket.count += 1;
+    bucket.count <= max_per_minute
+}
+
+/// Per-user / per-IP rate-limit middleware.
+///
+/// Limits:
+/// - Auth endpoints (`/api/auth/`): 5/min per IP
+/// - Read (GET): 120/min per user (falls back to IP if no session)
+/// - Mutation (POST/PATCH/DELETE): 30/min per user
+/// - AI/chat (`/api/chat/`): 10/min per user
 async fn rate_limit(req: Request<Body>, next: Next) -> Response {
     let now_secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
 
-    let prev_window = RATE_LIMIT_WINDOW.load(Ordering::Relaxed);
+    let path = req.uri().path().to_string();
+    let method = req.method().clone();
 
-    if now_secs != prev_window {
-        // New second -- reset the counter. A compare-exchange avoids
-        // double-resetting when two threads race, but for a local desktop
-        // app a relaxed swap is fine.
-        if RATE_LIMIT_WINDOW
-            .compare_exchange(prev_window, now_secs, Ordering::Relaxed, Ordering::Relaxed)
-            .is_ok()
-        {
-            RATE_LIMIT_COUNT.store(1, Ordering::Relaxed);
-            return next.run(req).await;
-        }
-    }
+    // Determine the identity key: user_id from session, or remote IP
+    let identity = req
+        .extensions()
+        .get::<UserSession>()
+        .map(|s| format!("user:{}", s.user_id))
+        .unwrap_or_else(|| "ip:127.0.0.1".to_string());
 
-    let count = RATE_LIMIT_COUNT.fetch_add(1, Ordering::Relaxed);
-    if count >= RATE_LIMIT_MAX {
+    // Choose category and limit
+    let (category, limit) = if path.starts_with("/api/auth/") {
+        ("auth", 5u64)
+    } else if path.starts_with("/api/chat/") {
+        ("chat", 10u64)
+    } else if method == axum::http::Method::GET {
+        ("read", 120u64)
+    } else {
+        ("mutation", 30u64)
+    };
+
+    let key = format!("{identity}:{category}");
+
+    if !check_rate(&key, limit, now_secs) {
         return (
             StatusCode::TOO_MANY_REQUESTS,
-            "Too many requests -- limit is 100/second",
+            format!("Rate limit exceeded: {limit}/min for {category}"),
         )
             .into_response();
     }
@@ -384,7 +426,9 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
     let path = req.uri().path();
 
     // Skip auth for exempt paths and resource paths (images, avatars, attachments)
-    if AUTH_EXEMPT_PATHS.iter().any(|exempt| path == *exempt) {
+    if AUTH_EXEMPT_PATHS.iter().any(|exempt| path == *exempt)
+        || AUTH_EXEMPT_PREFIXES.iter().any(|prefix| path.starts_with(prefix))
+    {
         return next.run(req).await;
     }
     // Allow direct resource requests (img src, audio src, etc.) that don't send Origin headers

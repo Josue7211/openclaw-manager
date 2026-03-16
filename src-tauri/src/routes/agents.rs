@@ -9,7 +9,7 @@ use tokio::process::Command;
 use tokio::time::Duration;
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 use crate::supabase::SupabaseClient;
 use crate::validation::sanitize_postgrest_value;
 
@@ -54,10 +54,11 @@ pub fn router() -> Router<AppState> {
 
 async fn get_agents(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
     let data = sb
-        .select("agents", "select=*&order=sort_order.asc")
+        .select_as_user("agents", "select=*&order=sort_order.asc", &session.access_token)
         .await?;
     Ok(Json(json!({ "agents": data })))
 }
@@ -79,6 +80,7 @@ struct UpdateAgentBody {
 
 async fn update_agent(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<UpdateAgentBody>,
 ) -> Result<Json<Value>, AppError> {
     let id = body
@@ -115,7 +117,7 @@ async fn update_agent(
 
     let sb = SupabaseClient::from_state(&state)?;
     let data = sb
-        .update("agents", &format!("id=eq.{id}"), Value::Object(update))
+        .update_as_user("agents", &format!("id=eq.{id}"), Value::Object(update), &session.access_token)
         .await?;
 
     // Sync model change to OpenClaw via API (fire-and-forget)

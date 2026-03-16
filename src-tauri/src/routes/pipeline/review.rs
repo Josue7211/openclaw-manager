@@ -4,12 +4,12 @@ use serde_json::{json, Value};
 use tracing::error;
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 
 use super::agents::{status, CODEX, GUNTHER};
 use super::helpers::{
     extract_workdir, log_activity, send_notify, set_agent_active, set_agent_idle,
-    spawn_agent_process, supabase,
+    spawn_agent_process, supabase, validate_uuid,
 };
 use super::registry::clean_registry_by_mission_id;
 
@@ -24,11 +24,13 @@ pub(super) struct ReviewBody {
 
 pub(super) async fn pipeline_review(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<ReviewBody>,
 ) -> Result<Json<Value>, AppError> {
     if body.mission_id.is_empty() {
         return Err(AppError::BadRequest("mission_id is required".into()));
     }
+    validate_uuid(&body.mission_id)?;
     if body.verdict != "approved" && body.verdict != "rejected" {
         return Err(AppError::BadRequest(
             "verdict must be \"approved\" or \"rejected\"".into(),
@@ -36,11 +38,12 @@ pub(super) async fn pipeline_review(
     }
 
     let sb = supabase(&state)?;
+    let jwt = &session.access_token;
     let mission_id = &body.mission_id;
 
     // Fetch mission
     let mission = sb
-        .select_single("missions", &format!("select=*&id=eq.{mission_id}"))
+        .select_single_as_user("missions", &format!("select=*&id=eq.{mission_id}"), jwt)
         .await
         .map_err(|_| AppError::NotFound("Mission not found".into()))?;
 
@@ -58,7 +61,7 @@ pub(super) async fn pipeline_review(
     if body.verdict == "approved" {
         let mission_query = format!("id=eq.{mission_id}");
         let _ = tokio::join!(
-            sb.update(
+            sb.update_as_user(
                 "missions",
                 &mission_query,
                 json!({
@@ -68,8 +71,9 @@ pub(super) async fn pipeline_review(
                     "progress": 100,
                     "updated_at": chrono::Utc::now().to_rfc3339(),
                 }),
+                jwt,
             ),
-            set_agent_idle(&sb, codex_route.agent_id),
+            set_agent_idle(&sb, codex_route.agent_id, jwt),
         );
 
         log_activity(
@@ -85,6 +89,7 @@ pub(super) async fn pipeline_review(
                 ),
                 "metadata": { "verdict": "approved", "notes": body.notes },
             }),
+            jwt,
         );
 
         // Clean registry (fire-and-forget)
@@ -117,7 +122,7 @@ pub(super) async fn pipeline_review(
     let mission_query = format!("id=eq.{mission_id}");
     let fix_task = format!("Fix: {}", mission_title);
     let _ = tokio::join!(
-        sb.update(
+        sb.update_as_user(
             "missions",
             &mission_query,
             json!({
@@ -129,9 +134,10 @@ pub(super) async fn pipeline_review(
                 "assignee": gunther_route.agent_id,
                 "updated_at": chrono::Utc::now().to_rfc3339(),
             }),
+            jwt,
         ),
-        set_agent_idle(&sb, codex_route.agent_id),
-        set_agent_active(&sb, gunther_route.agent_id, &fix_task),
+        set_agent_idle(&sb, codex_route.agent_id, jwt),
+        set_agent_active(&sb, gunther_route.agent_id, &fix_task, jwt),
     );
 
     log_activity(
@@ -147,6 +153,7 @@ pub(super) async fn pipeline_review(
             ),
             "metadata": { "verdict": "rejected", "notes": body.notes },
         }),
+        jwt,
     );
 
     // Build fix prompt
@@ -175,7 +182,7 @@ pub(super) async fn pipeline_review(
         Ok(pid) => fix_pid = pid,
         Err(e) => {
             error!("[pipeline/review] Failed to spawn Gunther for fix: {e:?}");
-            let _ = set_agent_idle(&sb, gunther_route.agent_id).await;
+            let _ = set_agent_idle(&sb, gunther_route.agent_id, jwt).await;
         }
     }
 

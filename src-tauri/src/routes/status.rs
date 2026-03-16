@@ -9,7 +9,7 @@ use tokio::process::Command;
 
 use crate::error::AppError;
 use crate::redact::redact;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 
 // ── Compiled-once regexes ────────────────────────────────────────────────────
 
@@ -302,7 +302,10 @@ async fn get_tailscale_peers() -> Result<Json<Value>, AppError> {
 // or error info for each. Also verifies Tailscale peer identity when services
 // are accessed via Tailscale IPs.
 
-async fn get_connections(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+async fn get_connections(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
     let http = &state.http;
 
     let bb_host = state.secret("BLUEBUBBLES_HOST").unwrap_or_default();
@@ -313,7 +316,7 @@ async fn get_connections(State(state): State<AppState>) -> Result<Json<Value>, A
     let supabase_key = state.secret_or_default("SUPABASE_SERVICE_ROLE_KEY");
 
     // Load expected hostnames from user preferences (stored in Supabase)
-    let (bb_expected_host, oc_expected_host) = load_expected_hostnames(&state).await;
+    let (bb_expected_host, oc_expected_host) = load_expected_hostnames(&state, &session.access_token).await;
 
     // Test all three services concurrently
     let (bb_result, oc_result, sb_result) = tokio::join!(
@@ -375,14 +378,14 @@ async fn get_connections(State(state): State<AppState>) -> Result<Json<Value>, A
 }
 
 /// Load expected Tailscale hostnames from user preferences in Supabase.
-async fn load_expected_hostnames(state: &AppState) -> (Option<String>, Option<String>) {
+async fn load_expected_hostnames(state: &AppState, jwt: &str) -> (Option<String>, Option<String>) {
     let sb = match crate::supabase::SupabaseClient::from_state(state) {
         Ok(sb) => sb,
         Err(_) => return (None, None),
     };
 
     let query = "select=preferences&user_id=eq.default";
-    let prefs = match sb.select_single("user_preferences", query).await {
+    let prefs = match sb.select_single_as_user("user_preferences", query, jwt).await {
         Ok(row) => row.get("preferences").cloned().unwrap_or(json!({})),
         Err(_) => return (None, None),
     };
@@ -572,11 +575,13 @@ async fn heartbeat(State(state): State<AppState>) -> Result<Json<Value>, AppErro
 
 async fn get_feature_flags(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
+    let jwt = &session.access_token;
     let modules: Vec<String> = match crate::supabase::SupabaseClient::from_state(&state) {
         Ok(sb) => {
-            let query = "select=preferences&user_id=eq.default";
-            match sb.select_single("user_preferences", query).await {
+            let query = format!("select=preferences&user_id=eq.{}", session.user_id);
+            match sb.select_single_as_user("user_preferences", &query, jwt).await {
                 Ok(row) => row
                     .get("preferences")
                     .and_then(|p| p.get("enabled-modules"))

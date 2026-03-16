@@ -10,7 +10,7 @@ use tracing::{error, info};
 
 use crate::error::AppError;
 use crate::redact::redact;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 use crate::supabase::SupabaseClient;
 use crate::validation::validate_uuid;
 
@@ -45,15 +45,17 @@ struct MissionEventsQuery {
 
 async fn get_missions(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
     // Try SQLite cache first for instant response
     let cached = state.cache_get("missions").await;
+    let jwt = &session.access_token;
 
     // Always fetch fresh data from Supabase (or try to)
     let sb = SupabaseClient::from_state(&state);
     match sb {
         Ok(sb) => {
-            match sb.select("missions", "select=*&order=created_at.asc").await {
+            match sb.select_as_user("missions", "select=*&order=created_at.asc", jwt).await {
                 Ok(data) => {
                     // Persist to SQLite in background
                     let response = json!({ "missions": data });
@@ -100,6 +102,7 @@ struct CreateMissionBody {
 
 async fn create_mission(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<CreateMissionBody>,
 ) -> Result<Json<Value>, AppError> {
     let title = body.title.as_deref().map(|s| s.trim()).unwrap_or("");
@@ -108,12 +111,13 @@ async fn create_mission(
     }
 
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = &session.access_token;
     let row = json!({
         "title": title,
         "assignee": body.assignee.as_deref().unwrap_or("team"),
         "status": "pending",
     });
-    let data = sb.insert("missions", row).await?;
+    let data = sb.insert_as_user("missions", row, jwt).await?;
     let mission = data.get(0).cloned().unwrap_or(Value::Null);
     Ok(Json(json!({ "mission": mission })))
 }
@@ -131,6 +135,7 @@ struct UpdateMissionBody {
 
 async fn update_mission(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<UpdateMissionBody>,
 ) -> Result<Json<Value>, AppError> {
     let id = body.id.as_deref().unwrap_or("");
@@ -166,8 +171,9 @@ async fn update_mission(
     }
 
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = session.access_token.clone();
     let data = sb
-        .update("missions", &format!("id=eq.{id}"), Value::Object(updates))
+        .update_as_user("missions", &format!("id=eq.{id}"), Value::Object(updates), &jwt)
         .await?;
     let mission = data.get(0).cloned().unwrap_or(Value::Null);
 
@@ -223,9 +229,10 @@ async fn update_mission(
                 "description": desc,
                 "metadata": { "status": status, "progress": clamped },
             });
+            let jwt_clone = jwt.clone();
             // Fire-and-forget
             tokio::spawn(async move {
-                let _ = sb_log.insert("activity_log", log_row).await;
+                let _ = sb_log.insert_as_user("activity_log", log_row, &jwt_clone).await;
             });
         }
     }
@@ -253,8 +260,9 @@ async fn update_mission(
         if let Some(log_path) = final_log_path {
             let mission_id = id.to_string();
             let state_clone = state.clone();
+            let jwt_clone = jwt.clone();
             tokio::spawn(async move {
-                if let Err(e) = ingest_log_file(&state_clone, &mission_id, &log_path, duration_sec).await {
+                if let Err(e) = ingest_log_file(&state_clone, &mission_id, &log_path, duration_sec, &jwt_clone).await {
                     error!("[missions] auto-ingest error: {e:#}");
                 }
             });
@@ -273,12 +281,13 @@ struct DeleteMissionBody {
 
 async fn delete_mission(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<DeleteMissionBody>,
 ) -> Result<Json<Value>, AppError> {
     validate_uuid(&body.id)?;
 
     let sb = SupabaseClient::from_state(&state)?;
-    sb.delete("missions", &format!("id=eq.{}", body.id)).await?;
+    sb.delete_as_user("missions", &format!("id=eq.{}", body.id), &session.access_token).await?;
     Ok(Json(json!({ "ok": true })))
 }
 
@@ -286,9 +295,11 @@ async fn delete_mission(
 
 async fn get_mission_events(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Query(params): Query<MissionEventsQuery>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = &session.access_token;
 
     // TODO: This mutation should be POST, not GET. Migrate callers.
     // Manual ingest mode: GET /mission-events?action=ingest&mission_id=X&log_path=/tmp/foo.log
@@ -331,9 +342,10 @@ async fn get_mission_events(
 
         // Get mission duration if available
         let mission_data = sb
-            .select(
+            .select_as_user(
                 "missions",
                 &format!("select=created_at,updated_at&id=eq.{mission_id}&limit=1"),
+                jwt,
             )
             .await
             .unwrap_or_else(|_| json!([]));
@@ -384,10 +396,10 @@ async fn get_mission_events(
 
         // Delete existing events (idempotent)
         let _ = sb
-            .delete("mission_events", &format!("mission_id=eq.{mission_id}"))
+            .delete_as_user("mission_events", &format!("mission_id=eq.{mission_id}"), jwt)
             .await;
 
-        sb.insert("mission_events", json!(rows)).await?;
+        sb.insert_as_user("mission_events", json!(rows), jwt).await?;
 
         return Ok(Json(json!({
             "success": true,
@@ -404,9 +416,10 @@ async fn get_mission_events(
     validate_uuid(mission_id)?;
 
     let data = sb
-        .select(
+        .select_as_user(
             "mission_events",
             &format!("select=*&mission_id=eq.{mission_id}&order=seq.asc"),
+            jwt,
         )
         .await?;
 
@@ -424,6 +437,7 @@ struct IngestEventsBody {
 
 async fn ingest_events(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<IngestEventsBody>,
 ) -> Result<Json<Value>, AppError> {
     let mission_id = body
@@ -462,13 +476,14 @@ async fn ingest_events(
         .collect();
 
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = &session.access_token;
 
     // Delete existing events for this mission first (idempotent re-ingest)
     let _ = sb
-        .delete("mission_events", &format!("mission_id=eq.{mission_id}"))
+        .delete_as_user("mission_events", &format!("mission_id=eq.{mission_id}"), jwt)
         .await;
 
-    sb.insert("mission_events", json!(rows)).await?;
+    sb.insert_as_user("mission_events", json!(rows), jwt).await?;
 
     Ok(Json(json!({ "events_inserted": rows.len() })))
 }
@@ -485,6 +500,7 @@ struct BjornEventBody {
 
 async fn bjorn_event(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<BjornEventBody>,
 ) -> Result<Json<Value>, AppError> {
     let mission_id = body
@@ -502,14 +518,16 @@ async fn bjorn_event(
         .ok_or_else(|| AppError::BadRequest("content required".into()))?;
 
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = &session.access_token;
 
     // Get current max seq for this mission
     let max_rows = sb
-        .select(
+        .select_as_user(
             "mission_events",
             &format!(
                 "select=seq&mission_id=eq.{mission_id}&order=seq.desc&limit=1"
             ),
+            jwt,
         )
         .await
         .unwrap_or_else(|_| json!([]));
@@ -529,7 +547,7 @@ async fn bjorn_event(
         "seq": next_seq,
     });
 
-    let data = sb.insert("mission_events", row).await?;
+    let data = sb.insert_as_user("mission_events", row, jwt).await?;
     let event = data.get(0).cloned().unwrap_or(Value::Null);
 
     Ok(Json(json!({ "ok": true, "event": event })))
@@ -539,6 +557,7 @@ async fn bjorn_event(
 
 async fn sync_agents(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
     // Detect running coding agent processes
     let ps_output = Command::new("ps")
@@ -558,12 +577,14 @@ async fn sync_agents(
         .collect();
 
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = &session.access_token;
 
     // Get all active/pending bjorn missions
     let active_missions = sb
-        .select(
+        .select_as_user(
             "missions",
             "select=*&assignee=eq.bjorn&or=(status.eq.active,status.eq.pending)",
+            jwt,
         )
         .await
         .unwrap_or_else(|_| json!([]));
@@ -579,10 +600,11 @@ async fn sync_agents(
                 let now = chrono::Utc::now().to_rfc3339();
                 for id in &ids {
                     let _ = sb
-                        .update(
+                        .update_as_user(
                             "missions",
                             &format!("id=eq.{id}"),
                             json!({ "status": "done", "updated_at": now }),
+                            jwt,
                         )
                         .await;
                 }
@@ -592,9 +614,10 @@ async fn sync_agents(
 
     // Clean up stale "Coding Agent Task" missions
     let _ = sb
-        .delete(
+        .delete_as_user(
             "missions",
             "title=eq.Coding Agent Task&assignee=eq.bjorn",
+            jwt,
         )
         .await;
 
@@ -602,11 +625,12 @@ async fn sync_agents(
     let one_day_ago = (chrono::Utc::now() - chrono::Duration::hours(24))
         .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
     let _ = sb
-        .delete(
+        .delete_as_user(
             "missions",
             &format!(
                 "assignee=eq.bjorn&status=eq.done&updated_at=lt.{one_day_ago}"
             ),
+            jwt,
         )
         .await;
 
@@ -678,6 +702,7 @@ async fn ingest_log_file(
     mission_id: &str,
     log_path: &str,
     duration_sec: Option<i64>,
+    jwt: &str,
 ) -> anyhow::Result<()> {
     let log_re = regex::Regex::new(r"^/tmp/[a-zA-Z0-9._-]+\.log$")?;
     if !log_re.is_match(log_path) {
@@ -717,11 +742,11 @@ async fn ingest_log_file(
         })
         .collect();
 
-    let sb = SupabaseClient::from_state(&state)?;
+    let sb = SupabaseClient::from_state(state)?;
     let _ = sb
-        .delete("mission_events", &format!("mission_id=eq.{mission_id}"))
+        .delete_as_user("mission_events", &format!("mission_id=eq.{mission_id}"), jwt)
         .await;
-    sb.insert("mission_events", json!(rows)).await?;
+    sb.insert_as_user("mission_events", json!(rows), jwt).await?;
 
     info!(
         "[missions] auto-ingested {} events for mission {mission_id}",

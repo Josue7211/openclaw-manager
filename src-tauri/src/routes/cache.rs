@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::RwLock;
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 use crate::supabase::SupabaseClient;
 
 /// Stores hashes of last-upserted cache values to skip redundant writes.
@@ -28,9 +28,12 @@ pub fn router() -> Router<AppState> {
 
 // ── Cache ───────────────────────────────────────────────────────────────────
 
-async fn get_cache(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+async fn get_cache(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
-    let data = sb.select("cache", "select=*").await?;
+    let data = sb.select_as_user("cache", "select=*", &session.access_token).await?;
 
     let mut result = serde_json::Map::new();
     if let Some(rows) = data.as_array() {
@@ -47,18 +50,25 @@ async fn get_cache(State(state): State<AppState>) -> Result<Json<Value>, AppErro
     Ok(Json(Value::Object(result)))
 }
 
-async fn get_cache_refresh(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+async fn get_cache_refresh(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
-    let data = sb.select("cache", "select=*").await?;
+    let data = sb.select_as_user("cache", "select=*", &session.access_token).await?;
     Ok(Json(json!({ "rows": data })))
 }
 
-async fn post_cache_refresh(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+async fn post_cache_refresh(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
     // In the Tauri desktop context, cache refresh fetches from the local Axum
     // server's own endpoints and upserts the results into Supabase.
     // For now, this is a stub — the frontend can orchestrate cache refreshes
     // by calling individual endpoints and posting results.
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = &session.access_token;
 
     let cache_keys = ["status", "heartbeat", "sessions", "subagents", "agents"];
     let client = reqwest::Client::new();
@@ -73,6 +83,7 @@ async fn post_cache_refresh(State(state): State<AppState>) -> Result<Json<Value>
             let client = client.clone();
             let url = format!("{base}/api/{key}");
             let sb_ref = &sb;
+            let jwt_ref = jwt;
             async move {
                 let res = match client.get(&url).send().await {
                     Ok(r) if r.status().is_success() => r,
@@ -95,9 +106,10 @@ async fn post_cache_refresh(State(state): State<AppState>) -> Result<Json<Value>
 
                 let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
                 if sb_ref
-                    .upsert(
+                    .upsert_as_user(
                         "cache",
                         json!({ "key": key, "value": value, "updated_at": now }),
+                        jwt_ref,
                     )
                     .await
                     .is_ok()

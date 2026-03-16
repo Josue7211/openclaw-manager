@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 use crate::supabase::SupabaseClient;
 use crate::validation::{validate_date, validate_uuid};
 
@@ -18,10 +18,13 @@ pub fn router() -> Router<AppState> {
 
 // ── GET /api/habits ─────────────────────────────────────────────────────────
 
-async fn get_habits(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+async fn get_habits(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
     let data = sb
-        .select("habits", "select=*&order=sort_order,created_at")
+        .select_as_user("habits", "select=*&order=sort_order,created_at", &session.access_token)
         .await?;
     Ok(Json(json!({ "habits": data })))
 }
@@ -37,6 +40,7 @@ struct PostHabitBody {
 
 async fn post_habit(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<PostHabitBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
@@ -47,13 +51,14 @@ async fn post_habit(
     }
 
     let data = sb
-        .insert(
+        .insert_as_user(
             "habits",
             json!({
                 "name": name,
                 "emoji": body.emoji.as_deref().unwrap_or("\u{2705}"),
                 "color": body.color.as_deref().unwrap_or("#9b84ec"),
             }),
+            &session.access_token,
         )
         .await?;
 
@@ -64,6 +69,7 @@ async fn post_habit(
 
 async fn delete_habit(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
@@ -72,7 +78,7 @@ async fn delete_habit(
         .and_then(|v| v.as_str())
         .ok_or_else(|| AppError::BadRequest("id required".into()))?;
     validate_uuid(id)?;
-    sb.delete("habits", &format!("id=eq.{id}")).await?;
+    sb.delete_as_user("habits", &format!("id=eq.{id}"), &session.access_token).await?;
     Ok(Json(json!({ "ok": true })))
 }
 
@@ -85,6 +91,7 @@ struct HabitEntriesQuery {
 
 async fn get_habit_entries(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Query(params): Query<HabitEntriesQuery>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
@@ -95,7 +102,7 @@ async fn get_habit_entries(
         query.push_str(&format!("&date=gte.{since}"));
     }
 
-    let data = sb.select("habit_entries", &query).await?;
+    let data = sb.select_as_user("habit_entries", &query, &session.access_token).await?;
     Ok(Json(json!({ "entries": data })))
 }
 
@@ -109,9 +116,11 @@ struct PostHabitEntryBody {
 
 async fn post_habit_entry(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<PostHabitEntryBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = &session.access_token;
 
     let habit_id = body
         .habit_id
@@ -127,9 +136,10 @@ async fn post_habit_entry(
 
     // Check if entry already exists
     let existing = sb
-        .select(
+        .select_as_user(
             "habit_entries",
             &format!("select=id&habit_id=eq.{habit_id}&date=eq.{date}&limit=1"),
+            jwt,
         )
         .await?;
 
@@ -142,13 +152,13 @@ async fn post_habit_entry(
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Missing id on existing entry")))?;
             validate_uuid(existing_id)?;
-            sb.delete("habit_entries", &format!("id=eq.{existing_id}")).await?;
+            sb.delete_as_user("habit_entries", &format!("id=eq.{existing_id}"), jwt).await?;
             return Ok(Json(json!({ "done": false })));
         }
     }
 
     // Toggle on — insert new entry
-    sb.insert("habit_entries", json!({ "habit_id": habit_id, "date": date }))
+    sb.insert_as_user("habit_entries", json!({ "habit_id": habit_id, "date": date }), jwt)
         .await?;
     Ok(Json(json!({ "done": true })))
 }

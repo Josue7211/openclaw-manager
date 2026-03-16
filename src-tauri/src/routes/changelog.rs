@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 use crate::supabase::SupabaseClient;
 use crate::validation::{validate_date, validate_uuid};
 
@@ -15,9 +15,12 @@ pub fn router() -> Router<AppState> {
 
 // ── Changelog ───────────────────────────────────────────────────────────────
 
-async fn get_changelog(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+async fn get_changelog(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
-    let data = sb.select("changelog_entries", "select=*&order=date.desc").await?;
+    let data = sb.select_as_user("changelog_entries", "select=*&order=date.desc", &session.access_token).await?;
     Ok(Json(json!({ "entries": data })))
 }
 
@@ -31,6 +34,7 @@ struct PostChangelogBody {
 
 async fn post_changelog(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<PostChangelogBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
@@ -43,7 +47,7 @@ async fn post_changelog(
     validate_date(date)?;
 
     let data = sb
-        .insert(
+        .insert_as_user(
             "changelog_entries",
             json!({
                 "title": title,
@@ -51,6 +55,7 @@ async fn post_changelog(
                 "description": body.description.as_deref().map(|s| s.trim()).unwrap_or(""),
                 "tags": body.tags.clone().unwrap_or(json!([])),
             }),
+            &session.access_token,
         )
         .await?;
 
@@ -59,6 +64,7 @@ async fn post_changelog(
 
 async fn delete_changelog(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
@@ -66,6 +72,6 @@ async fn delete_changelog(
         .and_then(|v| v.as_str())
         .ok_or_else(|| AppError::BadRequest("id required".into()))?;
     validate_uuid(id)?;
-    sb.delete("changelog_entries", &format!("id=eq.{id}")).await?;
+    sb.delete_as_user("changelog_entries", &format!("id=eq.{id}"), &session.access_token).await?;
     Ok(Json(json!({ "ok": true })))
 }

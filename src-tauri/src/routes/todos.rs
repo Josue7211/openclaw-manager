@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 use crate::supabase::SupabaseClient;
 use crate::validation::validate_uuid;
 
@@ -12,9 +12,12 @@ pub fn router() -> Router<AppState> {
     Router::new().route("/todos", get(get_todos).post(post_todo).patch(patch_todo).delete(delete_todo))
 }
 
-async fn get_todos(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+async fn get_todos(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
-    let data = sb.select("todos", "select=*&order=created_at.asc").await?;
+    let data = sb.select_as_user("todos", "select=*&order=created_at.asc", &session.access_token).await?;
     Ok(Json(json!({ "todos": data })))
 }
 
@@ -25,6 +28,7 @@ struct PostTodoBody {
 
 async fn post_todo(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<PostTodoBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
@@ -32,7 +36,7 @@ async fn post_todo(
     if text.is_empty() {
         return Err(AppError::BadRequest("text required".into()));
     }
-    let data = sb.insert("todos", json!({ "text": text })).await?;
+    let data = sb.insert_as_user("todos", json!({ "text": text }), &session.access_token).await?;
     Ok(Json(json!({ "todo": data })))
 }
 
@@ -45,6 +49,7 @@ struct PatchTodoBody {
 
 async fn patch_todo(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<PatchTodoBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
@@ -60,7 +65,7 @@ async fn patch_todo(
     }
     validate_uuid(&body.id)?;
     let data = sb
-        .update("todos", &format!("id=eq.{}", body.id), Value::Object(update))
+        .update_as_user("todos", &format!("id=eq.{}", body.id), Value::Object(update), &session.access_token)
         .await?;
     Ok(Json(json!({ "todo": data })))
 }
@@ -72,10 +77,11 @@ struct DeleteTodoBody {
 
 async fn delete_todo(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<DeleteTodoBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
     validate_uuid(&body.id)?;
-    sb.delete("todos", &format!("id=eq.{}", body.id)).await?;
+    sb.delete_as_user("todos", &format!("id=eq.{}", body.id), &session.access_token).await?;
     Ok(Json(json!({ "ok": true })))
 }

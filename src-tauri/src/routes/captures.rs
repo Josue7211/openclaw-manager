@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 use crate::supabase::SupabaseClient;
 
 /// Build the quick-capture router (Note/Task/Idea/Decision inbox).
@@ -24,9 +24,11 @@ struct QuickCaptureBody {
 
 async fn post_quick_capture(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<QuickCaptureBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = &session.access_token;
 
     let content = body.content.as_deref().unwrap_or("").trim().to_string();
     if content.is_empty() {
@@ -48,9 +50,10 @@ async fn post_quick_capture(
     match capture_type {
         "Task" => {
             let row = sb
-                .insert(
+                .insert_as_user(
                     "todos",
                     json!({ "title": content, "completed": false, "created_at": now }),
+                    jwt,
                 )
                 .await?;
             let id = row.get("id").and_then(|v| v.as_i64()).map(|v| v.to_string()).unwrap_or_default();
@@ -58,9 +61,10 @@ async fn post_quick_capture(
         }
         "Idea" => {
             let row = sb
-                .insert(
+                .insert_as_user(
                     "ideas",
                     json!({ "title": content, "status": "pending", "created_at": now }),
+                    jwt,
                 )
                 .await?;
             let id = row.get("id").and_then(|v| v.as_i64()).map(|v| v.to_string()).unwrap_or_default();
@@ -69,9 +73,10 @@ async fn post_quick_capture(
         _ => {
             // Note or Decision — try captures table, fall back to todos
             let captures_result = sb
-                .insert(
+                .insert_as_user(
                     "captures",
                     json!({ "title": content, "type": capture_type, "source": source, "created_at": now }),
+                    jwt,
                 )
                 .await;
 
@@ -83,13 +88,14 @@ async fn post_quick_capture(
                 Err(_) => {
                     // Fallback to todos table
                     let row = sb
-                        .insert(
+                        .insert_as_user(
                             "todos",
                             json!({
                                 "title": format!("[{capture_type}] {content}"),
                                 "completed": false,
                                 "created_at": now,
                             }),
+                            jwt,
                         )
                         .await?;
                     let id = row.get("id").and_then(|v| v.as_i64()).map(|v| v.to_string()).unwrap_or_default();

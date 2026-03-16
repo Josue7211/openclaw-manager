@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 use crate::supabase::SupabaseClient;
 use crate::validation::validate_uuid;
 
@@ -17,8 +17,12 @@ pub fn router() -> Router<AppState> {
 
 // ── GET /stale ──────────────────────────────────────────────────────────────
 
-async fn get_stale(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+async fn get_stale(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = &session.access_token;
     let cutoff = (chrono::Utc::now() - chrono::Duration::days(STALE_DAYS))
         .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
 
@@ -26,11 +30,12 @@ async fn get_stale(State(state): State<AppState>) -> Result<Json<Value>, AppErro
 
     // Stale todos: not done, updated/created before cutoff
     if let Ok(todos) = sb
-        .select(
+        .select_as_user(
             "todos",
             &format!(
                 "select=id,text,created_at,updated_at&done=eq.false&order=updated_at.asc&updated_at=lt.{cutoff}"
             ),
+            jwt,
         )
         .await
     {
@@ -48,11 +53,12 @@ async fn get_stale(State(state): State<AppState>) -> Result<Json<Value>, AppErro
 
     // Stale missions: pending or active, updated before cutoff
     if let Ok(missions) = sb
-        .select(
+        .select_as_user(
             "missions",
             &format!(
                 "select=id,title,status,created_at,updated_at&or=(status.eq.pending,status.eq.active)&order=updated_at.asc&updated_at=lt.{cutoff}"
             ),
+            jwt,
         )
         .await
     {
@@ -71,11 +77,12 @@ async fn get_stale(State(state): State<AppState>) -> Result<Json<Value>, AppErro
 
     // Stale ideas: pending, created before cutoff
     if let Ok(ideas) = sb
-        .select(
+        .select_as_user(
             "ideas",
             &format!(
                 "select=id,title,status,created_at,updated_at&status=eq.pending&order=created_at.asc&created_at=lt.{cutoff}"
             ),
+            jwt,
         )
         .await
     {
@@ -107,9 +114,11 @@ struct PatchStaleBody {
 
 async fn patch_stale(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<PatchStaleBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
+    let jwt = &session.access_token;
     validate_uuid(&body.id)?;
     let query = format!("id=eq.{}", body.id);
     let now = chrono::Utc::now().to_rfc3339();
@@ -123,11 +132,11 @@ async fn patch_stale(
                 "idea" => json!({ "status": "approved", "updated_at": now }),
                 _ => return Err(AppError::BadRequest("Invalid type".into())),
             };
-            sb.update(table, &query, update).await?;
+            sb.update_as_user(table, &query, update, jwt).await?;
         }
         "snooze" => {
             let table = type_to_table(&body.item_type)?;
-            sb.update(table, &query, json!({ "updated_at": now })).await?;
+            sb.update_as_user(table, &query, json!({ "updated_at": now }), jwt).await?;
         }
         _ => return Err(AppError::BadRequest("action must be 'done' or 'snooze'".into())),
     }
@@ -146,12 +155,13 @@ struct DeleteStaleBody {
 
 async fn delete_stale(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<DeleteStaleBody>,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
     validate_uuid(&body.id)?;
     let table = type_to_table(&body.item_type)?;
-    sb.delete(table, &format!("id=eq.{}", body.id)).await?;
+    sb.delete_as_user(table, &format!("id=eq.{}", body.id), &session.access_token).await?;
     Ok(Json(json!({ "ok": true })))
 }
 
