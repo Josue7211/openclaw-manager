@@ -8,7 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { emit } from '@/lib/event-bus'
 import { queryKeys } from '@/lib/query-keys'
-import { useSupabaseRealtime } from '@/lib/hooks/useSupabaseRealtime'
+import { useTableRealtime } from '@/lib/hooks/useRealtimeSSE'
 import { todayISO } from '@/lib/utils'
 import { SkeletonList } from '@/components/Skeleton'
 import { useTodos } from '@/lib/hooks/useTodos'
@@ -31,7 +31,7 @@ function DueDateBadge({ due_date }: { due_date: string | null | undefined }) {
 
   const styles: Record<string, { bg: string; color: string; label: string }> = {
     overdue: { bg: 'rgba(239,68,68,0.12)', color: 'var(--red)', label: 'Overdue' },
-    today: { bg: 'rgba(250,204,21,0.12)', color: 'var(--warning)', label: 'Today' },
+    today: { bg: 'var(--yellow-bright-a12)', color: 'var(--warning)', label: 'Today' },
     future: { bg: 'rgba(100,116,139,0.12)', color: 'var(--text-muted)', label: due_date },
   }
   const s = styles[status]
@@ -78,7 +78,7 @@ export default function TodosPage() {
     }
   }, [todos])
 
-  useSupabaseRealtime('todos-page-realtime', 'todos', {
+  useTableRealtime('todos', {
     onEvent: () => {
       invalidateTodos()
       emit('todo-changed', null, 'supabase')
@@ -177,7 +177,7 @@ export default function TodosPage() {
           placeholder="Add a new task..."
           aria-label="Add todo"
           style={{
-            flex: 1, background: 'rgba(22, 22, 28, 0.65)', border: '1px solid var(--border)',
+            flex: 1, background: 'var(--bg-card)', border: '1px solid var(--border)',
             borderRadius: '10px', padding: '10px 14px', fontSize: '13px',
             color: 'var(--text-primary)', outline: 'none',
           }}
@@ -218,7 +218,7 @@ export default function TodosPage() {
                   <div key={t.id} style={{
                     display: 'flex', alignItems: 'center', gap: '10px',
                     padding: '9px 12px', borderRadius: '10px',
-                    background: 'rgba(22, 22, 28, 0.65)', border: '1px solid rgba(239,68,68,0.15)',
+                    background: 'var(--bg-card)', border: '1px solid rgba(239,68,68,0.15)',
                   }}>
                     <input
                       type="checkbox" checked={false} onChange={() => toggleTodo(t.id, t.done)}
@@ -243,7 +243,7 @@ export default function TodosPage() {
                 {sortedPending.map(t => (
                   <div key={t.id} style={{
                     display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px',
-                    background: focusIds.has(t.id) ? 'rgba(239,68,68,0.05)' : 'rgba(22, 22, 28, 0.65)',
+                    background: focusIds.has(t.id) ? 'rgba(239,68,68,0.05)' : 'var(--bg-card)',
                     borderRadius: '10px',
                     border: focusIds.has(t.id) ? '1px solid rgba(239,68,68,0.2)' : '1px solid var(--border)',
                     transition: 'border-color 0.15s',
@@ -290,7 +290,7 @@ export default function TodosPage() {
                   <div key={t.id} style={{
                     display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px',
                     background: 'var(--bg-white-03)', borderRadius: '10px',
-                    border: '1px solid rgba(59,165,92,0.15)',
+                    border: '1px solid var(--emerald-a15)',
                   }}>
                     <input
                       type="checkbox" checked onChange={() => toggleTodo(t.id, t.done)}

@@ -31,10 +31,10 @@ describe('useApiError', () => {
     expect(result.current).toBe('BlueBubbles unreachable')
   })
 
-  it('returns serviceLabel for Supabase network error', () => {
+  it('returns serviceLabel for Backend network error on data routes', () => {
     const err = new ApiError(0, 'fetch failed', '/api/todos')
     const { result } = renderHook(() => useApiError(err))
-    expect(result.current).toBe('Database unavailable')
+    expect(result.current).toBe('Service unavailable')
   })
 
   it('returns serviceLabel for OpenClaw network error', () => {
@@ -58,7 +58,7 @@ describe('useApiError', () => {
   it('returns "API {status}" for 404 errors', () => {
     const err = new ApiError(404, 'Not Found', '/api/todos')
     const { result } = renderHook(() => useApiError(err))
-    expect(result.current).toBe('API 404 — Database unavailable')
+    expect(result.current).toBe('API 404 — Service unavailable')
   })
 
   it('returns "API {status}" for 500 errors with Backend fallback', () => {

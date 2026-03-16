@@ -8,12 +8,13 @@ import { SkeletonList } from '@/components/Skeleton'
 
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
-import { useSupabaseRealtime } from '@/lib/hooks/useSupabaseRealtime'
+import { useTableRealtime } from '@/lib/hooks/useRealtimeSSE'
 import { PageHeader } from '@/components/PageHeader'
 import { isDemoMode, DEMO_AGENTS, DEMO_MISSIONS } from '@/lib/demo-data'
 import { DemoBadge } from '@/components/DemoModeBanner'
 import type { Mission } from '@/lib/types'
 import type { Agent } from './agents/types'
+import type { ModelsResponse } from './chat/types'
 import { AgentCard } from './agents/AgentCard'
 import { LiveProcesses } from './agents/LiveProcesses'
 
@@ -31,6 +32,13 @@ export default function AgentsPage() {
     queryKey: queryKeys.missions,
     queryFn: () => api.get<{ missions: Mission[] }>('/api/missions'),
     enabled: !_demo,
+  })
+
+  const { data: modelsData } = useQuery<ModelsResponse>({
+    queryKey: queryKeys.chatModels,
+    queryFn: () => api.get<ModelsResponse>('/api/chat/models'),
+    enabled: !_demo,
+    staleTime: 60_000,
   })
 
   const loading = _demo ? false : agentsLoading
@@ -52,8 +60,8 @@ export default function AgentsPage() {
     await saveMutation.mutateAsync({ id, fields })
   }
 
-  // Real-time subscription (only when supabase client is available)
-  useSupabaseRealtime('agents-realtime', 'agents', { queryKey: queryKeys.agents })
+  // Real-time subscription via SSE
+  useTableRealtime('agents', { queryKey: queryKeys.agents })
 
   return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -77,7 +85,7 @@ export default function AgentsPage() {
                   m => m.status === MISSION_STATUS.ACTIVE && m.assignee === agent.id
                 ) ?? null
                 return (
-                  <AgentCard key={agent.id} agent={agent} onSave={handleSave} activeMission={activeMission} />
+                  <AgentCard key={agent.id} agent={agent} onSave={handleSave} activeMission={activeMission} models={modelsData?.models ?? []} />
                 )
               })}
             </div>

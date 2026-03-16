@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
-import { supabase } from '@/lib/supabase/client'
+import { api } from '@/lib/api'
 import { initPreferencesSync } from '@/lib/preferences-sync'
 import { isDemoMode } from '@/lib/demo-data'
 
@@ -13,43 +13,28 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // In demo mode, skip auth entirely
-    if (isDemoMode() || !supabase) {
+    if (isDemoMode()) {
       setState('authenticated')
       return
     }
 
     async function checkAuth() {
-      const { data: { session } } = await supabase!.auth.getSession()
-      if (!session) {
+      try {
+        const res = await api.get<{ authenticated: boolean; user?: { id: string; email: string } }>('/api/auth/session')
+        setState(res.authenticated ? 'authenticated' : 'unauthenticated')
+
+        if (res.authenticated && !syncInitRef.current) {
+          syncInitRef.current = true
+          initPreferencesSync()
+        }
+      } catch {
         setState('unauthenticated')
-        return
-      }
-
-      // Check if MFA is required but not yet verified
-      const { data: aal } = await supabase!.auth.mfa.getAuthenticatorAssuranceLevel()
-      if (aal && aal.currentLevel === 'aal1' && aal.nextLevel === 'aal2') {
-        // Has TOTP enrolled but hasn't verified — sign out the partial session
-        await supabase!.auth.signOut()
-        setState('unauthenticated')
-        return
-      }
-
-      setState('authenticated')
-
-      // Sync preferences from Supabase after auth is confirmed
-      if (!syncInitRef.current) {
-        syncInitRef.current = true
-        initPreferencesSync()
       }
     }
 
     checkAuth()
-
-    const { data: { subscription } } = supabase!.auth.onAuthStateChange(() => {
-      checkAuth()
-    })
-
-    return () => subscription.unsubscribe()
+    const interval = setInterval(checkAuth, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   if (state === 'loading') return (

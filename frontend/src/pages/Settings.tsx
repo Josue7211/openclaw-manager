@@ -3,7 +3,6 @@ import { Settings, Bell, Palette, User, Server, Cpu, Zap, ChevronRight, ArrowLef
 import { useState, useEffect, memo, useCallback, lazy, Suspense } from 'react'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 import { useSearchParams } from 'react-router-dom'
-import { supabase } from '@/lib/supabase/client'
 import { useQuery } from '@tanstack/react-query'
 
 import { api } from '@/lib/api'
@@ -214,10 +213,13 @@ export default function SettingsPage() {
   const { data: authUserData } = useQuery({
     queryKey: queryKeys.authUser,
     queryFn: async () => {
-      if (!supabase) return { user: null, mfaData: null }
-      const { data: { user } } = await supabase!.auth.getUser()
-      const { data: mfaData } = await supabase!.auth.mfa.listFactors()
-      return { user, mfaData }
+      const session = await api.get<{
+        authenticated: boolean
+        user?: { id: string; email: string; identities?: Array<{ provider: string }> }
+        mfa_factors?: Array<{ id: string; status: string; type: string }>
+      }>('/api/auth/session')
+      if (!session.authenticated) return { user: null, mfaFactors: null }
+      return { user: session.user ?? null, mfaFactors: session.mfa_factors ?? null }
     },
   })
 
@@ -226,8 +228,8 @@ export default function SettingsPage() {
       setUserEmail(authUserData.user.email ?? null)
       setHasPassword(authUserData.user.identities?.some(i => i.provider === 'email') ?? false)
     }
-    if (authUserData?.mfaData?.totp && authUserData.mfaData.totp.length > 0) {
-      setMfaEnabled(authUserData.mfaData.totp.some(f => f.status === 'verified'))
+    if (authUserData?.mfaFactors && authUserData.mfaFactors.length > 0) {
+      setMfaEnabled(authUserData.mfaFactors.some(f => f.type === 'totp' && f.status === 'verified'))
     }
   }, [authUserData])
 

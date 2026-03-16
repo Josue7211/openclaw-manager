@@ -1,13 +1,10 @@
 
 
 
+
 import { useState, useEffect, useReducer } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { supabase as _supabase } from '@/lib/supabase/client'
 import { openInBrowser } from '@/lib/tauri'
-
-// Login page requires Supabase — not reachable in demo mode (AuthGuard skips auth)
-const supabase = _supabase!
 
 import { api } from '@/lib/api'
 import { viewReducer, initialViewState } from './login/shared'
@@ -44,57 +41,50 @@ export default function LoginPage() {
   useEffect(() => {
     if (mfaParam === 'verify') {
       // OAuth user with TOTP enrolled — find the factor and show verify view
-      supabase.auth.mfa.listFactors().then(({ data }) => {
-        const totp = data?.totp?.find(f => f.status === 'verified')
-        if (totp) {
-          dispatch({ type: 'SHOW_MFA', factorId: totp.id })
-        }
-      })
+      api.get<{ factors?: Array<{ id: string; status: string; type: string }> }>('/api/auth/mfa/factors')
+        .then(data => {
+          const totp = data.factors?.find(f => f.type === 'totp' && f.status === 'verified')
+          if (totp) {
+            dispatch({ type: 'SHOW_MFA', factorId: totp.id })
+          }
+        })
+        .catch(() => {})
     } else if (mfaParam === 'enroll') {
       // OAuth user without TOTP — start enrollment
-      supabase.auth.mfa.enroll({
-        factorType: 'totp',
-        friendlyName: 'Mission Control',
-      }).then(({ data, error }) => {
-        if (error || !data) return
-        dispatch({ type: 'SHOW_MFA_ENROLL', factorId: data.id, qr: data.totp.qr_code, secret: data.totp.secret })
-      })
+      api.post<{ id: string; qr_code: string; secret: string }>('/api/auth/mfa/enroll')
+        .then(data => {
+          if (data?.id) {
+            dispatch({ type: 'SHOW_MFA_ENROLL', factorId: data.id, qr: data.qr_code, secret: data.secret })
+          }
+        })
+        .catch(() => {})
     }
   }, [mfaParam])
 
-  // Poll for Tauri OAuth code handoff — exchange happens here in the WebView
-  // because the PKCE code_verifier is stored in the WebView's cookies.
+  // Poll for OAuth completion — backend exchanges the code in the callback
   useEffect(() => {
     if (view !== 'waiting') return
     const interval = setInterval(async () => {
       try {
-        const { code } = await api.get<{ code?: string }>(`/api/auth/tauri-session?t=${Date.now()}`)
-        if (code) {
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-          if (exchangeError) {
-            console.error('[tauri-poll] exchange failed:', exchangeError.message)
-            setError(exchangeError.message)
-            dispatch({ type: 'SHOW_MAIN' })
+        const res = await api.get<{
+          authenticated: boolean
+          mfa_required?: boolean
+          mfa_enroll_required?: boolean
+          factor_id?: string
+        }>('/api/auth/session')
+        if (res.authenticated) {
+          clearInterval(interval)
+
+          // Check MFA status
+          if (res.mfa_required && res.factor_id) {
+            dispatch({ type: 'SHOW_MFA', factorId: res.factor_id })
             setLoading(false)
             return
           }
-          // Check MFA
-          const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-          if (aal && aal.currentLevel === 'aal1' && aal.nextLevel === 'aal2') {
-            const factors = await supabase.auth.mfa.listFactors()
-            const totp = factors.data?.totp?.find(f => f.status === 'verified')
-            if (totp) {
-              dispatch({ type: 'SHOW_MFA', factorId: totp.id })
-              setLoading(false)
-              return
-            }
-          } else if (aal && aal.currentLevel === 'aal1' && aal.nextLevel === 'aal1') {
-            const { data: enrollData } = await supabase.auth.mfa.enroll({
-              factorType: 'totp',
-              friendlyName: 'Mission Control',
-            })
-            if (enrollData) {
-              dispatch({ type: 'SHOW_MFA_ENROLL', factorId: enrollData.id, qr: enrollData.totp.qr_code, secret: enrollData.totp.secret })
+          if (res.mfa_enroll_required) {
+            const enrollData = await api.post<{ id: string; qr_code: string; secret: string }>('/api/auth/mfa/enroll')
+            if (enrollData?.id) {
+              dispatch({ type: 'SHOW_MFA_ENROLL', factorId: enrollData.id, qr: enrollData.qr_code, secret: enrollData.secret })
               setLoading(false)
               return
             }
@@ -113,45 +103,24 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
 
-    let nonce: string | undefined
-    let callbackUrl: string
-    if (isTauriApp) {
-      try {
-        const res = await api.get<{ nonce: string }>('/api/auth/nonce')
-        nonce = res.nonce
-      } catch {
-        // Fall through without nonce — backend will log a warning but allow it
-      }
-      callbackUrl = `http://127.0.0.1:3000/api/auth/callback`
-    } else {
-      callbackUrl = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
-    }
-
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: callbackUrl,
-        skipBrowserRedirect: true,
-        ...(nonce ? { queryParams: { state: nonce } } : {}),
-      },
-    })
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-      return
-    }
-    if (data.url) {
-      if (isTauriApp) {
-        const opened = await openInBrowser(data.url)
-        if (opened) {
-          dispatch({ type: 'SHOW_WAITING' })
+    try {
+      const data = await api.get<{ url: string }>(`/api/auth/oauth/${provider}`)
+      if (data.url) {
+        if (isTauriApp) {
+          const opened = await openInBrowser(data.url)
+          if (opened) {
+            dispatch({ type: 'SHOW_WAITING' })
+          } else {
+            setError('Could not open browser. Please try again.')
+            setLoading(false)
+          }
         } else {
-          setError('Could not open browser. Please try again.')
-          setLoading(false)
+          window.location.href = data.url
         }
-      } else {
-        window.location.href = data.url
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'OAuth failed')
+      setLoading(false)
     }
   }
 
@@ -160,40 +129,41 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    try {
+      const result = await api.post<{
+        ok: boolean
+        error?: string
+        mfa_required?: boolean
+        mfa_enroll_required?: boolean
+        factor_id?: string
+      }>('/api/auth/login', { email, password })
 
-    if (error) {
-      setError(error.message)
+      if (result.error) {
+        setError(result.error)
+        setLoading(false)
+        return
+      }
+
+      // Check MFA status
+      if (result.mfa_required && result.factor_id) {
+        dispatch({ type: 'SHOW_MFA', factorId: result.factor_id })
+        setLoading(false)
+        return
+      }
+      if (result.mfa_enroll_required) {
+        const enrollData = await api.post<{ id: string; qr_code: string; secret: string }>('/api/auth/mfa/enroll')
+        if (enrollData?.id) {
+          dispatch({ type: 'SHOW_MFA_ENROLL', factorId: enrollData.id, qr: enrollData.qr_code, secret: enrollData.secret })
+          setLoading(false)
+          return
+        }
+      }
+
+      window.location.href = next
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed')
       setLoading(false)
-      return
     }
-
-    // Check MFA status
-    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-    if (aal && aal.currentLevel === 'aal1' && aal.nextLevel === 'aal2') {
-      const factors = await supabase.auth.mfa.listFactors()
-      const totp = factors.data?.totp?.find(f => f.status === 'verified')
-      if (totp) {
-        dispatch({ type: 'SHOW_MFA', factorId: totp.id })
-        setLoading(false)
-        return
-      }
-    } else if (aal && aal.currentLevel === 'aal1' && aal.nextLevel === 'aal1') {
-      const { data: enrollData, error: enrollErr } = await supabase.auth.mfa.enroll({
-        factorType: 'totp',
-        friendlyName: 'Mission Control',
-      })
-      if (!enrollErr && enrollData) {
-        dispatch({ type: 'SHOW_MFA_ENROLL', factorId: enrollData.id, qr: enrollData.totp.qr_code, secret: enrollData.totp.secret })
-        setLoading(false)
-        return
-      }
-    }
-
-    window.location.href = next
   }
 
   async function handleMfa(e: React.FormEvent) {
@@ -201,30 +171,23 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
 
-    const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
-      factorId: mfaFactorId,
-    })
+    try {
+      const challenge = await api.post<{ id: string }>('/api/auth/mfa/challenge', {
+        factor_id: mfaFactorId,
+      })
 
-    if (challengeError) {
-      setError(challengeError.message)
-      setLoading(false)
-      return
-    }
+      await api.post('/api/auth/mfa/verify', {
+        factor_id: mfaFactorId,
+        challenge_id: challenge.id,
+        code: mfaCode,
+      })
 
-    const { error: verifyError } = await supabase.auth.mfa.verify({
-      factorId: mfaFactorId,
-      challengeId: challenge.id,
-      code: mfaCode,
-    })
-
-    if (verifyError) {
-      setError(verifyError.message)
+      window.location.href = next
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'MFA verification failed')
       setMfaCode('')
       setLoading(false)
-      return
     }
-
-    window.location.href = next
   }
 
   return (
@@ -356,7 +319,7 @@ export default function LoginPage() {
             onMfaCodeChange={setMfaCode}
             onSubmit={handleMfa}
             onBack={async () => {
-              await supabase.auth.signOut()
+              await api.post('/api/auth/logout').catch(() => {})
               setMfaCode('')
               setError('')
               dispatch({ type: 'SHOW_MAIN' })

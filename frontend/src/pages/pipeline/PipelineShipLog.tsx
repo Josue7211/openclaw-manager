@@ -5,7 +5,7 @@ import type { Idea, ChangelogEntry, IdeaStatus } from './types'
 import { IDEA_STATUS_META } from './types'
 import { formatDay, groupByMonth } from './utils'
 import { MarkdownText } from './MarkdownText'
-import { supabase } from '@/lib/supabase/client'
+import { useTableRealtime } from '@/lib/hooks/useRealtimeSSE'
 
 export function PipelineShipLog() {
   const [entries, setEntries] = useState<ChangelogEntry[]>([])
@@ -39,13 +39,10 @@ export function PipelineShipLog() {
   useEffect(() => {
     fetchShipLog()
     fetchIdeas()
-    if (!supabase) return
-    const channel = supabase
-      .channel('pipeline-shiplog-ideas-rt')
-      .on<Record<string, unknown>>('postgres_changes', { event: '*', schema: 'public', table: 'ideas' }, fetchIdeas)
-      .subscribe()
-    return () => { supabase?.removeChannel(channel) }
   }, [fetchShipLog, fetchIdeas])
+
+  // Real-time subscription via SSE
+  useTableRealtime('ideas', { onEvent: fetchIdeas })
 
   const handleShipSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

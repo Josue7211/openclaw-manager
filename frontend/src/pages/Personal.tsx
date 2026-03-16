@@ -3,7 +3,6 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { RefreshCw } from 'lucide-react'
-import { supabase } from '@/lib/supabase/client'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { BackendErrorBanner } from '@/components/BackendErrorBanner'
 import SecondsAgo from '@/components/SecondsAgo'
@@ -12,6 +11,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { api, ApiError } from '@/lib/api'
 import { emit } from '@/lib/event-bus'
 import { queryKeys } from '@/lib/query-keys'
+import { useRealtimeSSE } from '@/lib/hooks/useRealtimeSSE'
 import { useTodos } from '@/lib/hooks/useTodos'
 import { isDemoMode, DEMO_TODOS, DEMO_MISSIONS, DEMO_CALENDAR_EVENTS, DEMO_PROXMOX_VMS, DEMO_PROXMOX_NODES, DEMO_OPNSENSE } from '@/lib/demo-data'
 import type { Todo, Mission, CalendarEvent } from '@/lib/types'
@@ -96,32 +96,22 @@ export default function PersonalDashboard() {
 
   useEffect(() => {
     fetchHomelab()
-
-    let todosChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null
-    let cacheChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null
-    if (supabase) {
-      todosChannel = supabase
-        .channel('personal-todos-realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, () => {
-          invalidateTodos()
-          emit('todo-changed', null, 'supabase')
-        })
-        .subscribe()
-
-      cacheChannel = supabase
-        .channel('personal-cache-updates')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'cache' }, () => fetchHomelab())
-        .subscribe()
-    }
-
     const homelabInterval = setInterval(fetchHomelab, 10000)
+    return () => clearInterval(homelabInterval)
+  }, [fetchHomelab])
 
-    return () => {
-      if (todosChannel) supabase?.removeChannel(todosChannel)
-      if (cacheChannel) supabase?.removeChannel(cacheChannel)
-      clearInterval(homelabInterval)
-    }
-  }, [invalidateTodos, fetchHomelab])
+  // Real-time subscriptions via SSE
+  useRealtimeSSE(['todos', 'cache'], {
+    onEvent: (table) => {
+      if (table === 'todos') {
+        invalidateTodos()
+        emit('todo-changed', null, 'supabase')
+      }
+      if (table === 'cache') {
+        fetchHomelab()
+      }
+    },
+  })
 
   const addTodo = async (text: string) => {
     await addMutation.mutateAsync(text)

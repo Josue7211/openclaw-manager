@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { X, ChevronDown } from 'lucide-react'
 import { api } from '@/lib/api'
-import { useSupabaseRealtime } from '@/lib/hooks/useSupabaseRealtime'
+import { useTableRealtime } from '@/lib/hooks/useRealtimeSSE'
 import { FilterDropdown } from './FilterDropdown'
 import type { Idea, IdeaStatus } from './types'
 import { IDEA_LEVEL_COLORS, IDEA_STATUS_META } from './types'
@@ -30,7 +30,7 @@ export function PipelineIdeas() {
   }, [])
 
   useEffect(() => { fetchIdeas() }, [fetchIdeas])
-  useSupabaseRealtime('pipeline-ideas-rt', 'ideas', { onEvent: fetchIdeas })
+  useTableRealtime('ideas', { onEvent: fetchIdeas })
 
   const updateIdeaStatus = async (id: string, newStatus: IdeaStatus) => {
     setIdeas(prev => prev.map(idea => idea.id === id ? { ...idea, status: newStatus } : idea))

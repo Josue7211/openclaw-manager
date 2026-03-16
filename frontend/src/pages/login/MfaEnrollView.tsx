@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { inputStyle, primaryBtnStyle, disabledBtnStyle } from './shared'
-import { supabase as _supabase } from '@/lib/supabase/client'
-
-const supabase = _supabase!
+import { api } from '@/lib/api'
 
 interface MfaEnrollViewProps {
   mfaFactorId: string
@@ -25,7 +23,7 @@ export function MfaEnrollView({ mfaFactorId, mfaQr, mfaSecret, next }: MfaEnroll
     }}>
       <div style={{
         padding: '10px 14px',
-        background: 'rgba(251, 191, 36, 0.08)',
+        background: 'var(--warning-a08)',
         border: '1px solid rgba(251, 191, 36, 0.2)',
         borderRadius: '8px',
         fontSize: '12px',
@@ -75,8 +73,8 @@ export function MfaEnrollView({ mfaFactorId, mfaQr, mfaSecret, next }: MfaEnroll
           color: 'var(--red)',
           textAlign: 'center',
           padding: '8px 12px',
-          background: 'rgba(248, 113, 113, 0.08)',
-          border: '1px solid rgba(248, 113, 113, 0.15)',
+          background: 'var(--red-a08)',
+          border: '1px solid var(--red-a15)',
           borderRadius: '8px',
           animation: 'fadeInUp 0.3s ease both',
         }}>
@@ -89,28 +87,23 @@ export function MfaEnrollView({ mfaFactorId, mfaQr, mfaSecret, next }: MfaEnroll
         setError('')
         setLoading(true)
 
-        const { data: challenge, error: challengeErr } = await supabase.auth.mfa.challenge({
-          factorId: mfaFactorId,
-        })
-        if (challengeErr) {
-          setError(challengeErr.message)
-          setLoading(false)
-          return
-        }
+        try {
+          const challenge = await api.post<{ id: string }>('/api/auth/mfa/challenge', {
+            factor_id: mfaFactorId,
+          })
 
-        const { error: verifyErr } = await supabase.auth.mfa.verify({
-          factorId: mfaFactorId,
-          challengeId: challenge.id,
-          code: mfaCode,
-        })
-        if (verifyErr) {
-          setError(verifyErr.message)
+          await api.post('/api/auth/mfa/verify', {
+            factor_id: mfaFactorId,
+            challenge_id: challenge.id,
+            code: mfaCode,
+          })
+
+          window.location.href = next
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Verification failed')
           setMfaCode('')
           setLoading(false)
-          return
         }
-
-        window.location.href = next
       }} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <input
           type="text"
@@ -139,7 +132,7 @@ export function MfaEnrollView({ mfaFactorId, mfaQr, mfaSecret, next }: MfaEnroll
             if (!loading && mfaCode.length === 6) {
               e.currentTarget.style.background = 'var(--accent-bright)'
               e.currentTarget.style.transform = 'translateY(-1px)'
-              e.currentTarget.style.boxShadow = '0 4px 20px rgba(167, 139, 250, 0.3)'
+              e.currentTarget.style.boxShadow = '0 4px 20px var(--accent-a30)'
             }
           }}
           onMouseLeave={e => {

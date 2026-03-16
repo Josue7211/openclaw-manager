@@ -269,6 +269,8 @@ let _isDemoMode: boolean | null = null
 
 export function isDemoMode(): boolean {
   if (_isDemoMode !== null) return _isDemoMode
+  // Demo mode when no backend database is configured.
+  // VITE_SUPABASE_URL indicates the backend has a database to connect to.
   _isDemoMode = !import.meta.env.VITE_SUPABASE_URL
   return _isDemoMode
 }

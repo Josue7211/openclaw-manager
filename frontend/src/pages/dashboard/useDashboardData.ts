@@ -1,11 +1,10 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
-import { supabase } from '@/lib/supabase/client'
-import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js"
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-keys'
 
 import { api, ApiError } from '@/lib/api'
 import { emit } from '@/lib/event-bus'
+import { useRealtimeSSE } from '@/lib/hooks/useRealtimeSSE'
 import type { Mission } from '@/lib/types'
 import { isDemoMode, DEMO_MISSIONS, DEMO_AGENT_STATUS, DEMO_AGENTS } from '@/lib/demo-data'
 
@@ -26,7 +25,6 @@ export function useDashboardData() {
   const cacheDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [panelIdea, setPanelIdea] = useState<Idea | null>(null)
-  const realtimeConnectedRef = useRef(false)
   const fastIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const slowIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -189,49 +187,32 @@ export function useDashboardData() {
     return () => clearTimeout(t)
   }, [])
 
-  // ── Real-time subscriptions for missions, agents, and ideas ──
-  useEffect(() => {
-    if (!supabase) return
-
-    const missionsChannel = supabase
-      .channel('missions-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'missions' }, () => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.missions })
+  // ── Real-time subscriptions via SSE for missions, agents, cache, and ideas ──
+  useRealtimeSSE(['missions', 'agents', 'ideas', 'cache'], {
+    queryKeys: {
+      missions: queryKeys.missions,
+      ideas: queryKeys.ideas('pending'),
+    },
+    onEvent: (table) => {
+      if (table === 'missions') {
         emit('mission-updated', null, 'supabase')
-      })
-      .subscribe()
-
-    const agentsSub = supabase
-      .channel('agents-dash-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agents' }, (payload: RealtimePostgresChangesPayload<AgentInfo>) => {
-        setAgentsData(prev => {
-          if (!prev) return prev
-          let updated = prev.agents
-          if (payload.eventType === 'UPDATE') {
-            updated = prev.agents.map(a => a.id === (payload.new as AgentInfo).id ? { ...a, ...(payload.new as AgentInfo) } : a)
-          } else if (payload.eventType === 'INSERT') {
-            updated = [...prev.agents, payload.new as AgentInfo]
-          } else if (payload.eventType === 'DELETE') {
-            updated = prev.agents.filter(a => a.id !== (payload.old as AgentInfo).id)
-          }
-          return { ...prev, agents: updated }
-        })
-      })
-      .subscribe()
-
-    const ideasChannel = supabase
-      .channel('ideas-dash-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ideas' }, () => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.ideas('pending') })
-      })
-      .subscribe()
-
-    return () => {
-      supabase?.removeChannel(missionsChannel)
-      supabase?.removeChannel(agentsSub)
-      supabase?.removeChannel(ideasChannel)
-    }
-  }, [queryClient])
+      }
+      if (table === 'agents') {
+        // Refetch agents data from cache instead of granular realtime payloads
+        readCache().then((data) => {
+          if (data) applyCache(data)
+        }).catch(() => {})
+      }
+      if (table === 'cache') {
+        if (cacheDebounceRef.current) clearTimeout(cacheDebounceRef.current)
+        cacheDebounceRef.current = setTimeout(() => {
+          readCache().then((data) => {
+            if (data) applyCache(data)
+          }).catch(() => {})
+        }, 200)
+      }
+    },
+  })
 
   // ── Main polling orchestrator ──
   useEffect(() => {
@@ -245,31 +226,9 @@ export function useDashboardData() {
     fastTick()
     slowTick()
 
-    if (!realtimeConnectedRef.current) startFastInterval()
+    // SSE handles realtime — use polling as fallback
+    startFastInterval()
     startSlowInterval()
-
-    let cacheChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null
-    if (supabase) {
-      cacheChannel = supabase
-        .channel('cache-updates')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'cache' }, () => {
-          if (cacheDebounceRef.current) clearTimeout(cacheDebounceRef.current)
-          cacheDebounceRef.current = setTimeout(() => {
-            readCache().then((data) => {
-              if (data) applyCache(data)
-            }).catch(() => {})
-          }, 200)
-        })
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            realtimeConnectedRef.current = true
-            stopFastInterval()
-          } else {
-            realtimeConnectedRef.current = false
-            if (!document.hidden) startFastInterval()
-          }
-        })
-    }
 
     const onVisibilityChange = () => {
       if (document.hidden) {
@@ -278,7 +237,7 @@ export function useDashboardData() {
       } else {
         fastTick()
         slowTick()
-        if (!realtimeConnectedRef.current) startFastInterval()
+        startFastInterval()
         startSlowInterval()
       }
     }
@@ -290,7 +249,6 @@ export function useDashboardData() {
     return () => {
       stopFastInterval()
       stopSlowInterval()
-      if (cacheChannel) supabase?.removeChannel(cacheChannel)
       document.removeEventListener('visibilitychange', onVisibilityChange)
       window.removeEventListener('focus', onFocus)
     }

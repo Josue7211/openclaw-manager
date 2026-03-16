@@ -11,7 +11,6 @@ const OnboardingWelcome = React.lazy(() => import('@/components/OnboardingWelcom
 import { getKeybindings, subscribeKeybindings, isBindingModPressed } from '@/lib/keybindings'
 import { getTitleBarVisible, getTitleBarAutoHide, subscribeTitleBarSettings } from '@/lib/titlebar-settings'
 import { getSidebarTitleText, getSidebarDefaultWidth, subscribeSidebarSettings } from '@/lib/sidebar-settings'
-import { processQueue, getQueueLength, subscribeQueue } from '@/lib/offline-queue'
 import { isDemoMode } from '@/lib/demo-data'
 import { DemoModeBanner } from '@/components/DemoModeBanner'
 
@@ -23,7 +22,6 @@ export default function LayoutShell() {
   const isLogin = pathname === '/login' || pathname.startsWith('/auth/')
 
   const [offline, setOffline] = useState(false)
-  const pendingCount = useSyncExternalStore(subscribeQueue, getQueueLength)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useLocalStorageState('sidebar-width', 260)
@@ -40,17 +38,11 @@ export default function LayoutShell() {
 
 
   useEffect(() => {
-    const on = () => {
-      setOffline(false)
-      // Replay any mutations that were queued while offline
-      processQueue()
-    }
+    const on = () => setOffline(false)
     const off = () => setOffline(true)
     window.addEventListener('online', on)
     window.addEventListener('offline', off)
     setOffline(!navigator.onLine)
-    // Also try to drain the queue on mount (e.g. after a reload while online)
-    if (navigator.onLine) processQueue()
     return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
   }, [])
 
@@ -237,7 +229,7 @@ export default function LayoutShell() {
         position: 'relative',
       }}>
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px', display: 'flex', flexDirection: 'column' }}>
-        {(offline || pendingCount > 0) && (
+        {offline && (
           <div role="alert" aria-live="assertive" style={{
             background: 'rgba(245, 158, 11, 0.1)',
             border: '1px solid rgba(245, 158, 11, 0.3)',
@@ -251,23 +243,7 @@ export default function LayoutShell() {
             alignItems: 'center',
             gap: '10px',
           }}>
-            <span>
-              {offline
-                ? 'You\u2019re offline \u2014 showing cached data'
-                : 'Back online \u2014 syncing changes\u2026'}
-            </span>
-            {pendingCount > 0 && (
-              <span style={{
-                background: 'rgba(245, 158, 11, 0.25)',
-                borderRadius: '10px',
-                padding: '2px 8px',
-                fontSize: '11px',
-                fontWeight: 600,
-                whiteSpace: 'nowrap',
-              }}>
-                {pendingCount} pending
-              </span>
-            )}
+            <span>You&apos;re offline &mdash; showing cached data</span>
           </div>
         )}
         {_isDemo && <DemoModeBanner />}

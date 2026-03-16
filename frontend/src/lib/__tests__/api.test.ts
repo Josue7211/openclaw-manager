@@ -120,11 +120,11 @@ describe('serviceForPath', () => {
     expect(serviceForPath('/api/chat/history')).toBe('OpenClaw')
   })
 
-  it('maps data routes to Supabase', () => {
-    expect(serviceForPath('/api/todos')).toBe('Supabase')
-    expect(serviceForPath('/api/missions')).toBe('Supabase')
-    expect(serviceForPath('/api/calendar')).toBe('Supabase')
-    expect(serviceForPath('/api/settings')).toBe('Supabase')
+  it('maps data routes to Backend', () => {
+    expect(serviceForPath('/api/todos')).toBe('Backend')
+    expect(serviceForPath('/api/missions')).toBe('Backend')
+    expect(serviceForPath('/api/calendar')).toBe('Backend')
+    expect(serviceForPath('/api/settings')).toBe('Backend')
   })
 
   it('falls back to Backend for unknown routes', () => {
@@ -137,7 +137,6 @@ describe('serviceErrorLabel', () => {
   it('returns human-readable labels', () => {
     expect(serviceErrorLabel('BlueBubbles')).toBe('BlueBubbles unreachable')
     expect(serviceErrorLabel('OpenClaw')).toBe('OpenClaw unreachable')
-    expect(serviceErrorLabel('Supabase')).toBe('Database unavailable')
     expect(serviceErrorLabel('Backend')).toBe('Service unavailable')
   })
 })
@@ -160,7 +159,7 @@ describe('ApiError', () => {
   })
 
   it('uses API status label for non-zero status', () => {
-    const err = new ApiError(403, 'Forbidden', '/api/todos')
+    const err = new ApiError(403, 'Forbidden', '/api/agents')
     expect(err.message).toBe('API 403')
   })
 
@@ -252,43 +251,16 @@ describe('api edge cases', () => {
 })
 
 describe('serviceForPath edge cases', () => {
-  it('maps /todos without api prefix to Supabase', () => {
-    expect(serviceForPath('/todos')).toBe('Supabase')
-  })
-
-  it('maps /missions without api prefix to Supabase', () => {
-    expect(serviceForPath('/missions')).toBe('Supabase')
-  })
-
-  it('maps /api/prefs to Supabase', () => {
-    expect(serviceForPath('/api/prefs')).toBe('Supabase')
-  })
-
-  it('maps /api/daily-review to Supabase', () => {
-    expect(serviceForPath('/api/daily-review')).toBe('Supabase')
-  })
-
-  it('maps /api/ideas to Supabase', () => {
-    expect(serviceForPath('/api/ideas')).toBe('Supabase')
-  })
-
-  it('maps /api/knowledge to Supabase', () => {
-    expect(serviceForPath('/api/knowledge')).toBe('Supabase')
-  })
-
-  it('maps /api/capture to Supabase', () => {
-    expect(serviceForPath('/api/capture')).toBe('Supabase')
-  })
-
-  it('maps /api/emails to Supabase', () => {
-    expect(serviceForPath('/api/emails')).toBe('Supabase')
-  })
-
-  it('maps /api/email to Supabase', () => {
-    expect(serviceForPath('/api/email')).toBe('Supabase')
-  })
-
-  it('maps /api/agents to Backend (not Supabase)', () => {
+  it('maps data routes to Backend (all proxied through Axum)', () => {
+    expect(serviceForPath('/api/todos')).toBe('Backend')
+    expect(serviceForPath('/api/missions')).toBe('Backend')
+    expect(serviceForPath('/api/prefs')).toBe('Backend')
+    expect(serviceForPath('/api/daily-review')).toBe('Backend')
+    expect(serviceForPath('/api/ideas')).toBe('Backend')
+    expect(serviceForPath('/api/knowledge')).toBe('Backend')
+    expect(serviceForPath('/api/capture')).toBe('Backend')
+    expect(serviceForPath('/api/emails')).toBe('Backend')
+    expect(serviceForPath('/api/email')).toBe('Backend')
     expect(serviceForPath('/api/agents')).toBe('Backend')
   })
 

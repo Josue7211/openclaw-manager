@@ -1,16 +1,13 @@
-import { queueMutation } from './offline-queue'
 import { reportError } from './error-reporter'
 
 export const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:3000'
 
-export type ServiceName = 'BlueBubbles' | 'OpenClaw' | 'Supabase' | 'Backend'
+export type ServiceName = 'BlueBubbles' | 'OpenClaw' | 'Backend'
 
 /** Determine which upstream service a path routes to */
 export function serviceForPath(path: string): ServiceName {
   if (path.startsWith('/api/messages')) return 'BlueBubbles'
   if (path.startsWith('/api/chat'))     return 'OpenClaw'
-  // Supabase-backed routes
-  if (/^\/(api\/)?(todos|missions|calendar|settings|prefs|daily-review|ideas|knowledge|capture|emails|email)/.test(path)) return 'Supabase'
   return 'Backend'
 }
 
@@ -19,7 +16,6 @@ export function serviceErrorLabel(service: ServiceName): string {
   switch (service) {
     case 'BlueBubbles': return 'BlueBubbles unreachable'
     case 'OpenClaw':    return 'OpenClaw unreachable'
-    case 'Supabase':    return 'Database unavailable'
     default:            return 'Service unavailable'
   }
 }
@@ -84,17 +80,6 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   } catch (err) {
     // Re-throw ApiError as-is (already reported at the throw site above)
     if (err instanceof ApiError) throw err
-
-    // Network failure on a mutation → queue for offline replay
-    const isMutation = method === 'POST' || method === 'PATCH' || method === 'DELETE'
-    const isNetworkError =
-      (err instanceof TypeError && /fetch|network/i.test(err.message)) ||
-      (err instanceof DOMException && err.name === 'AbortError')
-    if (isMutation && isNetworkError) {
-      queueMutation(path, method as 'POST' | 'PATCH' | 'DELETE', body)
-      // Return undefined so optimistic UI stays in place
-      return undefined as T
-    }
 
     const svc = serviceForPath(path)
     const apiErr = new ApiError(0, err instanceof Error ? err.message : 'Network error', path)
