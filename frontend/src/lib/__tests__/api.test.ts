@@ -141,3 +141,162 @@ describe('serviceErrorLabel', () => {
     expect(serviceErrorLabel('Backend')).toBe('Service unavailable')
   })
 })
+
+describe('ApiError', () => {
+  it('sets name to ApiError', () => {
+    const err = new ApiError(500, 'Internal error', '/api/todos')
+    expect(err.name).toBe('ApiError')
+  })
+
+  it('is an instance of Error', () => {
+    const err = new ApiError(400, 'Bad Request')
+    expect(err).toBeInstanceOf(Error)
+  })
+
+  it('uses status 0 label when status is 0', () => {
+    const err = new ApiError(0, 'network', '/api/messages/list')
+    expect(err.message).toBe('BlueBubbles unreachable')
+    expect(err.service).toBe('BlueBubbles')
+  })
+
+  it('uses API status label for non-zero status', () => {
+    const err = new ApiError(403, 'Forbidden', '/api/todos')
+    expect(err.message).toBe('API 403')
+  })
+
+  it('defaults to Backend service when no path given', () => {
+    const err = new ApiError(500, 'error')
+    expect(err.service).toBe('Backend')
+    expect(err.serviceLabel).toBe('Service unavailable')
+  })
+
+  it('preserves status and body', () => {
+    const body = { error: 'not found' }
+    const err = new ApiError(404, body, '/api/missions')
+    expect(err.status).toBe(404)
+    expect(err.body).toEqual(body)
+  })
+})
+
+describe('api edge cases', () => {
+  it('PATCH sends correct method', async () => {
+    mockFetch({ ok: true, json: () => Promise.resolve({ updated: true }) })
+    await api.patch('/items/1', { text: 'updated' })
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      `${API_BASE}/items/1`,
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ text: 'updated' }),
+      }),
+    )
+  })
+
+  it('DELETE sends correct method', async () => {
+    mockFetch({ ok: true, json: () => Promise.resolve({}) })
+    await api.del('/items/1')
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      `${API_BASE}/items/1`,
+      expect.objectContaining({ method: 'DELETE' }),
+    )
+  })
+
+  it('throws when non-JSON response has content', async () => {
+    mockFetch({
+      ok: true,
+      headers: new Headers({ 'content-type': 'text/html' }),
+      text: () => Promise.resolve('<html>unexpected</html>'),
+    })
+
+    // The Error thrown inside request() gets caught and re-wrapped as an ApiError with status 0
+    await expect(api.get('/bad-response')).rejects.toThrow(ApiError)
+    try {
+      await api.get('/bad-response')
+    } catch (err) {
+      expect((err as ApiError).status).toBe(0)
+    }
+  })
+
+  it('handles res.text() failure on error response gracefully', async () => {
+    ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 500,
+      text: () => Promise.reject(new Error('read failed')),
+      headers: new Headers({ 'content-type': 'application/json' }),
+    })
+
+    await expect(api.get('/error-path')).rejects.toThrow(ApiError)
+    try {
+      await api.get('/error-path')
+    } catch (err) {
+      expect((err as ApiError).body).toBe('')
+    }
+  })
+
+  it('includes Content-Type header on all requests', async () => {
+    mockFetch({ ok: true, json: () => Promise.resolve({}) })
+    await api.get('/test')
+    const callArgs = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(callArgs[1].headers['Content-Type']).toBe('application/json')
+  })
+
+  it('sends API key header when set', async () => {
+    const { setApiKey } = await import('../api')
+    setApiKey('test-key-123')
+    mockFetch({ ok: true, json: () => Promise.resolve({}) })
+    await api.get('/test')
+    const callArgs = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(callArgs[1].headers['X-API-Key']).toBe('test-key-123')
+    // Clean up
+    setApiKey('')
+  })
+})
+
+describe('serviceForPath edge cases', () => {
+  it('maps /todos without api prefix to Supabase', () => {
+    expect(serviceForPath('/todos')).toBe('Supabase')
+  })
+
+  it('maps /missions without api prefix to Supabase', () => {
+    expect(serviceForPath('/missions')).toBe('Supabase')
+  })
+
+  it('maps /api/prefs to Supabase', () => {
+    expect(serviceForPath('/api/prefs')).toBe('Supabase')
+  })
+
+  it('maps /api/daily-review to Supabase', () => {
+    expect(serviceForPath('/api/daily-review')).toBe('Supabase')
+  })
+
+  it('maps /api/ideas to Supabase', () => {
+    expect(serviceForPath('/api/ideas')).toBe('Supabase')
+  })
+
+  it('maps /api/knowledge to Supabase', () => {
+    expect(serviceForPath('/api/knowledge')).toBe('Supabase')
+  })
+
+  it('maps /api/capture to Supabase', () => {
+    expect(serviceForPath('/api/capture')).toBe('Supabase')
+  })
+
+  it('maps /api/emails to Supabase', () => {
+    expect(serviceForPath('/api/emails')).toBe('Supabase')
+  })
+
+  it('maps /api/email to Supabase', () => {
+    expect(serviceForPath('/api/email')).toBe('Supabase')
+  })
+
+  it('maps /api/agents to Backend (not Supabase)', () => {
+    expect(serviceForPath('/api/agents')).toBe('Backend')
+  })
+
+  it('maps root path to Backend', () => {
+    expect(serviceForPath('/')).toBe('Backend')
+  })
+
+  it('maps empty string to Backend', () => {
+    expect(serviceForPath('')).toBe('Backend')
+  })
+})

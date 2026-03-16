@@ -77,4 +77,76 @@ describe('page-cache', () => {
     // Second call should also return null (entry was cleaned up)
     expect(getCached(key)).toBeNull()
   })
+
+  it('handles null and undefined values', () => {
+    const key1 = 'null-val-' + Math.random()
+    const key2 = 'undef-val-' + Math.random()
+    setCache(key1, null)
+    setCache(key2, undefined)
+    expect(getCached(key1)).toBeNull()
+    expect(getCached(key2)).toBeUndefined()
+  })
+
+  it('caches complex nested objects', () => {
+    const key = 'complex-' + Math.random()
+    const data = { nested: { deep: { value: [1, 2, 3] } }, flag: true }
+    setCache(key, data)
+    expect(getCached(key)).toEqual(data)
+  })
+
+  it('caches arrays', () => {
+    const key = 'array-' + Math.random()
+    const data = [1, 'two', { three: 3 }]
+    setCache(key, data)
+    expect(getCached(key)).toEqual(data)
+  })
+
+  it('returns data when exactly at TTL boundary', () => {
+    vi.useFakeTimers()
+    const key = 'boundary-' + Math.random()
+    setCache(key, 'at-boundary')
+    // Advance exactly to TTL (not past it)
+    vi.advanceTimersByTime(5 * 60 * 1000)
+    // At exactly the boundary, Date.now() - ts === ttlMs, which is NOT > ttlMs
+    expect(getCached(key)).toBe('at-boundary')
+  })
+
+  it('different keys are independent', () => {
+    const key1 = 'indep-a-' + Math.random()
+    const key2 = 'indep-b-' + Math.random()
+    setCache(key1, 'alpha')
+    setCache(key2, 'beta')
+    expect(getCached(key1)).toBe('alpha')
+    expect(getCached(key2)).toBe('beta')
+  })
+
+  it('overwrite resets the TTL', () => {
+    vi.useFakeTimers()
+    const key = 'reset-ttl-' + Math.random()
+    setCache(key, 'first')
+    vi.advanceTimersByTime(4 * 60 * 1000) // 4 minutes
+    // Overwrite refreshes the timestamp
+    setCache(key, 'second')
+    vi.advanceTimersByTime(4 * 60 * 1000) // another 4 minutes (8 total)
+    // Should still be valid because it was refreshed at minute 4
+    expect(getCached(key)).toBe('second')
+  })
+
+  it('caches boolean false without treating it as missing', () => {
+    const key = 'false-val-' + Math.random()
+    setCache(key, false)
+    expect(getCached(key)).toBe(false)
+  })
+
+  it('caches zero without treating it as missing', () => {
+    const key = 'zero-val-' + Math.random()
+    setCache(key, 0)
+    expect(getCached(key)).toBe(0)
+  })
+
+  it('caches empty string without treating it as missing', () => {
+    const key = 'empty-str-' + Math.random()
+    setCache(key, '')
+    expect(getCached(key)).toBe('')
+  })
 })
