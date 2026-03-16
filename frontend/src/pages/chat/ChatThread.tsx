@@ -99,7 +99,7 @@ export default function ChatThread({
           </div>
         )}
 
-        {messages.filter(msg => msg.role !== 'system' && !msg.text.includes('ACTIVATION RULE') && !msg.text.startsWith('HEARTBEAT') && !msg.text.includes('000Server not running')).map(msg => (
+        {messages.filter(msg => msg.role !== 'system' && !msg.text.includes('ACTIVATION RULE') && !msg.text.startsWith('HEARTBEAT') && !msg.text.includes('000Server not running') && !msg.text.includes('Read HEARTBEAT.md') && !msg.text.includes('HEARTBEAT_OK')).map(msg => (
           <div key={msg.id} style={{
             display: 'flex',
             flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
