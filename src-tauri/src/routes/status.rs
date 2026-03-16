@@ -111,6 +111,7 @@ async fn write_registry(registry: &Registry) {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/status", get(get_status))
+        .route("/status/active-config", get(get_active_config))
         .route("/status/connections", get(get_connections))
         .route("/status/health", get(get_health))
         .route("/status/tailscale", get(get_tailscale_peers))
@@ -181,6 +182,21 @@ fn hostname() -> String {
 fn local_ip() -> String {
     // Quick heuristic: check common interface env or fall back
     "127.0.0.1".to_string()
+}
+
+// ── GET /api/status/active-config ──────────────────────────────────────────────
+//
+// Returns the service URLs that the backend is actively using (loaded from
+// the OS keychain + .env.local merge at startup). Only URL/host fields are
+// exposed — never passwords, tokens, or API keys. This lets the Settings >
+// Connections page show the real active config even when the OS keychain has
+// no user-saved values (e.g. when URLs came from .env.local).
+
+async fn get_active_config(State(state): State<AppState>) -> Json<Value> {
+    Json(json!({
+        "bluebubbles_url": state.secret("BLUEBUBBLES_HOST").unwrap_or_default(),
+        "openclaw_url": state.secret("OPENCLAW_API_URL").unwrap_or_default(),
+    }))
 }
 
 // ── GET /api/status/health ─────────────────────────────────────────────────────

@@ -16,13 +16,31 @@ export default function SettingsConnections() {
   const [connResults, setConnResults] = useState<Record<string, { status: string; latency_ms?: number; error?: string; peer_hostname?: string; peer_verified?: boolean }> | null>(null)
   const [showSetupWizard, setShowSetupWizard] = useState(false)
 
-  // Load saved connection URLs from keychain + expected hostnames from prefs
+  // Load saved connection URLs from keychain, falling back to the backend's
+  // active config (which includes .env.local values merged at startup).
+  // This ensures the UI shows the real URLs even when the user has never
+  // explicitly saved through the Settings UI.
   useEffect(() => {
-    if (!window.__TAURI_INTERNALS__) return
-    import('@tauri-apps/api/core').then(({ invoke }) => {
-      invoke<string | null>('get_secret', { key: 'bluebubbles.host' }).then(v => { if (v) setBbUrl(v) })
-      invoke<string | null>('get_secret', { key: 'openclaw.api-url' }).then(v => { if (v) setOcUrl(v) })
+    let keychainBb: string | null = null
+    let keychainOc: string | null = null
+
+    const loadKeychain = window.__TAURI_INTERNALS__
+      ? import('@tauri-apps/api/core').then(({ invoke }) =>
+          Promise.all([
+            invoke<string | null>('get_secret', { key: 'bluebubbles.host' }).then(v => { keychainBb = v }),
+            invoke<string | null>('get_secret', { key: 'openclaw.api-url' }).then(v => { keychainOc = v }),
+          ])
+        )
+      : Promise.resolve()
+
+    const loadActiveConfig = api.get<{ bluebubbles_url?: string; openclaw_url?: string }>('/api/status/active-config').catch(() => null)
+
+    Promise.all([loadKeychain, loadActiveConfig]).then(([, activeConfig]) => {
+      // Keychain values take priority; fall back to the backend's active config
+      setBbUrl(keychainBb || activeConfig?.bluebubbles_url || '')
+      setOcUrl(keychainOc || activeConfig?.openclaw_url || '')
     })
+
     // Load expected hostnames from user preferences
     api.get<{ ok: boolean; data: Record<string, unknown> }>('/api/user-preferences').then(resp => {
       const prefs = resp?.data ?? resp
