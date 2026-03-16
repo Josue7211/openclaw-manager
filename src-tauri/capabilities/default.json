@@ -18,7 +18,7 @@
     "notification:default",
     {
       "identifier": "shell:allow-open",
-      "allow": [{ "url": "https://**" }, { "url": "http://localhost:**" }]
+      "allow": [{ "url": "https://**" }]
     }
   ]
 }
