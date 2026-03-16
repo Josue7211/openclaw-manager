@@ -3,11 +3,12 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Mail, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Settings, Trash2, Star, X, Eye, EyeOff } from 'lucide-react'
+import { Mail, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Settings, Star } from 'lucide-react'
 import { SkeletonList } from '@/components/Skeleton'
 
 import { api } from '@/lib/api'
 import { PageHeader } from '@/components/PageHeader'
+import { ManagePanel } from './email/ManagePanel'
 
 interface Email {
   id: string
@@ -252,12 +253,20 @@ export default function EmailPage() {
   const selectedAccount = accounts.find(a => a.id === selectedAccountId)
   const unreadCount = emails.filter(e => !e.read).length
 
-  const inputStyle = {
-    width: '100%', padding: '7px 10px', borderRadius: '6px', fontSize: '12px',
-    background: 'var(--bg-base)', border: '1px solid var(--border)',
-    color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' as const,
-  }
-  const labelStyle = { fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' as const }
+  const handleCloseManagePanel = useCallback(() => {
+    setManageOpen(false)
+    setEditingAccount(null)
+    setForm(EMPTY_FORM)
+  }, [])
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingAccount(null)
+    setForm(EMPTY_FORM)
+  }, [])
+
+  const handleToggleShowPassword = useCallback(() => {
+    setShowPassword(p => !p)
+  }, [])
 
   if (missingCreds && accounts.length === 0) {
     return (
@@ -283,197 +292,26 @@ export default function EmailPage() {
             Add Account
           </button>
         </div>
-        {manageOpen && renderManagePanel()}
+        {manageOpen && (
+          <ManagePanel
+            accounts={accounts}
+            editingAccount={editingAccount}
+            form={form}
+            formSaving={formSaving}
+            formError={formError}
+            showPassword={showPassword}
+            deletingId={deletingId}
+            onClose={handleCloseManagePanel}
+            onSetForm={setForm}
+            onOpenEditForm={openEditForm}
+            onCancelEdit={handleCancelEdit}
+            onFormSave={handleFormSave}
+            onDelete={handleDelete}
+            onSetDefault={handleSetDefault}
+            onToggleShowPassword={handleToggleShowPassword}
+          />
+        )}
       </div>
-    )
-  }
-
-  function renderManagePanel() {
-    return (
-      <>
-        {/* Backdrop */}
-        <div
-          onClick={() => { setManageOpen(false); setEditingAccount(null); setForm(EMPTY_FORM) }}
-          style={{
-            position: 'fixed', inset: 0, background: 'var(--overlay-light)', zIndex: 99,
-          }}
-        />
-        {/* Slide-in panel */}
-        <div style={{
-          position: 'fixed', top: 0, right: 0, bottom: 0, width: '400px',
-          background: 'var(--bg-panel)', borderLeft: '1px solid var(--border)',
-          zIndex: 100, display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        }}>
-          {/* Panel header */}
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '16px 20px', borderBottom: '1px solid var(--border)',
-          }}>
-            <span style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)' }}>Manage Email Accounts</span>
-            <button
-              onClick={() => { setManageOpen(false); setEditingAccount(null); setForm(EMPTY_FORM) }}
-              aria-label="Close"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px' }}
-            >
-              <X size={16} />
-            </button>
-          </div>
-
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {/* Account list */}
-            {accounts.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {accounts.map(acc => (
-                  <div key={acc.id} style={{
-                    borderRadius: '8px', border: '1px solid var(--border)',
-                    background: editingAccount?.id === acc.id ? 'var(--purple-a08)' : 'var(--bg-elevated)',
-                    padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '8px',
-                  }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{acc.label}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {acc.username} · {acc.host}:{acc.port}
-                      </div>
-                    </div>
-                    {acc.is_default && (
-                      <span style={{
-                        fontSize: '10px', padding: '2px 6px', borderRadius: '4px',
-                        background: 'var(--purple-a15)', color: 'var(--accent)', fontWeight: 600,
-                      }}>default</span>
-                    )}
-                    {!acc.is_default && (
-                      <button
-                        onClick={() => handleSetDefault(acc.id)}
-                        title="Set as default"
-                        aria-label="Set as default"
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px' }}
-                      >
-                        <Star size={13} />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => openEditForm(acc)}
-                      style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        color: 'var(--text-muted)', padding: '2px', fontSize: '11px',
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(acc.id)}
-                      disabled={deletingId === acc.id}
-                      aria-label="Delete account"
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px' }}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Add / Edit form */}
-            <div style={{
-              borderRadius: '8px', border: '1px solid var(--border)',
-              background: 'var(--bg-elevated)', padding: '16px',
-            }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '14px' }}>
-                {editingAccount ? `Edit: ${editingAccount.label}` : 'Add Account'}
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div>
-                  <label style={labelStyle}>Label</label>
-                  <input style={inputStyle} placeholder="Personal, Work…" value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} aria-label="Account label" />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '8px' }}>
-                  <div>
-                    <label style={labelStyle}>Host</label>
-                    <input style={inputStyle} placeholder="imap.gmail.com" value={form.host} onChange={e => setForm(f => ({ ...f, host: e.target.value }))} aria-label="IMAP host" />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Port</label>
-                    <input style={{ ...inputStyle, width: '70px' }} placeholder="993" value={form.port} onChange={e => setForm(f => ({ ...f, port: e.target.value }))} aria-label="IMAP port" />
-                  </div>
-                </div>
-                <div>
-                  <label style={labelStyle}>Username</label>
-                  <input style={inputStyle} placeholder="you@example.com" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} aria-label="Email address" />
-                </div>
-                <div>
-                  <label style={labelStyle}>Password {editingAccount && <span style={{ color: 'var(--text-muted)' }}>(leave blank to keep current)</span>}</label>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      style={{ ...inputStyle, paddingRight: '32px' }}
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder={editingAccount ? '••••••••' : 'App password'}
-                      value={form.password}
-                      onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                      aria-label="Email password"
-                    />
-                    <button
-                      onClick={() => setShowPassword(p => !p)}
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      style={{
-                        position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
-                        background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0,
-                      }}
-                    >
-                      {showPassword ? <EyeOff size={12} /> : <Eye size={12} />}
-                    </button>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={form.tls} onChange={e => setForm(f => ({ ...f, tls: e.target.checked }))} />
-                    TLS/SSL
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={form.is_default} onChange={e => setForm(f => ({ ...f, is_default: e.target.checked }))} />
-                    Set as default
-                  </label>
-                </div>
-
-                {formError && (
-                  <div style={{ fontSize: '11px', color: 'var(--red-bright)' }}>{formError}</div>
-                )}
-
-                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                  <button
-                    onClick={handleFormSave}
-                    disabled={formSaving}
-                    style={{
-                      flex: 1, padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
-                      background: 'var(--accent)', color: 'var(--text-on-color)', border: 'none', cursor: 'pointer',
-                    }}
-                  >
-                    {formSaving ? 'Saving…' : editingAccount ? 'Save Changes' : 'Add Account'}
-                  </button>
-                  {editingAccount && (
-                    <button
-                      onClick={() => { setEditingAccount(null); setForm(EMPTY_FORM) }}
-                      style={{
-                        padding: '8px 14px', borderRadius: '6px', fontSize: '12px',
-                        background: 'var(--bg-panel)', border: '1px solid var(--border)',
-                        color: 'var(--text-secondary)', cursor: 'pointer',
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {accounts.length === 0 && !editingAccount && (
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, textAlign: 'center' }}>
-                No accounts yet. Add one above.
-              </p>
-            )}
-          </div>
-        </div>
-      </>
     )
   }
 
@@ -717,7 +555,25 @@ export default function EmailPage() {
       )}
 
       {/* Manage accounts panel */}
-      {manageOpen && renderManagePanel()}
+      {manageOpen && (
+        <ManagePanel
+          accounts={accounts}
+          editingAccount={editingAccount}
+          form={form}
+          formSaving={formSaving}
+          formError={formError}
+          showPassword={showPassword}
+          deletingId={deletingId}
+          onClose={handleCloseManagePanel}
+          onSetForm={setForm}
+          onOpenEditForm={openEditForm}
+          onCancelEdit={handleCancelEdit}
+          onFormSave={handleFormSave}
+          onDelete={handleDelete}
+          onSetDefault={handleSetDefault}
+          onToggleShowPassword={handleToggleShowPassword}
+        />
+      )}
     </div>
   )
 }
