@@ -1,38 +1,160 @@
 # ─────────────────────────────────────────────────────────────
-# Supabase — Self-Hosted Setup Reference
+# Supabase — Minimal Self-Hosted Setup for Mission Control
 # ─────────────────────────────────────────────────────────────
 #
-# Mission Control expects a running Supabase instance.
-# You can use either Supabase Cloud or a self-hosted instance.
+# Usage:
+#   1. Copy this file:       cp docker-compose.example.yml docker-compose.yml
+#   2. Copy the env file:    cp .env.example .env
+#   3. Edit .env — set strong values for POSTGRES_PASSWORD, JWT_SECRET,
+#      then generate ANON_KEY and SERVICE_ROLE_KEY (see README.md)
+#   4. Start everything:     docker compose up -d
+#   5. Apply migrations:     see README.md step 2
 #
-# OPTION 1 — Supabase Cloud (easiest)
-#   1. Create a project at https://supabase.com/dashboard
-#   2. Copy your project URL and anon key into .env.local
-#
-# OPTION 2 — Self-Hosted with Docker
-#   Follow the official guide:
+# This is a minimal config with 6 services. For the full 15+ service
+# Supabase stack (Studio, Storage, Edge Functions, etc.), see:
 #   https://supabase.com/docs/guides/self-hosting/docker
 #
-#   Quick start:
-#     git clone --depth 1 https://github.com/supabase/supabase
-#     cd supabase/docker
-#     cp .env.example .env
-#     # Edit .env — set your own POSTGRES_PASSWORD, JWT_SECRET, etc.
-#     docker compose pull
-#     docker compose up -d
-#
-#   Then point Mission Control at your local instance:
-#     VITE_SUPABASE_URL=http://localhost:8000
-#     VITE_SUPABASE_ANON_KEY=<your-generated-anon-key>
-#     SUPABASE_SERVICE_ROLE_KEY=<your-generated-service-role-key>
-#
-# OPTION 3 — Existing Instance
-#   If you already have Supabase running, just set the env vars
-#   in .env.local and run the migrations:
-#     supabase db push --db-url postgresql://postgres:<password>@<host>:5432/postgres
-#
 # ─────────────────────────────────────────────────────────────
-# This file is intentionally NOT a full docker-compose config.
-# Supabase's official docker-compose.yml has 15+ services and
-# is maintained upstream — duplicating it here would drift.
-# ─────────────────────────────────────────────────────────────
+
+services:
+  # ── PostgreSQL ──────────────────────────────────────────────
+  # Core database with Supabase extensions pre-installed
+  db:
+    image: supabase/postgres:15.8.1.060
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      JWT_EXP: ${JWT_EXP:-3600}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d/migrations
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${POSTGRES_DB:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── PostgREST (REST API) ───────────────────────────────────
+  # Auto-generates a REST API from the PostgreSQL schema
+  rest:
+    image: postgrest/postgrest:v12.2.3
+    restart: unless-stopped
+    ports:
+      - "${PGRST_PORT:-3001}:3000"
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-postgres}
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ── GoTrue (Auth) ──────────────────────────────────────────
+  # Handles user authentication (JWT, OAuth, email/password)
+  auth:
+    image: supabase/gotrue:v2.158.1
+    restart: unless-stopped
+    ports:
+      - "${AUTH_PORT:-9999}:9999"
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: ${API_EXTERNAL_URL:-http://localhost:8000}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-postgres}
+      GOTRUE_SITE_URL: ${SITE_URL:-http://localhost:5173}
+      GOTRUE_URI_ALLOW_LIST: ${ADDITIONAL_REDIRECT_URLS:-}
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: ${JWT_EXP:-3600}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ── Realtime ───────────────────────────────────────────────
+  # WebSocket server for Postgres changes (INSERT/UPDATE/DELETE)
+  realtime:
+    image: supabase/realtime:v2.33.58
+    restart: unless-stopped
+    ports:
+      - "${REALTIME_PORT:-4000}:4000"
+    environment:
+      PORT: 4000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: supabase_admin
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB:-postgres}
+      DB_AFTER_CONNECT_QUERY: "SET search_path TO _realtime"
+      DB_ENC_KEY: supabaserealtime
+      API_JWT_SECRET: ${JWT_SECRET}
+      FLY_ALLOC_ID: fly123
+      FLY_APP_NAME: realtime
+      SECRET_KEY_BASE: ${REALTIME_SECRET_KEY_BASE:-UpNVntn3cDxHJpq99YMc1T1AQgQpc8kfYTuRgBiYa15BLrx8etQoXz3gZv1/u2oq}
+      ERL_AFLAGS: -proto_dist inet_tcp
+      ENABLE_TAILSCALE: "false"
+      DNS_NODES: "''"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ── Storage ────────────────────────────────────────────────
+  # S3-compatible file storage backed by PostgreSQL
+  storage:
+    image: supabase/storage-api:v1.11.13
+    restart: unless-stopped
+    ports:
+      - "${STORAGE_PORT:-5000}:5000"
+    environment:
+      ANON_KEY: ${ANON_KEY:?Set ANON_KEY in .env}
+      SERVICE_KEY: ${SERVICE_ROLE_KEY:?Set SERVICE_ROLE_KEY in .env}
+      POSTGREST_URL: http://rest:3000
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-postgres}
+      FILE_SIZE_LIMIT: 52428800
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: stub
+      REGION: stub
+      GLOBAL_S3_BUCKET: stub
+      ENABLE_IMAGE_TRANSFORMATION: "false"
+    volumes:
+      - storage-data:/var/lib/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      rest:
+        condition: service_started
+
+  # ── pg-meta ────────────────────────────────────────────────
+  # PostgreSQL introspection API (used by Studio and type generation)
+  meta:
+    image: supabase/postgres-meta:v0.83.2
+    restart: unless-stopped
+    ports:
+      - "${META_PORT:-8080}:8080"
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: db
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: ${POSTGRES_DB:-postgres}
+      PG_META_DB_USER: supabase_admin
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:
+  storage-data:

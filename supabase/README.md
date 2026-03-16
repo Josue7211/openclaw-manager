@@ -7,32 +7,54 @@ Mission Control uses a self-hosted Supabase instance (via Docker Compose) as its
 - Docker and Docker Compose
 - Git
 
-## 1. Clone and start Supabase
+## 1. Start Supabase
+
+### Option A: Use the included docker-compose (recommended)
+
+This repo includes a minimal docker-compose with 6 services (PostgreSQL, PostgREST, Auth, Realtime, Storage, pg-meta).
 
 ```bash
-# Clone the official self-hosted Supabase repo
-git clone --depth 1 https://github.com/supabase/supabase
-cd supabase/docker
+cd supabase
 
-# Copy the example env file
+# Copy the template files
+cp docker-compose.example.yml docker-compose.yml
 cp .env.example .env
 ```
 
-Edit `.env` and change at minimum:
+Edit `.env` and set real values:
 
-- `POSTGRES_PASSWORD` -- set a strong password
-- `JWT_SECRET` -- generate one with `openssl rand -base64 32`
-- `ANON_KEY` -- generate a JWT (see below)
-- `SERVICE_ROLE_KEY` -- generate a JWT (see below)
-- `SITE_URL` -- set to `http://localhost:5173` for local dev
-- `ADDITIONAL_REDIRECT_URLS` -- add `http://localhost:3000/api/auth/callback`
+```bash
+# Generate secrets
+openssl rand -base64 24   # use for POSTGRES_PASSWORD
+openssl rand -base64 32   # use for JWT_SECRET
+```
+
+Then generate `ANON_KEY` and `SERVICE_ROLE_KEY` from your `JWT_SECRET` (see "Generating JWT keys" below).
+
+```bash
+docker compose up -d
+```
+
+### Option B: Use the full Supabase stack
+
+For the complete stack (Studio, Edge Functions, etc.):
+
+```bash
+git clone --depth 1 https://github.com/supabase/supabase
+cd supabase/docker
+cp .env.example .env
+# Edit .env — set POSTGRES_PASSWORD, JWT_SECRET, ANON_KEY, SERVICE_ROLE_KEY, SITE_URL
+docker compose up -d
+```
+
+See the [official self-hosting guide](https://supabase.com/docs/guides/self-hosting/docker) for details.
 
 ### Generating JWT keys
 
 Use the [Supabase JWT generator](https://supabase.com/docs/guides/self-hosting/docker#generate-api-keys) or generate them manually:
 
 ```bash
-# Install jwt-cli or use Node.js
+# Requires: npm install -g jsonwebtoken (or use npx)
 node -e "
 const jwt = require('jsonwebtoken');
 const secret = 'your-jwt-secret-from-env';  // must match JWT_SECRET in .env
@@ -41,35 +63,30 @@ console.log('SERVICE_ROLE_KEY:', jwt.sign({ role: 'service_role', iss: 'supabase
 "
 ```
 
-### Start the services
-
-```bash
-docker compose up -d
-```
-
-Supabase Studio will be available at `http://localhost:8000` (or the port you configured).
-
 ## 2. Run the database migration
 
-Open the Supabase SQL Editor at `http://localhost:8000/project/default/sql` and paste the contents of:
-
-```
-supabase/migrations/001_initial.sql
-```
-
-Or run it via `psql`:
+Apply all migrations in order. You can use the Supabase CLI or `psql` directly:
 
 ```bash
-# Connect to the Supabase Postgres instance
-psql "postgresql://postgres:YOUR_POSTGRES_PASSWORD@localhost:5432/postgres" \
-  -f supabase/migrations/001_initial.sql
+# Option 1: Supabase CLI (if configured)
+supabase db push --db-url postgresql://postgres:YOUR_POSTGRES_PASSWORD@localhost:5432/postgres
+
+# Option 2: psql — run each migration in order
+for f in supabase/migrations/*.sql; do
+  psql "postgresql://postgres:YOUR_POSTGRES_PASSWORD@localhost:5432/postgres" -f "$f"
+done
 ```
 
-This creates all required tables, indexes, seeds the default agent roster, and enables Realtime on key tables.
+Migration files (in `supabase/migrations/`):
 
-### Incremental migrations
+| File | Purpose |
+|---|---|
+| `20260301000000_initial.sql` | 19 tables, indexes, Realtime publication, agent seeds |
+| `20260308000000_habits.sql` | Habit tracking tables |
+| `20260308000001_mission_events.sql` | Mission event enhancements |
+| `20260309000000_pipeline_columns.sql` | Pipeline column additions |
 
-If you already have an older database, apply only the newer migration files in `supabase/migrations/` in order. The `001_initial.sql` migration uses `CREATE TABLE IF NOT EXISTS` and `ON CONFLICT DO NOTHING` so it is safe to re-run.
+All migrations use `CREATE TABLE IF NOT EXISTS`, `IF NOT EXISTS`, and `ON CONFLICT DO NOTHING` so they are safe to re-run.
 
 ## 3. Configure Mission Control
 

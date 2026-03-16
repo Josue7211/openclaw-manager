@@ -1,0 +1,16 @@
+# Supabase
+.branches
+.temp
+
+# Docker Compose (real config contains secrets — only .example is committed)
+docker-compose.yml
+docker-compose.override.yml
+
+# Environment (real .env contains secrets — only .env.example is committed)
+.env
+.env.keys
+.env.local
+.env.*.local
+
+# Docker volumes
+data/
