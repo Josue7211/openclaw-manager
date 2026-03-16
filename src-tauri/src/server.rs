@@ -233,6 +233,7 @@ pub async fn start(
     let app = Router::new()
         .nest("/api", routes::router())
         .layer(DefaultBodyLimit::max(10 * 1024 * 1024)) // 10 MB
+        .layer(middleware::from_fn(no_store_api_responses))
         .layer(middleware::from_fn_with_state(state.clone(), inject_session))
         .layer(middleware::from_fn(request_logger))
         .layer(middleware::from_fn(api_key_auth))
@@ -329,6 +330,21 @@ async fn inject_session(
     }
 
     next.run(req).await
+}
+
+/// Middleware that sets Cache-Control: no-store on all API responses.
+/// Prevents WebKitGTK from caching sensitive data to disk.
+async fn no_store_api_responses(req: Request<Body>, next: Next) -> Response {
+    let mut response = next.run(req).await;
+    response.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        "no-store, no-cache, must-revalidate".parse().unwrap(),
+    );
+    response.headers_mut().insert(
+        axum::http::header::PRAGMA,
+        "no-cache".parse().unwrap(),
+    );
+    response
 }
 
 /// Middleware that logs each incoming request with method, path, status, and duration.
