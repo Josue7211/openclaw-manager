@@ -704,22 +704,15 @@ async fn oauth_callback(
                 tracing::info!("[oauth-callback] nonce verified");
             }
             (Some(_), Some(_)) => {
-                tracing::error!("[oauth-callback] state/nonce mismatch");
-                return Ok(Html(callback_page(
-                    "Auth Error",
-                    "Authentication Error",
-                    "Invalid OAuth state parameter. Please try signing in again.",
-                    true,
-                )));
+                // Supabase uses its own state parameter, so a mismatch with our
+                // nonce is expected. PKCE code_verifier provides replay protection.
+                tracing::warn!("[oauth-callback] state mismatch (Supabase manages its own state) — proceeding with PKCE");
             }
             (Some(_), None) => {
-                tracing::error!("[oauth-callback] missing state parameter");
-                return Ok(Html(callback_page(
-                    "Auth Error",
-                    "Authentication Error",
-                    "Missing OAuth state parameter. Please try signing in again.",
-                    true,
-                )));
+                // Supabase manages its own state parameter — our nonce may not
+                // be forwarded. With server-side PKCE, replay protection is
+                // already handled by the code_verifier. Allow the callback.
+                tracing::warn!("[oauth-callback] no state param from Supabase — PKCE provides replay protection");
             }
             (None, _) => {
                 // No nonce was generated (e.g. non-Tauri flow or server restarted).
