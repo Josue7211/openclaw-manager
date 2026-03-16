@@ -182,9 +182,19 @@ async fn get_session(State(state): State<AppState>) -> Json<Value> {
     let session = state.session.read().await;
     match session.as_ref() {
         Some(s) => {
-            // Check MFA status by listing factors via GoTrue
-            let mut mfa_verified = false;
-            let mut mfa_required = false;
+            // If MFA is already verified, return immediately — no network call needed
+            if s.mfa_verified {
+                return Json(json!({
+                    "authenticated": true,
+                    "user": { "id": s.user_id, "email": s.email },
+                    "mfa_required": false,
+                    "mfa_verified": true,
+                }));
+            }
+
+            // MFA not yet verified — check if user has factors enrolled
+            // This determines whether to show verify or enroll screen
+            let mut mfa_required = true; // Default: require MFA
             let mut mfa_enroll_required = false;
             let mut factor_id: Option<String> = None;
 
@@ -194,10 +204,9 @@ async fn get_session(State(state): State<AppState>) -> Json<Value> {
                         f.factor_type == "totp" && f.status == "verified"
                     });
                     if let Some(f) = verified_totp {
-                        mfa_required = true;
                         factor_id = Some(f.id.clone());
-                    }
-                    if factors_list.is_empty() {
+                    } else {
+                        // No verified TOTP — user needs to enroll
                         mfa_enroll_required = true;
                     }
                 }
@@ -208,7 +217,7 @@ async fn get_session(State(state): State<AppState>) -> Json<Value> {
                 "user": { "id": s.user_id, "email": s.email },
                 "mfa_required": mfa_required,
                 "mfa_enroll_required": mfa_enroll_required,
-                "mfa_verified": mfa_verified,
+                "mfa_verified": false,
                 "factor_id": factor_id,
             }))
         }
