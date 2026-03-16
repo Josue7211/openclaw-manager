@@ -220,24 +220,8 @@ export default function LayoutShell() {
         flex: 1,
         overflow: 'hidden',
       }}>
-      <a
-        href="#main-content"
-        style={{
-          position: 'absolute',
-          left: '-10000px',
-          top: 'auto',
-          width: '1px',
-          height: '1px',
-          overflow: 'hidden',
-        }}
-        onFocus={(e) => {
-          e.currentTarget.style.cssText = 'position:fixed;top:8px;left:8px;z-index:10000;padding:8px 16px;background:#0c0d11;color:#00e5cc;border:2px solid #00e5cc;border-radius:6px;font-size:14px;text-decoration:none;'
-        }}
-        onBlur={(e) => {
-          e.currentTarget.style.cssText = 'position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden;'
-        }}
-      >
-        Skip to content
+      <a href="#main-content" className="skip-link">
+        Skip to main content
       </a>
       <Sidebar
         width={sidebarWidth}
