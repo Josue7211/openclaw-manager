@@ -7,7 +7,7 @@ import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode, DEMO_CHAT_MESSAGES } from '@/lib/demo-data'
 import { type LightboxData } from '@/components/Lightbox'
 
-import { type ChatMessage, type OptimisticMsg, cleanMessages, isSlashCommand } from './types'
+import { type ChatMessage, type OptimisticMsg, type ModelsResponse, cleanMessages, isSlashCommand } from './types'
 
 export function useChatState() {
   const _demo = isDemoMode()
@@ -24,9 +24,33 @@ export function useChatState() {
   const [systemMsg, setSystemMsg] = useState<string | null>(null)
   const [notConfigured, setNotConfigured] = useState(false)
   const [historyError, setHistoryError] = useState<string | null>(null)
-  const [model, setModel] = useLocalStorageState('chat-model', 'claude-sonnet-4-6')
-  const [sysPrompt, setSysPrompt] = useLocalStorageState('chat-system-prompt', '')
-  const [showSysPrompt, setShowSysPrompt] = useState(false)
+  const [model, setModelLocal] = useLocalStorageState('chat-model', '')
+  // System prompt is now server-side only (security: prevents prompt injection from frontend)
+
+  // Fetch available models from OpenClaw
+  const { data: modelsData } = useQuery<ModelsResponse>({
+    queryKey: queryKeys.chatModels,
+    queryFn: () => api.get<ModelsResponse>('/api/chat/models'),
+    enabled: !_demo,
+    staleTime: 30_000,
+  })
+
+  // Always sync model from the live session — reflects what the agent is actually running
+  useEffect(() => {
+    if (modelsData?.currentModel) {
+      setModelLocal(modelsData.currentModel)
+    }
+  }, [modelsData?.currentModel, setModelLocal])
+
+  // When user switches model, call the API to actually change it
+  const setModel = useCallback((newModel: string) => {
+    setModelLocal(newModel)
+    if (!_demo) {
+      api.post('/api/chat/model', { model: newModel }).catch(err => {
+        console.error('Failed to set model:', err)
+      })
+    }
+  }, [_demo, setModelLocal])
   const failCountRef              = useRef(0)
   const lastUserMsgTimeRef        = useRef<number>(0)
   const bottomRef                 = useRef<HTMLDivElement>(null)
@@ -266,7 +290,7 @@ export function useChatState() {
       setSystemMsg('\u2500\u2500 Starting fresh session\u2026 \u2500\u2500')
       setMessages([])
       setOptimistic([])
-      api.post('/api/chat', { text, images: [], model, systemPrompt: sysPrompt || undefined }).catch((err) => {
+      api.post('/api/chat', { text, images: [], model }).catch((err) => {
         console.error('Slash command failed:', err)
         setSystemMsg('Failed to send command \u2014 try again')
         setTimeout(() => setSystemMsg(null), 4000)
@@ -306,7 +330,7 @@ export function useChatState() {
       setTimeout(() => optimisticImageCacheRef.current.delete(text), 60000)
     }
 
-    api.post('/api/chat', { text, images: imgs, model, systemPrompt: sysPrompt || undefined }).catch(() => {
+    api.post('/api/chat', { text, images: imgs, model }).catch(() => {
       setOptimistic(prev => prev.map(m => m.id === msgId ? { ...m, status: 'error' } : m))
       setSending(false)
     })
@@ -326,7 +350,7 @@ export function useChatState() {
   const retry = async (msg: OptimisticMsg) => {
     setOptimistic(prev => prev.map(m => m.id === msg.id ? { ...m, status: 'sending' } : m))
     try {
-      await api.post('/api/chat', { text: msg.text, images: msg.images || [], model, systemPrompt: sysPrompt || undefined })
+      await api.post('/api/chat', { text: msg.text, images: msg.images || [], model })
       setOptimistic(prev => prev.map(m => m.id === msg.id ? { ...m, status: 'sent' } : m))
       setTimeout(() => setOptimistic(prev => prev.filter(m => m.id !== msg.id)), 2000)
     } catch {
@@ -363,8 +387,7 @@ export function useChatState() {
     notConfigured,
     historyError,
     model, setModel,
-    sysPrompt, setSysPrompt,
-    showSysPrompt, setShowSysPrompt,
+    modelsData,
     wsConnected,
     historyIsError,
     bottomRef, scrollRef,

@@ -6,9 +6,23 @@ import { LRUCache } from '@/lib/lru-cache'
 
 const linkPreviewCache = new LRUCache<string, { title: string; description: string; image: string; siteName: string }>(500)
 
+/* ─── URL safety check — blocks javascript:, data:, vbscript: etc. ──── */
+
+/** Only allow http/https URLs — blocks javascript:, data:, vbscript: etc. */
+function isSafeUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+  } catch {
+    return false
+  }
+}
+
 /* ─── LinkPreviewCard — rich OG preview like iMessage ────────────────── */
 
 function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
+  // Block dangerous URL schemes
+  if (!isSafeUrl(url)) return null
   const [meta, setMeta] = useState<{ title: string; description: string; image: string; siteName: string } | null>(
     linkPreviewCache.get(url) || null
   )
@@ -37,7 +51,7 @@ function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
         style={{
           display: 'flex', alignItems: 'center', gap: '8px',
           padding: '8px 10px', marginTop: '4px',
-          background: fromMe ? 'rgba(255,255,255,0.12)' : 'var(--bg-white-04)',
+          background: fromMe ? 'var(--bg-white-12)' : 'var(--bg-white-04)',
           borderRadius: '10px', textDecoration: 'none',
           border: fromMe ? '1px solid var(--bg-white-15)' : '1px solid var(--border)',
           maxWidth: '100%', overflow: 'hidden',
@@ -63,7 +77,7 @@ function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
         display: 'flex', flexDirection: 'column',
         marginTop: '4px', borderRadius: '12px', overflow: 'hidden',
         background: fromMe ? 'var(--border-hover)' : 'var(--bg-white-03)',
-        border: fromMe ? '1px solid rgba(255,255,255,0.12)' : '1px solid var(--border)',
+        border: fromMe ? '1px solid var(--bg-white-12)' : '1px solid var(--border)',
         textDecoration: 'none', maxWidth: '280px',
         transition: 'background 0.15s',
       }}

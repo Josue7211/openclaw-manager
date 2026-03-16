@@ -28,7 +28,16 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [searchParams] = useSearchParams()
   const rawNext = searchParams.get('next') || '/'
-  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/'
+  let next = '/'
+  try {
+    const resolved = new URL(rawNext, window.location.origin)
+    // Only allow same-origin redirects
+    if (resolved.origin === window.location.origin) {
+      next = resolved.pathname + resolved.search
+    }
+  } catch {
+    // Invalid URL — keep default '/'
+  }
 
   // On mount, check if user needs MFA (from query param or session)
   const mfaParam = searchParams.get('mfa')
@@ -275,7 +284,7 @@ export default function LoginPage() {
             style={{
               display: 'block',
               margin: '0 auto 14px',
-              filter: 'drop-shadow(0 2px 8px rgba(167, 139, 250, 0.3))',
+              filter: 'drop-shadow(0 2px 8px var(--accent-a30))',
               animation: 'subtleFloat 3s ease-in-out infinite',
             }}
           />
@@ -311,8 +320,8 @@ export default function LoginPage() {
             color: 'var(--red)',
             textAlign: 'center',
             padding: '8px 12px',
-            background: 'rgba(248, 113, 113, 0.08)',
-            border: '1px solid rgba(248, 113, 113, 0.15)',
+            background: 'var(--red-a08)',
+            border: '1px solid var(--red-a15)',
             borderRadius: '8px',
             animation: 'fadeInUp 0.3s ease both',
           }}>
