@@ -1,5 +1,9 @@
 import { useState, useCallback, type SetStateAction, type Dispatch } from 'react'
 
+/**
+ * Like `useState`, but persists the value to localStorage under the given key.
+ * Reads the stored value on mount; writes on every update.
+ */
 export function useLocalStorageState<T>(key: string, defaultValue: T): [T, Dispatch<SetStateAction<T>>] {
   const [state, setState] = useState<T>(() => {
     try {

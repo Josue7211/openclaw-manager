@@ -1,5 +1,10 @@
 import { useEffect, useRef } from 'react'
 
+/**
+ * Trap keyboard focus within a container while active.
+ * Returns a ref to attach to the dialog/modal root element.
+ * Automatically focuses the first focusable child on activation.
+ */
 export function useFocusTrap(active: boolean) {
   const ref = useRef<HTMLDivElement>(null)
 

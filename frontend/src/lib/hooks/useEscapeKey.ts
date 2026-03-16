@@ -1,5 +1,9 @@
 import { useEffect } from 'react'
 
+/**
+ * Invoke a callback when the Escape key is pressed.
+ * Pass `enabled = false` to temporarily disable the listener (e.g. when a modal is closed).
+ */
 export function useEscapeKey(callback: () => void, enabled = true) {
   useEffect(() => {
     if (!enabled) return

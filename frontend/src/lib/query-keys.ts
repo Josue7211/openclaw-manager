@@ -1,3 +1,7 @@
+/**
+ * Centralized React Query cache keys for every data source.
+ * Use these instead of inline string arrays to keep invalidation consistent.
+ */
 export const queryKeys = {
   todos: ['todos'] as const,
   missions: ['missions'] as const,

@@ -24,6 +24,10 @@ export function serviceErrorLabel(service: ServiceName): string {
   }
 }
 
+/**
+ * Error thrown by the `api` fetch wrapper for HTTP failures and network errors.
+ * Carries the upstream service name and a user-facing label for display in UI.
+ */
 export class ApiError extends Error {
   /** Which upstream service this request targeted */
   public service: ServiceName
@@ -104,6 +108,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   }
 }
 
+/**
+ * Fetch wrapper with 30s timeout, API key auth, and offline mutation queuing.
+ * All methods throw `ApiError` on failure; mutations are queued when offline.
+ */
 export const api = {
   get: <T = unknown>(path: string) => request<T>('GET', path),
   post: <T = unknown>(path: string, body?: unknown) => request<T>('POST', path, body),
