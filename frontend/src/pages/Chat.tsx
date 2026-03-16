@@ -47,34 +47,19 @@ export default function ChatPage() {
   return (
     <div style={{ position: 'absolute', inset: 0, margin: '-20px -28px', display: 'flex', flexDirection: 'column', padding: '20px 28px' }}>
 
-      {/* Header with PageHeader + DemoBadge */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-        <PageHeader defaultTitle="Chat" />
-        {_demo && <DemoBadge />}
+      {/* Header bar: title + model selector + connection status */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <PageHeader defaultTitle="Chat" />
+          {_demo && <DemoBadge />}
+        </div>
+        <ChatInput.Header
+          model={model} setModel={setModel}
+          showSysPrompt={showSysPrompt} setShowSysPrompt={setShowSysPrompt}
+          connected={connected} wsConnected={wsConnected}
+          historyIsError={historyIsError} isDemo={_demo}
+        />
       </div>
-
-      {/* Model selector + connection status + system prompt */}
-      <ChatInput
-        input={input}
-        setInput={setInput}
-        images={images}
-        setImages={setImages}
-        imagesRef={imagesRef}
-        sending={sending}
-        model={model}
-        setModel={setModel}
-        sysPrompt={sysPrompt}
-        setSysPrompt={setSysPrompt}
-        showSysPrompt={showSysPrompt}
-        setShowSysPrompt={setShowSysPrompt}
-        connected={connected}
-        wsConnected={wsConnected}
-        historyIsError={historyIsError}
-        isDemo={_demo}
-        onSend={send}
-        onFileChange={handleFileChange}
-        draftTimerRef={draftTimerRef}
-      />
 
       {notConfigured && <NotConfiguredBanner />}
 
@@ -98,6 +83,22 @@ export default function ChatPage() {
         optimisticImageCacheRef={optimisticImageCacheRef}
         onDrop={onDrop}
         retry={retry}
+      />
+
+      {/* Chat input at bottom */}
+      <ChatInput
+        input={input}
+        setInput={setInput}
+        images={images}
+        setImages={setImages}
+        imagesRef={imagesRef}
+        sending={sending}
+        sysPrompt={sysPrompt}
+        setSysPrompt={setSysPrompt}
+        showSysPrompt={showSysPrompt}
+        onSend={send}
+        onFileChange={handleFileChange}
+        draftTimerRef={draftTimerRef}
       />
 
       <style>{`

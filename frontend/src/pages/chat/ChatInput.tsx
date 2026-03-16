@@ -24,31 +24,93 @@ interface ChatInputProps {
   draftTimerRef: React.RefObject<ReturnType<typeof setTimeout> | null>
 }
 
-export default function ChatInput({
-  input,
-  setInput,
-  images,
-  setImages,
-  imagesRef,
-  sending,
-  model,
-  setModel,
-  sysPrompt,
-  setSysPrompt,
-  showSysPrompt,
-  setShowSysPrompt,
-  connected,
-  wsConnected,
-  historyIsError,
-  isDemo,
-  onSend,
-  onFileChange,
-  draftTimerRef,
-}: ChatInputProps) {
+/** Top bar: model selector + system prompt toggle + connection status */
+function ChatInputHeader({
+  model, setModel, showSysPrompt, setShowSysPrompt,
+  connected, wsConnected, historyIsError, isDemo,
+}: {
+  model: string; setModel: (v: string) => void
+  showSysPrompt: boolean; setShowSysPrompt: (v: boolean | ((p: boolean) => boolean)) => void
+  connected: boolean; wsConnected: boolean; historyIsError: boolean; isDemo: boolean
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <select
+        value={model}
+        onChange={e => setModel(e.target.value)}
+        style={{
+          background: 'var(--hover-bg)',
+          border: '1px solid var(--border)',
+          borderRadius: '8px',
+          color: 'var(--text-secondary)',
+          fontSize: '11px',
+          fontFamily: 'monospace',
+          padding: '4px 8px',
+          cursor: 'pointer',
+          outline: 'none',
+          appearance: 'none',
+          WebkitAppearance: 'none',
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E")`,
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'right 8px center',
+          paddingRight: '22px',
+        }}
+      >
+        {MODEL_OPTIONS.map(o => (
+          <option key={o.value} value={o.value} style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+
+      <button
+        onClick={() => setShowSysPrompt((p: boolean) => !p)}
+        title="System prompt"
+        aria-label="Toggle system prompt"
+        style={{
+          background: showSysPrompt ? 'var(--purple-a15)' : 'transparent',
+          border: showSysPrompt ? '1px solid var(--purple-a30)' : '1px solid transparent',
+          borderRadius: '6px',
+          color: showSysPrompt ? 'var(--accent-bright)' : 'var(--text-muted)',
+          cursor: 'pointer',
+          padding: '4px',
+          display: 'flex',
+          alignItems: 'center',
+          transition: 'all 0.15s',
+        }}
+        onMouseEnter={e => { if (!showSysPrompt) e.currentTarget.style.color = 'var(--text-secondary)' }}
+        onMouseLeave={e => { if (!showSysPrompt) e.currentTarget.style.color = 'var(--text-muted)' }}
+      >
+        <Settings size={14} />
+      </button>
+
+      <div aria-live="polite" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{
+          width: '7px', height: '7px', borderRadius: '50%',
+          background: connected ? 'var(--green)' : 'var(--red)',
+          boxShadow: connected ? '0 0 6px var(--green)' : 'none',
+        }} />
+        <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+          {isDemo
+            ? 'demo'
+            : connected
+              ? (wsConnected ? 'live' : 'polling')
+              : historyIsError ? 'OpenClaw unreachable' : 'reconnecting\u2026'}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+/** Bottom bar: system prompt editor + image previews + text input */
+function ChatInputBox({
+  input, setInput, images, setImages, imagesRef, sending,
+  sysPrompt, setSysPrompt, showSysPrompt,
+  onSend, onFileChange, draftTimerRef,
+}: Omit<ChatInputProps, 'model' | 'setModel' | 'setShowSysPrompt' | 'connected' | 'wsConnected' | 'historyIsError' | 'isDemo'>) {
   const fileRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Auto-resize textarea
   useEffect(() => {
     const ta = textareaRef.current
     if (!ta) return
@@ -61,81 +123,11 @@ export default function ChatInput({
   }
 
   return (
-    <>
-      {/* Header */}
-      <div style={{ marginBottom: '16px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* Model selector */}
-          <select
-            value={model}
-            onChange={e => setModel(e.target.value)}
-            style={{
-              background: 'var(--hover-bg)',
-              border: '1px solid var(--border)',
-              borderRadius: '8px',
-              color: 'var(--text-secondary)',
-              fontSize: '11px',
-              fontFamily: 'monospace',
-              padding: '4px 8px',
-              cursor: 'pointer',
-              outline: 'none',
-              appearance: 'none',
-              WebkitAppearance: 'none',
-              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E")`,
-              backgroundRepeat: 'no-repeat',
-              backgroundPosition: 'right 8px center',
-              paddingRight: '22px',
-            }}
-          >
-            {MODEL_OPTIONS.map(o => (
-              <option key={o.value} value={o.value} style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-
-          {/* System prompt toggle */}
-          <button
-            onClick={() => setShowSysPrompt((p: boolean) => !p)}
-            title="System prompt"
-            aria-label="Toggle system prompt"
-            style={{
-              background: showSysPrompt ? 'var(--purple-a15)' : 'transparent',
-              border: showSysPrompt ? '1px solid var(--purple-a30)' : '1px solid transparent',
-              borderRadius: '6px',
-              color: showSysPrompt ? 'var(--accent-bright)' : 'var(--text-muted)',
-              cursor: 'pointer',
-              padding: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => { if (!showSysPrompt) e.currentTarget.style.color = 'var(--text-secondary)' }}
-            onMouseLeave={e => { if (!showSysPrompt) e.currentTarget.style.color = 'var(--text-muted)' }}
-          >
-            <Settings size={14} />
-          </button>
-        </div>
-        <div aria-live="polite" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <div style={{
-            width: '7px', height: '7px', borderRadius: '50%',
-            background: connected ? 'var(--green)' : 'var(--red)',
-            boxShadow: connected ? '0 0 6px var(--green)' : 'none',
-          }} />
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-            {isDemo
-              ? 'demo'
-              : connected
-                ? (wsConnected ? 'live' : 'polling')
-                : historyIsError ? 'OpenClaw unreachable' : 'reconnecting\u2026'}
-          </span>
-        </div>
-      </div>
-
+    <div style={{ flexShrink: 0 }}>
       {/* System prompt editor (collapsible) */}
       {showSysPrompt && (
         <div style={{
-          marginBottom: '12px', flexShrink: 0,
+          marginBottom: '12px',
           background: 'var(--purple-a08)',
           border: '1px solid var(--purple-a15)',
           borderRadius: '10px',
@@ -172,7 +164,7 @@ export default function ChatInput({
 
       {/* Image previews */}
       {images.length > 0 && (
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
           {images.map((url, i) => (
             <div key={i} style={{ position: 'relative' }}>
               <img src={url} alt="preview" style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '10px', border: '1px solid var(--border)' }} />
@@ -198,7 +190,6 @@ export default function ChatInput({
 
       {/* Input */}
       <div style={{
-        flexShrink: 0,
         background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '16px',
         padding: '10px 12px', display: 'flex', alignItems: 'flex-end', gap: '8px',
       }}>
@@ -239,6 +230,9 @@ export default function ChatInput({
           <Send size={15} />
         </button>
       </div>
-    </>
+    </div>
   )
 }
+
+/** Combined export — default renders the bottom input, .Header renders the top bar */
+export default Object.assign(ChatInputBox, { Header: ChatInputHeader })
