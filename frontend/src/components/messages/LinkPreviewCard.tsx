@@ -43,7 +43,7 @@ function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
           maxWidth: '100%', overflow: 'hidden',
         }}
       >
-        <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`} alt=""
+        <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`} alt="" loading="lazy"
           style={{ width: '16px', height: '16px', borderRadius: '3px', flexShrink: 0 }}
           onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
         />
@@ -70,7 +70,7 @@ function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
     >
       {/* OG Image */}
       {hasImage && (
-        <img src={meta.image} alt="" style={{
+        <img src={meta.image} alt="" loading="lazy" style={{
           width: '100%', height: '140px', objectFit: 'cover', display: 'block',
         }} onError={() => setImgError(true)} />
       )}

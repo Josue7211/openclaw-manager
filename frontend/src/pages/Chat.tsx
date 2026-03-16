@@ -671,7 +671,7 @@ OPENCLAW_API_KEY=your-api-key`}
             <div style={{ maxWidth: '74%', display: 'flex', flexDirection: 'column', gap: '4px', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
               {/* Images — fall back to optimistic cache if history record arrived without attachments */}
               {(msg.images?.length ? msg.images : (optimisticImageCacheRef.current.get(msg.text) ?? [])).map((url, i) => (
-                <img key={i} src={url} alt="attached" onClick={() => setLightbox({ src: url, type: 'image' })}
+                <img key={i} src={url} alt="attached" loading="lazy" onClick={() => setLightbox({ src: url, type: 'image' })}
                   style={{ maxWidth: '240px', maxHeight: '180px', borderRadius: '10px', display: 'block', marginBottom: '4px', border: '1px solid var(--border)', objectFit: 'contain', cursor: 'zoom-in' }}
                 />
               ))}
@@ -715,7 +715,7 @@ OPENCLAW_API_KEY=your-api-key`}
             <div style={{ maxWidth: '74%', display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
               {/* Images */}
               {(msg.images || []).map((src, i) => (
-                <img key={i} src={src} alt="attached"
+                <img key={i} src={src} alt="attached" loading="lazy"
                   style={{ maxWidth: '200px', maxHeight: '150px', borderRadius: '10px', marginBottom: '4px', display: 'block' }}
                 />
               ))}
