@@ -98,18 +98,24 @@ async fn login(
     // Check MFA factors — if the user has verified TOTP factors, they need
     // to complete MFA verification before getting full access.
     let factors = auth.user.get("factors").and_then(|v| v.as_array());
-    let has_verified_factors = factors
-        .map(|fs| {
-            fs.iter().any(|f| {
-                f.get("status")
-                    .and_then(|s| s.as_str())
-                    .map(|s| s == "verified")
-                    .unwrap_or(false)
+    // Find verified TOTP factor (if any)
+    let verified_factor_id = factors
+        .and_then(|fs| {
+            fs.iter().find(|f| {
+                f.get("factor_type").and_then(|t| t.as_str()) == Some("totp")
+                    && f.get("status").and_then(|s| s.as_str()) == Some("verified")
             })
         })
-        .unwrap_or(false);
+        .and_then(|f| f.get("id").and_then(|v| v.as_str()))
+        .map(|s| s.to_string());
 
-    // Store session
+    let has_verified_factors = verified_factor_id.is_some();
+
+    // Check if user has NO factors — they need to enroll
+    let has_any_factors = factors.map(|fs| !fs.is_empty()).unwrap_or(false);
+    let mfa_enroll_required = !has_any_factors;
+
+    // Store session (even if MFA is pending — it's aal1 until verified)
     let session = UserSession {
         access_token: auth.access_token,
         refresh_token: auth.refresh_token,
@@ -120,12 +126,14 @@ async fn login(
     };
     *state.session.write().await = Some(session);
 
-    tracing::info!(user_id = %user_id, "user logged in");
+    tracing::info!(user_id = %user_id, mfa_required = %has_verified_factors, "user logged in");
 
     Ok(Json(json!({
         "ok": true,
         "user": { "id": user_id, "email": body.email },
         "mfa_required": has_verified_factors,
+        "mfa_enroll_required": mfa_enroll_required,
+        "factor_id": verified_factor_id,
     })))
 }
 
@@ -172,10 +180,37 @@ async fn signup(
 async fn get_session(State(state): State<AppState>) -> Json<Value> {
     let session = state.session.read().await;
     match session.as_ref() {
-        Some(s) => Json(json!({
-            "authenticated": true,
-            "user": { "id": s.user_id, "email": s.email },
-        })),
+        Some(s) => {
+            // Check MFA status by listing factors via GoTrue
+            let mut mfa_verified = false;
+            let mut mfa_required = false;
+            let mut mfa_enroll_required = false;
+            let mut factor_id: Option<String> = None;
+
+            if let Ok(gotrue) = GoTrueClient::from_state(&state) {
+                if let Ok(factors_list) = gotrue.mfa_list_factors(&s.access_token).await {
+                    let verified_totp = factors_list.iter().find(|f| {
+                        f.factor_type == "totp" && f.status == "verified"
+                    });
+                    if let Some(f) = verified_totp {
+                        mfa_required = true;
+                        factor_id = Some(f.id.clone());
+                    }
+                    if factors_list.is_empty() {
+                        mfa_enroll_required = true;
+                    }
+                }
+            }
+
+            Json(json!({
+                "authenticated": true,
+                "user": { "id": s.user_id, "email": s.email },
+                "mfa_required": mfa_required,
+                "mfa_enroll_required": mfa_enroll_required,
+                "mfa_verified": mfa_verified,
+                "factor_id": factor_id,
+            }))
+        }
         None => Json(json!({ "authenticated": false })),
     }
 }
