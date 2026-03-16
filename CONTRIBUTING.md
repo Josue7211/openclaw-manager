@@ -1,118 +1,52 @@
 # Contributing to Mission Control
 
-## Development Setup
+## Getting Started
 
-### Prerequisites
-- Node.js 20+
-- Rust stable toolchain ([rustup](https://rustup.rs/))
-- [Tauri v2 prerequisites](https://v2.tauri.app/start/prerequisites/) for your platform
-
-### Getting Started
+1. Fork the repo and clone your fork
+2. Install prerequisites: Node.js 20+, Rust stable, [Tauri v2 system deps](https://v2.tauri.app/start/prerequisites/)
+3. Install dependencies and run:
 
 ```bash
-git clone https://github.com/your-username/mission-control.git
-cd mission-control
-
-# Install frontend dependencies
 cd frontend && npm install && cd ..
-
-# Run in development (Vite dev server + Tauri app)
 cargo tauri dev
-
-# Or frontend only (browser mode at localhost:5173)
-cd frontend && npm run dev
 ```
 
-### Running Tests
+## Workflow
+
+1. Create a feature branch from `master`
+2. Make your changes
+3. Run the pre-commit checks: `./scripts/pre-commit.sh`
+4. Open a pull request describing what changed and why
+
+## Testing
+
+All tests must pass before submitting a PR.
 
 ```bash
-# Frontend tests (vitest)
-cd frontend && npx vitest run
-
-# Frontend type check
-cd frontend && npm run typecheck
-
-# Rust tests
-cd src-tauri && cargo test
-
-# Rust lint
-cd src-tauri && cargo clippy -- -D warnings
-
-# Run everything (pre-commit)
-./scripts/pre-commit.sh
-```
-
-## Project Structure
-
-```
-mission-control/
-├── frontend/src/
-│   ├── components/          # Shared UI components
-│   │   ├── messages/        # Messages sub-components (Avatar, Menu, etc.)
-│   │   ├── Sidebar.tsx      # Resizable sidebar
-│   │   ├── Lightbox.tsx     # Shared image/video viewer
-│   │   └── PageErrorBoundary.tsx
-│   ├── hooks/messages/      # Messages page custom hooks
-│   ├── lib/
-│   │   ├── types.ts         # Shared TypeScript interfaces
-│   │   ├── api.ts           # API client (30s timeout, auth headers)
-│   │   ├── keybindings.ts   # Configurable keyboard shortcuts
-│   │   ├── query-keys.ts    # React Query key constants
-│   │   ├── audio.ts         # Notification chime
-│   │   ├── sidebar-settings.ts  # useSyncExternalStore for sidebar prefs
-│   │   ├── migrations.ts    # localStorage version migrations
-│   │   └── hooks/           # useEscapeKey, useLocalStorageState, useFocusTrap
-│   ├── pages/               # Route pages (all lazy-loaded)
-│   └── globals.css          # CSS variables, keyframes, hover utilities
-├── src-tauri/src/
-│   ├── main.rs              # Entry, secrets, Tauri setup
-│   ├── server.rs            # Axum: AppState, auth/rate-limit/logging middleware
-│   ├── routes/
-│   │   ├── messages.rs      # iMessage via BlueBubbles
-│   │   ├── chat.rs          # AI chat via OpenClaw
-│   │   ├── auth.rs          # OAuth + nonce verification
-│   │   ├── util.rs          # Shared: percent_encode, random_uuid, base64_decode
-│   │   └── ...
-│   └── secrets.rs           # OS keychain integration
-├── .github/workflows/ci.yml
-└── scripts/pre-commit.sh
+cd frontend && npx vitest run          # Frontend unit tests
+cd frontend && npx tsc --noEmit        # Type check
+cd src-tauri && cargo test             # Rust tests
+cd src-tauri && cargo clippy -- -D warnings  # Rust linting
+./scripts/pre-commit.sh               # Runs everything
 ```
 
 ## Code Conventions
 
-### CSS
-- Use variables: `var(--accent)`, `var(--hover-bg)`, `var(--ease-spring)`, `var(--z-modal)`, etc.
-- Use hover classes (`.hover-bg`, `.hover-bg-bright`) instead of inline `onMouseEnter`/`onMouseLeave`
-- Z-index scale: `--z-sidebar(100)`, `--z-modal(1000)`, `--z-toast(5000)`
+See [CLAUDE.md](CLAUDE.md) for the full style guide. Key points:
 
-### React
-- Wrap hot render components in `React.memo`
-- Use shared hooks: `useEscapeKey`, `useLocalStorageState`, `useFocusTrap`
-- Use React Query with keys from `lib/query-keys.ts`
-- Use shared types from `lib/types.ts`
-
-### Accessibility
-- Interactive elements: `<button>` or `<a>`, never `<div onClick>`
-- Icon-only buttons: must have `aria-label`
-- Modals: `role="dialog"`, `aria-modal="true"`, focus trap
-- Inputs: `aria-label` or `<label>`
-- Dynamic content: `aria-live` regions
-- Toggles: `role="switch"`, `aria-checked`
-
-### Rust
-- Secrets via `AppState.secret()`, not `std::env::var()`
-- Shared utils in `routes/util.rs`
-- Input validation on all endpoints
-- Never log credentials — use `redact_bb_url()`
-
-## CI
-
-GitHub Actions on push/PR:
-- Frontend: `vitest` + `tsc --noEmit`
-- Backend: `cargo test` + `cargo clippy`
+- **CSS**: Use variables (`--accent`, `--hover-bg`, `--ease-spring`), never hardcode colors
+- **React**: Use `React.memo` for hot-path components, React Query for data fetching, shared hooks from `lib/hooks/`
+- **Accessibility**: `<button>` not `<div onClick>`, `aria-label` on icon buttons, focus traps on modals
+- **Rust**: Secrets via `AppState.secret()`, never `std::env::var()`. Never log credentials
+- **Security**: No credentials in source code, no hardcoded URLs, no telemetry
 
 ## Pull Requests
-- Describe what changed and why
+
 - Keep PRs focused on a single feature or fix
+- Describe what changed and why in the PR description
 - Run `./scripts/pre-commit.sh` before submitting
-- Test both web and desktop if touching Tauri layer
+- Test both browser mode and desktop app if touching Tauri code
+
+## License
+
+By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).
