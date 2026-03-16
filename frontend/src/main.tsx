@@ -8,7 +8,7 @@ import LayoutShell from './components/LayoutShell'
 import ErrorBoundary from './components/ErrorBoundary'
 import AuthGuard from './components/AuthGuard'
 import { applyAccentColor, getSavedAccent, applyGlowColor, getSavedGlowColor, applySecondaryColor, getSavedSecondaryColor, applyLogoColor, getSavedLogoColor } from './lib/themes'
-import { PersonalSkeleton, DashboardSkeleton } from './components/Skeleton'
+import { PersonalSkeleton, DashboardSkeleton, MessagesSkeleton, SettingsSkeleton, GenericPageSkeleton } from './components/Skeleton'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Personal = lazy(() => import('./pages/Personal'))
@@ -27,7 +27,7 @@ const Memory = lazy(() => import('./pages/Memory'))
 const CronJobs = lazy(() => import('./pages/CronJobs'))
 const Pipeline = lazy(() => import('./pages/Pipeline'))
 const KnowledgeBase = lazy(() => import('./pages/KnowledgeBase'))
-const Notes = lazy(() => import('./pages/Notes'))
+const Notes = lazy(() => import('./pages/notes/Notes'))
 const Status = lazy(() => import('./pages/Status'))
 const Ideas = lazy(() => import('./pages/Ideas'))
 const Capture = lazy(() => import('./pages/Capture'))
@@ -160,29 +160,29 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/" element={<Suspense fallback={<PersonalSkeleton />}><Personal /></Suspense>} />
             <Route path="/personal" element={<Navigate to="/" replace />} />
             <Route path="/dashboard" element={<Suspense fallback={<DashboardSkeleton />}><Dashboard /></Suspense>} />
-            <Route path="/chat" element={<Chat />} />
-            <Route path="/todos" element={<Todos />} />
-            <Route path="/calendar" element={<Calendar />} />
-            <Route path="/reminders" element={<Reminders />} />
-            <Route path="/messages" element={<Messages />} />
-            <Route path="/pomodoro" element={<Pomodoro />} />
-            <Route path="/email" element={<Email />} />
-            <Route path="/homelab" element={<HomeLab />} />
-            <Route path="/media" element={<MediaRadar />} />
-            <Route path="/missions" element={<Missions />} />
-            <Route path="/agents" element={<Agents />} />
-            <Route path="/memory" element={<Memory />} />
-            <Route path="/crons" element={<CronJobs />} />
-            <Route path="/pipeline" element={<Pipeline />} />
-            <Route path="/knowledge" element={<KnowledgeBase />} />
-            <Route path="/notes" element={<Notes />} />
-            <Route path="/ideas" element={<Ideas />} />
-            <Route path="/capture" element={<Capture />} />
-            <Route path="/status" element={<Status />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/search" element={<Search />} />
-            <Route path="/custom/:id" element={<CustomPage />} />
-            <Route path="*" element={<NotFound />} />
+            <Route path="/chat" element={<Suspense fallback={<GenericPageSkeleton />}><Chat /></Suspense>} />
+            <Route path="/todos" element={<Suspense fallback={<GenericPageSkeleton />}><Todos /></Suspense>} />
+            <Route path="/calendar" element={<Suspense fallback={<GenericPageSkeleton />}><Calendar /></Suspense>} />
+            <Route path="/reminders" element={<Suspense fallback={<GenericPageSkeleton />}><Reminders /></Suspense>} />
+            <Route path="/messages" element={<Suspense fallback={<MessagesSkeleton />}><Messages /></Suspense>} />
+            <Route path="/pomodoro" element={<Suspense fallback={<GenericPageSkeleton />}><Pomodoro /></Suspense>} />
+            <Route path="/email" element={<Suspense fallback={<GenericPageSkeleton />}><Email /></Suspense>} />
+            <Route path="/homelab" element={<Suspense fallback={<GenericPageSkeleton />}><HomeLab /></Suspense>} />
+            <Route path="/media" element={<Suspense fallback={<GenericPageSkeleton />}><MediaRadar /></Suspense>} />
+            <Route path="/missions" element={<Suspense fallback={<GenericPageSkeleton />}><Missions /></Suspense>} />
+            <Route path="/agents" element={<Suspense fallback={<GenericPageSkeleton />}><Agents /></Suspense>} />
+            <Route path="/memory" element={<Suspense fallback={<GenericPageSkeleton />}><Memory /></Suspense>} />
+            <Route path="/crons" element={<Suspense fallback={<GenericPageSkeleton />}><CronJobs /></Suspense>} />
+            <Route path="/pipeline" element={<Suspense fallback={<GenericPageSkeleton />}><Pipeline /></Suspense>} />
+            <Route path="/knowledge" element={<Suspense fallback={<GenericPageSkeleton />}><KnowledgeBase /></Suspense>} />
+            <Route path="/notes" element={<Suspense fallback={<GenericPageSkeleton />}><Notes /></Suspense>} />
+            <Route path="/ideas" element={<Suspense fallback={<GenericPageSkeleton />}><Ideas /></Suspense>} />
+            <Route path="/capture" element={<Suspense fallback={<GenericPageSkeleton />}><Capture /></Suspense>} />
+            <Route path="/status" element={<Suspense fallback={<GenericPageSkeleton />}><Status /></Suspense>} />
+            <Route path="/settings" element={<Suspense fallback={<SettingsSkeleton />}><Settings /></Suspense>} />
+            <Route path="/search" element={<Suspense fallback={<GenericPageSkeleton />}><Search /></Suspense>} />
+            <Route path="/custom/:id" element={<Suspense fallback={<GenericPageSkeleton />}><CustomPage /></Suspense>} />
+            <Route path="*" element={<Suspense fallback={null}><NotFound /></Suspense>} />
           </Route>
         </Routes>
         </Suspense>

@@ -146,6 +146,94 @@ export function DashboardSkeleton() {
   )
 }
 
+/** Messages page: full-bleed left list + right panel */
+export function MessagesSkeleton() {
+  return (
+    <div style={{ display: 'flex', position: 'absolute', inset: 0, overflow: 'hidden' }}>
+      {/* Conversation list */}
+      <div style={{ width: 340, minWidth: 340, borderRight: '1px solid var(--border)', padding: '12px 0' }}>
+        <div style={{ padding: '8px 14px', marginBottom: 8 }}>
+          <Skeleton width="100%" height={32} radius={10} />
+        </div>
+        <MessagesConversationSkeleton />
+      </div>
+      {/* Thread area */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Skeleton width={36} height={36} radius={99} />
+          <div>
+            <Skeleton width={120} height={14} style={{ marginBottom: 4 }} />
+            <Skeleton width={80} height={10} />
+          </div>
+        </div>
+        <div style={{ flex: 1 }}>
+          <MessagesThreadSkeleton />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Settings page: full-bleed left nav + right content */
+export function SettingsSkeleton() {
+  return (
+    <div style={{ display: 'flex', position: 'absolute', inset: 0, overflow: 'hidden' }}>
+      {/* Left nav */}
+      <div style={{ width: 280, minWidth: 280, borderRight: '1px solid var(--border)', padding: '20px 12px' }}>
+        <Skeleton width={100} height={10} style={{ marginBottom: 16 }} />
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', marginBottom: 2, borderRadius: 8 }}>
+            <Skeleton width={18} height={18} radius={4} />
+            <Skeleton width={`${60 + (i % 3) * 12}%`} height={13} />
+          </div>
+        ))}
+        <Skeleton width={100} height={10} style={{ margin: '16px 0' }} />
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', marginBottom: 2, borderRadius: 8 }}>
+            <Skeleton width={18} height={18} radius={4} />
+            <Skeleton width={`${50 + (i % 4) * 10}%`} height={13} />
+          </div>
+        ))}
+      </div>
+      {/* Right content */}
+      <div style={{ flex: 1, padding: 32, overflow: 'auto' }}>
+        <Skeleton width={160} height={20} style={{ marginBottom: 24 }} />
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid var(--border)' }}>
+            <div>
+              <Skeleton width={`${100 + i * 30}`} height={14} style={{ marginBottom: 4 }} />
+              <Skeleton width={`${140 + i * 20}`} height={10} />
+            </div>
+            <Skeleton width={44} height={24} radius={12} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Generic page skeleton: header bar + shimmer content lines. Used for pages without a dedicated skeleton. */
+export function GenericPageSkeleton() {
+  return (
+    <div style={{ animation: 'pageEnter 0.25s var(--ease-spring) both' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <Skeleton width={180} height={22} />
+        <Skeleton width={90} height={32} radius={10} />
+      </div>
+      {/* Content lines */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <SkeletonCard key={i} lines={2} style={{
+            animationDelay: `${i * 50}ms`,
+            animation: 'pageEnter 0.3s var(--ease-spring) both',
+          }} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /** Messages page: conversation list skeleton + thread skeleton */
 export function MessagesConversationSkeleton() {
   return (
