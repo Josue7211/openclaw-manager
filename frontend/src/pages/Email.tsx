@@ -1,79 +1,27 @@
 
 
 
+
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Mail, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Settings, Star } from 'lucide-react'
+import { Mail, RefreshCw, AlertCircle, Settings } from 'lucide-react'
 import { SkeletonList } from '@/components/Skeleton'
 
 import { api } from '@/lib/api'
 import { PageHeader } from '@/components/PageHeader'
+import type { Email, EmailAccount, AccountForm, Folder } from './email/types'
+import { FOLDERS, EMPTY_FORM } from './email/types'
 import { ManagePanel } from './email/ManagePanel'
-
-interface Email {
-  id: string
-  from: string
-  subject: string
-  date: string
-  preview: string
-  read: boolean
-  folder: string
-}
-
-interface EmailAccount {
-  id: string
-  label: string
-  host: string
-  port: number
-  username: string
-  tls: boolean
-  is_default: boolean
-  created_at: string
-}
-
-interface AccountForm {
-  label: string
-  host: string
-  port: string
-  username: string
-  password: string
-  tls: boolean
-  is_default: boolean
-}
-
-type Folder = 'INBOX' | 'Sent'
-
-const FOLDERS: { id: Folder; label: string }[] = [
-  { id: 'INBOX', label: 'Inbox' },
-  { id: 'Sent', label: 'Sent' },
-]
-
-const EMPTY_FORM: AccountForm = {
-  label: '', host: '', port: '993', username: '', password: '', tls: true, is_default: false,
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return ''
-  const now = new Date()
-  const diffMs = now.getTime() - d.getTime()
-  const diffDays = Math.floor(diffMs / 86400000)
-  if (diffDays === 0) return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return d.toLocaleDateString('en-US', { weekday: 'short' })
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
+import { AccountSwitcher } from './email/AccountSwitcher'
+import { EmailList } from './email/EmailList'
 
 export default function EmailPage() {
   const queryClient = useQueryClient()
 
   const [folder, setFolder] = useState<Folder>('INBOX')
-  const [expanded, setExpanded] = useState<string | null>(null)
-  const [markingRead, setMarkingRead] = useState<Set<string>>(new Set())
 
   // Multi-account state
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
-  const [accountDropdownOpen, setAccountDropdownOpen] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
   const [editingAccount, setEditingAccount] = useState<EmailAccount | null>(null)
   const [form, setForm] = useState<AccountForm>(EMPTY_FORM)
@@ -81,7 +29,6 @@ export default function EmailPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
   const accountInitRef = useRef(false)
 
   // Load accounts via useQuery
@@ -109,17 +56,6 @@ export default function EmailPage() {
     }
   }, [accounts])
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setAccountDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
   // Fetch emails via useQuery
   const { data: emailsData, isLoading: loading, error: emailsError, refetch: refetchEmails } = useQuery<{ emails?: Email[]; error?: string }>({
     queryKey: ['emails', folder, selectedAccountId],
@@ -135,32 +71,12 @@ export default function EmailPage() {
   const error = emailsError ? (emailsError instanceof Error ? emailsError.message : 'Failed to fetch') : (emailsData?.error && emailsData.error !== 'missing_credentials' ? emailsData.error : null)
 
   const invalidateAccounts = () => queryClient.invalidateQueries({ queryKey: ['email-accounts'] })
-  const invalidateEmails = () => queryClient.invalidateQueries({ queryKey: ['emails'] })
+  const invalidateEmails = useCallback(() => queryClient.invalidateQueries({ queryKey: ['emails'] }), [queryClient])
 
   const selectAccount = useCallback((id: string) => {
     setSelectedAccountId(id)
     if (typeof window !== 'undefined') localStorage.setItem('email_account_id', id)
-    setAccountDropdownOpen(false)
-    setExpanded(null)
   }, [])
-
-  const handleMarkRead = useCallback(async (email: Email) => {
-    if (email.read || markingRead.has(email.id)) return
-    setMarkingRead(prev => new Set(prev).add(email.id))
-    try {
-      await api.patch('/api/email', { id: email.id, read: true, account_id: selectedAccountId })
-      invalidateEmails()
-    } catch {
-      // silently ignore
-    } finally {
-      setMarkingRead(prev => { const s = new Set(prev); s.delete(email.id); return s })
-    }
-  }, [markingRead, selectedAccountId])
-
-  const toggleExpand = useCallback((email: Email) => {
-    setExpanded(prev => prev === email.id ? null : email.id)
-    handleMarkRead(email)
-  }, [handleMarkRead])
 
   // Manage accounts panel
   const openAddForm = () => {
@@ -250,7 +166,6 @@ export default function EmailPage() {
     }
   }
 
-  const selectedAccount = accounts.find(a => a.id === selectedAccountId)
   const unreadCount = emails.filter(e => !e.read).length
 
   const handleCloseManagePanel = useCallback(() => {
@@ -267,6 +182,26 @@ export default function EmailPage() {
   const handleToggleShowPassword = useCallback(() => {
     setShowPassword(p => !p)
   }, [])
+
+  const managePanelNode = manageOpen && (
+    <ManagePanel
+      accounts={accounts}
+      editingAccount={editingAccount}
+      form={form}
+      formSaving={formSaving}
+      formError={formError}
+      showPassword={showPassword}
+      deletingId={deletingId}
+      onClose={handleCloseManagePanel}
+      onSetForm={setForm}
+      onOpenEditForm={openEditForm}
+      onCancelEdit={handleCancelEdit}
+      onFormSave={handleFormSave}
+      onDelete={handleDelete}
+      onSetDefault={handleSetDefault}
+      onToggleShowPassword={handleToggleShowPassword}
+    />
+  )
 
   if (missingCreds && accounts.length === 0) {
     return (
@@ -292,25 +227,7 @@ export default function EmailPage() {
             Add Account
           </button>
         </div>
-        {manageOpen && (
-          <ManagePanel
-            accounts={accounts}
-            editingAccount={editingAccount}
-            form={form}
-            formSaving={formSaving}
-            formError={formError}
-            showPassword={showPassword}
-            deletingId={deletingId}
-            onClose={handleCloseManagePanel}
-            onSetForm={setForm}
-            onOpenEditForm={openEditForm}
-            onCancelEdit={handleCancelEdit}
-            onFormSave={handleFormSave}
-            onDelete={handleDelete}
-            onSetDefault={handleSetDefault}
-            onToggleShowPassword={handleToggleShowPassword}
-          />
-        )}
+        {managePanelNode}
       </div>
     )
   }
@@ -330,50 +247,11 @@ export default function EmailPage() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {/* Account switcher */}
-          {accounts.length > 0 && (
-            <div ref={dropdownRef} style={{ position: 'relative' }}>
-              <button
-                onClick={() => setAccountDropdownOpen(o => !o)}
-                style={{
-                  background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: '8px',
-                  color: 'var(--text-primary)', padding: '6px 12px', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 500,
-                }}
-              >
-                <Mail size={12} style={{ color: 'var(--accent)' }} />
-                {selectedAccount?.label ?? 'Select account'}
-                <ChevronDown size={11} style={{ color: 'var(--text-muted)' }} />
-              </button>
-              {accountDropdownOpen && (
-                <div style={{
-                  position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-                  background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: '8px',
-                  minWidth: '180px', zIndex: 50, boxShadow: '0 4px 16px var(--overlay-light)',
-                  overflow: 'hidden',
-                }}>
-                  {accounts.map(acc => (
-                    <button
-                      key={acc.id}
-                      onClick={() => selectAccount(acc.id)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '8px',
-                        width: '100%', padding: '9px 12px', border: 'none',
-                        cursor: 'pointer', textAlign: 'left',
-                        background: acc.id === selectedAccountId ? 'var(--purple-a10)' : 'none',
-                      }}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)' }}>{acc.label}</div>
-                        <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{acc.username}</div>
-                      </div>
-                      {acc.is_default && <Star size={10} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          <AccountSwitcher
+            accounts={accounts}
+            selectedAccountId={selectedAccountId}
+            onSelectAccount={selectAccount}
+          />
 
           {/* Manage Accounts */}
           <button
@@ -408,7 +286,7 @@ export default function EmailPage() {
         {FOLDERS.map(f => (
           <button
             key={f.id}
-            onClick={() => { setFolder(f.id); setExpanded(null) }}
+            onClick={() => setFolder(f.id)}
             style={{
               padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 500,
               cursor: 'pointer', transition: 'all 0.15s',
@@ -452,128 +330,15 @@ export default function EmailPage() {
 
       {/* Email list */}
       {!loading && !error && !missingCreds && (
-        <>
-          {emails.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic' }}>
-              No emails in {folder === 'INBOX' ? 'Inbox' : 'Sent'}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {emails.map(email => {
-                const isExpanded = expanded === email.id
-                return (
-                  <div
-                    key={email.id}
-                    style={{
-                      borderRadius: '8px',
-                      border: email.read ? '1px solid var(--border)' : '1px solid var(--purple-a30)',
-                      background: email.read ? 'var(--bg-panel)' : 'var(--purple-a08)',
-                      transition: 'all 0.15s',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <button
-                      onClick={() => toggleExpand(email)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '12px',
-                        width: '100%', padding: '12px 14px',
-                        background: 'transparent', border: 'none', cursor: 'pointer',
-                        textAlign: 'left',
-                      }}
-                    >
-                      <div style={{
-                        width: '6px', height: '6px', borderRadius: '50%', flexShrink: 0,
-                        background: email.read ? 'transparent' : 'var(--accent)',
-                      }} />
-                      <div style={{
-                        width: '160px', flexShrink: 0, fontSize: '13px',
-                        fontWeight: email.read ? 400 : 600,
-                        color: email.read ? 'var(--text-secondary)' : 'var(--text-primary)',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}>
-                        {email.from}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0, display: 'flex', gap: '8px', alignItems: 'baseline' }}>
-                        <span style={{
-                          fontSize: '13px', fontWeight: email.read ? 400 : 600,
-                          color: 'var(--text-primary)', flexShrink: 0, maxWidth: '240px',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>
-                          {email.subject}
-                        </span>
-                        {email.preview && (
-                          <span style={{
-                            fontSize: '12px', color: 'var(--text-muted)',
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          }}>
-                            — {email.preview}
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', flexShrink: 0, fontFamily: 'monospace', marginLeft: '8px' }}>
-                        {formatDate(email.date)}
-                      </div>
-                      <div style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
-                        {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                      </div>
-                    </button>
-
-                    {isExpanded && (
-                      <div style={{ padding: '0 14px 14px 32px', borderTop: '1px solid var(--border)' }}>
-                        <div style={{
-                          marginTop: '12px', fontSize: '12px', color: 'var(--text-secondary)',
-                          lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                        }}>
-                          {email.preview || '(no preview available)'}
-                        </div>
-                        <div style={{ marginTop: '12px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                            {new Date(email.date).toLocaleString()}
-                          </span>
-                          {!email.read && (
-                            <button
-                              onClick={() => handleMarkRead(email)}
-                              disabled={markingRead.has(email.id)}
-                              style={{
-                                padding: '3px 10px', borderRadius: '6px', fontSize: '11px',
-                                background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                                color: 'var(--text-secondary)', cursor: 'pointer',
-                              }}
-                            >
-                              Mark as read
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </>
+        <EmailList
+          emails={emails}
+          selectedAccountId={selectedAccountId}
+          onInvalidateEmails={invalidateEmails}
+        />
       )}
 
       {/* Manage accounts panel */}
-      {manageOpen && (
-        <ManagePanel
-          accounts={accounts}
-          editingAccount={editingAccount}
-          form={form}
-          formSaving={formSaving}
-          formError={formError}
-          showPassword={showPassword}
-          deletingId={deletingId}
-          onClose={handleCloseManagePanel}
-          onSetForm={setForm}
-          onOpenEditForm={openEditForm}
-          onCancelEdit={handleCancelEdit}
-          onFormSave={handleFormSave}
-          onDelete={handleDelete}
-          onSetDefault={handleSetDefault}
-          onToggleShowPassword={handleToggleShowPassword}
-        />
-      )}
+      {managePanelNode}
     </div>
   )
 }

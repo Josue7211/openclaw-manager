@@ -2,31 +2,7 @@ import { useCallback } from 'react'
 import { Star, Trash2, X, Eye, EyeOff } from 'lucide-react'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
-
-interface EmailAccount {
-  id: string
-  label: string
-  host: string
-  port: number
-  username: string
-  tls: boolean
-  is_default: boolean
-  created_at: string
-}
-
-interface AccountForm {
-  label: string
-  host: string
-  port: string
-  username: string
-  password: string
-  tls: boolean
-  is_default: boolean
-}
-
-const EMPTY_FORM: AccountForm = {
-  label: '', host: '', port: '993', username: '', password: '', tls: true, is_default: false,
-}
+import type { EmailAccount, AccountForm } from './types'
 
 interface ManagePanelProps {
   accounts: EmailAccount[]
