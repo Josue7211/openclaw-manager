@@ -445,7 +445,7 @@ export default function ConversationList({
                             position: 'absolute',
                             ...(textOpacity === 0
                               ? { top: '2px', right: '2px', left: 'auto', transform: 'none' }
-                              : { left: '-2px', top: '50%', transform: 'translateY(-50%)' }),
+                              : { left: '4px', top: '50%', transform: 'translateY(-50%)' }),
                             width: '8px', height: '8px', borderRadius: '50%', background: 'var(--apple-blue)',
                           }} />
                         )}

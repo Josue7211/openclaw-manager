@@ -331,7 +331,7 @@ export default function SettingsPage() {
   const groups = SECTION_GROUPS
 
   return (
-    <div style={{ display: 'flex', position: 'absolute', inset: 0, gap: '0', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', position: 'absolute', inset: 0, margin: '-20px -28px', gap: '0', overflow: 'hidden' }}>
       {/* Left panel — settings categories */}
       <div style={{
         width: selected ? '280px' : '100%',
