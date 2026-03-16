@@ -1,5 +1,5 @@
 
-import { Settings, Bell, Palette, User, Server, Cpu, Zap, ChevronRight, ArrowLeft, Keyboard, Database, Blocks, Plug, Download, EyeOff, FolderOpen, FileText, HeartPulse } from 'lucide-react'
+import { Settings, Bell, Palette, User, Server, Cpu, Zap, ChevronRight, ArrowLeft, Keyboard, Blocks, Plug, Download, EyeOff, FolderOpen, FileText, HeartPulse } from 'lucide-react'
 import { useState, useEffect, memo, useCallback, lazy, Suspense } from 'react'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 import { useSearchParams } from 'react-router-dom'
@@ -19,7 +19,6 @@ const SettingsKeybindings = lazy(() => import('./settings/SettingsKeybindings'))
 const SettingsModules = lazy(() => import('./settings/SettingsModules'))
 const SettingsNotifications = lazy(() => import('./settings/SettingsNotifications'))
 const SettingsPrivacy = lazy(() => import('./settings/SettingsPrivacy'))
-const SettingsData = lazy(() => import('./settings/SettingsData'))
 const SettingsStatus = lazy(() => import('./settings/SettingsStatus'))
 
 interface Pref {
@@ -27,7 +26,7 @@ interface Pref {
   value: string
 }
 
-type SettingsSection = 'agent' | 'gateway' | 'app' | 'user' | 'connections' | 'display' | 'keybindings' | 'modules' | 'notifications' | 'privacy' | 'data' | 'status'
+type SettingsSection = 'agent' | 'gateway' | 'app' | 'user' | 'connections' | 'display' | 'keybindings' | 'modules' | 'notifications' | 'privacy' | 'status'
 
 const SECTIONS: { key: SettingsSection; label: string; icon: React.ElementType; group: string }[] = [
   { key: 'agent', label: 'Agent', icon: Zap, group: 'General' },
@@ -39,8 +38,7 @@ const SECTIONS: { key: SettingsSection; label: string; icon: React.ElementType; 
   { key: 'keybindings', label: 'Keybinds', icon: Keyboard, group: 'App Settings' },
   { key: 'modules', label: 'Sidebar', icon: Blocks, group: 'App Settings' },
   { key: 'notifications', label: 'Notifications', icon: Bell, group: 'App Settings' },
-  { key: 'privacy', label: 'Privacy', icon: EyeOff, group: 'App Settings' },
-  { key: 'data', label: 'Data & Backup', icon: Database, group: 'App Settings' },
+  { key: 'privacy', label: 'Privacy & Data', icon: EyeOff, group: 'App Settings' },
   { key: 'status', label: 'System Status', icon: HeartPulse, group: 'App Settings' },
 ]
 
@@ -308,12 +306,6 @@ export default function SettingsPage() {
         return (
           <Suspense fallback={<SectionFallback />}>
             <SettingsPrivacy />
-          </Suspense>
-        )
-      case 'data':
-        return (
-          <Suspense fallback={<SectionFallback />}>
-            <SettingsData />
           </Suspense>
         )
       case 'status':
