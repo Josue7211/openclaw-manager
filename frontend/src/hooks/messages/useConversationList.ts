@@ -37,7 +37,7 @@ function isIMessage(conv: Conversation): boolean {
   return false
 }
 
-function contactLabel(conv: Conversation): string {
+export function contactLabel(conv: Conversation): string {
   if (conv.displayName) return conv.displayName
   const id = conv.chatId || conv.participants?.[0]?.address || conv.guid
   if (id.startsWith('+1') && id.length === 12) {

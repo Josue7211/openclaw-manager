@@ -27,6 +27,20 @@ type Handler = (event: AppEvent) => void
 
 const listeners = new Map<EventType, Set<Handler>>()
 
+/** Subscribe to events of the given type. Returns an unsubscribe function. */
+export function subscribe(type: EventType, handler: Handler): () => void {
+  let set = listeners.get(type)
+  if (!set) {
+    set = new Set()
+    listeners.set(type, set)
+  }
+  set.add(handler)
+  return () => {
+    set!.delete(handler)
+    if (set!.size === 0) listeners.delete(type)
+  }
+}
+
 /** Publish an event to all subscribers of the given type. */
 export function emit(type: EventType, data?: unknown, source?: string): void {
   const event: AppEvent = { type, data, source, timestamp: Date.now() }
