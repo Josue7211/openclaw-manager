@@ -19,12 +19,21 @@ use crate::supabase::SupabaseClient;
 const SYNC_TABLES: &[&str] = &[
     "todos",
     "missions",
+    "mission_events",
     "agents",
     "ideas",
     "captures",
     "habits",
     "habit_entries",
     "user_preferences",
+    "changelog_entries",
+    "decisions",
+    "knowledge_entries",
+    "daily_reviews",
+    "weekly_reviews",
+    "retrospectives",
+    "workflow_notes",
+    "cache",
 ];
 
 /// Background sync engine that keeps local SQLite in sync with Supabase.
@@ -247,28 +256,9 @@ impl SyncEngine {
                     .execute(&self.db)
                     .await?;
             } else {
-                // Upsert into local SQLite.
-                // This is a simplified upsert that stores id, user_id, and updated_at.
-                // Full column mapping per table is future work — this skeleton proves
-                // the architecture and handles the sync metadata correctly.
-                let user_id = row
-                    .get("user_id")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                let updated_at = row
-                    .get("updated_at")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-
-                sqlx::query(&format!(
-                    "INSERT INTO {table} (id, user_id, updated_at) VALUES (?, ?, ?) \
-                     ON CONFLICT(id) DO UPDATE SET updated_at = excluded.updated_at"
-                ))
-                .bind(id)
-                .bind(user_id)
-                .bind(updated_at)
-                .execute(&self.db)
-                .await?;
+                // Upsert into local SQLite with full column mapping for tables
+                // that are read locally (offline-first).
+                self.upsert_row(table, row).await?;
             }
         }
 
@@ -287,6 +277,91 @@ impl SyncEngine {
             .execute(&self.db)
             .await?;
         }
+
+        Ok(())
+    }
+
+    /// Upsert a row from Supabase into local SQLite.
+    ///
+    /// Tables that are read locally (offline-first) get full column mapping.
+    /// All other tables fall back to the minimal (id, user_id, updated_at) upsert
+    /// which is enough for sync metadata tracking.
+    async fn upsert_row(&self, table: &str, row: &Value) -> anyhow::Result<()> {
+        match table {
+            "mission_events" => self.upsert_mission_event(row).await,
+            _ => self.upsert_generic(table, row).await,
+        }
+    }
+
+    /// Generic upsert: stores id, user_id, and updated_at.
+    async fn upsert_generic(&self, table: &str, row: &Value) -> anyhow::Result<()> {
+        let id = row.get("id").and_then(|v| v.as_str()).unwrap_or("");
+        let user_id = row.get("user_id").and_then(|v| v.as_str()).unwrap_or("");
+        let updated_at = row.get("updated_at").and_then(|v| v.as_str()).unwrap_or("");
+
+        sqlx::query(&format!(
+            "INSERT INTO {table} (id, user_id, updated_at) VALUES (?, ?, ?) \
+             ON CONFLICT(id) DO UPDATE SET updated_at = excluded.updated_at"
+        ))
+        .bind(id)
+        .bind(user_id)
+        .bind(updated_at)
+        .execute(&self.db)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Full-column upsert for mission_events (read locally for offline access).
+    async fn upsert_mission_event(&self, row: &Value) -> anyhow::Result<()> {
+        let str_field = |key| row.get(key).and_then(|v| v.as_str()).unwrap_or("");
+        let opt_str = |key| row.get(key).and_then(|v| v.as_str()).map(|s| s.to_string());
+
+        let id = str_field("id");
+        let user_id = str_field("user_id");
+        let mission_id = str_field("mission_id");
+        let seq = row.get("seq").and_then(|v| v.as_i64()).unwrap_or(0);
+        let event_type = str_field("event_type");
+        let content = str_field("content");
+        let file_path = opt_str("file_path");
+        let tool_input = opt_str("tool_input");
+        let tool_output = opt_str("tool_output");
+        let model_name = opt_str("model_name");
+        let elapsed_seconds: Option<f64> = row.get("elapsed_seconds").and_then(|v| v.as_f64());
+        let created_at = str_field("created_at");
+        let updated_at = str_field("updated_at");
+
+        sqlx::query(
+            "INSERT INTO mission_events \
+             (id, user_id, mission_id, seq, event_type, content, file_path, \
+              tool_input, tool_output, model_name, elapsed_seconds, created_at, updated_at) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
+             ON CONFLICT(id) DO UPDATE SET \
+               seq = excluded.seq, \
+               event_type = excluded.event_type, \
+               content = excluded.content, \
+               file_path = excluded.file_path, \
+               tool_input = excluded.tool_input, \
+               tool_output = excluded.tool_output, \
+               model_name = excluded.model_name, \
+               elapsed_seconds = excluded.elapsed_seconds, \
+               updated_at = excluded.updated_at"
+        )
+        .bind(id)
+        .bind(user_id)
+        .bind(mission_id)
+        .bind(seq)
+        .bind(event_type)
+        .bind(content)
+        .bind(&file_path)
+        .bind(&tool_input)
+        .bind(&tool_output)
+        .bind(&model_name)
+        .bind(elapsed_seconds)
+        .bind(created_at)
+        .bind(updated_at)
+        .execute(&self.db)
+        .await?;
 
         Ok(())
     }
@@ -348,10 +423,18 @@ mod tests {
     }
 
     #[test]
+    fn sync_tables_contains_mission_events() {
+        assert!(SYNC_TABLES.contains(&"mission_events"));
+    }
+
+    #[test]
     fn sync_tables_contains_all_expected() {
         let expected = vec![
-            "todos", "missions", "agents", "ideas", "captures",
-            "habits", "habit_entries", "user_preferences",
+            "todos", "missions", "mission_events", "agents", "ideas",
+            "captures", "habits", "habit_entries", "user_preferences",
+            "changelog_entries", "decisions", "knowledge_entries",
+            "daily_reviews", "weekly_reviews", "retrospectives",
+            "workflow_notes", "cache",
         ];
         for table in expected {
             assert!(

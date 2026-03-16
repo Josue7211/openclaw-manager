@@ -14,8 +14,9 @@ use crate::server::{AppState, RequireAuth};
 use crate::supabase::SupabaseClient;
 use crate::validation::validate_uuid;
 
-// Supabase client is still used for: mission-events (ingestion comes from
-// OpenClaw VM), bjorn_event, ingest_events, sync_agents.
+// Supabase client is still used for: mission-events WRITES (ingestion comes
+// from OpenClaw VM), bjorn_event, ingest_events, sync_agents, activity_log.
+// Mission-event READS now come from local SQLite (offline-first via sync engine).
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -422,12 +423,11 @@ async fn get_mission_events(
     RequireAuth(session): RequireAuth,
     Query(params): Query<MissionEventsQuery>,
 ) -> Result<Json<Value>, AppError> {
-    let sb = SupabaseClient::from_state(&state)?;
-    let jwt = &session.access_token;
-
     // TODO: This mutation should be POST, not GET. Migrate callers.
     // Manual ingest mode: GET /mission-events?action=ingest&mission_id=X&log_path=/tmp/foo.log
     if params.action.as_deref() == Some("ingest") {
+        let sb = SupabaseClient::from_state(&state)?;
+        let jwt = &session.access_token;
         let mission_id = params
             .mission_id
             .as_deref()
@@ -532,22 +532,55 @@ async fn get_mission_events(
         })));
     }
 
-    // Standard fetch: GET /mission-events?mission_id=X
+    // Standard fetch: GET /mission-events?mission_id=X — reads from local SQLite
     let mission_id = params
         .mission_id
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("mission_id required".into()))?;
     validate_uuid(mission_id)?;
 
-    let data = sb
-        .select_as_user(
-            "mission_events",
-            &format!("select=*&mission_id=eq.{mission_id}&order=seq.asc"),
-            jwt,
-        )
-        .await?;
+    let rows: Vec<(
+        String, String, String, i64, String,
+        String, Option<String>, Option<String>, Option<String>,
+        Option<String>, Option<f64>, String, String,
+    )> = sqlx::query_as(
+        "SELECT id, user_id, mission_id, seq, event_type, \
+         content, file_path, tool_input, tool_output, \
+         model_name, elapsed_seconds, created_at, updated_at \
+         FROM mission_events \
+         WHERE mission_id = ? AND user_id = ? AND deleted_at IS NULL \
+         ORDER BY seq ASC",
+    )
+    .bind(mission_id)
+    .bind(&session.user_id)
+    .fetch_all(&state.db)
+    .await?;
 
-    Ok(Json(json!({ "events": data })))
+    let events: Vec<Value> = rows
+        .iter()
+        .map(
+            |(id, _user_id, mission_id, seq, event_type,
+              content, file_path, tool_input, tool_output,
+              model_name, elapsed_seconds, created_at, updated_at)| {
+                json!({
+                    "id": id,
+                    "mission_id": mission_id,
+                    "seq": seq,
+                    "event_type": event_type,
+                    "content": content,
+                    "file_path": file_path,
+                    "tool_input": tool_input,
+                    "tool_output": tool_output,
+                    "model_name": model_name,
+                    "elapsed_seconds": elapsed_seconds,
+                    "created_at": created_at,
+                    "updated_at": updated_at,
+                })
+            },
+        )
+        .collect();
+
+    Ok(Json(json!({ "events": events })))
 }
 
 // ── POST /mission-events ─────────────────────────────────────────────────────
