@@ -41,6 +41,9 @@ pub struct UserSession {
     /// Whether MFA has been verified this session (aal2).
     /// If false, only auth endpoints are accessible.
     pub mfa_verified: bool,
+    /// The verified TOTP factor ID (if any). Stored at login time so we
+    /// don't need to call GoTrue again.
+    pub factor_id: Option<String>,
 }
 
 // ---------------------------------------------------------------------------

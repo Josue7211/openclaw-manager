@@ -124,7 +124,8 @@ async fn login(
         email: body.email.clone(),
         expires_at: now + auth.expires_in,
         encryption_key,
-        mfa_verified: false, // ALWAYS false at login — must verify MFA
+        mfa_verified: false,
+        factor_id: verified_factor_id.clone(),
     };
     *state.session.write().await = Some(session);
 
@@ -193,33 +194,16 @@ async fn get_session(State(state): State<AppState>) -> Json<Value> {
                 }));
             }
 
-            // MFA not yet verified — check if user has factors enrolled
-            // This determines whether to show verify or enroll screen
-            let mut mfa_required = true; // Default: require MFA
-            let mut mfa_enroll_required = false;
-            let mut factor_id: Option<String> = None;
-
-            if let Ok(gotrue) = GoTrueClient::from_state(&state) {
-                if let Ok(factors_list) = gotrue.mfa_list_factors(&s.access_token).await {
-                    let verified_totp = factors_list.iter().find(|f| {
-                        f.factor_type == "totp" && f.status == "verified"
-                    });
-                    if let Some(f) = verified_totp {
-                        factor_id = Some(f.id.clone());
-                    } else {
-                        // No verified TOTP — user needs to enroll
-                        mfa_enroll_required = true;
-                    }
-                }
-            }
+            // MFA not verified — use stored factor_id (no GoTrue call needed)
+            let mfa_enroll_required = s.factor_id.is_none();
 
             Json(json!({
                 "authenticated": true,
                 "user": { "id": s.user_id, "email": s.email },
-                "mfa_required": mfa_required,
+                "mfa_required": true,
                 "mfa_enroll_required": mfa_enroll_required,
                 "mfa_verified": false,
-                "factor_id": factor_id,
+                "factor_id": s.factor_id,
             }))
         }
         None => Json(json!({ "authenticated": false })),
@@ -801,6 +785,16 @@ async fn oauth_callback(
                             .unwrap_or("")
                             .to_string();
 
+                        // Extract factor_id from user object (same as email login)
+                        let oauth_factor_id = auth.user.get("factors")
+                            .and_then(|v| v.as_array())
+                            .and_then(|fs| fs.iter().find(|f| {
+                                f.get("factor_type").and_then(|t| t.as_str()) == Some("totp")
+                                    && f.get("status").and_then(|s| s.as_str()) == Some("verified")
+                            }))
+                            .and_then(|f| f.get("id").and_then(|v| v.as_str()))
+                            .map(|s| s.to_string());
+
                         let session = UserSession {
                             access_token: auth.access_token,
                             refresh_token: auth.refresh_token,
@@ -808,7 +802,8 @@ async fn oauth_callback(
                             email,
                             expires_at: now + auth.expires_in,
                             encryption_key: Vec::new(),
-                            mfa_verified: false, // Must verify MFA before accessing data
+                            mfa_verified: false,
+                            factor_id: oauth_factor_id,
                         };
                         *state.session.write().await = Some(session);
                         *state.pkce_verifier.write().await = None;
