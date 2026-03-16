@@ -181,4 +181,97 @@ mod tests {
         let result = base64_decode("!!!!");
         assert_eq!(result, None);
     }
+
+    // ---- require_str ----
+
+    #[test]
+    fn require_str_valid() {
+        let result = require_str(Some("hello"), "name");
+        assert_eq!(result.unwrap(), "hello");
+    }
+
+    #[test]
+    fn require_str_trims_whitespace() {
+        let result = require_str(Some("  hello  "), "name");
+        assert_eq!(result.unwrap(), "hello");
+    }
+
+    #[test]
+    fn require_str_none_returns_error() {
+        let result = require_str(None, "title");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn require_str_empty_returns_error() {
+        let result = require_str(Some(""), "title");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn require_str_whitespace_only_returns_error() {
+        let result = require_str(Some("   "), "title");
+        assert!(result.is_err());
+    }
+
+    // ---- percent_encode edge cases ----
+
+    #[test]
+    fn percent_encode_preserves_unreserved() {
+        // RFC 3986 unreserved chars: A-Z a-z 0-9 - _ . ~
+        assert_eq!(percent_encode("AZaz09-_.~"), "AZaz09-_.~");
+    }
+
+    #[test]
+    fn percent_encode_encodes_slashes_and_colons() {
+        assert_eq!(percent_encode("http://x"), "http%3A%2F%2Fx");
+    }
+
+    #[test]
+    fn percent_encode_plus_and_at() {
+        assert_eq!(percent_encode("+@"), "%2B%40");
+    }
+
+    // ---- random_uuid version/variant bits ----
+
+    #[test]
+    fn random_uuid_version_4_bits() {
+        let uuid = random_uuid();
+        // The 13th character (index 14 counting hyphens) should be '4' (version 4)
+        let chars: Vec<char> = uuid.chars().collect();
+        assert_eq!(chars[14], '4', "UUID version nibble should be 4");
+    }
+
+    #[test]
+    fn random_uuid_variant_bits() {
+        let uuid = random_uuid();
+        // The 19th character (after third hyphen) should be 8, 9, a, or b (variant 1)
+        let chars: Vec<char> = uuid.chars().collect();
+        let variant_char = chars[19];
+        assert!(
+            ['8', '9', 'a', 'b'].contains(&variant_char),
+            "UUID variant nibble should be 8/9/a/b, got '{}'",
+            variant_char
+        );
+    }
+
+    // ---- base64_decode additional cases ----
+
+    #[test]
+    fn base64_decode_multi_byte() {
+        // "TWFu" => "Man"
+        assert_eq!(base64_decode("TWFu"), Some(b"Man".to_vec()));
+    }
+
+    #[test]
+    fn base64_decode_two_byte_padding() {
+        // "TQ==" => "M"
+        assert_eq!(base64_decode("TQ=="), Some(b"M".to_vec()));
+    }
+
+    #[test]
+    fn base64_decode_one_byte_padding() {
+        // "TWE=" => "Ma"
+        assert_eq!(base64_decode("TWE="), Some(b"Ma".to_vec()));
+    }
 }

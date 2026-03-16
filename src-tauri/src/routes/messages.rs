@@ -2391,12 +2391,10 @@ async fn post_read(
     }
 
     let password = bb_password(&state);
-    let endpoint = if action == "unread" { "unread" } else { "read" };
     let url = format!(
-        "{}/api/v1/chat/{}/{}?password={}",
+        "{}/api/v1/chat/{}/mark-read?password={}",
         host,
         percent_encode(&chat_guid),
-        endpoint,
         percent_encode(&password)
     );
 
@@ -2404,6 +2402,7 @@ async fn post_read(
         .http
         .post(&url)
         .header("Content-Type", "application/json")
+        .json(&serde_json::json!({ "status": action == "read" }))
         .send()
         .await
     {
@@ -2413,10 +2412,10 @@ async fn post_read(
         Ok(res) => {
             let status = res.status();
             let text = res.text().await.unwrap_or_default();
-            tracing::error!("BlueBubbles mark-{} {}: {}", endpoint, status, text);
+            tracing::error!("BlueBubbles mark-read {}: {}", status, text);
             (
                 StatusCode::BAD_GATEWAY,
-                Json(json!({ "error": format!("Failed to mark as {}", endpoint) })),
+                Json(json!({ "error": "Failed to update read status" })),
             )
                 .into_response()
         }
@@ -2676,8 +2675,9 @@ async fn get_stream(State(state): State<AppState>) -> Response {
     let stream_state = state.clone();
 
     let stream = async_stream::stream! {
-        // Track last seen message date to detect new messages
+        // Track last seen message date + GUIDs to detect new messages without duplicates
         let mut last_date: i64 = chrono::Utc::now().timestamp_millis();
+        let mut seen_guids: std::collections::HashSet<String> = std::collections::HashSet::new();
 
         yield Ok::<_, std::convert::Infallible>(
             Event::default().data(serde_json::to_string(&json!({ "type": "connected" })).unwrap_or_default())
@@ -2691,7 +2691,7 @@ async fn get_stream(State(state): State<AppState>) -> Response {
             let query = json!({
                 "limit": 20,
                 "sort": "DESC",
-                "after": last_date,
+                "after": last_date - 1, // -1ms to catch edge cases with equal timestamps
                 "with": ["attachment", "handle", "chat"],
             });
 
@@ -2703,6 +2703,16 @@ async fn get_stream(State(state): State<AppState>) -> Response {
                         msgs.reverse();
 
                         for msg in msgs {
+                            let guid = msg.get("guid").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                            if guid.is_empty() || seen_guids.contains(&guid) {
+                                continue;
+                            }
+                            seen_guids.insert(guid);
+                            // Cap the seen set to prevent unbounded growth
+                            if seen_guids.len() > 500 {
+                                seen_guids.clear();
+                            }
+
                             let date = msg.get("dateCreated").and_then(|v| v.as_i64()).unwrap_or(0);
                             if date > last_date {
                                 last_date = date;
@@ -2839,5 +2849,244 @@ mod tests {
     #[test]
     fn normalize_phone_empty() {
         assert_eq!(normalize_phone(""), "");
+    }
+
+    // ---- redact_bb_url ----
+
+    #[test]
+    fn redact_bb_url_hides_password() {
+        let url = "http://host:1234/api/v1/chat?password=supersecret123&limit=10";
+        let redacted = redact_bb_url(url);
+        assert!(redacted.contains("password=REDACTED"));
+        assert!(!redacted.contains("supersecret123"));
+        assert!(redacted.contains("limit=10"));
+    }
+
+    #[test]
+    fn redact_bb_url_no_password() {
+        let url = "http://host:1234/api/v1/chat?limit=10";
+        assert_eq!(redact_bb_url(url), url);
+    }
+
+    #[test]
+    fn redact_bb_url_password_at_end() {
+        let url = "http://host/api?password=abc123";
+        let redacted = redact_bb_url(url);
+        assert_eq!(redacted, "http://host/api?password=REDACTED");
+    }
+
+    // ---- normalize_reaction_type ----
+
+    #[test]
+    fn normalize_reaction_type_from_string() {
+        assert_eq!(normalize_reaction_type(&json!("love")), Some(2000));
+        assert_eq!(normalize_reaction_type(&json!("like")), Some(2001));
+        assert_eq!(normalize_reaction_type(&json!("dislike")), Some(2002));
+        assert_eq!(normalize_reaction_type(&json!("laugh")), Some(2003));
+        assert_eq!(normalize_reaction_type(&json!("emphasize")), Some(2004));
+        assert_eq!(normalize_reaction_type(&json!("question")), Some(2005));
+    }
+
+    #[test]
+    fn normalize_reaction_type_removal_strings() {
+        assert_eq!(normalize_reaction_type(&json!("-love")), Some(3000));
+        assert_eq!(normalize_reaction_type(&json!("-like")), Some(3001));
+        assert_eq!(normalize_reaction_type(&json!("-dislike")), Some(3002));
+        assert_eq!(normalize_reaction_type(&json!("-laugh")), Some(3003));
+        assert_eq!(normalize_reaction_type(&json!("-emphasize")), Some(3004));
+        assert_eq!(normalize_reaction_type(&json!("-question")), Some(3005));
+    }
+
+    #[test]
+    fn normalize_reaction_type_from_number() {
+        assert_eq!(normalize_reaction_type(&json!(2000)), Some(2000));
+        assert_eq!(normalize_reaction_type(&json!(2005)), Some(2005));
+        assert_eq!(normalize_reaction_type(&json!(3000)), Some(3000));
+    }
+
+    #[test]
+    fn normalize_reaction_type_invalid() {
+        assert_eq!(normalize_reaction_type(&json!("unknown")), None);
+        assert_eq!(normalize_reaction_type(&json!(999)), None);
+        assert_eq!(normalize_reaction_type(&json!(null)), None);
+    }
+
+    // ---- strip_reaction_prefix ----
+
+    #[test]
+    fn strip_reaction_prefix_with_p_prefix() {
+        assert_eq!(
+            strip_reaction_prefix("p:0/some-guid-here"),
+            "some-guid-here"
+        );
+    }
+
+    #[test]
+    fn strip_reaction_prefix_with_bp_prefix() {
+        assert_eq!(
+            strip_reaction_prefix("bp:1/another-guid"),
+            "another-guid"
+        );
+    }
+
+    #[test]
+    fn strip_reaction_prefix_no_prefix() {
+        assert_eq!(
+            strip_reaction_prefix("plain-guid-value"),
+            "plain-guid-value"
+        );
+    }
+
+    #[test]
+    fn strip_reaction_prefix_multi_digit() {
+        assert_eq!(
+            strip_reaction_prefix("p:42/msg-guid"),
+            "msg-guid"
+        );
+    }
+
+    // ---- service_priority ----
+
+    #[test]
+    fn service_priority_imessage() {
+        assert_eq!(service_priority("iMessage;-;+1234567890"), 3);
+    }
+
+    #[test]
+    fn service_priority_rcs() {
+        assert_eq!(service_priority("RCS;-;+1234567890"), 2);
+    }
+
+    #[test]
+    fn service_priority_sms() {
+        assert_eq!(service_priority("SMS;-;+1234567890"), 1);
+    }
+
+    #[test]
+    fn service_priority_unknown() {
+        assert_eq!(service_priority("unknown;-;+1234567890"), 0);
+    }
+
+    // ---- is_blocked_host (SSRF protection) ----
+
+    #[test]
+    fn is_blocked_host_localhost() {
+        assert!(is_blocked_host("localhost"));
+        assert!(is_blocked_host("LOCALHOST"));
+    }
+
+    #[test]
+    fn is_blocked_host_loopback() {
+        assert!(is_blocked_host("127.0.0.1"));
+        assert!(is_blocked_host("127.0.0.2"));
+    }
+
+    #[test]
+    fn is_blocked_host_private_ranges() {
+        assert!(is_blocked_host("10.0.0.1"));
+        assert!(is_blocked_host("172.16.0.1"));
+        assert!(is_blocked_host("172.31.255.255"));
+        assert!(is_blocked_host("192.168.1.1"));
+    }
+
+    #[test]
+    fn is_blocked_host_link_local() {
+        assert!(is_blocked_host("169.254.1.1"));
+    }
+
+    #[test]
+    fn is_blocked_host_allows_public() {
+        assert!(!is_blocked_host("example.com"));
+        assert!(!is_blocked_host("8.8.8.8"));
+        assert!(!is_blocked_host("1.1.1.1"));
+    }
+
+    // ---- extract_og ----
+
+    #[test]
+    fn extract_og_property_before_content() {
+        let html = r#"<meta property="og:title" content="My Page">"#;
+        assert_eq!(extract_og(html, "og:title"), "My Page");
+    }
+
+    #[test]
+    fn extract_og_content_before_property() {
+        let html = r#"<meta content="Description here" property="og:description">"#;
+        assert_eq!(extract_og(html, "og:description"), "Description here");
+    }
+
+    #[test]
+    fn extract_og_missing() {
+        let html = r#"<meta property="og:title" content="Title">"#;
+        assert_eq!(extract_og(html, "og:image"), "");
+    }
+
+    // ---- extract_name ----
+
+    #[test]
+    fn extract_name_description() {
+        let html = r#"<meta name="description" content="A test page">"#;
+        assert_eq!(extract_name(html, "description"), "A test page");
+    }
+
+    #[test]
+    fn extract_name_missing() {
+        let html = r#"<meta name="author" content="Test">"#;
+        assert_eq!(extract_name(html, "keywords"), "");
+    }
+
+    // ---- decode_entities ----
+
+    #[test]
+    fn decode_entities_basic() {
+        assert_eq!(decode_entities("&amp; &lt; &gt;"), "& < >");
+    }
+
+    #[test]
+    fn decode_entities_quotes() {
+        assert_eq!(decode_entities("&quot;hello&quot;"), "\"hello\"");
+        assert_eq!(decode_entities("it&#39;s"), "it's");
+        assert_eq!(decode_entities("it&#x27;s"), "it's");
+    }
+
+    #[test]
+    fn decode_entities_numeric() {
+        assert_eq!(decode_entities("&#65;&#66;&#67;"), "ABC");
+    }
+
+    #[test]
+    fn decode_entities_no_entities() {
+        assert_eq!(decode_entities("hello world"), "hello world");
+    }
+
+    // ---- GUID validation regexes ----
+
+    #[test]
+    fn chat_guid_re_valid() {
+        assert!(chat_guid_re().is_match("iMessage;-;+15551234567"));
+        assert!(chat_guid_re().is_match("SMS;-;user@icloud.com"));
+    }
+
+    #[test]
+    fn chat_guid_re_rejects_spaces() {
+        assert!(!chat_guid_re().is_match("invalid guid"));
+    }
+
+    #[test]
+    fn message_guid_re_valid() {
+        // Message GUIDs are like "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE" (no slashes)
+        assert!(message_guid_re().is_match("AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"));
+        // The regex also allows colons and dots
+        assert!(message_guid_re().is_match("p:0:some-msg-guid"));
+    }
+
+    #[test]
+    fn attachment_guid_re_valid() {
+        assert!(attachment_guid_re().is_match("att_abc123-DEF456"));
+    }
+
+    #[test]
+    fn attachment_guid_re_rejects_dots() {
+        assert!(!attachment_guid_re().is_match("bad.guid"));
     }
 }

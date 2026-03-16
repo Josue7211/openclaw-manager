@@ -56,4 +56,36 @@ mod tests {
         let input = "Hello, this is a normal message.";
         assert_eq!(redact(input), input);
     }
+
+    #[test]
+    fn test_redacts_jwt_token() {
+        let input = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0";
+        let result = redact(input);
+        assert!(result.contains("***"));
+        assert!(!result.contains("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"));
+    }
+
+    #[test]
+    fn test_redacts_api_key_assignment() {
+        let input = "api_key: sk-abcdefghij1234567890extra";
+        let result = redact(input);
+        assert!(result.contains("***"));
+        assert!(!result.contains("abcdefghij1234567890"));
+    }
+
+    #[test]
+    fn test_preserves_short_strings() {
+        let input = "status=ok, id=abc";
+        let result = redact(input);
+        // Short strings should not be redacted
+        assert_eq!(result, input);
+    }
+
+    #[test]
+    fn test_redacts_password_in_config() {
+        let input = "password = \"my-very-secret-long-password-1234\"";
+        let result = redact(input);
+        assert!(result.contains("***"));
+        assert!(!result.contains("my-very-secret-long-password-1234"));
+    }
 }

@@ -580,4 +580,88 @@ mod tests {
         assert!(o["cpu"].is_f64());
         assert!(o["wan_in"].is_string());
     }
+
+    // ---- parse_opnsense_uptime edge cases ----
+
+    #[test]
+    fn test_parse_opnsense_uptime_plural_days() {
+        assert_eq!(parse_opnsense_uptime("15 days, 02:30:45"), 15 * 86400 + 2 * 3600 + 30 * 60 + 45);
+    }
+
+    #[test]
+    fn test_parse_opnsense_uptime_hours_only() {
+        assert_eq!(parse_opnsense_uptime("00:45:00"), 45 * 60);
+    }
+
+    #[test]
+    fn test_parse_opnsense_uptime_empty() {
+        assert_eq!(parse_opnsense_uptime(""), 0);
+    }
+
+    // ---- format_bytes_human edge cases ----
+
+    #[test]
+    fn test_format_bytes_human_zero() {
+        assert_eq!(format_bytes_human(0), "0.0 KB");
+    }
+
+    #[test]
+    fn test_format_bytes_human_exact_gb() {
+        assert_eq!(format_bytes_human(1_000_000_000), "1.0 GB");
+    }
+
+    #[test]
+    fn test_format_bytes_human_large_tb() {
+        assert_eq!(format_bytes_human(5_000_000_000_000), "5.0 TB");
+    }
+
+    // ---- parse_stat_value edge cases ----
+
+    #[test]
+    fn test_parse_stat_value_null_value() {
+        let obj = json!({"key": null});
+        assert_eq!(parse_stat_value(&obj, "key"), 0);
+    }
+
+    #[test]
+    fn test_parse_stat_value_non_numeric_string() {
+        let obj = json!({"key": "not-a-number"});
+        assert_eq!(parse_stat_value(&obj, "key"), 0);
+    }
+
+    // ---- to_vm ----
+
+    #[test]
+    fn test_to_vm_with_all_fields() {
+        let raw = ProxmoxResourceRaw {
+            resource_type: Some("qemu".into()),
+            name: Some("my-vm".into()),
+            vmid: Some(100),
+            status: Some("running".into()),
+            cpu: Some(0.25),
+            mem: Some(4_000_000_000),
+        };
+        let vm = to_vm(&raw);
+        assert_eq!(vm.name, "my-vm");
+        assert_eq!(vm.status, "running");
+        assert!((vm.cpu - 0.25).abs() < f64::EPSILON);
+        assert_eq!(vm.mem, 4_000_000_000);
+    }
+
+    #[test]
+    fn test_to_vm_missing_name_uses_vmid() {
+        let raw = ProxmoxResourceRaw {
+            resource_type: Some("lxc".into()),
+            name: None,
+            vmid: Some(200),
+            status: None,
+            cpu: None,
+            mem: None,
+        };
+        let vm = to_vm(&raw);
+        assert_eq!(vm.name, "VM 200");
+        assert_eq!(vm.status, "");
+        assert!((vm.cpu - 0.0).abs() < f64::EPSILON);
+        assert_eq!(vm.mem, 0);
+    }
 }

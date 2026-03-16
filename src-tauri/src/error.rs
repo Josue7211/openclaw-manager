@@ -57,3 +57,32 @@ impl From<reqwest::Error> for AppError {
         AppError::Internal(e.into())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn success_json_wraps_data() {
+        let result = success_json(json!({ "items": [1, 2, 3] }));
+        let value = result.0;
+        assert_eq!(value["ok"], true);
+        assert_eq!(value["data"]["items"], json!([1, 2, 3]));
+    }
+
+    #[test]
+    fn success_json_with_null() {
+        let result = success_json(json!(null));
+        let value = result.0;
+        assert_eq!(value["ok"], true);
+        assert!(value["data"].is_null());
+    }
+
+    #[test]
+    fn success_json_with_string() {
+        let result = success_json(json!("hello"));
+        let value = result.0;
+        assert_eq!(value["ok"], true);
+        assert_eq!(value["data"], "hello");
+    }
+}

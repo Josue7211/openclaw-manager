@@ -246,3 +246,108 @@ pub fn get_modules() -> HashMap<String, bool> {
 pub fn check_first_run() -> bool {
     is_first_run()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ---- is_allowed_key ----
+
+    #[test]
+    fn is_allowed_key_accepts_known_keyring_keys() {
+        assert!(is_allowed_key("bluebubbles.host"));
+        assert!(is_allowed_key("bluebubbles.password"));
+        assert!(is_allowed_key("mc-api-key"));
+        assert!(is_allowed_key("supabase.url"));
+        assert!(is_allowed_key("supabase.service-role-key"));
+    }
+
+    #[test]
+    fn is_allowed_key_rejects_unknown_keys() {
+        assert!(!is_allowed_key("random.key"));
+        assert!(!is_allowed_key(""));
+        assert!(!is_allowed_key("bluebubbles"));
+        assert!(!is_allowed_key("BLUEBUBBLES_HOST"));
+    }
+
+    // ---- KEY_ENV_MAP consistency ----
+
+    #[test]
+    fn key_env_map_has_no_empty_entries() {
+        for &(keyring_key, env_name) in KEY_ENV_MAP {
+            assert!(!keyring_key.is_empty(), "keyring key must not be empty");
+            assert!(!env_name.is_empty(), "env name must not be empty");
+        }
+    }
+
+    #[test]
+    fn key_env_map_env_names_are_uppercase() {
+        for &(_, env_name) in KEY_ENV_MAP {
+            assert_eq!(
+                env_name,
+                env_name.to_uppercase(),
+                "env name '{}' should be UPPERCASE",
+                env_name
+            );
+        }
+    }
+
+    // ---- FRONTEND_BLOCKED_KEYS ----
+
+    #[test]
+    fn frontend_blocked_keys_are_in_key_env_map() {
+        for &blocked in FRONTEND_BLOCKED_KEYS {
+            assert!(
+                KEY_ENV_MAP.iter().any(|&(k, _)| k == blocked),
+                "blocked key '{}' should exist in KEY_ENV_MAP",
+                blocked
+            );
+        }
+    }
+
+    #[test]
+    fn service_role_key_is_blocked() {
+        assert!(FRONTEND_BLOCKED_KEYS.contains(&"supabase.service-role-key"));
+    }
+
+    // ---- USER_KEYS consistency ----
+
+    #[test]
+    fn user_keys_are_subset_of_key_env_map() {
+        for &user_key in USER_KEYS {
+            assert!(
+                KEY_ENV_MAP.iter().any(|&(k, _)| k == user_key),
+                "user key '{}' should exist in KEY_ENV_MAP",
+                user_key
+            );
+        }
+    }
+
+    #[test]
+    fn user_keys_excludes_mc_api_key() {
+        assert!(
+            !USER_KEYS.contains(&"mc-api-key"),
+            "mc-api-key is auto-generated and should not be in USER_KEYS"
+        );
+    }
+
+    // ---- known_secret_keys ----
+
+    #[test]
+    fn known_secret_keys_has_correct_count() {
+        let keys = known_secret_keys();
+        assert_eq!(keys.len(), KEY_ENV_MAP.len());
+    }
+
+    #[test]
+    fn known_secret_keys_contains_all_env_names() {
+        let keys = known_secret_keys();
+        for &(_, env_name) in KEY_ENV_MAP {
+            assert!(
+                keys.contains(env_name),
+                "known_secret_keys should contain '{}'",
+                env_name
+            );
+        }
+    }
+}

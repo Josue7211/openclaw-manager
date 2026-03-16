@@ -845,4 +845,152 @@ END:VCALENDAR</cal:calendar-data>
         assert_eq!(data.len(), 1);
         assert!(data[0].contains("BEGIN:VCALENDAR"));
     }
+
+    // ---- xml_unescape ----
+
+    #[test]
+    fn test_xml_unescape_all_entities() {
+        assert_eq!(xml_unescape("&amp; &lt; &gt; &quot; &apos;"), "& < > \" '");
+    }
+
+    #[test]
+    fn test_xml_unescape_no_entities() {
+        assert_eq!(xml_unescape("plain text"), "plain text");
+    }
+
+    #[test]
+    fn test_xml_unescape_mixed() {
+        assert_eq!(xml_unescape("A &amp; B &lt; C"), "A & B < C");
+    }
+
+    // ---- resolve_url ----
+
+    #[test]
+    fn test_resolve_url_relative_path() {
+        assert_eq!(
+            resolve_url("https://caldav.example.com/dav", "/calendars/user/"),
+            "https://caldav.example.com/calendars/user/"
+        );
+    }
+
+    #[test]
+    fn test_resolve_url_absolute_passthrough() {
+        assert_eq!(
+            resolve_url("https://a.com", "http://b.com/path"),
+            "http://b.com/path"
+        );
+    }
+
+    // ---- extract_tag_content ----
+
+    #[test]
+    fn test_extract_tag_content_basic() {
+        let xml = "<d:displayname>My Calendar</d:displayname>";
+        let result = extract_tag_content(xml, &["d:displayname"]);
+        assert_eq!(result, Some("My Calendar".to_string()));
+    }
+
+    #[test]
+    fn test_extract_tag_content_with_attributes() {
+        let xml = r#"<d:href xmlns:d="DAV:">/path/to/cal/</d:href>"#;
+        let result = extract_tag_content(xml, &["d:href"]);
+        assert_eq!(result, Some("/path/to/cal/".to_string()));
+    }
+
+    #[test]
+    fn test_extract_tag_content_missing() {
+        let xml = "<d:other>value</d:other>";
+        let result = extract_tag_content(xml, &["d:displayname"]);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_extract_tag_content_empty() {
+        let xml = "<d:displayname></d:displayname>";
+        let result = extract_tag_content(xml, &["d:displayname"]);
+        assert_eq!(result, None);
+    }
+
+    // ---- split_xml_responses ----
+
+    #[test]
+    fn test_split_xml_responses() {
+        let xml = r#"<d:multistatus>
+            <d:response><d:href>/cal1/</d:href></d:response>
+            <d:response><d:href>/cal2/</d:href></d:response>
+        </d:multistatus>"#;
+        let parts = split_xml_responses(xml);
+        assert_eq!(parts.len(), 2);
+        assert!(parts[0].contains("/cal1/"));
+        assert!(parts[1].contains("/cal2/"));
+    }
+
+    #[test]
+    fn test_split_xml_responses_empty() {
+        let xml = "<d:multistatus></d:multistatus>";
+        let parts = split_xml_responses(xml);
+        assert!(parts.is_empty());
+    }
+
+    // ---- format_ical_date edge cases ----
+
+    #[test]
+    fn test_format_ical_date_with_value_prefix() {
+        // Value may have leftover prefix from manual parsing
+        assert_eq!(format_ical_date("VALUE=DATE:20250401"), "2025-04-01");
+    }
+
+    #[test]
+    fn test_format_ical_date_short_fallback() {
+        // Unknown format returns as-is
+        assert_eq!(format_ical_date("2025"), "2025");
+    }
+
+    // ---- extract_displayname ----
+
+    #[test]
+    fn test_extract_displayname_basic() {
+        let xml = "<d:displayname>Work Calendar</d:displayname>";
+        assert_eq!(extract_displayname(xml), Some("Work Calendar".to_string()));
+    }
+
+    #[test]
+    fn test_extract_displayname_with_entities() {
+        let xml = "<d:displayname>John&apos;s Calendar</d:displayname>";
+        assert_eq!(extract_displayname(xml), Some("John's Calendar".to_string()));
+    }
+
+    #[test]
+    fn test_extract_displayname_missing() {
+        let xml = "<d:href>/cal/</d:href>";
+        assert_eq!(extract_displayname(xml), None);
+    }
+
+    // ---- parse_vcalendar_manual edge cases ----
+
+    #[test]
+    fn test_parse_vcalendar_manual_no_title() {
+        let ics = r#"BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:no-title-event
+DTSTART:20250601T100000Z
+END:VEVENT
+END:VCALENDAR"#;
+        let events = parse_vcalendar_manual(ics, "Personal");
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].title, "(No title)");
+        assert_eq!(events[0].calendar, "Personal");
+    }
+
+    #[test]
+    fn test_parse_vcalendar_manual_no_dtstart_skipped() {
+        let ics = r#"BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:bad-event
+SUMMARY:Missing date
+END:VEVENT
+END:VCALENDAR"#;
+        let events = parse_vcalendar_manual(ics, "Cal");
+        assert!(events.is_empty());
+    }
 }
