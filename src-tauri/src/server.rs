@@ -5,10 +5,12 @@ use axum::http::{HeaderValue, Request, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use std::net::SocketAddr;
+use std::sync::Arc;
 use subtle::ConstantTimeEq;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::RwLock;
 
 /// MC_API_KEY stored once at startup so the auth middleware can read it
 /// without touching process environment variables.
@@ -17,6 +19,66 @@ use tokio::net::TcpListener;
 use tower_http::cors::{CorsLayer, Any, AllowOrigin};
 use crate::routes;
 use crate::service_client::ServiceClient;
+
+// ---------------------------------------------------------------------------
+// User session (JWT passthrough)
+// ---------------------------------------------------------------------------
+
+/// Authenticated user session stored in `AppState`.
+///
+/// Populated after login/OAuth and auto-refreshed by the `inject_session`
+/// middleware when the access token is near expiry. Route handlers that require
+/// authentication extract this via the [`RequireAuth`] extractor.
+#[derive(Clone, Debug)]
+pub struct UserSession {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub user_id: String,
+    pub email: String,
+    /// Unix epoch seconds when the access token expires.
+    pub expires_at: i64,
+    /// Argon2id-derived key for user_secrets encryption/decryption.
+    pub encryption_key: Vec<u8>,
+}
+
+// ---------------------------------------------------------------------------
+// RequireAuth extractor
+// ---------------------------------------------------------------------------
+
+/// Axum extractor that pulls a [`UserSession`] from request extensions.
+///
+/// Returns `401 Unauthorized` if no session is present (the user is not
+/// logged in, or the session expired and refresh failed).
+///
+/// # Usage
+/// ```ignore
+/// async fn my_handler(RequireAuth(session): RequireAuth) -> impl IntoResponse {
+///     // session.access_token, session.user_id, etc.
+/// }
+/// ```
+pub struct RequireAuth(pub UserSession);
+
+#[axum::async_trait]
+impl<S> axum::extract::FromRequestParts<S> for RequireAuth
+where
+    S: Send + Sync,
+{
+    type Rejection = Response;
+
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        _state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        parts
+            .extensions
+            .get::<UserSession>()
+            .cloned()
+            .map(RequireAuth)
+            .ok_or_else(|| {
+                (StatusCode::UNAUTHORIZED, "Authentication required").into_response()
+            })
+    }
+}
 
 #[derive(Clone)]
 pub struct AppState {
@@ -34,6 +96,15 @@ pub struct AppState {
     /// is not set (module disabled).
     pub openclaw: Option<ServiceClient>,
     // Supabase already has its own SupabaseClient in `crate::supabase`.
+
+    /// Current user session (JWT tokens + derived encryption key).
+    /// `None` until the user logs in. Auto-refreshed by `inject_session`.
+    pub session: Arc<RwLock<Option<UserSession>>>,
+    /// Mutex that serialises token refresh attempts so concurrent requests
+    /// don't all hit GoTrue simultaneously.
+    pub refresh_mutex: Arc<tokio::sync::Mutex<()>>,
+    /// PKCE `code_verifier` stored between OAuth redirect and callback.
+    pub pkce_verifier: Arc<RwLock<Option<String>>>,
 }
 
 impl AppState {
@@ -124,6 +195,9 @@ pub async fn start(
         secrets,
         bb,
         openclaw,
+        session: Arc::new(RwLock::new(None)),
+        refresh_mutex: Arc::new(tokio::sync::Mutex::new(())),
+        pkce_verifier: Arc::new(RwLock::new(None)),
     };
 
     // Pre-warm the messages conversation cache in the background
@@ -132,6 +206,7 @@ pub async fn start(
     let app = Router::new()
         .nest("/api", routes::router())
         .layer(DefaultBodyLimit::max(10 * 1024 * 1024)) // 10 MB
+        .layer(middleware::from_fn_with_state(state.clone(), inject_session))
         .layer(middleware::from_fn(request_logger))
         .layer(middleware::from_fn(api_key_auth))
         .layer(middleware::from_fn(rate_limit))
@@ -161,6 +236,72 @@ pub async fn start(
     tracing::info!("Axum listening on {}", addr);
     axum::serve(listener, app).await?;
     Ok(())
+}
+
+/// Middleware that injects the current [`UserSession`] into request extensions
+/// and auto-refreshes tokens that are within 60 seconds of expiry.
+///
+/// Runs after `api_key_auth` (the API key has already been validated).
+/// If no session exists the request proceeds without one — routes that
+/// require auth use the [`RequireAuth`] extractor to enforce it.
+async fn inject_session(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    mut req: Request<Body>,
+    next: Next,
+) -> Response {
+    let session = state.session.read().await.clone();
+
+    if let Some(ref sess) = session {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+
+        if sess.expires_at - now < 60 {
+            // Token is near expiry — try to refresh.
+            // Acquire the mutex so only one request refreshes at a time.
+            let _guard = state.refresh_mutex.lock().await;
+
+            // Re-read: another request may have already refreshed while we waited.
+            let current = state.session.read().await.clone();
+            if let Some(ref current_sess) = current {
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() as i64;
+
+                if current_sess.expires_at - now < 60 {
+                    // Still needs refresh.
+                    if let Ok(gotrue) = crate::gotrue::GoTrueClient::from_state(&state) {
+                        match gotrue.refresh_token(&current_sess.refresh_token).await {
+                            Ok(auth_resp) => {
+                                let mut write = state.session.write().await;
+                                if let Some(ref mut s) = *write {
+                                    s.access_token = auth_resp.access_token;
+                                    s.refresh_token = auth_resp.refresh_token;
+                                    s.expires_at = now + auth_resp.expires_in;
+                                }
+                                drop(write);
+                            }
+                            Err(e) => {
+                                tracing::warn!("token refresh failed: {e}");
+                                // Clear session — user will need to re-authenticate.
+                                *state.session.write().await = None;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Insert the (possibly refreshed) session into request extensions.
+        let final_session = state.session.read().await.clone();
+        if let Some(s) = final_session {
+            req.extensions_mut().insert(s);
+        }
+    }
+
+    next.run(req).await
 }
 
 /// Middleware that logs each incoming request with method, path, status, and duration.
