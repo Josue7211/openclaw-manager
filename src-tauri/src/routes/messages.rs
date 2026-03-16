@@ -1655,31 +1655,6 @@ fn extract_name(html: &str, name: &str) -> String {
     String::new()
 }
 
-fn decode_entities(s: &str) -> String {
-    let mut result = s.to_string();
-    result = result.replace("&amp;", "&");
-    result = result.replace("&lt;", "<");
-    result = result.replace("&gt;", ">");
-    result = result.replace("&quot;", "\"");
-    result = result.replace("&#39;", "'");
-    result = result.replace("&#x27;", "'");
-
-    // Decode numeric character references &#NNN;
-    static NUM_ENTITY: OnceLock<Regex> = OnceLock::new();
-    let re = NUM_ENTITY.get_or_init(|| Regex::new(r"&#(\d+);").unwrap());
-    result = re
-        .replace_all(&result, |caps: &regex::Captures| {
-            caps.get(1)
-                .and_then(|m| m.as_str().parse::<u32>().ok())
-                .and_then(char::from_u32)
-                .map(|c| c.to_string())
-                .unwrap_or_default()
-        })
-        .into_owned();
-
-    result
-}
-
 #[derive(Deserialize)]
 struct LinkPreviewQuery {
     url: Option<String>,
@@ -2001,17 +1976,18 @@ async fn get_link_preview(
         image_raw
     };
 
-    let decoded_title = decode_entities(&title);
-    let decoded_desc = decode_entities(&description);
-    let decoded_site = decode_entities(&site_name);
+    // Don't decode HTML entities server-side — React auto-escapes text content,
+    // and decoding here could pass through crafted HTML from malicious OG tags.
+    let clamped_title = if title.len() > 200 { &title[..200] } else { &title };
+    let clamped_desc = if description.len() > 300 { &description[..300] } else { &description };
 
     (
         [(header::CACHE_CONTROL, "public, max-age=3600, s-maxage=3600")],
         Json(json!({
-            "title": if decoded_title.len() > 200 { &decoded_title[..200] } else { &decoded_title },
-            "description": if decoded_desc.len() > 300 { &decoded_desc[..300] } else { &decoded_desc },
+            "title": clamped_title,
+            "description": clamped_desc,
             "image": resolved_image,
-            "siteName": decoded_site,
+            "siteName": site_name,
         })),
     )
         .into_response()
@@ -3034,30 +3010,6 @@ mod tests {
     fn extract_name_missing() {
         let html = r#"<meta name="author" content="Test">"#;
         assert_eq!(extract_name(html, "keywords"), "");
-    }
-
-    // ---- decode_entities ----
-
-    #[test]
-    fn decode_entities_basic() {
-        assert_eq!(decode_entities("&amp; &lt; &gt;"), "& < >");
-    }
-
-    #[test]
-    fn decode_entities_quotes() {
-        assert_eq!(decode_entities("&quot;hello&quot;"), "\"hello\"");
-        assert_eq!(decode_entities("it&#39;s"), "it's");
-        assert_eq!(decode_entities("it&#x27;s"), "it's");
-    }
-
-    #[test]
-    fn decode_entities_numeric() {
-        assert_eq!(decode_entities("&#65;&#66;&#67;"), "ABC");
-    }
-
-    #[test]
-    fn decode_entities_no_entities() {
-        assert_eq!(decode_entities("hello world"), "hello world");
     }
 
     // ---- GUID validation regexes ----
