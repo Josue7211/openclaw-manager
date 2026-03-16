@@ -36,33 +36,37 @@ export default function LoginPage() {
     // Invalid URL — keep default '/'
   }
 
-  // On mount, check if user needs MFA (from query param or session)
+  // On mount, ALWAYS check session — if logged in but MFA not verified, show MFA
   const mfaParam = searchParams.get('mfa')
   useEffect(() => {
-    if (mfaParam === 'verify' || mfaParam === 'enroll') {
-      // Check session for MFA status and factor_id
-      api.get<{
-        authenticated: boolean
-        mfa_required?: boolean
-        mfa_enroll_required?: boolean
-        factor_id?: string
-      }>('/api/auth/session')
-        .then(res => {
-          if (!res.authenticated) return
-          if (res.factor_id) {
-            dispatch({ type: 'SHOW_MFA', factorId: res.factor_id })
-          } else if (res.mfa_enroll_required || mfaParam === 'enroll') {
-            api.post<{ id: string; qr_code: string; secret: string }>('/api/auth/mfa/enroll')
-              .then(data => {
-                if (data?.id) {
-                  dispatch({ type: 'SHOW_MFA_ENROLL', factorId: data.id, qr: data.qr_code, secret: data.secret })
-                }
-              })
-              .catch(() => {})
-          }
-        })
-        .catch(() => {})
-    }
+    api.get<{
+      authenticated: boolean
+      mfa_required?: boolean
+      mfa_enroll_required?: boolean
+      mfa_verified?: boolean
+      factor_id?: string
+    }>('/api/auth/session')
+      .then(res => {
+        if (!res.authenticated) return
+        // If MFA already verified, go straight to app
+        if (res.mfa_verified) {
+          window.location.href = next
+          return
+        }
+        // MFA not verified — show appropriate screen
+        if (res.factor_id) {
+          dispatch({ type: 'SHOW_MFA', factorId: res.factor_id })
+        } else if (res.mfa_enroll_required) {
+          api.post<{ id: string; qr_code: string; secret: string }>('/api/auth/mfa/enroll')
+            .then(data => {
+              if (data?.id) {
+                dispatch({ type: 'SHOW_MFA_ENROLL', factorId: data.id, qr: data.qr_code, secret: data.secret })
+              }
+            })
+            .catch(() => {})
+        }
+      })
+      .catch(() => {})
   }, [mfaParam])
 
   // Poll for OAuth completion — backend exchanges the code in the callback
