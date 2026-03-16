@@ -412,8 +412,13 @@ async fn rate_limit(req: Request<Body>, next: Next) -> Response {
         .unwrap_or_else(|| "ip:127.0.0.1".to_string());
 
     // Choose category and limit
+    // Session polling is frequent (every 2s during OAuth) — never rate-limit it
+    if path == "/api/auth/session" || path == "/api/health" {
+        return next.run(req).await;
+    }
+
     let (category, limit) = if path.starts_with("/api/auth/") {
-        ("auth", 5u64)
+        ("auth", 30u64)
     } else if path.starts_with("/api/chat/") {
         ("chat", 10u64)
     } else if method == axum::http::Method::GET {
