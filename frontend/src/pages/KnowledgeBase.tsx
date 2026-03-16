@@ -1,7 +1,7 @@
 
 
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { BookOpen, Plus, Search } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -58,6 +58,10 @@ export default function KnowledgePage() {
     setSelected(null)
     await deleteMutation.mutateAsync(id)
   }
+
+  const handleSelectEntry = useCallback((entry: KnowledgeEntry) => {
+    setSelected(entry)
+  }, [])
 
   const allTags = Array.from(new Set(entries.flatMap(e => e.tags || [])))
 
@@ -159,7 +163,7 @@ export default function KnowledgePage() {
           gap: '12px',
         }}>
           {entries.map(entry => (
-            <EntryCard key={entry.id} entry={entry} onClick={() => setSelected(entry)} />
+            <EntryCard key={entry.id} entry={entry} onSelect={handleSelectEntry} />
           ))}
         </div>
       )}

@@ -1,19 +1,20 @@
+import React from 'react'
 import { ExternalLink } from 'lucide-react'
 import type { KnowledgeEntry } from './shared'
 
 interface EntryCardProps {
   entry: KnowledgeEntry
-  onClick: () => void
+  onSelect: (entry: KnowledgeEntry) => void
 }
 
-export function EntryCard({ entry, onClick }: EntryCardProps) {
+export const EntryCard = React.memo(function EntryCard({ entry, onSelect }: EntryCardProps) {
   const excerpt = entry.content
     ? entry.content.slice(0, 180) + (entry.content.length > 180 ? '...' : '')
     : null
 
   return (
     <div
-      onClick={onClick}
+      onClick={() => onSelect(entry)}
       style={{
         background: 'var(--bg-panel)',
         borderRadius: '10px',
@@ -80,4 +81,4 @@ export function EntryCard({ entry, onClick }: EntryCardProps) {
       </div>
     </div>
   )
-}
+})

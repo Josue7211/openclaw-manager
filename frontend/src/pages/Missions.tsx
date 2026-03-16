@@ -62,10 +62,14 @@ export default function MissionsPage() {
     onSettled: () => invalidateMissions(),
   })
 
-  function markDone(missionId: string, e: React.MouseEvent) {
+  const handleMarkDone = useCallback((missionId: string, e: React.MouseEvent) => {
     e.stopPropagation()
     markDoneMutation.mutate(missionId)
-  }
+  }, [markDoneMutation])
+
+  const handleToggleExpand = useCallback((missionId: string) => {
+    setExpandedId(prev => prev === missionId ? null : missionId)
+  }, [])
 
   const markingDone = markDoneMutation.isPending ? markDoneMutation.variables : null
 
@@ -157,8 +161,8 @@ export default function MissionsPage() {
                 assigneeAgent={agentMap[mission.assignee]}
                 isExpanded={expandedId === mission.id}
                 isMarkingDone={markingDone === mission.id}
-                onToggleExpand={() => setExpandedId(expandedId === mission.id ? null : mission.id)}
-                onMarkDone={e => markDone(mission.id, e)}
+                onToggleExpand={handleToggleExpand}
+                onMarkDone={handleMarkDone}
               />
             ))}
           </div>

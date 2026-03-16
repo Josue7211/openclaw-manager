@@ -97,6 +97,19 @@ export function AccordionBody({ missionId, mission, agent }: { missionId: string
     return null
   }, [events])
 
+  const handleToggleExpand = useCallback((eventKey: string) => {
+    setExpandedThinks(prev => {
+      const next = new Set(prev)
+      if (next.has(eventKey)) next.delete(eventKey)
+      else next.add(eventKey)
+      return next
+    })
+  }, [])
+
+  const handleSelectEvent = useCallback((idx: number) => {
+    setCurrentIdx(idx)
+  }, [])
+
   function getElapsed(idx: number): number {
     const e = events[idx]
     if (e?.elapsed_seconds != null) return e.elapsed_seconds
@@ -484,16 +497,8 @@ export function AccordionBody({ missionId, mission, agent }: { missionId: string
             isActive={i === currentIdx}
             elapsed={getElapsed(i)}
             isExpanded={expandedThinks.has(event.id || String(i))}
-            onToggleExpand={() => {
-              const key = event.id || String(i)
-              setExpandedThinks(prev => {
-                const next = new Set(prev)
-                if (next.has(key)) next.delete(key)
-                else next.add(key)
-                return next
-              })
-            }}
-            onClick={() => setCurrentIdx(i)}
+            onToggleExpand={handleToggleExpand}
+            onSelect={handleSelectEvent}
           />
         ))}
       </div>

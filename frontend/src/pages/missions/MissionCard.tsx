@@ -1,10 +1,11 @@
+import React from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import { timeAgo } from '@/lib/utils'
 import type { Mission, Agent } from './types'
 import { statusColor, statusIcon } from './utils'
 import { AccordionBody } from './AccordionBody'
 
-export function MissionCard({
+export const MissionCard = React.memo(function MissionCard({
   mission,
   assigneeAgent,
   isExpanded,
@@ -16,8 +17,8 @@ export function MissionCard({
   assigneeAgent?: Agent
   isExpanded: boolean
   isMarkingDone: boolean
-  onToggleExpand: () => void
-  onMarkDone: (e: React.MouseEvent) => void
+  onToggleExpand: (missionId: string) => void
+  onMarkDone: (missionId: string, e: React.MouseEvent) => void
 }) {
   const done = mission.status === 'done'
   const canMarkDone = !done
@@ -44,7 +45,7 @@ export function MissionCard({
     >
       {/* Card header */}
       <div
-        onClick={onToggleExpand}
+        onClick={() => onToggleExpand(mission.id)}
         style={{
           padding: '12px 16px 10px',
           display: 'flex', flexDirection: 'column', gap: '8px',
@@ -143,7 +144,7 @@ export function MissionCard({
           {/* Mark done */}
           {canMarkDone && (
             <button
-              onClick={onMarkDone}
+              onClick={e => onMarkDone(mission.id, e)}
               disabled={isMarkingDone}
               title="Mark done"
               style={{
@@ -213,4 +214,4 @@ export function MissionCard({
       </div>
     </div>
   )
-}
+})

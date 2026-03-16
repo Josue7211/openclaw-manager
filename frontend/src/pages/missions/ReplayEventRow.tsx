@@ -1,16 +1,17 @@
+import React from 'react'
 import type { MissionEvent } from './types'
 import { EVENT_META, formatElapsed, hexToRgba } from './utils'
 
-export function ReplayEventRow({
-  event, index, isActive, elapsed, isExpanded, onToggleExpand, onClick,
+export const ReplayEventRow = React.memo(function ReplayEventRow({
+  event, index, isActive, elapsed, isExpanded, onToggleExpand, onSelect,
 }: {
   event: MissionEvent
   index: number
   isActive: boolean
   elapsed: number
   isExpanded: boolean
-  onToggleExpand: () => void
-  onClick: () => void
+  onToggleExpand: (eventKey: string) => void
+  onSelect: (index: number) => void
 }) {
   const meta = EVENT_META[event.event_type] || EVENT_META.think
   const isThink = event.event_type === 'think'
@@ -27,11 +28,12 @@ export function ReplayEventRow({
     : event.content
 
   const activeColor = meta.tickColor
+  const eventKey = event.id || String(index)
 
   return (
     <div
       data-idx={index}
-      onClick={isThink || isUser ? onToggleExpand : onClick}
+      onClick={isThink || isUser ? () => onToggleExpand(eventKey) : () => onSelect(index)}
       style={{
         display: 'flex',
         alignItems: isThink && isExpanded ? 'flex-start' : 'center',
@@ -119,4 +121,4 @@ export function ReplayEventRow({
       </div>
     </div>
   )
-}
+})
