@@ -11,6 +11,8 @@ import { timeAgo } from '@/lib/utils'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { PageHeader } from '@/components/PageHeader'
+import { isDemoMode, DEMO_MISSIONS } from '@/lib/demo-data'
+import { DemoBadge } from '@/components/DemoModeBanner'
 
 interface Mission {
   id: string
@@ -727,6 +729,7 @@ function AccordionBody({ missionId, mission, agent }: { missionId: string; missi
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function MissionsPage() {
+  const _demo = isDemoMode()
   const queryClient = useQueryClient()
   const [tab, setTab]           = useState<Tab>('all')
   const [expandedId, setExpandedId]     = useState<string | null>(null)
@@ -734,18 +737,22 @@ export default function MissionsPage() {
   const { data: missionsData, isLoading: missionsLoading, error: missionsError } = useQuery<{ missions?: Mission[] }>({
     queryKey: queryKeys.missions,
     queryFn: () => api.get<{ missions?: Mission[] }>('/api/missions'),
+    enabled: !_demo,
   })
-  const missions = missionsData?.missions ?? []
+  const missions = _demo
+    ? (DEMO_MISSIONS as Mission[])
+    : (missionsData?.missions ?? [])
 
   const { data: agentsData } = useQuery<{ agents?: Agent[] }>({
     queryKey: queryKeys.agents,
     queryFn: () => api.get<{ agents?: Agent[] }>('/api/agents'),
+    enabled: !_demo,
   })
   const agents = agentsData?.agents ?? []
 
   const agentMap = Object.fromEntries(agents.map(a => [a.id, a]))
 
-  const loading = missionsLoading
+  const loading = _demo ? false : missionsLoading
   const error = missionsError ? (missionsError instanceof Error ? missionsError.message : 'Unknown error') : null
 
   const invalidateMissions = useCallback(() => {
@@ -812,7 +819,10 @@ export default function MissionsPage() {
       {/* Header */}
       <div style={{ marginBottom: '20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <PageHeader defaultTitle="Missions" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <PageHeader defaultTitle="Missions" />
+            {_demo && <DemoBadge />}
+          </div>
           <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: '3px' }}>
             {missions.length} total · {counts.active} active · {counts.done} done
           </div>

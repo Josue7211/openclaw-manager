@@ -10,6 +10,8 @@ import { SkeletonList } from '@/components/Skeleton'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { PageHeader } from '@/components/PageHeader'
+import { isDemoMode, DEMO_AGENTS, DEMO_MISSIONS } from '@/lib/demo-data'
+import { DemoBadge } from '@/components/DemoModeBanner'
 import type { Mission } from '@/lib/types'
 
 interface Agent {
@@ -436,20 +438,26 @@ function LiveProcesses({ agents }: { agents: Agent[] }) {
 }
 
 export default function AgentsPage() {
+  const _demo = isDemoMode()
   const queryClient = useQueryClient()
 
-  const { data: agentsData, isLoading: loading } = useQuery<{ agents: Agent[] }>({
+  const { data: agentsData, isLoading: agentsLoading } = useQuery<{ agents: Agent[] }>({
     queryKey: queryKeys.agents,
     queryFn: () => api.get<{ agents: Agent[] }>('/api/agents'),
+    enabled: !_demo,
   })
 
   const { data: missionsData } = useQuery<{ missions: Mission[] }>({
     queryKey: queryKeys.missions,
     queryFn: () => api.get<{ missions: Mission[] }>('/api/missions'),
+    enabled: !_demo,
   })
 
-  const agents = agentsData?.agents ?? []
-  const missions = missionsData?.missions ?? []
+  const loading = _demo ? false : agentsLoading
+  const agents = _demo
+    ? (DEMO_AGENTS as unknown as Agent[])
+    : (agentsData?.agents ?? [])
+  const missions = _demo ? (DEMO_MISSIONS as Mission[]) : (missionsData?.missions ?? [])
 
   const saveMutation = useMutation({
     mutationFn: async ({ id, fields }: { id: string; fields: { display_name: string; emoji: string; role: string; model: string } }) => {
@@ -481,7 +489,10 @@ export default function AgentsPage() {
   return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         <div>
-          <PageHeader defaultTitle="Agents" defaultSubtitle="Your AI workforce · real-time" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <PageHeader defaultTitle="Agents" defaultSubtitle="Your AI workforce · real-time" />
+            {_demo && <DemoBadge />}
+          </div>
         </div>
 
         {loading ? (

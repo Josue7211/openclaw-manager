@@ -13,6 +13,8 @@ import { todayISO } from '@/lib/utils'
 import { SkeletonList } from '@/components/Skeleton'
 import { useTodos } from '@/lib/hooks/useTodos'
 import { PageHeader } from '@/components/PageHeader'
+import { isDemoMode, DEMO_TODOS } from '@/lib/demo-data'
+import { DemoBadge } from '@/components/DemoModeBanner'
 import type { Todo } from '@/lib/types'
 
 function getDueDateStatus(due_date: string | null | undefined): 'overdue' | 'today' | 'future' | null {
@@ -44,10 +46,12 @@ function DueDateBadge({ due_date }: { due_date: string | null | undefined }) {
 }
 
 export default function TodosPage() {
+  const _demo = isDemoMode()
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const addInputRef = useRef<HTMLInputElement>(null)
   const { addMutation, toggleMutation, deleteMutation, invalidateTodos } = useTodos()
+  const [localDemoTodos, setLocalDemoTodos] = useState<Todo[]>(DEMO_TODOS)
 
   // Auto-focus add input when navigated with ?focus=add
   useEffect(() => {
@@ -60,11 +64,12 @@ export default function TodosPage() {
   const { data: todosData, isLoading } = useQuery<{ todos: Todo[] }>({
     queryKey: queryKeys.todos,
     queryFn: () => api.get<{ todos: Todo[] }>('/api/todos'),
+    enabled: !_demo,
   })
 
-  const todos = todosData?.todos ?? []
+  const todos = _demo ? localDemoTodos : (todosData?.todos ?? [])
   const [todoInput, setTodoInput] = useState('')
-  const [hasDueDateSupport, setHasDueDateSupport] = useState(false)
+  const [hasDueDateSupport, setHasDueDateSupport] = useState(_demo)
 
   // Detect due_date column support
   useEffect(() => {
@@ -96,19 +101,36 @@ export default function TodosPage() {
 
   const addTodo = async () => {
     if (!todoInput.trim()) return
+    if (_demo) {
+      setLocalDemoTodos(prev => [...prev, { id: `demo-${Date.now()}`, text: todoInput.trim(), done: false }])
+      setTodoInput('')
+      return
+    }
     await addMutation.mutateAsync(todoInput)
     setTodoInput('')
   }
 
   const toggleTodo = async (id: string, done: boolean) => {
+    if (_demo) {
+      setLocalDemoTodos(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))
+      return
+    }
     await toggleMutation.mutateAsync({ id, done })
   }
 
   const deleteTodo = async (id: string) => {
+    if (_demo) {
+      setLocalDemoTodos(prev => prev.filter(t => t.id !== id))
+      return
+    }
     await deleteMutation.mutateAsync(id)
   }
 
   const updateDueDate = async (id: string, due_date: string | null) => {
+    if (_demo) {
+      setLocalDemoTodos(prev => prev.map(t => t.id === id ? { ...t, due_date } : t))
+      return
+    }
     await updateDueDateMutation.mutateAsync({ id, due_date })
   }
 
@@ -143,7 +165,8 @@ export default function TodosPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
           <CheckSquare size={20} style={{ color: 'var(--green)' }} />
           <PageHeader defaultTitle="Todos" defaultSubtitle="real-time · personal task list" />
-          {!isLoading && (
+          {_demo && <DemoBadge />}
+          {(!isLoading || _demo) && (
             <span className="badge badge-green" style={{ marginLeft: '4px' }}>
               {pending.length} pending
             </span>
@@ -179,8 +202,8 @@ export default function TodosPage() {
         </button>
       </div>
 
-      <div aria-live="polite" aria-busy={isLoading}>
-      {isLoading ? (
+      <div aria-live="polite" aria-busy={isLoading && !_demo}>
+      {isLoading && !_demo ? (
         <SkeletonList count={3} lines={3} />
       ) : (
         <>

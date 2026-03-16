@@ -16,7 +16,7 @@ import { emit } from '@/lib/event-bus'
 import { queryKeys } from '@/lib/query-keys'
 import { todayISO } from '@/lib/utils'
 import { useTodos } from '@/lib/hooks/useTodos'
-import { isDemoMode, DEMO_TODOS, DEMO_MISSIONS, DEMO_CALENDAR_EVENTS } from '@/lib/demo-data'
+import { isDemoMode, DEMO_TODOS, DEMO_MISSIONS, DEMO_CALENDAR_EVENTS, DEMO_PROXMOX_VMS, DEMO_PROXMOX_NODES, DEMO_OPNSENSE } from '@/lib/demo-data'
 import { DemoBadge } from '@/components/DemoModeBanner'
 import type { Todo, Mission, CalendarEvent } from '@/lib/types'
 
@@ -421,9 +421,9 @@ function DailyReview({ todos, missions, calendarEvents, mounted }: {
 export default function PersonalDashboard() {
   const queryClient = useQueryClient()
   const [todoInput, setTodoInput] = useState('')
-  const [proxmoxVMs, setProxmoxVMs] = useState<ProxmoxVM[]>([])
-  const [proxmoxNodes, setProxmoxNodes] = useState<ProxmoxNodeStat[]>([])
-  const [opnsense, setOpnsense] = useState<OPNsenseData | null>(null)
+  const [proxmoxVMs, setProxmoxVMs] = useState<ProxmoxVM[]>(_demo ? DEMO_PROXMOX_VMS : [])
+  const [proxmoxNodes, setProxmoxNodes] = useState<ProxmoxNodeStat[]>(_demo ? DEMO_PROXMOX_NODES : [])
+  const [opnsense, setOpnsense] = useState<OPNsenseData | null>(_demo ? DEMO_OPNSENSE : null)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [backendError, setBackendError] = useState<string | false>(false)
   const { addMutation, toggleMutation, deleteMutation, invalidateTodos } = useTodos()
@@ -454,6 +454,7 @@ export default function PersonalDashboard() {
   const mounted = _demo || (todosMounted && missionsMounted && calendarMounted)
 
   const fetchHomelab = useCallback(async () => {
+    if (_demo) return
     try {
       const d = await api.get<Record<string, unknown>>('/api/homelab')
       setBackendError(false)

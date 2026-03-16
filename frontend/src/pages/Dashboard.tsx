@@ -16,6 +16,8 @@ import { api, ApiError } from '@/lib/api'
 import { emit } from '@/lib/event-bus'
 import type { Mission } from '@/lib/types'
 import { PageHeader } from '@/components/PageHeader'
+import { isDemoMode, DEMO_MISSIONS, DEMO_AGENT_STATUS, DEMO_AGENTS } from '@/lib/demo-data'
+import { DemoBadge } from '@/components/DemoModeBanner'
 
 interface StatusData {
   name: string; emoji: string; model: string; status: string; lastActive: string; host: string; ip: string;
@@ -38,16 +40,17 @@ function missionStatusStyle(status: string): React.CSSProperties {
 }
 
 export default function Dashboard() {
+  const _demo = isDemoMode()
   const queryClient = useQueryClient()
-  const [status, setStatus]           = useState<StatusData | null>(null)
-  const [heartbeat, setHeartbeat]     = useState<HeartbeatData | null>(null)
+  const [status, setStatus]           = useState<StatusData | null>(_demo ? DEMO_AGENT_STATUS : null)
+  const [heartbeat, setHeartbeat]     = useState<HeartbeatData | null>(_demo ? { lastCheck: new Date().toISOString(), status: 'idle', tasks: [] } : null)
   const [sessions, setSessions]       = useState<Session[]>([])
-  const [subagents, setSubagents]     = useState<SubagentData | null>(null)
-  const [agentsData, setAgentsData]   = useState<AgentsData | null>(null)
+  const [subagents, setSubagents]     = useState<SubagentData | null>(_demo ? { count: 0, agents: [] } : null)
+  const [agentsData, setAgentsData]   = useState<AgentsData | null>(_demo ? { agents: DEMO_AGENTS, activeSessions: [] } : null)
   // activeSubagents now managed by React Query below
-  const [mounted, setMounted]             = useState(false)
+  const [mounted, setMounted]             = useState(_demo)
   const [backendError, setBackendError]   = useState<string | false>(false)
-  const mountedRef                        = useRef(false)
+  const mountedRef                        = useRef(_demo)
   const researchMissionIdRef = useRef<string | null>(null)
   const cacheDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -61,6 +64,7 @@ export default function Dashboard() {
     queryKey: queryKeys.memory,
     queryFn: () => api.get<{ entries?: MemoryEntry[] }>('/api/memory').then(d => d.entries || []),
     refetchInterval: 30_000,
+    enabled: !_demo,
   })
   const memory = memoryData ?? []
 
@@ -69,6 +73,7 @@ export default function Dashboard() {
   const { data: pendingIdeasData } = useQuery({
     queryKey: queryKeys.ideas('pending'),
     queryFn: () => api.get<{ ideas?: Idea[] }>('/api/ideas?status=pending').then(d => d.ideas || []),
+    enabled: !_demo,
   })
   const pendingIdeas = pendingIdeasData ?? []
   const lastRefreshMs = memoryUpdatedAt || Date.now()
@@ -78,6 +83,7 @@ export default function Dashboard() {
     queryKey: queryKeys.subagentsActive,
     queryFn: () => api.get<ActiveSubagentData>('/api/subagents/active'),
     refetchInterval: 10_000,
+    enabled: !_demo,
   })
   const activeSubagents = activeSubagentsData ?? { active: false, count: 0, tasks: [] }
 
@@ -86,8 +92,9 @@ export default function Dashboard() {
   const { data: missionsData } = useQuery<{ missions?: Mission[] }>({
     queryKey: queryKeys.missions,
     queryFn: () => api.get<{ missions?: Mission[] }>('/api/missions'),
+    enabled: !_demo,
   })
-  const allMissions = missionsData?.missions ?? []
+  const allMissions = _demo ? DEMO_MISSIONS : (missionsData?.missions ?? [])
   const missions = useMemo(() => {
     const filtered = allMissions.filter((m: Mission) => m.status !== 'done')
     const seen = new Set<string>()
@@ -270,6 +277,9 @@ export default function Dashboard() {
   // Two consolidated intervals + realtime cache subscription.
   // Pauses all polling when the page is hidden; resumes when visible.
   useEffect(() => {
+    // Skip all polling in demo mode — data is pre-populated
+    if (_demo) return
+
     // Bootstrap: read stale cache immediately, then trigger refresh
     readCache().then((data) => {
       if (data?.length) applyCache(data)
@@ -390,6 +400,7 @@ export default function Dashboard() {
       }}>
         <div>
           <PageHeader defaultTitle="Dashboard" defaultSubtitle="system overview · realtime" />
+          {_demo && <DemoBadge />}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {subagentsError && (

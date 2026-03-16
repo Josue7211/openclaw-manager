@@ -11,6 +11,8 @@ import { useChatSocket, type WsMessage } from '@/lib/hooks/useChatSocket'
 import { api, ApiError } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { PageHeader } from '@/components/PageHeader'
+import { isDemoMode, DEMO_CHAT_MESSAGES } from '@/lib/demo-data'
+import { DemoBadge } from '@/components/DemoModeBanner'
 
 const MarkdownBubble = lazy(() => import('@/components/MarkdownBubble'))
 
@@ -50,12 +52,13 @@ interface OptimisticMsg {
 }
 
 export default function ChatPage() {
-  const [messages, setMessages]   = useState<ChatMessage[]>([])
+  const _demo = isDemoMode()
+  const [messages, setMessages]   = useState<ChatMessage[]>(_demo ? DEMO_CHAT_MESSAGES : [])
   const [input, setInput]         = useState('')
   const [images, setImages]       = useState<string[]>([])
   const [sending, setSending]     = useState(false)
-  const [connected, setConnected] = useState(false)
-  const [mounted, setMounted]     = useState(false)
+  const [connected, setConnected] = useState(_demo)
+  const [mounted, setMounted]     = useState(_demo)
   const [lightbox, setLightbox]   = useState<LightboxData>(null)
   const [atBottom, setAtBottom]   = useState(true)
   const [optimistic, setOptimistic] = useState<OptimisticMsg[]>([])
@@ -188,6 +191,7 @@ export default function ChatPage() {
         setHistoryError(null)
       }
     },
+    enabled: !_demo,
   })
 
   // -- Polling fallback: only active when WebSocket is unavailable --
@@ -195,6 +199,7 @@ export default function ChatPage() {
   const { data: historyData, dataUpdatedAt, isError: historyIsError, error: historyQueryError } = useQuery<{ messages?: ChatMessage[]; error?: string }>({
     queryKey: queryKeys.chatHistory,
     queryFn: () => api.get<{ messages?: ChatMessage[]; error?: string }>('/api/chat/history'),
+    enabled: !_demo,
     // Always fetch once on mount for history; then only poll if WS is down
     refetchInterval: (query) => {
       if (wsConnected && !usingFallback) return false  // WS active — no polling needed
@@ -313,6 +318,25 @@ export default function ChatPage() {
     const currentImages = imagesRef.current  // always-current, no stale closure
     if ((!text && currentImages.length === 0 && pendingReadsRef.current === 0) || sending) return
 
+    // ── Demo mode: add messages locally ──
+    if (_demo) {
+      const userMsg: ChatMessage = { id: `demo-u-${Date.now()}`, role: 'user', text, timestamp: new Date().toISOString() }
+      setMessages(prev => [...prev, userMsg])
+      setInput('')
+      setIsTyping(true)
+      setTimeout(() => {
+        const reply: ChatMessage = {
+          id: `demo-a-${Date.now()}`,
+          role: 'assistant',
+          text: 'This is demo mode — connect an OpenClaw instance in **Settings > Connections** to chat with a real AI agent. Your messages will be sent to your self-hosted AI gateway.',
+          timestamp: new Date().toISOString(),
+        }
+        setMessages(prev => [...prev, reply])
+        setIsTyping(false)
+      }, 1500)
+      return
+    }
+
     // ── Intercept slash commands ──
     if (isSlashCommand(text)) {
       setInput('')
@@ -411,6 +435,7 @@ export default function ChatPage() {
       <div style={{ marginBottom: '16px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <PageHeader defaultTitle="Chat" />
+          {_demo && <DemoBadge />}
 
           {/* Model selector */}
           <select
@@ -470,9 +495,11 @@ export default function ChatPage() {
             boxShadow: connected ? '0 0 6px var(--green)' : 'none',
           }} />
           <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-            {connected
-              ? (wsConnected ? 'live' : 'polling')
-              : historyIsError ? 'OpenClaw unreachable' : 'reconnecting…'}
+            {_demo
+              ? 'demo'
+              : connected
+                ? (wsConnected ? 'live' : 'polling')
+                : historyIsError ? 'OpenClaw unreachable' : 'reconnecting…'}
           </span>
         </div>
       </div>
