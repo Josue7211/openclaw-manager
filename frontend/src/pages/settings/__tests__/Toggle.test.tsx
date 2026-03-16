@@ -73,7 +73,7 @@ describe('Toggle component', () => {
     it('uses accent background when on', () => {
       render(<Toggle on={true} onToggle={() => {}} label="Test" />)
       const toggle = screen.getByRole('switch')
-      expect(toggle.style.background).toBe('var(--accent)')
+      expect(toggle.style.background).toBe('var(--accent-solid)')
     })
 
     it('uses muted background when off', () => {

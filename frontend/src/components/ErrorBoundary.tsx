@@ -35,7 +35,7 @@ export default class ErrorBoundary extends Component<Props, State> {
           <button
             onClick={() => { this.setState({ error: null }); window.location.reload() }}
             style={{
-              background: 'var(--accent)', border: 'none', borderRadius: '10px',
+              background: 'var(--accent-solid)', border: 'none', borderRadius: '10px',
               color: 'var(--text-on-color)', padding: '8px 20px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
             }}
           >

@@ -68,37 +68,41 @@ export function clearQueue() {
   notify()
 }
 
-/** Replay all queued mutations in order, removing successful ones */
-export async function processQueue(): Promise<void> {
-  const queue = getQueue()
-  if (queue.length === 0) return
+export interface ProcessResult {
+  attempted: number
+  succeeded: number
+  remaining: number
+  discarded: number
+}
 
-  // Lazy-import to avoid circular dependency with api.ts
+/** Replay all queued mutations in order, removing successful ones */
+export async function processQueue(): Promise<ProcessResult> {
+  const queue = getQueue()
+  if (queue.length === 0) return { attempted: 0, succeeded: 0, remaining: 0, discarded: 0 }
+
   const { api } = await import('./api')
   const remaining: QueuedMutation[] = []
+  let succeeded = 0
+  let discarded = 0
 
   for (const entry of queue) {
     try {
       switch (entry.method) {
-        case 'POST':
-          await api.post(entry.endpoint, entry.body)
-          break
-        case 'PATCH':
-          await api.patch(entry.endpoint, entry.body)
-          break
-        case 'DELETE':
-          await api.del(entry.endpoint, entry.body)
-          break
+        case 'POST':  await api.post(entry.endpoint, entry.body); break
+        case 'PATCH': await api.patch(entry.endpoint, entry.body); break
+        case 'DELETE': await api.del(entry.endpoint, entry.body); break
       }
-      // Success — drop from queue (don't push to remaining)
+      succeeded++
     } catch {
       entry.retries += 1
       if (entry.retries < MAX_RETRIES) {
         remaining.push(entry)
+      } else {
+        discarded++
       }
-      // If max retries exceeded, silently discard
     }
   }
 
   saveQueue(remaining)
+  return { attempted: queue.length, succeeded, remaining: remaining.length, discarded }
 }

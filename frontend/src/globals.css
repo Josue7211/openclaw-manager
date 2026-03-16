@@ -28,6 +28,10 @@ input, textarea, [contenteditable="true"], code, pre, kbd {
   --accent: #a78bfa;
   --accent-dim: #8b5cf6;
   --accent-bright: #c4b5fd;
+  /* Solid variants — darker, for backgrounds behind white text (WCAG 4.5:1) */
+  --accent-solid: #7c3aed;       /* 5.70:1 with #fff */
+  --green-solid: #047857;        /* 5.48:1 with #fff */
+  --red-solid: #dc2626;          /* 4.83:1 with #fff */
 
   /* Green — online, ok, done */
   --green: #34d399;
@@ -885,3 +889,13 @@ html:focus-within .traffic-lights button {
   padding: 0;
   color: inherit;
 }
+
+/* ── Utility classes — extracted from most repeated inline styles ── */
+.flex-row { display: flex; align-items: center; }
+.flex-between { display: flex; align-items: center; justify-content: space-between; }
+.section-label { font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+.section-label-secondary { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em; }
+.meta-mono { font-size: 10px; color: var(--text-muted); font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace; }
+.text-empty { font-size: 12px; color: var(--text-muted); font-style: italic; }
+.btn-ghost { background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; display: flex; align-items: center; }
+.tile { background: var(--bg-white-03); border-radius: var(--radius-md); padding: 12px; border: 1px solid var(--border); }
