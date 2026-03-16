@@ -8,8 +8,8 @@ export function DemoModeBanner() {
 
   return (
     <div role="status" style={{
-      background: 'rgba(251, 191, 36, 0.1)',
-      border: '1px solid rgba(251, 191, 36, 0.3)',
+      background: 'var(--warning-a08)',
+      border: '1px solid var(--warning-a30)',
       borderRadius: '10px',
       padding: expanded ? '12px 16px' : '8px 16px',
       fontSize: '13px',
@@ -45,8 +45,8 @@ export function DemoModeBanner() {
         <button
           onClick={() => navigate('/settings?section=connections')}
           style={{
-            background: 'rgba(251, 191, 36, 0.2)',
-            border: '1px solid rgba(251, 191, 36, 0.3)',
+            background: 'var(--warning-a20)',
+            border: '1px solid var(--warning-a30)',
             borderRadius: '6px',
             padding: '4px 12px',
             fontSize: '11px',
@@ -57,10 +57,10 @@ export function DemoModeBanner() {
             transition: 'all 0.15s ease',
           }}
           onMouseEnter={e => {
-            e.currentTarget.style.background = 'rgba(251, 191, 36, 0.3)'
+            e.currentTarget.style.background = 'var(--warning-a30)'
           }}
           onMouseLeave={e => {
-            e.currentTarget.style.background = 'rgba(251, 191, 36, 0.2)'
+            e.currentTarget.style.background = 'var(--warning-a20)'
           }}
         >
           Set up now
@@ -75,19 +75,19 @@ export function DemoModeBanner() {
         }}>
           <p style={{ margin: '0 0 6px' }}>
             To exit demo mode, add <code style={{
-              background: 'rgba(251, 191, 36, 0.12)',
+              background: 'var(--warning-a12)',
               padding: '1px 5px',
               borderRadius: '4px',
               fontFamily: 'monospace',
               fontSize: '11px',
             }}>VITE_SUPABASE_URL</code> and <code style={{
-              background: 'rgba(251, 191, 36, 0.12)',
+              background: 'var(--warning-a12)',
               padding: '1px 5px',
               borderRadius: '4px',
               fontFamily: 'monospace',
               fontSize: '11px',
             }}>VITE_SUPABASE_ANON_KEY</code> to your <code style={{
-              background: 'rgba(251, 191, 36, 0.12)',
+              background: 'var(--warning-a12)',
               padding: '1px 5px',
               borderRadius: '4px',
               fontFamily: 'monospace',
@@ -116,9 +116,9 @@ export function DemoBadge() {
       fontWeight: 600,
       letterSpacing: '0.08em',
       textTransform: 'uppercase',
-      background: 'rgba(251, 191, 36, 0.12)',
+      background: 'var(--warning-a12)',
       color: 'var(--warning)',
-      border: '1px solid rgba(251, 191, 36, 0.2)',
+      border: '1px solid var(--warning-a20)',
     }}>
       demo
     </span>

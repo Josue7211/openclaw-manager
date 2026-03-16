@@ -15,7 +15,7 @@ export function TagChip({ tag, active, onClick }: TagChipProps) {
         fontWeight: active ? 600 : 400,
         background: active ? 'var(--border-accent)' : 'var(--purple-a08)',
         color: active ? 'var(--accent-bright)' : 'var(--accent)',
-        border: `1px solid ${active ? 'rgba(155,132,236,0.4)' : 'var(--purple-a15)'}`,
+        border: `1px solid ${active ? 'var(--purple-a40)' : 'var(--purple-a15)'}`,
         cursor: 'pointer',
         transition: 'all 0.15s',
         whiteSpace: 'nowrap',

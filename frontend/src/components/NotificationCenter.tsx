@@ -310,7 +310,7 @@ const NotificationRow = React.memo(function NotificationRow({
         gap: '10px',
         width: '100%',
         padding: indent ? '6px 14px 6px 40px' : '10px 14px',
-        background: notif.read ? 'transparent' : 'rgba(96,165,250,0.04)',
+        background: notif.read ? 'transparent' : 'var(--blue-a04)',
         border: 'none',
         borderBottom: '1px solid var(--bg-white-04)',
         cursor: notif.route ? 'pointer' : 'default',
@@ -323,7 +323,7 @@ const NotificationRow = React.memo(function NotificationRow({
         if (notif.route) e.currentTarget.style.transform = 'translateX(2px)'
       }}
       onMouseLeave={e => {
-        e.currentTarget.style.background = notif.read ? 'transparent' : 'rgba(96,165,250,0.04)'
+        e.currentTarget.style.background = notif.read ? 'transparent' : 'var(--blue-a04)'
         e.currentTarget.style.transform = 'translateX(0)'
       }}
     >
@@ -434,7 +434,7 @@ const GroupedNotificationRow = React.memo(function GroupedNotificationRow({
           gap: '10px',
           width: '100%',
           padding: '10px 14px',
-          background: group.hasUnread ? 'rgba(96,165,250,0.04)' : 'transparent',
+          background: group.hasUnread ? 'var(--blue-a04)' : 'transparent',
           borderBottom: '1px solid var(--bg-white-04)',
           textAlign: 'left',
           transition: 'background 0.15s ease',
@@ -445,7 +445,7 @@ const GroupedNotificationRow = React.memo(function GroupedNotificationRow({
           e.currentTarget.style.background = 'var(--bg-white-04)'
         }}
         onMouseLeave={e => {
-          e.currentTarget.style.background = group.hasUnread ? 'rgba(96,165,250,0.04)' : 'transparent'
+          e.currentTarget.style.background = group.hasUnread ? 'var(--blue-a04)' : 'transparent'
         }}
       >
         {/* Unread dot + icon */}

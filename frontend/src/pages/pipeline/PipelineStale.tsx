@@ -49,9 +49,9 @@ export function PipelineStale() {
             borderRadius: '20px',
             fontSize: '11px',
             fontWeight: 600,
-            background: 'rgba(230,168,23,0.12)',
+            background: 'var(--gold-a12)',
             color: 'var(--gold)',
-            border: '1px solid rgba(230,168,23,0.25)',
+            border: '1px solid var(--gold-a25)',
           }}>
             {staleItems.length}
           </span>
@@ -149,7 +149,7 @@ export function PipelineStale() {
                       cursor: 'pointer',
                       fontSize: '11px',
                       fontWeight: 600,
-                      background: 'rgba(59,165,92,0.15)',
+                      background: 'var(--emerald-a15)',
                       color: 'var(--green)',
                       opacity: staleActing === `${item.id}-done` ? 0.5 : 1,
                     }}
@@ -167,7 +167,7 @@ export function PipelineStale() {
                       cursor: 'pointer',
                       fontSize: '11px',
                       fontWeight: 600,
-                      background: 'rgba(230,168,23,0.15)',
+                      background: 'var(--gold-a25)',
                       color: 'var(--gold)',
                       opacity: staleActing === `${item.id}-snooze` ? 0.5 : 1,
                       display: 'flex',

@@ -221,7 +221,7 @@ export default function MessageThread({
           }}
           aria-label="Search messages"
           style={{
-            background: showMessageSearch ? 'rgba(167,139,250,0.12)' : 'transparent',
+            background: showMessageSearch ? 'var(--accent-a12)' : 'transparent',
             border: '1px solid var(--border)', borderRadius: '8px',
             color: showMessageSearch ? 'var(--accent-bright)' : 'var(--text-secondary)',
             padding: '6px 8px', cursor: 'pointer',
@@ -239,7 +239,7 @@ export default function MessageThread({
         <div style={{
           padding: '8px 20px', borderBottom: '1px solid var(--border)',
           display: 'flex', alignItems: 'center', gap: '8px',
-          background: 'rgba(167,139,250,0.03)',
+          background: 'rgba(167, 139, 250, 0.03)',
           animation: 'searchSlideDown 0.2s var(--ease-spring)', overflow: 'hidden',
         }}>
           <Search size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
@@ -329,9 +329,9 @@ export default function MessageThread({
         {dragOver && (
           <div style={{
             position: 'absolute', inset: 0, zIndex: 50,
-            background: 'rgba(167,139,250,0.08)',
+            background: 'var(--accent-a10)',
             backdropFilter: 'blur(4px)',
-            border: '2px dashed rgba(167,139,250,0.4)',
+            border: '2px dashed var(--accent-a40)',
             borderRadius: '12px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexDirection: 'column', gap: '8px',
@@ -746,7 +746,7 @@ export default function MessageThread({
         <button onClick={() => scrollToBottom('smooth')} aria-label="Scroll to bottom" style={{
           position: 'absolute', bottom: replyTo ? '130px' : '80px', right: '20px',
           width: '36px', height: '36px', borderRadius: '50%',
-          background: 'rgba(30,30,38,0.85)',
+          background: 'var(--bg-popover)',
           backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
           border: '1px solid var(--border)', color: 'var(--text-secondary)',
           cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',

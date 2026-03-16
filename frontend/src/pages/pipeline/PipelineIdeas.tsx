@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { X, ChevronDown } from 'lucide-react'
-import { supabase } from '@/lib/supabase/client'
 import { api } from '@/lib/api'
+import { useSupabaseRealtime } from '@/lib/hooks/useSupabaseRealtime'
 import { FilterDropdown } from './FilterDropdown'
 import type { Idea, IdeaStatus } from './types'
 import { IDEA_LEVEL_COLORS, IDEA_STATUS_META } from './types'
@@ -29,15 +29,8 @@ export function PipelineIdeas() {
     }
   }, [])
 
-  useEffect(() => {
-    fetchIdeas()
-    if (!supabase) return
-    const channel = supabase
-      .channel('pipeline-ideas-rt')
-      .on<Record<string, unknown>>('postgres_changes', { event: '*', schema: 'public', table: 'ideas' }, fetchIdeas)
-      .subscribe()
-    return () => { supabase?.removeChannel(channel) }
-  }, [fetchIdeas])
+  useEffect(() => { fetchIdeas() }, [fetchIdeas])
+  useSupabaseRealtime('pipeline-ideas-rt', 'ideas', { onEvent: fetchIdeas })
 
   const updateIdeaStatus = async (id: string, newStatus: IdeaStatus) => {
     setIdeas(prev => prev.map(idea => idea.id === id ? { ...idea, status: newStatus } : idea))
@@ -160,7 +153,7 @@ export function PipelineIdeas() {
             onClick={() => { setIdeasFilter(null); setEffortFilter(null); setImpactFilter(null); setCategoryFilter(null) }}
             style={{
               padding: '4px 10px', borderRadius: '8px', border: 'none', cursor: 'pointer',
-              fontSize: '11px', fontWeight: 500, background: 'rgba(248,113,113,0.1)', color: 'var(--red)',
+              fontSize: '11px', fontWeight: 500, background: 'var(--red-a08)', color: 'var(--red)',
               transition: 'all 0.12s',
             }}
           >
@@ -219,7 +212,7 @@ export function PipelineIdeas() {
                 key={idea.id}
                 style={{
                   borderRadius: idx === 0 ? '10px 10px 2px 2px' : idx === filtered.length - 1 ? '2px 2px 10px 10px' : '2px',
-                  background: isExpanded ? 'var(--bg-white-04)' : isSelected ? 'rgba(155,132,236,0.06)' : 'var(--bg-white-02)',
+                  background: isExpanded ? 'var(--bg-white-04)' : isSelected ? 'var(--purple-a08)' : 'var(--bg-white-02)',
                   border: '1px solid',
                   borderColor: isExpanded ? 'var(--purple-a30)' : isSelected ? 'var(--purple-a20)' : 'var(--border)',
                   transition: 'all 0.15s var(--ease-spring)',
@@ -307,18 +300,18 @@ export function PipelineIdeas() {
                       <>
                         <button onClick={() => updateIdeaStatus(idea.id, 'approved')} title="Approve" style={{
                           padding: '4px 8px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                          fontSize: '11px', fontWeight: 600, background: 'rgba(52,211,153,0.12)', color: 'var(--green)',
+                          fontSize: '11px', fontWeight: 600, background: 'var(--green-a12)', color: 'var(--green)',
                           transition: 'all 0.12s',
                         }}>Approve</button>
                         <button onClick={() => updateIdeaStatus(idea.id, 'rejected')} title="Reject" style={{
                           padding: '4px 8px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                          fontSize: '11px', fontWeight: 600, background: 'rgba(248,113,113,0.12)', color: 'var(--red)',
+                          fontSize: '11px', fontWeight: 600, background: 'var(--red-a12)', color: 'var(--red)',
                           transition: 'all 0.12s',
                         }}>Reject</button>
                         {idea.status === 'pending' && (
                           <button onClick={() => updateIdeaStatus(idea.id, 'deferred')} title="Defer" style={{
                             padding: '4px 8px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                            fontSize: '11px', fontWeight: 600, background: 'rgba(230,168,23,0.12)', color: 'var(--gold)',
+                            fontSize: '11px', fontWeight: 600, background: 'var(--gold-a12)', color: 'var(--gold)',
                             transition: 'all 0.12s',
                           }}>Defer</button>
                         )}
@@ -403,7 +396,7 @@ export function PipelineIdeas() {
           gap: '12px',
           padding: '10px 16px',
           borderRadius: '12px',
-          background: 'rgba(18, 18, 24, 0.95)',
+          background: 'var(--bg-modal)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
           border: '1px solid var(--border-accent)',
@@ -417,17 +410,17 @@ export function PipelineIdeas() {
           <div style={{ width: '1px', height: '20px', background: 'var(--hover-bg-bright)' }} />
           <button onClick={() => bulkUpdateStatus('approved')} disabled={bulkActing} style={{
             padding: '6px 14px', borderRadius: '8px', border: 'none', cursor: bulkActing ? 'wait' : 'pointer',
-            fontSize: '12px', fontWeight: 600, background: 'rgba(52,211,153,0.15)', color: 'var(--green)',
+            fontSize: '12px', fontWeight: 600, background: 'var(--green-a15)', color: 'var(--green)',
             opacity: bulkActing ? 0.5 : 1, transition: 'all 0.12s',
           }}>Approve</button>
           <button onClick={() => bulkUpdateStatus('rejected')} disabled={bulkActing} style={{
             padding: '6px 14px', borderRadius: '8px', border: 'none', cursor: bulkActing ? 'wait' : 'pointer',
-            fontSize: '12px', fontWeight: 600, background: 'rgba(248,113,113,0.15)', color: 'var(--red)',
+            fontSize: '12px', fontWeight: 600, background: 'var(--red-a15)', color: 'var(--red)',
             opacity: bulkActing ? 0.5 : 1, transition: 'all 0.12s',
           }}>Reject</button>
           <button onClick={() => bulkUpdateStatus('deferred')} disabled={bulkActing} style={{
             padding: '6px 14px', borderRadius: '8px', border: 'none', cursor: bulkActing ? 'wait' : 'pointer',
-            fontSize: '12px', fontWeight: 600, background: 'rgba(230,168,23,0.15)', color: 'var(--gold)',
+            fontSize: '12px', fontWeight: 600, background: 'var(--gold-a25)', color: 'var(--gold)',
             opacity: bulkActing ? 0.5 : 1, transition: 'all 0.12s',
           }}>Defer</button>
           <div style={{ width: '1px', height: '20px', background: 'var(--hover-bg-bright)' }} />

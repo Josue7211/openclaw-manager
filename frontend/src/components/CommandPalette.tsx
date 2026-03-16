@@ -473,7 +473,7 @@ export default function CommandPalette({
           width: '560px',
           maxWidth: 'calc(100vw - 32px)',
           maxHeight: '460px',
-          background: 'rgba(18, 18, 24, 0.96)',
+          background: 'var(--bg-modal)',
           backdropFilter: 'blur(32px) saturate(180%)',
           WebkitBackdropFilter: 'blur(32px) saturate(180%)',
           border: '1px solid var(--hover-bg-bright)',

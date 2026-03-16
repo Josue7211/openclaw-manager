@@ -96,13 +96,13 @@ export default function MediaPage() {
       {data?.mock && (
         <div style={{
           marginBottom: '20px', padding: '20px 24px',
-          background: 'rgba(59, 130, 246, 0.08)',
-          border: '1px solid rgba(59, 130, 246, 0.25)',
+          background: 'var(--blue-a08)',
+          border: '1px solid var(--blue-a25)',
           borderRadius: '12px',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-            <Film size={16} style={{ color: 'rgba(96, 165, 250, 1)' }} />
-            <span style={{ fontWeight: 600, fontSize: '14px', color: 'rgba(96, 165, 250, 1)' }}>Media services not configured</span>
+            <Film size={16} style={{ color: 'var(--blue-solid)' }} />
+            <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--blue-solid)' }}>Media services not configured</span>
           </div>
           <p style={{ margin: '0 0 12px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
             Showing demo data. Add the following to <code style={{ background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px' }}>.env.local</code> and restart:
@@ -202,7 +202,7 @@ RADARR_API_KEY=your-radarr-api-key`}
             }}>
               <div style={{
                 width: '32px', height: '32px', borderRadius: '7px', marginBottom: '10px',
-                background: item.type === 'movie' ? 'rgba(155,132,236,0.15)' : 'rgba(59,165,92,0.15)',
+                background: item.type === 'movie' ? 'var(--purple-a15)' : 'var(--emerald-a15)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 {item.type === 'movie'

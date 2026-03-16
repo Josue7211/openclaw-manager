@@ -37,7 +37,7 @@ export const MissionCard = React.memo(function MissionCard({
       style={{
         borderRadius: '10px',
         background: isExpanded ? 'var(--hover-bg)' : 'var(--bg-card)',
-        border: `1px solid ${isExpanded ? 'rgba(155,132,236,0.35)' : done ? 'rgba(74,222,128,0.15)' : 'var(--border)'}`,
+        border: `1px solid ${isExpanded ? 'var(--purple-a30)' : done ? 'var(--green-400-a15)' : 'var(--border)'}`,
         opacity: done ? 0.88 : 1,
         transition: 'border-color 0.15s, background 0.15s',
         overflow: 'hidden',
@@ -61,7 +61,7 @@ export const MissionCard = React.memo(function MissionCard({
         onMouseLeave={e => {
           if (!isExpanded) {
             const card = e.currentTarget.parentElement!
-            card.style.borderColor = done ? 'rgba(74,222,128,0.15)' : 'var(--border)'
+            card.style.borderColor = done ? 'var(--green-400-a15)' : 'var(--border)'
             card.style.background  = 'var(--bg-card)'
           }
         }}
@@ -105,8 +105,8 @@ export const MissionCard = React.memo(function MissionCard({
               {mission.task_type && mission.task_type !== 'non-code' && (
                 <span style={{
                   fontSize: '9px', padding: '1px 5px', borderRadius: '10px',
-                  background: mission.task_type === 'code' ? 'rgba(59,130,246,0.12)' : 'var(--purple-a12)',
-                  border: `1px solid ${mission.task_type === 'code' ? 'rgba(59,130,246,0.3)' : 'var(--purple-a30)'}`,
+                  background: mission.task_type === 'code' ? 'var(--blue-a08)' : 'var(--purple-a12)',
+                  border: `1px solid ${mission.task_type === 'code' ? 'var(--blue-a25)' : 'var(--purple-a30)'}`,
                   color: mission.task_type === 'code' ? 'var(--blue)' : 'var(--accent-bright)',
                 }}>
                   {mission.task_type}
@@ -115,7 +115,7 @@ export const MissionCard = React.memo(function MissionCard({
               {mission.review_status === 'pending' && (
                 <span style={{
                   fontSize: '9px', padding: '1px 5px', borderRadius: '10px',
-                  background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.3)',
+                  background: 'var(--warning-a12)', border: '1px solid var(--warning-a30)',
                   color: 'var(--warning)', fontWeight: 600,
                 }}>
                   needs review
@@ -124,7 +124,7 @@ export const MissionCard = React.memo(function MissionCard({
               {mission.review_status === 'rejected' && (
                 <span style={{
                   fontSize: '9px', padding: '1px 5px', borderRadius: '10px',
-                  background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)',
+                  background: 'var(--red-500-a12)', border: '1px solid var(--red-a30)',
                   color: 'var(--red-bright)', fontWeight: 600,
                 }}>
                   rejected
@@ -151,15 +151,15 @@ export const MissionCard = React.memo(function MissionCard({
                 flexShrink: 0,
                 display: 'flex', alignItems: 'center', gap: '4px',
                 padding: '3px 8px', borderRadius: '10px',
-                border: '1px solid rgba(74,222,128,0.25)',
-                background: 'rgba(74,222,128,0.06)',
+                border: '1px solid var(--green-400-a30)',
+                background: 'rgba(74, 222, 128, 0.06)',
                 color: 'var(--green-400)',
                 fontSize: '11px', cursor: isMarkingDone ? 'wait' : 'pointer',
                 opacity: isMarkingDone ? 0.5 : 1,
                 transition: 'all 0.25s var(--ease-spring)',
               }}
-              onMouseEnter={e => { if (!isMarkingDone) { e.currentTarget.style.background = 'rgba(74,222,128,0.14)'; e.currentTarget.style.borderColor = 'rgba(74,222,128,0.45)' } }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(74,222,128,0.06)'; e.currentTarget.style.borderColor = 'rgba(74,222,128,0.25)' }}
+              onMouseEnter={e => { if (!isMarkingDone) { e.currentTarget.style.background = 'rgba(74, 222, 128, 0.14)'; e.currentTarget.style.borderColor = 'rgba(74, 222, 128, 0.45)' } }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(74, 222, 128, 0.06)'; e.currentTarget.style.borderColor = 'var(--green-400-a30)' }}
             >
               <Check size={11} />
               Done
@@ -171,8 +171,8 @@ export const MissionCard = React.memo(function MissionCard({
             flexShrink: 0, fontSize: '10px', fontFamily: 'monospace',
             padding: '2px 8px', borderRadius: '10px',
             color: statusColor(mission.status),
-            background: done ? 'rgba(74,222,128,0.08)' : mission.status === 'active' ? 'var(--purple-a10)' : 'var(--hover-bg)',
-            border: `1px solid ${done ? 'rgba(74,222,128,0.2)' : mission.status === 'active' ? 'var(--purple-a20)' : 'var(--border)'}`,
+            background: done ? 'rgba(74, 222, 128, 0.08)' : mission.status === 'active' ? 'var(--purple-a10)' : 'var(--hover-bg)',
+            border: `1px solid ${done ? 'var(--green-400-a15)' : mission.status === 'active' ? 'var(--purple-a20)' : 'var(--border)'}`,
           }}>
             {mission.status}
           </div>

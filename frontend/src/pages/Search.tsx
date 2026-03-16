@@ -147,7 +147,7 @@ export default function SearchPage() {
             boxSizing: 'border-box',
           }}
           onFocus={e => {
-            e.currentTarget.style.borderColor = 'rgba(155,132,236,0.4)'
+            e.currentTarget.style.borderColor = 'var(--purple-a40)'
           }}
           onBlur={e => {
             e.currentTarget.style.borderColor = 'var(--border-hover)'

@@ -76,8 +76,8 @@ export function LiveProcesses({ agents }: { agents: Agent[] }) {
           {processes.length > 0 && (
             <span style={{
               fontSize: '10px', fontWeight: 700,
-              background: 'rgba(74,222,128,0.15)', color: 'var(--green-400)',
-              border: '1px solid rgba(74,222,128,0.3)',
+              background: 'var(--green-400-a15)', color: 'var(--green-400)',
+              border: '1px solid var(--green-400-a30)',
               borderRadius: '10px', padding: '1px 7px',
             }}>
               {processes.length}
@@ -91,8 +91,8 @@ export function LiveProcesses({ agents }: { agents: Agent[] }) {
               disabled={deploying}
               style={{
                 fontSize: '11px', fontWeight: 700, padding: '4px 12px', borderRadius: '10px',
-                border: '1px solid rgba(250,204,21,0.5)',
-                background: deploying ? 'rgba(250,204,21,0.1)' : 'rgba(250,204,21,0.15)',
+                border: '1px solid rgba(250, 204, 21, 0.5)',
+                background: deploying ? 'rgba(250, 204, 21, 0.1)' : 'rgba(250, 204, 21, 0.15)',
                 color: 'var(--yellow-bright)', cursor: deploying ? 'not-allowed' : 'pointer',
                 opacity: deploying ? 0.7 : 1,
               }}
@@ -109,9 +109,9 @@ export function LiveProcesses({ agents }: { agents: Agent[] }) {
         <div style={{
           fontSize: '11px', fontFamily: 'monospace', padding: '6px 10px',
           borderRadius: '10px', marginBottom: '10px',
-          background: deployOk ? 'rgba(74,222,128,0.1)' : 'rgba(239,68,68,0.1)',
+          background: deployOk ? 'var(--green-400-a12)' : 'rgba(239, 68, 68, 0.1)',
           color: deployOk ? 'var(--green-400)' : 'var(--red)',
-          border: `1px solid ${deployOk ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'}`,
+          border: `1px solid ${deployOk ? 'var(--green-400-a30)' : 'var(--red-500-a25)'}`,
         }}>
           {deployOk ? '' : ''} {deployLog}
         </div>
@@ -128,7 +128,7 @@ export function LiveProcesses({ agents }: { agents: Agent[] }) {
               display: 'flex', flexDirection: 'column', gap: '4px',
               padding: '10px 12px', borderRadius: '10px',
               background: 'var(--hover-bg)',
-              border: '1px solid rgba(74,222,128,0.2)',
+              border: '1px solid var(--green-400-a15)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{

@@ -253,7 +253,7 @@ export default function ConversationList({
                       fontWeight: act ? 600 : 450,
                       color: act ? 'var(--text-on-color)' : 'var(--text-secondary)',
                       background: act
-                        ? (f === 'iMessage' ? 'rgba(0,122,255,0.25)' : f === 'SMS' ? 'rgba(52,199,89,0.2)' : 'rgba(167,139,250,0.15)')
+                        ? (f === 'iMessage' ? 'rgba(0,122,255,0.25)' : f === 'SMS' ? 'rgba(52,199,89,0.2)' : 'var(--accent-a15)')
                         : 'transparent',
                       border: act ? 'none' : '1px solid var(--border)',
                       borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s',
@@ -339,7 +339,7 @@ export default function ConversationList({
               >
                 <div style={{
                   width: '36px', height: '36px', borderRadius: '50%',
-                  background: 'rgba(167,139,250,0.15)',
+                  background: 'var(--accent-a15)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: '14px', color: 'var(--accent)', fontWeight: 600, flexShrink: 0,
                 }}>
@@ -409,15 +409,15 @@ export default function ConversationList({
                     display: 'flex', alignItems: 'center', gap: '12px',
                     padding: isPinnedDivider ? '10px 6px 6px 14px' : '6px 6px 6px 14px',
                     justifyContent: 'flex-start',
-                    background: isFocused ? 'rgba(167,139,250,0.10)' : isSel ? 'rgba(0,122,255,0.08)' : 'transparent',
+                    background: isFocused ? 'var(--accent-a10)' : isSel ? 'rgba(0,122,255,0.08)' : 'transparent',
                     border: 'none', borderRadius: '10px', cursor: 'pointer',
                     textAlign: 'left', transition: 'background 0.15s', marginBottom: '2px',
-                    outline: isFocused ? '1px solid rgba(167,139,250,0.4)' : 'none',
+                    outline: isFocused ? '1px solid var(--accent-a40)' : 'none',
                     outlineOffset: '-1px',
                     borderTop: isPinnedDivider ? '1px solid var(--active-bg)' : 'none',
                   }}
                   onMouseEnter={e => { if (!isSel && !isFocused) e.currentTarget.style.background = 'var(--bg-white-04)' }}
-                  onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = isFocused ? 'rgba(167,139,250,0.10)' : 'transparent' }}
+                  onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = isFocused ? 'var(--accent-a10)' : 'transparent' }}
                 >
                   {(() => {
                     // Progressive fade: starts immediately from avatar-only (72px)
@@ -526,14 +526,14 @@ export default function ConversationList({
           </button>
           <button onClick={onBatchMarkUnread} style={{
             flex: 1, padding: '8px', fontSize: '12px', fontWeight: 600,
-            background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.2)',
+            background: 'var(--accent-a12)', border: '1px solid var(--accent-a15)',
             borderRadius: '8px', color: 'var(--accent-bright)', cursor: 'pointer',
           }}>
             Mark Unread ({selectedConvs.size})
           </button>
           <button onClick={onBatchDelete} style={{
             flex: 1, padding: '8px', fontSize: '12px', fontWeight: 600,
-            background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.2)',
+            background: 'var(--red-500-a12)', border: '1px solid var(--red-500-a20)',
             borderRadius: '8px', color: 'var(--red)', cursor: 'pointer',
           }}>
             Delete ({selectedConvs.size})

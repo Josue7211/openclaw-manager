@@ -70,13 +70,13 @@ export default function HomelabPage() {
       {data?.mock && (
         <div style={{
           marginBottom: '20px', padding: '20px 24px',
-          background: 'rgba(59, 130, 246, 0.08)',
-          border: '1px solid rgba(59, 130, 246, 0.25)',
+          background: 'var(--blue-a08)',
+          border: '1px solid var(--blue-a25)',
           borderRadius: '12px',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
             <span style={{ fontSize: '16px' }}>🖥️</span>
-            <span style={{ fontWeight: 600, fontSize: '14px', color: 'rgba(96, 165, 250, 1)' }}>Homelab not configured</span>
+            <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--blue-solid)' }}>Homelab not configured</span>
           </div>
           <p style={{ margin: '0 0 12px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
             Showing demo data. Add the following to <code style={{ background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px' }}>.env.local</code> and restart:
@@ -116,7 +116,7 @@ OPNSENSE_SECRET=your-api-secret`}
                       fontSize: '10px',
                       padding: '2px 8px',
                       borderRadius: '4px',
-                      background: node.status === 'online' ? 'rgba(59,165,92,0.15)' : 'rgba(237,66,69,0.15)',
+                      background: node.status === 'online' ? 'var(--emerald-a15)' : 'rgba(237,66,69,0.15)',
                       color: node.status === 'online' ? 'var(--green-bright)' : 'var(--red-bright)',
                       fontFamily: 'monospace',
                       textTransform: 'uppercase',
@@ -189,7 +189,7 @@ OPNSENSE_SECRET=your-api-secret`}
                           fontSize: '10px',
                           padding: '2px 7px',
                           borderRadius: '4px',
-                          background: vm.status === 'running' ? 'rgba(59,165,92,0.12)' : 'rgba(237,66,69,0.12)',
+                          background: vm.status === 'running' ? 'var(--emerald-a12)' : 'rgba(237,66,69,0.12)',
                           color: vm.status === 'running' ? 'var(--green-bright)' : 'var(--red-bright)',
                           fontFamily: 'monospace',
                           textTransform: 'uppercase',
@@ -228,7 +228,7 @@ OPNSENSE_SECRET=your-api-secret`}
                     fontSize: '10px',
                     padding: '2px 8px',
                     borderRadius: '4px',
-                    background: data.opnsense.status === 'online' ? 'rgba(59,165,92,0.15)' : 'rgba(237,66,69,0.15)',
+                    background: data.opnsense.status === 'online' ? 'var(--emerald-a15)' : 'rgba(237,66,69,0.15)',
                     color: data.opnsense.status === 'online' ? 'var(--green-bright)' : 'var(--red-bright)',
                     fontFamily: 'monospace',
                     textTransform: 'uppercase',

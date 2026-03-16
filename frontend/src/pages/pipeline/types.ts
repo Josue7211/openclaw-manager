@@ -73,9 +73,9 @@ export const CATEGORY_COLORS: Record<string, string> = {
 }
 
 export const STALE_TYPE_COLORS: Record<ItemType, { bg: string; color: string; border: string }> = {
-  todo: { bg: 'rgba(59,165,92,0.12)', color: 'var(--green)', border: 'rgba(59,165,92,0.25)' },
+  todo: { bg: 'var(--emerald-a12)', color: 'var(--green)', border: 'rgba(59, 165, 92, 0.25)' },
   mission: { bg: 'var(--purple-a12)', color: 'var(--accent-bright)', border: 'var(--border-accent)' },
-  idea: { bg: 'rgba(230,168,23,0.12)', color: 'var(--gold)', border: 'rgba(230,168,23,0.25)' },
+  idea: { bg: 'var(--gold-a12)', color: 'var(--gold)', border: 'var(--gold-a25)' },
 }
 
 export const STALE_TYPE_ICONS: Record<ItemType, React.ElementType> = {

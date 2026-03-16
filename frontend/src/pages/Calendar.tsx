@@ -125,7 +125,7 @@ export default function CalendarPage() {
   const activeTabStyle: React.CSSProperties = {
     ...btnStyle,
     background: 'var(--purple-a15)',
-    border: '1px solid rgba(155,132,236,0.4)',
+    border: '1px solid var(--purple-a40)',
     color: 'var(--accent-bright)',
   }
 

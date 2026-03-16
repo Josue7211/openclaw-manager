@@ -54,7 +54,7 @@ export function FilterDropdown({ label, value, options, onChange, colorMap }: {
           top: 'calc(100% + 4px)',
           left: 0,
           minWidth: '140px',
-          background: 'rgba(18, 18, 24, 0.96)',
+          background: 'var(--bg-modal)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
           border: '1px solid var(--border-hover)',

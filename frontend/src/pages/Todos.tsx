@@ -4,11 +4,11 @@
 import { useEffect, useState, useRef } from 'react'
 import { CheckSquare, Plus, Flame } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
-import { supabase } from '@/lib/supabase/client'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { emit } from '@/lib/event-bus'
 import { queryKeys } from '@/lib/query-keys'
+import { useSupabaseRealtime } from '@/lib/hooks/useSupabaseRealtime'
 import { todayISO } from '@/lib/utils'
 import { SkeletonList } from '@/components/Skeleton'
 import { useTodos } from '@/lib/hooks/useTodos'
@@ -78,19 +78,12 @@ export default function TodosPage() {
     }
   }, [todos])
 
-  useEffect(() => {
-    if (!supabase) return
-
-    const channel = supabase
-      .channel('todos-page-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, () => {
-        invalidateTodos()
-        emit('todo-changed', null, 'supabase')
-      })
-      .subscribe()
-
-    return () => { supabase?.removeChannel(channel) }
-  }, [invalidateTodos])
+  useSupabaseRealtime('todos-page-realtime', 'todos', {
+    onEvent: () => {
+      invalidateTodos()
+      emit('todo-changed', null, 'supabase')
+    },
+  })
 
   const updateDueDateMutation = useMutation({
     mutationFn: async ({ id, due_date }: { id: string; due_date: string | null }) => {

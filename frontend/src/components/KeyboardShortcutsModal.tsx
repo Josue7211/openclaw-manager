@@ -54,7 +54,7 @@ export default function KeyboardShortcutsModal({
         style={{
         position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
         width: '480px', maxWidth: 'calc(100vw - 32px)', maxHeight: 'calc(100vh - 120px)',
-        background: 'rgba(18, 18, 24, 0.96)', backdropFilter: 'blur(32px) saturate(180%)',
+        background: 'var(--bg-modal)', backdropFilter: 'blur(32px) saturate(180%)',
         WebkitBackdropFilter: 'blur(32px) saturate(180%)',
         border: '1px solid var(--hover-bg-bright)', borderRadius: '16px',
         boxShadow: '0 24px 80px var(--overlay-heavy), 0 0 0 1px var(--bg-white-04)',

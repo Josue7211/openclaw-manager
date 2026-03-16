@@ -27,7 +27,7 @@ export function MissionFilters({
             onClick={() => onTabChange(key)}
             style={{
               padding: '5px 14px', borderRadius: '20px',
-              border: `1px solid ${active ? 'rgba(155,132,236,0.4)' : 'var(--border)'}`,
+              border: `1px solid ${active ? 'var(--purple-a40)' : 'var(--border)'}`,
               background: active ? 'var(--purple-a12)' : 'transparent',
               color: active ? 'var(--accent-bright)' : 'var(--text-secondary)',
               fontSize: '12px', fontWeight: active ? 600 : 400,
