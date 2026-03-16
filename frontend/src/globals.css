@@ -194,37 +194,114 @@ input, textarea, [contenteditable="true"], code, pre, kbd {
 /* ── Light theme overrides ── */
 
 [data-theme="light"] {
+  /* ── Surface layers ── */
   --bg-base: #f5f5f7;
   --bg-panel: rgba(255, 255, 255, 0.85);
   --bg-card: rgba(255, 255, 255, 0.75);
   --bg-card-hover: rgba(255, 255, 255, 0.9);
   --bg-elevated: rgba(0, 0, 0, 0.04);
   --bg-card-solid: #ffffff;
+
+  /* ── Borders ── */
   --border: rgba(0, 0, 0, 0.08);
-  --border-accent: rgba(155, 132, 236, 0.3);
+  --border-accent: rgba(124, 88, 222, 0.3);
   --border-hover: rgba(0, 0, 0, 0.15);
+  --border-strong: rgba(0, 0, 0, 0.12);
+  --border-subtle: rgba(0, 0, 0, 0.06);
+
+  /* ── Text ── */
   --text-primary: #1d1d1f;
   --text-secondary: #6e6e73;
   --text-muted: #86868b;
+
+  /* ── Primary accent — darker purple for white backgrounds ── */
+  --accent: #7c3aed;
+  --accent-dim: #6d28d9;
+  --accent-bright: #8b5cf6;
+
+  /* ── Green — darker for contrast on white ── */
+  --green: #059669;
+  --green-bright: #10b981;
+  --green-400: #16a34a;
+  --green-500: #16a34a;
+
+  /* ── Red — darker for contrast on white ── */
+  --red: #dc2626;
+  --red-bright: #ef4444;
+  --red-500: #dc2626;
+
+  /* ── Secondary accent — darker indigo ── */
+  --accent-secondary: #6366f1;
+  --accent-secondary-dim: #4f46e5;
+  --accent-secondary-bright: #818cf8;
+
+  /* ── Blue — darker for contrast ── */
+  --accent-blue: #6366f1;
+  --blue-bright: #818cf8;
+  --blue: #2563eb;
+
+  /* ── Purple ── */
+  --purple: #7c3aed;
+
+  /* ── Cyan — darker teal for legibility ── */
+  --cyan: #0891b2;
+
+  /* ── Pink — deeper for contrast ── */
+  --pink: #db2777;
+
+  /* ── Orange — richer for contrast ── */
+  --orange: #ea580c;
+
+  /* ── Yellow / Amber / Gold — darkened for white backgrounds ── */
+  --amber: #d97706;
+  --yellow: #ca8a04;
+  --yellow-bright: #eab308;
+  --gold: #b45309;
+  --amber-warm: #d97706;
+
+  /* ── Apple system colors (light variants) ── */
+  --apple-cyan: #32ade6;
+  --apple-red: #ff3b30;
+  --apple-red-dark: #ff3b30;
+  --apple-yellow: #f5a623;
+
+  /* ── Semantic ── */
+  --warning: #d97706;
+
+  /* ── Top ambient glow — subtler on light ── */
+  --glow-top-rgb: 124, 58, 237;
+  --glow-purple: 0 0 40px rgba(124, 58, 237, 0.06);
+
+  /* ── Glass ── */
   --glass-bg: rgba(255, 255, 255, 0.7);
   --glass-border: rgba(0, 0, 0, 0.06);
+
+  /* ── Hover/active — dark overlays on white ── */
   --hover-bg: rgba(0, 0, 0, 0.04);
   --hover-bg-bright: rgba(0, 0, 0, 0.08);
   --active-bg: rgba(0, 0, 0, 0.06);
+
+  /* ── White-alpha → black-alpha surface tints ── */
   --bg-white-02: rgba(0, 0, 0, 0.02);
   --bg-white-03: rgba(0, 0, 0, 0.03);
   --bg-white-04: rgba(0, 0, 0, 0.04);
   --bg-white-15: rgba(0, 0, 0, 0.1);
 
-  /* Dark surface overrides for light theme */
-  --border-strong: rgba(0, 0, 0, 0.12);
-  --border-subtle: rgba(0, 0, 0, 0.06);
-  --bg-inset: rgba(0, 0, 0, 0.03);
+  /* ── Purple-alpha tints — slightly more opaque on white ── */
+  --purple-a08: rgba(124, 58, 237, 0.08);
+  --purple-a10: rgba(124, 58, 237, 0.1);
+  --purple-a12: rgba(124, 58, 237, 0.1);
+  --purple-a15: rgba(124, 58, 237, 0.12);
+  --purple-a20: rgba(124, 58, 237, 0.15);
+  --purple-a30: rgba(124, 58, 237, 0.2);
 
-  /* Slightly darker status colors for light backgrounds */
-  --green-500: #16a34a;
-  --red-500: #dc2626;
-  --yellow: #ca8a04;
+  /* ── Overlays — heavier on light to dim properly ── */
+  --overlay-light: rgba(0, 0, 0, 0.3);
+  --overlay: rgba(0, 0, 0, 0.4);
+  --overlay-heavy: rgba(0, 0, 0, 0.55);
+
+  /* ── Inset background ── */
+  --bg-inset: rgba(0, 0, 0, 0.03);
 }
 
 /* ── Keyframes ── */
