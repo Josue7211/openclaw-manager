@@ -6,6 +6,7 @@ use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
 
+/// Build the search router (cross-table search across todos and missions).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/search", get(get_search))

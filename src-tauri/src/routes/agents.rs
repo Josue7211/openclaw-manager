@@ -32,6 +32,7 @@ const ALLOWED_FIELDS: &[&str] = &[
 
 // ── Router ───────────────────────────────────────────────────────────────────
 
+/// Build the agents router (CRUD + active-coders + subagent detection).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/agents", get(get_agents).patch(update_agent))

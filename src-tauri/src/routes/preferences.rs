@@ -19,6 +19,7 @@ use crate::supabase::SupabaseClient;
 const TABLE: &str = "user_preferences";
 const USER_ID: &str = "default";
 
+/// Build the user-preferences router (get/patch JSONB preferences in Supabase).
 pub fn router() -> Router<AppState> {
     Router::new().route(
         "/user-preferences",

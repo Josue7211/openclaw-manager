@@ -6,6 +6,7 @@ use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
 
+/// Build the ideas router (CRUD with auto-mission creation on approval).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/ideas", get(get_ideas).post(post_idea).patch(patch_idea).delete(delete_idea))

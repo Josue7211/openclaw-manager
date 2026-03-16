@@ -67,6 +67,7 @@ pub struct FileLogLayer {
 }
 
 impl FileLogLayer {
+    /// Create a new file-logging layer, opening today's log file.
     pub fn new() -> Self {
         let dir = log_dir();
         if let Err(e) = fs::create_dir_all(&dir) {

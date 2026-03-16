@@ -6,6 +6,7 @@ use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
 
+/// Build the todos router (CRUD via Supabase).
 pub fn router() -> Router<AppState> {
     Router::new().route("/todos", get(get_todos).post(post_todo).patch(patch_todo).delete(delete_todo))
 }

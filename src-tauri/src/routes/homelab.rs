@@ -477,6 +477,7 @@ fn format_bytes_human(bytes: u64) -> String {
 
 // ── Router ──────────────────────────────────────────────────────────────────
 
+/// Build the homelab router (Proxmox nodes/VMs + OPNsense firewall status).
 pub fn router() -> Router<AppState> {
     Router::new().route("/homelab", get(get_homelab))
 }

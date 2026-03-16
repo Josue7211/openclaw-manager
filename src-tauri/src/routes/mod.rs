@@ -34,6 +34,7 @@ pub mod util;
 pub mod workflow_notes;
 pub mod workspace;
 
+/// Build the top-level API router, nesting all sub-module routes.
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/health", get(health))

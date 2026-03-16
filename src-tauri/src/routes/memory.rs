@@ -5,6 +5,7 @@ use std::path::Path;
 use crate::error::AppError;
 use crate::server::AppState;
 
+/// Build the memory router (list recent OpenClaw memory entries).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/memory", get(get_memory))

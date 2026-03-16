@@ -2798,6 +2798,7 @@ async fn get_messages_debug(State(state): State<AppState>) -> Response {
     }
 }
 
+/// Build the messages router (iMessage via BlueBubbles: conversations, send, attachments, SSE).
 pub fn router() -> Router<AppState> {
     let r = Router::new()
         .route("/messages", get(get_messages).post(post_message))

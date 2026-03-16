@@ -233,6 +233,7 @@ async fn fetch_emails(creds: &Credentials, folder: &str, limit: u32) -> anyhow::
 
 // ── Router ──────────────────────────────────────────────────────────────────
 
+/// Build the email router (IMAP fetch + read/unread flag toggling).
 pub fn router() -> Router<AppState> {
     Router::new().route("/email", get(get_emails).patch(patch_email))
 }

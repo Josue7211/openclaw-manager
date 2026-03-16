@@ -8,6 +8,7 @@ use crate::supabase::SupabaseClient;
 
 // ── Router ──────────────────────────────────────────────────────────────────
 
+/// Build the reviews router (daily reviews, weekly reviews, retrospectives).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/daily-review", get(get_daily_review).post(post_daily_review))

@@ -6,6 +6,7 @@ use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
 
+/// Build the changelog router (list, create, delete entries).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/changelog", get(get_changelog).post(post_changelog).delete(delete_changelog))

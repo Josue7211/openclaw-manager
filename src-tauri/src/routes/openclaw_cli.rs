@@ -7,6 +7,7 @@ use tokio::process::Command;
 use crate::error::AppError;
 use crate::server::AppState;
 
+/// Build the OpenClaw CLI router (sessions, subagents, cron jobs).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/sessions", get(get_sessions))

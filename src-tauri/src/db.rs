@@ -1,5 +1,6 @@
 use sqlx::SqlitePool;
 
+/// Initialize the local SQLite database, running pending migrations.
 pub async fn init() -> anyhow::Result<SqlitePool> {
     let db_path = dirs::data_local_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))

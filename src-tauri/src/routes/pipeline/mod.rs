@@ -9,6 +9,7 @@ mod events;
 use axum::{routing::{get, post}, Router};
 use crate::server::AppState;
 
+/// Build the pipeline router (spawn, complete, review, events).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/pipeline/spawn", post(spawn::pipeline_spawn))

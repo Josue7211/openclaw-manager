@@ -77,6 +77,7 @@ impl AppState {
     }
 }
 
+/// Start the embedded Axum HTTP server on localhost:3000 with all API routes.
 pub async fn start(
     app_handle: tauri::AppHandle,
     secrets: std::collections::HashMap<String, String>,

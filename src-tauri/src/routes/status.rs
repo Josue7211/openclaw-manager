@@ -107,6 +107,7 @@ async fn write_registry(registry: &Registry) {
 
 // ── Router ───────────────────────────────────────────────────────────────────
 
+/// Build the status router (system status, connections, health, Tailscale, processes, feature flags).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/status", get(get_status))

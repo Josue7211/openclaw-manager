@@ -8,6 +8,7 @@ use crate::supabase::SupabaseClient;
 
 // ── Router ──────────────────────────────────────────────────────────────────
 
+/// Build the habits router (CRUD + daily entry toggling).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/habits", get(get_habits).post(post_habit).delete(delete_habit))

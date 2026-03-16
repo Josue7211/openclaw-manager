@@ -6,6 +6,7 @@ use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
 
+/// Build the decisions router (CRUD with search).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/decisions", get(get_decisions).post(post_decision).patch(patch_decision).delete(delete_decision))

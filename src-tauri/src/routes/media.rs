@@ -514,6 +514,7 @@ async fn get_media(State(state): State<AppState>) -> Result<Json<Value>, AppErro
 
 // ── Router ──────────────────────────────────────────────────────────────────
 
+/// Build the `/media` sub-router (Plex now-playing, Sonarr/Radarr recently added + upcoming).
 pub fn router() -> Router<AppState> {
     Router::new().route("/", get(get_media))
 }

@@ -19,6 +19,7 @@ fn value_hash(v: &Value) -> u64 {
     hasher.finish()
 }
 
+/// Build the cache router (read/refresh Supabase cache rows).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/cache", get(get_cache))

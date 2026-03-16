@@ -6,6 +6,7 @@ use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
 
+/// Build the knowledge router (search, create, delete entries).
 pub fn router() -> Router<AppState> {
     Router::new().route(
         "/knowledge",

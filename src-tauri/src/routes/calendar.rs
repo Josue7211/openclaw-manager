@@ -23,6 +23,7 @@ struct CalendarEvent {
 
 // ── Router ──────────────────────────────────────────────────────────────────
 
+/// Build the calendar router (CalDAV event discovery and fetching).
 pub fn router() -> Router<AppState> {
     Router::new().route("/calendar", get(get_events))
 }

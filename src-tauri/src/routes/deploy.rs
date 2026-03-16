@@ -5,6 +5,7 @@ use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
 
+/// Build the deploy router (transition awaiting_deploy agents to active).
 pub fn router() -> Router<AppState> {
     Router::new().route("/deploy", post(post_deploy))
 }

@@ -22,6 +22,7 @@ const STATUS_FAILED: &str = "failed";
 
 // ── Router ───────────────────────────────────────────────────────────────────
 
+/// Build the missions router (CRUD, event ingestion, agent sync).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/missions", get(get_missions).post(create_mission).patch(update_mission).delete(delete_mission))

@@ -1,3 +1,4 @@
+/// Return the path to the OpenClaw data directory (`$OPENCLAW_DIR` or `~/.openclaw`).
 #[tauri::command]
 pub fn get_openclaw_dir() -> String {
     std::env::var("OPENCLAW_DIR").unwrap_or_else(|_| {

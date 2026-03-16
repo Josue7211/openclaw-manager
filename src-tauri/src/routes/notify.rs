@@ -8,6 +8,7 @@ use crate::server::AppState;
 
 // ── Router ───────────────────────────────────────────────────────────────────
 
+/// Build the notify router (send push notifications via ntfy).
 pub fn router() -> Router<AppState> {
     Router::new().route("/notify", post(send_notification))
 }

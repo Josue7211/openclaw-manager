@@ -977,6 +977,7 @@ async fn handle_ws(mut socket: WebSocket, state: AppState) {
 // Router
 // ---------------------------------------------------------------------------
 
+/// Build the `/chat` sub-router (send messages, history, SSE stream, WebSocket, images).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", post(post_chat))

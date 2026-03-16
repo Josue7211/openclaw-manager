@@ -7,6 +7,7 @@ const SECRET_PATTERNS: &[&str] = &[
     r"\b([a-f0-9]{32,})\b",
 ];
 
+/// Redact secrets (API keys, tokens, JWTs, long hex strings) from a string for safe logging.
 pub fn redact(input: &str) -> String {
     let mut result = input.to_string();
     for pattern_str in SECRET_PATTERNS {

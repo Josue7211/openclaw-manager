@@ -28,6 +28,7 @@ static OAUTH_NONCE: Mutex<Option<String>> = Mutex::new(None);
 // Router
 // ---------------------------------------------------------------------------
 
+/// Build the `/auth` sub-router (OAuth callback, nonce, tauri-session).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route(
@@ -67,11 +68,7 @@ fn code_file_path() -> PathBuf {
     std::env::temp_dir().join("mc-tauri-auth-code")
 }
 
-/// Store a pending OAuth code to the one-time file.
-///
-/// This is the Rust equivalent of the TypeScript `setPendingCode`.
-/// It is `pub` so that sibling route modules (e.g. an auth callback handler)
-/// can call it directly without going through HTTP.
+/// Store a pending OAuth authorization code to a one-time temp file (Unix: mode 0o600).
 #[cfg(unix)]
 pub async fn set_pending_code(code: &str) -> Result<(), AppError> {
     use std::os::unix::fs::OpenOptionsExt;
@@ -101,6 +98,7 @@ pub async fn set_pending_code(code: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Store a pending OAuth authorization code to a one-time temp file (non-Unix fallback).
 #[cfg(not(unix))]
 pub async fn set_pending_code(code: &str) -> Result<(), AppError> {
     let path = code_file_path();

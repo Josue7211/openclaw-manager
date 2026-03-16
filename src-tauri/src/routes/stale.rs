@@ -9,6 +9,7 @@ use crate::supabase::SupabaseClient;
 /// Stale-items threshold: items untouched for more than 3 days.
 const STALE_DAYS: i64 = 3;
 
+/// Build the stale-items router (find, snooze, complete, or delete stale todos/missions/ideas).
 pub fn router() -> Router<AppState> {
     Router::new().route("/stale", get(get_stale).patch(patch_stale).delete(delete_stale))
 }

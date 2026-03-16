@@ -7,6 +7,7 @@ use crate::server::AppState;
 
 // ── Router ──────────────────────────────────────────────────────────────────
 
+/// Build the reminders router (proxy to Mac-Bridge for Apple Reminders).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/reminders", get(get_reminders).patch(patch_reminder))

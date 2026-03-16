@@ -27,6 +27,7 @@ const CORE_FILES: &[&str] = &[
 // Router
 // ---------------------------------------------------------------------------
 
+/// Build the `/workspace` sub-router (list, read, write, delete workspace files).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/files", get(list_files))

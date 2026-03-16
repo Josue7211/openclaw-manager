@@ -6,6 +6,7 @@ use crate::error::AppError;
 use crate::server::AppState;
 use crate::supabase::SupabaseClient;
 
+/// Build the quick-capture router (Note/Task/Idea/Decision inbox).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/quick-capture", post(post_quick_capture))
