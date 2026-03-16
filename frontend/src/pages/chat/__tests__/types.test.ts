@@ -1,12 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
-  MODEL_OPTIONS,
   cleanText,
   cleanMessages,
   SLASH_CMDS,
   isSlashCommand,
 } from '../types'
-import type { ChatMessage } from '../types'
+import type { ChatMessage, ModelOption, ModelsResponse } from '../types'
 
 /* ── cleanText ────────────────────────────────────────────────────────── */
 
@@ -149,33 +148,39 @@ describe('SLASH_CMDS', () => {
   })
 })
 
-/* ── MODEL_OPTIONS ────────────────────────────────────────────────────── */
+/* ── ModelOption / ModelsResponse types ───────────────────────────────── */
 
-describe('MODEL_OPTIONS', () => {
-  it('has exactly 3 model options', () => {
-    expect(MODEL_OPTIONS).toHaveLength(3)
-  })
-
-  it('each option has value and label', () => {
-    for (const option of MODEL_OPTIONS) {
-      expect(typeof option.value).toBe('string')
-      expect(typeof option.label).toBe('string')
-      expect(option.value.length).toBeGreaterThan(0)
-      expect(option.label.length).toBeGreaterThan(0)
+describe('ModelOption type', () => {
+  it('satisfies the interface shape', () => {
+    const model: ModelOption = {
+      id: 'anthropic/claude-sonnet-4-6',
+      name: 'Sonnet 4.6',
+      provider: 'anthropic',
+      local: false,
     }
+    expect(model.id).toBe('anthropic/claude-sonnet-4-6')
+    expect(model.local).toBe(false)
   })
 
-  it('values are claude model identifiers', () => {
-    const values = MODEL_OPTIONS.map(o => o.value)
-    expect(values).toContain('claude-sonnet-4-6')
-    expect(values).toContain('claude-opus-4-6')
-    expect(values).toContain('claude-haiku-4-5')
+  it('supports optional contextWindow', () => {
+    const model: ModelOption = {
+      id: 'llama-desktop/qwen',
+      name: 'Qwen Local',
+      provider: 'llama-desktop',
+      local: true,
+      contextWindow: 102400,
+    }
+    expect(model.contextWindow).toBe(102400)
   })
+})
 
-  it('labels are human-readable short names', () => {
-    const labels = MODEL_OPTIONS.map(o => o.label)
-    expect(labels).toContain('Sonnet 4.6')
-    expect(labels).toContain('Opus 4.6')
-    expect(labels).toContain('Haiku 4.5')
+describe('ModelsResponse type', () => {
+  it('satisfies the interface shape', () => {
+    const resp: ModelsResponse = {
+      models: [{ id: 'a/b', name: 'B', provider: 'a', local: false }],
+      currentModel: 'a/b',
+    }
+    expect(resp.models).toHaveLength(1)
+    expect(resp.currentModel).toBe('a/b')
   })
 })

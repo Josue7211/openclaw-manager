@@ -925,7 +925,7 @@ export default function SettingsModules() {
                     padding: '3px 8px', fontSize: '10px',
                     fontWeight: sidebarTitleLayout === opt ? 600 : 450,
                     color: sidebarTitleLayout === opt ? 'var(--text-on-color)' : 'var(--text-secondary)',
-                    background: sidebarTitleLayout === opt ? 'rgba(167, 139, 250, 0.15)' : 'transparent',
+                    background: sidebarTitleLayout === opt ? 'var(--accent-a15)' : 'transparent',
                     border: `1px solid ${sidebarTitleLayout === opt ? 'var(--border-accent)' : 'var(--border)'}`,
                     borderRadius: '6px', cursor: 'pointer',
                   }}
@@ -979,7 +979,7 @@ export default function SettingsModules() {
                     </button>
                     <button
                       onClick={() => permanentlyDelete(d.href)}
-                      style={{ display: 'flex', alignItems: 'center', padding: '2px 6px', background: 'transparent', border: '1px solid rgba(248,113,113,0.3)', borderRadius: '4px', color: 'var(--red)', cursor: 'pointer', fontSize: '10px', fontWeight: 600 }}
+                      style={{ display: 'flex', alignItems: 'center', padding: '2px 6px', background: 'transparent', border: '1px solid var(--red-a30)', borderRadius: '4px', color: 'var(--red)', cursor: 'pointer', fontSize: '10px', fontWeight: 600 }}
                     >
                       Delete
                     </button>
@@ -990,7 +990,7 @@ export default function SettingsModules() {
                 <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', marginTop: '4px' }}>
                   <button
                     onClick={emptyRecycleBin}
-                    style={{ ...btnSecondary, padding: '4px 10px', fontSize: '10px', color: 'var(--red)', borderColor: 'rgba(248,113,113,0.3)' }}
+                    style={{ ...btnSecondary, padding: '4px 10px', fontSize: '10px', color: 'var(--red)', borderColor: 'var(--red-a30)' }}
                   >
                     Empty Recycle Bin
                   </button>

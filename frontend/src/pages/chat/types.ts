@@ -15,11 +15,18 @@ export interface OptimisticMsg {
   images?: string[]
 }
 
-export const MODEL_OPTIONS = [
-  { value: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
-  { value: 'claude-opus-4-6', label: 'Opus 4.6' },
-  { value: 'claude-haiku-4-5', label: 'Haiku 4.5' },
-] as const
+export interface ModelOption {
+  id: string
+  name: string
+  provider: string
+  local: boolean
+  contextWindow?: number
+}
+
+export interface ModelsResponse {
+  models: ModelOption[]
+  currentModel: string
+}
 
 /** Strip [timestamp] prefix and [[reply_to]] tags from message text */
 export function cleanText(text: string): string {

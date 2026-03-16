@@ -265,19 +265,7 @@ const NavSection = React.memo(function NavSection({
                       if (e.key === 'Enter') onEditingComplete?.(e.currentTarget.value)
                       if (e.key === 'Escape') onEditingCancel?.()
                     }}
-                    style={{
-                      flex: 1,
-                      background: 'transparent',
-                      border: 'none',
-                      borderBottom: '1px solid var(--accent)',
-                      color: '#fff',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      outline: 'none',
-                      padding: '4px 0',
-                      minWidth: 0,
-                      fontFamily: 'inherit',
-                    }}
+                    style={editingInputStyle}
                   />
                 </div>
               )
@@ -1214,20 +1202,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
                       if (e.key === 'Enter') handleCatEditComplete(e.currentTarget.value)
                       if (e.key === 'Escape') setEditingCatId(null)
                     }}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      borderBottom: '1px solid var(--accent)',
-                      color: 'var(--text-primary)',
-                      fontSize: '10px',
-                      fontWeight: 700,
-                      letterSpacing: '0.1em',
-                      textTransform: 'uppercase',
-                      outline: 'none',
-                      padding: '2px 0',
-                      width: '100%',
-                      fontFamily: 'inherit',
-                    }}
+                    style={catRenameInputStyle}
                   />
                 </div>
               ) : (

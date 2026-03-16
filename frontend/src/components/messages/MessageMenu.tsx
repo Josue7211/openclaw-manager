@@ -123,7 +123,7 @@ function MessageMenu({ x, y, msg, onReact, onReply, onCopy, onClose }: {
         animation: 'menuIn 0.2s var(--ease-spring)',
       }}>
         <div style={{
-          background: 'rgba(30,30,38,0.85)',
+          background: 'var(--bg-popover)',
           backdropFilter: 'blur(40px)',
           WebkitBackdropFilter: 'blur(40px)',
           border: '1px solid var(--border-hover)',
@@ -154,7 +154,7 @@ function MessageMenu({ x, y, msg, onReact, onReply, onCopy, onClose }: {
         </div>
 
         <div style={{
-          background: 'rgba(30,30,38,0.85)',
+          background: 'var(--bg-popover)',
           backdropFilter: 'blur(40px)',
           WebkitBackdropFilter: 'blur(40px)',
           border: '1px solid var(--border-hover)',

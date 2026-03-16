@@ -181,7 +181,7 @@ function StepSupabase({ onNext, onBack }: StepProps) {
       {envConfigured ? (
         <div style={{
           padding: '12px 14px', borderRadius: '10px',
-          background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.15)',
+          background: 'rgba(52,211,153,0.08)', border: '1px solid var(--green-a15)',
           fontSize: '12px', color: 'var(--green)', display: 'flex', alignItems: 'center', gap: '8px',
         }}>
           <CheckCircle size={14} />
@@ -504,7 +504,7 @@ function StepDone({ onFinish }: { onFinish: () => void }) {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '8px 0' }}>
       <div style={{
         width: '64px', height: '64px', borderRadius: '50%',
-        background: 'rgba(52,211,153,0.12)',
+        background: 'var(--green-a12)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
         <Rocket size={28} style={{ color: 'var(--green)' }} />
@@ -576,7 +576,7 @@ function TestResult({ status, errorMsg }: { status: TestStatus; errorMsg: string
   if (status === 'testing') return (
     <div style={{
       padding: '8px 12px', borderRadius: '8px', fontSize: '12px',
-      background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.12)',
+      background: 'var(--accent-a10)', border: '1px solid var(--accent-a12)',
       color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '6px',
     }}>
       <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
@@ -586,7 +586,7 @@ function TestResult({ status, errorMsg }: { status: TestStatus; errorMsg: string
   if (status === 'ok') return (
     <div style={{
       padding: '8px 12px', borderRadius: '8px', fontSize: '12px',
-      background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.15)',
+      background: 'rgba(52,211,153,0.08)', border: '1px solid var(--green-a15)',
       color: 'var(--green)', display: 'flex', alignItems: 'center', gap: '6px',
     }}>
       <CheckCircle size={12} />
@@ -596,7 +596,7 @@ function TestResult({ status, errorMsg }: { status: TestStatus; errorMsg: string
   return (
     <div style={{
       padding: '8px 12px', borderRadius: '8px', fontSize: '12px',
-      background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.15)',
+      background: 'var(--red-a08)', border: '1px solid var(--red-a15)',
       color: 'var(--red)', lineHeight: 1.4,
     }}>
       Connection failed{errorMsg ? `: ${errorMsg}` : ''}

@@ -140,7 +140,7 @@ export default function MissionsPage() {
         ) : error ? (
           <div style={{
             padding: '20px', borderRadius: '10px',
-            background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+            background: 'var(--red-a08)', border: '1px solid var(--red-500-a20)',
             color: 'var(--red-500)', fontSize: '13px', fontFamily: 'monospace',
           }}>
             Error: {error}

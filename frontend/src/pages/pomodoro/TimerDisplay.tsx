@@ -78,7 +78,7 @@ export default function TimerDisplay({
     <div style={{
       textAlign: 'center', padding: '6px 24px',
       background: 'var(--bg-base)', borderRadius: '12px',
-      border: `1px solid ${completionPrompt ? 'rgba(250,204,21,0.35)' : accentBorder}`,
+      border: `1px solid ${completionPrompt ? 'var(--yellow-bright-a35)' : accentBorder}`,
       transition: 'border-color 0.4s',
       position: 'relative', overflow: 'hidden',
       flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',

@@ -142,7 +142,7 @@ export default function SettingsKeybindings() {
                 borderRadius: '6px',
                 fontSize: '12px',
                 fontFamily: "'JetBrains Mono', monospace",
-                background: 'rgba(167,139,250,0.1)',
+                background: 'var(--accent-a10)',
                 border: '1px solid var(--accent)',
                 color: 'var(--accent)',
                 textAlign: 'center',
@@ -192,7 +192,7 @@ export default function SettingsKeybindings() {
                     updateKeybinding(b.id, { modifier: next })
                   }}
                   title="Click to change modifier"
-                  style={{ ...kbdStyle, cursor: 'pointer', background: 'rgba(167,139,250,0.1)' }}
+                  style={{ ...kbdStyle, cursor: 'pointer', background: 'var(--accent-a10)' }}
                 >
                   {modLabel(getBindingMod(b))}
                 </button>

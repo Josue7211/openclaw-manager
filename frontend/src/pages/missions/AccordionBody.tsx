@@ -350,7 +350,7 @@ export function AccordionBody({ missionId, mission, agent }: { missionId: string
           height: 'calc(100% + 8px)',
           background: 'var(--text-primary)',
           borderRadius: '2px',
-          boxShadow: '0 0 4px 1px rgba(155,132,236,0.9), 0 0 8px 3px rgba(155,132,236,0.4)',
+          boxShadow: '0 0 4px 1px rgba(155,132,236,0.9), 0 0 8px 3px var(--purple-a40)',
           zIndex: 3,
           pointerEvents: 'none',
           transition: isDragging ? 'none' : 'left 0.1s ease',

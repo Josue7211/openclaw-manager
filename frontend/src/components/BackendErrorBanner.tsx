@@ -9,7 +9,7 @@ export function BackendErrorBanner({ label }: Props = {}) {
   return (
     <div style={{
       padding: '8px 16px', marginBottom: '16px', borderRadius: '10px',
-      background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
+      background: 'var(--red-500-a12)', border: '1px solid var(--red-500-a25)',
       fontSize: '12px', color: 'var(--red)', display: 'flex', alignItems: 'center', gap: '8px',
     }}>
       <Wifi size={12} /> {label || 'Backend unreachable'} — showing cached data

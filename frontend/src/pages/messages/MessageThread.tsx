@@ -567,7 +567,7 @@ export default function MessageThread({
                               <a key={att.guid} href={src} target="_blank" rel="noreferrer"
                                 onClick={e => e.stopPropagation()} style={{
                                   display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px',
-                                  background: fromMe ? 'rgba(255,255,255,0.12)' : 'var(--bg-white-04)',
+                                  background: fromMe ? 'var(--bg-white-12)' : 'var(--bg-white-04)',
                                   borderRadius: '10px', textDecoration: 'none',
                                   border: fromMe ? '1px solid var(--bg-white-15)' : '1px solid var(--border)',
                                 }}>

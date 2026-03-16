@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AGENT_STATUS, MISSION_STATUS } from '@/lib/constants'
 import type { Mission } from '@/lib/types'
 import type { Agent } from './types'
+import type { ModelOption } from '../chat/types'
 
 
 function StatusDot({ active }: { active: boolean }) {
@@ -22,9 +23,10 @@ interface AgentCardProps {
   agent: Agent
   onSave: (id: string, fields: { display_name: string; emoji: string; role: string; model: string }) => Promise<void>
   activeMission?: Mission | null
+  models?: ModelOption[]
 }
 
-export function AgentCard({ agent, onSave, activeMission }: AgentCardProps) {
+export function AgentCard({ agent, onSave, activeMission, models = [] }: AgentCardProps) {
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(agent.display_name)
   const [emoji, setEmoji] = useState(agent.emoji)
@@ -55,7 +57,7 @@ export function AgentCard({ agent, onSave, activeMission }: AgentCardProps) {
       background: 'var(--bg-card)',
       backdropFilter: 'blur(24px)',
       WebkitBackdropFilter: 'blur(24px)',
-      border: `1px solid ${active ? 'rgba(74,222,128,0.3)' : awaitingDeploy ? 'rgba(250,204,21,0.35)' : 'var(--accent)44'}`,
+      border: `1px solid ${active ? 'var(--green-400-a30)' : awaitingDeploy ? 'var(--yellow-bright-a35)' : 'var(--accent)44'}`,
       borderRadius: '16px',
       padding: '20px',
       display: 'flex',
@@ -109,17 +111,24 @@ export function AgentCard({ agent, onSave, activeMission }: AgentCardProps) {
                 borderRadius: '10px', padding: '5px 8px', color: 'var(--text-primary)',
               }}
             />
-            <input
+            <select
               value={model}
               onChange={e => setModel(e.target.value)}
-              placeholder="Model (e.g. claude-sonnet-4-6)"
               aria-label="Agent model"
               style={{
                 fontSize: '11px', fontFamily: 'monospace',
                 background: 'var(--bg)', border: '1px solid var(--border)',
                 borderRadius: '10px', padding: '5px 8px', color: 'var(--text-secondary)',
+                cursor: 'pointer',
               }}
-            />
+            >
+              {model && !models.some(m => m.id === model) && (
+                <option value={model}>{model}</option>
+              )}
+              {models.map(m => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
@@ -136,7 +145,7 @@ export function AgentCard({ agent, onSave, activeMission }: AgentCardProps) {
                 background: 'var(--hover-bg)', border: '1px solid var(--border)',
                 borderRadius: '4px', padding: '2px 7px',
               }}>
-                {agent.model}
+                {models.find(m => m.id === agent.model)?.name ?? agent.model}
               </span>
             )}
           </div>
@@ -148,8 +157,8 @@ export function AgentCard({ agent, onSave, activeMission }: AgentCardProps) {
           <span style={{
             fontSize: '11px', fontWeight: 700,
             color: 'var(--yellow-bright)',
-            background: 'rgba(250,204,21,0.12)',
-            border: '1px solid rgba(250,204,21,0.35)',
+            background: 'var(--yellow-bright-a12)',
+            border: '1px solid var(--yellow-bright-a35)',
             borderRadius: '10px', padding: '2px 8px',
             animation: 'pulse-dot 2s ease-in-out infinite',
           }}>

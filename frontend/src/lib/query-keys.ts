@@ -19,6 +19,7 @@ export const queryKeys = {
   ideas: (status?: string) => ['ideas', status] as const,
   missionEvents: (id: string) => ['mission-events', id] as const,
   chatHistory: ['chat', 'history'] as const,
+  chatModels: ['chat', 'models'] as const,
   subagentsActive: ['subagents', 'active'] as const,
   connections: ['status', 'connections'] as const,
   tailscalePeers: ['status', 'tailscale'] as const,

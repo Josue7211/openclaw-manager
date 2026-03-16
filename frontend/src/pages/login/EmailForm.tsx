@@ -45,7 +45,7 @@ export function EmailForm({ email, password, loading, onEmailChange, onPasswordC
           if (!loading && email && password) {
             e.currentTarget.style.background = 'var(--accent-bright)'
             e.currentTarget.style.transform = 'translateY(-1px)'
-            e.currentTarget.style.boxShadow = '0 4px 20px rgba(167, 139, 250, 0.3)'
+            e.currentTarget.style.boxShadow = '0 4px 20px var(--accent-a30)'
           }
         }}
         onMouseLeave={e => {

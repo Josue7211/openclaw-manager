@@ -30,8 +30,7 @@ export default function ChatPage() {
     notConfigured,
     historyError,
     model, setModel,
-    sysPrompt, setSysPrompt,
-    showSysPrompt, setShowSysPrompt,
+    modelsData,
     wsConnected,
     historyIsError,
     bottomRef, scrollRef,
@@ -54,8 +53,7 @@ export default function ChatPage() {
           {_demo && <DemoBadge />}
         </div>
         <ChatInput.Header
-          model={model} setModel={setModel}
-          showSysPrompt={showSysPrompt} setShowSysPrompt={setShowSysPrompt}
+          model={model} setModel={setModel} models={modelsData?.models ?? []}
           connected={connected} wsConnected={wsConnected}
           historyIsError={historyIsError} isDemo={_demo}
         />
@@ -93,9 +91,6 @@ export default function ChatPage() {
         setImages={setImages}
         imagesRef={imagesRef}
         sending={sending}
-        sysPrompt={sysPrompt}
-        setSysPrompt={setSysPrompt}
-        showSysPrompt={showSysPrompt}
         onSend={send}
         onFileChange={handleFileChange}
         draftTimerRef={draftTimerRef}
