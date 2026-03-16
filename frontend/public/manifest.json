@@ -1,0 +1,10 @@
+{
+  "name": "Mission Control",
+  "short_name": "MissionCtrl",
+  "description": "Personal command center — iMessage, AI chat, tasks, homelab",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0c",
+  "theme_color": "#a78bfa",
+  "icons": []
+}
