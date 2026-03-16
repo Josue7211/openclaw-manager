@@ -12,6 +12,7 @@ pub mod chat;
 pub mod decisions;
 pub mod deploy;
 pub mod email;
+pub mod events;
 pub mod habits;
 pub mod homelab;
 pub mod ideas;
@@ -44,6 +45,7 @@ pub fn router() -> Router<AppState> {
         .nest("/chat", chat::router())
         .merge(deploy::router())
         .merge(email::router())
+        .merge(events::router())
         .merge(habits::router())
         .merge(homelab::router())
         .merge(knowledge::router())
