@@ -804,6 +804,66 @@ Command::new("claude")
     .arg(&prompt_file)
 ```
 
+### Fix 9: Arbitrary File Read via `log_path` — CRITICAL
+
+**Problem**: `pipeline/complete.rs:278` reads `log_path` from the Supabase mission record and passes it directly to `Command::new("tail")`. The `log_path` value can be set via `update_mission` with no path validation. An attacker writes `/etc/passwd` to `log_path`, then triggers the complete flow to read any file on the system.
+
+**Fix**: Apply the existing `LOG_PATH_RE` regex (`r"^/tmp/[a-zA-Z0-9._-]+\.log$"`) from `status.rs` before the `tail` call in `complete.rs`. Reject any path that doesn't match.
+
+### Fix 10: CSP Allows `unsafe-inline` — CRITICAL
+
+**Problem**: `tauri.conf.json` CSP includes `script-src 'self' 'unsafe-inline'`. This allows injected inline scripts to execute, defeating the primary purpose of CSP.
+
+**Fix**: Change to `script-src 'self'`. Remove any inline `<script>` tags from the HTML. Use Vite's module system for all JavaScript. If inline styles are needed, use `style-src 'self' 'unsafe-inline'` (styles are lower risk than scripts).
+
+### Fix 11: Open Redirect via `next` Parameter — HIGH
+
+**Problem**: `Login.tsx:30-31` validates the `next` parameter with `rawNext.startsWith('/') && !rawNext.startsWith('//')`. A URL like `?next=/\example.com` (backslash) bypasses this check on some browsers and redirects to an attacker site.
+
+**Fix**: Use proper URL resolution:
+
+```typescript
+const rawNext = searchParams.get('next') || '/'
+let next = '/'
+try {
+  const resolved = new URL(rawNext, window.location.origin)
+  if (resolved.origin === window.location.origin) {
+    next = resolved.pathname + resolved.search
+  }
+} catch { /* keep default '/' */ }
+```
+
+### Fix 12: Error Message Information Disclosure — MEDIUM
+
+**Problem**: `error.rs:37` converts internal errors to strings and returns them to the client. This leaks file paths, Supabase URLs, schema details, and service error messages.
+
+**Fix**: Return generic messages to the frontend. Log detailed errors server-side only:
+
+```rust
+AppError::Internal(e) => {
+    tracing::error!("internal error: {e:?}");
+    (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong".to_string())
+}
+```
+
+### Fix 13: Tauri `shell:allow-open` Too Permissive — MEDIUM
+
+**Problem**: `capabilities/default.json` allows `shell:allow-open` for `http://localhost:**`. This lets frontend JS open any localhost port in the system browser, potentially accessing internal services. In debug mode, it bypasses API key auth.
+
+**Fix**: Restrict to `https://**` only. Remove the `http://localhost:**` rule. If opening the local API in a browser is needed, use a specific allowlisted path.
+
+### Fix 14: `spawn_command` Shell String Returned to Frontend — MEDIUM
+
+**Problem**: `POST /pipeline/spawn` returns the full `spawn_command` shell string in the JSON response, including prompt content and environment variable references. This is an information disclosure risk.
+
+**Fix**: Remove `spawn_command` from the response in production. Return only the mission ID and status. If needed for debugging, gate behind an admin-only flag.
+
+### Fix 15: HTML Entity Decoding in OG Metadata — LOW
+
+**Problem**: `messages.rs:1658` decodes HTML entities in OG metadata before sending to the frontend. While React text rendering re-escapes this safely, the pattern is risky — if any future rendering path uses raw HTML injection, decoded content becomes an XSS vector.
+
+**Fix**: Stop decoding HTML entities server-side. Return the raw encoded strings and let React's text rendering handle display naturally.
+
 ## Security Summary
 
 ### Three-layer auth (defense in depth)
