@@ -52,6 +52,50 @@ pub(super) fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
+/// Validate that CLI flags only contain known Claude CLI flags.
+/// Prevents command injection through the `flags` field of AgentRoute.
+pub(super) fn validate_cli_flags(flags: &str) -> Result<&str, AppError> {
+    if flags.is_empty() {
+        return Ok(flags);
+    }
+    let allowed_prefixes = [
+        "--model",
+        "--max-turns",
+        "--verbose",
+        "-v",
+        "--allowedTools",
+        "--output-format",
+        "--dangerously-skip-permissions",
+    ];
+    let parts: Vec<&str> = flags.split_whitespace().collect();
+    for (i, part) in parts.iter().enumerate() {
+        if part.starts_with('-') {
+            if !allowed_prefixes.iter().any(|prefix| part.starts_with(prefix)) {
+                return Err(AppError::BadRequest(format!("disallowed CLI flag: {}", part)));
+            }
+        } else if i == 0 {
+            // First token must be a flag, not a bare argument
+            return Err(AppError::BadRequest("unexpected argument".into()));
+        } else {
+            // Flag value — reject shell metacharacters
+            if part.contains(';')
+                || part.contains('|')
+                || part.contains('`')
+                || part.contains('$')
+                || part.contains('(')
+                || part.contains(')')
+                || part.contains('\n')
+                || part.contains('\r')
+            {
+                return Err(AppError::BadRequest(
+                    "invalid characters in flag value".into(),
+                ));
+            }
+        }
+    }
+    Ok(flags)
+}
+
 // ── Supabase helpers ─────────────────────────────────────────────────────────
 
 pub(super) fn supabase(state: &crate::server::AppState) -> Result<SupabaseClient, AppError> {
@@ -219,6 +263,9 @@ pub(super) async fn spawn_agent_process(
     let safe_prompt_file = shell_escape(&prompt_file);
     let safe_wd = shell_escape(safe_workdir);
 
+    // Validate CLI flags before interpolating into the shell command
+    let validated_flags = validate_cli_flags(route.flags)?;
+
     // Auto-call /api/pipeline/complete when the worker process exits
     // Uses $MC_API_KEY from the clean env — never embed the literal key
     let auto_complete = format!(
@@ -227,7 +274,7 @@ pub(super) async fn spawn_agent_process(
 
     let bash_cmd = format!(
         "cd {safe_wd} && claude {flags} -p \"$(cat {safe_prompt_file})\" > {safe_log_file} 2>&1; rm -f {safe_prompt_file}; {auto_complete}",
-        flags = route.flags,
+        flags = validated_flags,
     );
 
     // TODO: spawn_agent_process should accept &AppState to pass secrets to clean_env.

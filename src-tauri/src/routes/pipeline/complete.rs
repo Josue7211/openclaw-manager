@@ -1,12 +1,22 @@
+use std::sync::OnceLock;
+
 use axum::{extract::State, Json};
+use regex::Regex;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tokio::process::Command;
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::error::AppError;
 use crate::redact::redact;
 use crate::server::AppState;
+
+const LOG_PATH_RE: &str = r"^/tmp/[a-zA-Z0-9._-]+\.log$";
+
+fn log_path_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(LOG_PATH_RE).unwrap())
+}
 
 use super::agents::{status, escalation_target, CODEX, MAX_RETRIES};
 use super::helpers::{
@@ -275,16 +285,21 @@ pub(super) async fn pipeline_complete(
     // Read last 2000 chars of log for notification (best-effort)
     let log_path = mission["log_path"].as_str().unwrap_or("");
     let log_tail = if !log_path.is_empty() {
-        let output = Command::new("tail")
-            .args(["-c", "2000", log_path])
-            .output()
-            .await;
-        match output {
-            Ok(out) => {
-                let raw = String::from_utf8_lossy(&out.stdout).to_string();
-                redact(&raw)
+        if !log_path_re().is_match(log_path) {
+            warn!("Rejected invalid log_path: {}", log_path);
+            String::new()
+        } else {
+            let output = Command::new("tail")
+                .args(["-c", "2000", log_path])
+                .output()
+                .await;
+            match output {
+                Ok(out) => {
+                    let raw = String::from_utf8_lossy(&out.stdout).to_string();
+                    redact(&raw)
+                }
+                Err(_) => String::new(),
             }
-            Err(_) => String::new(),
         }
     } else {
         String::new()

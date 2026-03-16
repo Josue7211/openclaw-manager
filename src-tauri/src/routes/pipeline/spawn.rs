@@ -1,7 +1,7 @@
 use axum::{extract::State, Json};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use tracing::error;
+use tracing::{debug, error};
 
 use crate::error::AppError;
 use crate::server::AppState;
@@ -9,7 +9,7 @@ use crate::server::AppState;
 use super::agents::{status, route_agent, routing_table};
 use super::helpers::{
     log_activity, send_notify, set_agent_active, shell_escape, slugify, supabase,
-    validate_uuid, validate_workdir,
+    validate_cli_flags, validate_uuid, validate_workdir,
 };
 
 // ── POST /pipeline/spawn ─────────────────────────────────────────────────────
@@ -158,12 +158,13 @@ pub(super) async fn pipeline_spawn(
     let safe_wd = shell_escape(&cwd);
     let safe_log = shell_escape(&log_file);
     let safe_mid = validate_uuid(&mission_id)?;
+    let validated_flags = validate_cli_flags(route.flags)?;
     let spawn_command = format!(
         "cd {safe_wd} && unset CLAUDECODE && ANTHROPIC_MODEL={model} claude {flags} -p {prompt} > {safe_log} 2>&1; \
          curl -s -X POST {mc_base_url}/api/pipeline/complete -H \"Content-Type: application/json\" -H \"X-API-Key: $MC_API_KEY\" \
          -d '{{\"mission_id\":\"{safe_mid}\",\"status\":\"done\"}}'",
         model = shell_escape(route.model),
-        flags = route.flags,
+        flags = validated_flags,
         prompt = shell_escape(&worker_prompt),
         mc_base_url = super::agents::MC_BASE_URL,
     );
@@ -231,6 +232,8 @@ pub(super) async fn pipeline_spawn(
         serde_json::to_string(&registry_entry).unwrap_or_default()
     );
 
+    debug!("[pipeline/spawn] spawn_command: {spawn_command}");
+
     Ok(Json(json!({
         "mission": mission,
         "agent": {
@@ -240,7 +243,6 @@ pub(super) async fn pipeline_spawn(
             "id": route.agent_id,
             "model": route.model,
         },
-        "spawn_command": spawn_command,
         "registry_command": registry_command,
         "log_file": log_file,
         "review_required": review_required,
