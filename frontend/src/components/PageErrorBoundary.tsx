@@ -27,7 +27,7 @@ export default class PageErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div style={{
+        <div role="alert" style={{
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
