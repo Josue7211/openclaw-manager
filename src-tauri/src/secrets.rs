@@ -181,8 +181,45 @@ fn is_allowed_key(key: &str) -> bool {
 }
 
 /// Keys that must never be returned to the frontend via IPC.
+/// The frontend only needs: `mc-api-key`, `bluebubbles.host`, `openclaw.api-url`.
 const FRONTEND_BLOCKED_KEYS: &[&str] = &[
     "supabase.service-role-key",
+    "supabase.anon-key",
+    "anthropic.api-key",
+    "bluebubbles.password",
+    "openclaw.password",
+    "openclaw.api-key",
+    "openclaw.ws",
+    "proxmox.host",
+    "proxmox.token-id",
+    "proxmox.token-secret",
+    "opnsense.host",
+    "opnsense.key",
+    "opnsense.secret",
+    "plex.url",
+    "plex.token",
+    "sonarr.url",
+    "sonarr.api-key",
+    "radarr.url",
+    "radarr.api-key",
+    "email.host",
+    "email.port",
+    "email.user",
+    "email.password",
+    "caldav.url",
+    "caldav.username",
+    "caldav.password",
+    "mac-bridge.host",
+    "mac-bridge.api-key",
+    "ntfy.url",
+    "ntfy.topic",
+];
+
+/// Keys that the frontend must never be allowed to write.
+const FRONTEND_BLOCKED_WRITE_KEYS: &[&str] = &[
+    "mc-api-key",
+    "supabase.service-role-key",
+    "supabase.anon-key",
 ];
 
 /// Retrieve a single secret from the OS keychain by its keyring key name.
@@ -202,10 +239,14 @@ pub fn get_secret(key: String) -> Option<String> {
 
 /// Store a secret in the OS keychain.
 /// Only keys in the KEY_ENV_MAP/USER_KEYS allowlist are permitted.
+/// Critical keys (mc-api-key, service-role-key) cannot be modified from the frontend.
 #[tauri::command]
 pub fn set_secret(key: String, value: String) -> Result<(), String> {
     if !is_allowed_key(&key) {
         return Err(format!("Key '{}' is not in the allowed set", key));
+    }
+    if FRONTEND_BLOCKED_WRITE_KEYS.iter().any(|k| *k == key) {
+        return Err("cannot modify this key".into());
     }
     set_entry(&key, &value)
 }

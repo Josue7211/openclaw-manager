@@ -5,7 +5,7 @@ use std::time::Duration;
 use tokio::process::Command;
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 
 /// Build the OpenClaw CLI router (sessions, subagents, cron jobs).
 pub fn router() -> Router<AppState> {
@@ -101,7 +101,7 @@ fn parse_json_array(raw: &str) -> Vec<Value> {
 // ---------------------------------------------------------------------------
 
 /// GET /sessions
-async fn get_sessions() -> Result<Json<Value>, AppError> {
+async fn get_sessions(RequireAuth(_session): RequireAuth) -> Result<Json<Value>, AppError> {
     let timeout = Duration::from_secs(5);
 
     match run_openclaw(&["sessions", "list", "--json"], timeout).await {
@@ -124,7 +124,7 @@ async fn get_sessions() -> Result<Json<Value>, AppError> {
 }
 
 /// GET /subagents
-async fn get_subagents() -> Result<Json<Value>, AppError> {
+async fn get_subagents(RequireAuth(_session): RequireAuth) -> Result<Json<Value>, AppError> {
     let timeout = Duration::from_secs(5);
 
     match run_openclaw(&["subagents", "list", "--json"], timeout).await {
@@ -138,7 +138,7 @@ async fn get_subagents() -> Result<Json<Value>, AppError> {
 }
 
 /// GET /crons
-async fn get_crons() -> Result<Json<Value>, AppError> {
+async fn get_crons(RequireAuth(_session): RequireAuth) -> Result<Json<Value>, AppError> {
     let timeout = Duration::from_secs(10);
 
     match run_openclaw(&["cron", "list", "--json"], timeout).await {

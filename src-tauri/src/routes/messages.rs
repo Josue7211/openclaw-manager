@@ -14,7 +14,7 @@ use std::net::ToSocketAddrs;
 use std::sync::OnceLock;
 use tokio::sync::RwLock;
 
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 use super::util::{percent_encode, random_uuid, base64_decode};
 
 // ---------------------------------------------------------------------------
@@ -1117,6 +1117,7 @@ struct MessagesQuery {
 
 async fn get_messages(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Query(params): Query<MessagesQuery>,
 ) -> Response {
     let client = &state.http;
@@ -1365,6 +1366,7 @@ struct SendMessageBody {
 
 async fn post_message(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Json(body): Json<SendMessageBody>,
 ) -> Response {
     let chat_guid = match &body.chat_guid {
@@ -1459,6 +1461,7 @@ struct AvatarQuery {
 
 async fn get_avatar(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Query(params): Query<AvatarQuery>,
 ) -> Response {
     let address = match &params.address {
@@ -1538,6 +1541,7 @@ struct AvatarBatchBody {
 
 async fn post_avatar_batch(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Json(body): Json<AvatarBatchBody>,
 ) -> Response {
     let addresses = match body.addresses {
@@ -1662,6 +1666,7 @@ struct LinkPreviewQuery {
 
 async fn get_link_preview(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Query(params): Query<LinkPreviewQuery>,
 ) -> Response {
     let url_str = match &params.url {
@@ -2008,6 +2013,7 @@ struct AttachmentQuery {
 
 async fn get_attachment(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Query(params): Query<AttachmentQuery>,
 ) -> Response {
     let guid = match &params.guid {
@@ -2232,6 +2238,7 @@ struct ReactBody {
 
 async fn post_react(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Json(body): Json<ReactBody>,
 ) -> Response {
     if bb_host(&state).is_empty() {
@@ -2328,6 +2335,7 @@ struct ReadBody {
 
 async fn post_read(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Json(body): Json<ReadBody>,
 ) -> Response {
     let chat_guid = match &body.chat_guid {
@@ -2428,6 +2436,7 @@ struct SendAttachmentBody {
 
 async fn post_send_attachment(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Json(body): Json<SendAttachmentBody>,
 ) -> Response {
     let host = bb_host(&state);
@@ -2635,7 +2644,7 @@ async fn post_send_attachment(
 // If a full socket.io client becomes available, this can be upgraded.
 // ---------------------------------------------------------------------------
 
-async fn get_stream(State(state): State<AppState>) -> Response {
+async fn get_stream(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Response {
     use axum::response::sse::{Event, KeepAlive, Sse};
 
     let host = bb_host(&state);
@@ -2744,7 +2753,7 @@ async fn get_stream(State(state): State<AppState>) -> Response {
 // ---------------------------------------------------------------------------
 
 // Debug endpoint — shows all conversations with junk status for troubleshooting
-async fn get_messages_debug(State(state): State<AppState>) -> Response {
+async fn get_messages_debug(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Response {
     let client = &state.http;
     match fetch_and_build_conversations(client, &state).await {
         Ok((conversations, contacts)) => {

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 
 // ── Config helpers ──────────────────────────────────────────────────────────
 
@@ -286,7 +286,7 @@ fn mock_response() -> Value {
 
 // ── GET /media ──────────────────────────────────────────────────────────────
 
-async fn get_media(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+async fn get_media(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Result<Json<Value>, AppError> {
     let plex_cfg = plex_config(&state);
     let sonarr_cfg = sonarr_config(&state);
     let radarr_cfg = radarr_config(&state);

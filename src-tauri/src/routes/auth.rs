@@ -297,6 +297,11 @@ async fn change_password(
         .clone()
         .ok_or(AppError::Unauthorized)?;
 
+    // CRITICAL: Cannot change password without first verifying MFA
+    if !session.mfa_verified {
+        return Err(AppError::BadRequest("MFA verification required to change password".into()));
+    }
+
     let gotrue = GoTrueClient::from_state(&state)
         .map_err(|e| AppError::Internal(e))?;
 
@@ -502,6 +507,11 @@ async fn mfa_unenroll(
         .await
         .clone()
         .ok_or(AppError::Unauthorized)?;
+
+    // CRITICAL: Cannot unenroll MFA without first verifying MFA
+    if !session.mfa_verified {
+        return Err(AppError::BadRequest("MFA verification required to unenroll factors".into()));
+    }
 
     let gotrue = GoTrueClient::from_state(&state)
         .map_err(|e| AppError::Internal(e))?;

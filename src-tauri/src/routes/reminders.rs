@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 
 // ── Router ──────────────────────────────────────────────────────────────────
 
@@ -82,6 +82,7 @@ struct RemindersQuery {
 
 async fn get_reminders(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Query(params): Query<RemindersQuery>,
 ) -> Result<Json<Value>, AppError> {
     let (host, api_key) = match bridge_config(&state) {
@@ -135,6 +136,7 @@ struct PatchReminderBody {
 
 async fn patch_reminder(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Json(body): Json<PatchReminderBody>,
 ) -> Result<Json<Value>, AppError> {
     let (host, api_key) = match bridge_config(&state) {

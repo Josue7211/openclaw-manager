@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 use tracing::error;
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 
 // ── Router ───────────────────────────────────────────────────────────────────
 
@@ -25,6 +25,7 @@ struct NotifyBody {
 
 async fn send_notification(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Json(body): Json<NotifyBody>,
 ) -> Result<Json<Value>, AppError> {
     let title = body

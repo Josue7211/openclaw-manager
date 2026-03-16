@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 use tracing::warn;
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 
 // ── Mock data (matches TypeScript MOCK_DATA) ────────────────────────────────
 
@@ -486,6 +486,7 @@ pub fn router() -> Router<AppState> {
 
 async fn get_homelab(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
     let proxmox_configured = state.secret("PROXMOX_TOKEN_ID")
         .filter(|s| !s.is_empty())

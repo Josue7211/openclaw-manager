@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 
 // ── Credentials ─────────────────────────────────────────────────────────────
 
@@ -261,6 +261,7 @@ fn sanitize_folder(raw: &str) -> &str {
 
 async fn get_emails(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Query(params): Query<GetEmailsQuery>,
 ) -> Result<Json<Value>, AppError> {
     let raw_folder = params.folder.as_deref().unwrap_or("INBOX");
@@ -298,6 +299,7 @@ struct PatchEmailBody {
 
 async fn patch_email(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Json(body): Json<PatchEmailBody>,
 ) -> Result<Json<Value>, AppError> {
     let id = body

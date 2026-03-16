@@ -123,7 +123,7 @@ pub fn router() -> Router<AppState> {
 
 // ── GET /api/status ──────────────────────────────────────────────────────────
 
-async fn get_status(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+async fn get_status(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Result<Json<Value>, AppError> {
     let base = openclaw_dir(&state);
     let identity_path = Path::new(&base).join("workspace").join("IDENTITY.md");
 
@@ -193,7 +193,7 @@ fn local_ip() -> String {
 // Connections page show the real active config even when the OS keychain has
 // no user-saved values (e.g. when URLs came from .env.local).
 
-async fn get_active_config(State(state): State<AppState>) -> Json<Value> {
+async fn get_active_config(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Json<Value> {
     Json(json!({
         "bluebubbles_url": state.secret("BLUEBUBBLES_HOST").unwrap_or_default(),
         "openclaw_url": state.secret("OPENCLAW_API_URL").unwrap_or_default(),
@@ -639,7 +639,7 @@ struct ProcessEntry {
     started_at: Option<String>,
 }
 
-async fn get_processes(State(_state): State<AppState>) -> Result<Json<Value>, AppError> {
+async fn get_processes(State(_state): State<AppState>, RequireAuth(_session): RequireAuth) -> Result<Json<Value>, AppError> {
     // Run: ps aux | grep -E 'claude|haiku|sonnet|opus' | grep -v grep | grep -v 'next-server'
     let ps_output = Command::new("bash")
         .arg("-c")
@@ -826,6 +826,7 @@ struct RegisterProcessBody {
 
 async fn post_process(
     State(_state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Json(body): Json<RegisterProcessBody>,
 ) -> Result<Json<Value>, AppError> {
     // Validate PID is numeric

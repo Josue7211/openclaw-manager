@@ -6,7 +6,7 @@ use serde::Serialize;
 use serde_json::json;
 use std::io::BufReader;
 
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -32,6 +32,7 @@ pub fn router() -> Router<AppState> {
 
 async fn get_events(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
 ) -> impl IntoResponse {
     let url = state.secret("CALDAV_URL")
         .unwrap_or_else(|| "https://caldav.icloud.com".to_string());

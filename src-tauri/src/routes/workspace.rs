@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 
 const MAX_FILE_SIZE: u64 = 5 * 1024 * 1024; // 5 MB
 
@@ -145,6 +145,7 @@ struct ListFilesResponse {
 
 async fn list_files(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
     // Remote mode
     if let Some((url, key)) = remote_config(&state) {
@@ -222,6 +223,7 @@ struct FileQuery {
 
 async fn read_file(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Query(query): Query<FileQuery>,
 ) -> Result<Json<Value>, AppError> {
     let file_path = query.path;
@@ -290,6 +292,7 @@ struct WriteFileBody {
 
 async fn write_file(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Json(body): Json<WriteFileBody>,
 ) -> Result<Json<Value>, AppError> {
     let file_path = body.path;
@@ -352,6 +355,7 @@ async fn write_file(
 
 async fn delete_file(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
     Query(query): Query<FileQuery>,
 ) -> Result<Json<Value>, AppError> {
     let file_path = query.path;
