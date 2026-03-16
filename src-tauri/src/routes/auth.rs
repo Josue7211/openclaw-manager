@@ -50,6 +50,7 @@ pub fn router() -> Router<AppState> {
         .route("/password", post(change_password))
         .route("/oauth/:provider", get(start_oauth))
         // MFA routes
+        .route("/mfa/factors", get(mfa_list_factors))
         .route("/mfa/enroll", post(mfa_enroll))
         .route("/mfa/challenge", post(mfa_challenge))
         .route("/mfa/verify", post(mfa_verify))
@@ -380,6 +381,22 @@ async fn start_oauth(
     tracing::info!(provider = %provider, "OAuth flow initiated");
 
     Ok(Json(json!({ "url": url, "nonce": nonce })))
+}
+
+// ---------------------------------------------------------------------------
+// GET /auth/mfa/factors — list user's MFA factors
+// ---------------------------------------------------------------------------
+
+async fn mfa_list_factors(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    let session = state.session.read().await.clone()
+        .ok_or(AppError::Unauthorized)?;
+    let gotrue = GoTrueClient::from_state(&state).map_err(|e| AppError::Internal(e))?;
+    let factors = gotrue.mfa_list_factors(&session.access_token).await
+        .map_err(|e| AppError::Internal(e))?;
+    let json_factors: Vec<Value> = factors.iter().map(|f| {
+        json!({ "id": f.id, "type": f.factor_type, "status": f.status, "friendly_name": f.friendly_name })
+    }).collect();
+    Ok(Json(json!({ "factors": json_factors })))
 }
 
 // ---------------------------------------------------------------------------

@@ -39,22 +39,26 @@ export default function LoginPage() {
   // On mount, check if user needs MFA (from query param or session)
   const mfaParam = searchParams.get('mfa')
   useEffect(() => {
-    if (mfaParam === 'verify') {
-      // OAuth user with TOTP enrolled — find the factor and show verify view
-      api.get<{ factors?: Array<{ id: string; status: string; type: string }> }>('/api/auth/mfa/factors')
-        .then(data => {
-          const totp = data.factors?.find(f => f.type === 'totp' && f.status === 'verified')
-          if (totp) {
-            dispatch({ type: 'SHOW_MFA', factorId: totp.id })
-          }
-        })
-        .catch(() => {})
-    } else if (mfaParam === 'enroll') {
-      // OAuth user without TOTP — start enrollment
-      api.post<{ id: string; qr_code: string; secret: string }>('/api/auth/mfa/enroll')
-        .then(data => {
-          if (data?.id) {
-            dispatch({ type: 'SHOW_MFA_ENROLL', factorId: data.id, qr: data.qr_code, secret: data.secret })
+    if (mfaParam === 'verify' || mfaParam === 'enroll') {
+      // Check session for MFA status and factor_id
+      api.get<{
+        authenticated: boolean
+        mfa_required?: boolean
+        mfa_enroll_required?: boolean
+        factor_id?: string
+      }>('/api/auth/session')
+        .then(res => {
+          if (!res.authenticated) return
+          if (res.factor_id) {
+            dispatch({ type: 'SHOW_MFA', factorId: res.factor_id })
+          } else if (res.mfa_enroll_required || mfaParam === 'enroll') {
+            api.post<{ id: string; qr_code: string; secret: string }>('/api/auth/mfa/enroll')
+              .then(data => {
+                if (data?.id) {
+                  dispatch({ type: 'SHOW_MFA_ENROLL', factorId: data.id, qr: data.qr_code, secret: data.secret })
+                }
+              })
+              .catch(() => {})
           }
         })
         .catch(() => {})
