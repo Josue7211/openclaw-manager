@@ -115,7 +115,7 @@ async fn login(
     let has_any_factors = factors.map(|fs| !fs.is_empty()).unwrap_or(false);
     let mfa_enroll_required = !has_any_factors;
 
-    // Store session (even if MFA is pending — it's aal1 until verified)
+    // Store session — mfa_verified is false until TOTP is verified
     let session = UserSession {
         access_token: auth.access_token,
         refresh_token: auth.refresh_token,
@@ -123,6 +123,7 @@ async fn login(
         email: body.email.clone(),
         expires_at: now + auth.expires_in,
         encryption_key,
+        mfa_verified: false, // ALWAYS false at login — must verify MFA
     };
     *state.session.write().await = Some(session);
 
@@ -465,16 +466,17 @@ async fn mfa_verify(
         .await
         .map_err(|e| AppError::Internal(e))?;
 
-    // Update session with upgraded token (aal2)
+    // Update session with upgraded token (aal2) — MFA is now verified
     let now = epoch_secs();
     let mut write = state.session.write().await;
     if let Some(ref mut s) = *write {
         s.access_token = auth.access_token;
         s.refresh_token = auth.refresh_token;
         s.expires_at = now + auth.expires_in;
+        s.mfa_verified = true; // GATE OPENS — user can now access all data
     }
 
-    tracing::info!(user_id = %session.user_id, "MFA verified (aal2)");
+    tracing::info!(user_id = %session.user_id, "MFA verified (aal2) — full access granted");
 
     Ok(Json(json!({ "ok": true })))
 }
@@ -779,9 +781,8 @@ async fn oauth_callback(
                             user_id: user_id.clone(),
                             email,
                             expires_at: now + auth.expires_in,
-                            // OAuth sessions don't have a password, so no
-                            // encryption key can be derived. Leave empty.
                             encryption_key: Vec::new(),
+                            mfa_verified: false, // Must verify MFA before accessing data
                         };
                         *state.session.write().await = Some(session);
                         *state.pkce_verifier.write().await = None;

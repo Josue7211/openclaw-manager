@@ -38,6 +38,9 @@ pub struct UserSession {
     pub expires_at: i64,
     /// Argon2id-derived key for user_secrets encryption/decryption.
     pub encryption_key: Vec<u8>,
+    /// Whether MFA has been verified this session (aal2).
+    /// If false, only auth endpoints are accessible.
+    pub mfa_verified: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -68,14 +71,22 @@ where
         parts: &mut axum::http::request::Parts,
         _state: &S,
     ) -> Result<Self, Self::Rejection> {
-        parts
+        let session = parts
             .extensions
             .get::<UserSession>()
             .cloned()
-            .map(RequireAuth)
             .ok_or_else(|| {
                 (StatusCode::UNAUTHORIZED, "Authentication required").into_response()
-            })
+            })?;
+
+        // Hard gate: MFA must be verified before ANY data access
+        if !session.mfa_verified {
+            return Err(
+                (StatusCode::FORBIDDEN, "MFA verification required").into_response()
+            );
+        }
+
+        Ok(RequireAuth(session))
     }
 }
 

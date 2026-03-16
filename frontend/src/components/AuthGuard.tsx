@@ -4,7 +4,7 @@ import { api } from '@/lib/api'
 import { initPreferencesSync } from '@/lib/preferences-sync'
 import { isDemoMode } from '@/lib/demo-data'
 
-type AuthState = 'loading' | 'authenticated' | 'unauthenticated'
+type AuthState = 'loading' | 'authenticated' | 'unauthenticated' | 'mfa_required'
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>(isDemoMode() ? 'authenticated' : 'loading')
@@ -20,10 +20,32 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     async function checkAuth() {
       try {
-        const res = await api.get<{ authenticated: boolean; user?: { id: string; email: string } }>('/api/auth/session')
-        setState(res.authenticated ? 'authenticated' : 'unauthenticated')
+        const res = await api.get<{
+          authenticated: boolean
+          mfa_required?: boolean
+          mfa_verified?: boolean
+          mfa_enroll_required?: boolean
+          user?: { id: string; email: string }
+        }>('/api/auth/session')
 
-        if (res.authenticated && !syncInitRef.current) {
+        if (!res.authenticated) {
+          setState('unauthenticated')
+          return
+        }
+
+        // Hard gate: MFA must be verified before ANY access
+        if (res.mfa_required && !res.mfa_verified) {
+          setState('mfa_required')
+          return
+        }
+        if (res.mfa_enroll_required) {
+          setState('mfa_required')
+          return
+        }
+
+        setState('authenticated')
+
+        if (!syncInitRef.current) {
           syncInitRef.current = true
           initPreferencesSync()
         }
@@ -57,6 +79,10 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   )
   if (state === 'unauthenticated') {
     return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />
+  }
+  if (state === 'mfa_required') {
+    // Redirect to login with MFA flag — login page handles MFA verification
+    return <Navigate to={`/login?mfa=verify&next=${encodeURIComponent(location.pathname)}`} replace />
   }
   return <>{children}</>
 }
