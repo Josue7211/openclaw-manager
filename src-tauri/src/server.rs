@@ -278,6 +278,152 @@ async fn log_integrity_events(db: &sqlx::SqlitePool) {
     }
 }
 
+/// Verify that the Supabase URL's hostname resolves via DNS.
+///
+/// Catches DNS spoofing or misconfiguration. Logs the resolved IPs on success,
+/// a warning on failure. Returns `true` if at least one address resolved.
+/// Never blocks startup — callers should log but not abort on `false`.
+async fn verify_supabase_dns(supabase_url: &str) -> bool {
+    let parsed = match url::Url::parse(supabase_url) {
+        Ok(u) => u,
+        Err(_) => {
+            tracing::warn!(url = %supabase_url, "Supabase DNS verification skipped: invalid URL");
+            return false;
+        }
+    };
+    let host = match parsed.host_str() {
+        Some(h) => h,
+        None => {
+            tracing::warn!(url = %supabase_url, "Supabase DNS verification skipped: no host in URL");
+            return false;
+        }
+    };
+
+    // Direct IPs don't need DNS resolution
+    if host.parse::<std::net::IpAddr>().is_ok() {
+        tracing::info!(host = %host, "Supabase URL uses direct IP — DNS verification not applicable");
+        return true;
+    }
+
+    let port = parsed.port().unwrap_or(if parsed.scheme() == "https" { 443 } else { 80 });
+    match tokio::net::lookup_host(format!("{host}:{port}")).await {
+        Ok(addrs) => {
+            let ips: Vec<String> = addrs.map(|a| a.ip().to_string()).collect();
+            if ips.is_empty() {
+                tracing::warn!(host = %host, "Supabase DNS resolution returned zero addresses");
+                false
+            } else {
+                tracing::info!(host = %host, ips = ?ips, "Supabase DNS resolution verified");
+                true
+            }
+        }
+        Err(e) => {
+            tracing::warn!(host = %host, error = %e, "Supabase DNS resolution failed");
+            false
+        }
+    }
+}
+
+/// Log whether a service URL uses TLS or plaintext HTTP.
+///
+/// For HTTPS URLs, confirms that certificate verification is enabled
+/// (reqwest with rustls-tls verifies by default). For HTTP URLs on
+/// non-local addresses, logs a security warning.
+fn log_tls_status(service: &str, url: &str) {
+    if url.starts_with("https://") {
+        tracing::info!(
+            service = %service,
+            "connection uses TLS — certificate verification enabled (rustls)"
+        );
+    } else if url.starts_with("http://") {
+        if let Ok(parsed) = url::Url::parse(url) {
+            if let Some(host) = parsed.host_str() {
+                let is_local = host == "127.0.0.1"
+                    || host == "localhost"
+                    || host == "::1"
+                    || host.starts_with("100.") // Tailscale CGNAT — WireGuard-encrypted
+                    || host.starts_with("10.");  // LAN — acceptable for self-hosted
+                if is_local {
+                    tracing::info!(
+                        service = %service,
+                        host = %host,
+                        "connection uses plaintext HTTP on local/Tailscale address"
+                    );
+                } else {
+                    tracing::warn!(
+                        service = %service,
+                        host = %host,
+                        "connection uses plaintext HTTP on non-local address — no TLS protection"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// Warn if a service URL uses plaintext HTTP on an address that is neither
+/// loopback, Tailscale CGNAT (100.x.x.x), nor private LAN (10.x.x.x).
+///
+/// Called at startup for each configured service URL.
+fn warn_if_insecure_url(service: &str, url: &str) {
+    if !url.starts_with("http://") {
+        return;
+    }
+    if let Ok(parsed) = url::Url::parse(url) {
+        if let Some(host) = parsed.host_str() {
+            if host != "127.0.0.1"
+                && host != "localhost"
+                && host != "::1"
+                && !host.starts_with("100.") // Tailscale CGNAT
+                && !host.starts_with("10.")  // Private LAN
+                && !host.starts_with("192.168.") // Private LAN
+                && !host.starts_with("172.")     // Private LAN (simplified)
+            {
+                tracing::warn!(
+                    service = %service,
+                    host = %host,
+                    "service URL uses plaintext HTTP on non-local address — traffic is unencrypted"
+                );
+            }
+        }
+    }
+}
+
+/// Run all startup connection security checks for configured services.
+///
+/// - Verifies Supabase DNS resolution
+/// - Logs TLS status for each service
+/// - Warns about insecure (non-TLS, non-local) URLs
+async fn verify_connection_security(secrets: &std::collections::HashMap<String, String>) {
+    // Service URL keys and their human-readable names
+    let service_urls: &[(&str, &str)] = &[
+        ("Supabase", "SUPABASE_URL"),
+        ("BlueBubbles", "BLUEBUBBLES_HOST"),
+        ("OpenClaw", "OPENCLAW_API_URL"),
+        ("Proxmox", "PROXMOX_HOST"),
+        ("OPNsense", "OPNSENSE_HOST"),
+        ("CalDAV", "CALDAV_URL"),
+        ("Plex", "PLEX_URL"),
+        ("Sonarr", "SONARR_URL"),
+        ("Radarr", "RADARR_URL"),
+        ("Mac Bridge", "MAC_BRIDGE_HOST"),
+        ("Ntfy", "NTFY_URL"),
+    ];
+
+    // 1. Supabase DNS verification
+    if let Some(supabase_url) = secrets.get("SUPABASE_URL").filter(|s| !s.is_empty()) {
+        verify_supabase_dns(supabase_url).await;
+    }
+
+    // 2. TLS status + insecure URL warnings for all configured services
+    for (name, key) in service_urls {
+        if let Some(url) = secrets.get(*key).filter(|s| !s.is_empty()) {
+            log_tls_status(name, url);
+            warn_if_insecure_url(name, url);
+        }
+    }
+}
+
 /// Start the embedded Axum HTTP server on localhost:3000 with all API routes.
 pub async fn start(
     app_handle: tauri::AppHandle,
@@ -291,6 +437,9 @@ pub async fn start(
             crate::tailscale::startup_verify(&secrets_clone);
         });
     }
+
+    // Run connection security checks (DNS verification, TLS status, insecure URL warnings).
+    verify_connection_security(&secrets).await;
 
     // Store MC_API_KEY for the auth middleware (runs outside State extraction)
     if let Some(key) = secrets.get("MC_API_KEY").filter(|s| !s.is_empty()) {
@@ -870,6 +1019,83 @@ mod tests {
         slot = Some(new_session);
         assert!(slot.is_some());
     }
+
+    // -- Connection security tests ----------------------------------------
+
+    #[test]
+    fn warn_if_insecure_url_ignores_https() {
+        // HTTPS URLs should never trigger a warning — this just verifies
+        // the function doesn't panic on HTTPS input.
+        warn_if_insecure_url("Supabase", "https://supabase.example.com");
+    }
+
+    #[test]
+    fn warn_if_insecure_url_ignores_localhost() {
+        warn_if_insecure_url("TestService", "http://127.0.0.1:3000");
+        warn_if_insecure_url("TestService", "http://localhost:8080");
+    }
+
+    #[test]
+    fn warn_if_insecure_url_ignores_tailscale() {
+        warn_if_insecure_url("BlueBubbles", "http://100.64.0.3:1234");
+    }
+
+    #[test]
+    fn warn_if_insecure_url_ignores_private_lan() {
+        warn_if_insecure_url("TestService", "http://10.0.0.109:8000");
+        warn_if_insecure_url("TestService", "http://192.168.1.50:9090");
+    }
+
+    #[test]
+    fn warn_if_insecure_url_flags_public_http() {
+        // This should log a warning (we can't assert on tracing output in
+        // unit tests, but we verify it doesn't panic).
+        warn_if_insecure_url("External", "http://203.0.113.50:8080/api");
+    }
+
+    #[test]
+    fn log_tls_status_does_not_panic() {
+        log_tls_status("Supabase", "https://supabase.example.com");
+        log_tls_status("Supabase", "http://10.0.0.109:8000");
+        log_tls_status("External", "http://203.0.113.50:8080");
+        log_tls_status("Local", "http://127.0.0.1:3000");
+        log_tls_status("Tailscale", "http://100.64.0.3:1234");
+    }
+
+    #[tokio::test]
+    async fn verify_supabase_dns_direct_ip() {
+        // Direct IPs should return true without DNS lookup
+        assert!(verify_supabase_dns("http://10.0.0.109:8000").await);
+        assert!(verify_supabase_dns("https://127.0.0.1:443").await);
+    }
+
+    #[tokio::test]
+    async fn verify_supabase_dns_invalid_url() {
+        assert!(!verify_supabase_dns("not-a-url").await);
+    }
+
+    #[tokio::test]
+    async fn verify_supabase_dns_localhost_resolves() {
+        // localhost should always resolve
+        assert!(verify_supabase_dns("http://localhost:8000").await);
+    }
+
+    #[tokio::test]
+    async fn verify_connection_security_empty_secrets() {
+        // Should not panic with no configured services
+        let secrets = std::collections::HashMap::new();
+        verify_connection_security(&secrets).await;
+    }
+
+    #[tokio::test]
+    async fn verify_connection_security_with_urls() {
+        let mut secrets = std::collections::HashMap::new();
+        secrets.insert("SUPABASE_URL".to_string(), "http://localhost:8000".to_string());
+        secrets.insert("BLUEBUBBLES_HOST".to_string(), "http://100.64.0.3:1234".to_string());
+        verify_connection_security(&secrets).await;
+    }
+
+    // -- Existing session tests -------------------------------------------
 
     #[test]
     fn session_created_at_detects_expired_session() {

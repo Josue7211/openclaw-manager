@@ -94,6 +94,16 @@ jobs:
         working-directory: frontend
         run: npm audit --audit-level=moderate
 
+      - name: Generate Node SBOM
+        working-directory: frontend
+        run: npx @cyclonedx/cyclonedx-npm --output-file ../node-sbom.json
+
+      - name: Upload Node SBOM
+        uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a # v4.3.6
+        with:
+          name: sbom-node
+          path: node-sbom.json
+
   rust-check:
     name: Rust Check & Test
     runs-on: ubuntu-latest
@@ -135,3 +145,14 @@ jobs:
         run: |
           cargo install cargo-audit --locked
           cd src-tauri && cargo audit
+
+      - name: Generate Rust SBOM
+        run: |
+          cargo install cargo-cyclonedx --locked
+          cd src-tauri && cargo cyclonedx --format json --output-file ../rust-sbom.json
+
+      - name: Upload Rust SBOM
+        uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a # v4.3.6
+        with:
+          name: sbom-rust
+          path: rust-sbom.json
