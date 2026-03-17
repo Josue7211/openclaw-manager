@@ -522,6 +522,14 @@ async fn rate_limit(req: Request<Body>, next: Next) -> Response {
         ("chat", 10u64)
     } else if path.starts_with("/api/notify") {
         ("notify", 5u64)
+    } else if method == axum::http::Method::GET
+        && (path == "/api/todos"
+            || path == "/api/missions"
+            || path == "/api/ideas"
+            || path == "/api/knowledge"
+            || path == "/api/captures")
+    {
+        ("bulk_read", 10u64)
     } else if method == axum::http::Method::GET {
         ("read", 120u64)
     } else {

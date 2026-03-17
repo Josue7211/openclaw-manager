@@ -13,11 +13,58 @@ use std::sync::Mutex;
 
 use crate::error::AppError;
 use crate::gotrue::GoTrueClient;
-use crate::server::{AppState, UserSession};
+use crate::server::{AppState, RequireAuth, UserSession};
 use crate::supabase::SupabaseClient;
 
 use super::util::random_uuid;
 use zeroize::Zeroize;
+
+// ---------------------------------------------------------------------------
+// Security event logging
+// ---------------------------------------------------------------------------
+
+/// Insert a security event into the local SQLite `security_events` table.
+/// Fire-and-forget — errors are logged but never propagated.
+async fn log_security_event(
+    db: &sqlx::SqlitePool,
+    event_type: &str,
+    user_id: Option<&str>,
+    details: &serde_json::Value,
+) {
+    let details_str = details.to_string();
+    let result = sqlx::query(
+        "INSERT INTO security_events (event_type, user_id, details) VALUES (?, ?, ?)",
+    )
+    .bind(event_type)
+    .bind(user_id)
+    .bind(&details_str)
+    .execute(db)
+    .await;
+
+    if let Err(e) = result {
+        tracing::warn!(event_type = %event_type, "failed to log security event: {e}");
+    }
+}
+
+/// Check recent failed login count and send ntfy alert if threshold exceeded.
+async fn check_failed_login_alert(db: &sqlx::SqlitePool) {
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM security_events WHERE event_type = 'login_failed' AND created_at > datetime('now', '-15 minutes')",
+    )
+    .fetch_one(db)
+    .await
+    .unwrap_or(0);
+
+    if count >= 5 {
+        tracing::warn!("Security alert: {count} failed login attempts in 15 minutes");
+        crate::routes::pipeline::helpers::send_notify(
+            "Security Alert: Multiple Failed Logins",
+            &format!("{count} failed login attempts in the last 15 minutes"),
+            4, // high priority
+            &["warning", "lock"],
+        );
+    }
+}
 
 // ---------------------------------------------------------------------------
 // OAuth nonce — prevents code injection via POST /auth/tauri-session or
@@ -58,6 +105,8 @@ pub fn router() -> Router<AppState> {
         .route("/mfa/challenge", post(mfa_challenge))
         .route("/mfa/verify", post(mfa_verify))
         .route("/mfa/unenroll/:factor_id", delete(mfa_unenroll))
+        // Security monitoring
+        .route("/security-events", get(get_security_events))
 }
 
 // ---------------------------------------------------------------------------
@@ -406,10 +455,23 @@ async fn login(
     let gotrue = GoTrueClient::from_state(&state)
         .map_err(|e| AppError::Internal(e))?;
 
-    let auth = gotrue
+    let auth = match gotrue
         .sign_in_with_password(&body.email, &body.password)
         .await
-        .map_err(|e| AppError::BadRequest(format!("login failed: {e}")))?;
+    {
+        Ok(auth) => auth,
+        Err(e) => {
+            log_security_event(
+                &state.db,
+                "login_failed",
+                None,
+                &json!({ "email": body.email }),
+            )
+            .await;
+            check_failed_login_alert(&state.db).await;
+            return Err(AppError::BadRequest(format!("login failed: {e}")));
+        }
+    };
 
     // Derive encryption key from password using per-user random salt
     let user_id = auth.user["id"].as_str().unwrap_or("").to_string();
@@ -447,15 +509,26 @@ async fn login(
         user_id: user_id.clone(),
         email: body.email.clone(),
         expires_at: now + auth.expires_in,
-        encryption_key,
+        encryption_key: encryption_key.to_vec(),
         mfa_verified: false,
         factor_id: verified_factor_id.clone(),
     };
+    // Drop the Zeroizing wrapper now — its copy is zeroed, the session
+    // field is protected by UserSession's own Drop impl.
+    drop(encryption_key);
     *state.session.write().await = Some(session.clone());
 
     // Load user-specific secrets from Supabase user_secrets table.
     // Runs in the background — errors are logged but don't fail login.
     load_user_secrets(&state, &session).await;
+
+    log_security_event(
+        &state.db,
+        "login_success",
+        Some(&user_id),
+        &json!({ "email": body.email }),
+    )
+    .await;
 
     tracing::info!(user_id = %user_id, mfa_required = %has_verified_factors, "user logged in");
 
@@ -481,11 +554,18 @@ struct SignupBody {
 }
 
 async fn signup(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(_body): Json<SignupBody>,
 ) -> Result<Json<Value>, AppError> {
     // Signup is disabled — this is a personal self-hosted app.
     // New accounts must be created by an administrator via the Supabase dashboard.
+    log_security_event(
+        &state.db,
+        "signup_attempt",
+        None,
+        &json!({}),
+    )
+    .await;
     tracing::warn!("signup attempt rejected (signup is disabled)");
     Err(AppError::Forbidden(
         "Signup is disabled. New accounts must be created by an administrator.".into(),
@@ -540,6 +620,15 @@ async fn logout(State(state): State<AppState>) -> Json<Value> {
         }
         // Clear cached API responses for this user to prevent data leakage
         state.cache_clear_user(&sess.user_id).await;
+        log_security_event(
+            &state.db,
+            "logout",
+            Some(&sess.user_id),
+            &json!({}),
+        )
+        .await;
+        // Audit trail
+        crate::audit::log_audit_or_warn(&state.db, &sess.user_id, "logout", "session", None, None).await;
         tracing::info!(user_id = %sess.user_id, "user logged out");
     }
     *state.session.write().await = None;
@@ -706,8 +795,17 @@ async fn change_password(
 
     let mut write = state.session.write().await;
     if let Some(ref mut s) = *write {
-        s.encryption_key = new_key;
+        s.encryption_key = new_key.to_vec();
     }
+    drop(new_key);
+
+    log_security_event(
+        &state.db,
+        "password_change",
+        Some(&session.user_id),
+        &json!({}),
+    )
+    .await;
 
     tracing::info!(user_id = %session.user_id, "password changed, {} secrets re-encrypted",
         session.encryption_key.is_empty().then(|| 0).unwrap_or(1));
@@ -857,7 +955,7 @@ async fn mfa_verify(
     let gotrue = GoTrueClient::from_state(&state)
         .map_err(|e| AppError::Internal(e))?;
 
-    let auth = gotrue
+    let auth = match gotrue
         .mfa_verify(
             &session.access_token,
             &body.factor_id,
@@ -865,7 +963,28 @@ async fn mfa_verify(
             &body.code,
         )
         .await
-        .map_err(|e| AppError::Internal(e))?;
+    {
+        Ok(auth) => {
+            log_security_event(
+                &state.db,
+                "mfa_verified",
+                Some(&session.user_id),
+                &json!({ "factor_id": body.factor_id }),
+            )
+            .await;
+            auth
+        }
+        Err(e) => {
+            log_security_event(
+                &state.db,
+                "mfa_failed",
+                Some(&session.user_id),
+                &json!({ "factor_id": body.factor_id }),
+            )
+            .await;
+            return Err(AppError::Internal(e));
+        }
+    };
 
     // Update session with upgraded token (aal2) — MFA is now verified
     let now = epoch_secs();
@@ -916,6 +1035,14 @@ async fn mfa_unenroll(
         .mfa_unenroll(&session.access_token, &factor_id)
         .await
         .map_err(|e| AppError::Internal(e))?;
+
+    log_security_event(
+        &state.db,
+        "mfa_unenroll",
+        Some(&session.user_id),
+        &json!({ "factor_id": factor_id }),
+    )
+    .await;
 
     tracing::info!(user_id = %session.user_id, factor_id = %factor_id, "MFA factor unenrolled");
 
@@ -1205,7 +1332,7 @@ async fn oauth_callback(
                             access_token: auth.access_token,
                             refresh_token: auth.refresh_token,
                             user_id: user_id.clone(),
-                            email,
+                            email: email.clone(),
                             expires_at: now + auth.expires_in,
                             encryption_key: Vec::new(),
                             mfa_verified: false,
@@ -1221,6 +1348,14 @@ async fn oauth_callback(
                         // key, which is the case for OAuth logins without a
                         // password-derived key).
                         load_user_secrets(&state, &session).await;
+
+                        log_security_event(
+                            &state.db,
+                            "oauth_login",
+                            Some(&user_id),
+                            &json!({ "email": email }),
+                        )
+                        .await;
 
                         tracing::info!(
                             user_id = %user_id,
@@ -1251,6 +1386,40 @@ async fn oauth_callback(
             true,
         )))
     }
+}
+
+// ---------------------------------------------------------------------------
+// GET /auth/security-events — last 100 security events for the settings dashboard
+// ---------------------------------------------------------------------------
+
+async fn get_security_events(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let rows = sqlx::query_as::<_, (i64, String, Option<String>, Option<String>, String, String)>(
+        "SELECT id, event_type, user_id, ip, details, created_at \
+         FROM security_events ORDER BY created_at DESC LIMIT 100",
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    let events: Vec<Value> = rows
+        .into_iter()
+        .map(|(id, event_type, user_id, ip, details, created_at)| {
+            let details_val: Value =
+                serde_json::from_str(&details).unwrap_or(json!({}));
+            json!({
+                "id": id,
+                "event_type": event_type,
+                "user_id": user_id,
+                "ip": ip,
+                "details": details_val,
+                "created_at": created_at,
+            })
+        })
+        .collect();
+
+    Ok(Json(json!({ "events": events })))
 }
 
 #[cfg(test)]

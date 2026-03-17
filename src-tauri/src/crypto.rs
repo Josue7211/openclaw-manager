@@ -5,6 +5,7 @@ use aes_gcm::{
 use argon2::{Algorithm, Argon2, Params, Version};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use rand::RngCore;
+use zeroize::Zeroizing;
 
 /// Derive a 32-byte encryption key from a password using Argon2id.
 ///
@@ -15,7 +16,7 @@ use rand::RngCore;
 /// (base64-encoded 16-byte random salt). Never use deterministic values like user IDs.
 /// Truncates or zero-pads the UTF-8 salt bytes to exactly 16 bytes before
 /// passing them to Argon2, which requires a salt of at least 8 bytes.
-pub fn derive_key(password: &str, salt: &str) -> Vec<u8> {
+pub fn derive_key(password: &str, salt: &str) -> Zeroizing<Vec<u8>> {
     let params = Params::new(
         65536, // 64 MiB memory cost
         3,     // 3 iterations
@@ -38,7 +39,7 @@ pub fn derive_key(password: &str, salt: &str) -> Vec<u8> {
     argon2
         .hash_password_into(password.as_bytes(), &salt_fixed, &mut output)
         .expect("argon2 key derivation");
-    output
+    Zeroizing::new(output)
 }
 
 /// Encrypt `plaintext` with AES-256-GCM using the provided 32-byte `key`.

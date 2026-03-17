@@ -98,6 +98,9 @@ async fn post_todo(
         .await
         .map_err(|e| AppError::Internal(e.into()))?;
 
+    // Audit trail
+    crate::audit::log_audit_or_warn(&state.db, &session.user_id, "create", "todos", Some(&id), None).await;
+
     Ok(Json(json!({
         "todo": [{
             "id": id,
@@ -205,6 +208,13 @@ async fn delete_todo(
 ) -> Result<Json<Value>, AppError> {
     validate_uuid(&body.id)?;
 
+    tracing::warn!(
+        user_id = %session.user_id,
+        table = "todos",
+        item_id = %body.id,
+        "DLP: item deleted"
+    );
+
     // Soft-delete locally (mark deleted_at) so sync engine can propagate
     let now = chrono::Utc::now().to_rfc3339();
     sqlx::query(
@@ -221,6 +231,9 @@ async fn delete_todo(
     crate::sync::log_mutation(&state.db, "todos", &body.id, "DELETE", None)
         .await
         .map_err(|e| AppError::Internal(e.into()))?;
+
+    // Audit trail
+    crate::audit::log_audit_or_warn(&state.db, &session.user_id, "delete", "todos", Some(&body.id), None).await;
 
     Ok(Json(json!({ "ok": true })))
 }

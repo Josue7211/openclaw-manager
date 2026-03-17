@@ -161,6 +161,14 @@ async fn delete_stale(
     let sb = SupabaseClient::from_state(&state)?;
     validate_uuid(&body.id)?;
     let table = type_to_table(&body.item_type)?;
+
+    tracing::warn!(
+        user_id = %session.user_id,
+        table = %table,
+        item_id = %body.id,
+        "DLP: item deleted"
+    );
+
     sb.delete_as_user(table, &format!("id=eq.{}", body.id), &session.access_token).await?;
     Ok(Json(json!({ "ok": true })))
 }

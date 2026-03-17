@@ -72,6 +72,14 @@ async fn delete_changelog(
         .and_then(|v| v.as_str())
         .ok_or_else(|| AppError::BadRequest("id required".into()))?;
     validate_uuid(id)?;
+
+    tracing::warn!(
+        user_id = %session.user_id,
+        table = "changelog_entries",
+        item_id = %id,
+        "DLP: item deleted"
+    );
+
     sb.delete_as_user("changelog_entries", &format!("id=eq.{id}"), &session.access_token).await?;
     Ok(Json(json!({ "ok": true })))
 }

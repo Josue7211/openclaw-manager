@@ -1,6 +1,6 @@
 mod agents;
 mod registry;
-mod helpers;
+pub(crate) mod helpers;
 mod spawn;
 mod complete;
 mod review;

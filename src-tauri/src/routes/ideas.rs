@@ -319,6 +319,13 @@ async fn delete_idea(
     }
     validate_uuid(&id)?;
 
+    tracing::warn!(
+        user_id = %session.user_id,
+        table = "ideas",
+        item_id = %id,
+        "DLP: item deleted"
+    );
+
     let now = chrono::Utc::now().to_rfc3339();
     sqlx::query(
         "UPDATE ideas SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?",

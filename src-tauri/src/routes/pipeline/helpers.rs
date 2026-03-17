@@ -150,7 +150,7 @@ pub(super) fn log_activity(sb: &SupabaseClient, params: Value, jwt: &str) {
 }
 
 /// Fire-and-forget notification via local Ntfy-style endpoint.
-pub(super) fn send_notify(title: &str, message: &str, priority: u8, tags: &[&str]) {
+pub(crate) fn send_notify(title: &str, message: &str, priority: u8, tags: &[&str]) {
     let body = json!({
         "title": title,
         "message": message,

@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+pub mod audit;
 mod commands;
 pub mod crypto;
 mod db;
@@ -17,6 +18,20 @@ mod tailscale;
 pub mod validation;
 
 fn main() {
+    // Prevent core dumps from containing sensitive data (keys, tokens, passwords).
+    // Must be the very first thing before any secrets are loaded.
+    #[cfg(unix)]
+    {
+        use libc::{rlimit, setrlimit, RLIMIT_CORE};
+        let zero = rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
+        unsafe {
+            setrlimit(RLIMIT_CORE, &zero);
+        }
+    }
+
     // Hyprland/Wayland: must be set before any GTK/WebKit initialization
     #[cfg(target_os = "linux")]
     {

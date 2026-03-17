@@ -398,6 +398,13 @@ async fn delete_mission(
 ) -> Result<Json<Value>, AppError> {
     validate_uuid(&body.id)?;
 
+    tracing::warn!(
+        user_id = %session.user_id,
+        table = "missions",
+        item_id = %body.id,
+        "DLP: item deleted"
+    );
+
     let now = chrono::Utc::now().to_rfc3339();
     sqlx::query(
         "UPDATE missions SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?",

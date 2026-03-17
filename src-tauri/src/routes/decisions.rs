@@ -140,6 +140,14 @@ async fn delete_decision(
         .and_then(|v| v.as_str())
         .ok_or_else(|| AppError::BadRequest("id required".into()))?;
     validate_uuid(id)?;
+
+    tracing::warn!(
+        user_id = %session.user_id,
+        table = "decisions",
+        item_id = %id,
+        "DLP: item deleted"
+    );
+
     sb.delete_as_user("decisions", &format!("id=eq.{id}"), &session.access_token).await?;
     Ok(Json(json!({ "ok": true })))
 }

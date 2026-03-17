@@ -124,6 +124,13 @@ async fn delete_knowledge(
     }
     validate_uuid(&id)?;
 
+    tracing::warn!(
+        user_id = %session.user_id,
+        table = "knowledge_entries",
+        item_id = %id,
+        "DLP: item deleted"
+    );
+
     let sb = SupabaseClient::from_state(&state)?;
     sb.delete_as_user("knowledge_entries", &format!("id=eq.{}", id), &session.access_token).await?;
     Ok(Json(json!({ "ok": true })))

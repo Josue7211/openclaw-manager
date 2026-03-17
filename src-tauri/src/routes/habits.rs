@@ -126,6 +126,13 @@ async fn delete_habit(
         .ok_or_else(|| AppError::BadRequest("id required".into()))?;
     validate_uuid(id)?;
 
+    tracing::warn!(
+        user_id = %session.user_id,
+        table = "habits",
+        item_id = %id,
+        "DLP: item deleted"
+    );
+
     let now = chrono::Utc::now().to_rfc3339();
     sqlx::query(
         "UPDATE habits SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?",

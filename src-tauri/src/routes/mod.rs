@@ -11,6 +11,7 @@ pub mod changelog;
 pub mod chat;
 pub mod decisions;
 pub mod deploy;
+pub mod dlp;
 pub mod email;
 pub mod events;
 pub mod habits;
@@ -56,6 +57,7 @@ pub fn router() -> Router<AppState> {
         .merge(captures::router())
         .merge(changelog::router())
         .merge(decisions::router())
+        .merge(dlp::router())
         .merge(ideas::router())
         .merge(memory::router())
         .merge(search::router())
@@ -71,6 +73,7 @@ pub fn router() -> Router<AppState> {
         .merge(status::router())
         .merge(todos::router())
         .merge(user_secrets::router())
+        .merge(crate::audit::router())
         .nest("/workspace", workspace::router())
 }
 

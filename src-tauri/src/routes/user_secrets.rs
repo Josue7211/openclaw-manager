@@ -140,6 +140,12 @@ async fn put_secret(
     sb.upsert_as_user("user_secrets", row, &session.access_token)
         .await?;
 
+    // Audit trail (never log the credential values — just the service name)
+    let details = serde_json::to_string(&json!({ "service": service })).unwrap_or_default();
+    crate::audit::log_audit_or_warn(
+        &state.db, &session.user_id, "update", "secrets", Some(service), Some(&details),
+    ).await;
+
     Ok(success_json(json!({ "ok": true })))
 }
 
@@ -167,6 +173,12 @@ async fn delete_secret(
         &session.access_token,
     )
     .await?;
+
+    // Audit trail
+    let details = serde_json::to_string(&json!({ "service": service })).unwrap_or_default();
+    crate::audit::log_audit_or_warn(
+        &state.db, &session.user_id, "delete", "secrets", Some(service), Some(&details),
+    ).await;
 
     Ok(success_json(json!({ "ok": true })))
 }
