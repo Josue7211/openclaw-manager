@@ -22,6 +22,26 @@ use super::util::{percent_encode, random_uuid, base64_decode};
 static WS_CONNECTIONS: AtomicUsize = AtomicUsize::new(0);
 const MAX_WS_CONNECTIONS: usize = 5;
 
+/// Global counter for concurrent chat SSE connections.
+static CHAT_SSE_CONNECTIONS: AtomicUsize = AtomicUsize::new(0);
+const MAX_CHAT_SSE_CONNECTIONS: usize = 5;
+
+/// RAII guard that decrements the chat SSE connection counter on drop.
+struct ChatSseConnectionGuard;
+
+impl ChatSseConnectionGuard {
+    fn new() -> Self {
+        CHAT_SSE_CONNECTIONS.fetch_add(1, Ordering::Relaxed);
+        Self
+    }
+}
+
+impl Drop for ChatSseConnectionGuard {
+    fn drop(&mut self) {
+        CHAT_SSE_CONNECTIONS.fetch_sub(1, Ordering::Relaxed);
+    }
+}
+
 /// Server-side system prompt — never settable from the frontend.
 const SYSTEM_PROMPT: &str = r#"You are a helpful AI assistant in Mission Control, a personal command center app.
 
@@ -191,6 +211,12 @@ fn save_image_to_disk(data_url: &str) -> Option<String> {
     }
 
     let decoded = base64_decode(base64_data)?;
+
+    // Reject images larger than 5 MB
+    if decoded.len() > 5 * 1024 * 1024 {
+        tracing::warn!("Rejected image upload: decoded size {} exceeds 5 MB limit", decoded.len());
+        return None;
+    }
 
     // Validate magic bytes before writing to disk
     if !validate_image_magic_bytes(&decoded) {
@@ -638,6 +664,14 @@ async fn post_chat(
             .into_response();
     }
 
+    if imgs.len() > 10 {
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Too many images (max 10)"})),
+        )
+            .into_response();
+    }
+
     if txt.len() > 50_000 {
         return (
             axum::http::StatusCode::BAD_REQUEST,
@@ -724,13 +758,27 @@ async fn get_history(State(state): State<AppState>, RequireAuth(_session): Requi
     if dir.exists() {
         if let Some(file_path) = get_session_file(&state) {
             let messages = parse_messages(&file_path);
-            return Json(json!({"messages": messages})).into_response();
+            let redacted: Vec<ChatMessage> = messages
+                .into_iter()
+                .map(|mut m| {
+                    m.text = crate::redact::redact(&m.text);
+                    m
+                })
+                .collect();
+            return Json(json!({"messages": redacted})).into_response();
         }
     }
 
     // Fall back to remote OpenClaw API
     if let Some(messages) = fetch_remote_history(&state).await {
-        return Json(json!({"messages": messages})).into_response();
+        let redacted: Vec<ChatMessage> = messages
+            .into_iter()
+            .map(|mut m| {
+                m.text = crate::redact::redact(&m.text);
+                m
+            })
+            .collect();
+        return Json(json!({"messages": redacted})).into_response();
     }
 
     Json(json!({"messages": []})).into_response()
@@ -741,6 +789,17 @@ async fn get_history(State(state): State<AppState>, RequireAuth(_session): Requi
 // ---------------------------------------------------------------------------
 
 async fn get_stream(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Response {
+    use axum::response::IntoResponse as _;
+
+    // Enforce concurrent SSE connection limit
+    if CHAT_SSE_CONNECTIONS.load(Ordering::Relaxed) >= MAX_CHAT_SSE_CONNECTIONS {
+        return (
+            axum::http::StatusCode::TOO_MANY_REQUESTS,
+            Json(json!({"error": "too many chat SSE connections"})),
+        )
+            .into_response();
+    }
+
     let dir = openclaw_dir_from(&state);
     let local_session = if dir.exists() { get_session_file(&state) } else { None };
 
@@ -751,6 +810,7 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
             .unwrap_or(0);
         let mut last_count = parse_messages(&file_path).len();
 
+        let _guard = ChatSseConnectionGuard::new();
         let stream = async_stream::stream! {
             let mut ticker = interval(Duration::from_secs(1));
 
@@ -799,6 +859,7 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
         let mut last_count = initial.len();
         let state_clone = state.clone();
 
+        let _guard = ChatSseConnectionGuard::new();
         let stream = async_stream::stream! {
             let mut ticker = interval(Duration::from_secs(2));
 
@@ -1139,6 +1200,17 @@ async fn set_model(
     RequireAuth(_session): RequireAuth,
     Json(body): Json<SetModelBody>,
 ) -> Response {
+    // Validate model name: only safe characters, max 128 chars
+    if body.model.len() > 128
+        || !body.model.chars().all(|c| c.is_ascii_alphanumeric() || "._:/-".contains(c))
+    {
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Invalid model name"})),
+        )
+            .into_response();
+    }
+
     let base = match openclaw_api_url(&state) {
         Some(b) => b,
         None => {

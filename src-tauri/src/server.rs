@@ -657,6 +657,10 @@ async fn no_store_api_responses(req: Request<Body>, next: Next) -> Response {
         "referrer-policy",
         "no-referrer".parse().unwrap(),
     );
+    response.headers_mut().insert(
+        "x-frame-options",
+        "DENY".parse().unwrap(),
+    );
     response
 }
 
@@ -956,6 +960,16 @@ async fn db_cleanup(db: &sqlx::SqlitePool) {
             _ => {}
         }
     }
+
+    // 5. Purge old security_events (>90 days)
+    let _ = sqlx::query("DELETE FROM security_events WHERE created_at < datetime('now', '-90 days')")
+        .execute(db)
+        .await;
+
+    // 6. Purge old audit_log entries (>90 days)
+    let _ = sqlx::query("DELETE FROM audit_log WHERE created_at < datetime('now', '-90 days')")
+        .execute(db)
+        .await;
 }
 
 #[cfg(test)]

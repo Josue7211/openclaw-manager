@@ -81,7 +81,7 @@ export default function SettingsUser({
       const attestation = await registerWebAuthnKey(enrollData.creation_options)
 
       // Step 3: Send the attestation back to the server for verification
-      await api.post('/api/auth/mfa/verify-webauthn-enrollment', {
+      await api.post('/api/auth/mfa/verify', {
         factor_id: enrollData.factor_id,
         credential: attestation,
       })
@@ -107,7 +107,7 @@ export default function SettingsUser({
 
   async function handleWebAuthnRemove(factorId: string) {
     try {
-      await api.post('/api/auth/mfa/unenroll', { factor_id: factorId })
+      await api.del(`/api/auth/mfa/unenroll/${factorId}`)
       setWebAuthnKeys(prev => prev.filter(k => k.id !== factorId))
       setWebAuthnStatus('Hardware key removed')
     } catch (err) {
@@ -248,7 +248,7 @@ export default function SettingsUser({
               }
             }}>Verify</button>
             <button style={btnSecondary} onClick={async () => {
-              if (mfaFactorId) await api.post('/api/auth/mfa/unenroll', { factor_id: mfaFactorId }).catch(() => {})
+              if (mfaFactorId) await api.del(`/api/auth/mfa/unenroll/${mfaFactorId}`).catch(() => {})
               setMfaEnrolling(false); setMfaQr(null); setMfaSecret(null); setMfaCode(''); setMfaFactorId(null); setMfaStatus(null)
             }}>Cancel</button>
           </div>
@@ -262,7 +262,7 @@ export default function SettingsUser({
               const data = await api.get<{ factors?: Array<{ id: string; status: string; type: string }> }>('/api/auth/mfa/factors')
               const totp = data.factors?.find(f => f.type === 'totp' && f.status === 'verified')
               if (totp) {
-                await api.post('/api/auth/mfa/unenroll', { factor_id: totp.id })
+                await api.del(`/api/auth/mfa/unenroll/${totp.id}`)
                 setMfaEnabled(false)
               }
             } catch { /* silent */ }

@@ -340,10 +340,9 @@ fn handle_text_message(text: &str, user_id: &str, tx: &broadcast::Sender<String>
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
-    // Some tables (like mission_events) may not have user_id, so allow
-    // empty record_user_id through only if our user_id is also empty
-    // (unauthenticated dev mode).  Otherwise require a match.
-    if !record_user_id.is_empty() && record_user_id != user_id {
+    // Strict user_id filter: only forward events that belong to this user.
+    // Records without a user_id field are dropped (defense-in-depth).
+    if record_user_id != user_id {
         return;
     }
 
@@ -452,10 +451,10 @@ mod tests {
     }
 
     #[test]
-    fn test_allows_records_without_user_id() {
+    fn test_rejects_records_without_user_id() {
         let (tx, mut rx) = broadcast::channel::<String>(16);
 
-        // mission_events may not have user_id
+        // Records without user_id are now rejected (strict filter)
         let msg = json!({
             "topic": "realtime:public:mission_events",
             "event": "postgres_changes",
@@ -473,10 +472,7 @@ mod tests {
         });
 
         handle_text_message(&msg.to_string(), "user-1", &tx);
-        let received = rx.try_recv().unwrap();
-        let parsed: Value = serde_json::from_str(&received).unwrap();
-        assert_eq!(parsed["table"], "mission_events");
-        assert_eq!(parsed["event"], "INSERT");
+        assert!(rx.try_recv().is_err(), "records without user_id should be filtered out");
     }
 
     #[test]

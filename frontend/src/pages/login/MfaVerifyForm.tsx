@@ -38,7 +38,7 @@ export function MfaVerifyForm({
 
     try {
       // Get challenge options from the server
-      const options = await api.post<WebAuthnRequestOptions>('/api/auth/mfa/challenge-webauthn', {
+      const options = await api.post<WebAuthnRequestOptions>('/api/auth/mfa/challenge', {
         factor_id: factorId,
       })
 
@@ -46,7 +46,7 @@ export function MfaVerifyForm({
       const assertion = await authenticateWebAuthnKey(options)
 
       // Send the assertion to the server for verification
-      await api.post('/api/auth/mfa/verify-webauthn', {
+      await api.post('/api/auth/mfa/verify', {
         factor_id: factorId,
         credential: assertion,
       })

@@ -50,7 +50,14 @@ async fn get_events(
         );
     }
 
-    match fetch_caldav_events(&state.http, &url, &username, &password).await {
+    // Build a dedicated CalDAV client that refuses redirects (SSRF prevention)
+    let caldav_client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .unwrap_or_else(|_| state.http.clone());
+
+    match fetch_caldav_events(&caldav_client, &url, &username, &password).await {
         Ok(mut events) => {
             events.sort_by(|a, b| a.start.cmp(&b.start));
             (StatusCode::OK, Json(json!({ "events": events })))

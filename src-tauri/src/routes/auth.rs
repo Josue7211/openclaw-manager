@@ -401,6 +401,10 @@ async fn get_or_create_salt(
 ) -> anyhow::Result<String> {
     let sb = SupabaseClient::from_state(state)?;
 
+    // Validate user_id to prevent injection into the PostgREST query
+    crate::validation::validate_uuid(user_id)
+        .map_err(|_| anyhow::anyhow!("invalid user_id format"))?;
+
     // Try to fetch existing salt
     let query = format!("select=encryption_salt&user_id=eq.{user_id}");
     let rows = sb
@@ -545,9 +549,9 @@ async fn login(
     drop(encryption_key);
     *state.session.write().await = Some(session.clone());
 
-    // Load user-specific secrets from Supabase user_secrets table.
-    // Runs in the background — errors are logged but don't fail login.
-    load_user_secrets(&state, &session).await;
+    // NOTE: load_user_secrets is NOT called here — the session is pre-MFA
+    // and the user has not yet verified their MFA factor. Secrets are loaded
+    // after MFA verification in the mfa_verify handler.
 
     log_security_event(
         &state.db,
@@ -746,6 +750,46 @@ async fn change_password(
         .sign_in_with_password(&session.email, &body.current_password)
         .await
         .map_err(|_| AppError::BadRequest("current password incorrect".into()))?;
+
+    // Dry-run: verify all user_secrets can be decrypted with the old key
+    // BEFORE changing the password. This prevents data loss if any secret
+    // is corrupted or encrypted with a different key.
+    let old_key = &session.encryption_key;
+    if !old_key.is_empty() {
+        let sb_dryrun = SupabaseClient::from_state(&state)
+            .map_err(|e| AppError::Internal(e))?;
+
+        let dryrun_secrets = sb_dryrun
+            .select_as_user(
+                "user_secrets",
+                "select=service,encrypted_credentials,nonce",
+                &session.access_token,
+            )
+            .await
+            .unwrap_or(serde_json::json!([]));
+
+        if let Some(rows) = dryrun_secrets.as_array() {
+            for row in rows {
+                let service = row["service"].as_str().unwrap_or("unknown");
+                let ciphertext = match row["encrypted_credentials"].as_str() {
+                    Some(s) => s,
+                    None => continue,
+                };
+                let nonce = match row["nonce"].as_str() {
+                    Some(s) => s,
+                    None => continue,
+                };
+
+                if crate::crypto::decrypt(ciphertext, nonce, old_key).is_err() {
+                    return Err(AppError::BadRequest(format!(
+                        "Cannot change password: secret for service '{}' cannot be decrypted with current key. \
+                         Please re-save that credential first.",
+                        service
+                    )));
+                }
+            }
+        }
+    }
 
     // Update password
     gotrue
@@ -1496,12 +1540,14 @@ async fn oauth_callback(
 
 async fn get_security_events(
     State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
+    RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
     let rows = sqlx::query_as::<_, (i64, String, Option<String>, Option<String>, String, String)>(
         "SELECT id, event_type, user_id, ip, details, created_at \
-         FROM security_events ORDER BY created_at DESC LIMIT 100",
+         FROM security_events WHERE user_id = ? OR user_id IS NULL \
+         ORDER BY created_at DESC LIMIT 100",
     )
+    .bind(&session.user_id)
     .fetch_all(&state.db)
     .await?;
 
