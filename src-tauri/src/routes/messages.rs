@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::net::ToSocketAddrs;
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::sync::RwLock;
 
 use crate::server::{AppState, RequireAuth};
@@ -1040,6 +1041,13 @@ async fn fetch_and_build_conversations(
 /// Background cache refresh — fetches fresh data and stores it.
 /// Also called at server startup to pre-warm the cache.
 pub async fn refresh_conv_cache(client: &reqwest::Client, state: &AppState) {
+    let user_id = state
+        .session
+        .read()
+        .await
+        .as_ref()
+        .map(|s| s.user_id.clone())
+        .unwrap_or_default();
     match fetch_and_build_conversations(client, state).await {
         Ok((conversations, contacts)) => {
             // Persist to SQLite for instant next launch
@@ -1047,7 +1055,7 @@ pub async fn refresh_conv_cache(client: &reqwest::Client, state: &AppState) {
                 "conversations": conversations,
                 "contacts": contacts,
             })) {
-                state.cache_set("conversations", &payload).await;
+                state.cache_set(&user_id, "conversations", &payload).await;
             }
 
             let mut cache = conv_cache().write().await;
@@ -1065,8 +1073,8 @@ pub async fn refresh_conv_cache(client: &reqwest::Client, state: &AppState) {
 
 /// Load conversations from SQLite into the in-memory cache.
 /// Returns `true` if the cache was populated from disk.
-async fn hydrate_conv_cache_from_db(state: &AppState) -> bool {
-    let cached = match state.cache_get("conversations").await {
+async fn hydrate_conv_cache_from_db(state: &AppState, user_id: &str) -> bool {
+    let cached = match state.cache_get(user_id, "conversations").await {
         Some(s) => s,
         None => return false,
     };
@@ -1117,9 +1125,10 @@ struct MessagesQuery {
 
 async fn get_messages(
     State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
+    RequireAuth(session): RequireAuth,
     Query(params): Query<MessagesQuery>,
 ) -> Response {
+    let user_id = &session.user_id;
     let client = &state.http;
 
     if let Some(ref chat_guid) = params.conversation {
@@ -1194,7 +1203,7 @@ async fn get_messages(
 
                 if let Some(ts) = newest_ts {
                     let cache_key = format!("msg-ts-{}", chat_guid);
-                    state.cache_set(&cache_key, &ts.to_string()).await;
+                    state.cache_set(user_id, &cache_key, &ts.to_string()).await;
                 }
 
                 Json(json!({
@@ -1242,7 +1251,7 @@ async fn get_messages(
         {
             let has_cache = conv_cache().read().await.is_some();
             if !has_cache {
-                hydrate_conv_cache_from_db(&state).await;
+                hydrate_conv_cache_from_db(&state, user_id).await;
             }
         }
         {
@@ -1308,7 +1317,7 @@ async fn get_messages(
                 "conversations": conversations_all,
                 "contacts": contact_lookup,
             })) {
-                state.cache_set("conversations", &payload).await;
+                state.cache_set(user_id, "conversations", &payload).await;
             }
 
             let mut cache = conv_cache().write().await;
@@ -1595,6 +1604,7 @@ fn blocked_host_regexes() -> &'static Vec<Regex> {
             Regex::new(r"(?i)^fe80:").unwrap(),
             Regex::new(r"(?i)^fc00:").unwrap(),
             Regex::new(r"(?i)^fd").unwrap(),
+            Regex::new(r"(?i)^\[?::ffff:").unwrap(), // IPv4-mapped IPv6
         ]
     })
 }
@@ -1728,7 +1738,15 @@ async fn get_link_preview(
                         || ipv4.is_broadcast()
                 }
                 std::net::IpAddr::V6(ipv6) => {
-                    ipv6.is_loopback() || ipv6.is_unspecified()
+                    if let Some(mapped) = ipv6.to_ipv4_mapped() {
+                        mapped.is_loopback()
+                            || mapped.is_private()
+                            || mapped.is_link_local()
+                            || mapped.is_unspecified()
+                            || mapped.is_broadcast()
+                    } else {
+                        ipv6.is_loopback() || ipv6.is_unspecified()
+                    }
                 }
             };
             if blocked {
@@ -1863,7 +1881,15 @@ async fn get_link_preview(
                                             || ipv4.is_broadcast()
                                     }
                                     std::net::IpAddr::V6(ipv6) => {
-                                        ipv6.is_loopback() || ipv6.is_unspecified()
+                                        if let Some(mapped) = ipv6.to_ipv4_mapped() {
+                                            mapped.is_loopback()
+                                                || mapped.is_private()
+                                                || mapped.is_link_local()
+                                                || mapped.is_unspecified()
+                                                || mapped.is_broadcast()
+                                        } else {
+                                            ipv6.is_loopback() || ipv6.is_unspecified()
+                                        }
                                     }
                                 };
                                 if blocked {
@@ -1983,8 +2009,8 @@ async fn get_link_preview(
 
     // Don't decode HTML entities server-side — React auto-escapes text content,
     // and decoding here could pass through crafted HTML from malicious OG tags.
-    let clamped_title = if title.len() > 200 { &title[..200] } else { &title };
-    let clamped_desc = if description.len() > 300 { &description[..300] } else { &description };
+    let clamped_title = crate::supabase::safe_truncate(&title, 200);
+    let clamped_desc = crate::supabase::safe_truncate(&description, 300);
 
     (
         [(header::CACHE_CONTROL, "public, max-age=3600, s-maxage=3600")],
@@ -2644,8 +2670,20 @@ async fn post_send_attachment(
 // If a full socket.io client becomes available, this can be upgraded.
 // ---------------------------------------------------------------------------
 
+/// Global counter for concurrent messages SSE connections.
+static MSG_SSE_CONNECTIONS: AtomicUsize = AtomicUsize::new(0);
+const MAX_MSG_SSE_CONNECTIONS: usize = 5;
+
 async fn get_stream(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Response {
     use axum::response::sse::{Event, KeepAlive, Sse};
+
+    if MSG_SSE_CONNECTIONS.load(Ordering::Relaxed) >= MAX_MSG_SSE_CONNECTIONS {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(json!({ "error": "too many SSE connections" })),
+        )
+            .into_response();
+    }
 
     let host = bb_host(&state);
     if host.is_empty() {
@@ -2656,6 +2694,7 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
             .into_response();
     }
 
+    MSG_SSE_CONNECTIONS.fetch_add(1, Ordering::Relaxed);
     let client = state.http.clone();
     let stream_state = state.clone();
 
@@ -2694,7 +2733,7 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
                             }
                             seen_guids.insert(guid);
                             // Cap the seen set to prevent unbounded growth
-                            if seen_guids.len() > 500 {
+                            if seen_guids.len() > 2000 {
                                 seen_guids.clear();
                             }
 
@@ -2741,6 +2780,8 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
                 }
             }
         }
+        // Stream ended (client disconnected) — decrement the connection counter.
+        MSG_SSE_CONNECTIONS.fetch_sub(1, Ordering::Relaxed);
     };
 
     Sse::new(stream)

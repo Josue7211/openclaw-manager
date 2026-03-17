@@ -44,5 +44,8 @@ src-tauri/binaries/*
 src-tauri/resources/*
 !src-tauri/resources/.gitkeep
 
+# Claude Code
+.claude/
+
 # Supabase
 supabase/.temp/

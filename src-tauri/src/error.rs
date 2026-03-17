@@ -24,6 +24,7 @@ pub fn success_json(data: Value) -> Json<Value> {
 pub enum AppError {
     NotFound(String),
     Unauthorized,
+    Forbidden(String),
     BadRequest(String),
     Internal(anyhow::Error),
 }
@@ -33,6 +34,7 @@ impl IntoResponse for AppError {
         let (status, code, message) = match self {
             AppError::NotFound(m) => (StatusCode::NOT_FOUND, "not_found", m),
             AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized", "Unauthorized".into()),
+            AppError::Forbidden(m) => (StatusCode::FORBIDDEN, "forbidden", m),
             AppError::BadRequest(m) => (StatusCode::BAD_REQUEST, "bad_request", m),
             AppError::Internal(e) => {
                 tracing::error!("internal error: {e:?}");

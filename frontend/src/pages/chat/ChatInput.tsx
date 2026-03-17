@@ -111,8 +111,8 @@ function ChatInputBox({
                   const next = prev.filter((_, j) => j !== i)
                   imagesRef.current = next
                   try {
-                    if (next.length === 0) localStorage.removeItem('chat-draft-images')
-                    else localStorage.setItem('chat-draft-images', JSON.stringify(next))
+                    if (next.length === 0) sessionStorage.removeItem('chat-draft-images')
+                    else sessionStorage.setItem('chat-draft-images', JSON.stringify(next))
                   } catch { /* ignore */ }
                   return next
                 })}
@@ -147,7 +147,7 @@ function ChatInputBox({
             const v = e.target.value
             setInput(v)
             if (draftTimerRef.current) clearTimeout(draftTimerRef.current)
-            draftTimerRef.current = setTimeout(() => localStorage.setItem('chat-draft', v), 300)
+            draftTimerRef.current = setTimeout(() => sessionStorage.setItem('chat-draft', v), 300)
           }}
           onKeyDown={onKeyDown}
           placeholder="Message Bjorn\u2026 (paste or drag images)"

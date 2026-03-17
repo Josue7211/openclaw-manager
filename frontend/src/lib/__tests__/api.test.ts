@@ -190,6 +190,18 @@ describe('api edge cases', () => {
     )
   })
 
+  it('PUT sends correct method with body', async () => {
+    mockFetch({ ok: true, json: () => Promise.resolve({ saved: true }) })
+    await api.put('/items/1', { name: 'new' })
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      `${API_BASE}/items/1`,
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ name: 'new' }),
+      }),
+    )
+  })
+
   it('DELETE sends correct method', async () => {
     mockFetch({ ok: true, json: () => Promise.resolve({}) })
     await api.del('/items/1')

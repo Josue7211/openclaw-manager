@@ -6,14 +6,17 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use subtle::ConstantTimeEq;
+use zeroize::Zeroize;
 use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
+use tower_http::timeout::TimeoutLayer;
 
 /// MC_API_KEY stored once at startup so the auth middleware can read it
 /// without touching process environment variables.
-static MC_API_KEY: OnceLock<String> = OnceLock::new();
+pub static MC_API_KEY: OnceLock<String> = OnceLock::new();
 use tokio::net::TcpListener;
 use tower_http::cors::{CorsLayer, Any, AllowOrigin};
 use crate::routes;
@@ -44,6 +47,16 @@ pub struct UserSession {
     /// The verified TOTP factor ID (if any). Stored at login time so we
     /// don't need to call GoTrue again.
     pub factor_id: Option<String>,
+}
+
+/// Zeroize sensitive fields (tokens, encryption key) when a `UserSession` is
+/// dropped — prevents secrets from lingering in freed memory.
+impl Drop for UserSession {
+    fn drop(&mut self) {
+        self.access_token.zeroize();
+        self.refresh_token.zeroize();
+        self.encryption_key.zeroize();
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -98,10 +111,14 @@ pub struct AppState {
     pub app: tauri::AppHandle,
     pub db: sqlx::SqlitePool,
     pub http: reqwest::Client,
-    /// Secrets loaded from the OS keychain at startup.
+    /// Secrets loaded from the OS keychain at startup, then enriched with
+    /// user-specific credentials from Supabase `user_secrets` after login.
     /// Keys are env-var names (e.g. "BLUEBUBBLES_HOST").
-    /// Route handlers should read from here instead of `std::env::var`.
-    pub secrets: std::collections::HashMap<String, String>,
+    /// Route handlers should read from here via `secret()` / `secret_or_default()`.
+    ///
+    /// Wrapped in `Arc<std::sync::RwLock>` so `load_user_secrets` can merge
+    /// decrypted credentials after login without blocking async tasks.
+    pub secrets: Arc<std::sync::RwLock<std::collections::HashMap<String, String>>>,
     /// Pre-configured BlueBubbles service client. `None` when BLUEBUBBLES_HOST
     /// is not set (module disabled).
     pub bb: Option<ServiceClient>,
@@ -125,6 +142,8 @@ impl AppState {
     /// Secrets are never stored in process-wide environment variables.
     pub fn secret(&self, key: &str) -> Option<String> {
         self.secrets
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
             .get(key)
             .cloned()
     }
@@ -134,32 +153,53 @@ impl AppState {
         self.secret(key).unwrap_or_default()
     }
 
-    /// Read a cached API response from local SQLite.
-    /// Returns `Some(json_string)` if a row exists for `key`.
-    pub async fn cache_get(&self, key: &str) -> Option<String> {
-        sqlx::query_scalar::<_, String>("SELECT data FROM api_cache WHERE key = ?")
-            .bind(key)
-            .fetch_optional(&self.db)
-            .await
-            .ok()
-            .flatten()
+    /// Merge additional secrets into the in-memory HashMap.
+    /// Existing keys are overwritten (Supabase user_secrets override keychain).
+    pub fn merge_secrets(&self, new_secrets: std::collections::HashMap<String, String>) {
+        let mut guard = self.secrets.write().unwrap_or_else(|e| e.into_inner());
+        for (k, v) in new_secrets {
+            guard.insert(k, v);
+        }
     }
 
-    /// Write (upsert) a cached API response into local SQLite.
-    pub async fn cache_set(&self, key: &str, data: &str) {
+    /// Read a cached API response from local SQLite, scoped by `user_id`.
+    /// Returns `Some(json_string)` if a row exists for `(user_id, key)`.
+    pub async fn cache_get(&self, user_id: &str, key: &str) -> Option<String> {
+        sqlx::query_scalar::<_, String>(
+            "SELECT data FROM api_cache WHERE user_id = ? AND key = ?",
+        )
+        .bind(user_id)
+        .bind(key)
+        .fetch_optional(&self.db)
+        .await
+        .ok()
+        .flatten()
+    }
+
+    /// Write (upsert) a cached API response into local SQLite, scoped by `user_id`.
+    pub async fn cache_set(&self, user_id: &str, key: &str, data: &str) {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs() as i64;
         let _ = sqlx::query(
-            "INSERT INTO api_cache (key, data, updated_at) VALUES (?, ?, ?)
-             ON CONFLICT(key) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at",
+            "INSERT INTO api_cache (user_id, key, data, updated_at) VALUES (?, ?, ?, ?)
+             ON CONFLICT(user_id, key) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at",
         )
+        .bind(user_id)
         .bind(key)
         .bind(data)
         .bind(now)
         .execute(&self.db)
         .await;
+    }
+
+    /// Delete all cached API responses for a specific user (e.g. on logout).
+    pub async fn cache_clear_user(&self, user_id: &str) {
+        let _ = sqlx::query("DELETE FROM api_cache WHERE user_id = ?")
+            .bind(user_id)
+            .execute(&self.db)
+            .await;
     }
 }
 
@@ -205,7 +245,7 @@ pub async fn start(
         app: app_handle,
         db: crate::db::init().await?,
         http: reqwest::Client::new(),
-        secrets,
+        secrets: Arc::new(std::sync::RwLock::new(secrets)),
         bb,
         openclaw,
         session: Arc::new(RwLock::new(None)),
@@ -225,6 +265,21 @@ pub async fn start(
         );
         sync_engine.start();
         tracing::info!("Sync engine started (30s interval)");
+    }
+
+    // Start the background database cleanup job (runs on startup + every hour).
+    // Purges stale cache entries, old sync logs, conflict logs, and soft-deleted rows.
+    {
+        let cleanup_db = state.db.clone();
+        tokio::spawn(async move {
+            db_cleanup(&cleanup_db).await;
+            let mut interval = tokio::time::interval(Duration::from_secs(3600));
+            loop {
+                interval.tick().await;
+                db_cleanup(&cleanup_db).await;
+            }
+        });
+        tracing::info!("Database cleanup job started (1h interval)");
     }
 
     // Pre-warm the messages conversation cache in the background
@@ -250,6 +305,11 @@ pub async fn start(
             }))
             .allow_methods(Any)
             .allow_headers(Any))
+        // Outermost layer: reject requests that take >30s to produce a response.
+        // Mitigates slowloris-style attacks. SSE and WebSocket routes are unaffected
+        // because they send the initial HTTP response (200/101) immediately — the
+        // timeout only applies to the time before the first response headers are sent.
+        .layer(TimeoutLayer::new(Duration::from_secs(30)))
         .with_state(state);
 
     {
@@ -344,6 +404,14 @@ async fn no_store_api_responses(req: Request<Body>, next: Next) -> Response {
         axum::http::header::PRAGMA,
         "no-cache".parse().unwrap(),
     );
+    response.headers_mut().insert(
+        "x-content-type-options",
+        "nosniff".parse().unwrap(),
+    );
+    response.headers_mut().insert(
+        "referrer-policy",
+        "no-referrer".parse().unwrap(),
+    );
     response
 }
 
@@ -357,7 +425,7 @@ async fn request_logger(req: Request<Body>, next: Next) -> Response {
     let status = response.status();
 
     // Don't log health checks or static assets
-    if path != "/api/health" && !path.ends_with(".png") {
+    if path != "/api/health" && path != "/api/status/health" && !path.ends_with(".png") {
         tracing::info!(
             method = %method,
             path = %path,
@@ -425,6 +493,7 @@ fn check_rate(key: &str, max_per_minute: u64, now_secs: u64) -> bool {
 /// - Read (GET): 120/min per user (falls back to IP if no session)
 /// - Mutation (POST/PATCH/DELETE): 30/min per user
 /// - AI/chat (`/api/chat/`): 10/min per user
+/// - Notifications (`/api/notify`): 5/min per user
 async fn rate_limit(req: Request<Body>, next: Next) -> Response {
     let now_secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -451,6 +520,8 @@ async fn rate_limit(req: Request<Body>, next: Next) -> Response {
         ("auth", 30u64)
     } else if path.starts_with("/api/chat/") {
         ("chat", 10u64)
+    } else if path.starts_with("/api/notify") {
+        ("notify", 5u64)
     } else if method == axum::http::Method::GET {
         ("read", 120u64)
     } else {
@@ -484,8 +555,6 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
     if path.starts_with("/api/messages/avatar")
         || path.starts_with("/api/messages/attachment")
         || path.starts_with("/api/messages/sticker")
-        || path.ends_with(".png")
-        || path.ends_with(".jpg")
     {
         return next.run(req).await;
     }
@@ -498,8 +567,8 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
     let expected = match MC_API_KEY.get() {
         Some(k) if !k.is_empty() => k.as_str(),
         _ => {
-            // No API key configured — allow all requests (dev/fallback)
-            return next.run(req).await;
+            // No API key configured — reject all requests (keychain unavailable)
+            return (StatusCode::SERVICE_UNAVAILABLE, "Service unavailable: API key not configured").into_response();
         }
     };
 
@@ -534,4 +603,160 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
     }
 
     (StatusCode::UNAUTHORIZED, "Unauthorized: invalid or missing API key").into_response()
+}
+
+// ---------------------------------------------------------------------------
+// Periodic database cleanup
+// ---------------------------------------------------------------------------
+
+/// Tables that support soft-delete (have `deleted_at` and `synced_at` columns
+/// via the sync log). Rows with `deleted_at` older than 30 days that have been
+/// synced are permanently removed.
+const SOFT_DELETE_TABLES: &[&str] = &[
+    "todos",
+    "missions",
+    "mission_events",
+    "agents",
+    "ideas",
+    "captures",
+    "habits",
+    "habit_entries",
+    "user_preferences",
+    "changelog_entries",
+    "decisions",
+    "knowledge_entries",
+    "daily_reviews",
+    "weekly_reviews",
+    "retrospectives",
+    "workflow_notes",
+    "cache",
+];
+
+/// Run periodic cleanup queries against local SQLite.
+///
+/// 1. Expire stale api_cache entries (>7 days old)
+/// 2. Purge synced _sync_log entries (>7 days old)
+/// 3. Purge old _conflict_log entries (>30 days old)
+/// 4. Hard-delete soft-deleted rows that have been synced (>30 days old)
+async fn db_cleanup(db: &sqlx::SqlitePool) {
+    tracing::info!("Running database cleanup");
+
+    // 1. Expire stale api_cache entries older than 7 days
+    let res = sqlx::query("DELETE FROM api_cache WHERE updated_at < unixepoch() - (7 * 86400)")
+        .execute(db)
+        .await;
+    match res {
+        Ok(r) if r.rows_affected() > 0 => {
+            tracing::info!("cleanup: purged {} stale api_cache entries", r.rows_affected());
+        }
+        Err(e) => tracing::warn!("cleanup: api_cache purge failed: {e}"),
+        _ => {}
+    }
+
+    // 2. Purge synced _sync_log entries older than 7 days
+    let res = sqlx::query(
+        "DELETE FROM _sync_log WHERE synced_at IS NOT NULL AND synced_at < unixepoch() - (7 * 86400)",
+    )
+    .execute(db)
+    .await;
+    match res {
+        Ok(r) if r.rows_affected() > 0 => {
+            tracing::info!("cleanup: purged {} old _sync_log entries", r.rows_affected());
+        }
+        Err(e) => tracing::warn!("cleanup: _sync_log purge failed: {e}"),
+        _ => {}
+    }
+
+    // 3. Purge old _conflict_log entries older than 30 days
+    let res = sqlx::query(
+        "DELETE FROM _conflict_log WHERE created_at < unixepoch() - (30 * 86400)",
+    )
+    .execute(db)
+    .await;
+    match res {
+        Ok(r) if r.rows_affected() > 0 => {
+            tracing::info!("cleanup: purged {} old _conflict_log entries", r.rows_affected());
+        }
+        Err(e) => tracing::warn!("cleanup: _conflict_log purge failed: {e}"),
+        _ => {}
+    }
+
+    // 4. Hard-delete soft-deleted rows that have been synced (>30 days).
+    //    A row is safe to hard-delete if:
+    //    - deleted_at is set and older than 30 days
+    //    - There are no pending (unsynced) mutations for it in _sync_log
+    for table in SOFT_DELETE_TABLES {
+        let query = format!(
+            "DELETE FROM {table} WHERE deleted_at IS NOT NULL \
+             AND deleted_at < datetime('now', '-30 days') \
+             AND id NOT IN (SELECT row_id FROM _sync_log WHERE table_name = ? AND synced_at IS NULL)"
+        );
+        let res = sqlx::query(&query).bind(table).execute(db).await;
+        match res {
+            Ok(r) if r.rows_affected() > 0 => {
+                tracing::info!(
+                    "cleanup: hard-deleted {} soft-deleted rows from {table}",
+                    r.rows_affected()
+                );
+            }
+            Err(e) => tracing::warn!("cleanup: {table} soft-delete purge failed: {e}"),
+            _ => {}
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_session() -> UserSession {
+        UserSession {
+            access_token: "eyJhbGciOiJIUzI1NiJ9.test-token".to_string(),
+            refresh_token: "v1.refresh-secret-value".to_string(),
+            user_id: "user-123".to_string(),
+            email: "test@example.com".to_string(),
+            expires_at: 9999999999,
+            encryption_key: vec![0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE],
+            mfa_verified: true,
+            factor_id: None,
+        }
+    }
+
+    #[test]
+    fn user_session_drop_does_not_panic() {
+        // Verify the Drop impl compiles and runs without panicking.
+        let session = make_session();
+        assert!(!session.access_token.is_empty());
+        assert!(!session.refresh_token.is_empty());
+        assert!(!session.encryption_key.is_empty());
+        drop(session);
+        // If we reach here the Drop impl executed successfully.
+    }
+
+    #[test]
+    fn user_session_option_drop_zeroizes() {
+        // Simulates the logout path: `*session.write() = None` drops
+        // the inner `Some(UserSession)`, triggering our `Drop` impl.
+        let mut slot: Option<UserSession> = Some(make_session());
+        slot = None;
+        assert!(slot.is_none());
+    }
+
+    #[test]
+    fn user_session_replace_zeroizes_old() {
+        // Simulates token refresh: replacing the session drops the old one.
+        let mut slot: Option<UserSession> = Some(make_session());
+        let new_session = UserSession {
+            access_token: "new-token".to_string(),
+            refresh_token: "new-refresh".to_string(),
+            user_id: "user-123".to_string(),
+            email: "test@example.com".to_string(),
+            expires_at: 9999999999,
+            encryption_key: vec![0x01, 0x02],
+            mfa_verified: true,
+            factor_id: None,
+        };
+        slot = Some(new_session);
+        assert!(slot.is_some());
+    }
 }

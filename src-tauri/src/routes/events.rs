@@ -19,9 +19,14 @@ use axum::{
 use futures::StreamExt;
 use serde_json::{json, Value};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::sync::broadcast;
 
 use crate::server::{AppState, RequireAuth};
+
+/// Global counter for concurrent SSE connections.
+static SSE_CONNECTIONS: AtomicUsize = AtomicUsize::new(0);
+const MAX_SSE_CONNECTIONS: usize = 5;
 
 /// Tables to subscribe to for realtime change notifications.
 const REALTIME_TABLES: &[&str] = &[
@@ -44,7 +49,17 @@ pub fn router() -> Router<AppState> {
 async fn sse_handler(
     State(state): State<AppState>,
     RequireAuth(session): RequireAuth,
-) -> Sse<impl futures::Stream<Item = Result<Event, std::convert::Infallible>>> {
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if SSE_CONNECTIONS.load(Ordering::Relaxed) >= MAX_SSE_CONNECTIONS {
+        return (
+            axum::http::StatusCode::TOO_MANY_REQUESTS,
+            axum::Json(json!({"error": "too many SSE connections"})),
+        )
+            .into_response();
+    }
+
     let user_id = session.user_id.clone();
     let access_token = session.access_token.clone();
 
@@ -55,7 +70,6 @@ async fn sse_handler(
     let supabase_url = state.secret("SUPABASE_URL").unwrap_or_default();
     let anon_key = state
         .secret("SUPABASE_ANON_KEY")
-        .or_else(|| state.secret("SUPABASE_SERVICE_ROLE_KEY"))
         .unwrap_or_default();
 
     if !supabase_url.is_empty() && !anon_key.is_empty() {
@@ -75,17 +89,22 @@ async fn sse_handler(
         tracing::warn!("SSE /events: Supabase credentials not configured, stream will be keepalive-only");
     }
 
-    let stream = sse_stream(rx);
+    // Increment the connection counter; decrement when the stream ends.
+    SSE_CONNECTIONS.fetch_add(1, Ordering::Relaxed);
+    let stream = sse_stream_counted(rx);
 
-    Sse::new(stream).keep_alive(
-        KeepAlive::new()
-            .interval(std::time::Duration::from_secs(15))
-            .text("keepalive"),
-    )
+    Sse::new(stream)
+        .keep_alive(
+            KeepAlive::new()
+                .interval(std::time::Duration::from_secs(15))
+                .text("keepalive"),
+        )
+        .into_response()
 }
 
-/// Convert the broadcast receiver into an SSE event stream.
-fn sse_stream(
+/// Convert the broadcast receiver into an SSE event stream that decrements
+/// the global SSE connection counter when the stream finishes.
+fn sse_stream_counted(
     mut rx: broadcast::Receiver<String>,
 ) -> impl futures::Stream<Item = Result<Event, std::convert::Infallible>> {
     async_stream::stream! {
@@ -101,6 +120,8 @@ fn sse_stream(
                 Err(broadcast::error::RecvError::Closed) => break,
             }
         }
+        // Stream ended — decrement the connection counter.
+        SSE_CONNECTIONS.fetch_sub(1, Ordering::Relaxed);
     }
 }
 

@@ -1,4 +1,4 @@
-const CURRENT_VERSION = 2
+const CURRENT_VERSION = 3
 
 export function runMigrations() {
   const stored = localStorage.getItem('app-version')
@@ -54,6 +54,15 @@ export function runMigrations() {
     // ensureComplete() already self-heals at runtime, so no migration needed.
     // Theme keys (glow-color, secondary-color, logo-color) are new — users
     // without them will get defaults, so no migration needed either.
+  }
+
+  if (version < 3) {
+    // v2 -> v3: Remove note content from localStorage. The old vault cache
+    // (mc-notes-vault) and legacy Notes page (notes-data) stored full note
+    // bodies in localStorage, which is a security concern. Note content is
+    // now held in memory only; only metadata is cached (mc-notes-meta).
+    localStorage.removeItem('mc-notes-vault')
+    localStorage.removeItem('notes-data')
   }
 
   localStorage.setItem('app-version', String(CURRENT_VERSION))

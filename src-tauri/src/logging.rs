@@ -1,15 +1,20 @@
-//! Simple file-based logging with daily rotation (last 7 days).
+//! Simple file-based logging with daily rotation (last 7 days) and size caps.
 //!
 //! Writes logs to `{data_local_dir}/mission-control/logs/mission-control-YYYY-MM-DD.log`.
-//! On startup, deletes log files older than 7 days.
+//! On startup, deletes log files older than 7 days and removes any log file exceeding
+//! 100 MB. During runtime, if the current day's log exceeds 100 MB, writing stops
+//! until the next day's rotation.
 //!
 //! This avoids adding `tracing-appender` as a dependency by implementing a
 //! lightweight `tracing_subscriber::Layer` that writes to a file.
 
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+
+/// Maximum size of a single log file (100 MB).
+const MAX_LOG_BYTES: u64 = 100 * 1024 * 1024;
 use tracing::field::Visit;
 use tracing::Subscriber;
 use tracing_subscriber::Layer;
@@ -61,9 +66,54 @@ pub fn cleanup_old_logs(keep_days: i64) {
     }
 }
 
+/// Delete log files that exceed `max_bytes`.
+///
+/// This runs at startup alongside [`cleanup_old_logs`] to prevent any single
+/// log file from consuming excessive disk space. Files that exceed the limit
+/// are removed entirely — partial truncation would corrupt log lines.
+pub fn cap_log_files(log_dir: &Path, max_bytes: u64) {
+    let entries = match fs::read_dir(log_dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+
+        // Only touch our own log files (mission-control-YYYY-MM-DD.log)
+        if !name_str.starts_with("mission-control-") || !name_str.ends_with(".log") {
+            continue;
+        }
+
+        let size = match entry.metadata() {
+            Ok(meta) => meta.len(),
+            Err(_) => continue,
+        };
+
+        if size > max_bytes {
+            eprintln!(
+                "Log file {} is {} MB (limit {} MB), removing",
+                name_str,
+                size / (1024 * 1024),
+                max_bytes / (1024 * 1024),
+            );
+            if let Err(e) = fs::remove_file(entry.path()) {
+                eprintln!("Failed to remove oversized log {}: {}", name_str, e);
+            }
+        }
+    }
+}
+
 /// A tracing Layer that writes formatted log lines to a daily log file.
+///
+/// If the current log file exceeds [`MAX_LOG_BYTES`], new events are silently
+/// dropped until midnight rotation opens a fresh file.
 pub struct FileLogLayer {
     file: Mutex<Option<(String, File)>>, // (current_date, file_handle)
+    /// Tracks bytes written to the current file so we can enforce the cap
+    /// without an `fstat` on every event.
+    written: Mutex<u64>,
 }
 
 impl FileLogLayer {
@@ -84,8 +134,15 @@ impl FileLogLayer {
         let file = Self::open_log_file();
         let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
+        // Seed the byte counter with the current file size so we enforce the
+        // cap correctly even when appending to a file from a previous run.
+        let initial_size = fs::metadata(log_file_path())
+            .map(|m| m.len())
+            .unwrap_or(0);
+
         FileLogLayer {
             file: Mutex::new(file.map(|f| (today, f))),
+            written: Mutex::new(initial_size),
         }
     }
 
@@ -108,6 +165,9 @@ impl FileLogLayer {
     }
 
     /// Ensure the file handle points to today's log (rotate at midnight).
+    ///
+    /// When the date rolls over, the byte counter is reset so the new file
+    /// gets its full [`MAX_LOG_BYTES`] budget.
     fn ensure_current_file(&self) -> Option<std::sync::MutexGuard<'_, Option<(String, File)>>> {
         let mut guard = self.file.lock().ok()?;
         let today = chrono::Local::now().format("%Y-%m-%d").to_string();
@@ -119,6 +179,13 @@ impl FileLogLayer {
 
         if needs_rotate {
             *guard = Self::open_log_file().map(|f| (today, f));
+            // Reset byte counter — new file starts from whatever size it
+            // already has (could be non-zero if another process wrote to it).
+            if let Ok(mut w) = self.written.lock() {
+                *w = fs::metadata(log_file_path())
+                    .map(|m| m.len())
+                    .unwrap_or(0);
+            }
         }
 
         Some(guard)
@@ -188,8 +255,16 @@ impl<S: Subscriber> Layer<S> for FileLogLayer {
         );
 
         if let Some(mut guard) = self.ensure_current_file() {
-            if let Some((_, ref mut file)) = *guard {
-                let _ = file.write_all(line.as_bytes());
+            // Enforce size cap — silently drop events once the file is full.
+            if let Ok(mut written) = self.written.lock() {
+                if *written >= MAX_LOG_BYTES {
+                    return;
+                }
+                if let Some((_, ref mut file)) = *guard {
+                    if file.write_all(line.as_bytes()).is_ok() {
+                        *written += line.len() as u64;
+                    }
+                }
             }
         }
     }

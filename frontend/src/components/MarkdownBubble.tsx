@@ -1,5 +1,5 @@
 import { marked } from 'marked'
-import DOMPurify from 'dompurify'
+import { sanitizeHtml } from '@/lib/sanitize'
 import { useMemo } from 'react'
 
 interface MarkdownBubbleProps {
@@ -9,10 +9,9 @@ interface MarkdownBubbleProps {
 marked.use({ gfm: true, breaks: true })
 
 export default function MarkdownBubble({ children }: MarkdownBubbleProps) {
-  // DOMPurify sanitizes the marked output before it reaches the DOM —
-  // this is the standard safe pattern for HTML rendering in React.
+  // sanitizeHtml uses a strict tag/attribute allowlist (see lib/sanitize.ts)
   const html = useMemo(
-    () => DOMPurify.sanitize(marked.parse(children) as string),
+    () => sanitizeHtml(marked.parse(children) as string),
     [children],
   )
 

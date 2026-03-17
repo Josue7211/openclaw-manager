@@ -46,8 +46,9 @@ fn main() {
             .with(file_layer)
             .init();
 
-        // Clean up log files older than 7 days
+        // Clean up log files older than 7 days, then remove any that exceed 100 MB
         logging::cleanup_old_logs(7);
+        logging::cap_log_files(&logging::log_dir(), 100 * 1024 * 1024);
 
         tracing::info!("Log file: {}", logging::log_dir().display());
     }

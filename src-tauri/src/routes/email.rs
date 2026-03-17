@@ -318,7 +318,8 @@ async fn patch_email(
     let colon_idx = id
         .find(':')
         .ok_or_else(|| AppError::BadRequest("Invalid id format".to_string()))?;
-    let folder = &id[..colon_idx];
+    let raw_folder = &id[..colon_idx];
+    let folder = sanitize_folder(raw_folder);
     let uid_str = &id[colon_idx + 1..];
     let uid: u32 = uid_str
         .parse()

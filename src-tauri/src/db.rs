@@ -23,6 +23,8 @@ pub async fn init() -> anyhow::Result<SqlitePool> {
     // Enable WAL mode for concurrent reads + busy timeout
     sqlx::query("PRAGMA journal_mode=WAL").execute(&pool).await?;
     sqlx::query("PRAGMA busy_timeout=5000").execute(&pool).await?;
+    sqlx::query("PRAGMA secure_delete=ON").execute(&pool).await?;
+    sqlx::query("PRAGMA foreign_keys=ON").execute(&pool).await?;
 
     sqlx::migrate!("./migrations").run(&pool).await?;
 

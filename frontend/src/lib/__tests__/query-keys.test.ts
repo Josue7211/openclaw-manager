@@ -96,6 +96,14 @@ describe('queryKeys', () => {
     it('missionEvents() returns ["mission-events", id]', () => {
       expect(queryKeys.missionEvents('m-123')).toEqual(['mission-events', 'm-123'])
     })
+
+    it('secrets.list() returns ["secrets"]', () => {
+      expect(queryKeys.secrets.list()).toEqual(['secrets'])
+    })
+
+    it('secrets.detail() returns ["secrets", service]', () => {
+      expect(queryKeys.secrets.detail('bluebubbles')).toEqual(['secrets', 'bluebubbles'])
+    })
   })
 
   describe('key uniqueness', () => {
@@ -143,6 +151,8 @@ describe('queryKeys', () => {
       expect(Array.isArray(queryKeys.search('q'))).toBe(true)
       expect(Array.isArray(queryKeys.ideas('s'))).toBe(true)
       expect(Array.isArray(queryKeys.missionEvents('id'))).toBe(true)
+      expect(Array.isArray(queryKeys.secrets.list())).toBe(true)
+      expect(Array.isArray(queryKeys.secrets.detail('svc'))).toBe(true)
     })
   })
 })

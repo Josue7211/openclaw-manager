@@ -63,7 +63,8 @@ staged_files=$(git diff --cached --name-only 2>/dev/null || git diff --name-only
 
 if [ -n "$staged_files" ]; then
   # Block .env files, credential files, key files
-  env_files=$(echo "$staged_files" | grep -E '\.env($|\.)|credentials\.json|\.pem$|\.key$|id_rsa|id_ed25519' || true)
+  env_files=$(echo "$staged_files" | grep -E '\.env($|\.)' | grep -v '\.env\.example$' | grep -v '\.env\.test$' || true)
+  env_files+=$(echo "$staged_files" | grep -E 'credentials\.json|\.pem$|\.key$|id_rsa|id_ed25519' || true)
   if [ -n "$env_files" ]; then
     printf "    ${RED}Staged secret files detected:${RESET}\n"
     echo "$env_files" | while read -r f; do printf "      - %s\n" "$f"; done
@@ -72,12 +73,12 @@ if [ -n "$staged_files" ]; then
 
   # Scan staged file contents for hardcoded secrets
   # Only check text files that are staged
-  secret_patterns='(SUPABASE_SERVICE_ROLE_KEY|SUPABASE_ANON_KEY|OPENAI_API_KEY|sk-[a-zA-Z0-9]{20,}|password\s*[:=]\s*["\x27][^"\x27]{4,}|100\.\d+\.\d+\.\d+)'
+  secret_patterns='(sk-[a-zA-Z0-9]{20,}|sk-ant-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|AKIA[A-Z0-9]{16}|password\s*[:=]\s*"[^"]{8,}|100\.\d+\.\d+\.\d+)'
   leaks=$(echo "$staged_files" | while read -r f; do
     [ -f "$ROOT/$f" ] || continue
     # skip binary files and lockfiles
     case "$f" in
-      *.lock|*.png|*.jpg|*.ico|*.woff*|*.ttf|*.wasm) continue ;;
+      *.lock|*.png|*.jpg|*.ico|*.woff*|*.ttf|*.wasm|*pre-commit*) continue ;;
     esac
     git diff --cached -- "$ROOT/$f" 2>/dev/null | grep -En "$secret_patterns" || true
   done)

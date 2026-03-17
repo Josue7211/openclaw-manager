@@ -16,7 +16,6 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/') || id.includes('node_modules/react-router')) return 'react'
           if (id.includes('node_modules/@tanstack')) return 'query'
-          if (id.includes('node_modules/@supabase')) return 'supabase'
           if (id.includes('node_modules/lucide-react')) return 'icons'
         },
       },

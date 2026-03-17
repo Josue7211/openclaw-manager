@@ -158,11 +158,13 @@ pub(super) fn send_notify(title: &str, message: &str, priority: u8, tags: &[&str
         "tags": tags,
     });
     tokio::spawn(async move {
-        let _ = reqwest::Client::new()
+        let mut req = reqwest::Client::new()
             .post(format!("{MC_BASE_URL}/api/notify"))
-            .json(&body)
-            .send()
-            .await;
+            .json(&body);
+        if let Some(key) = crate::server::MC_API_KEY.get() {
+            req = req.header("X-API-Key", key.as_str());
+        }
+        let _ = req.send().await;
     });
 }
 

@@ -7,14 +7,17 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
 use crate::error::AppError;
 use crate::gotrue::GoTrueClient;
 use crate::server::{AppState, UserSession};
+use crate::supabase::SupabaseClient;
 
 use super::util::random_uuid;
+use zeroize::Zeroize;
 
 // ---------------------------------------------------------------------------
 // OAuth nonce — prevents code injection via POST /auth/tauri-session or
@@ -69,6 +72,324 @@ fn epoch_secs() -> i64 {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers: load user_secrets from Supabase after login
+// ---------------------------------------------------------------------------
+
+/// Maps a `user_secrets.service` name + credential key to the env-var name
+/// used by `AppState::secret()`. This follows the same naming convention as
+/// `KEY_ENV_MAP` in `secrets.rs`.
+///
+/// Returns `None` for unknown combinations (they are skipped with a warning).
+fn service_credential_to_env_var(service: &str, key: &str) -> Option<&'static str> {
+    match (service, key) {
+        // BlueBubbles
+        ("bluebubbles", "host") => Some("BLUEBUBBLES_HOST"),
+        ("bluebubbles", "password") => Some("BLUEBUBBLES_PASSWORD"),
+        // OpenClaw
+        ("openclaw", "url" | "api_url" | "api-url") => Some("OPENCLAW_API_URL"),
+        ("openclaw", "api_key" | "api-key") => Some("OPENCLAW_API_KEY"),
+        ("openclaw", "ws") => Some("OPENCLAW_WS"),
+        ("openclaw", "password") => Some("OPENCLAW_PASSWORD"),
+        // Proxmox
+        ("proxmox", "host") => Some("PROXMOX_HOST"),
+        ("proxmox", "token_id" | "token-id") => Some("PROXMOX_TOKEN_ID"),
+        ("proxmox", "token_secret" | "token-secret") => Some("PROXMOX_TOKEN_SECRET"),
+        // OPNsense
+        ("opnsense", "host") => Some("OPNSENSE_HOST"),
+        ("opnsense", "key") => Some("OPNSENSE_KEY"),
+        ("opnsense", "secret") => Some("OPNSENSE_SECRET"),
+        // Plex
+        ("plex", "url") => Some("PLEX_URL"),
+        ("plex", "token") => Some("PLEX_TOKEN"),
+        // Sonarr
+        ("sonarr", "url") => Some("SONARR_URL"),
+        ("sonarr", "api_key" | "api-key") => Some("SONARR_API_KEY"),
+        // Radarr
+        ("radarr", "url") => Some("RADARR_URL"),
+        ("radarr", "api_key" | "api-key") => Some("RADARR_API_KEY"),
+        // Email
+        ("email", "host") => Some("EMAIL_HOST"),
+        ("email", "port") => Some("EMAIL_PORT"),
+        ("email", "user") => Some("EMAIL_USER"),
+        ("email", "password") => Some("EMAIL_PASSWORD"),
+        // CalDAV
+        ("caldav", "url") => Some("CALDAV_URL"),
+        ("caldav", "username") => Some("CALDAV_USERNAME"),
+        ("caldav", "password") => Some("CALDAV_PASSWORD"),
+        // ntfy
+        ("ntfy", "url") => Some("NTFY_URL"),
+        ("ntfy", "topic") => Some("NTFY_TOPIC"),
+        // Mac Bridge
+        ("mac-bridge" | "mac_bridge", "host") => Some("MAC_BRIDGE_HOST"),
+        ("mac-bridge" | "mac_bridge", "api_key" | "api-key") => Some("MAC_BRIDGE_API_KEY"),
+        // Anthropic
+        ("anthropic", "api_key" | "api-key") => Some("ANTHROPIC_API_KEY"),
+        _ => None,
+    }
+}
+
+/// Fetch all `user_secrets` rows from Supabase for the given user, decrypt
+/// each row's `encrypted_credentials` using the session's encryption key,
+/// and merge the resulting key-value pairs into `state.secrets`.
+///
+/// Supabase credentials override OS keychain values (they are more
+/// authoritative since they are user-specific and encrypted).
+///
+/// This function logs but never returns errors — secrets may not be migrated
+/// yet, and the OS keychain provides a working fallback.
+pub async fn load_user_secrets(state: &AppState, session: &UserSession) {
+    // Skip if no encryption key is available (e.g. OAuth login without password)
+    if session.encryption_key.is_empty() {
+        tracing::debug!("skipping user_secrets load: no encryption key (OAuth login)");
+        return;
+    }
+
+    let sb = match SupabaseClient::from_state(state) {
+        Ok(sb) => sb,
+        Err(e) => {
+            tracing::warn!("skipping user_secrets load: {e}");
+            return;
+        }
+    };
+
+    // Fetch all user_secrets rows using the user's JWT for RLS
+    let query = "select=service,encrypted_credentials,nonce";
+    let rows = match sb
+        .select_as_user("user_secrets", query, &session.access_token)
+        .await
+    {
+        Ok(rows) => rows,
+        Err(e) => {
+            tracing::warn!("failed to fetch user_secrets: {e}");
+            return;
+        }
+    };
+
+    let rows = match rows.as_array() {
+        Some(arr) => arr,
+        None => {
+            tracing::debug!("user_secrets returned non-array (user has no secrets)");
+            return;
+        }
+    };
+
+    if rows.is_empty() {
+        tracing::info!("no user_secrets found — auto-migrating from keychain");
+        auto_migrate_keychain_secrets(state, session, &sb).await;
+        return;
+    }
+
+    let mut merged: HashMap<String, String> = HashMap::new();
+    let mut count = 0usize;
+
+    for row in rows {
+        let service = match row["service"].as_str() {
+            Some(s) => s,
+            None => continue,
+        };
+        let ciphertext = match row["encrypted_credentials"].as_str() {
+            Some(s) => s,
+            None => continue,
+        };
+        let nonce = match row["nonce"].as_str() {
+            Some(s) => s,
+            None => continue,
+        };
+
+        // Decrypt the credentials blob
+        let plaintext = match crate::crypto::decrypt(ciphertext, nonce, &session.encryption_key) {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                tracing::warn!(
+                    service = %service,
+                    "failed to decrypt user_secrets for service (wrong key or corrupted): {e}"
+                );
+                continue;
+            }
+        };
+
+        // Parse as JSON map of credential key -> value
+        let creds: HashMap<String, String> = match serde_json::from_slice(&plaintext) {
+            Ok(map) => map,
+            Err(e) => {
+                tracing::warn!(
+                    service = %service,
+                    "failed to parse decrypted user_secrets as JSON: {e}"
+                );
+                continue;
+            }
+        };
+
+        // Map each credential to its env-var name and collect
+        for (cred_key, cred_value) in &creds {
+            match service_credential_to_env_var(service, cred_key) {
+                Some(env_var) => {
+                    merged.insert(env_var.to_string(), cred_value.clone());
+                    count += 1;
+                }
+                None => {
+                    tracing::warn!(
+                        service = %service,
+                        key = %cred_key,
+                        "unknown service/credential key in user_secrets — skipping"
+                    );
+                }
+            }
+        }
+    }
+
+    if !merged.is_empty() {
+        state.merge_secrets(merged);
+        tracing::info!(
+            user_id = %session.user_id,
+            secrets_loaded = count,
+            "user_secrets loaded from Supabase and merged into AppState"
+        );
+    }
+}
+
+/// Auto-migrate keychain secrets to Supabase user_secrets on first login.
+async fn auto_migrate_keychain_secrets(
+    state: &AppState,
+    session: &UserSession,
+    sb: &SupabaseClient,
+) {
+    let env_to_service: &[(&str, &str, &str)] = &[
+        ("BLUEBUBBLES_HOST", "bluebubbles", "host"),
+        ("BLUEBUBBLES_PASSWORD", "bluebubbles", "password"),
+        ("OPENCLAW_API_URL", "openclaw", "api_url"),
+        ("OPENCLAW_API_KEY", "openclaw", "api_key"),
+        ("OPENCLAW_WS", "openclaw", "ws"),
+        ("OPENCLAW_PASSWORD", "openclaw", "password"),
+        ("PROXMOX_HOST", "proxmox", "host"),
+        ("PROXMOX_TOKEN_ID", "proxmox", "token_id"),
+        ("PROXMOX_TOKEN_SECRET", "proxmox", "token_secret"),
+        ("OPNSENSE_HOST", "opnsense", "host"),
+        ("OPNSENSE_KEY", "opnsense", "key"),
+        ("OPNSENSE_SECRET", "opnsense", "secret"),
+        ("PLEX_URL", "plex", "url"),
+        ("PLEX_TOKEN", "plex", "token"),
+        ("SONARR_URL", "sonarr", "url"),
+        ("SONARR_API_KEY", "sonarr", "api_key"),
+        ("RADARR_URL", "radarr", "url"),
+        ("RADARR_API_KEY", "radarr", "api_key"),
+        ("EMAIL_HOST", "email", "host"),
+        ("EMAIL_PORT", "email", "port"),
+        ("EMAIL_USER", "email", "user"),
+        ("EMAIL_PASSWORD", "email", "password"),
+        ("CALDAV_URL", "caldav", "url"),
+        ("CALDAV_USERNAME", "caldav", "username"),
+        ("CALDAV_PASSWORD", "caldav", "password"),
+        ("NTFY_URL", "ntfy", "url"),
+        ("NTFY_TOPIC", "ntfy", "topic"),
+        ("MAC_BRIDGE_HOST", "mac-bridge", "host"),
+        ("MAC_BRIDGE_API_KEY", "mac-bridge", "api_key"),
+        ("ANTHROPIC_API_KEY", "anthropic", "api_key"),
+    ];
+
+    // Group by service
+    let mut services: HashMap<String, serde_json::Map<String, serde_json::Value>> = HashMap::new();
+    for &(env_var, service, cred_key) in env_to_service {
+        if let Some(value) = state.secret(env_var) {
+            if !value.is_empty() {
+                services
+                    .entry(service.to_string())
+                    .or_default()
+                    .insert(cred_key.to_string(), serde_json::Value::String(value));
+            }
+        }
+    }
+
+    let mut count = 0usize;
+    for (service, creds) in &services {
+        let creds_value = serde_json::Value::Object(creds.clone());
+        let json_bytes = match serde_json::to_vec(&creds_value) {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+        let (ciphertext, nonce) = match crate::crypto::encrypt(&json_bytes, &session.encryption_key)
+        {
+            Ok(pair) => pair,
+            Err(_) => continue,
+        };
+        let row = serde_json::json!({
+            "user_id": session.user_id,
+            "service": service,
+            "encrypted_credentials": ciphertext,
+            "nonce": nonce,
+        });
+        if let Err(e) = sb
+            .upsert_as_user("user_secrets", row, &session.access_token)
+            .await
+        {
+            tracing::warn!(service = %service, "auto-migrate failed: {e}");
+            continue;
+        }
+        count += 1;
+    }
+
+    tracing::info!(
+        services_migrated = count,
+        "auto-migrated keychain secrets to Supabase user_secrets"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Helpers: per-user encryption salt
+// ---------------------------------------------------------------------------
+
+/// Fetch or create a random 16-byte encryption salt for the given user.
+///
+/// On first login the salt does not exist yet, so we generate one and INSERT it.
+/// Subsequent logins (including from other devices) read the stored salt.
+///
+/// Uses the user's JWT (not service role) so RLS policies are respected.
+async fn get_or_create_salt(
+    state: &AppState,
+    access_token: &str,
+    user_id: &str,
+) -> anyhow::Result<String> {
+    let sb = SupabaseClient::from_state(state)?;
+
+    // Try to fetch existing salt
+    let query = format!("select=encryption_salt&user_id=eq.{user_id}");
+    let rows = sb
+        .select_as_user("user_profiles", &query, access_token)
+        .await;
+
+    if let Ok(rows) = rows {
+        if let Some(arr) = rows.as_array() {
+            if let Some(row) = arr.first() {
+                if let Some(salt) = row["encryption_salt"].as_str() {
+                    return Ok(salt.to_string());
+                }
+            }
+        }
+    }
+
+    // No profile yet — generate a random 16-byte salt
+    let mut salt_bytes = [0u8; 16];
+    rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut salt_bytes);
+    let salt_b64 = base64::Engine::encode(
+        &base64::engine::general_purpose::STANDARD,
+        &salt_bytes,
+    );
+
+    let body = serde_json::json!({
+        "user_id": user_id,
+        "encryption_salt": salt_b64,
+    });
+
+    sb.insert_as_user("user_profiles", body, access_token)
+        .await
+        .map_err(|e| anyhow::anyhow!("failed to create user profile: {e}"))?;
+
+    tracing::info!(user_id = %user_id, "created encryption salt for new user profile");
+
+    Ok(salt_b64)
+}
+
+// ---------------------------------------------------------------------------
 // POST /auth/login
 // ---------------------------------------------------------------------------
 
@@ -90,9 +411,12 @@ async fn login(
         .await
         .map_err(|e| AppError::BadRequest(format!("login failed: {e}")))?;
 
-    // Derive encryption key from password for user_secrets
+    // Derive encryption key from password using per-user random salt
     let user_id = auth.user["id"].as_str().unwrap_or("").to_string();
-    let encryption_key = crate::crypto::derive_key(&body.password, &user_id);
+    let salt = get_or_create_salt(&state, &auth.access_token, &user_id)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("salt retrieval failed: {e}")))?;
+    let encryption_key = crate::crypto::derive_key(&body.password, &salt);
 
     let now = epoch_secs();
 
@@ -127,7 +451,11 @@ async fn login(
         mfa_verified: false,
         factor_id: verified_factor_id.clone(),
     };
-    *state.session.write().await = Some(session);
+    *state.session.write().await = Some(session.clone());
+
+    // Load user-specific secrets from Supabase user_secrets table.
+    // Runs in the background — errors are logged but don't fail login.
+    load_user_secrets(&state, &session).await;
 
     tracing::info!(user_id = %user_id, mfa_required = %has_verified_factors, "user logged in");
 
@@ -145,35 +473,23 @@ async fn login(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct SignupBody {
     email: String,
     password: String,
-    #[allow(dead_code)]
     invite_token: Option<String>,
 }
 
 async fn signup(
-    State(state): State<AppState>,
-    Json(body): Json<SignupBody>,
+    State(_state): State<AppState>,
+    Json(_body): Json<SignupBody>,
 ) -> Result<Json<Value>, AppError> {
-    // TODO: Validate invite_token against a stored list
-    // For now, signup is open (will be restricted later)
-
-    let gotrue = GoTrueClient::from_state(&state)
-        .map_err(|e| AppError::Internal(e))?;
-
-    let auth = gotrue
-        .sign_up(&body.email, &body.password)
-        .await
-        .map_err(|e| AppError::BadRequest(format!("signup failed: {e}")))?;
-
-    let user_id = auth.user["id"].as_str().unwrap_or("").to_string();
-    tracing::info!(user_id = %user_id, "user signed up");
-
-    Ok(Json(json!({
-        "ok": true,
-        "user": { "id": user_id, "email": body.email },
-    })))
+    // Signup is disabled — this is a personal self-hosted app.
+    // New accounts must be created by an administrator via the Supabase dashboard.
+    tracing::warn!("signup attempt rejected (signup is disabled)");
+    Err(AppError::Forbidden(
+        "Signup is disabled. New accounts must be created by an administrator.".into(),
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -222,6 +538,8 @@ async fn logout(State(state): State<AppState>) -> Json<Value> {
                 tracing::warn!("gotrue sign_out failed (non-fatal): {e}");
             }
         }
+        // Clear cached API responses for this user to prevent data leakage
+        state.cache_clear_user(&sess.user_id).await;
         tracing::info!(user_id = %sess.user_id, "user logged out");
     }
     *state.session.write().await = None;
@@ -317,14 +635,82 @@ async fn change_password(
         .await
         .map_err(|e| AppError::Internal(e))?;
 
-    // Re-derive encryption key with new password
-    let new_key = crate::crypto::derive_key(&body.new_password, &session.user_id);
+    // Re-derive encryption key with new password (same salt — password changed, not salt)
+    let salt = get_or_create_salt(&state, &session.access_token, &session.user_id)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("salt retrieval failed: {e}")))?;
+    let new_key = crate::crypto::derive_key(&body.new_password, &salt);
+
+    // Re-encrypt all user_secrets with the new key BEFORE updating the session.
+    // The old key is still in session.encryption_key at this point.
+    let old_key = &session.encryption_key;
+    if !old_key.is_empty() {
+        let sb = SupabaseClient::from_state(&state)
+            .map_err(|e| AppError::Internal(e))?;
+
+        let secrets = sb
+            .select_as_user(
+                "user_secrets",
+                "select=service,encrypted_credentials,nonce",
+                &session.access_token,
+            )
+            .await
+            .unwrap_or(serde_json::json!([]));
+
+        if let Some(rows) = secrets.as_array() {
+            for row in rows {
+                let service = match row["service"].as_str() {
+                    Some(s) => s,
+                    None => continue,
+                };
+                let ciphertext = match row["encrypted_credentials"].as_str() {
+                    Some(s) => s,
+                    None => continue,
+                };
+                let nonce = match row["nonce"].as_str() {
+                    Some(s) => s,
+                    None => continue,
+                };
+
+                // Decrypt with old key
+                let plaintext = match crate::crypto::decrypt(ciphertext, nonce, old_key) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        tracing::warn!(service = %service, "failed to decrypt secret during re-encryption: {e}");
+                        continue;
+                    }
+                };
+
+                // Re-encrypt with new key
+                let (new_ciphertext, new_nonce) = crate::crypto::encrypt(&plaintext, &new_key)
+                    .map_err(|e| AppError::Internal(anyhow::anyhow!("re-encryption failed: {e}")))?;
+
+                let update_row = serde_json::json!({
+                    "user_id": session.user_id,
+                    "service": service,
+                    "encrypted_credentials": new_ciphertext,
+                    "nonce": new_nonce,
+                });
+
+                if let Err(e) = sb.upsert_as_user("user_secrets", update_row, &session.access_token).await {
+                    tracing::warn!(service = %service, "failed to upsert re-encrypted secret: {e}");
+                    return Err(AppError::Internal(anyhow::anyhow!(
+                        "failed to re-encrypt secrets — password change aborted: {e}"
+                    )));
+                }
+
+                tracing::debug!(service = %service, "re-encrypted secret with new key");
+            }
+        }
+    }
+
     let mut write = state.session.write().await;
     if let Some(ref mut s) = *write {
         s.encryption_key = new_key;
     }
 
-    tracing::info!(user_id = %session.user_id, "password changed");
+    tracing::info!(user_id = %session.user_id, "password changed, {} secrets re-encrypted",
+        session.encryption_key.is_empty().then(|| 0).unwrap_or(1));
 
     Ok(Json(json!({ "ok": true })))
 }
@@ -490,8 +876,18 @@ async fn mfa_verify(
         s.expires_at = now + auth.expires_in;
         s.mfa_verified = true; // GATE OPENS — user can now access all data
     }
+    // Read the updated session back for load_user_secrets
+    let upgraded_session = write.clone();
+    drop(write);
 
     tracing::info!(user_id = %session.user_id, "MFA verified (aal2) — full access granted");
+
+    // Reload user_secrets with the upgraded aal2 token.
+    // This ensures secrets are available even if the initial load at login
+    // was skipped or failed (e.g. RLS policies that require aal2).
+    if let Some(ref sess) = upgraded_session {
+        load_user_secrets(&state, sess).await;
+    }
 
     Ok(Json(json!({ "ok": true })))
 }
@@ -815,8 +1211,17 @@ async fn oauth_callback(
                             mfa_verified: false,
                             factor_id: oauth_factor_id,
                         };
-                        *state.session.write().await = Some(session);
+                        *state.session.write().await = Some(session.clone());
+                        if let Some(ref mut v) = *state.pkce_verifier.write().await {
+                            v.zeroize();
+                        }
                         *state.pkce_verifier.write().await = None;
+
+                        // Try to load user_secrets (will skip if no encryption
+                        // key, which is the case for OAuth logins without a
+                        // password-derived key).
+                        load_user_secrets(&state, &session).await;
+
                         tracing::info!(
                             user_id = %user_id,
                             "[oauth-callback] PKCE exchange succeeded — session stored"
@@ -929,5 +1334,88 @@ mod tests {
         // Should be after 2024-01-01 (1704067200) and before 2100-01-01
         assert!(now > 1_704_067_200, "epoch_secs should be a recent timestamp");
         assert!(now < 4_102_444_800, "epoch_secs should not be in the far future");
+    }
+
+    // ---- service_credential_to_env_var ----
+
+    #[test]
+    fn service_credential_mapping_bluebubbles() {
+        assert_eq!(
+            service_credential_to_env_var("bluebubbles", "host"),
+            Some("BLUEBUBBLES_HOST")
+        );
+        assert_eq!(
+            service_credential_to_env_var("bluebubbles", "password"),
+            Some("BLUEBUBBLES_PASSWORD")
+        );
+    }
+
+    #[test]
+    fn service_credential_mapping_openclaw() {
+        assert_eq!(
+            service_credential_to_env_var("openclaw", "url"),
+            Some("OPENCLAW_API_URL")
+        );
+        assert_eq!(
+            service_credential_to_env_var("openclaw", "api_url"),
+            Some("OPENCLAW_API_URL")
+        );
+        assert_eq!(
+            service_credential_to_env_var("openclaw", "api-url"),
+            Some("OPENCLAW_API_URL")
+        );
+        assert_eq!(
+            service_credential_to_env_var("openclaw", "api_key"),
+            Some("OPENCLAW_API_KEY")
+        );
+        assert_eq!(
+            service_credential_to_env_var("openclaw", "ws"),
+            Some("OPENCLAW_WS")
+        );
+    }
+
+    #[test]
+    fn service_credential_mapping_proxmox() {
+        assert_eq!(
+            service_credential_to_env_var("proxmox", "host"),
+            Some("PROXMOX_HOST")
+        );
+        assert_eq!(
+            service_credential_to_env_var("proxmox", "token_id"),
+            Some("PROXMOX_TOKEN_ID")
+        );
+        assert_eq!(
+            service_credential_to_env_var("proxmox", "token-id"),
+            Some("PROXMOX_TOKEN_ID")
+        );
+        assert_eq!(
+            service_credential_to_env_var("proxmox", "token_secret"),
+            Some("PROXMOX_TOKEN_SECRET")
+        );
+    }
+
+    #[test]
+    fn service_credential_mapping_returns_none_for_unknown() {
+        assert_eq!(service_credential_to_env_var("unknown", "host"), None);
+        assert_eq!(service_credential_to_env_var("bluebubbles", "unknown_key"), None);
+        assert_eq!(service_credential_to_env_var("", ""), None);
+    }
+
+    #[test]
+    fn service_credential_mapping_all_services_covered() {
+        // Verify every service mentioned in the design spec has at least one mapping
+        let services = [
+            "bluebubbles", "openclaw", "proxmox", "opnsense", "plex",
+            "sonarr", "radarr", "email", "caldav", "ntfy",
+        ];
+        for service in services {
+            // Each service should have at least one recognized credential key
+            let has_mapping = ["host", "url", "password", "key", "secret", "token",
+                "api_key", "api-key", "ws", "token_id", "token-id", "token_secret",
+                "token-secret", "username", "user", "port", "topic"]
+                .iter()
+                .any(|key| service_credential_to_env_var(service, key).is_some());
+            assert!(has_mapping, "service '{}' should have at least one credential mapping", service);
+        }
     }
 }

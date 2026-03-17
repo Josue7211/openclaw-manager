@@ -8,22 +8,28 @@ use rand::RngCore;
 
 /// Derive a 32-byte encryption key from a password using Argon2id.
 ///
-/// The `salt` should be unique per user (e.g., their `user_id` or email).
+/// Parameters: m_cost=65536 (64 MiB), t_cost=3 iterations, p=4 parallelism.
+/// These follow OWASP recommendations for interactive logins.
+///
+/// The `salt` must be a random, per-user value stored in `user_profiles.encryption_salt`
+/// (base64-encoded 16-byte random salt). Never use deterministic values like user IDs.
 /// Truncates or zero-pads the UTF-8 salt bytes to exactly 16 bytes before
 /// passing them to Argon2, which requires a salt of at least 8 bytes.
 pub fn derive_key(password: &str, salt: &str) -> Vec<u8> {
     let params = Params::new(
-        19456, // 19 MiB memory cost
-        2,     // 2 iterations
-        1,     // 1 degree of parallelism
+        65536, // 64 MiB memory cost
+        3,     // 3 iterations
+        4,     // 4 degrees of parallelism
         Some(32), // 32-byte output key
     )
     .expect("valid argon2 params");
 
     let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
-    // Pad or truncate salt to exactly 16 bytes (Argon2 requires >= 8 bytes).
-    let salt_bytes = salt.as_bytes();
+    // Decode base64 salt (from user_profiles.encryption_salt), falling back
+    // to raw UTF-8 bytes for legacy/test salts that aren't base64-encoded.
+    let salt_bytes = STANDARD.decode(salt)
+        .unwrap_or_else(|_| salt.as_bytes().to_vec());
     let mut salt_fixed = [0u8; 16];
     let copy_len = salt_bytes.len().min(16);
     salt_fixed[..copy_len].copy_from_slice(&salt_bytes[..copy_len]);

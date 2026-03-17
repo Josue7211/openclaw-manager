@@ -75,7 +75,11 @@ impl SyncEngine {
                 let jwt = {
                     let guard = self.session.read().await;
                     match guard.as_ref() {
-                        Some(s) => s.access_token.clone(),
+                        Some(s) if s.mfa_verified => s.access_token.clone(),
+                        Some(_) => {
+                            debug!("sync: MFA not verified, skipping");
+                            continue;
+                        }
                         None => {
                             debug!("sync: no active session, skipping cycle");
                             continue;
@@ -277,7 +281,7 @@ impl SyncEngine {
 
             if deleted_at.is_some() {
                 // Soft-deleted remotely — hard-delete locally
-                sqlx::query(&format!("DELETE FROM {table} WHERE id = ?"))
+                sqlx::query(&format!("DELETE FROM \"{table}\" WHERE id = ?"))
                     .bind(id)
                     .execute(&self.db)
                     .await?;
@@ -319,22 +323,69 @@ impl SyncEngine {
         }
     }
 
-    /// Generic upsert: stores id, user_id, and updated_at.
+    /// Generic upsert: dynamically maps columns from the Supabase row
+    /// into the local SQLite table, filtering to only columns that exist locally.
     async fn upsert_generic(&self, table: &str, row: &Value) -> anyhow::Result<()> {
-        let id = row.get("id").and_then(|v| v.as_str()).unwrap_or("");
-        let user_id = row.get("user_id").and_then(|v| v.as_str()).unwrap_or("");
-        let updated_at = row.get("updated_at").and_then(|v| v.as_str()).unwrap_or("");
+        let obj = match row.as_object() {
+            Some(o) if !o.is_empty() => o,
+            _ => return Ok(()),
+        };
 
-        sqlx::query(&format!(
-            "INSERT INTO {table} (id, user_id, updated_at) VALUES (?, ?, ?) \
-             ON CONFLICT(id) DO UPDATE SET updated_at = excluded.updated_at"
-        ))
-        .bind(id)
-        .bind(user_id)
-        .bind(updated_at)
-        .execute(&self.db)
-        .await?;
+        // Query local SQLite for which columns actually exist in this table
+        let local_cols: Vec<String> = sqlx::query_scalar::<_, String>(
+            &format!("SELECT name FROM pragma_table_info('{table}')")
+        )
+        .fetch_all(&self.db)
+        .await
+        .unwrap_or_default();
 
+        let local_col_set: std::collections::HashSet<&str> =
+            local_cols.iter().map(|s| s.as_str()).collect();
+
+        // Only include columns that exist in both Supabase row AND local table
+        let columns: Vec<&str> = obj
+            .keys()
+            .map(|k| k.as_str())
+            .filter(|k| local_col_set.contains(k))
+            .collect();
+
+        if columns.is_empty() || !columns.contains(&"id") {
+            return Ok(());
+        }
+
+        // Quote column names with double-quotes to prevent SQL injection
+        let columns_quoted: Vec<String> = columns.iter().map(|c| format!("\"{}\"", c)).collect();
+        let placeholders: Vec<&str> = columns.iter().map(|_| "?").collect();
+        let updates: Vec<String> = columns
+            .iter()
+            .filter(|c| **c != "id")
+            .map(|c| format!("\"{}\" = excluded.\"{}\"", c, c))
+            .collect();
+
+        let sql = format!(
+            "INSERT INTO \"{table}\" ({cols}) VALUES ({phs}) ON CONFLICT(id) DO UPDATE SET {upd}",
+            cols = columns_quoted.join(", "),
+            phs = placeholders.join(", "),
+            upd = if updates.is_empty() {
+                "\"id\" = excluded.\"id\"".to_string()
+            } else {
+                updates.join(", ")
+            },
+        );
+
+        let mut query = sqlx::query(&sql);
+        for col in &columns {
+            let val = &obj[*col];
+            match val {
+                Value::String(s) => query = query.bind(s.clone()),
+                Value::Number(n) => query = query.bind(n.to_string()),
+                Value::Bool(b) => query = query.bind(if *b { "1".to_string() } else { "0".to_string() }),
+                Value::Null => query = query.bind(None::<String>),
+                _ => query = query.bind(val.to_string()),
+            }
+        }
+
+        query.execute(&self.db).await?;
         Ok(())
     }
 
@@ -405,6 +456,8 @@ pub async fn is_supabase_reachable(supabase_url: &str, service_key: &str) -> boo
 /// Log a mutation to `_sync_log` so the sync engine can push it to Supabase.
 ///
 /// Call this after every local SQLite INSERT/UPDATE/DELETE on a synced table.
+/// Caps the log at 10,000 unsynced entries — if exceeded, the oldest 1,000 are
+/// deleted to prevent unbounded growth.
 pub async fn log_mutation(
     db: &SqlitePool,
     table: &str,
@@ -412,6 +465,24 @@ pub async fn log_mutation(
     operation: &str,
     payload: Option<&str>,
 ) -> Result<(), sqlx::Error> {
+    // Cap unbounded growth: if > 10,000 unsynced entries, delete the oldest 1,000
+    let unsynced_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM _sync_log WHERE synced_at IS NULL",
+    )
+    .fetch_one(db)
+    .await
+    .unwrap_or(0);
+
+    if unsynced_count > 10_000 {
+        sqlx::query(
+            "DELETE FROM _sync_log WHERE id IN \
+             (SELECT id FROM _sync_log WHERE synced_at IS NULL ORDER BY id ASC LIMIT 1000)",
+        )
+        .execute(db)
+        .await?;
+        warn!("_sync_log: pruned 1000 oldest unsynced entries (had {unsynced_count})");
+    }
+
     sqlx::query(
         "INSERT INTO _sync_log (table_name, row_id, operation, payload) VALUES (?, ?, ?, ?)",
     )

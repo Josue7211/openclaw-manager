@@ -71,10 +71,10 @@ export function useChatState() {
 
   // ── Load chat draft from localStorage on mount ──
   useEffect(() => {
-    const draft = localStorage.getItem('chat-draft')
+    const draft = sessionStorage.getItem('chat-draft')
     if (draft) setInput(draft)
     try {
-      const saved = localStorage.getItem('chat-draft-images')
+      const saved = sessionStorage.getItem('chat-draft-images')
       if (saved) {
         const parsed = JSON.parse(saved) as string[]
         if (Array.isArray(parsed) && parsed.length > 0) { imagesRef.current = parsed; setImages(() => parsed) }
@@ -230,7 +230,7 @@ export function useChatState() {
 
       try {
         const total = currentImgs.reduce((sum, s) => sum + s.length, 0)
-        if (total <= 4 * 1024 * 1024) localStorage.setItem('chat-draft-images', JSON.stringify(currentImgs))
+        if (total <= 4 * 1024 * 1024) sessionStorage.setItem('chat-draft-images', JSON.stringify(currentImgs))
       } catch { /* ignore */ }
 
       if (isLast && pendingSendRef.current) {
@@ -285,7 +285,7 @@ export function useChatState() {
     // ── Intercept slash commands ──
     if (isSlashCommand(text)) {
       setInput('')
-      localStorage.removeItem('chat-draft')
+      sessionStorage.removeItem('chat-draft')
       localStorage.setItem('session-start', Date.now().toString())
       setSystemMsg('\u2500\u2500 Starting fresh session\u2026 \u2500\u2500')
       setMessages([])
@@ -307,7 +307,7 @@ export function useChatState() {
       pendingSendRef.current = true
       pendingTextRef.current = text
       setInput('')
-      localStorage.removeItem('chat-draft')
+      sessionStorage.removeItem('chat-draft')
       return
     }
 
@@ -319,8 +319,8 @@ export function useChatState() {
     const msgId = `opt-${Date.now()}-${Math.random()}`
     setSending(true)
     setInput('')
-    localStorage.removeItem('chat-draft')
-    localStorage.removeItem('chat-draft-images')
+    sessionStorage.removeItem('chat-draft')
+    sessionStorage.removeItem('chat-draft-images')
     setImages([])
     pendingSendRef.current = false
 

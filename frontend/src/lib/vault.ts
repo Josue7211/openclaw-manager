@@ -1,283 +1,82 @@
 import type { VaultNote } from '@/pages/notes/types'
 
-const STORAGE_KEY = 'mc-notes-vault'
-const COUCHDB_URL = import.meta.env.VITE_COUCHDB_URL || ''
-const COUCHDB_DB = import.meta.env.VITE_COUCHDB_DB || ''
-const COUCHDB_USER = import.meta.env.VITE_COUCHDB_USER || ''
-const COUCHDB_PASS = import.meta.env.VITE_COUCHDB_PASSWORD || ''
+/**
+ * Vault — local-only note storage backed by an in-memory cache.
+ *
+ * SECURITY: CouchDB credentials were previously embedded in the frontend
+ * bundle (VITE_COUCHDB_USER / VITE_COUCHDB_PASSWORD). These have been
+ * removed. Remote sync should be proxied through the Axum backend
+ * (TODO: add /api/vault/* routes to src-tauri/src/routes/).
+ *
+ * Note content is NOT stored in localStorage — only metadata (id, title,
+ * folder, tags, links, timestamps) is cached for offline list rendering.
+ * Full content is held in memory only and fetched from the backend on load.
+ */
 
-const BASE = `${COUCHDB_URL}/${COUCHDB_DB}`
-const AUTH_HEADER = COUCHDB_USER
-  ? 'Basic ' + btoa(`${COUCHDB_USER}:${COUCHDB_PASS}`)
-  : ''
+const META_STORAGE_KEY = 'mc-notes-meta'
 
-// --- Local storage cache ---
+interface NoteMeta {
+  _id: string
+  title: string
+  folder: string
+  tags: string[]
+  links: string[]
+  created_at: number
+  updated_at: number
+}
 
-function loadLocal(): Map<string, VaultNote> {
+function toMeta(note: VaultNote): NoteMeta {
+  return {
+    _id: note._id,
+    title: note.title,
+    folder: note.folder,
+    tags: note.tags,
+    links: note.links,
+    created_at: note.created_at,
+    updated_at: note.updated_at,
+  }
+}
+
+function loadMetaCache(): Map<string, NoteMeta> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(META_STORAGE_KEY)
     if (!raw) return new Map()
-    const arr: VaultNote[] = JSON.parse(raw)
-    return new Map(arr.map((n) => [n._id, n]))
+    const arr: NoteMeta[] = JSON.parse(raw)
+    return new Map(arr.map((m) => [m._id, m]))
   } catch {
     return new Map()
   }
 }
 
-function saveLocal(notes: Map<string, VaultNote>) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([...notes.values()]))
+function saveMetaCache(meta: Map<string, NoteMeta>) {
+  localStorage.setItem(META_STORAGE_KEY, JSON.stringify([...meta.values()]))
 }
 
-let notesCache: Map<string, VaultNote> = loadLocal()
+// In-memory note cache (includes content — never persisted to localStorage)
+let notesCache: Map<string, VaultNote> = new Map()
+let metaCache: Map<string, NoteMeta> = loadMetaCache()
 
-// --- CouchDB HTTP helpers ---
-
-async function couchFetch(path: string, opts: RequestInit = {}): Promise<Response> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(opts.headers as Record<string, string> || {}),
-  }
-  if (AUTH_HEADER) headers['Authorization'] = AUTH_HEADER
-
-  return fetch(`${BASE}${path}`, { ...opts, headers })
-}
-
-// --- LiveSync document format ---
-// Main docs: { _id: "file.md", type: "plain", path: "file.md", children: ["h:xxx", ...], ctime, mtime, size }
-// Leaf docs: { _id: "h:xxx", type: "leaf", data: "content chunk" }
-// To read a note: fetch main doc -> fetch each child leaf -> concatenate data fields
-
-interface LiveSyncMainDoc {
-  _id: string
-  _rev: string
-  type: 'plain' | 'newnote'
-  path: string
-  children: string[]
-  ctime: number
-  mtime: number
-  size: number
-  eden?: Record<string, unknown>
-}
-
-interface LiveSyncLeafDoc {
-  _id: string
-  _rev: string
-  type: 'leaf'
-  data: string
-}
-
-async function fetchNoteContent(children: string[]): Promise<string> {
-  if (children.length === 0) return ''
-
-  // Fetch all chunks in parallel
-  const resp = await couchFetch('/_all_docs?include_docs=true', {
-    method: 'POST',
-    body: JSON.stringify({ keys: children }),
+// Hydrate notes from meta cache on startup (content will be empty until fetched)
+for (const [id, meta] of metaCache) {
+  notesCache.set(id, {
+    ...meta,
+    _id: meta._id,
+    type: 'note',
+    content: '',
   })
-
-  if (!resp.ok) return ''
-  const data = await resp.json()
-
-  // Concatenate in order
-  const chunkMap = new Map<string, string>()
-  for (const row of data.rows) {
-    if (row.doc && row.doc.data != null) {
-      chunkMap.set(row.doc._id, row.doc.data)
-    }
-  }
-
-  return children.map((id) => chunkMap.get(id) ?? '').join('')
 }
 
-function titleFromPath(path: string): string {
-  const name = path.split('/').pop() ?? path
-  return name.replace(/\.md$/, '')
-}
+// --- Sync (stub — requires backend proxy) ---
 
-function folderFromPath(path: string): string {
-  const parts = path.split('/')
-  return parts.length > 1 ? parts.slice(0, -1).join('/') : ''
-}
-
-// --- Pull from CouchDB (LiveSync format) ---
-
-async function pullFromRemote(): Promise<VaultNote[]> {
-  if (!AUTH_HEADER) return []
-  try {
-    const resp = await couchFetch('/_all_docs?include_docs=true')
-    if (!resp.ok) return []
-    const data = await resp.json()
-
-    // Find all main docs (type: plain or newnote, with a path ending in .md)
-    const mainDocs: LiveSyncMainDoc[] = data.rows
-      .map((r: any) => r.doc)
-      .filter((d: any) =>
-        d &&
-        !d._id.startsWith('_') &&
-        !d._id.startsWith('h:') &&
-        (d.type === 'plain' || d.type === 'newnote') &&
-        d.path &&
-        d.path.endsWith('.md'),
-      )
-
-    // Fetch content for each note
-    const notes: VaultNote[] = await Promise.all(
-      mainDocs.map(async (doc) => {
-        const content = await fetchNoteContent(doc.children || [])
-        return {
-          _id: doc._id,
-          _rev: doc._rev,
-          type: 'note' as const,
-          title: titleFromPath(doc.path),
-          content,
-          folder: folderFromPath(doc.path),
-          tags: extractTags(content),
-          links: extractWikilinks(content),
-          created_at: doc.ctime,
-          updated_at: doc.mtime,
-        }
-      }),
-    )
-
-    return notes
-  } catch (err) {
-    console.warn('[vault] pull from remote failed:', err)
-    return []
-  }
-}
-
-// --- Write to CouchDB (LiveSync format) ---
-
-async function pushToRemote(note: VaultNote): Promise<void> {
-  if (!AUTH_HEADER) return
-  try {
-    const docId = note._id
-
-    // Check if main doc exists
-    const existing = await couchFetch(`/${encodeURIComponent(docId)}`)
-    let oldChildren: string[] = []
-    let rev: string | undefined
-
-    if (existing.ok) {
-      const oldDoc = await existing.json()
-      oldChildren = oldDoc.children || []
-      rev = oldDoc._rev
-    }
-
-    // Delete old leaf chunks
-    for (const childId of oldChildren) {
-      try {
-        const childResp = await couchFetch(`/${encodeURIComponent(childId)}`)
-        if (childResp.ok) {
-          const child = await childResp.json()
-          await couchFetch(`/${encodeURIComponent(childId)}?rev=${child._rev}`, {
-            method: 'DELETE',
-          })
-        }
-      } catch { /* ignore */ }
-    }
-
-    // Create new leaf chunk with full content
-    const chunkId = `h:${crypto.randomUUID().replace(/-/g, '').slice(0, 13)}`
-    await couchFetch(`/${encodeURIComponent(chunkId)}`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        _id: chunkId,
-        type: 'leaf',
-        data: note.content,
-      }),
-    })
-
-    // Create/update main doc
-    const mainDoc: Record<string, unknown> = {
-      _id: docId,
-      type: 'plain',
-      path: docId,
-      children: [chunkId],
-      ctime: note.created_at,
-      mtime: Date.now(),
-      size: new Blob([note.content]).size,
-      eden: {},
-    }
-    if (rev) mainDoc._rev = rev
-
-    await couchFetch(`/${encodeURIComponent(docId)}`, {
-      method: 'PUT',
-      body: JSON.stringify(mainDoc),
-    })
-  } catch (err) {
-    console.warn('[vault] push to remote failed:', err)
-  }
-}
-
-async function deleteFromRemote(id: string): Promise<void> {
-  if (!AUTH_HEADER) return
-  try {
-    const resp = await couchFetch(`/${encodeURIComponent(id)}`)
-    if (!resp.ok) return
-    const doc = await resp.json()
-
-    // Delete leaf chunks
-    for (const childId of doc.children || []) {
-      try {
-        const childResp = await couchFetch(`/${encodeURIComponent(childId)}`)
-        if (childResp.ok) {
-          const child = await childResp.json()
-          await couchFetch(`/${encodeURIComponent(childId)}?rev=${child._rev}`, {
-            method: 'DELETE',
-          })
-        }
-      } catch { /* ignore */ }
-    }
-
-    // Delete main doc
-    await couchFetch(`/${encodeURIComponent(id)}?rev=${doc._rev}`, {
-      method: 'DELETE',
-    })
-  } catch (err) {
-    console.warn('[vault] delete from remote failed:', err)
-  }
-}
-
-// --- Sync ---
-
-let syncInterval: ReturnType<typeof setInterval> | null = null
-
-export function startSync(onChange?: () => void) {
-  if (syncInterval) return
-  // Initial pull
-  pullFromRemote().then((remote) => {
-    if (remote.length > 0) {
-      notesCache = new Map(remote.map((n) => [n._id, n]))
-      saveLocal(notesCache)
-      onChange?.()
-    }
-  })
-  // Poll every 30s
-  syncInterval = setInterval(async () => {
-    const remote = await pullFromRemote()
-    if (remote.length > 0) {
-      let changed = false
-      for (const note of remote) {
-        const local = notesCache.get(note._id)
-        if (!local || note.updated_at > local.updated_at) {
-          notesCache.set(note._id, note)
-          changed = true
-        }
-      }
-      if (changed) {
-        saveLocal(notesCache)
-        onChange?.()
-      }
-    }
-  }, 30_000)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function startSync(_onChange?: () => void) {
+  // TODO: implement sync via Axum backend proxy (/api/vault/*)
+  // Remote CouchDB sync was removed because credentials were embedded
+  // in the frontend bundle. Add backend routes and call them here.
 }
 
 export function stopSync() {
-  if (syncInterval) {
-    clearInterval(syncInterval)
-    syncInterval = null
-  }
+  // No-op until backend sync is implemented
 }
 
 // --- CRUD ---
@@ -307,18 +106,16 @@ export async function putNote(note: VaultNote): Promise<VaultNote> {
   }
 
   notesCache.set(doc._id, doc)
-  saveLocal(notesCache)
-
-  // Sync to remote in background
-  pushToRemote(doc).catch(() => {})
+  metaCache.set(doc._id, toMeta(doc))
+  saveMetaCache(metaCache)
 
   return doc
 }
 
 export async function deleteNote(id: string): Promise<void> {
   notesCache.delete(id)
-  saveLocal(notesCache)
-  deleteFromRemote(id).catch(() => {})
+  metaCache.delete(id)
+  saveMetaCache(metaCache)
 }
 
 export async function createNote(

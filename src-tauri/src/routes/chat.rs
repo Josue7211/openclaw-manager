@@ -13,9 +13,14 @@ use std::path::{Path, PathBuf};
 use tokio::time::{interval, Duration};
 
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::server::{AppState, RequireAuth};
 use super::util::{percent_encode, random_uuid, base64_decode};
+
+/// Global counter for concurrent WebSocket connections.
+static WS_CONNECTIONS: AtomicUsize = AtomicUsize::new(0);
+const MAX_WS_CONNECTIONS: usize = 5;
 
 /// Server-side system prompt — never settable from the frontend.
 const SYSTEM_PROMPT: &str = r#"You are a helpful AI assistant in Mission Control, a personal command center app.
@@ -142,6 +147,34 @@ fn get_session_file(state: &AppState) -> Option<PathBuf> {
 // Image saving (mirrors lib/openclaw.ts saveImageToDisk)
 // ---------------------------------------------------------------------------
 
+/// Validate that the decoded bytes start with known image magic bytes.
+fn validate_image_magic_bytes(data: &[u8]) -> bool {
+    if data.len() < 4 {
+        return false;
+    }
+    // JPEG
+    if data.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        return true;
+    }
+    // PNG
+    if data.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
+        return true;
+    }
+    // GIF87a / GIF89a
+    if data.starts_with(b"GIF8") {
+        return true;
+    }
+    // WebP (RIFF....WEBP)
+    if data.len() >= 12 && data.starts_with(b"RIFF") && &data[8..12] == b"WEBP" {
+        return true;
+    }
+    // BMP
+    if data.starts_with(b"BM") {
+        return true;
+    }
+    false
+}
+
 fn save_image_to_disk(data_url: &str) -> Option<String> {
     use std::io::Write;
 
@@ -159,12 +192,33 @@ fn save_image_to_disk(data_url: &str) -> Option<String> {
 
     let decoded = base64_decode(base64_data)?;
 
+    // Validate magic bytes before writing to disk
+    if !validate_image_magic_bytes(&decoded) {
+        tracing::warn!("Rejected image upload: magic bytes do not match any known image format");
+        return None;
+    }
+
     let dir = chat_images_dir();
     std::fs::create_dir_all(&dir).ok()?;
+
+    // Restrict directory permissions to owner-only on Unix
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
+    }
+
     let filename = format!("{}.{}", random_uuid(), ext);
     let filepath = dir.join(&filename);
     let mut file = std::fs::File::create(&filepath).ok()?;
     file.write_all(&decoded).ok()?;
+
+    // Restrict file permissions to owner read/write only on Unix
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&filepath, std::fs::Permissions::from_mode(0o600));
+    }
 
     Some(filepath.to_string_lossy().into_owned())
 }
@@ -817,7 +871,6 @@ fn is_safe_path(file_path: &str) -> bool {
     let oc_dir = openclaw_dir_default();
     let allowed_dirs = [
         oc_dir.join("workspace/chat-uploads"),
-        oc_dir.join("workspace"),
         oc_dir.join("media/chat-images"),
     ];
 
@@ -888,6 +941,10 @@ async fn get_image(RequireAuth(_session): RequireAuth, Query(params): Query<Imag
                 HeaderName::from_static("x-content-type-options"),
                 HeaderValue::from_static("nosniff"),
             );
+            resp.headers_mut().insert(
+                header::CONTENT_DISPOSITION,
+                HeaderValue::from_static("inline"),
+            );
             resp
         }
         Err(_) => (
@@ -907,10 +964,35 @@ async fn ws_upgrade(
     RequireAuth(_session): RequireAuth,
     ws: WebSocketUpgrade,
 ) -> Response {
+    if WS_CONNECTIONS.load(Ordering::Relaxed) >= MAX_WS_CONNECTIONS {
+        return (
+            axum::http::StatusCode::TOO_MANY_REQUESTS,
+            Json(json!({"error": "too many WebSocket connections"})),
+        )
+            .into_response();
+    }
+
     ws.on_upgrade(move |socket| handle_ws(socket, state))
 }
 
+/// RAII guard that decrements the WebSocket connection counter on drop.
+struct WsConnectionGuard;
+
+impl WsConnectionGuard {
+    fn new() -> Self {
+        WS_CONNECTIONS.fetch_add(1, Ordering::Relaxed);
+        Self
+    }
+}
+
+impl Drop for WsConnectionGuard {
+    fn drop(&mut self) {
+        WS_CONNECTIONS.fetch_sub(1, Ordering::Relaxed);
+    }
+}
+
 async fn handle_ws(mut socket: WebSocket, state: AppState) {
+    let _guard = WsConnectionGuard::new();
     let dir = openclaw_dir_from(&state);
     let local_session = if dir.exists() { get_session_file(&state) } else { None };
 

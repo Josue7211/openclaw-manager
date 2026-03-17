@@ -77,8 +77,14 @@ export default function SettingsData() {
                     setImportStatus('Error: Settings file is empty.')
                     return
                   }
+                  const KNOWN_PREFIXES = [
+                    'dnd-enabled', 'system-notifs', 'in-app-notifs', 'notif-sound',
+                    'title-bar-visible', 'sidebar-header-visible', 'user-name', 'user-avatar',
+                    'app-version', 'keybindings', 'sidebar-collapsed', 'theme', 'enabled-modules',
+                    'error-reporting',
+                  ]
                   for (const [key, value] of Object.entries(parsed)) {
-                    if (typeof value === 'string') {
+                    if (typeof value === 'string' && KNOWN_PREFIXES.some(prefix => key === prefix || key.startsWith(prefix + '-'))) {
                       localStorage.setItem(key, value)
                     }
                   }

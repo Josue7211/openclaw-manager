@@ -18,7 +18,8 @@
     "format": "prettier --write 'src/**/*.{ts,tsx}'",
     "format:check": "prettier --check 'src/**/*.{ts,tsx}'",
     "test:e2e": "../scripts/e2e.sh",
-    "test:e2e:headed": "AGENT_BROWSER_HEADED=true ../scripts/e2e.sh"
+    "test:e2e:headed": "AGENT_BROWSER_HEADED=true ../scripts/e2e.sh",
+    "postinstall": "cd .. && [ -f scripts/pre-commit.sh ] && ln -sf ../../scripts/pre-commit.sh .git/hooks/pre-commit || true"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.1",
@@ -50,7 +51,6 @@
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^24.12.0",
-    "@types/pouchdb-browser": "^6.1.5",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.0",

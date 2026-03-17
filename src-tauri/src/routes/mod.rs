@@ -31,6 +31,7 @@ pub mod search;
 pub mod stale;
 pub mod status;
 pub mod todos;
+pub mod user_secrets;
 pub mod util;
 pub mod workflow_notes;
 pub mod workspace;
@@ -69,6 +70,7 @@ pub fn router() -> Router<AppState> {
         .merge(stale::router())
         .merge(status::router())
         .merge(todos::router())
+        .merge(user_secrets::router())
         .nest("/workspace", workspace::router())
 }
 

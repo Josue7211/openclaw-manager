@@ -27,6 +27,10 @@ async fn get_search(
 ) -> Result<Json<Value>, AppError> {
     let q = params.q.as_deref().unwrap_or("").trim().to_string();
 
+    if q.len() > 200 {
+        return Err(AppError::BadRequest("Search query too long (max 200 characters)".into()));
+    }
+
     if q.is_empty() {
         return Ok(Json(json!({
             "todos": [],

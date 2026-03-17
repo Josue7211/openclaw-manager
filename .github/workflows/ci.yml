@@ -15,14 +15,14 @@ jobs:
     name: Lint & Typecheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
 
       - name: Cache node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: frontend/node_modules
           key: node-modules-${{ hashFiles('frontend/package-lock.json') }}
@@ -39,14 +39,14 @@ jobs:
     needs: lint-and-typecheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
 
       - name: Cache node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: frontend/node_modules
           key: node-modules-${{ hashFiles('frontend/package-lock.json') }}
@@ -63,14 +63,14 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
 
       - name: Cache node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: frontend/node_modules
           key: node-modules-${{ hashFiles('frontend/package-lock.json') }}
@@ -90,16 +90,20 @@ jobs:
           du -sh frontend/dist/assets/* >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Security audit (Node)
+        working-directory: frontend
+        run: npm audit --audit-level=moderate
+
   rust-check:
     name: Rust Check & Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc97eae # stable 2025-03-04
 
       - name: Cache cargo registry and build
-        uses: actions/cache@v4
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: |
             ~/.cargo/registry
@@ -126,3 +130,8 @@ jobs:
 
       - name: Cargo test
         run: cd src-tauri && cargo test
+
+      - name: Security audit (Rust)
+        run: |
+          cargo install cargo-audit --locked
+          cd src-tauri && cargo audit

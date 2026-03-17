@@ -229,6 +229,7 @@ async fn update_agent(
 
 async fn active_coders(
     State(_state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
     let lines = match detect_claude_processes().await {
         Ok(l) => l,
@@ -282,6 +283,7 @@ struct ActiveTask {
 
 async fn subagents_active(
     State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
     let mut tasks: Vec<ActiveTask> = Vec::new();
 

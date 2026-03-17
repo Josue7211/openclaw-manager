@@ -1,4 +1,5 @@
 use std::sync::OnceLock;
+use std::sync::atomic::Ordering;
 
 use axum::{extract::State, Json};
 use regex::Regex;
@@ -24,6 +25,7 @@ use super::helpers::{
     spawn_agent_process, supabase, validate_uuid,
 };
 use super::registry::clean_registry_by_mission_id;
+use super::spawn::ACTIVE_PIPELINES;
 
 // ── POST /pipeline/complete ──────────────────────────────────────────────────
 
@@ -76,6 +78,11 @@ pub(super) async fn pipeline_complete(
             "mission_id": mission_id,
         })));
     }
+
+    // Decrement active pipeline counter (saturating to avoid underflow)
+    ACTIVE_PIPELINES.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
+        Some(n.saturating_sub(1))
+    }).ok();
 
     let is_code_task = mission["task_type"].as_str() == Some("code");
     let agent_id = mission["assignee"].as_str().unwrap_or("").to_string();

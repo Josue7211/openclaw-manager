@@ -3,6 +3,18 @@ use reqwest::{Client, StatusCode};
 use serde_json::Value;
 use tracing::warn;
 
+/// Truncate a string to at most `max_chars` characters without panicking on
+/// multi-byte UTF-8 boundaries. Returns the full string if it's shorter.
+pub fn safe_truncate(s: &str, max_chars: usize) -> &str {
+    if s.len() <= max_chars {
+        return s;
+    }
+    match s.char_indices().nth(max_chars) {
+        Some((idx, _)) => &s[..idx],
+        None => s,
+    }
+}
+
 /// Lightweight REST client for Supabase PostgREST / RPC endpoints.
 ///
 /// Reads `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` from environment.
@@ -133,7 +145,7 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
-            let truncated = if body.len() > 200 { &body[..200] } else { &body };
+            let truncated = safe_truncate(&body, 200);
             warn!("supabase select {table} returned {status}: {truncated}");
             return Err(anyhow!("supabase select {table}: {status} — {truncated}"));
         }
@@ -159,7 +171,7 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
-            let truncated = if body.len() > 200 { &body[..200] } else { &body };
+            let truncated = safe_truncate(&body, 200);
             warn!("supabase select_single {table} returned {status}: {truncated}");
             return Err(anyhow!("supabase select_single {table}: {status} — {truncated}"));
         }
@@ -185,7 +197,7 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            let truncated = if body_text.len() > 200 { &body_text[..200] } else { &body_text };
+            let truncated = safe_truncate(&body_text, 200);
             warn!("supabase insert {table} returned {status}: {truncated}");
             return Err(anyhow!("supabase insert {table}: {status} — {truncated}"));
         }
@@ -211,7 +223,7 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            let truncated = if body_text.len() > 200 { &body_text[..200] } else { &body_text };
+            let truncated = safe_truncate(&body_text, 200);
             warn!("supabase upsert {table} returned {status}: {truncated}");
             return Err(anyhow!("supabase upsert {table}: {status} — {truncated}"));
         }
@@ -238,7 +250,7 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            let truncated = if body_text.len() > 200 { &body_text[..200] } else { &body_text };
+            let truncated = safe_truncate(&body_text, 200);
             warn!("supabase update {table} returned {status}: {truncated}");
             return Err(anyhow!("supabase update {table}: {status} — {truncated}"));
         }
@@ -260,7 +272,7 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            let truncated = if body_text.len() > 200 { &body_text[..200] } else { &body_text };
+            let truncated = safe_truncate(&body_text, 200);
             warn!("supabase delete {table} returned {status}: {truncated}");
             return Err(anyhow!("supabase delete {table}: {status} — {truncated}"));
         }
@@ -284,7 +296,7 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
-            let truncated = if body.len() > 200 { &body[..200] } else { &body };
+            let truncated = safe_truncate(&body, 200);
             warn!("supabase select_as_user {table} returned {status}: {truncated}");
             return Err(anyhow!("supabase select_as_user {table}: {status} — {truncated}"));
         }
@@ -308,7 +320,7 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
-            let truncated = if body.len() > 200 { &body[..200] } else { &body };
+            let truncated = safe_truncate(&body, 200);
             warn!("supabase select_single_as_user {table} returned {status}: {truncated}");
             return Err(anyhow!("supabase select_single_as_user {table}: {status} — {truncated}"));
         }
@@ -332,7 +344,7 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            let truncated = if body_text.len() > 200 { &body_text[..200] } else { &body_text };
+            let truncated = safe_truncate(&body_text, 200);
             warn!("supabase insert_as_user {table} returned {status}: {truncated}");
             return Err(anyhow!("supabase insert_as_user {table}: {status} — {truncated}"));
         }
@@ -356,7 +368,7 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            let truncated = if body_text.len() > 200 { &body_text[..200] } else { &body_text };
+            let truncated = safe_truncate(&body_text, 200);
             warn!("supabase upsert_as_user {table} returned {status}: {truncated}");
             return Err(anyhow!("supabase upsert_as_user {table}: {status} — {truncated}"));
         }
@@ -381,7 +393,7 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            let truncated = if body_text.len() > 200 { &body_text[..200] } else { &body_text };
+            let truncated = safe_truncate(&body_text, 200);
             warn!("supabase update_as_user {table} returned {status}: {truncated}");
             return Err(anyhow!("supabase update_as_user {table}: {status} — {truncated}"));
         }
@@ -403,7 +415,7 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            let truncated = if body_text.len() > 200 { &body_text[..200] } else { &body_text };
+            let truncated = safe_truncate(&body_text, 200);
             warn!("supabase delete_as_user {table} returned {status}: {truncated}");
             return Err(anyhow!("supabase delete_as_user {table}: {status} — {truncated}"));
         }
@@ -425,7 +437,7 @@ impl SupabaseClient {
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            let truncated = if body_text.len() > 200 { &body_text[..200] } else { &body_text };
+            let truncated = safe_truncate(&body_text, 200);
             warn!("supabase rpc {function} returned {status}: {truncated}");
             return Err(anyhow!("supabase rpc {function}: {status} — {truncated}"));
         }
@@ -454,11 +466,13 @@ impl SupabaseClient {
 mod tests {
     use super::*;
 
+    fn test_client(url: &str) -> SupabaseClient {
+        SupabaseClient::new(url, "test-key")
+    }
+
     #[test]
     fn test_rest_url() {
-        std::env::set_var("SUPABASE_URL", "https://abc.supabase.co");
-        std::env::set_var("SUPABASE_SERVICE_ROLE_KEY", "test-key");
-        let client = SupabaseClient::from_env().unwrap();
+        let client = test_client("https://abc.supabase.co");
         assert_eq!(
             client.rest_url("missions"),
             "https://abc.supabase.co/rest/v1/missions"
@@ -467,9 +481,7 @@ mod tests {
 
     #[test]
     fn test_rpc_url() {
-        std::env::set_var("SUPABASE_URL", "https://abc.supabase.co");
-        std::env::set_var("SUPABASE_SERVICE_ROLE_KEY", "test-key");
-        let client = SupabaseClient::from_env().unwrap();
+        let client = test_client("https://abc.supabase.co");
         assert_eq!(
             client.rpc_url("search_memory"),
             "https://abc.supabase.co/rest/v1/rpc/search_memory"
@@ -478,22 +490,39 @@ mod tests {
 
     #[test]
     fn test_as_user_header_uses_jwt() {
-        std::env::set_var("SUPABASE_URL", "https://test.supabase.co");
-        std::env::set_var("SUPABASE_SERVICE_ROLE_KEY", "service-key-123");
-        let client = SupabaseClient::from_env().unwrap();
-        // Verify the client builds correctly — runtime tests would need a mock server
+        let client = SupabaseClient::new("https://test.supabase.co", "service-key-123");
         assert_eq!(client.service_key, "service-key-123");
         assert_eq!(client.url, "https://test.supabase.co");
     }
 
     #[test]
     fn test_url_trailing_slash_stripped() {
-        std::env::set_var("SUPABASE_URL", "https://abc.supabase.co/");
-        std::env::set_var("SUPABASE_SERVICE_ROLE_KEY", "test-key");
-        let client = SupabaseClient::from_env().unwrap();
+        let client = test_client("https://abc.supabase.co/");
         assert_eq!(
             client.rest_url("agents"),
             "https://abc.supabase.co/rest/v1/agents"
         );
+    }
+
+    #[test]
+    fn safe_truncate_ascii() {
+        assert_eq!(super::safe_truncate("hello", 3), "hel");
+        assert_eq!(super::safe_truncate("hello", 10), "hello");
+        assert_eq!(super::safe_truncate("", 5), "");
+    }
+
+    #[test]
+    fn safe_truncate_multibyte_utf8() {
+        // Each emoji is 4 bytes — slicing at byte 4 would panic if not char-aligned
+        let emoji_str = "\u{1F600}\u{1F601}\u{1F602}"; // 3 emojis, 12 bytes
+        let truncated = super::safe_truncate(emoji_str, 2);
+        assert_eq!(truncated.chars().count(), 2);
+        assert_eq!(truncated, "\u{1F600}\u{1F601}");
+    }
+
+    #[test]
+    fn safe_truncate_exact_boundary() {
+        let s = "abc";
+        assert_eq!(super::safe_truncate(s, 3), "abc");
     }
 }

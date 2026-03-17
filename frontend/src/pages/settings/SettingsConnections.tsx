@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { api } from '@/lib/api'
 import { isDemoMode } from '@/lib/demo-data'
+import { useSaveSecret } from '@/hooks/useUserSecrets'
 import OnboardingWelcome, { resetSetupWizard } from '@/components/OnboardingWelcome'
 import { row, rowLast, val, inputStyle, btnStyle, btnSecondary, sectionLabel } from './shared'
 
@@ -16,10 +17,11 @@ export default function SettingsConnections() {
   const [connResults, setConnResults] = useState<Record<string, { status: string; latency_ms?: number; error?: string; peer_hostname?: string; peer_verified?: boolean }> | null>(null)
   const [showSetupWizard, setShowSetupWizard] = useState(false)
 
-  // Load saved connection URLs from keychain, falling back to the backend's
-  // active config (which includes .env.local values merged at startup).
-  // This ensures the UI shows the real URLs even when the user has never
-  // explicitly saved through the Settings UI.
+  const saveSecretMutation = useSaveSecret()
+
+  // Load saved connection URLs from the backend API first (Supabase-encrypted),
+  // falling back to OS keychain, then to the backend's active config (which
+  // includes .env.local values merged at startup).
   useEffect(() => {
     let keychainBb: string | null = null
     let keychainOc: string | null = null
@@ -33,12 +35,18 @@ export default function SettingsConnections() {
         )
       : Promise.resolve()
 
+    const loadFromApi = Promise.all([
+      api.get<Record<string, string>>('/api/secrets/bluebubbles').catch(() => null),
+      api.get<Record<string, string>>('/api/secrets/openclaw').catch(() => null),
+    ])
+
     const loadActiveConfig = api.get<{ bluebubbles_url?: string; openclaw_url?: string }>('/api/status/active-config').catch(() => null)
 
-    Promise.all([loadKeychain, loadActiveConfig]).then(([, activeConfig]) => {
-      // Keychain values take priority; fall back to the backend's active config
-      setBbUrl(keychainBb || activeConfig?.bluebubbles_url || '')
-      setOcUrl(keychainOc || activeConfig?.openclaw_url || '')
+    Promise.all([loadKeychain, loadFromApi, loadActiveConfig]).then(([, apiSecrets, activeConfig]) => {
+      const [bbSecrets, ocSecrets] = apiSecrets ?? [null, null]
+      // Priority: API secrets (Supabase) > OS keychain > active config (env)
+      setBbUrl(bbSecrets?.url || keychainBb || activeConfig?.bluebubbles_url || '')
+      setOcUrl(ocSecrets?.url || keychainOc || activeConfig?.openclaw_url || '')
     })
 
     // Load expected hostnames from user preferences
@@ -53,11 +61,29 @@ export default function SettingsConnections() {
     setConnSaving(true)
     setConnSaveStatus(null)
     try {
+      // Save to Supabase (encrypted) via backend API
+      await Promise.all([
+        saveSecretMutation.mutateAsync({
+          service: 'bluebubbles',
+          credentials: { url: bbUrl },
+        }),
+        saveSecretMutation.mutateAsync({
+          service: 'openclaw',
+          credentials: { url: ocUrl },
+        }),
+      ])
+
+      // Also save to OS keychain as local cache/fallback (for startup before login)
       if (window.__TAURI_INTERNALS__) {
         const { invoke } = await import('@tauri-apps/api/core')
-        await invoke('set_secret', { key: 'bluebubbles.host', value: bbUrl })
-        await invoke('set_secret', { key: 'openclaw.api-url', value: ocUrl })
+        await Promise.all([
+          invoke('set_secret', { key: 'bluebubbles.host', value: bbUrl }),
+          invoke('set_secret', { key: 'openclaw.api-url', value: ocUrl }),
+        ]).catch(() => {
+          // Keychain save is best-effort — API save is the source of truth
+        })
       }
+
       // Save expected hostnames to user preferences
       await api.patch('/api/user-preferences', {
         preferences: {
@@ -65,13 +91,14 @@ export default function SettingsConnections() {
           'openclaw.expected-host': ocExpectedHost,
         }
       }).catch(() => {})
-      setConnSaveStatus('Saved. Restart to apply changes.')
+
+      setConnSaveStatus('Saved & encrypted. Restart to apply changes.')
     } catch (e: unknown) {
       setConnSaveStatus(`Error: ${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setConnSaving(false)
     }
-  }, [bbUrl, ocUrl, bbExpectedHost, ocExpectedHost])
+  }, [bbUrl, ocUrl, bbExpectedHost, ocExpectedHost, saveSecretMutation])
 
   const testConnections = useCallback(async () => {
     setConnTesting(true)
@@ -114,7 +141,7 @@ export default function SettingsConnections() {
       {isDemoMode() && (<div style={{ background: 'rgba(251, 191, 36, 0.08)', border: '1px solid rgba(251, 191, 36, 0.25)', borderRadius: 'var(--radius-md)', padding: '16px 20px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><AlertTriangle size={16} style={{ color: 'var(--warning)', flexShrink: 0 }} /><span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--warning)' }}>You're in demo mode</span></div><p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>No services are connected. The app is showing sample data so you can explore the interface. To use real data, set the following environment variables and restart:</p><div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '6px', padding: '10px 14px', fontFamily: 'monospace', fontSize: '11px', color: 'var(--text-primary)', lineHeight: 1.8 }}><div><span style={{ color: 'var(--accent)' }}>VITE_SUPABASE_URL</span>=https://your-project.supabase.co</div><div><span style={{ color: 'var(--accent)' }}>VITE_SUPABASE_ANON_KEY</span>=your-anon-key</div></div><p style={{ margin: 0, fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5 }}>Then configure BlueBubbles and OpenClaw URLs below (saved to OS keychain).</p></div>)}
       <div style={sectionLabel}>Service Connections</div>
       <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 16px' }}>
-        Configure URLs for external services. Changes are saved to the OS keychain and take effect on restart.
+        Configure URLs for external services. Credentials are encrypted and stored in Supabase with a local keychain fallback.
         Set expected Tailscale hostnames to verify peer identity.
       </p>
 

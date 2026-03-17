@@ -24,4 +24,8 @@ export const queryKeys = {
   connections: ['status', 'connections'] as const,
   tailscalePeers: ['status', 'tailscale'] as const,
   health: ['status', 'health'] as const,
+  secrets: {
+    list: () => ['secrets'] as const,
+    detail: (service: string) => ['secrets', service] as const,
+  },
 } as const

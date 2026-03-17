@@ -218,63 +218,10 @@ fn boot_epoch() -> u64 {
     })
 }
 
-async fn get_health(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
-    let now_secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    let uptime_seconds = now_secs.saturating_sub(boot_epoch());
-
-    // SQLite cache stats
-    let cache_entries: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM api_cache")
-        .fetch_one(&state.db)
-        .await
-        .unwrap_or(0);
-
-    // Total SQLite DB file size (bytes)
-    let db_size: i64 = sqlx::query_scalar::<_, i64>(
-        "SELECT page_count * page_size FROM pragma_page_count, pragma_page_size",
-    )
-    .fetch_one(&state.db)
-    .await
-    .unwrap_or(0);
-
-    // Platform detection
-    let platform = if cfg!(target_os = "macos") {
-        "macos"
-    } else if cfg!(target_os = "windows") {
-        "windows"
-    } else {
-        "linux"
-    };
-
-    // Service connectivity (reuse existing helpers — runs concurrently)
-    let bb_host = state.secret("BLUEBUBBLES_HOST").unwrap_or_default();
-    let bb_password = state.secret("BLUEBUBBLES_PASSWORD").unwrap_or_default();
-    let openclaw_url = state.secret("OPENCLAW_API_URL").unwrap_or_default();
-    let openclaw_key = state.secret("OPENCLAW_API_KEY").unwrap_or_default();
-    let supabase_url = state.secret_or_default("SUPABASE_URL");
-    let supabase_key = state.secret_or_default("SUPABASE_SERVICE_ROLE_KEY");
-
-    let http = &state.http;
-    let (bb, oc, sb) = tokio::join!(
-        test_bluebubbles(http, &bb_host, &bb_password),
-        test_openclaw(http, &openclaw_url, &openclaw_key),
-        test_supabase(http, &supabase_url, &supabase_key),
-    );
-
+async fn get_health(State(_state): State<AppState>) -> Result<Json<Value>, AppError> {
     Ok(Json(json!({
+        "ok": true,
         "version": env!("CARGO_PKG_VERSION"),
-        "uptime_seconds": uptime_seconds,
-        "platform": platform,
-        "hostname": hostname(),
-        "sqlite_cache_entries": cache_entries,
-        "sqlite_db_size_bytes": db_size,
-        "services": {
-            "bluebubbles": bb,
-            "openclaw": oc,
-            "supabase": sb,
-        },
     })))
 }
 
@@ -283,7 +230,7 @@ async fn get_health(State(state): State<AppState>) -> Result<Json<Value>, AppErr
 // Lightweight check for whether Supabase is reachable. Used by the frontend
 // to show online/offline sync status.
 
-async fn supabase_health(State(state): State<AppState>) -> Json<Value> {
+async fn supabase_health(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Json<Value> {
     let url = state.secret_or_default("SUPABASE_URL");
     let key = state.secret_or_default("SUPABASE_SERVICE_ROLE_KEY");
     let reachable = crate::sync::is_supabase_reachable(&url, &key).await;
@@ -294,7 +241,7 @@ async fn supabase_health(State(state): State<AppState>) -> Json<Value> {
 //
 // Returns the list of Tailscale peers from `tailscale status --json`.
 
-async fn get_tailscale_peers() -> Result<Json<Value>, AppError> {
+async fn get_tailscale_peers(RequireAuth(_session): RequireAuth) -> Result<Json<Value>, AppError> {
     // Run the blocking tailscale CLI call on a blocking thread
     let peers = tokio::task::spawn_blocking(crate::tailscale::get_tailscale_peers)
         .await
@@ -513,7 +460,7 @@ fn parse_heartbeat_tasks(content: &str) -> Vec<String> {
         .collect()
 }
 
-async fn heartbeat(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+async fn heartbeat(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Result<Json<Value>, AppError> {
     let base = openclaw_dir(&state);
     let heartbeat_path = Path::new(&base).join("workspace").join("HEARTBEAT.md");
 

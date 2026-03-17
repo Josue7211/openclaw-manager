@@ -1,6 +1,7 @@
 use axum::{extract::State, Json};
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tracing::{debug, error};
 
 use crate::error::AppError;
@@ -11,6 +12,11 @@ use super::helpers::{
     log_activity, send_notify, set_agent_active, shell_escape, slugify, supabase,
     validate_cli_flags, validate_uuid, validate_workdir,
 };
+
+/// Global counter for active pipeline processes.
+/// Incremented on spawn, decremented when a process completes or fails.
+pub(super) static ACTIVE_PIPELINES: AtomicUsize = AtomicUsize::new(0);
+const MAX_PIPELINES: usize = 10;
 
 // ── POST /pipeline/spawn ─────────────────────────────────────────────────────
 
@@ -29,6 +35,17 @@ pub(super) async fn pipeline_spawn(
     RequireAuth(session): RequireAuth,
     Json(body): Json<SpawnBody>,
 ) -> Result<Json<Value>, AppError> {
+    // ── Concurrent process limit ─────────────────────────────────
+    let current = ACTIVE_PIPELINES.load(Ordering::Relaxed);
+    if current >= MAX_PIPELINES {
+        return Ok(Json(json!({
+            "ok": false,
+            "error": "Too many concurrent pipeline processes (max 10)",
+            "code": "too_many_requests",
+            "active": current,
+        })));
+    }
+
     let jwt = &session.access_token;
 
     // ── Validate ─────────────────────────────────────────────────
@@ -236,6 +253,9 @@ pub(super) async fn pipeline_spawn(
          fs.writeFileSync('/tmp/agent-registry.json', JSON.stringify(reg,null,2));\n\" PID_HERE",
         serde_json::to_string(&registry_entry).unwrap_or_default()
     );
+
+    // Track active pipeline process
+    ACTIVE_PIPELINES.fetch_add(1, Ordering::Relaxed);
 
     debug!("[pipeline/spawn] spawn_command: {spawn_command}");
 
