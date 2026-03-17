@@ -14,13 +14,15 @@
 //   mfa        -> main (user clicks back / signs out)
 //   mfa-enroll -> main (not reachable directly, but reset via SHOW_MAIN)
 
+export type MfaMethod = 'totp' | 'webauthn'
+
 export type View = 'main' | 'email' | 'mfa' | 'mfa-enroll' | 'waiting'
 
 export type ViewAction =
   | { type: 'SHOW_EMAIL' }
   | { type: 'SHOW_MAIN' }
   | { type: 'SHOW_WAITING' }
-  | { type: 'SHOW_MFA'; factorId: string }
+  | { type: 'SHOW_MFA'; factorId: string; availableMethods?: MfaMethod[] }
   | { type: 'SHOW_MFA_ENROLL'; factorId: string; qr: string; secret: string }
 
 export interface ViewState {
@@ -28,6 +30,8 @@ export interface ViewState {
   mfaFactorId: string
   mfaQr: string | null
   mfaSecret: string | null
+  /** MFA methods available for this user (e.g. ['totp'], ['webauthn'], or ['totp', 'webauthn']) */
+  availableMethods: MfaMethod[]
 }
 
 export function viewReducer(state: ViewState, action: ViewAction): ViewState {
@@ -35,11 +39,11 @@ export function viewReducer(state: ViewState, action: ViewAction): ViewState {
     case 'SHOW_EMAIL':
       return { ...state, view: 'email' }
     case 'SHOW_MAIN':
-      return { view: 'main', mfaFactorId: '', mfaQr: null, mfaSecret: null }
+      return { view: 'main', mfaFactorId: '', mfaQr: null, mfaSecret: null, availableMethods: [] }
     case 'SHOW_WAITING':
       return { ...state, view: 'waiting' }
     case 'SHOW_MFA':
-      return { ...state, view: 'mfa', mfaFactorId: action.factorId }
+      return { ...state, view: 'mfa', mfaFactorId: action.factorId, availableMethods: action.availableMethods ?? ['totp'] }
     case 'SHOW_MFA_ENROLL':
       return { ...state, view: 'mfa-enroll', mfaFactorId: action.factorId, mfaQr: action.qr, mfaSecret: action.secret }
     default:
@@ -52,6 +56,7 @@ export const initialViewState: ViewState = {
   mfaFactorId: '',
   mfaQr: null,
   mfaSecret: null,
+  availableMethods: [],
 }
 
 // ── Shared styles ──

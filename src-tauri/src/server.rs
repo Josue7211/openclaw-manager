@@ -44,9 +44,12 @@ pub struct UserSession {
     /// Whether MFA has been verified this session (aal2).
     /// If false, only auth endpoints are accessible.
     pub mfa_verified: bool,
-    /// The verified TOTP factor ID (if any). Stored at login time so we
+    /// The verified MFA factor ID (if any). Stored at login time so we
     /// don't need to call GoTrue again.
     pub factor_id: Option<String>,
+    /// The type of the verified MFA factor: `"totp"` or `"webauthn"`.
+    /// Used by the frontend to present the correct verification UI.
+    pub factor_type: Option<String>,
     /// Unix epoch seconds when this session was first created.
     /// Used to enforce a hard 24-hour session lifetime regardless of
     /// token refresh — forces periodic re-authentication.
@@ -973,6 +976,7 @@ mod tests {
             encryption_key: vec![0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE],
             mfa_verified: true,
             factor_id: None,
+            factor_type: None,
             created_at: now,
         }
     }
@@ -1014,6 +1018,7 @@ mod tests {
             encryption_key: vec![0x01, 0x02],
             mfa_verified: true,
             factor_id: None,
+            factor_type: None,
             created_at: now,
         };
         slot = Some(new_session);
@@ -1114,6 +1119,7 @@ mod tests {
             encryption_key: vec![0x01],
             mfa_verified: true,
             factor_id: None,
+            factor_type: None,
             created_at: now - 90000, // 25 hours ago
         };
         let session_age = now - old_session.created_at;
@@ -1129,6 +1135,7 @@ mod tests {
             encryption_key: vec![0x01],
             mfa_verified: true,
             factor_id: None,
+            factor_type: None,
             created_at: now - 3600, // 1 hour ago
         };
         let session_age = now - fresh_session.created_at;

@@ -229,7 +229,7 @@ export default function SettingsPage() {
       setHasPassword(authUserData.user.identities?.some(i => i.provider === 'email') ?? false)
     }
     if (authUserData?.mfaFactors && authUserData.mfaFactors.length > 0) {
-      setMfaEnabled(authUserData.mfaFactors.some(f => f.type === 'totp' && f.status === 'verified'))
+      setMfaEnabled(authUserData.mfaFactors.some(f => (f.type === 'totp' || f.type === 'webauthn') && f.status === 'verified'))
     }
   }, [authUserData])
 

@@ -16,7 +16,7 @@ import { MfaEnrollView } from './login/MfaEnrollView'
 
 export default function LoginPage() {
   const [viewState, dispatch] = useReducer(viewReducer, initialViewState)
-  const { view, mfaFactorId, mfaQr, mfaSecret } = viewState
+  const { view, mfaFactorId, mfaQr, mfaSecret, availableMethods } = viewState
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -45,6 +45,7 @@ export default function LoginPage() {
       mfa_enroll_required?: boolean
       mfa_verified?: boolean
       factor_id?: string
+      available_mfa_methods?: Array<'totp' | 'webauthn'>
     }>('/api/auth/session')
       .then(res => {
         if (!res.authenticated) return
@@ -55,7 +56,7 @@ export default function LoginPage() {
         }
         // MFA not verified — show appropriate screen
         if (res.factor_id) {
-          dispatch({ type: 'SHOW_MFA', factorId: res.factor_id })
+          dispatch({ type: 'SHOW_MFA', factorId: res.factor_id, availableMethods: res.available_mfa_methods ?? ['totp'] })
         } else if (res.mfa_enroll_required) {
           api.post<{ id: string; qr_code: string; secret: string }>('/api/auth/mfa/enroll')
             .then(data => {
@@ -79,13 +80,14 @@ export default function LoginPage() {
           mfa_required?: boolean
           mfa_enroll_required?: boolean
           factor_id?: string
+          available_mfa_methods?: Array<'totp' | 'webauthn'>
         }>('/api/auth/session')
         if (res.authenticated) {
           clearInterval(interval)
 
           // Check MFA status
           if (res.mfa_required && res.factor_id) {
-            dispatch({ type: 'SHOW_MFA', factorId: res.factor_id })
+            dispatch({ type: 'SHOW_MFA', factorId: res.factor_id, availableMethods: res.available_mfa_methods ?? ['totp'] })
             setLoading(false)
             return
           }
@@ -144,6 +146,7 @@ export default function LoginPage() {
         mfa_required?: boolean
         mfa_enroll_required?: boolean
         factor_id?: string
+        available_mfa_methods?: Array<'totp' | 'webauthn'>
       }>('/api/auth/login', { email, password })
 
       if (result.error) {
@@ -154,7 +157,7 @@ export default function LoginPage() {
 
       // Check MFA status
       if (result.mfa_required && result.factor_id) {
-        dispatch({ type: 'SHOW_MFA', factorId: result.factor_id })
+        dispatch({ type: 'SHOW_MFA', factorId: result.factor_id, availableMethods: result.available_mfa_methods ?? ['totp'] })
         setLoading(false)
         return
       }
@@ -279,7 +282,7 @@ export default function LoginPage() {
           }}>
             {view === 'main' && 'Sign in to continue'}
             {view === 'email' && 'Sign in with email'}
-            {view === 'mfa' && 'Enter authenticator code'}
+            {view === 'mfa' && 'Verify your identity'}
             {view === 'mfa-enroll' && 'Set up two-factor authentication'}
             {view === 'waiting' && 'Complete sign-in in your browser'}
           </p>
@@ -324,6 +327,8 @@ export default function LoginPage() {
           <MfaVerifyForm
             mfaCode={mfaCode}
             loading={loading}
+            factorId={mfaFactorId}
+            availableMethods={availableMethods}
             onMfaCodeChange={setMfaCode}
             onSubmit={handleMfa}
             onBack={async () => {
@@ -331,6 +336,9 @@ export default function LoginPage() {
               setMfaCode('')
               setError('')
               dispatch({ type: 'SHOW_MAIN' })
+            }}
+            onWebAuthnSuccess={() => {
+              window.location.href = next
             }}
           />
         )}

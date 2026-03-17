@@ -24,6 +24,10 @@ describe('initialViewState', () => {
     expect(initialViewState.mfaQr).toBeNull()
     expect(initialViewState.mfaSecret).toBeNull()
   })
+
+  it('has empty availableMethods', () => {
+    expect(initialViewState.availableMethods).toEqual([])
+  })
 })
 
 /* ─── viewReducer ────────────────────────────────────────────────────── */
@@ -49,6 +53,7 @@ describe('viewReducer', () => {
         mfaFactorId: 'factor-123',
         mfaQr: 'qr-data',
         mfaSecret: 'secret-data',
+        availableMethods: ['totp'],
       }
       const state = viewReducer(mfaState, { type: 'SHOW_MAIN' })
       expect(state.view).toBe('main')
@@ -60,11 +65,13 @@ describe('viewReducer', () => {
         mfaFactorId: 'factor-123',
         mfaQr: 'qr-data',
         mfaSecret: 'secret-data',
+        availableMethods: ['totp', 'webauthn'],
       }
       const state = viewReducer(mfaState, { type: 'SHOW_MAIN' })
       expect(state.mfaFactorId).toBe('')
       expect(state.mfaQr).toBeNull()
       expect(state.mfaSecret).toBeNull()
+      expect(state.availableMethods).toEqual([])
     })
 
     it('can transition from waiting to main', () => {
@@ -94,6 +101,32 @@ describe('viewReducer', () => {
       })
       expect(state.view).toBe('mfa')
       expect(state.mfaFactorId).toBe('factor-abc')
+    })
+
+    it('defaults availableMethods to totp when not provided', () => {
+      const state = viewReducer(initialViewState, {
+        type: 'SHOW_MFA',
+        factorId: 'factor-abc',
+      })
+      expect(state.availableMethods).toEqual(['totp'])
+    })
+
+    it('sets availableMethods when provided', () => {
+      const state = viewReducer(initialViewState, {
+        type: 'SHOW_MFA',
+        factorId: 'factor-abc',
+        availableMethods: ['totp', 'webauthn'],
+      })
+      expect(state.availableMethods).toEqual(['totp', 'webauthn'])
+    })
+
+    it('sets webauthn-only availableMethods', () => {
+      const state = viewReducer(initialViewState, {
+        type: 'SHOW_MFA',
+        factorId: 'factor-abc',
+        availableMethods: ['webauthn'],
+      })
+      expect(state.availableMethods).toEqual(['webauthn'])
     })
 
     it('can transition from email view', () => {
@@ -175,6 +208,19 @@ describe('viewReducer', () => {
       expect(state.mfaQr).toBe('qr-uri')
       state = viewReducer(state, { type: 'SHOW_MAIN' })
       expect(state).toEqual(initialViewState)
+    })
+
+    it('main -> mfa with webauthn -> main clears methods', () => {
+      let state = initialViewState
+      state = viewReducer(state, {
+        type: 'SHOW_MFA',
+        factorId: 'f-webauthn',
+        availableMethods: ['totp', 'webauthn'],
+      })
+      expect(state.view).toBe('mfa')
+      expect(state.availableMethods).toEqual(['totp', 'webauthn'])
+      state = viewReducer(state, { type: 'SHOW_MAIN' })
+      expect(state.availableMethods).toEqual([])
     })
   })
 

@@ -1,7 +1,8 @@
 //! GoTrue REST API client for Supabase Auth.
 //!
 //! Handles all auth flows server-side: login, signup, OAuth PKCE exchange,
-//! token refresh, logout, user management, and MFA (TOTP enroll/challenge/verify).
+//! token refresh, logout, user management, and MFA (TOTP + WebAuthn
+//! enroll/challenge/verify).
 //!
 //! Base URL: `{SUPABASE_URL}/auth/v1`
 
@@ -290,19 +291,26 @@ impl GoTrueClient {
 
     // ── Public API: MFA ──────────────────────────────────────────────────
 
-    /// Enroll a new TOTP factor for the current user.
+    /// Enroll a new MFA factor for the current user.
+    ///
+    /// `factor_type` must be `"totp"` or `"webauthn"`.
+    ///
+    /// Returns the raw GoTrue JSON response. For TOTP this includes `id` and
+    /// `totp` (with `qr_code`, `secret`, `uri`). For WebAuthn this includes
+    /// `id` and `web_authn` (with credential creation options for the browser).
     ///
     /// `POST /factors`
     pub async fn mfa_enroll(
         &self,
         access_token: &str,
+        factor_type: &str,
         friendly_name: &str,
-    ) -> anyhow::Result<MfaEnrollResponse> {
+    ) -> anyhow::Result<Value> {
         let url = format!("{}/factors", self.base_url);
         let resp = self
             .user_request(self.http.post(&url), access_token)
             .json(&json!({
-                "factor_type": "totp",
+                "factor_type": factor_type,
                 "friendly_name": friendly_name,
             }))
             .send()
@@ -312,19 +320,35 @@ impl GoTrueClient {
         if !resp.status().is_success() {
             return Err(Self::parse_error(resp, "mfa_enroll").await);
         }
-        resp.json::<MfaEnrollResponse>()
+        resp.json::<Value>()
             .await
             .context("mfa_enroll: failed to parse response")
     }
 
+    /// Convenience: enroll a TOTP factor and parse the response into a typed struct.
+    pub async fn mfa_enroll_totp(
+        &self,
+        access_token: &str,
+        friendly_name: &str,
+    ) -> anyhow::Result<MfaEnrollResponse> {
+        let value = self.mfa_enroll(access_token, "totp", friendly_name).await?;
+        serde_json::from_value(value).context("mfa_enroll_totp: failed to parse TOTP response")
+    }
+
     /// Create an MFA challenge for a specific factor.
+    ///
+    /// For TOTP factors the response contains just `{ "id": "..." }`.
+    /// For WebAuthn factors the response also contains credential request
+    /// options that the browser needs for `navigator.credentials.get()`.
+    ///
+    /// Returns raw JSON so both factor types are supported.
     ///
     /// `POST /factors/{factor_id}/challenge`
     pub async fn mfa_challenge(
         &self,
         access_token: &str,
         factor_id: &str,
-    ) -> anyhow::Result<MfaChallengeResponse> {
+    ) -> anyhow::Result<Value> {
         let url = format!("{}/factors/{}/challenge", self.base_url, factor_id);
         let resp = self
             .user_request(self.http.post(&url), access_token)
@@ -335,28 +359,28 @@ impl GoTrueClient {
         if !resp.status().is_success() {
             return Err(Self::parse_error(resp, "mfa_challenge").await);
         }
-        resp.json::<MfaChallengeResponse>()
+        resp.json::<Value>()
             .await
             .context("mfa_challenge: failed to parse response")
     }
 
-    /// Verify an MFA challenge with a TOTP code. Returns an upgraded (aal2) session.
+    /// Verify an MFA challenge. Returns an upgraded (aal2) session.
+    ///
+    /// For TOTP, `body` should be `{ "challenge_id": "...", "code": "123456" }`.
+    /// For WebAuthn, `body` should be `{ "challenge_id": "...", "credential": { ... } }`
+    /// where `credential` is the JSON-serialised output of `navigator.credentials.get()`.
     ///
     /// `POST /factors/{factor_id}/verify`
     pub async fn mfa_verify(
         &self,
         access_token: &str,
         factor_id: &str,
-        challenge_id: &str,
-        code: &str,
+        body: &Value,
     ) -> anyhow::Result<AuthResponse> {
         let url = format!("{}/factors/{}/verify", self.base_url, factor_id);
         let resp = self
             .user_request(self.http.post(&url), access_token)
-            .json(&json!({
-                "challenge_id": challenge_id,
-                "code": code,
-            }))
+            .json(body)
             .send()
             .await
             .context("gotrue mfa_verify request failed")?;

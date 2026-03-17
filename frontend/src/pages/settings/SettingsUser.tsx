@@ -2,7 +2,15 @@ import { useState } from 'react'
 import { Shield, LogOut } from 'lucide-react'
 import { api } from '@/lib/api'
 import { isDemoMode } from '@/lib/demo-data'
+import { isWebAuthnSupported, registerWebAuthnKey } from '@/lib/webauthn'
+import type { WebAuthnCreationOptions } from '@/lib/webauthn'
 import { row, rowLast, val, inputStyle, btnStyle, btnSecondary, sectionLabel } from './shared'
+
+interface WebAuthnFactor {
+  id: string
+  name: string
+  created_at: string
+}
 
 interface SettingsUserProps {
   userName: string
@@ -36,6 +44,76 @@ export default function SettingsUser({
   const [mfaFactorId, setMfaFactorId] = useState<string | null>(null)
   const [mfaCode, setMfaCode] = useState('')
   const [mfaStatus, setMfaStatus] = useState<string | null>(null)
+
+  // WebAuthn state
+  const [webAuthnKeys, setWebAuthnKeys] = useState<WebAuthnFactor[]>([])
+  const [webAuthnLoaded, setWebAuthnLoaded] = useState(false)
+  const [webAuthnEnrolling, setWebAuthnEnrolling] = useState(false)
+  const [webAuthnKeyName, setWebAuthnKeyName] = useState('')
+  const [webAuthnStatus, setWebAuthnStatus] = useState<string | null>(null)
+  const webAuthnSupported = isWebAuthnSupported()
+
+  // Load WebAuthn keys on first render
+  if (!webAuthnLoaded) {
+    setWebAuthnLoaded(true)
+    api.get<{ factors?: WebAuthnFactor[] }>('/api/auth/mfa/factors')
+      .then(data => {
+        const keys = (data.factors ?? []).filter((f: any) => f.type === 'webauthn' && f.status === 'verified')
+        setWebAuthnKeys(keys as WebAuthnFactor[])
+      })
+      .catch(() => {})
+  }
+
+  async function handleWebAuthnEnroll() {
+    setWebAuthnStatus(null)
+    setWebAuthnEnrolling(true)
+
+    try {
+      // Step 1: Get creation options from the server
+      const enrollData = await api.post<{
+        factor_id: string
+        creation_options: WebAuthnCreationOptions
+      }>('/api/auth/mfa/enroll-webauthn', {
+        name: webAuthnKeyName || 'Security Key',
+      })
+
+      // Step 2: Prompt the user to register their hardware key
+      const attestation = await registerWebAuthnKey(enrollData.creation_options)
+
+      // Step 3: Send the attestation back to the server for verification
+      await api.post('/api/auth/mfa/verify-webauthn-enrollment', {
+        factor_id: enrollData.factor_id,
+        credential: attestation,
+      })
+
+      // Success — add the key to the list
+      setWebAuthnKeys(prev => [...prev, {
+        id: enrollData.factor_id,
+        name: webAuthnKeyName || 'Security Key',
+        created_at: new Date().toISOString(),
+      }])
+      setWebAuthnKeyName('')
+      setWebAuthnEnrolling(false)
+      setWebAuthnStatus('Hardware key registered successfully')
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'NotAllowedError') {
+        setWebAuthnStatus('Error: Registration was cancelled or timed out')
+      } else {
+        setWebAuthnStatus(`Error: ${err instanceof Error ? err.message : 'Failed to register key'}`)
+      }
+      setWebAuthnEnrolling(false)
+    }
+  }
+
+  async function handleWebAuthnRemove(factorId: string) {
+    try {
+      await api.post('/api/auth/mfa/unenroll', { factor_id: factorId })
+      setWebAuthnKeys(prev => prev.filter(k => k.id !== factorId))
+      setWebAuthnStatus('Hardware key removed')
+    } catch (err) {
+      setWebAuthnStatus(`Error: ${err instanceof Error ? err.message : 'Failed to remove key'}`)
+    }
+  }
 
   return (
     <div>
@@ -191,6 +269,175 @@ export default function SettingsUser({
           }}>Remove authenticator</button>
         </div>
       )}
+
+      {/* ── Hardware Security Keys (WebAuthn/FIDO2) ──────────────── */}
+      <div style={{ ...sectionLabel, marginTop: '24px' }}>Hardware Security Keys</div>
+      {!webAuthnSupported && (
+        <div style={{
+          fontSize: '12px',
+          color: 'var(--text-muted)',
+          padding: '8px 0',
+          lineHeight: 1.6,
+        }}>
+          WebAuthn is not supported in this browser. Use a modern browser with FIDO2 support to register hardware keys.
+        </div>
+      )}
+
+      {webAuthnSupported && (
+        <>
+          <p style={{
+            fontSize: '12px',
+            color: 'var(--text-muted)',
+            margin: '0 0 12px',
+            lineHeight: 1.6,
+          }}>
+            Register a FIDO2 hardware security key (YubiKey, Titan, etc.) as an additional MFA method.
+          </p>
+
+          {/* Existing keys list */}
+          {webAuthnKeys.length > 0 && (
+            <div style={{ marginBottom: '12px' }}>
+              {webAuthnKeys.map(key => (
+                <div key={key.id} style={{
+                  ...row,
+                  padding: '10px 0',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 10-4-4L2 18z" />
+                      <circle cx="16.5" cy="7.5" r=".5" fill="var(--accent)" />
+                    </svg>
+                    <div>
+                      <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{key.name}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        Added {new Date(key.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleWebAuthnRemove(key.id)}
+                    aria-label={`Remove hardware key ${key.name}`}
+                    style={{
+                      ...btnSecondary,
+                      color: 'var(--red)',
+                      borderColor: 'rgba(248, 113, 113, 0.3)',
+                      fontSize: '11px',
+                      padding: '6px 12px',
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {webAuthnKeys.length === 0 && !webAuthnEnrolling && (
+            <div style={{
+              fontSize: '12px',
+              color: 'var(--text-muted)',
+              padding: '8px 0 12px',
+            }}>
+              No hardware keys registered.
+            </div>
+          )}
+
+          {/* Enrollment form */}
+          {!webAuthnEnrolling ? (
+            <div style={{ padding: '4px 0' }}>
+              <button
+                style={btnStyle}
+                onClick={() => { setWebAuthnEnrolling(true); setWebAuthnStatus(null) }}
+                aria-label="Add hardware security key"
+              >
+                Add hardware key
+              </button>
+            </div>
+          ) : (
+            <div style={{
+              padding: '16px',
+              background: 'var(--bg-elevated)',
+              borderRadius: '10px',
+              border: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+              }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  background: 'var(--accent-a10)',
+                  border: '1px solid var(--accent-a20)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 10-4-4L2 18z" />
+                    <circle cx="16.5" cy="7.5" r=".5" fill="var(--accent)" />
+                  </svg>
+                </div>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Register a hardware key</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    Give it a name, then tap your key when prompted
+                  </div>
+                </div>
+              </div>
+
+              <input
+                type="text"
+                value={webAuthnKeyName}
+                onChange={e => setWebAuthnKeyName(e.target.value)}
+                placeholder="Key name (e.g. YubiKey 5C)"
+                autoFocus
+                aria-label="Hardware key name"
+                style={{ ...inputStyle, width: '100%' }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') handleWebAuthnEnroll()
+                  if (e.key === 'Escape') { setWebAuthnEnrolling(false); setWebAuthnKeyName('') }
+                }}
+              />
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  style={btnStyle}
+                  onClick={handleWebAuthnEnroll}
+                  aria-label="Register hardware security key"
+                >
+                  Register key
+                </button>
+                <button
+                  style={btnSecondary}
+                  onClick={() => { setWebAuthnEnrolling(false); setWebAuthnKeyName(''); setWebAuthnStatus(null) }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Status messages */}
+          {webAuthnStatus && (
+            <div style={{
+              marginTop: '8px',
+              fontSize: '12px',
+              fontFamily: 'monospace',
+              color: webAuthnStatus.startsWith('Error') ? 'var(--red)' : 'var(--green)',
+            }}>
+              {webAuthnStatus}
+            </div>
+          )}
+        </>
+      )}
+
       <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
         <button
           onClick={async () => { await api.post('/api/auth/logout').catch(() => {}); window.location.href = '/login' }}

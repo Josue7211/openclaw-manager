@@ -99,9 +99,10 @@ pub fn router() -> Router<AppState> {
         .route("/refresh", post(refresh))
         .route("/password", post(change_password))
         .route("/oauth/:provider", get(start_oauth))
-        // MFA routes
+        // MFA routes (TOTP + WebAuthn)
         .route("/mfa/factors", get(mfa_list_factors))
         .route("/mfa/enroll", post(mfa_enroll))
+        .route("/mfa/enroll-webauthn", post(mfa_enroll_webauthn))
         .route("/mfa/challenge", post(mfa_challenge))
         .route("/mfa/verify", post(mfa_verify))
         .route("/mfa/unenroll/:factor_id", delete(mfa_unenroll))
@@ -482,18 +483,23 @@ async fn login(
 
     let now = epoch_secs();
 
-    // Check MFA factors — if the user has verified TOTP factors, they need
-    // to complete MFA verification before getting full access.
+    // Check MFA factors — if the user has verified TOTP or WebAuthn factors,
+    // they need to complete MFA verification before getting full access.
     let factors = auth.user.get("factors").and_then(|v| v.as_array());
-    // Find verified TOTP factor (if any)
-    let verified_factor_id = factors
+    // Find first verified MFA factor (TOTP or WebAuthn)
+    let verified_factor = factors
         .and_then(|fs| {
             fs.iter().find(|f| {
-                f.get("factor_type").and_then(|t| t.as_str()) == Some("totp")
-                    && f.get("status").and_then(|s| s.as_str()) == Some("verified")
+                let ft = f.get("factor_type").and_then(|t| t.as_str());
+                let status = f.get("status").and_then(|s| s.as_str());
+                (ft == Some("totp") || ft == Some("webauthn")) && status == Some("verified")
             })
-        })
+        });
+    let verified_factor_id = verified_factor
         .and_then(|f| f.get("id").and_then(|v| v.as_str()))
+        .map(|s| s.to_string());
+    let verified_factor_type = verified_factor
+        .and_then(|f| f.get("factor_type").and_then(|v| v.as_str()))
         .map(|s| s.to_string());
 
     let has_verified_factors = verified_factor_id.is_some();
@@ -521,7 +527,7 @@ async fn login(
         );
     }
 
-    // Store session — mfa_verified is false until TOTP is verified
+    // Store session — mfa_verified is false until MFA is verified
     let session = UserSession {
         access_token: auth.access_token,
         refresh_token: auth.refresh_token,
@@ -531,6 +537,7 @@ async fn login(
         encryption_key: encryption_key.to_vec(),
         mfa_verified: false,
         factor_id: verified_factor_id.clone(),
+        factor_type: verified_factor_type.clone(),
         created_at: now,
     };
     // Drop the Zeroizing wrapper now — its copy is zeroed, the session
@@ -558,6 +565,7 @@ async fn login(
         "mfa_required": has_verified_factors,
         "mfa_enroll_required": mfa_enroll_required,
         "factor_id": verified_factor_id,
+        "factor_type": verified_factor_type,
     })))
 }
 
@@ -620,6 +628,7 @@ async fn get_session(State(state): State<AppState>) -> Json<Value> {
                 "mfa_enroll_required": mfa_enroll_required,
                 "mfa_verified": false,
                 "factor_id": s.factor_id,
+                "factor_type": s.factor_type,
             }))
         }
         None => Json(json!({ "authenticated": false })),
@@ -896,7 +905,7 @@ async fn mfa_list_factors(State(state): State<AppState>) -> Result<Json<Value>, 
 // MFA endpoints
 // ---------------------------------------------------------------------------
 
-// POST /auth/mfa/enroll
+// POST /auth/mfa/enroll — enroll a TOTP factor
 async fn mfa_enroll(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
     let session = state
         .session
@@ -909,11 +918,11 @@ async fn mfa_enroll(State(state): State<AppState>) -> Result<Json<Value>, AppErr
         .map_err(|e| AppError::Internal(e))?;
 
     let resp = gotrue
-        .mfa_enroll(&session.access_token, "Mission Control")
+        .mfa_enroll_totp(&session.access_token, "Mission Control")
         .await
         .map_err(|e| AppError::Internal(e))?;
 
-    tracing::info!(user_id = %session.user_id, factor_id = %resp.id, "MFA factor enrolled");
+    tracing::info!(user_id = %session.user_id, factor_id = %resp.id, "TOTP factor enrolled");
 
     Ok(Json(json!({
         "id": resp.id,
@@ -923,7 +932,39 @@ async fn mfa_enroll(State(state): State<AppState>) -> Result<Json<Value>, AppErr
     })))
 }
 
+// POST /auth/mfa/enroll-webauthn — start WebAuthn registration
+//
+// Calls GoTrue `POST /factors` with `factor_type: "webauthn"`. Returns the
+// credential creation options that the frontend passes to
+// `navigator.credentials.create()`.
+async fn mfa_enroll_webauthn(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    let session = state
+        .session
+        .read()
+        .await
+        .clone()
+        .ok_or(AppError::Unauthorized)?;
+
+    let gotrue = GoTrueClient::from_state(&state)
+        .map_err(|e| AppError::Internal(e))?;
+
+    let result = gotrue
+        .mfa_enroll(&session.access_token, "webauthn", "Hardware Key")
+        .await
+        .map_err(|e| AppError::Internal(e))?;
+
+    let factor_id = result["id"].as_str().unwrap_or("").to_string();
+    tracing::info!(user_id = %session.user_id, factor_id = %factor_id, "WebAuthn factor enrolled — awaiting credential registration");
+
+    // Return the full GoTrue response (includes id + web_authn creation options)
+    Ok(Json(result))
+}
+
 // POST /auth/mfa/challenge
+//
+// For TOTP factors, returns `{ "id": "challenge-uuid" }`.
+// For WebAuthn factors, also returns credential request options that the
+// frontend passes to `navigator.credentials.get()`.
 
 #[derive(Deserialize)]
 struct MfaChallengeBody {
@@ -944,21 +985,32 @@ async fn mfa_challenge(
     let gotrue = GoTrueClient::from_state(&state)
         .map_err(|e| AppError::Internal(e))?;
 
-    let resp = gotrue
+    let result = gotrue
         .mfa_challenge(&session.access_token, &body.factor_id)
         .await
         .map_err(|e| AppError::Internal(e))?;
 
-    Ok(Json(json!({ "id": resp.id })))
+    // Return the full GoTrue response (includes challenge id + WebAuthn options if applicable)
+    Ok(Json(result))
 }
 
 // POST /auth/mfa/verify
+//
+// Accepts both TOTP and WebAuthn verification payloads:
+//   TOTP:    { "factor_id": "...", "challenge_id": "...", "code": "123456" }
+//   WebAuthn: { "factor_id": "...", "challenge_id": "...", "credential": { ... } }
+//
+// The `credential` field is the JSON-serialised output of
+// `navigator.credentials.get()` or `navigator.credentials.create()`.
 
 #[derive(Deserialize)]
 struct MfaVerifyBody {
     factor_id: String,
-    challenge_id: String,
-    code: String,
+    /// Remaining fields are forwarded verbatim to GoTrue (challenge_id, code,
+    /// credential, etc.) so we support both TOTP and WebAuthn without coupling
+    /// to a specific set of fields.
+    #[serde(flatten)]
+    extra: serde_json::Map<String, Value>,
 }
 
 async fn mfa_verify(
@@ -975,12 +1027,14 @@ async fn mfa_verify(
     let gotrue = GoTrueClient::from_state(&state)
         .map_err(|e| AppError::Internal(e))?;
 
+    // Build the verify payload from the extra fields (challenge_id + code or credential)
+    let verify_body = Value::Object(body.extra.clone());
+
     let auth = match gotrue
         .mfa_verify(
             &session.access_token,
             &body.factor_id,
-            &body.challenge_id,
-            &body.code,
+            &verify_body,
         )
         .await
     {
@@ -1338,14 +1392,20 @@ async fn oauth_callback(
                             .unwrap_or("")
                             .to_string();
 
-                        // Extract factor_id from user object (same as email login)
-                        let oauth_factor_id = auth.user.get("factors")
+                        // Extract factor_id and factor_type from user object (same as email login)
+                        // Looks for both TOTP and WebAuthn verified factors
+                        let oauth_verified_factor = auth.user.get("factors")
                             .and_then(|v| v.as_array())
                             .and_then(|fs| fs.iter().find(|f| {
-                                f.get("factor_type").and_then(|t| t.as_str()) == Some("totp")
-                                    && f.get("status").and_then(|s| s.as_str()) == Some("verified")
-                            }))
+                                let ft = f.get("factor_type").and_then(|t| t.as_str());
+                                let status = f.get("status").and_then(|s| s.as_str());
+                                (ft == Some("totp") || ft == Some("webauthn")) && status == Some("verified")
+                            }));
+                        let oauth_factor_id = oauth_verified_factor
                             .and_then(|f| f.get("id").and_then(|v| v.as_str()))
+                            .map(|s| s.to_string());
+                        let oauth_factor_type = oauth_verified_factor
+                            .and_then(|f| f.get("factor_type").and_then(|v| v.as_str()))
                             .map(|s| s.to_string());
 
                         // Detect concurrent session
@@ -1377,6 +1437,7 @@ async fn oauth_callback(
                             encryption_key: Vec::new(),
                             mfa_verified: false,
                             factor_id: oauth_factor_id,
+                            factor_type: oauth_factor_type,
                             created_at: now,
                         };
                         *state.session.write().await = Some(session.clone());
