@@ -90,19 +90,19 @@ fn set_entry(key: &str, value: &str) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
-/// Auto-generate MC_API_KEY if not already stored in the keychain.
-/// Returns the existing or newly generated 256-bit random hex key.
+/// Generate a fresh MC_API_KEY on every app start.
+///
+/// The key is regenerated each launch and overwritten in the keychain.
+/// This limits the window of exposure if a key is ever leaked — it only
+/// lives for the duration of one app process. The keychain store is
+/// best-effort (the in-memory key is what actually matters).
 fn ensure_api_key() -> String {
-    if let Some(existing) = get_entry("mc-api-key") {
-        return existing;
-    }
-
     let mut bytes = [0u8; 32];
     rand::thread_rng().fill(&mut bytes);
     let key = hex::encode(bytes);
 
-    // Best-effort store; if it fails we still return the generated key
-    // so the app can function for this session.
+    // Best-effort store in keychain so `get_secret("mc-api-key")` works
+    // for the frontend to read it during this session.
     let _ = set_entry("mc-api-key", &key);
 
     key

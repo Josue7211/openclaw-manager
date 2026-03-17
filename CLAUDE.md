@@ -232,12 +232,16 @@ Import `supabase` from `@/lib/supabase/client` — it's a singleton. Never call 
 - Dynamic content needs `aria-live` regions
 
 ### Security
-- Axum server has API key auth middleware — exempts health, OAuth callback, and static resources
-- Never log credentials — use `redact_bb_url()` for BlueBubbles URLs
+> Full security model: **[docs/SECURITY.md](docs/SECURITY.md)** — architecture, threat model, encryption, monitoring, and contributor rules.
+
+**Quick rules for contributors:**
 - Secrets flow through `AppState.secret()`, not `std::env::var()`
-- CSP blocks `unsafe-eval` — no `eval()`, `Function()`, or string-based `setTimeout()`
+- Never log credentials — use `redact()` from `redact.rs`
+- Use `RequireAuth` extractor on all data endpoints (MFA enforced)
+- Use `validate_uuid()` / `sanitize_postgrest_value()` for all Supabase query inputs
+- CSP blocks `unsafe-eval` — no `Function()` or string-based `setTimeout()`
+- OAuth uses PKCE + nonce verification to prevent code injection
 - Shell permissions scoped to HTTPS/HTTP URLs only
-- OAuth uses nonce verification to prevent code injection
 
 ### Notifications
 - 4 independent toggles: DND, system, in-app, sound

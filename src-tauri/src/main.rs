@@ -68,6 +68,48 @@ fn main() {
         tracing::info!("Log file: {}", logging::log_dir().display());
     }
 
+    // -----------------------------------------------------------------------
+    // Runtime integrity & tamper detection
+    // -----------------------------------------------------------------------
+    // These checks run after logging is initialized but before secrets are
+    // loaded. They are warnings only — they never block startup.
+
+    // 1. Debugger detection (Linux: check TracerPid in /proc/self/status)
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(status) = std::fs::read_to_string("/proc/self/status") {
+            for line in status.lines() {
+                if let Some(pid) = line.strip_prefix("TracerPid:") {
+                    let pid = pid.trim();
+                    if pid != "0" {
+                        tracing::warn!(tracer_pid = %pid, "debugger detected — process is being traced");
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. LD_PRELOAD detection (Linux: potential library injection)
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(preload) = std::env::var("LD_PRELOAD") {
+            if !preload.is_empty() {
+                tracing::warn!(ld_preload = %preload, "LD_PRELOAD is set — potential library injection");
+            }
+        }
+    }
+
+    // 3. Binary integrity check (SHA-256 of the running executable)
+    {
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Ok(bytes) = std::fs::read(&exe_path) {
+                use sha2::{Sha256, Digest};
+                let hash = Sha256::digest(&bytes);
+                tracing::info!(binary_hash = %hex::encode(hash), "binary integrity check");
+            }
+        }
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())

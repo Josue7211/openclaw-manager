@@ -502,6 +502,25 @@ async fn login(
     let has_any_factors = factors.map(|fs| !fs.is_empty()).unwrap_or(false);
     let mfa_enroll_required = !has_any_factors;
 
+    // Detect concurrent session — log if a session already exists
+    if let Some(ref existing) = *state.session.read().await {
+        log_security_event(
+            &state.db,
+            "concurrent_session",
+            Some(&user_id),
+            &json!({
+                "action": "new_login_replaced_existing",
+                "previous_user_id": existing.user_id,
+            }),
+        )
+        .await;
+        tracing::warn!(
+            user_id = %user_id,
+            previous_user_id = %existing.user_id,
+            "concurrent session detected — replacing existing session"
+        );
+    }
+
     // Store session — mfa_verified is false until TOTP is verified
     let session = UserSession {
         access_token: auth.access_token,
@@ -512,6 +531,7 @@ async fn login(
         encryption_key: encryption_key.to_vec(),
         mfa_verified: false,
         factor_id: verified_factor_id.clone(),
+        created_at: now,
     };
     // Drop the Zeroizing wrapper now — its copy is zeroed, the session
     // field is protected by UserSession's own Drop impl.
@@ -1328,6 +1348,26 @@ async fn oauth_callback(
                             .and_then(|f| f.get("id").and_then(|v| v.as_str()))
                             .map(|s| s.to_string());
 
+                        // Detect concurrent session
+                        if let Some(ref existing) = *state.session.read().await {
+                            log_security_event(
+                                &state.db,
+                                "concurrent_session",
+                                Some(&user_id),
+                                &json!({
+                                    "action": "new_login_replaced_existing",
+                                    "method": "oauth",
+                                    "previous_user_id": existing.user_id,
+                                }),
+                            )
+                            .await;
+                            tracing::warn!(
+                                user_id = %user_id,
+                                previous_user_id = %existing.user_id,
+                                "concurrent session detected (OAuth) — replacing existing session"
+                            );
+                        }
+
                         let session = UserSession {
                             access_token: auth.access_token,
                             refresh_token: auth.refresh_token,
@@ -1337,6 +1377,7 @@ async fn oauth_callback(
                             encryption_key: Vec::new(),
                             mfa_verified: false,
                             factor_id: oauth_factor_id,
+                            created_at: now,
                         };
                         *state.session.write().await = Some(session.clone());
                         if let Some(ref mut v) = *state.pkce_verifier.write().await {

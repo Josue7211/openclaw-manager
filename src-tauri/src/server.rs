@@ -47,6 +47,10 @@ pub struct UserSession {
     /// The verified TOTP factor ID (if any). Stored at login time so we
     /// don't need to call GoTrue again.
     pub factor_id: Option<String>,
+    /// Unix epoch seconds when this session was first created.
+    /// Used to enforce a hard 24-hour session lifetime regardless of
+    /// token refresh — forces periodic re-authentication.
+    pub created_at: i64,
 }
 
 /// Zeroize sensitive fields (tokens, encryption key) when a `UserSession` is
@@ -203,6 +207,77 @@ impl AppState {
     }
 }
 
+/// Log runtime integrity and tamper-detection results into `security_events`.
+///
+/// Called once after the DB pool is initialised. The checks themselves already
+/// ran in `main()` (and emitted tracing warnings), but we also persist them in
+/// SQLite so operators can review via `GET /api/security-events`.
+async fn log_integrity_events(db: &sqlx::SqlitePool) {
+    // Helper: fire-and-forget insert into security_events.
+    async fn insert(db: &sqlx::SqlitePool, event_type: &str, details: &serde_json::Value) {
+        let details_str = details.to_string();
+        let _ = sqlx::query(
+            "INSERT INTO security_events (event_type, user_id, details) VALUES (?, NULL, ?)",
+        )
+        .bind(event_type)
+        .bind(&details_str)
+        .execute(db)
+        .await;
+    }
+
+    // 1. Binary integrity check (SHA-256)
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Ok(bytes) = std::fs::read(&exe_path) {
+            use sha2::{Sha256, Digest};
+            let hash = hex::encode(Sha256::digest(&bytes));
+            insert(
+                db,
+                "integrity_check",
+                &serde_json::json!({
+                    "binary_hash": hash,
+                    "exe_path": exe_path.display().to_string(),
+                }),
+            )
+            .await;
+        }
+    }
+
+    // 2. Debugger detection (Linux only)
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(status) = std::fs::read_to_string("/proc/self/status") {
+            for line in status.lines() {
+                if let Some(pid) = line.strip_prefix("TracerPid:") {
+                    let pid = pid.trim();
+                    if pid != "0" {
+                        insert(
+                            db,
+                            "debugger_detected",
+                            &serde_json::json!({ "tracer_pid": pid }),
+                        )
+                        .await;
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. LD_PRELOAD detection (Linux only)
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(preload) = std::env::var("LD_PRELOAD") {
+            if !preload.is_empty() {
+                insert(
+                    db,
+                    "ld_preload_detected",
+                    &serde_json::json!({ "ld_preload": preload }),
+                )
+                .await;
+            }
+        }
+    }
+}
+
 /// Start the embedded Axum HTTP server on localhost:3000 with all API routes.
 pub async fn start(
     app_handle: tauri::AppHandle,
@@ -252,6 +327,11 @@ pub async fn start(
         refresh_mutex: Arc::new(tokio::sync::Mutex::new(())),
         pkce_verifier: Arc::new(RwLock::new(None)),
     };
+
+    // Log runtime integrity checks to security_events (fire-and-forget).
+    // These mirror the tracing warnings emitted in main.rs but persist in SQLite
+    // for later inspection via GET /api/security-events.
+    log_integrity_events(&state.db).await;
 
     // Start the background sync engine (offline-first SQLite <-> Supabase)
     {
@@ -344,6 +424,19 @@ async fn inject_session(
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs() as i64;
+
+        // Force re-login after 24 hours regardless of token validity.
+        // This limits the blast radius of a compromised session.
+        let session_age = now - sess.created_at;
+        if session_age > 86400 {
+            tracing::info!(
+                user_id = %sess.user_id,
+                session_age_secs = session_age,
+                "session expired (24h) — forcing re-login"
+            );
+            *state.session.write().await = None;
+            return (StatusCode::UNAUTHORIZED, "Session expired — please log in again").into_response();
+        }
 
         if sess.expires_at - now < 60 {
             // Token is near expiry — try to refresh.
@@ -718,6 +811,10 @@ mod tests {
     use super::*;
 
     fn make_session() -> UserSession {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
         UserSession {
             access_token: "eyJhbGciOiJIUzI1NiJ9.test-token".to_string(),
             refresh_token: "v1.refresh-secret-value".to_string(),
@@ -727,6 +824,7 @@ mod tests {
             encryption_key: vec![0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE],
             mfa_verified: true,
             factor_id: None,
+            created_at: now,
         }
     }
 
@@ -754,6 +852,10 @@ mod tests {
     fn user_session_replace_zeroizes_old() {
         // Simulates token refresh: replacing the session drops the old one.
         let mut slot: Option<UserSession> = Some(make_session());
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
         let new_session = UserSession {
             access_token: "new-token".to_string(),
             refresh_token: "new-refresh".to_string(),
@@ -763,8 +865,47 @@ mod tests {
             encryption_key: vec![0x01, 0x02],
             mfa_verified: true,
             factor_id: None,
+            created_at: now,
         };
         slot = Some(new_session);
         assert!(slot.is_some());
+    }
+
+    #[test]
+    fn session_created_at_detects_expired_session() {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+
+        // Session created 25 hours ago should be expired
+        let old_session = UserSession {
+            access_token: "token".to_string(),
+            refresh_token: "refresh".to_string(),
+            user_id: "user-123".to_string(),
+            email: "test@example.com".to_string(),
+            expires_at: now + 3600, // token still valid
+            encryption_key: vec![0x01],
+            mfa_verified: true,
+            factor_id: None,
+            created_at: now - 90000, // 25 hours ago
+        };
+        let session_age = now - old_session.created_at;
+        assert!(session_age > 86400, "session should be older than 24h");
+
+        // Session created 1 hour ago should NOT be expired
+        let fresh_session = UserSession {
+            access_token: "token".to_string(),
+            refresh_token: "refresh".to_string(),
+            user_id: "user-123".to_string(),
+            email: "test@example.com".to_string(),
+            expires_at: now + 3600,
+            encryption_key: vec![0x01],
+            mfa_verified: true,
+            factor_id: None,
+            created_at: now - 3600, // 1 hour ago
+        };
+        let session_age = now - fresh_session.created_at;
+        assert!(session_age <= 86400, "session should NOT be older than 24h");
     }
 }
