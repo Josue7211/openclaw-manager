@@ -35,6 +35,7 @@ export default function SettingsUser({
   const [nameSaved, setNameSaved] = useState(false)
   const [avatarSaved, setAvatarSaved] = useState(false)
   const [changingPw, setChangingPw] = useState(false)
+  const [currentPw, setCurrentPw] = useState('')
   const [newPw, setNewPw] = useState('')
   const [confirmPw, setConfirmPw] = useState('')
   const [pwStatus, setPwStatus] = useState<string | null>(null)
@@ -188,18 +189,19 @@ export default function SettingsUser({
             <button style={btnSecondary} onClick={() => { setChangingPw(true); setPwStatus(null) }}>Change</button>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+              <input type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} placeholder="Current password" autoComplete="current-password" aria-label="Current password" style={{ ...inputStyle, width: '200px' }} />
               <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="New password" autoComplete="new-password" aria-label="New password" style={{ ...inputStyle, width: '200px' }} />
               <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Confirm password" autoComplete="new-password" aria-label="Confirm password" style={{ ...inputStyle, width: '200px' }} />
               <div style={{ display: 'flex', gap: '6px' }}>
-                <button style={btnSecondary} onClick={() => { setChangingPw(false); setNewPw(''); setConfirmPw(''); setPwStatus(null) }}>Cancel</button>
+                <button style={btnSecondary} onClick={() => { setChangingPw(false); setCurrentPw(''); setNewPw(''); setConfirmPw(''); setPwStatus(null) }}>Cancel</button>
                 <button
-                  style={newPw.length >= 8 && newPw === confirmPw ? btnStyle : { ...btnStyle, opacity: 0.4, cursor: 'not-allowed' }}
-                  disabled={newPw.length < 8 || newPw !== confirmPw}
+                  style={currentPw.length > 0 && newPw.length >= 8 && newPw === confirmPw ? btnStyle : { ...btnStyle, opacity: 0.4, cursor: 'not-allowed' }}
+                  disabled={currentPw.length === 0 || newPw.length < 8 || newPw !== confirmPw}
                   onClick={async () => {
                     setPwStatus(null)
                     try {
-                      await api.post('/api/auth/password', { new_password: newPw })
-                      setPwStatus('Password updated.'); setChangingPw(false); setNewPw(''); setConfirmPw('')
+                      await api.post('/api/auth/password', { current_password: currentPw, new_password: newPw })
+                      setPwStatus('Password updated.'); setChangingPw(false); setCurrentPw(''); setNewPw(''); setConfirmPw('')
                     } catch (err) {
                       setPwStatus(`Error: ${err instanceof Error ? err.message : 'Failed'}`)
                     }

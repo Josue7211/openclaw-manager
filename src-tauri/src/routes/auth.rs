@@ -508,6 +508,20 @@ async fn login(
 
     let has_verified_factors = verified_factor_id.is_some();
 
+    // Compute all verified MFA factor types (e.g. ["totp", "webauthn"])
+    let available_mfa_methods: Vec<String> = factors
+        .map(|fs| {
+            let mut methods: Vec<String> = fs
+                .iter()
+                .filter(|f| f.get("status").and_then(|s| s.as_str()) == Some("verified"))
+                .filter_map(|f| f.get("factor_type").and_then(|t| t.as_str()).map(|s| s.to_string()))
+                .collect();
+            methods.sort();
+            methods.dedup();
+            methods
+        })
+        .unwrap_or_default();
+
     // Check if user has NO factors — they need to enroll
     let has_any_factors = factors.map(|fs| !fs.is_empty()).unwrap_or(false);
     let mfa_enroll_required = !has_any_factors;
@@ -542,6 +556,7 @@ async fn login(
         mfa_verified: false,
         factor_id: verified_factor_id.clone(),
         factor_type: verified_factor_type.clone(),
+        available_mfa_methods: available_mfa_methods.clone(),
         created_at: now,
     };
     // Drop the Zeroizing wrapper now — its copy is zeroed, the session
@@ -570,6 +585,7 @@ async fn login(
         "mfa_enroll_required": mfa_enroll_required,
         "factor_id": verified_factor_id,
         "factor_type": verified_factor_type,
+        "available_mfa_methods": available_mfa_methods,
     })))
 }
 
@@ -619,6 +635,7 @@ async fn get_session(State(state): State<AppState>) -> Json<Value> {
                     "user": { "id": s.user_id, "email": s.email },
                     "mfa_required": false,
                     "mfa_verified": true,
+                    "available_mfa_methods": s.available_mfa_methods,
                 }));
             }
 
@@ -633,6 +650,7 @@ async fn get_session(State(state): State<AppState>) -> Json<Value> {
                 "mfa_verified": false,
                 "factor_id": s.factor_id,
                 "factor_type": s.factor_type,
+                "available_mfa_methods": s.available_mfa_methods,
             }))
         }
         None => Json(json!({ "authenticated": false })),
@@ -679,6 +697,13 @@ async fn refresh(State(state): State<AppState>) -> Result<Json<Value>, AppError>
         .await
         .clone()
         .ok_or(AppError::Unauthorized)?;
+
+    // Hard 24-hour session lifetime — force re-authentication
+    if epoch_secs() - session.created_at > 86400 {
+        tracing::info!(user_id = %session.user_id, "session exceeded 24h lifetime — forcing re-auth");
+        *state.session.write().await = None;
+        return Err(AppError::Unauthorized);
+    }
 
     // Serialise refresh attempts so concurrent requests don't all hit GoTrue
     let _guard = state.refresh_mutex.lock().await;
@@ -728,19 +753,9 @@ struct PasswordBody {
 
 async fn change_password(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<PasswordBody>,
 ) -> Result<Json<Value>, AppError> {
-    let session = state
-        .session
-        .read()
-        .await
-        .clone()
-        .ok_or(AppError::Unauthorized)?;
-
-    // CRITICAL: Cannot change password without first verifying MFA
-    if !session.mfa_verified {
-        return Err(AppError::BadRequest("MFA verification required to change password".into()));
-    }
 
     let gotrue = GoTrueClient::from_state(&state)
         .map_err(|e| AppError::Internal(e))?;
@@ -1019,6 +1034,8 @@ async fn mfa_challenge(
     State(state): State<AppState>,
     Json(body): Json<MfaChallengeBody>,
 ) -> Result<Json<Value>, AppError> {
+    crate::validation::validate_uuid(&body.factor_id)?;
+
     let session = state
         .session
         .read()
@@ -1061,6 +1078,8 @@ async fn mfa_verify(
     State(state): State<AppState>,
     Json(body): Json<MfaVerifyBody>,
 ) -> Result<Json<Value>, AppError> {
+    crate::validation::validate_uuid(&body.factor_id)?;
+
     let session = state
         .session
         .read()
@@ -1134,6 +1153,8 @@ async fn mfa_unenroll(
     State(state): State<AppState>,
     Path(factor_id): Path<String>,
 ) -> Result<Json<Value>, AppError> {
+    crate::validation::validate_uuid(&factor_id)?;
+
     let session = state
         .session
         .read()
@@ -1451,6 +1472,19 @@ async fn oauth_callback(
                         let oauth_factor_type = oauth_verified_factor
                             .and_then(|f| f.get("factor_type").and_then(|v| v.as_str()))
                             .map(|s| s.to_string());
+                        let oauth_available_methods: Vec<String> = auth.user.get("factors")
+                            .and_then(|v| v.as_array())
+                            .map(|fs| {
+                                let mut methods: Vec<String> = fs
+                                    .iter()
+                                    .filter(|f| f.get("status").and_then(|s| s.as_str()) == Some("verified"))
+                                    .filter_map(|f| f.get("factor_type").and_then(|t| t.as_str()).map(|s| s.to_string()))
+                                    .collect();
+                                methods.sort();
+                                methods.dedup();
+                                methods
+                            })
+                            .unwrap_or_default();
 
                         // Detect concurrent session
                         if let Some(ref existing) = *state.session.read().await {
@@ -1482,13 +1516,17 @@ async fn oauth_callback(
                             mfa_verified: false,
                             factor_id: oauth_factor_id,
                             factor_type: oauth_factor_type,
+                            available_mfa_methods: oauth_available_methods,
                             created_at: now,
                         };
                         *state.session.write().await = Some(session.clone());
-                        if let Some(ref mut v) = *state.pkce_verifier.write().await {
-                            v.zeroize();
+                        {
+                            let mut guard = state.pkce_verifier.write().await;
+                            if let Some(ref mut v) = *guard {
+                                v.zeroize();
+                            }
+                            *guard = None;
                         }
-                        *state.pkce_verifier.write().await = None;
 
                         // Try to load user_secrets (will skip if no encryption
                         // key, which is the case for OAuth logins without a
@@ -1509,6 +1547,12 @@ async fn oauth_callback(
                         );
                     }
                     Err(e) => {
+                        // Zeroize and clear the PKCE verifier even on failure
+                        let mut guard = state.pkce_verifier.write().await;
+                        if let Some(ref mut v) = *guard {
+                            v.zeroize();
+                        }
+                        *guard = None;
                         tracing::warn!("[oauth-callback] PKCE exchange failed: {e}");
                     }
                 }

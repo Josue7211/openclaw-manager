@@ -215,11 +215,22 @@ const FRONTEND_BLOCKED_KEYS: &[&str] = &[
     "ntfy.topic",
 ];
 
-/// Keys that the frontend must never be allowed to write.
-const FRONTEND_BLOCKED_WRITE_KEYS: &[&str] = &[
-    "mc-api-key",
-    "supabase.service-role-key",
-    "supabase.anon-key",
+/// Keys that the frontend is allowed to write (allowlist).
+/// Only keys needed by the onboarding wizard and Settings UI are included.
+const FRONTEND_WRITABLE_KEYS: &[&str] = &[
+    "bluebubbles.host", "bluebubbles.password",
+    "openclaw.api-url", "openclaw.api-key", "openclaw.ws", "openclaw.password",
+    "proxmox.host", "proxmox.token-id", "proxmox.token-secret",
+    "opnsense.host", "opnsense.key", "opnsense.secret",
+    "plex.url", "plex.token",
+    "sonarr.url", "sonarr.api-key",
+    "radarr.url", "radarr.api-key",
+    "email.host", "email.port", "email.user", "email.password",
+    "caldav.url", "caldav.username", "caldav.password",
+    "ntfy.url", "ntfy.topic",
+    "mac-bridge.host", "mac-bridge.api-key",
+    "anthropic.api-key",
+    "supabase.url", "supabase.anon-key",
 ];
 
 /// Retrieve a single secret from the OS keychain by its keyring key name.
@@ -245,7 +256,7 @@ pub fn set_secret(key: String, value: String) -> Result<(), String> {
     if !is_allowed_key(&key) {
         return Err(format!("Key '{}' is not in the allowed set", key));
     }
-    if FRONTEND_BLOCKED_WRITE_KEYS.iter().any(|k| *k == key) {
+    if !FRONTEND_WRITABLE_KEYS.contains(&key.as_str()) {
         return Err("cannot modify this key".into());
     }
     set_entry(&key, &value)

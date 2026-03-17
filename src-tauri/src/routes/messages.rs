@@ -1605,6 +1605,7 @@ fn blocked_host_regexes() -> &'static Vec<Regex> {
             Regex::new(r"(?i)^fc00:").unwrap(),
             Regex::new(r"(?i)^fd").unwrap(),
             Regex::new(r"(?i)^\[?::ffff:").unwrap(), // IPv4-mapped IPv6
+            Regex::new(r"^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.").unwrap(), // CGNAT
         ]
     })
 }
@@ -1736,6 +1737,7 @@ async fn get_link_preview(
                         || ipv4.is_link_local()
                         || ipv4.is_unspecified()
                         || ipv4.is_broadcast()
+                        || (ipv4.octets()[0] == 100 && ipv4.octets()[1] >= 64 && ipv4.octets()[1] <= 127)
                 }
                 std::net::IpAddr::V6(ipv6) => {
                     if let Some(mapped) = ipv6.to_ipv4_mapped() {
@@ -1744,6 +1746,7 @@ async fn get_link_preview(
                             || mapped.is_link_local()
                             || mapped.is_unspecified()
                             || mapped.is_broadcast()
+                            || (mapped.octets()[0] == 100 && mapped.octets()[1] >= 64 && mapped.octets()[1] <= 127)
                     } else {
                         ipv6.is_loopback() || ipv6.is_unspecified()
                     }
@@ -1879,6 +1882,7 @@ async fn get_link_preview(
                                             || ipv4.is_link_local()
                                             || ipv4.is_unspecified()
                                             || ipv4.is_broadcast()
+                                            || (ipv4.octets()[0] == 100 && ipv4.octets()[1] >= 64 && ipv4.octets()[1] <= 127)
                                     }
                                     std::net::IpAddr::V6(ipv6) => {
                                         if let Some(mapped) = ipv6.to_ipv4_mapped() {
@@ -1887,6 +1891,7 @@ async fn get_link_preview(
                                                 || mapped.is_link_local()
                                                 || mapped.is_unspecified()
                                                 || mapped.is_broadcast()
+                                                || (mapped.octets()[0] == 100 && mapped.octets()[1] >= 64 && mapped.octets()[1] <= 127)
                                         } else {
                                             ipv6.is_loopback() || ipv6.is_unspecified()
                                         }
@@ -2674,6 +2679,22 @@ async fn post_send_attachment(
 static MSG_SSE_CONNECTIONS: AtomicUsize = AtomicUsize::new(0);
 const MAX_MSG_SSE_CONNECTIONS: usize = 5;
 
+/// RAII guard that decrements the messages SSE connection counter on drop.
+struct MsgSseConnectionGuard;
+
+impl MsgSseConnectionGuard {
+    fn new() -> Self {
+        MSG_SSE_CONNECTIONS.fetch_add(1, Ordering::Relaxed);
+        Self
+    }
+}
+
+impl Drop for MsgSseConnectionGuard {
+    fn drop(&mut self) {
+        MSG_SSE_CONNECTIONS.fetch_sub(1, Ordering::Relaxed);
+    }
+}
+
 async fn get_stream(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Response {
     use axum::response::sse::{Event, KeepAlive, Sse};
 
@@ -2694,7 +2715,7 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
             .into_response();
     }
 
-    MSG_SSE_CONNECTIONS.fetch_add(1, Ordering::Relaxed);
+    let _guard = MsgSseConnectionGuard::new();
     let client = state.http.clone();
     let stream_state = state.clone();
 
@@ -2732,9 +2753,14 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
                                 continue;
                             }
                             seen_guids.insert(guid);
-                            // Cap the seen set to prevent unbounded growth
+                            // Cap the seen set to prevent unbounded growth —
+                            // drain the oldest half instead of clearing everything
+                            // to avoid re-emitting recent messages.
                             if seen_guids.len() > 2000 {
-                                seen_guids.clear();
+                                let to_remove: Vec<String> = seen_guids.iter().take(1000).cloned().collect();
+                                for key in to_remove {
+                                    seen_guids.remove(&key);
+                                }
                             }
 
                             let date = msg.get("dateCreated").and_then(|v| v.as_i64()).unwrap_or(0);
@@ -2780,8 +2806,7 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
                 }
             }
         }
-        // Stream ended (client disconnected) — decrement the connection counter.
-        MSG_SSE_CONNECTIONS.fetch_sub(1, Ordering::Relaxed);
+        // Stream ended (client disconnected) — _guard drops here, decrementing counter.
     };
 
     Sse::new(stream)

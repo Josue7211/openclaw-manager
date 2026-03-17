@@ -31,7 +31,7 @@ use crate::service_client::ServiceClient;
 /// Populated after login/OAuth and auto-refreshed by the `inject_session`
 /// middleware when the access token is near expiry. Route handlers that require
 /// authentication extract this via the [`RequireAuth`] extractor.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct UserSession {
     pub access_token: String,
     pub refresh_token: String,
@@ -50,10 +50,33 @@ pub struct UserSession {
     /// The type of the verified MFA factor: `"totp"` or `"webauthn"`.
     /// Used by the frontend to present the correct verification UI.
     pub factor_type: Option<String>,
+    /// All verified MFA factor types available for this user (e.g. `["totp", "webauthn"]`).
+    /// Computed at login time from the GoTrue user object's `factors` array.
+    pub available_mfa_methods: Vec<String>,
     /// Unix epoch seconds when this session was first created.
     /// Used to enforce a hard 24-hour session lifetime regardless of
     /// token refresh — forces periodic re-authentication.
     pub created_at: i64,
+}
+
+/// Manual `Debug` implementation that redacts sensitive fields (tokens and
+/// encryption key) so they never appear in log output or panic messages.
+impl std::fmt::Debug for UserSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UserSession")
+            .field("access_token", &"[REDACTED]")
+            .field("refresh_token", &"[REDACTED]")
+            .field("user_id", &self.user_id)
+            .field("email", &self.email)
+            .field("expires_at", &self.expires_at)
+            .field("encryption_key", &"[REDACTED]")
+            .field("mfa_verified", &self.mfa_verified)
+            .field("factor_id", &self.factor_id)
+            .field("factor_type", &self.factor_type)
+            .field("available_mfa_methods", &self.available_mfa_methods)
+            .field("created_at", &self.created_at)
+            .finish()
+    }
 }
 
 /// Zeroize sensitive fields (tokens, encryption key) when a `UserSession` is
@@ -364,6 +387,21 @@ fn log_tls_status(service: &str, url: &str) {
     }
 }
 
+/// Check if a host string is in the RFC 1918 172.16.0.0/12 range (172.16.x.x – 172.31.x.x).
+///
+/// The full 172.0.0.0/8 block is NOT private — only the 172.16–31 second-octet
+/// range is reserved. This avoids false negatives for public IPs like 172.217.x.x (Google).
+fn is_rfc1918_172(host: &str) -> bool {
+    if let Some(rest) = host.strip_prefix("172.") {
+        if let Some(second_octet_str) = rest.split('.').next() {
+            if let Ok(second_octet) = second_octet_str.parse::<u8>() {
+                return (16..=31).contains(&second_octet);
+            }
+        }
+    }
+    false
+}
+
 /// Warn if a service URL uses plaintext HTTP on an address that is neither
 /// loopback, Tailscale CGNAT (100.x.x.x), nor private LAN (10.x.x.x).
 ///
@@ -380,7 +418,7 @@ fn warn_if_insecure_url(service: &str, url: &str) {
                 && !host.starts_with("100.") // Tailscale CGNAT
                 && !host.starts_with("10.")  // Private LAN
                 && !host.starts_with("192.168.") // Private LAN
-                && !host.starts_with("172.")     // Private LAN (simplified)
+                && !is_rfc1918_172(host)     // Private LAN (172.16.0.0/12)
             {
                 tracing::warn!(
                     service = %service,
@@ -521,10 +559,10 @@ pub async fn start(
         .nest("/api", routes::router())
         .layer(DefaultBodyLimit::max(10 * 1024 * 1024)) // 10 MB
         .layer(middleware::from_fn(no_store_api_responses))
+        .layer(middleware::from_fn(rate_limit))
         .layer(middleware::from_fn_with_state(state.clone(), inject_session))
         .layer(middleware::from_fn(request_logger))
         .layer(middleware::from_fn(api_key_auth))
-        .layer(middleware::from_fn(rate_limit))
         .layer(CorsLayer::new()
             .allow_origin(AllowOrigin::predicate(|origin: &HeaderValue, _| {
                 if let Ok(s) = origin.to_str() {
@@ -661,6 +699,14 @@ async fn no_store_api_responses(req: Request<Body>, next: Next) -> Response {
         "x-frame-options",
         "DENY".parse().unwrap(),
     );
+    response.headers_mut().insert(
+        "permissions-policy",
+        "camera=(), microphone=(), geolocation=(), payment=()".parse().unwrap(),
+    );
+    response.headers_mut().insert(
+        "cross-origin-opener-policy",
+        "same-origin".parse().unwrap(),
+    );
     response
 }
 
@@ -728,6 +774,12 @@ fn check_rate(key: &str, max_per_minute: u64, now_secs: u64) -> bool {
     if now_secs - bucket.window_start >= 60 {
         bucket.count = 1;
         bucket.window_start = now_secs;
+
+        // Evict stale entries to prevent unbounded memory growth
+        if map.len() > 500 {
+            map.retain(|_, b| now_secs - b.window_start < 120);
+        }
+
         return true;
     }
 
@@ -991,6 +1043,7 @@ mod tests {
             mfa_verified: true,
             factor_id: None,
             factor_type: None,
+            available_mfa_methods: Vec::new(),
             created_at: now,
         }
     }
@@ -1033,6 +1086,7 @@ mod tests {
             mfa_verified: true,
             factor_id: None,
             factor_type: None,
+            available_mfa_methods: Vec::new(),
             created_at: now,
         };
         slot = Some(new_session);
@@ -1134,6 +1188,7 @@ mod tests {
             mfa_verified: true,
             factor_id: None,
             factor_type: None,
+            available_mfa_methods: Vec::new(),
             created_at: now - 90000, // 25 hours ago
         };
         let session_age = now - old_session.created_at;
@@ -1150,6 +1205,7 @@ mod tests {
             mfa_verified: true,
             factor_id: None,
             factor_type: None,
+            available_mfa_methods: Vec::new(),
             created_at: now - 3600, // 1 hour ago
         };
         let session_age = now - fresh_session.created_at;

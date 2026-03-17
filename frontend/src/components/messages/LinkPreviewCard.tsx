@@ -57,10 +57,11 @@ function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
           maxWidth: '100%', overflow: 'hidden',
         }}
       >
-        <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`} alt="" loading="lazy"
-          style={{ width: '16px', height: '16px', borderRadius: '3px', flexShrink: 0 }}
-          onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-        />
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={fromMe ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
+          <circle cx="12" cy="12" r="10" />
+          <line x1="2" y1="12" x2="22" y2="12" />
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+        </svg>
         <span style={{ fontSize: '11px', fontWeight: 600, color: fromMe ? 'rgba(255,255,255,0.8)' : 'var(--text-primary)' }}>
           {domain}
         </span>

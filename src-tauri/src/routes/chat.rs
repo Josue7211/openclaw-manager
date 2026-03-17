@@ -188,10 +188,6 @@ fn validate_image_magic_bytes(data: &[u8]) -> bool {
     if data.len() >= 12 && data.starts_with(b"RIFF") && &data[8..12] == b"WEBP" {
         return true;
     }
-    // BMP
-    if data.starts_with(b"BM") {
-        return true;
-    }
     false
 }
 
@@ -720,6 +716,17 @@ async fn post_chat(
         })
         .collect();
 
+    // Validate model name if provided: same rules as set_model
+    if let Some(ref m) = body.model {
+        if m.len() > 128 || !m.chars().all(|c| c.is_ascii_alphanumeric() || "._:/-".contains(c)) {
+            return (
+                axum::http::StatusCode::BAD_REQUEST,
+                Json(json!({"error": "Invalid model name"})),
+            )
+                .into_response();
+        }
+    }
+
     let deliver = txt == "/new" || txt == "/reset";
     let model_str = body.model.as_deref();
 
@@ -758,27 +765,13 @@ async fn get_history(State(state): State<AppState>, RequireAuth(_session): Requi
     if dir.exists() {
         if let Some(file_path) = get_session_file(&state) {
             let messages = parse_messages(&file_path);
-            let redacted: Vec<ChatMessage> = messages
-                .into_iter()
-                .map(|mut m| {
-                    m.text = crate::redact::redact(&m.text);
-                    m
-                })
-                .collect();
-            return Json(json!({"messages": redacted})).into_response();
+            return Json(json!({"messages": messages})).into_response();
         }
     }
 
     // Fall back to remote OpenClaw API
     if let Some(messages) = fetch_remote_history(&state).await {
-        let redacted: Vec<ChatMessage> = messages
-            .into_iter()
-            .map(|mut m| {
-                m.text = crate::redact::redact(&m.text);
-                m
-            })
-            .collect();
-        return Json(json!({"messages": redacted})).into_response();
+        return Json(json!({"messages": messages})).into_response();
     }
 
     Json(json!({"messages": []})).into_response()
@@ -840,9 +833,7 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
                     last_count = messages.len();
 
                     for msg in new_msgs {
-                        let mut redacted = msg.clone();
-                        redacted.text = crate::redact::redact(&msg.text);
-                        if let Ok(data) = serde_json::to_string(&redacted) {
+                        if let Ok(data) = serde_json::to_string(msg) {
                             yield Ok(Event::default().data(data));
                         }
                     }
@@ -881,9 +872,7 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
                     last_count = messages.len();
 
                     for msg in new_msgs {
-                        let mut redacted = msg.clone();
-                        redacted.text = crate::redact::redact(&msg.text);
-                        if let Ok(data) = serde_json::to_string(&redacted) {
+                        if let Ok(data) = serde_json::to_string(msg) {
                             yield Ok(Event::default().data(data));
                         }
                     }
@@ -931,7 +920,6 @@ fn is_safe_path(file_path: &str) -> bool {
 
     let oc_dir = openclaw_dir_default();
     let allowed_dirs = [
-        oc_dir.join("workspace/chat-uploads"),
         oc_dir.join("media/chat-images"),
     ];
 
@@ -1033,7 +1021,9 @@ async fn ws_upgrade(
             .into_response();
     }
 
-    ws.on_upgrade(move |socket| handle_ws(socket, state))
+    ws.max_message_size(64 * 1024)
+        .max_frame_size(64 * 1024)
+        .on_upgrade(move |socket| handle_ws(socket, state))
 }
 
 /// RAII guard that decrements the WebSocket connection counter on drop.
@@ -1092,9 +1082,7 @@ async fn handle_ws(mut socket: WebSocket, state: AppState) {
                 last_count = messages.len();
 
                 for msg in new_msgs {
-                    let mut redacted = msg.clone();
-                    redacted.text = crate::redact::redact(&msg.text);
-                    if let Ok(data) = serde_json::to_string(&redacted) {
+                    if let Ok(data) = serde_json::to_string(msg) {
                         if socket.send(Message::Text(data)).await.is_err() {
                             return; // client disconnected
                         }
@@ -1127,9 +1115,7 @@ async fn handle_ws(mut socket: WebSocket, state: AppState) {
                 last_count = messages.len();
 
                 for msg in new_msgs {
-                    let mut redacted = msg.clone();
-                    redacted.text = crate::redact::redact(&msg.text);
-                    if let Ok(data) = serde_json::to_string(&redacted) {
+                    if let Ok(data) = serde_json::to_string(msg) {
                         if socket.send(Message::Text(data)).await.is_err() {
                             return;
                         }

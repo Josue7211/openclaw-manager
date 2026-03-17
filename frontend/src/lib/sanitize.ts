@@ -28,7 +28,11 @@ DOMPurify.addHook('afterSanitizeAttributes', (node: Element) => {
   }
   if (node.tagName === 'IMG') {
     const src = node.getAttribute('src') || '';
-    if (!src.startsWith('data:image/') && !src.startsWith('/api/')) {
+    if (src.startsWith('data:image/') && src.length < 100000) {
+      // OK - local data URI under 100KB
+    } else if (src.startsWith('/api/')) {
+      // OK - backend proxy
+    } else {
       node.removeAttribute('src');
     }
   }
