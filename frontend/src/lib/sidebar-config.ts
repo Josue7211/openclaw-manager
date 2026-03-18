@@ -146,6 +146,11 @@ export function setSidebarConfig(config: SidebarConfig): void {
   }
   // New edit invalidates redo history
   _redoStack.length = 0
+  // Auto-clean empty standalone categories (no name, no items)
+  config = {
+    ...config,
+    categories: config.categories.filter(c => c.name || c.items.length > 0),
+  }
   _cached = config
   localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
   _listeners.forEach(fn => fn())

@@ -394,7 +394,7 @@ export default function SettingsModules() {
         }}
         style={{ minHeight: '100%', padding: '12px 0' }}
       >
-      {sidebarConfig.categories.map((cat, catIdx) => (
+      {sidebarConfig.categories.filter(c => c.name || c.items.length > 0).map((cat, catIdx) => (
         <React.Fragment key={cat.id}>
         {/* Inter-category drop zone — drop a module here to place it between categories */}
         {catIdx === 0 && modDragHref && !modDragHref.startsWith('category:') && !modDragHref.startsWith('restore-category:') && (
@@ -410,26 +410,13 @@ export default function SettingsModules() {
         )}
         <div
           key={cat.id}
-          draggable={!cat.name}
-          onDragStart={!cat.name ? (e => {
-            e.dataTransfer.setData('text/plain', `category:${cat.id}`)
-            e.dataTransfer.effectAllowed = 'move'
-            setModDragHref(`category:${cat.id}`)
-            setModDragFromCat(cat.id)
-            if (e.currentTarget instanceof HTMLElement) e.currentTarget.style.opacity = '0.3'
-          }) : undefined}
-          onDragEnd={!cat.name ? (e => {
-            handleModDragEnd(e)
-            if (e.currentTarget instanceof HTMLElement) e.currentTarget.style.opacity = '1'
-          }) : undefined}
           style={{
             marginBottom: cat.name ? '16px' : '2px',
             borderRadius: cat.name ? '10px' : '6px',
             border: cat.name ? '1px solid var(--border)' : 'none',
             background: modDropCat === cat.id && modDragHref ? 'rgba(155, 132, 236, 0.04)' : 'transparent',
-            transition: 'background 0.15s, opacity 0.15s',
+            transition: 'background 0.15s',
             overflow: 'hidden',
-            cursor: !cat.name ? 'grab' : undefined,
           }}
           onDragOver={(e) => {
             // Don't accept category drags on module areas
@@ -586,7 +573,7 @@ export default function SettingsModules() {
 
           {/* Items */}
           <div style={{ padding: cat.items.length > 0 ? '4px 0' : '0' }}>
-            {cat.items.length === 0 && modDragHref && (
+            {cat.items.length === 0 && cat.name && modDragHref && (
               <div
                 style={{ padding: '12px', textAlign: 'center', color: 'var(--accent)', fontSize: '11px', fontWeight: 600 }}
                 onDragOver={(e) => { e.preventDefault(); setModDropCat(cat.id); setModDropIdx(0) }}
@@ -595,7 +582,7 @@ export default function SettingsModules() {
                 Drop here
               </div>
             )}
-            {cat.items.length === 0 && !modDragHref && (
+            {cat.items.length === 0 && cat.name && !modDragHref && (
               <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px', fontStyle: 'italic' }}>
                 Empty — drag items here or right-click to create
               </div>
