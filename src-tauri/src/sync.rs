@@ -114,6 +114,7 @@ impl SyncEngine {
 
     /// Push local changes (from `_sync_log`) to Supabase.
     async fn push(&self, client: &SupabaseClient, jwt: &str) -> anyhow::Result<()> {
+        // synced_at: NULL = pending, >0 = synced, -1 = permanently failed (schema mismatch)
         let pending: Vec<(i64, String, String, String, Option<String>)> = sqlx::query_as(
             "SELECT id, table_name, row_id, operation, payload \
              FROM _sync_log WHERE synced_at IS NULL ORDER BY id",
@@ -183,8 +184,18 @@ impl SyncEngine {
                         .await?;
                 }
                 Err(e) => {
-                    warn!("sync push failed for {table}/{row_id}: {e}");
-                    // Don't mark as synced — will retry next cycle
+                    let err_str = e.to_string();
+                    // 400 Bad Request = schema mismatch, won't self-heal — stop retrying
+                    if err_str.contains("400 Bad Request") {
+                        warn!("sync push permanently failed for {table}/{row_id} (schema mismatch): {e}");
+                        sqlx::query("UPDATE _sync_log SET synced_at = -1 WHERE id = ?")
+                            .bind(log_id)
+                            .execute(&self.db)
+                            .await?;
+                    } else {
+                        warn!("sync push failed for {table}/{row_id}: {e}");
+                        // Don't mark as synced — will retry next cycle
+                    }
                 }
             }
         }
@@ -219,7 +230,7 @@ impl SyncEngine {
         let query = match &last_synced {
             Some(ts) => format!(
                 "select=*&updated_at=gt.{}&order=updated_at.asc&limit=500",
-                ts
+                ts.replace(' ', "T").replace('+', "%2B")
             ),
             None => "select=*&order=updated_at.asc&limit=500".to_string(),
         };

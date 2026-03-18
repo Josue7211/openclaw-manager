@@ -51,6 +51,7 @@ export function useChatState() {
       })
     }
   }, [_demo, setModelLocal])
+  const sendingRef                = useRef(false)
   const failCountRef              = useRef(0)
   const lastUserMsgTimeRef        = useRef<number>(0)
   const bottomRef                 = useRef<HTMLDivElement>(null)
@@ -261,7 +262,7 @@ export function useChatState() {
   const send = () => {
     const text = input.trim()
     const currentImages = imagesRef.current
-    if ((!text && currentImages.length === 0 && pendingReadsRef.current === 0) || sending) return
+    if ((!text && currentImages.length === 0 && pendingReadsRef.current === 0) || sendingRef.current) return
 
     // ── Demo mode: add messages locally ──
     if (_demo) {
@@ -317,6 +318,7 @@ export function useChatState() {
 
   const _doSend = (text: string, imgs: string[]) => {
     const msgId = `opt-${Date.now()}-${Math.random()}`
+    sendingRef.current = true
     setSending(true)
     setInput('')
     sessionStorage.removeItem('chat-draft')
@@ -330,10 +332,16 @@ export function useChatState() {
       setTimeout(() => optimisticImageCacheRef.current.delete(text), 60000)
     }
 
-    api.post('/api/chat', { text, images: imgs, model }).catch(() => {
-      setOptimistic(prev => prev.map(m => m.id === msgId ? { ...m, status: 'error' } : m))
-      setSending(false)
-    })
+    api.post('/api/chat', { text, images: imgs, model })
+      .then(() => {
+        sendingRef.current = false
+        setSending(false)
+      })
+      .catch(() => {
+        sendingRef.current = false
+        setSending(false)
+        setOptimistic(prev => prev.map(m => m.id === msgId ? { ...m, status: 'error' } : m))
+      })
 
     setTimeout(() => {
       setOptimistic(prev => prev.map(m => m.id === msgId ? { ...m, status: 'sent' } : m))
@@ -343,8 +351,6 @@ export function useChatState() {
       setTimeout(() => setOptimistic(prev => prev.filter(m => m.id !== msgId)), 30000)
       setTimeout(() => setIsTyping(false), 60000)
     }, 500)
-
-    setSending(false)
   }
 
   const retry = async (msg: OptimisticMsg) => {

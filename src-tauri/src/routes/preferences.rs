@@ -110,16 +110,15 @@ async fn patch_preferences(
     .execute(&state.db)
     .await?;
 
-    // Log for sync
+    // Log for sync — Supabase user_preferences uses user_id as PK (no id column)
     let payload = serde_json::to_string(&json!({
-        "id": row_id,
         "user_id": user_id,
         "preferences": Value::Object(merged.clone()),
         "updated_at": now,
     }))
     .map_err(|e| AppError::Internal(e.into()))?;
 
-    crate::sync::log_mutation(&state.db, "user_preferences", &row_id, "UPDATE", Some(&payload))
+    crate::sync::log_mutation(&state.db, "user_preferences", user_id, "UPDATE", Some(&payload))
         .await
         .map_err(|e| AppError::Internal(e.into()))?;
 

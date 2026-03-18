@@ -17,6 +17,10 @@ use tower_http::timeout::TimeoutLayer;
 /// MC_API_KEY stored once at startup so the auth middleware can read it
 /// without touching process environment variables.
 pub static MC_API_KEY: OnceLock<String> = OnceLock::new();
+
+/// MC_AGENT_KEY — optional stable key for external agents (e.g. Bjorn on OpenClaw VM).
+/// Unlike MC_API_KEY which rotates every launch, this is user-configured and persistent.
+pub static MC_AGENT_KEY: OnceLock<String> = OnceLock::new();
 use tokio::net::TcpListener;
 use tower_http::cors::{CorsLayer, Any, AllowOrigin};
 use crate::routes;
@@ -516,6 +520,12 @@ pub async fn start(
         let _ = MC_API_KEY.set(key.clone());
     }
 
+    // Store stable agent key (user-configured, doesn't rotate)
+    if let Some(key) = secrets.get("MC_AGENT_KEY").filter(|s| !s.is_empty()) {
+        let _ = MC_AGENT_KEY.set(key.clone());
+        tracing::info!("Agent API key configured (MC_AGENT_KEY)");
+    }
+
     // Build optional service clients from secrets HashMap
     let bb_host = secrets
         .get("BLUEBUBBLES_HOST")
@@ -622,6 +632,17 @@ pub async fn start(
         tracing::info!("Database cleanup job started (1h interval)");
     }
 
+    // Resolve bind address before state is moved into the router.
+    // Default: 127.0.0.1 (localhost only). Set MC_BIND_HOST to "0.0.0.0"
+    // or a specific Tailscale IP to expose the API to the tailnet.
+    let bind_host = state.secret("MC_BIND_HOST")
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "127.0.0.1".to_string());
+    let bind_ip: std::net::IpAddr = bind_host.parse().unwrap_or_else(|_| {
+        tracing::warn!("Invalid MC_BIND_HOST '{}', falling back to 127.0.0.1", bind_host);
+        std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)
+    });
+
     // Pre-warm the messages conversation cache in the background
     let prewarm_state = state.clone();
 
@@ -659,7 +680,7 @@ pub async fn start(
         });
     }
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let addr = SocketAddr::from((bind_ip, 3000));
     let listener = TcpListener::bind(addr).await?;
     tracing::info!("Axum listening on {}", addr);
     axum::serve(listener, app).await?;
@@ -956,6 +977,12 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
     if let Some(provided) = req.headers().get("x-api-key").and_then(|v| v.to_str().ok()) {
         if provided.as_bytes().ct_eq(expected.as_bytes()).into() {
             return next.run(req).await;
+        }
+        // Also check against stable agent key (for external agents like Bjorn)
+        if let Some(agent_key) = MC_AGENT_KEY.get() {
+            if !agent_key.is_empty() && provided.as_bytes().ct_eq(agent_key.as_bytes()).into() {
+                return next.run(req).await;
+            }
         }
     }
 

@@ -11,6 +11,8 @@ export default function SettingsConnections() {
   const [ocUrl, setOcUrl] = useState('')
   const [bbExpectedHost, setBbExpectedHost] = useState('')
   const [ocExpectedHost, setOcExpectedHost] = useState('')
+  const [bindHost, setBindHost] = useState('')
+  const [agentKey, setAgentKey] = useState('')
   const [connSaving, setConnSaving] = useState(false)
   const [connSaveStatus, setConnSaveStatus] = useState<string | null>(null)
   const [connTesting, setConnTesting] = useState(false)
@@ -26,11 +28,16 @@ export default function SettingsConnections() {
     let keychainBb: string | null = null
     let keychainOc: string | null = null
 
+    let keychainBindHost: string | null = null
+    let keychainAgentKey: string | null = null
+
     const loadKeychain = window.__TAURI_INTERNALS__
       ? import('@tauri-apps/api/core').then(({ invoke }) =>
           Promise.all([
             invoke<string | null>('get_secret', { key: 'bluebubbles.host' }).then(v => { keychainBb = v }),
             invoke<string | null>('get_secret', { key: 'openclaw.api-url' }).then(v => { keychainOc = v }),
+            invoke<string | null>('get_secret', { key: 'mc-bind.host' }).then(v => { keychainBindHost = v }),
+            invoke<string | null>('get_secret', { key: 'mc-agent.key' }).then(v => { keychainAgentKey = v }),
           ])
         )
       : Promise.resolve()
@@ -47,6 +54,8 @@ export default function SettingsConnections() {
       // Priority: API secrets (Supabase) > OS keychain > active config (env)
       setBbUrl(bbSecrets?.url || keychainBb || activeConfig?.bluebubbles_url || '')
       setOcUrl(ocSecrets?.url || keychainOc || activeConfig?.openclaw_url || '')
+      if (keychainBindHost) setBindHost(keychainBindHost)
+      if (keychainAgentKey) setAgentKey(keychainAgentKey)
     })
 
     // Load expected hostnames from user preferences
@@ -79,6 +88,8 @@ export default function SettingsConnections() {
         await Promise.all([
           invoke('set_secret', { key: 'bluebubbles.host', value: bbUrl }),
           invoke('set_secret', { key: 'openclaw.api-url', value: ocUrl }),
+          bindHost ? invoke('set_secret', { key: 'mc-bind.host', value: bindHost }) : Promise.resolve(),
+          agentKey ? invoke('set_secret', { key: 'mc-agent.key', value: agentKey }) : Promise.resolve(),
         ]).catch(() => {
           // Keychain save is best-effort — API save is the source of truth
         })
@@ -98,7 +109,7 @@ export default function SettingsConnections() {
     } finally {
       setConnSaving(false)
     }
-  }, [bbUrl, ocUrl, bbExpectedHost, ocExpectedHost, saveSecretMutation])
+  }, [bbUrl, ocUrl, bbExpectedHost, ocExpectedHost, bindHost, agentKey, saveSecretMutation])
 
   const testConnections = useCallback(async () => {
     setConnTesting(true)
@@ -222,6 +233,39 @@ export default function SettingsConnections() {
             {connSaveStatus}
           </span>
         )}
+      </div>
+
+      <div style={{ ...sectionLabel, marginTop: '24px' }}>Server Access</div>
+      <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 16px' }}>
+        Allow external agents (like Bjorn) to reach the Mission Control API over Tailscale. Requires restart.
+      </p>
+
+      <div style={row}>
+        <div style={{ flex: 1 }}>
+          <span>Bind Address</span>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Default: 127.0.0.1 (localhost only). Set to 0.0.0.0 for Tailscale access.</div>
+        </div>
+        <input
+          style={inputStyle}
+          value={bindHost}
+          onChange={e => setBindHost(e.target.value)}
+          placeholder="127.0.0.1"
+          aria-label="Server bind address"
+        />
+      </div>
+
+      <div style={rowLast}>
+        <div style={{ flex: 1 }}>
+          <span>Agent API Key</span>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Stable key for external agents. Does not rotate on restart.</div>
+        </div>
+        <input
+          style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '11px' }}
+          value={agentKey}
+          onChange={e => setAgentKey(e.target.value)}
+          placeholder="Generate or paste a key"
+          aria-label="Agent API key"
+        />
       </div>
 
       <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>

@@ -40,6 +40,12 @@ const KEY_ENV_MAP: &[(&str, &str)] = &[
     ("supabase.url", "SUPABASE_URL"),
     ("supabase.anon-key", "SUPABASE_ANON_KEY"),
     ("supabase.service-role-key", "SUPABASE_SERVICE_ROLE_KEY"),
+    ("couchdb.url", "COUCHDB_URL"),
+    ("couchdb.user", "COUCHDB_USER"),
+    ("couchdb.password", "COUCHDB_PASSWORD"),
+    ("couchdb.database", "COUCHDB_DATABASE"),
+    ("mc-bind.host", "MC_BIND_HOST"),
+    ("mc-agent.key", "MC_AGENT_KEY"),
 ];
 
 /// Keys that are user-configured (excludes auto-generated mc-api-key).
@@ -77,6 +83,12 @@ const USER_KEYS: &[&str] = &[
     "supabase.url",
     "supabase.anon-key",
     "supabase.service-role-key",
+    "couchdb.url",
+    "couchdb.user",
+    "couchdb.password",
+    "couchdb.database",
+    "mc-bind.host",
+    "mc-agent.key",
 ];
 
 fn get_entry(key: &str) -> Option<String> {
