@@ -4,6 +4,7 @@ export interface PanelRect { x: number; y: number; w: number; h: number }
 
 interface ResizablePanelProps {
   title: string
+  onTitleChange?: (newTitle: string) => void
   storageKey?: string
   initialX: number
   initialY: number
@@ -13,6 +14,8 @@ interface ResizablePanelProps {
   minH?: number
   children: React.ReactNode
   style?: React.CSSProperties
+  onDragOver?: (e: React.DragEvent) => void
+  onDrop?: (e: React.DragEvent) => void
   siblings?: (PanelRect & { id: string })[]
   onRectChange?: (rect: PanelRect) => void
   onSwap?: (targetId: string) => void
@@ -76,8 +79,9 @@ function findSwapTarget(rect: PanelRect, siblings: (PanelRect & { id: string })[
 }
 
 export function ResizablePanel({
-  title, storageKey, initialX, initialY, initialW, initialH,
+  title, onTitleChange, storageKey, initialX, initialY, initialW, initialH,
   minW = 150, minH = 100, children, style, siblings = [], onRectChange, onSwap, panelId, forceRect, swapTarget, onSwapHover,
+  onDragOver: panelDragOver, onDrop: panelDrop,
 }: ResizablePanelProps) {
   const saved = loadSaved(storageKey, { x: initialX, y: initialY, w: initialW, h: initialH })
   const [pos, setPos] = useState({ x: saved.x, y: saved.y })
@@ -265,6 +269,8 @@ export function ResizablePanel({
     <div
       ref={elRef}
       onMouseDown={bringToFront}
+      onDragOver={panelDragOver}
+      onDrop={panelDrop}
       style={{
         position: 'absolute',
         left: pos.x, top: pos.y, width: size.w, height: size.h,
@@ -285,7 +291,38 @@ export function ResizablePanel({
         borderBottom: '1px solid var(--border)',
         cursor: 'grab', userSelect: 'none', flexShrink: 0,
       }}>
-        <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+        <span
+          onDoubleClick={onTitleChange ? (e) => {
+            e.stopPropagation()
+            const span = e.currentTarget
+            const input = document.createElement('input')
+            input.value = title
+            Object.assign(input.style, {
+              background: 'transparent', border: 'none', borderBottom: '1px solid var(--accent)',
+              color: 'var(--text-primary)', fontSize: '11px', fontWeight: '700',
+              letterSpacing: '0.08em', textTransform: 'uppercase', outline: 'none',
+              padding: '0', width: '100%', fontFamily: 'inherit',
+            })
+            span.textContent = ''
+            span.appendChild(input)
+            input.focus()
+            input.select()
+            const commit = () => {
+              const v = input.value.trim()
+              if (v && v !== title) onTitleChange(v)
+              span.textContent = v || title
+            }
+            input.addEventListener('blur', commit)
+            input.addEventListener('keydown', ev => {
+              if (ev.key === 'Enter') input.blur()
+              if (ev.key === 'Escape') { span.textContent = title }
+            })
+          } : undefined}
+          style={{
+            fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+            color: 'var(--text-muted)', cursor: onTitleChange ? 'text' : 'inherit',
+          }}
+        >
           {title}
         </span>
       </div>

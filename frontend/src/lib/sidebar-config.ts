@@ -23,6 +23,8 @@ export interface SidebarConfig {
   customModules: CustomModule[]
   deletedItems?: DeletedItem[]
   unusedCategories?: SidebarCategory[] // categories moved to Unused
+  recycledCategories?: SidebarCategory[] // categories moved to Recycle Bin
+  panelTitles?: Record<string, string> // panelId -> custom title
 }
 
 const STORAGE_KEY = 'sidebar-config'

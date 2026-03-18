@@ -75,6 +75,17 @@ export default function SettingsModules() {
     })
   }, [panelRects, swapRev])
 
+  const renamePanelTitle = useCallback((panelId: string, newTitle: string) => {
+    const config = getSidebarConfig()
+    setSidebarConfig({
+      ...config,
+      panelTitles: { ...(config.panelTitles || {}), [panelId]: newTitle },
+    })
+  }, [])
+
+  const panelTitle = (panelId: string, fallback: string) =>
+    sidebarConfig.panelTitles?.[panelId] || fallback
+
   const toggleModule = (id: string) => {
     const current = getEnabledModules()
     const next = current.includes(id)
@@ -129,12 +140,41 @@ export default function SettingsModules() {
     const fromCat = modDragFromCat
     if (!draggedHref || !fromCat) return
 
-    // Dragging from Unused into a category — just re-enable (item is already in category list)
+    // Dragging from Recycle Bin into a category — restore and place
+    if (fromCat === '__recycle__') {
+      const config = getSidebarConfig()
+      const newCategories = config.categories.map(c => ({ ...c, items: [...c.items] }))
+      const targetCat = newCategories.find(c => c.id === catId)
+      if (targetCat) targetCat.items.splice(index, 0, draggedHref)
+      // Re-enable the module if needed
+      const item = resolveItem(draggedHref)
+      if (item?.moduleId && !enabledModules.includes(item.moduleId)) toggleModule(item.moduleId)
+      setSidebarConfig({
+        ...config,
+        categories: newCategories,
+        deletedItems: (config.deletedItems || []).filter(d => d.href !== draggedHref),
+      })
+      setModDragHref(null); setModDragFromCat(null); setModDropCat(null); setModDropIdx(-1)
+      return
+    }
+
+    // Dragging from Unused into a category — re-enable AND move to target category
     if (fromCat === '__unused__') {
       const item = resolveItem(draggedHref)
       if (item?.moduleId && !enabledModules.includes(item.moduleId)) {
         toggleModule(item.moduleId)
       }
+      // Move the item from its current category to the drop target
+      const config = getSidebarConfig()
+      const newCategories = config.categories.map(c => ({
+        ...c,
+        items: c.items.filter(h => h !== draggedHref),
+      }))
+      const targetCat = newCategories.find(c => c.id === catId)
+      if (targetCat) {
+        targetCat.items.splice(index, 0, draggedHref)
+      }
+      setSidebarConfig({ ...config, categories: newCategories })
       setModDragHref(null)
       setModDragFromCat(null)
       setModDropCat(null)
@@ -284,7 +324,7 @@ export default function SettingsModules() {
 
       <div style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden' }}>
       {/* Categories panel */}
-      <ResizablePanel storageKey="sb-modules" title="Modules" panelId="modules" initialX={0} initialY={0} initialW={380} initialH={600} minW={250} minH={200} siblings={getSiblings('modules')} onRectChange={updatePanelRect('modules')} onSwap={handleSwap('modules')} forceRect={forceRects['modules']} swapTarget={swapHoverTarget === 'modules'} onSwapHover={setSwapHoverTarget}>
+      <ResizablePanel storageKey="sb-modules" title={panelTitle('modules', 'Modules')} onTitleChange={t => renamePanelTitle('modules', t)} panelId="modules" initialX={0} initialY={0} initialW={380} initialH={600} minW={250} minH={200} siblings={getSiblings('modules')} onRectChange={updatePanelRect('modules')} onSwap={handleSwap('modules')} forceRect={forceRects['modules']} swapTarget={swapHoverTarget === 'modules'} onSwapHover={setSwapHoverTarget}>
       <div
         onDragOver={e => {
           const data = modDragHref || ''
@@ -300,11 +340,14 @@ export default function SettingsModules() {
             const catId = data.slice('restore-category:'.length)
             const cfg = getSidebarConfig()
             const ucat = (cfg.unusedCategories || []).find(c => c.id === catId)
-            if (ucat) {
+            const rcat = (cfg.recycledCategories || []).find(c => c.id === catId)
+            const cat = ucat || rcat
+            if (cat) {
               setSidebarConfig({
                 ...cfg,
-                categories: [...cfg.categories, ucat],
+                categories: [...cfg.categories, cat],
                 unusedCategories: (cfg.unusedCategories || []).filter(c => c.id !== catId),
+                recycledCategories: (cfg.recycledCategories || []).filter(c => c.id !== catId),
               })
             }
             setModDragHref(null)
@@ -314,7 +357,7 @@ export default function SettingsModules() {
             setSwapHoverTarget(null)
           }
         }}
-        style={{ minHeight: '100%' }}
+        style={{ minHeight: '100%', padding: '12px 0' }}
       >
       {sidebarConfig.categories.map((cat) => (
         <div
@@ -347,6 +390,37 @@ export default function SettingsModules() {
               setModDragFromCat(cat.id)
             }}
             onDragEnd={handleModDragEnd}
+            onDragOver={e => {
+              e.preventDefault()
+              e.stopPropagation()
+              e.dataTransfer.dropEffect = 'move'
+            }}
+            onDrop={e => {
+              e.preventDefault()
+              e.stopPropagation()
+              const data = modDragHref || e.dataTransfer.getData('text/plain')
+              // Category reorder
+              if (data?.startsWith('category:')) {
+                const draggedCatId = data.slice('category:'.length)
+                if (draggedCatId === cat.id) return
+                const config = getSidebarConfig()
+                const cats = [...config.categories]
+                const fromIdx = cats.findIndex(c => c.id === draggedCatId)
+                const toIdx = cats.findIndex(c => c.id === cat.id)
+                if (fromIdx === -1 || toIdx === -1) return
+                const [moved] = cats.splice(fromIdx, 1)
+                cats.splice(toIdx, 0, moved)
+                setSidebarConfig({ ...config, categories: cats })
+                setModDragHref(null); setModDragFromCat(null); setModDropCat(null); setModDropIdx(-1)
+                return
+              }
+              // Also accept module drops on category header (add to end)
+              if (data) {
+                handleModDrop(cat.id, cat.items.length)(e)
+                return
+              }
+              setModDragHref(null); setModDragFromCat(null); setModDropCat(null); setModDropIdx(-1)
+            }}
             onContextMenu={(e) => {
               e.preventDefault()
               setSettingsCtxMenu({
@@ -570,6 +644,7 @@ export default function SettingsModules() {
           </div>
         </div>
       ))}
+
       </div>{/* end drop zone */}
 
       </ResizablePanel>
@@ -589,17 +664,41 @@ export default function SettingsModules() {
           .filter(href => !allCatHrefs.has(href) && !(sidebarConfig.deletedItems || []).some(d => d.href === href))
         const disabledItems = [...disabledBuiltins, ...orphanedCustom]
         return (
-          <ResizablePanel storageKey="sb-unused" title={`Unused ${disabledItems.length || ''}`} panelId="unused" initialX={394} initialY={0} initialW={250} initialH={280} minW={160} minH={100} siblings={getSiblings('unused')} onRectChange={updatePanelRect('unused')} onSwap={handleSwap('unused')} forceRect={forceRects['unused']} swapTarget={swapHoverTarget === 'unused'} onSwapHover={setSwapHoverTarget}>
+          <ResizablePanel storageKey="sb-unused" title={panelTitle('unused', 'Unused')} onTitleChange={t => renamePanelTitle('unused', t)} panelId="unused" initialX={394} initialY={0} initialW={250} initialH={280} minW={160} minH={100} siblings={getSiblings('unused')} onRectChange={updatePanelRect('unused')} onSwap={handleSwap('unused')} forceRect={forceRects['unused']} swapTarget={swapHoverTarget === 'unused'} onSwapHover={setSwapHoverTarget}>
           <div
             onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setModDropCat('__unused__') }}
             onDragLeave={() => { if (modDropCat === '__unused__') setModDropCat(null) }}
             onDrop={e => {
               e.preventDefault()
               const href = modDragHref || e.dataTransfer.getData('text/plain')
+              const fromCat = modDragFromCat
               if (!href) return
 
-              // Handle category drop — disable/delete all items in the category
-              if (href.startsWith('category:')) {
+              // Ignore drops from unused back to unused (prevents accidental toggle)
+              if (fromCat === '__unused__') { /* no-op */ }
+              // Recycle bin → unused: restore item/category but keep disabled
+              else if (fromCat === '__recycle__') {
+                const cfg = getSidebarConfig()
+                if (href.startsWith('restore-category:')) {
+                  // Move recycled category to unused categories
+                  const catId = href.slice('restore-category:'.length)
+                  const rcat = (cfg.recycledCategories || []).find(c => c.id === catId)
+                  if (rcat) {
+                    setSidebarConfig({
+                      ...cfg,
+                      recycledCategories: (cfg.recycledCategories || []).filter(c => c.id !== catId),
+                      unusedCategories: [...(cfg.unusedCategories || []), rcat],
+                    })
+                  }
+                } else {
+                  setSidebarConfig({
+                    ...cfg,
+                    deletedItems: (cfg.deletedItems || []).filter(d => d.href !== href),
+                  })
+                }
+              }
+              // Handle category drop — move to unused categories
+              else if (href.startsWith('category:')) {
                 const catId = href.slice('category:'.length)
                 const cat = sidebarConfig.categories.find(c => c.id === catId)
                 if (cat) {
@@ -611,9 +710,12 @@ export default function SettingsModules() {
                   })
                 }
               } else {
+                // Module from sidebar → unused: disable it
                 const item = resolveItem(href)
                 if (item?.moduleId && enabledModules.includes(item.moduleId)) {
                   toggleModule(item.moduleId)
+                } else if (!href.startsWith('/custom/')) {
+                  // Already disabled — no-op
                 } else {
                   // Custom module — remove from category (orphan it)
                   const cfg = getSidebarConfig()
@@ -655,6 +757,23 @@ export default function SettingsModules() {
                       draggable
                       onDragStart={handleModDragStart(href, '__unused__')}
                       onDragEnd={handleModDragEnd}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        setSettingsCtxMenu({
+                          x: e.clientX, y: e.clientY,
+                          items: [
+                            { label: 'Enable', icon: Plus, onClick: () => {
+                              if (item?.moduleId) toggleModule(item.moduleId)
+                              else {
+                                const cfg = getSidebarConfig()
+                                const first = cfg.categories[0]
+                                if (first) setSidebarConfig({ ...cfg, categories: cfg.categories.map(c => c === first ? { ...c, items: [...c.items, href] } : c) })
+                              }
+                            }},
+                            { label: 'Delete', icon: Trash2, onClick: () => softDeleteItem(href), danger: true },
+                          ],
+                        })
+                      }}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -762,7 +881,7 @@ export default function SettingsModules() {
       })()}
 
       {/* Customize panel */}
-      <ResizablePanel storageKey="sb-customize" title="Customize" panelId="customize" initialX={658} initialY={0} initialW={280} initialH={600} minW={200} minH={200} siblings={getSiblings('customize')} onRectChange={updatePanelRect('customize')} onSwap={handleSwap('customize')} forceRect={forceRects['customize']} swapTarget={swapHoverTarget === 'customize'} onSwapHover={setSwapHoverTarget}>
+      <ResizablePanel storageKey="sb-customize" title={panelTitle('customize', 'Customize')} onTitleChange={t => renamePanelTitle('customize', t)} panelId="customize" initialX={658} initialY={0} initialW={280} initialH={600} minW={200} minH={200} siblings={getSiblings('customize')} onRectChange={updatePanelRect('customize')} onSwap={handleSwap('customize')} forceRect={forceRects['customize']} swapTarget={swapHoverTarget === 'customize'} onSwapHover={setSwapHoverTarget}>
         <div style={{ padding: '8px 12px' }}>
           <div style={{ ...row, padding: '8px 0' }}>
             <span style={{ fontSize: '12px' }}>Header</span>
@@ -950,9 +1069,62 @@ export default function SettingsModules() {
       {(() => {
         const deleted = sidebarConfig.deletedItems || []
         return (
-          <ResizablePanel storageKey="sb-recycle" title={`Recycle Bin ${deleted.length}`} panelId="recycle" initialX={394} initialY={294} initialW={250} initialH={306} minW={160} minH={100} siblings={getSiblings('recycle')} onRectChange={updatePanelRect('recycle')} onSwap={handleSwap('recycle')} forceRect={forceRects['recycle']} swapTarget={swapHoverTarget === 'recycle'} onSwapHover={setSwapHoverTarget}>
-            <div style={{ padding: '4px 0' }}>
-              {deleted.length === 0 && (
+          <ResizablePanel storageKey="sb-recycle" title={panelTitle('recycle', 'Recycle Bin')} onTitleChange={t => renamePanelTitle('recycle', t)} panelId="recycle" initialX={394} initialY={294} initialW={250} initialH={306} minW={160} minH={100} siblings={getSiblings('recycle')} onRectChange={updatePanelRect('recycle')} onSwap={handleSwap('recycle')} forceRect={forceRects['recycle']} swapTarget={swapHoverTarget === 'recycle'} onSwapHover={setSwapHoverTarget}
+            onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+            onDrop={e => {
+              e.preventDefault()
+              const href = modDragHref || e.dataTransfer.getData('text/plain')
+              if (!href) return
+              // Handle unused category → recycle bin
+              if (href.startsWith('restore-category:')) {
+                const catId = href.slice('restore-category:'.length)
+                const cfg = getSidebarConfig()
+                const ucat = (cfg.unusedCategories || []).find(c => c.id === catId)
+                if (ucat) {
+                  setSidebarConfig({
+                    ...cfg,
+                    unusedCategories: (cfg.unusedCategories || []).filter(c => c.id !== catId),
+                    recycledCategories: [...(cfg.recycledCategories || []), ucat],
+                  })
+                }
+                setModDragHref(null); setModDragFromCat(null); setModDropCat(null); setModDropIdx(-1); setSwapHoverTarget(null)
+                return
+              }
+              // Handle active category → recycle bin
+              if (href.startsWith('category:')) {
+                const catId = href.slice('category:'.length)
+                const config = getSidebarConfig()
+                const cat = config.categories.find(c => c.id === catId)
+                if (cat) {
+                  setSidebarConfig({
+                    ...config,
+                    categories: config.categories.filter(c => c.id !== catId),
+                    recycledCategories: [...(config.recycledCategories || []), cat],
+                  })
+                }
+                setModDragHref(null); setModDragFromCat(null); setModDropCat(null); setModDropIdx(-1); setSwapHoverTarget(null)
+                return
+              }
+              const config = getSidebarConfig()
+              const inCategory = config.categories.some(c => c.items.includes(href))
+              if (inCategory) {
+                softDeleteItem(href)
+              } else {
+                const deleted = { href, fromCatId: '', deletedAt: Date.now() }
+                setSidebarConfig({
+                  ...config,
+                  deletedItems: [...(config.deletedItems || []), deleted],
+                })
+              }
+              setModDragHref(null)
+              setModDragFromCat(null)
+              setModDropCat(null)
+              setModDropIdx(-1)
+              setSwapHoverTarget(null)
+            }}
+          >
+            <div style={{ padding: '4px 0', minHeight: '60px' }}>
+              {deleted.length === 0 && (sidebarConfig.recycledCategories || []).length === 0 && (
                 <div style={{ padding: '16px 12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px', fontStyle: 'italic' }}>
                   Recycle bin is empty
                 </div>
@@ -962,9 +1134,22 @@ export default function SettingsModules() {
                 const Icon = item?.icon || FileText
                 const name = sidebarConfig.customNames[d.href] || item?.label || d.href
                 return (
-                  <div key={d.href} style={{
+                  <div key={d.href}
+                    draggable
+                    onDragStart={e => {
+                      e.dataTransfer.setData('text/plain', d.href)
+                      e.dataTransfer.effectAllowed = 'move'
+                      setModDragHref(d.href)
+                      setModDragFromCat('__recycle__')
+                      if (e.currentTarget instanceof HTMLElement) e.currentTarget.style.opacity = '0.3'
+                    }}
+                    onDragEnd={e => {
+                      handleModDragEnd(e)
+                      if (e.currentTarget instanceof HTMLElement) e.currentTarget.style.opacity = '0.6'
+                    }}
+                    style={{
                     display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 12px',
-                    borderRadius: '6px', margin: '0 4px', opacity: 0.6,
+                    borderRadius: '6px', margin: '0 4px', opacity: 0.6, cursor: 'grab',
                   }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--hover-bg)'; (e.currentTarget as HTMLElement).style.opacity = '1' }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.opacity = '0.6' }}
@@ -986,10 +1171,81 @@ export default function SettingsModules() {
                   </div>
                 )
               })}
-              {deleted.length > 0 && (
+              {/* Recycled categories */}
+              {(sidebarConfig.recycledCategories || []).map(rcat => (
+                <div
+                  key={rcat.id}
+                  draggable
+                  onDragStart={e => {
+                    e.dataTransfer.setData('text/plain', `restore-category:${rcat.id}`)
+                    e.dataTransfer.effectAllowed = 'move'
+                    setModDragHref(`restore-category:${rcat.id}`)
+                    setModDragFromCat('__recycle__')
+                    if (e.currentTarget instanceof HTMLElement) e.currentTarget.style.opacity = '0.3'
+                  }}
+                  onDragEnd={e => {
+                    handleModDragEnd(e)
+                    if (e.currentTarget instanceof HTMLElement) e.currentTarget.style.opacity = '1'
+                  }}
+                  style={{ margin: '4px', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden', cursor: 'grab' }}
+                >
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '6px 10px', background: 'rgba(255,255,255,0.02)',
+                    borderBottom: rcat.items.length > 0 ? '1px solid var(--border)' : 'none',
+                  }}>
+                    <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                      {rcat.name}
+                    </span>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button
+                        onClick={() => {
+                          const cfg = getSidebarConfig()
+                          setSidebarConfig({
+                            ...cfg,
+                            categories: [...cfg.categories, rcat],
+                            recycledCategories: (cfg.recycledCategories || []).filter(c => c.id !== rcat.id),
+                          })
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', padding: '2px 6px', background: 'transparent', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '9px', fontWeight: 600 }}
+                      >
+                        Restore
+                      </button>
+                      <button
+                        onClick={() => {
+                          const cfg = getSidebarConfig()
+                          setSidebarConfig({
+                            ...cfg,
+                            recycledCategories: (cfg.recycledCategories || []).filter(c => c.id !== rcat.id),
+                          })
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', padding: '2px 6px', background: 'transparent', border: '1px solid var(--red-a30)', borderRadius: '4px', color: 'var(--red)', cursor: 'pointer', fontSize: '9px', fontWeight: 600 }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                  {rcat.items.map(href => {
+                    const item = resolveItem(href)
+                    if (!item) return null
+                    const Icon = item.icon
+                    return (
+                      <div key={href} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', opacity: 0.5 }}>
+                        <Icon size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{sidebarConfig.customNames[href] || item.label}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+              {(deleted.length > 0 || (sidebarConfig.recycledCategories || []).length > 0) && (
                 <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', marginTop: '4px' }}>
                   <button
-                    onClick={emptyRecycleBin}
+                    onClick={() => {
+                      emptyRecycleBin()
+                      const cfg = getSidebarConfig()
+                      setSidebarConfig({ ...cfg, recycledCategories: [] })
+                    }}
                     style={{ ...btnSecondary, padding: '4px 10px', fontSize: '10px', color: 'var(--red)', borderColor: 'var(--red-a30)' }}
                   >
                     Empty Recycle Bin

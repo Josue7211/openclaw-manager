@@ -25,6 +25,7 @@ const SYNCED_KEYS = [
   'sidebar-width',
   'keybindings',
   'enabled-modules',
+  'sidebar-config',
 ] as const
 
 type SyncedKey = typeof SYNCED_KEYS[number]
