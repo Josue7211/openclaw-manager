@@ -199,8 +199,8 @@ const NavSection = React.memo(function NavSection({
 
   return (
     <div style={{ marginBottom: collapsed ? '2px' : '4px' }}>
-      {/* Section label — slides up like search bar below 130px */}
-      <div style={{
+      {/* Section label — slides up like search bar below 130px; hidden for standalone items */}
+      {label ? <div style={{
         height: `${labelHeight}px`,
         opacity: labelOpacity,
         overflow: 'hidden',
@@ -228,7 +228,7 @@ const NavSection = React.memo(function NavSection({
             </span>
           )}
         </button>
-      </div>
+      </div> : null}
       <div style={{
         display: 'grid',
         gridTemplateRows: (open || collapsed) ? '1fr' : '0fr',
@@ -1189,7 +1189,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
           const isEditingThisCat = editingCatId === cat.id
           return (
             <React.Fragment key={cat.id}>
-              {idx > 0 && <SectionDivider />}
+              {idx > 0 && cat.name && <SectionDivider />}
               {isEditingThisCat ? (
                 /* Inline category rename */
                 <div style={{ marginBottom: collapsed ? '2px' : '4px', padding: '8px 12px' }}>

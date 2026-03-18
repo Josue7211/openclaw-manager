@@ -1,4 +1,4 @@
-import { useState, useCallback, useSyncExternalStore } from 'react'
+import React, { useState, useCallback, useSyncExternalStore } from 'react'
 import { FileText, Plus, Trash2, Pencil, ArrowUp, ArrowDown, EyeOff, GripVertical } from 'lucide-react'
 import { APP_MODULES, getEnabledModules, setEnabledModules, subscribeModules } from '@/lib/modules'
 import {
@@ -15,6 +15,39 @@ import Toggle from './Toggle'
 import { row, btnSecondary, sectionLabel } from './shared'
 
 const GAP_BETWEEN_PANELS = 16 // must match GAP in ResizablePanel
+
+function InterCategoryDropZone({ index, active, onDragOver, onDragLeave, onDrop, modDragHref, setModDragHref, setModDragFromCat, setModDropCat, setModDropIdx }: {
+  index: number; active: boolean
+  onDragOver: () => void; onDragLeave: () => void; onDrop: (href: string) => void
+  modDragHref: string | null
+  setModDragHref: (v: string | null) => void; setModDragFromCat: (v: string | null) => void
+  setModDropCat: (v: string | null) => void; setModDropIdx: (v: number) => void
+}) {
+  return (
+    <div
+      onDragOver={e => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move'; onDragOver() }}
+      onDragLeave={onDragLeave}
+      onDrop={e => {
+        e.preventDefault(); e.stopPropagation()
+        const href = modDragHref || e.dataTransfer.getData('text/plain')
+        if (!href) return
+        onDrop(href)
+        setModDragHref(null); setModDragFromCat(null); setModDropCat(null); setModDropIdx(-1)
+      }}
+      style={{
+        height: active ? '28px' : '12px',
+        margin: '0 8px',
+        borderRadius: '6px',
+        border: active ? '1px dashed var(--accent)' : '1px dashed transparent',
+        background: active ? 'rgba(155, 132, 236, 0.08)' : 'transparent',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        transition: 'all 0.15s',
+      }}
+    >
+      {active && <span style={{ fontSize: '9px', color: 'var(--accent)', fontWeight: 600 }}>Drop here</span>}
+    </div>
+  )
+}
 
 export default function SettingsModules() {
   const enabledModules = useSyncExternalStore(subscribeModules, getEnabledModules)
@@ -128,6 +161,8 @@ export default function SettingsModules() {
   }
 
   const handleModDragOver = (catId: string, index: number) => (e: React.DragEvent) => {
+    // Don't accept category drags on module drop zones
+    if (modDragHref?.startsWith('category:') || modDragHref?.startsWith('restore-category:')) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     setModDropCat(catId)
@@ -359,18 +394,46 @@ export default function SettingsModules() {
         }}
         style={{ minHeight: '100%', padding: '12px 0' }}
       >
-      {sidebarConfig.categories.map((cat) => (
+      {sidebarConfig.categories.map((cat, catIdx) => (
+        <React.Fragment key={cat.id}>
+        {/* Inter-category drop zone — drop a module here to place it between categories */}
+        {catIdx === 0 && modDragHref && !modDragHref.startsWith('category:') && !modDragHref.startsWith('restore-category:') && (
+          <InterCategoryDropZone index={0} active={modDropCat === '__between_0__'} onDragOver={() => setModDropCat('__between_0__')} onDragLeave={() => { if (modDropCat === '__between_0__') setModDropCat(null) }} onDrop={(href) => {
+            const config = getSidebarConfig()
+            const cats = config.categories.map(c => ({ ...c, items: c.items.filter(h => h !== href) }))
+            const id = `standalone-${Date.now()}`
+            cats.splice(0, 0, { id, name: '', items: [href] })
+            const item = resolveItem(href)
+            if (item?.moduleId && !enabledModules.includes(item.moduleId)) toggleModule(item.moduleId)
+            setSidebarConfig({ ...config, categories: cats, deletedItems: (config.deletedItems || []).filter(d => d.href !== href) })
+          }} modDragHref={modDragHref} setModDragHref={setModDragHref} setModDragFromCat={setModDragFromCat} setModDropCat={setModDropCat} setModDropIdx={setModDropIdx} />
+        )}
         <div
           key={cat.id}
+          draggable={!cat.name}
+          onDragStart={!cat.name ? (e => {
+            e.dataTransfer.setData('text/plain', `category:${cat.id}`)
+            e.dataTransfer.effectAllowed = 'move'
+            setModDragHref(`category:${cat.id}`)
+            setModDragFromCat(cat.id)
+            if (e.currentTarget instanceof HTMLElement) e.currentTarget.style.opacity = '0.3'
+          }) : undefined}
+          onDragEnd={!cat.name ? (e => {
+            handleModDragEnd(e)
+            if (e.currentTarget instanceof HTMLElement) e.currentTarget.style.opacity = '1'
+          }) : undefined}
           style={{
-            marginBottom: '16px',
-            borderRadius: '10px',
-            border: '1px solid var(--border)',
+            marginBottom: cat.name ? '16px' : '2px',
+            borderRadius: cat.name ? '10px' : '6px',
+            border: cat.name ? '1px solid var(--border)' : 'none',
             background: modDropCat === cat.id && modDragHref ? 'rgba(155, 132, 236, 0.04)' : 'transparent',
-            transition: 'background 0.15s',
+            transition: 'background 0.15s, opacity 0.15s',
             overflow: 'hidden',
+            cursor: !cat.name ? 'grab' : undefined,
           }}
           onDragOver={(e) => {
+            // Don't accept category drags on module areas
+            if (modDragHref?.startsWith('category:') || modDragHref?.startsWith('restore-category:')) return
             e.preventDefault()
             e.dataTransfer.dropEffect = 'move'
             if (cat.items.length === 0) {
@@ -380,16 +443,20 @@ export default function SettingsModules() {
           }}
           onDrop={cat.items.length === 0 ? handleModDrop(cat.id, 0) : undefined}
         >
-          {/* Category header */}
-          <div
+          {/* Category header — hidden for standalone items */}
+          {cat.name ? <div
             draggable
             onDragStart={e => {
               e.dataTransfer.setData('text/plain', `category:${cat.id}`)
               e.dataTransfer.effectAllowed = 'move'
               setModDragHref(`category:${cat.id}`)
               setModDragFromCat(cat.id)
+              if (e.currentTarget.parentElement instanceof HTMLElement) e.currentTarget.parentElement.style.opacity = '0.3'
             }}
-            onDragEnd={handleModDragEnd}
+            onDragEnd={e => {
+              handleModDragEnd(e)
+              if (e.currentTarget.parentElement instanceof HTMLElement) e.currentTarget.parentElement.style.opacity = '1'
+            }}
             onDragOver={e => {
               e.preventDefault()
               e.stopPropagation()
@@ -515,7 +582,7 @@ export default function SettingsModules() {
                 </button>
               )}
             </div>
-          </div>
+          </div> : null}
 
           {/* Items */}
           <div style={{ padding: cat.items.length > 0 ? '4px 0' : '0' }}>
@@ -643,6 +710,19 @@ export default function SettingsModules() {
             )}
           </div>
         </div>
+        {/* Inter-category drop zone after this category */}
+        {modDragHref && !modDragHref.startsWith('category:') && !modDragHref.startsWith('restore-category:') && (
+          <InterCategoryDropZone index={catIdx + 1} active={modDropCat === `__between_${catIdx + 1}__`} onDragOver={() => setModDropCat(`__between_${catIdx + 1}__`)} onDragLeave={() => { if (modDropCat === `__between_${catIdx + 1}__`) setModDropCat(null) }} onDrop={(href) => {
+            const config = getSidebarConfig()
+            const cats = config.categories.map(c => ({ ...c, items: c.items.filter(h => h !== href) }))
+            const id = `standalone-${Date.now()}`
+            cats.splice(catIdx + 1, 0, { id, name: '', items: [href] })
+            const item = resolveItem(href)
+            if (item?.moduleId && !enabledModules.includes(item.moduleId)) toggleModule(item.moduleId)
+            setSidebarConfig({ ...config, categories: cats, deletedItems: (config.deletedItems || []).filter(d => d.href !== href) })
+          }} modDragHref={modDragHref} setModDragHref={setModDragHref} setModDragFromCat={setModDragFromCat} setModDropCat={setModDropCat} setModDropIdx={setModDropIdx} />
+        )}
+        </React.Fragment>
       ))}
 
       </div>{/* end drop zone */}
