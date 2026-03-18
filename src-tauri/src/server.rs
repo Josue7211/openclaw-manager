@@ -570,8 +570,8 @@ pub async fn start(
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_secs() as i64;
-                // Only restore if less than 1 hour old
-                if now - created_at < 3600 {
+                // Only restore if less than 24 hours old
+                if now - created_at < 86400 {
                     match serde_json::from_str::<UserSession>(&data) {
                         Ok(sess) => {
                             tracing::info!(user_id = %sess.user_id, "dev session restored from SQLite");
@@ -580,7 +580,7 @@ pub async fn start(
                         Err(_) => None,
                     }
                 } else {
-                    tracing::info!("dev session expired (>1h) — login required");
+                    tracing::info!("dev session expired (>24h) — login required");
                     sqlx::query("DELETE FROM _dev_session").execute(&db).await.ok();
                     None
                 }
