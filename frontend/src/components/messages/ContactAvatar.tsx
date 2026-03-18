@@ -1,4 +1,4 @@
-import { useEffect, useState, memo } from 'react'
+import { useEffect, useState, useSyncExternalStore, memo } from 'react'
 import { User, Users } from 'lucide-react'
 import { API_BASE, api } from '@/lib/api'
 import { LRUCache } from '@/lib/lru-cache'
@@ -26,6 +26,19 @@ function hashColor(str: string): string {
 
 const avatarCache = new LRUCache<string, 'ok' | 'miss'>(500)
 
+// Reactive subscription so components re-render when batch check completes
+let batchVersion = 0
+const batchListeners = new Set<() => void>()
+function subscribeBatch(cb: () => void) {
+  batchListeners.add(cb)
+  return () => { batchListeners.delete(cb) }
+}
+function getBatchVersion() { return batchVersion }
+function notifyBatchDone() {
+  batchVersion++
+  batchListeners.forEach(cb => cb())
+}
+
 // Batch-check which addresses have avatars (called once per conversation list load)
 let batchCheckPromise: Promise<void> | null = null
 
@@ -43,7 +56,10 @@ export function ensureAvatarBatchCheck(addresses: string[]) {
       // On failure, mark all as miss to avoid retry storm
       for (const addr of unchecked) avatarCache.set(addr, 'miss')
     })
-    .finally(() => { batchCheckPromise = null })
+    .finally(() => {
+      batchCheckPromise = null
+      notifyBatchDone()
+    })
 }
 
 /* ─── Types used locally ─────────────────────────────────────────────── */
@@ -76,12 +92,18 @@ export const ContactAvatar = memo(function ContactAvatar({ address, name, isImsg
   const initial = hasSavedName ? name!.charAt(0).toUpperCase() : null
   const bgColor = hashColor(address || name || 'default')
 
+  // Re-render when the batch avatar check completes
+  const version = useSyncExternalStore(subscribeBatch, getBatchVersion, getBatchVersion)
+
   useEffect(() => {
     setPhotoUrl(null)
     if (!address) return
-    // Skip fetch if we already know there's no avatar
     const cached = avatarCache.get(address)
     if (cached === 'miss') return
+
+    // If a batch check is in flight and we don't have a cache entry yet,
+    // wait for it rather than firing individual image loads that race.
+    if (cached === undefined && batchCheckPromise) return
 
     let cancelled = false
     const url = `${API_BASE}/api/messages/avatar?address=${encodeURIComponent(address)}`
@@ -94,7 +116,7 @@ export const ContactAvatar = memo(function ContactAvatar({ address, name, isImsg
     }
     img.src = url
     return () => { cancelled = true }
-  }, [address])
+  }, [address, version])
 
   if (photoUrl) {
     return (

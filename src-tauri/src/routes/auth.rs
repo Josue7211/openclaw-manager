@@ -474,7 +474,7 @@ async fn login(
             )
             .await;
             check_failed_login_alert(&state.db).await;
-            return Err(AppError::BadRequest(format!("login failed: {e}")));
+            return Err(AppError::BadRequest("Invalid email or password".into()));
         }
     };
 
@@ -916,10 +916,21 @@ async fn start_oauth(
         )));
     }
 
-    let (verifier, challenge) = crate::gotrue::generate_pkce();
+    // If an OAuth flow was initiated recently (< 120s), return the same URL
+    // instead of generating a new PKCE pair. This prevents double-click or
+    // re-render from overwriting the verifier that Supabase expects.
+    {
+        let guard = state.pending_oauth.read().await;
+        if let Some(ref flow) = *guard {
+            let age = epoch_secs() - flow.created_at;
+            if age < 120 {
+                tracing::info!(provider = %provider, age_secs = age, "OAuth flow already in progress — returning existing URL");
+                return Ok(Json(json!({ "url": flow.url, "nonce": flow.nonce })));
+            }
+        }
+    }
 
-    // Store verifier for the callback
-    *state.pkce_verifier.write().await = Some(verifier);
+    let (verifier, challenge) = crate::gotrue::generate_pkce();
 
     let supabase_url = state
         .secret("SUPABASE_URL")
@@ -932,12 +943,19 @@ async fn start_oauth(
         &challenge,
     );
 
-    // Also generate nonce for CSRF protection (existing pattern)
     let nonce = random_uuid();
     {
         let mut guard = OAUTH_NONCE.lock().unwrap_or_else(|e| e.into_inner());
         *guard = Some(nonce.clone());
     }
+
+    // Store the full flow state so duplicate calls return the same URL
+    *state.pending_oauth.write().await = Some(crate::server::PendingOAuthFlow {
+        verifier,
+        nonce: nonce.clone(),
+        url: url.clone(),
+        created_at: epoch_secs(),
+    });
 
     tracing::info!(provider = %provider, "OAuth flow initiated");
 
@@ -1143,6 +1161,10 @@ async fn mfa_verify(
     // was skipped or failed (e.g. RLS policies that require aal2).
     if let Some(ref sess) = upgraded_session {
         load_user_secrets(&state, sess).await;
+
+        // In dev mode, persist session to SQLite so it survives restarts
+        #[cfg(debug_assertions)]
+        crate::server::save_dev_session(&state.db, sess).await;
     }
 
     Ok(Json(json!({ "ok": true })))
@@ -1389,7 +1411,7 @@ fn callback_page(title: &str, heading: &str, msg: &str, is_error: bool) -> Strin
 <h1 class="{h1_class}">{heading}</h1>
 <p>{msg}</p>
 </div>
-<script>setTimeout(function(){{window.close()}},10000)</script>
+<script>setTimeout(function(){{window.close()}},2000)</script>
 </body></html>"##,
         title = title,
         style = PAGE_STYLE,
@@ -1444,7 +1466,7 @@ async fn oauth_callback(
 
     if let Some(code) = params.code {
         // Try PKCE exchange to establish a server-side session immediately
-        let verifier = state.pkce_verifier.read().await.clone();
+        let verifier = state.pending_oauth.read().await.as_ref().map(|f| f.verifier.clone());
         if let Some(verifier) = verifier {
             if let Ok(gotrue) = GoTrueClient::from_state(&state) {
                 match gotrue.exchange_code_for_session(&code, &verifier).await {
@@ -1521,9 +1543,9 @@ async fn oauth_callback(
                         };
                         *state.session.write().await = Some(session.clone());
                         {
-                            let mut guard = state.pkce_verifier.write().await;
-                            if let Some(ref mut v) = *guard {
-                                v.zeroize();
+                            let mut guard = state.pending_oauth.write().await;
+                            if let Some(ref mut flow) = *guard {
+                                flow.verifier.zeroize();
                             }
                             *guard = None;
                         }
@@ -1548,9 +1570,9 @@ async fn oauth_callback(
                     }
                     Err(e) => {
                         // Zeroize and clear the PKCE verifier even on failure
-                        let mut guard = state.pkce_verifier.write().await;
-                        if let Some(ref mut v) = *guard {
-                            v.zeroize();
+                        let mut guard = state.pending_oauth.write().await;
+                        if let Some(ref mut flow) = *guard {
+                            flow.verifier.zeroize();
                         }
                         *guard = None;
                         tracing::warn!("[oauth-callback] PKCE exchange failed: {e}");
@@ -1565,7 +1587,7 @@ async fn oauth_callback(
         Ok(Html(callback_page(
             "Signed In",
             "Signed in!",
-            "Close this tab and return to Mission Control.<br>This tab will close automatically in 10 seconds.",
+            "You\u{2019}re all set! You can close this tab and return to Mission Control.",
             false,
         )))
     } else {

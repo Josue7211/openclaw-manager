@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect, lazy, Suspense } from 'react'
 import { Trash2, Network, PenLine, Cloud, CloudOff, GitBranch } from 'lucide-react'
 import { useVault } from '@/hooks/notes/useVault'
 import { noteIdFromTitle } from '@/lib/vault'
+import { API_BASE, api } from '@/lib/api'
 import FileTree from './FileTree'
 import NoteEditor from './NoteEditor'
 import type { VaultNote } from './types'
@@ -13,7 +14,7 @@ type ViewMode = 'editor' | 'graph'
 export default function NotesPage() {
   const { notes, loading, syncing, createNote, updateNote, deleteNote } = useVault()
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>('editor')
+  const [viewMode, setViewMode] = useState<ViewMode>('graph')
   const [searchQuery, setSearchQuery] = useState('')
   const [treeWidth, setTreeWidth] = useState(220)
   const [editingTitle, setEditingTitle] = useState(false)
@@ -315,11 +316,15 @@ export default function NotesPage() {
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           {viewMode === 'editor' ? (
             selected ? (
-              <NoteEditor
-                note={selected}
-                onChange={handleContentChange}
-                onWikilinkClick={handleWikilinkClick}
-              />
+              selected.type === 'attachment' ? (
+                <AttachmentPreview id={selected._id} />
+              ) : (
+                <NoteEditor
+                  note={selected}
+                  onChange={handleContentChange}
+                  onWikilinkClick={handleWikilinkClick}
+                />
+              )
             ) : (
               <EmptyState onCreateNote={() => handleCreate()} />
             )
@@ -341,6 +346,97 @@ export default function NotesPage() {
             </Suspense>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+function AttachmentPreview({ id }: { id: string }) {
+  const name = id.split('/').pop() || id
+  const ext = name.split('.').pop()?.toLowerCase() || 'png'
+  const mimeMap: Record<string, string> = {
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+    gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp',
+  }
+  const mime = mimeMap[ext] || 'image/png'
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    setBlobUrl(null)
+    setError(null)
+
+    // Use the EXISTING /vault/notes/{id} endpoint — it fetches any CouchDB doc
+    // and assembles chunks. For images, the "content" field is base64 image data.
+    async function load(retries = 3) {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const resp = await api.get<any>(
+            `/api/vault/doc?id=${encodeURIComponent(id)}`,
+          )
+          if (cancelled) return
+          const doc = resp?.data || resp
+          const content = (doc?.content || '').replace(/\s/g, '')
+          if (content) {
+            setBlobUrl(`data:${mime};base64,${content}`)
+            return
+          }
+          throw new Error('No content in response')
+        } catch {
+          if (cancelled) return
+          if (i < retries - 1) await new Promise(r => setTimeout(r, 1000 * (i + 1)))
+        }
+      }
+      if (!cancelled) setError('Failed to load image')
+    }
+    load()
+
+    return () => {
+      cancelled = true
+      setBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null })
+    }
+  }, [id, attempt])
+
+  return (
+    <div style={{
+      flex: 1, display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      overflow: 'auto', padding: 32,
+      background: 'var(--bg-base)',
+    }}>
+      {blobUrl && (
+        <img
+          src={blobUrl}
+          alt={name}
+          style={{
+            maxWidth: '100%', maxHeight: '80vh',
+            objectFit: 'contain', borderRadius: 8,
+            boxShadow: '0 2px 16px rgba(0,0,0,0.3)',
+          }}
+        />
+      )}
+      {error && (
+        <button
+          onClick={() => { setError(null); setAttempt(a => a + 1) }}
+          style={{
+            background: 'var(--bg-white-04)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)',
+            cursor: 'pointer', padding: '8px 16px', fontSize: 12,
+          }}
+        >
+          Retry loading image
+        </button>
+      )}
+      {!blobUrl && !error && (
+        <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Loading...</div>
+      )}
+      <div style={{
+        marginTop: 12, fontSize: 12,
+        color: 'var(--text-muted)', opacity: 0.6,
+      }}>
+        {name}
       </div>
     </div>
   )

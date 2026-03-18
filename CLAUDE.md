@@ -15,7 +15,7 @@ This is open source software that handles private data. **Zero private data may 
 - **ALL** service URLs (BlueBubbles, OpenClaw, Supabase) come from user configuration (Settings → Connections or `.env.local`) — never hardcoded
 - **Redact** credentials from all log output — use `redact_bb_url()` and never log raw URLs with passwords
 - **No telemetry, no analytics, no phone-home** — the app is fully self-hosted and offline-capable
-- `.gitignore` must exclude: `.env*`, `*.log`, `target/`, `node_modules/`, SQLite databases, keychain exports
+- `.gitignore` must exclude: `.env*`, `*.log`, `target/`, `node_modules/`, SQLite databases, keychain exports, `.playwright-mcp/`
 - Screenshots in docs must have personal data (messages, contacts, IPs) redacted
 - The `MC_API_KEY` is auto-generated per install and stored in the OS keychain — it is never shared or transmitted
 
@@ -40,24 +40,24 @@ The system runs across multiple machines. The Tauri app must work on ANY machine
 │  │  ├── React frontend (Vite, port 5173)                 │  │
 │  │  └── Embedded Axum server (localhost:3000)             │  │
 │  │      ├── Proxies to BlueBubbles (macOS only)          │  │
+│  │      ├── Proxies to Mac Bridge (macOS only)           │  │
 │  │      ├── Proxies to OpenClaw VM                       │  │
+│  │      ├── Proxies to CouchDB (Obsidian notes)          │  │
 │  │      └── Queries Supabase directly                    │  │
 │  └───────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
-         │                    │                    │
-         ▼                    ▼                    ▼
-┌─────────────────┐  ┌────────────────┐  ┌─────────────────────┐
-│  MACBOOK         │  │  OPENCLAW VM   │  │  SERVICES VM        │
-│  (macOS)         │  │  (Linux)       │  │  (Linux)            │
-│                  │  │                │  │                     │
-│  BlueBubbles     │  │  AI agents     │  │  Supabase (self-    │
-│  iMessage bridge │  │  running       │  │    hosted PostgreSQL│
-│  on personal Mac │  │  missions,     │  │    + Realtime       │
-│                  │  │  coding tasks  │  │    + Auth)          │
-│  Tailscale IP:   │  │                │  │                     │
-│  100.x.x.x:1234 │  │  Tailscale IP: │  │  Vaultwarden,      │
-│                  │  │  100.x.x.x     │  │  Minecraft, etc.   │
-└─────────────────┘  └────────────────┘  └─────────────────────┘
+     │              │              │              │
+     ▼              ▼              ▼              ▼
+┌──────────┐ ┌───────────┐ ┌───────────┐ ┌─────────────────┐
+│ MACBOOK  │ │ OPENCLAW  │ │ SERVICES  │ │ PLEX VM         │
+│ (macOS)  │ │ VM (Linux)│ │ VM (Linux)│ │ (Linux)         │
+│          │ │           │ │           │ │                 │
+│ BlueBub. │ │ AI agents │ │ Supabase  │ │ Cloudflare      │
+│ iMessage │ │ OpenClaw  │ │ Postgres  │ │  Tunnel gateway │
+│ Mac      │ │ LiteLLM   │ │ CouchDB   │ │ Plex, Sonarr,  │
+│  Bridge  │ │           │ │ Vaultwrdn │ │  Radarr, etc.   │
+│          │ │           │ │ Firecrawl │ │                 │
+└──────────┘ └───────────┘ └───────────┘ └─────────────────┘
 ```
 
 **Key implications:**
@@ -68,6 +68,14 @@ The system runs across multiple machines. The Tauri app must work on ANY machine
 - Supabase is self-hosted on a separate services VM
 - The app connects to all services via Tailscale IPs, configured in `.env.local`
 - ALL data flows through APIs — no local file access for remote data
+- Plex VM runs the Cloudflare Tunnel — it's the gateway for all `*.aparcedo.org` subdomains
+
+**Infrastructure security posture:**
+- All VMs: UFW firewall active, SSH key-only (passphrase-protected), fail2ban, kernel hardening (sysctl), unattended-upgrades
+- Services-VM: Docker log rotation (`daemon.json`), container resource limits, PostgreSQL/Portainer/Vaultwarden/CouchDB bound to 127.0.0.1
+- Plex-VM: Cloudflare Tunnel gateway, Plex port 32400 open for remote streaming, WireGuard keys in `.env` (chmod 600)
+- OpenClaw-VM: RDP disabled, LiteLLM auth enabled, OpenClaw gateway firewalled to LAN
+- SSH key `~/.ssh/mission-control` has a passphrase — non-interactive SSH from Bash tool will fail. Give commands to user instead.
 
 ## Tech Stack
 
@@ -75,9 +83,12 @@ The system runs across multiple machines. The Tauri app must work on ANY machine
 Frontend: React 18 + Vite + TypeScript + TanStack React Query
 Backend:  Rust (Tauri v2 + embedded Axum server on localhost:3000)
 Database: Supabase (self-hosted PostgreSQL + Realtime + Auth)
+Notes:    CouchDB (Obsidian LiveSync format, proxied through Axum)
 Messages: BlueBubbles API (macOS iMessage bridge, remote via Tailscale)
 AI Chat:  OpenClaw gateway (WebSocket + HTTP, remote VM)
+Mac:      Mac Bridge (Reminders, Notes, Contacts, Find My — macOS only)
 Network:  Tailscale mesh VPN connecting all VMs
+Edge:     Cloudflare Access on *.aparcedo.org (GitHub/Google OAuth)
 ```
 
 ## Quick Start
@@ -91,9 +102,9 @@ cd frontend && npm run dev          # Frontend only (browser mode at localhost:5
 ## Testing
 
 ```bash
-cd frontend && npx vitest run       # 837 frontend tests (48 test files)
+cd frontend && npx vitest run       # 1039 frontend tests (53 test files)
 cd frontend && npm run test:e2e     # 21 E2E tests (Playwright via scripts/e2e.sh)
-cd src-tauri && cargo test          # 142 Rust tests
+cd src-tauri && cargo test          # 231 Rust tests
 ./scripts/pre-commit.sh             # Run everything
 ```
 
@@ -115,7 +126,11 @@ npm run db:diff     # Show schema diff
 - `db:types` bypasses the CLI (uses pg-meta API directly) — Docker is not installed locally
 - DB user is `supabase_admin`, not `postgres` — all tables are owned by `supabase_admin`
 - Migration files must use 14-digit timestamp format: `YYYYMMDDHHmmss_name.sql`
-- SSH key: `~/.ssh/mission-control` — aliases `services-vm` (10.0.0.109) and `openclaw-vm` (10.0.0.SERVICES)
+- SSH key: `~/.ssh/mission-control` — aliases `services-vm` (`<SERVICES_VM_IP>`), `openclaw-vm` (`<OPENCLAW_VM_IP>`), and `plex-vm`
+- `db:push` connects via supavisor pooler which may downgrade roles — if migrations fail with "must be owner", push directly: `ssh services-vm "docker exec -i supabase-db psql -U supabase_admin -d postgres" < supabase/migrations/XXXX.sql`
+- After manual push, register migrations: `INSERT INTO supabase_migrations.schema_migrations (version) VALUES ('XXXX') ON CONFLICT DO NOTHING;`
+- Duplicate migration file prefixes (e.g. two `0007_*` files) break sqlx — each must have a unique numeric prefix
+- `cargo tauri dev` doesn't always recompile after editing `.rs` files — `touch` the file to force it
 
 ## Development Workflow — SUBAGENT-DRIVEN
 
@@ -156,7 +171,7 @@ User asks for X
 
 ## Network & Authentication
 
-All inter-service communication runs over a **Tailscale mesh VPN** — nothing is exposed to the public internet. Authentication operates at two distinct layers:
+All inter-service communication runs over a **Tailscale mesh VPN** — nothing is exposed to the public internet. Authentication operates at three distinct layers:
 
 ### Layer 1: Local process isolation (MC_API_KEY)
 
@@ -176,6 +191,10 @@ Remote services (BlueBubbles, OpenClaw, Supabase) are only reachable via Tailsca
 - **No port forwarding**: services bind to Tailscale IPs only, invisible to the public internet
 
 This means the app does not need to manage tokens or API keys for service-to-service auth beyond what each service requires (e.g. BlueBubbles password). The network layer guarantees that only tailnet members can connect.
+
+### Layer 3: Edge authentication (Cloudflare Access)
+
+All `*.aparcedo.org` subdomains are protected by Cloudflare Access (Zero Trust). Users must authenticate via GitHub or Google OAuth before reaching any service. The `supabase.aparcedo.org` subdomain has a Bypass rule since Kong API gateway handles its own key-auth — Cloudflare Access would break the REST/Auth/Realtime API flows.
 
 ### Tailscale peer identity verification
 
@@ -242,6 +261,31 @@ Import `supabase` from `@/lib/supabase/client` — it's a singleton. Never call 
 - CSP blocks `unsafe-eval` — no `Function()` or string-based `setTimeout()`
 - OAuth uses PKCE + nonce verification to prevent code injection
 - Shell permissions scoped to HTTPS/HTTP URLs only
+- Tokens stored server-side only (Rust `AppState.session`) — frontend never sees JWTs
+- MFA hard gate: `RequireAuth` checks `mfa_verified` before all data access
+- 24-hour hard session expiry regardless of token refresh
+- Dev mode: session persisted to `_dev_session` SQLite table (1h expiry, `#[cfg(debug_assertions)]` only)
+- AES-256-GCM for user_secrets encryption, Argon2id key derivation, `zeroize` on drop
+- Constant-time API key comparison via `subtle::ConstantTimeEq`
+- Rate limiting per-user per-path (not shared bucket)
+- SSRF protection with DNS pinning via `reqwest .resolve()`
+
+### Notes / Vault
+- Backend proxy at `/api/vault/*` (`routes/vault.rs`) — CouchDB credentials never reach the frontend
+- CouchDB stores Obsidian LiveSync format: parent docs with `children` array → `h:*` chunk docs with `data` field
+- `eden` field contains inline newborn chunks not yet graduated to standalone docs
+- `newnote` type = base64-encoded chunks; `plain` type = raw text
+- Frontend `lib/vault.ts` uses the `api` wrapper (not raw fetch) — all CRUD through Axum proxy
+- Metadata cached in localStorage (`mc-notes-meta`); full content fetched from backend on demand
+- LiveSync internal docs (`h:*`, `ps:*`, `ix:*`, `cc:*`, `_design/*`) filtered on both backend and frontend
+
+### Mac Bridge (macOS companion service)
+- REST API on MacBook exposing Apple services: Reminders, Notes, Contacts, Find My, Messages (mark-read + attachments)
+- Source: `github.com/Josue7211/mac-bridge` (separate repo)
+- Runs as launchd service on Mac, listens on `0.0.0.0:4100`
+- API key auth (constant-time comparison), rate limiting (60/min), input length limits
+- Axum proxies to it via `MAC_BRIDGE_HOST` + `MAC_BRIDGE_API_KEY` secrets
+- Reminders route: `src-tauri/src/routes/reminders.rs` (uses `bridge_fetch()` pattern)
 
 ### Notifications
 - 4 independent toggles: DND, system, in-app, sound
@@ -255,7 +299,7 @@ Import `supabase` from `@/lib/supabase/client` — it's a singleton. Never call 
 - Message thread is NOT virtualized (variable heights cause jank)
 - Lazy-loaded modals: CommandPalette, KeyboardShortcutsModal, OnboardingWelcome
 - Dashboard polling consolidated to 2 intervals (fast 10s, slow 30s)
-- Bounded caches: avatar (500), link preview (500)
+- Bounded caches: avatar (500, Arc<Vec<u8>>), link preview (500)
 - `React.memo` on: ContactAvatar, GroupAvatar, NavSection, SidebarQuickCapture, Toggle
 
 ## File Structure
@@ -270,7 +314,7 @@ frontend/src/
 │   ├── CommandPalette.tsx  # Cmd+K command palette (lazy-loaded)
 │   ├── Lightbox.tsx        # Shared image/video viewer with zoom
 │   ├── NotificationCenter.tsx  # Bell icon + dropdown panel with grouping
-│   ├── OnboardingWelcome.tsx   # Multi-step setup wizard (lazy-loaded)
+│   ├── OnboardingWelcome.tsx   # Multi-step setup wizard (lazy-loaded, key: setup-complete)
 │   ├── AuthGuard.tsx       # Route protection wrapper
 │   ├── PageErrorBoundary.tsx
 │   ├── ConnectionStatus.tsx    # Service health indicator
@@ -280,13 +324,13 @@ frontend/src/
 │   ├── messages/           # useMessagesSSE, useMessageCompose, useConversationList
 │   └── notes/              # useVault
 ├── lib/
-│   ├── api.ts              # Fetch wrapper with 30s timeout + API key + offline queue
+│   ├── api.ts              # Fetch wrapper with 30s timeout + API key + offline queue (exports: api.get/post/put/patch/del)
 │   ├── types.ts            # Shared interfaces (Todo, Mission, SearchResults, etc.)
 │   ├── query-keys.ts       # Centralized React Query keys
 │   ├── keybindings.ts      # Configurable Cmd+key shortcuts (useSyncExternalStore)
 │   ├── audio.ts            # Notification chime
 │   ├── lru-cache.ts        # Generic LRU cache (used by avatar + link preview caches)
-│   ├── vault.ts            # Obsidian-style vault filesystem abstraction
+│   ├── vault.ts            # CouchDB-backed note storage via Axum proxy (/api/vault/*)
 │   ├── page-cache.ts       # Page-level cache helpers
 │   ├── sidebar-settings.ts # useSyncExternalStore for sidebar prefs
 │   ├── titlebar-settings.ts # useSyncExternalStore for title bar visibility/auto-hide
@@ -322,33 +366,45 @@ scripts/e2e.sh              # E2E tests (Playwright)
 scripts/perf-research/      # Autoresearch performance tracking
 
 docs/                       # CONFIGURATION.md, HYPRLAND.md, SOUL.md, api-reference.md, ntfy-setup.md, openclaw-api-setup.md, testing-checklist.md
-.github/workflows/ci.yml   # CI pipeline
+.github/workflows/ci.yml   # CI pipeline (SHA-pinned actions, permissions: contents read)
 
 src-tauri/src/
-├── main.rs                 # Entry, secrets, system tray, window management
-├── server.rs               # Axum: AppState, auth/rate-limit/logging middleware, cache helpers
+├── main.rs                 # Entry, secrets, system tray, window management, core dump disable
+├── server.rs               # Axum: AppState, auth/rate-limit/logging middleware, dev session persistence
 ├── service_client.rs       # Unified HTTP client with timeout, retry, health checks
 ├── tailscale.rs            # Peer verification via `tailscale status --json`
-├── secrets.rs              # OS keychain integration (no env vars)
+├── secrets.rs              # OS keychain integration (incl. CouchDB, Mac Bridge secrets)
 ├── logging.rs              # Structured logging setup
+├── crypto.rs               # AES-256-GCM encryption + Argon2id key derivation for user_secrets
+├── audit.rs                # Append-only audit log (security-sensitive mutations)
+├── sync.rs                 # Offline-first SQLite ↔ Supabase sync engine (30s interval)
 ├── routes/
-│   ├── messages.rs         # iMessage via BlueBubbles + SQLite cache + SSE
-│   ├── chat.rs             # AI chat via OpenClaw (WebSocket + HTTP)
-│   ├── auth.rs             # OAuth + nonce verification
+│   ├── messages.rs         # iMessage via BlueBubbles + SQLite cache + SSE + SSRF-safe link preview
+│   ├── chat.rs             # AI chat via OpenClaw (WebSocket + HTTP, CAS connection limits)
+│   ├── auth.rs             # OAuth (PKCE) + MFA + dev session persistence
+│   ├── vault.rs            # CouchDB proxy for Obsidian notes (LiveSync chunk reassembly)
+│   ├── reminders.rs        # Apple Reminders via Mac Bridge proxy
 │   ├── missions.rs         # Mission CRUD + event replay + SQLite cache
 │   ├── preferences.rs      # Multi-device preference sync
+│   ├── notify.rs           # ntfy push notifications (CRLF-safe headers)
 │   ├── util.rs             # Shared: percent_encode, random_uuid, base64_decode
 │   ├── pipeline/           # CI/CD pipeline management (spawn, review, complete, events, helpers)
 │   └── ...                 # agents, calendar, email, homelab, knowledge, media, todos, etc.
 └── supabase.rs             # Supabase client helpers
 
+src-tauri/migrations/       # Local SQLite migrations (0001-0008)
+
 supabase/
 ├── config.toml
 ├── migrations/
-│   ├── 20260301000000_initial.sql       # 19 tables, realtime publication, seeds
-│   ├── 20260308000000_habits.sql        # Habits tracking tables
-│   ├── 20260308000001_mission_events.sql # Mission event ingestion
-│   └── 20260309000000_pipeline_columns.sql # Pipeline schema additions
+│   ├── 20260301000000_initial.sql           # 19 tables, realtime publication, seeds
+│   ├── 20260308000000_habits.sql            # Habits tracking tables
+│   ├── 20260308000001_mission_events.sql    # Mission event ingestion
+│   ├── 20260309000000_pipeline_columns.sql  # Pipeline schema additions
+│   ├── 20260316000000_rls_user_isolation.sql # RLS + user_id on all 21 tables
+│   ├── 20260316100000_user_profiles.sql     # User profiles + encryption salt
+│   ├── 20260317000000_canary_tokens.sql     # Honeypot canary tokens
+│   └── 20260317200000_security_fixes.sql    # FORCE RLS, append-only logs, revoke anon
 └── docker-compose.example.yml  # Self-hosted Supabase setup
 ```
 
@@ -361,5 +417,6 @@ supabase/
 - Primary: Linux (CachyOS + Hyprland) and macOS
 - Also targets: Windows
 - BlueBubbles (iMessage) is macOS-only — Messages page only works with a Mac running BlueBubbles
+- Mac Bridge is macOS-only — Reminders, Apple Notes sync, Contacts, Find My
 - System tray integration via Tauri tray-icon feature (Waybar compatible)
 - Custom title bar with traffic light buttons (auto-hide supported)

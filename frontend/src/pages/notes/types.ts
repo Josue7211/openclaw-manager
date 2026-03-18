@@ -1,7 +1,7 @@
 export interface VaultNote {
   _id: string
   _rev?: string
-  type: 'note'
+  type: 'note' | 'attachment'
   title: string
   content: string
   folder: string

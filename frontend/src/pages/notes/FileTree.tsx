@@ -8,6 +8,7 @@ import {
   Plus,
   Search,
   Hash,
+  Image,
 } from 'lucide-react'
 import type { VaultNote, FolderNode } from './types'
 
@@ -158,6 +159,9 @@ const NoteItem = memo(function NoteItem({
   const pl = 12 + depth * 14
   const hasTags = note.tags.length > 0
   const hasLinks = note.links.length > 0
+  const isAttachment = note.type === 'attachment'
+  const ext = isAttachment ? note._id.split('.').pop()?.toUpperCase() : null
+  const Icon = isAttachment ? Image : FileText
 
   return (
     <button
@@ -183,12 +187,12 @@ const NoteItem = memo(function NoteItem({
         position: 'relative',
       }}
     >
-      <FileText
+      <Icon
         size={14}
         style={{
           flexShrink: 0,
           opacity: isSelected ? 0.7 : 0.3,
-          color: 'var(--text-muted)',
+          color: isAttachment ? 'var(--accent)' : 'var(--text-muted)',
         }}
       />
       <span
@@ -201,7 +205,16 @@ const NoteItem = memo(function NoteItem({
       >
         {note.title || 'Untitled'}
       </span>
-      {(hasTags || hasLinks) && (
+      {ext && (
+        <span style={{
+          fontSize: 9, fontWeight: 600, letterSpacing: '0.04em',
+          color: 'var(--text-muted)', opacity: 0.5,
+          flexShrink: 0,
+        }}>
+          {ext}
+        </span>
+      )}
+      {!isAttachment && (hasTags || hasLinks) && (
         <span style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
           {hasLinks && (
             <span

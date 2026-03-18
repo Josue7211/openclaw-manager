@@ -1,6 +1,16 @@
 import { useEffect, useRef, memo } from 'react'
-import { EditorView, keymap, placeholder, drawSelection } from '@codemirror/view'
-import { EditorState } from '@codemirror/state'
+import {
+  EditorView,
+  keymap,
+  placeholder,
+  drawSelection,
+  ViewPlugin,
+  Decoration,
+  WidgetType,
+} from '@codemirror/view'
+import type { DecorationSet, ViewUpdate } from '@codemirror/view'
+import { EditorState, RangeSetBuilder } from '@codemirror/state'
+import { API_BASE } from '@/lib/api'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { languages } from '@codemirror/language-data'
@@ -15,6 +25,97 @@ import { tags } from '@lezer/highlight'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import type { VaultNote } from './types'
+
+// --- Image embed widget for ![[image.png]] syntax ---
+
+const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp|svg|bmp)$/i
+const IMAGE_EMBED_RE = /!\[\[([^\]]+)\]\]/g
+
+class ImageWidget extends WidgetType {
+  constructor(readonly src: string, readonly alt: string) {
+    super()
+  }
+
+  eq(other: ImageWidget) {
+    return this.src === other.src
+  }
+
+  toDOM() {
+    const wrapper = document.createElement('div')
+    wrapper.style.cssText = 'margin: 8px 0; line-height: 0;'
+
+    // Placeholder shown while loading
+    const ph = document.createElement('div')
+    ph.style.cssText =
+      'width: 120px; height: 80px; border-radius: 6px; background: var(--bg-white-04);'
+    wrapper.appendChild(ph)
+
+    const img = document.createElement('img')
+    img.src = this.src
+    img.alt = this.alt
+    img.draggable = false
+    img.style.cssText =
+      'max-width: 100%; max-height: 400px; object-fit: contain; border-radius: 6px; cursor: pointer; display: none;'
+
+    img.onload = () => {
+      ph.style.display = 'none'
+      img.style.display = 'block'
+    }
+    img.onerror = () => {
+      // Hide both placeholder and image on error
+      wrapper.style.display = 'none'
+    }
+
+    wrapper.appendChild(img)
+    return wrapper
+  }
+
+  ignoreEvent() {
+    return false
+  }
+}
+
+function buildImageDecorations(view: EditorView): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>()
+  const doc = view.state.doc
+
+  for (let i = 1; i <= doc.lines; i++) {
+    const line = doc.line(i)
+    let match: RegExpExecArray | null
+    IMAGE_EMBED_RE.lastIndex = 0
+    while ((match = IMAGE_EMBED_RE.exec(line.text)) !== null) {
+      const filename = match[1].trim()
+      if (!IMAGE_EXTENSIONS.test(filename)) continue
+      const src = `${API_BASE}/api/vault/media/${encodeURIComponent(filename)}`
+      builder.add(
+        line.to,
+        line.to,
+        Decoration.widget({
+          widget: new ImageWidget(src, filename),
+          block: true,
+          side: 1,
+        }),
+      )
+    }
+  }
+
+  return builder.finish()
+}
+
+const imageEmbedPlugin = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet
+    constructor(view: EditorView) {
+      this.decorations = buildImageDecorations(view)
+    }
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged) {
+        this.decorations = buildImageDecorations(update.view)
+      }
+    }
+  },
+  { decorations: (v) => v.decorations },
+)
 
 const mcTheme = EditorView.theme(
   {
@@ -229,6 +330,7 @@ export default memo(function NoteEditor({ note, onChange, onWikilinkClick }: Not
         ]),
         updateListener,
         clickHandler,
+        imageEmbedPlugin,
         EditorView.lineWrapping,
       ],
     })

@@ -31,7 +31,7 @@ use crate::service_client::ServiceClient;
 /// Populated after login/OAuth and auto-refreshed by the `inject_session`
 /// middleware when the access token is near expiry. Route handlers that require
 /// authentication extract this via the [`RequireAuth`] extractor.
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct UserSession {
     pub access_token: String,
     pub refresh_token: String,
@@ -86,6 +86,24 @@ impl Drop for UserSession {
         self.access_token.zeroize();
         self.refresh_token.zeroize();
         self.encryption_key.zeroize();
+    }
+}
+
+/// In debug mode, persist the session to SQLite so it survives app restarts.
+#[cfg(debug_assertions)]
+pub async fn save_dev_session(db: &sqlx::SqlitePool, session: &UserSession) {
+    if let Ok(data) = serde_json::to_string(session) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+        let _ = sqlx::query(
+            "INSERT OR REPLACE INTO _dev_session (id, data, created_at) VALUES (1, ?, ?)"
+        )
+        .bind(&data)
+        .bind(now)
+        .execute(db)
+        .await;
     }
 }
 
@@ -163,8 +181,19 @@ pub struct AppState {
     /// Mutex that serialises token refresh attempts so concurrent requests
     /// don't all hit GoTrue simultaneously.
     pub refresh_mutex: Arc<tokio::sync::Mutex<()>>,
-    /// PKCE `code_verifier` stored between OAuth redirect and callback.
-    pub pkce_verifier: Arc<RwLock<Option<String>>>,
+    /// In-progress OAuth flow state. Stores verifier + URL + nonce so that
+    /// duplicate `start_oauth` calls within 120s return the same URL instead
+    /// of overwriting the PKCE verifier (fixes first-attempt failure).
+    pub pending_oauth: Arc<RwLock<Option<PendingOAuthFlow>>>,
+}
+
+/// State for an in-progress OAuth flow.
+#[derive(Clone)]
+pub struct PendingOAuthFlow {
+    pub verifier: String,
+    pub nonce: String,
+    pub url: String,
+    pub created_at: i64,
 }
 
 impl AppState {
@@ -506,16 +535,57 @@ pub async fn start(
         ServiceClient::new("OpenClaw", &url, 60)
     });
 
+    let db = crate::db::init().await?;
+
+    // In debug mode, restore the previous session from SQLite so you don't
+    // have to re-login every time cargo tauri dev restarts.
+    #[cfg(debug_assertions)]
+    let restored_session = {
+        sqlx::query("CREATE TABLE IF NOT EXISTS _dev_session (id INTEGER PRIMARY KEY, data TEXT NOT NULL, created_at INTEGER NOT NULL)")
+            .execute(&db).await.ok();
+        let row: Option<(String, i64)> = sqlx::query_as(
+            "SELECT data, created_at FROM _dev_session WHERE id = 1"
+        ).fetch_optional(&db).await.unwrap_or(None);
+        match row {
+            Some((data, created_at)) => {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() as i64;
+                // Only restore if less than 1 hour old
+                if now - created_at < 3600 {
+                    match serde_json::from_str::<UserSession>(&data) {
+                        Ok(sess) => {
+                            tracing::info!(user_id = %sess.user_id, "dev session restored from SQLite");
+                            Some(sess)
+                        }
+                        Err(_) => None,
+                    }
+                } else {
+                    tracing::info!("dev session expired (>1h) — login required");
+                    sqlx::query("DELETE FROM _dev_session").execute(&db).await.ok();
+                    None
+                }
+            }
+            None => None,
+        }
+    };
+    #[cfg(not(debug_assertions))]
+    let restored_session: Option<UserSession> = None;
+
     let state = AppState {
         app: app_handle,
-        db: crate::db::init().await?,
-        http: reqwest::Client::new(),
+        db,
+        http: reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .unwrap_or_default(),
         secrets: Arc::new(std::sync::RwLock::new(secrets)),
         bb,
         openclaw,
-        session: Arc::new(RwLock::new(None)),
+        session: Arc::new(RwLock::new(restored_session)),
         refresh_mutex: Arc::new(tokio::sync::Mutex::new(())),
-        pkce_verifier: Arc::new(RwLock::new(None)),
+        pending_oauth: Arc::new(RwLock::new(None)),
     };
 
     // Log runtime integrity checks to security_events (fire-and-forget).
@@ -809,7 +879,7 @@ async fn rate_limit(req: Request<Body>, next: Next) -> Response {
         .extensions()
         .get::<UserSession>()
         .map(|s| format!("user:{}", s.user_id))
-        .unwrap_or_else(|| "ip:127.0.0.1".to_string());
+        .unwrap_or_else(|| format!("ip:{}:{}", req.uri().path(), req.uri().host().unwrap_or("unknown")));
 
     // Choose category and limit
     // Session polling is frequent (every 2s during OAuth) — never rate-limit it
@@ -864,6 +934,7 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
     if path.starts_with("/api/messages/avatar")
         || path.starts_with("/api/messages/attachment")
         || path.starts_with("/api/messages/sticker")
+        || path.starts_with("/api/vault/media")
     {
         return next.run(req).await;
     }
@@ -938,7 +1009,6 @@ const SOFT_DELETE_TABLES: &[&str] = &[
     "weekly_reviews",
     "retrospectives",
     "workflow_notes",
-    "cache",
 ];
 
 /// Run periodic cleanup queries against local SQLite.
@@ -1013,12 +1083,27 @@ async fn db_cleanup(db: &sqlx::SqlitePool) {
         }
     }
 
-    // 5. Purge old security_events (>90 days)
+    // 5. Hard-delete soft-deleted cache entries (composite PK: key + user_id, no `id` column)
+    let res = sqlx::query(
+        "DELETE FROM cache WHERE deleted_at IS NOT NULL \
+         AND deleted_at < datetime('now', '-30 days')",
+    )
+    .execute(db)
+    .await;
+    match res {
+        Ok(r) if r.rows_affected() > 0 => {
+            tracing::info!("cleanup: hard-deleted {} soft-deleted cache entries", r.rows_affected());
+        }
+        Err(e) => tracing::warn!("cleanup: cache soft-delete purge failed: {e}"),
+        _ => {}
+    }
+
+    // 6. Purge old security_events (>90 days)
     let _ = sqlx::query("DELETE FROM security_events WHERE created_at < datetime('now', '-90 days')")
         .execute(db)
         .await;
 
-    // 6. Purge old audit_log entries (>90 days)
+    // 7. Purge old audit_log entries (>90 days)
     let _ = sqlx::query("DELETE FROM audit_log WHERE created_at < datetime('now', '-90 days')")
         .execute(db)
         .await;
@@ -1115,7 +1200,7 @@ mod tests {
 
     #[test]
     fn warn_if_insecure_url_ignores_private_lan() {
-        warn_if_insecure_url("TestService", "http://10.0.0.109:8000");
+        warn_if_insecure_url("TestService", "http://192.0.2.1:8000");
         warn_if_insecure_url("TestService", "http://192.168.1.50:9090");
     }
 
@@ -1129,7 +1214,7 @@ mod tests {
     #[test]
     fn log_tls_status_does_not_panic() {
         log_tls_status("Supabase", "https://supabase.example.com");
-        log_tls_status("Supabase", "http://10.0.0.109:8000");
+        log_tls_status("Supabase", "http://192.0.2.1:8000");
         log_tls_status("External", "http://203.0.113.50:8080");
         log_tls_status("Local", "http://127.0.0.1:3000");
         log_tls_status("Tailscale", "http://100.64.0.3:1234");
@@ -1138,7 +1223,7 @@ mod tests {
     #[tokio::test]
     async fn verify_supabase_dns_direct_ip() {
         // Direct IPs should return true without DNS lookup
-        assert!(verify_supabase_dns("http://10.0.0.109:8000").await);
+        assert!(verify_supabase_dns("http://192.0.2.1:8000").await);
         assert!(verify_supabase_dns("https://127.0.0.1:443").await);
     }
 

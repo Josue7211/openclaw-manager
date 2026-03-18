@@ -1,16 +1,12 @@
 import type { VaultNote } from '@/pages/notes/types'
+import { api } from '@/lib/api'
 
 /**
- * Vault — local-only note storage backed by an in-memory cache.
+ * Vault — note storage backed by CouchDB via the Axum backend proxy.
  *
- * SECURITY: CouchDB credentials were previously embedded in the frontend
- * bundle (VITE_COUCHDB_USER / VITE_COUCHDB_PASSWORD). These have been
- * removed. Remote sync should be proxied through the Axum backend
- * (TODO: add /api/vault/* routes to src-tauri/src/routes/).
- *
- * Note content is NOT stored in localStorage — only metadata (id, title,
- * folder, tags, links, timestamps) is cached for offline list rendering.
- * Full content is held in memory only and fetched from the backend on load.
+ * All CouchDB requests go through /api/vault/* — credentials never
+ * reach the frontend. Metadata is cached in localStorage for offline
+ * list rendering; full content is fetched from the backend on load.
  */
 
 const META_STORAGE_KEY = 'mc-notes-meta'
@@ -37,12 +33,29 @@ function toMeta(note: VaultNote): NoteMeta {
   }
 }
 
+/** Internal LiveSync prefixes that should never appear as user notes. */
+const INTERNAL_PREFIXES = ['h:', '_design/', 'ps:', 'ix:', 'cc:', '.obsidian/', '.obsidian-livesync/', 'obsydian_livesync', '!:']
+
+/** Image extensions for detecting attachment types. */
+export const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp']
+
+function isInternalDoc(id: string): boolean {
+  return INTERNAL_PREFIXES.some((p) => id.startsWith(p))
+}
+
+export function isImageFile(id: string): boolean {
+  const lower = id.toLowerCase()
+  return IMAGE_EXTENSIONS.some((ext) => lower.endsWith(ext))
+}
+
 function loadMetaCache(): Map<string, NoteMeta> {
   try {
     const raw = localStorage.getItem(META_STORAGE_KEY)
     if (!raw) return new Map()
     const arr: NoteMeta[] = JSON.parse(raw)
-    return new Map(arr.map((m) => [m._id, m]))
+    // Filter out stale LiveSync internal docs that may have been cached previously
+    const filtered = arr.filter((m) => !isInternalDoc(m._id))
+    return new Map(filtered.map((m) => [m._id, m]))
   } catch {
     return new Map()
   }
@@ -52,9 +65,11 @@ function saveMetaCache(meta: Map<string, NoteMeta>) {
   localStorage.setItem(META_STORAGE_KEY, JSON.stringify([...meta.values()]))
 }
 
-// In-memory note cache (includes content — never persisted to localStorage)
+// In-memory note cache (includes content)
 let notesCache: Map<string, VaultNote> = new Map()
 let metaCache: Map<string, NoteMeta> = loadMetaCache()
+let syncInterval: ReturnType<typeof setInterval> | null = null
+let hasFetchedFromBackend = false
 
 // Hydrate notes from meta cache on startup (content will be empty until fetched)
 for (const [id, meta] of metaCache) {
@@ -66,29 +81,126 @@ for (const [id, meta] of metaCache) {
   })
 }
 
-// --- Sync (stub — requires backend proxy) ---
+// Convert a CouchDB doc to a VaultNote
+function docToNote(doc: Record<string, unknown>): VaultNote {
+  const id = (doc._id as string) || ''
+  const title = (doc.title as string) || id.replace(/\.md$/, '').split('/').pop() || id
+  const content = (doc.content as string) || (doc.body as string) || ''
+  const folder = (doc.folder as string) || (doc.path as string)?.split('/').slice(0, -1).join('/') || ''
+  const tags = Array.isArray(doc.tags) ? doc.tags : extractTags(content)
+  const links = Array.isArray(doc.links) ? doc.links : extractWikilinks(content)
+  const created = (doc.created_at as number) || (doc.ctime as number) || Date.now()
+  const updated = (doc.updated_at as number) || (doc.mtime as number) || Date.now()
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function startSync(_onChange?: () => void) {
-  // TODO: implement sync via Axum backend proxy (/api/vault/*)
-  // Remote CouchDB sync was removed because credentials were embedded
-  // in the frontend bundle. Add backend routes and call them here.
+  return {
+    _id: id,
+    _rev: doc._rev as string | undefined,
+    type: 'note',
+    title,
+    content,
+    folder,
+    tags,
+    links,
+    created_at: created,
+    updated_at: updated,
+  }
+}
+
+// --- Sync via backend proxy ---
+
+async function fetchAllFromBackend(): Promise<VaultNote[]> {
+  try {
+    const json = await api.get<any>('/api/vault/notes')
+    const payload = json?.data || json || {}
+
+    // New format: { notes: [...], attachments: [...] }
+    const rawNotes = Array.isArray(payload.notes) ? payload.notes : (Array.isArray(payload) ? payload : [])
+    const rawAttachments: Array<{ _id: string }> = Array.isArray(payload.attachments) ? payload.attachments : []
+
+    const notes = rawNotes.map(docToNote).filter((n: VaultNote) => !isInternalDoc(n._id))
+
+    // Convert attachment stubs into VaultNote objects (no content, type=attachment)
+    for (const att of rawAttachments) {
+      if (isInternalDoc(att._id)) continue
+      const id = att._id
+      const name = id.split('/').pop() || id
+      const folder = id.includes('/') ? id.split('/').slice(0, -1).join('/') : ''
+      notes.push({
+        _id: id,
+        type: 'attachment' as const,
+        title: name,
+        content: '',
+        folder,
+        tags: [],
+        links: [],
+        created_at: 0,
+        updated_at: 0,
+      })
+    }
+
+    return notes
+  } catch (err) {
+    console.warn('[vault] fetch failed:', err)
+    return []
+  }
+}
+
+export function startSync(onChange?: () => void) {
+  if (syncInterval) return
+  syncInterval = setInterval(async () => {
+    const notes = await fetchAllFromBackend()
+    if (notes.length > 0) {
+      notesCache.clear()
+      metaCache.clear()
+      for (const note of notes) {
+        notesCache.set(note._id, note)
+        metaCache.set(note._id, toMeta(note))
+      }
+      saveMetaCache(metaCache)
+      onChange?.()
+    }
+  }, 30000)
 }
 
 export function stopSync() {
-  // No-op until backend sync is implemented
+  if (syncInterval) {
+    clearInterval(syncInterval)
+    syncInterval = null
+  }
 }
 
 // --- CRUD ---
 
 export async function getAllNotes(): Promise<VaultNote[]> {
+  if (!hasFetchedFromBackend) {
+    const notes = await fetchAllFromBackend()
+    if (notes.length > 0) {
+      notesCache.clear()
+      for (const note of notes) {
+        notesCache.set(note._id, note)
+        metaCache.set(note._id, toMeta(note))
+      }
+      saveMetaCache(metaCache)
+    }
+    hasFetchedFromBackend = true
+  }
   return [...notesCache.values()]
-    .filter((n) => n.type === 'note')
+    .filter((n) => n.type === 'note' || n.type === 'attachment')
     .sort((a, b) => b.updated_at - a.updated_at)
 }
 
 export async function getNote(id: string): Promise<VaultNote | null> {
-  return notesCache.get(id) ?? null
+  try {
+    const json = await api.get<any>(`/api/vault/notes/${encodeURIComponent(id)}`)
+    const doc = json?.data || json
+    const note = docToNote(doc)
+    notesCache.set(note._id, note)
+    metaCache.set(note._id, toMeta(note))
+    saveMetaCache(metaCache)
+    return note
+  } catch {
+    return notesCache.get(id) ?? null
+  }
 }
 
 export async function putNote(note: VaultNote): Promise<VaultNote> {
@@ -105,6 +217,15 @@ export async function putNote(note: VaultNote): Promise<VaultNote> {
     created_at: note.created_at || now,
   }
 
+  try {
+    const body: Record<string, unknown> = { ...doc }
+    const result = await api.put<any>(`/api/vault/doc?id=${encodeURIComponent(doc._id)}`, body)
+    const data = result?.data || result
+    if (data?.rev) doc._rev = data.rev
+  } catch (err) {
+    console.warn('[vault] put failed, saved locally:', err)
+  }
+
   notesCache.set(doc._id, doc)
   metaCache.set(doc._id, toMeta(doc))
   saveMetaCache(metaCache)
@@ -113,6 +234,14 @@ export async function putNote(note: VaultNote): Promise<VaultNote> {
 }
 
 export async function deleteNote(id: string): Promise<void> {
+  const note = notesCache.get(id)
+  if (note?._rev) {
+    try {
+      await api.del(`/api/vault/doc?id=${encodeURIComponent(id)}&rev=${note._rev}`)
+    } catch (err) {
+      console.warn('[vault] delete failed:', err)
+    }
+  }
   notesCache.delete(id)
   metaCache.delete(id)
   saveMetaCache(metaCache)
