@@ -8,6 +8,7 @@ use axum::{
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use subtle::ConstantTimeEq;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
@@ -1440,7 +1441,7 @@ async fn oauth_callback(
         let mut guard = OAUTH_NONCE.lock().unwrap_or_else(|e| e.into_inner());
         let expected = guard.take(); // consume the nonce — single use
         match (&expected, &params.state) {
-            (Some(exp), Some(got)) if exp == got => {
+            (Some(exp), Some(got)) if exp.as_bytes().ct_eq(got.as_bytes()).into() => {
                 // Nonce matches — proceed.
                 tracing::info!("[oauth-callback] nonce verified");
             }

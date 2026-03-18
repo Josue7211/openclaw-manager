@@ -304,7 +304,11 @@ async fn put_note(
     Path(id): Path<String>,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
-    let result = couch_put(&state, &id, body).await?;
+    if id.contains("..") || id.starts_with('_') {
+        return Err(AppError::BadRequest("Invalid document ID".into()));
+    }
+    let encoded = urlencoding::encode(&id);
+    let result = couch_put(&state, &encoded, body).await?;
     Ok(success_json(result))
 }
 
@@ -320,7 +324,11 @@ async fn delete_note(
     Path(id): Path<String>,
     Query(q): Query<DeleteQuery>,
 ) -> Result<Json<Value>, AppError> {
-    let result = couch_delete(&state, &format!("{id}?rev={}", q.rev)).await?;
+    if id.contains("..") || id.starts_with('_') {
+        return Err(AppError::BadRequest("Invalid document ID".into()));
+    }
+    let encoded = urlencoding::encode(&id);
+    let result = couch_delete(&state, &format!("{encoded}?rev={}", urlencoding::encode(&q.rev))).await?;
     Ok(success_json(result))
 }
 

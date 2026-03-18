@@ -146,6 +146,8 @@ impl SyncEngine {
                 || row_id.contains('(')
                 || row_id.contains(')')
                 || row_id.contains(';')
+                || row_id.contains('.')
+                || row_id.contains(',')
             {
                 tracing::warn!("sync: skipping invalid row_id in _sync_log: {row_id}");
                 sqlx::query("UPDATE _sync_log SET synced_at = unixepoch() WHERE id = ?")
@@ -228,10 +230,19 @@ impl SyncEngine {
         .flatten();
 
         let query = match &last_synced {
-            Some(ts) => format!(
-                "select=*&updated_at=gt.{}&order=updated_at.asc&limit=500",
-                ts.replace(' ', "T").replace('+', "%2B")
-            ),
+            Some(ts) => {
+                // Validate timestamp format before interpolating into PostgREST query
+                let safe_ts = ts.replace(' ', "T").replace('+', "%2B");
+                if !safe_ts.chars().all(|c| c.is_ascii_digit() || "-T:.%BZ".contains(c)) {
+                    warn!("sync: invalid last_synced_at for {table}: {ts}");
+                    "select=*&order=updated_at.asc&limit=500".to_string()
+                } else {
+                    format!(
+                        "select=*&updated_at=gt.{}&order=updated_at.asc&limit=500",
+                        safe_ts
+                    )
+                }
+            }
             None => "select=*&order=updated_at.asc&limit=500".to_string(),
         };
 

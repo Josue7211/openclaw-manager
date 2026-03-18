@@ -1760,7 +1760,12 @@ async fn get_link_preview(
                                 || mapped.is_broadcast()
                                 || (mapped.octets()[0] == 100 && mapped.octets()[1] >= 64 && mapped.octets()[1] <= 127)
                         } else {
-                            ipv6.is_loopback() || ipv6.is_unspecified()
+                            let seg = ipv6.segments();
+                            ipv6.is_loopback()
+                                || ipv6.is_unspecified()
+                                || (seg[0] & 0xfe00) == 0xfc00  // ULA (fc00::/7)
+                                || (seg[0] == 0xfe80)           // link-local (fe80::/10)
+                                || (seg[0] & 0xff00) == 0xff00  // multicast (ff00::/8)
                         }
                     }
                 };
@@ -2762,7 +2767,7 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
     use axum::response::sse::{Event, KeepAlive, Sse};
 
     // Enforce concurrent SSE connection limit (atomic CAS — no race)
-    let _guard = match MsgSseConnectionGuard::try_new() {
+    let guard = match MsgSseConnectionGuard::try_new() {
         Some(g) => g,
         None => {
             return (
@@ -2785,6 +2790,8 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
     let stream_state = state.clone();
 
     let stream = async_stream::stream! {
+        // Move guard into stream so it lives for the connection lifetime
+        let _guard = guard;
         // Track last seen message date + GUIDs to detect new messages without duplicates
         let mut last_date: i64 = chrono::Utc::now().timestamp_millis();
         let mut seen_guids: std::collections::HashSet<String> = std::collections::HashSet::new();

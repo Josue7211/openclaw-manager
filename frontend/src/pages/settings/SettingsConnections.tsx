@@ -260,6 +260,7 @@ export default function SettingsConnections() {
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Stable key for external agents. Does not rotate on restart.</div>
         </div>
         <input
+          type="password"
           style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '11px' }}
           value={agentKey}
           onChange={e => setAgentKey(e.target.value)}

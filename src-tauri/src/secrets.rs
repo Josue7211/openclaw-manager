@@ -225,6 +225,11 @@ const FRONTEND_BLOCKED_KEYS: &[&str] = &[
     "mac-bridge.api-key",
     "ntfy.url",
     "ntfy.topic",
+    "mc-agent.key",
+    "couchdb.url",
+    "couchdb.user",
+    "couchdb.password",
+    "couchdb.database",
 ];
 
 /// Keys that the frontend is allowed to write (allowlist).
@@ -243,6 +248,7 @@ const FRONTEND_WRITABLE_KEYS: &[&str] = &[
     "mac-bridge.host", "mac-bridge.api-key",
     "anthropic.api-key",
     "supabase.url", "supabase.anon-key",
+    "mc-bind.host", "mc-agent.key",
 ];
 
 /// Retrieve a single secret from the OS keychain by its keyring key name.

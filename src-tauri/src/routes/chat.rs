@@ -798,7 +798,7 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
     use axum::response::IntoResponse as _;
 
     // Enforce concurrent SSE connection limit (atomic CAS — no race)
-    let _guard = match ChatSseConnectionGuard::try_new() {
+    let guard = match ChatSseConnectionGuard::try_new() {
         Some(g) => g,
         None => {
             return (
@@ -819,6 +819,8 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
             .unwrap_or(0);
         let mut last_count = parse_messages(&file_path).len();
         let stream = async_stream::stream! {
+            // Move guard into stream so it lives for the connection lifetime
+            let _guard = guard;
             let mut ticker = interval(Duration::from_secs(1));
 
             loop {
@@ -864,8 +866,9 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
         let mut last_count = initial.len();
         let state_clone = state.clone();
 
-        // Guard already acquired above — no double-count needed
         let stream = async_stream::stream! {
+            // Move guard into stream so it lives for the connection lifetime
+            let _guard = guard;
             let mut ticker = interval(Duration::from_secs(2));
 
             loop {

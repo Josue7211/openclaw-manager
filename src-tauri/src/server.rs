@@ -200,6 +200,14 @@ pub struct PendingOAuthFlow {
     pub created_at: i64,
 }
 
+impl Drop for PendingOAuthFlow {
+    fn drop(&mut self) {
+        use zeroize::Zeroize;
+        self.verifier.zeroize();
+        self.nonce.zeroize();
+    }
+}
+
 impl AppState {
     /// Look up a secret by its env-var name from the in-memory HashMap.
     /// Secrets are never stored in process-wide environment variables.
@@ -643,6 +651,14 @@ pub async fn start(
         std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)
     });
 
+    // Warn if exposing to network without an agent key
+    if !bind_ip.is_loopback() && MC_AGENT_KEY.get().map(|k| k.is_empty()).unwrap_or(true) {
+        tracing::warn!(
+            "MC_BIND_HOST is set to {} (network-accessible) but MC_AGENT_KEY is not configured. \
+             External agents will not be able to authenticate. Set MC_AGENT_KEY for Tailscale access."
+        , bind_ip);
+    }
+
     // Pre-warm the messages conversation cache in the background
     let prewarm_state = state.clone();
 
@@ -994,6 +1010,12 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
                 if let Some(val) = pair.strip_prefix("apiKey=") {
                     if val.as_bytes().ct_eq(expected.as_bytes()).into() {
                         return next.run(req).await;
+                    }
+                    // Also check stable agent key for WebSocket connections
+                    if let Some(agent_key) = MC_AGENT_KEY.get() {
+                        if !agent_key.is_empty() && val.as_bytes().ct_eq(agent_key.as_bytes()).into() {
+                            return next.run(req).await;
+                        }
                     }
                 }
             }
