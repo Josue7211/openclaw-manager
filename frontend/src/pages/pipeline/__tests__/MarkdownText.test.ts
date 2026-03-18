@@ -15,7 +15,7 @@ function collectText(node: React.ReactNode): string {
   if (typeof node === 'string' || typeof node === 'number') return String(node)
   if (Array.isArray(node)) return node.map(collectText).join('')
   if (typeof node === 'object' && 'props' in node) {
-    return collectText(node.props.children)
+    return collectText((node as { props: { children?: React.ReactNode } }).props.children)
   }
   return ''
 }
@@ -31,9 +31,10 @@ function findElements(node: React.ReactNode, type: string): any[] {
     return results
   }
   if ('type' in node) {
-    if (node.type === type) results.push(node)
-    if (node.props?.children) {
-      results.push(...findElements(node.props.children, type))
+    const el = node as { type: unknown; props?: { children?: React.ReactNode } }
+    if (el.type === type) results.push(node)
+    if (el.props?.children) {
+      results.push(...findElements(el.props.children, type))
     }
   }
   return results

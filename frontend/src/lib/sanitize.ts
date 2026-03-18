@@ -1,10 +1,10 @@
-import DOMPurify from 'dompurify'
+import DOMPurify, { type Config } from 'dompurify'
 
 /**
  * Explicit allowlist for DOMPurify — restricts to safe Markdown-rendered tags.
  * Blocks form elements, iframes, scripts, embeds, and data-* attributes.
  */
-const PURIFY_CONFIG: DOMPurify.Config = {
+const PURIFY_CONFIG: Config = {
   ALLOWED_TAGS: [
     'b', 'i', 'em', 'strong', 'a', 'p', 'br',
     'ul', 'ol', 'li', 'code', 'pre', 'blockquote',

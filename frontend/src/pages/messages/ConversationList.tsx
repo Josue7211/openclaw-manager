@@ -27,7 +27,7 @@ interface ConversationListProps {
   filteredConversations: Conversation[]
   loading: boolean
   loadingMoreConvs: boolean
-  convListRef: React.RefObject<HTMLDivElement>
+  convListRef: React.RefObject<HTMLDivElement | null>
 
   // Filters
   searchQuery: string

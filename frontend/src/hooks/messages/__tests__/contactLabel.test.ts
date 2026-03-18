@@ -1,17 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { contactLabel } from '../useConversationList'
-
-interface Participant { address: string; service: string }
-interface Conversation {
-  guid: string
-  chatId: string
-  displayName: string | null
-  participants: Participant[]
-  service: string
-  lastMessage: string | null
-  lastDate: number | null
-  lastFromMe: number
-}
+import type { Conversation } from '@/pages/messages/types'
 
 function makeConv(overrides: Partial<Conversation> = {}): Conversation {
   return {

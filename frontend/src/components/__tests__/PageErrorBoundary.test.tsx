@@ -98,7 +98,7 @@ describe('PageErrorBoundary', () => {
   })
 
   it('displays the error message from the thrown error', () => {
-    function CustomError() {
+    function CustomError(): never {
       throw new Error('Custom failure message')
     }
 

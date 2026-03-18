@@ -13,6 +13,7 @@ export interface Conversation {
   lastFromMe: number
   isUnread?: boolean
   isJunk?: boolean
+  [key: string]: unknown
 }
 
 export interface Reaction {
@@ -50,6 +51,7 @@ export interface Message {
   _failedText?: string
   _failedChatGuid?: string
   _failedReplyGuid?: string | null
+  [key: string]: unknown
 }
 
 export type ServiceFilter = 'all' | 'iMessage' | 'SMS'

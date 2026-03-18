@@ -60,24 +60,26 @@ export default function PersonalDashboard() {
     try {
       const d = await api.get<Record<string, unknown>>('/api/homelab')
       setBackendError(false)
-      if (d.proxmox?.vms) {
+      const proxmox = d.proxmox as Record<string, unknown> | undefined
+      if (proxmox?.vms) {
         const toGB = (b: number) => +(b / 1073741824).toFixed(1)
-        setProxmoxVMs(d.proxmox.vms.map((v: Record<string, unknown>) => ({
-          vmid: 0, node: 'pve', name: v.name, status: v.status,
+        setProxmoxVMs((proxmox.vms as Record<string, unknown>[]).map((v: Record<string, unknown>) => ({
+          vmid: 0, node: 'pve', name: v.name as string, status: v.status as string,
           cpuPercent: Math.round((v.cpu as number) * 100),
           memUsedGB: toGB(v.mem as number), memTotalGB: 0,
         })))
-        if (d.proxmox.nodes) {
-          setProxmoxNodes(d.proxmox.nodes.map((n: Record<string, unknown>) => ({
-            node: n.name, cpuPercent: Math.round((n.cpu as number) * 100),
+        if (proxmox.nodes) {
+          setProxmoxNodes((proxmox.nodes as Record<string, unknown>[]).map((n: Record<string, unknown>) => ({
+            node: n.name as string, cpuPercent: Math.round((n.cpu as number) * 100),
             memUsedGB: toGB(n.mem_used as number), memTotalGB: toGB(n.mem_total as number),
             memPercent: Math.round(((n.mem_used as number) / (n.mem_total as number)) * 100),
           })))
         }
       }
-      if (d.opnsense) {
+      const opnsense = d.opnsense as Record<string, unknown> | undefined
+      if (opnsense) {
         setOpnsense({
-          wanIn: d.opnsense.wan_in ?? '—', wanOut: d.opnsense.wan_out ?? '—',
+          wanIn: (opnsense.wan_in as string) ?? '—', wanOut: (opnsense.wan_out as string) ?? '—',
           updateAvailable: false, version: '—',
         })
       }

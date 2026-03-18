@@ -8,8 +8,10 @@ import { cleanPayloadText } from './shared'
 export interface SSEMessage {
   guid: string
   text: string
+  dateCreated: number
   isFromMe: boolean
   handle?: { address: string; service: string }
+  attachments?: { guid: string; mimeType: string; transferName: string; isSticker?: boolean; uti?: string }[]
   chats?: { guid: string }[]
   [key: string]: unknown
 }

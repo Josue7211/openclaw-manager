@@ -595,7 +595,7 @@ function StepServiceGroup({ group, onNext, onBack }: StepProps & { group: Servic
       ).then(results => {
         const loaded: Record<string, string> = {}
         for (const r of results) {
-          if (r.value) loaded[r.keychainKey] = r.value
+          if (r.value) loaded[r.key] = r.value
         }
         if (Object.keys(loaded).length > 0) {
           setValues(prev => ({ ...loaded, ...prev }))

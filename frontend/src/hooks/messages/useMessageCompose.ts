@@ -1,25 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { API_BASE, api } from '@/lib/api'
-
-interface Message {
-  guid: string
-  text: string
-  dateCreated: number
-  isFromMe: boolean
-  handle?: { address: string; service: string }
-  attachments?: { guid: string; mimeType: string; transferName: string; isSticker?: boolean; uti?: string }[]
-  threadOriginatorGuid?: string | null
-  _failed?: boolean
-  _failedText?: string
-  _failedChatGuid?: string
-  _failedReplyGuid?: string | null
-  [key: string]: unknown
-}
-
-interface Conversation {
-  guid: string
-  [key: string]: unknown
-}
+import type { Conversation, Message } from '@/pages/messages/types'
 
 interface UseMessageComposeParams {
   selected: Conversation | null

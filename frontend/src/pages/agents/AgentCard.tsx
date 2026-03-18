@@ -180,7 +180,7 @@ export function AgentCard({ agent, onSave, activeMission, models = [] }: AgentCa
         </p>
       )}
 
-      {active && activeMission && activeMission.progress > 0 && (
+      {active && activeMission && (activeMission.progress ?? 0) > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <div style={{ height: '6px', borderRadius: '3px', background: 'var(--hover-bg)', overflow: 'hidden' }}>
             <div style={{

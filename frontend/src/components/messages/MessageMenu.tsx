@@ -1,40 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { CornerUpLeft, Copy } from 'lucide-react'
+import type { Message } from '@/pages/messages/types'
 
 /* ─── Types ────────────────────────────────────────────────────────────── */
-
-interface Reaction {
-  type: number
-  fromMe: boolean
-  handle?: string
-}
-
-interface Attachment {
-  guid: string
-  mimeType: string
-  transferName: string
-  isSticker?: boolean
-  uti?: string
-}
-
-interface Message {
-  originalROWID?: number
-  guid: string
-  text: string
-  dateCreated: number
-  isFromMe: boolean
-  isAudioMessage?: boolean
-  handle?: { address: string; service: string }
-  attachments?: Attachment[]
-  balloonBundleId?: string | null
-  groupTitle?: string | null
-  groupActionType?: number
-  itemType?: number
-  dateRead?: number | null
-  dateDelivered?: number | null
-  reactions?: Reaction[]
-  threadOriginatorGuid?: string | null
-}
 
 export interface MessageMenuState {
   msgGuid: string

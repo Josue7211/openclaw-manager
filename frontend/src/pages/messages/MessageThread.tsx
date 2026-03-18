@@ -36,7 +36,7 @@ interface MessageThreadProps {
   deliveryMarkers: Record<string, string>
 
   // Scroll
-  scrollContainerRef: React.RefObject<HTMLDivElement>
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>
   handleScroll: () => void
   showScrollBtn: boolean
   scrollToBottom: (behavior?: ScrollBehavior) => void
@@ -51,11 +51,11 @@ interface MessageThreadProps {
   setActiveMatchIndex: (n: number) => void
   jumpToNextMatch: () => void
   jumpToPrevMatch: () => void
-  searchInputRef: React.RefObject<HTMLInputElement>
+  searchInputRef: React.RefObject<HTMLInputElement | null>
 
   // Compose
-  inputRef: React.RefObject<HTMLTextAreaElement>
-  fileInputRef: React.RefObject<HTMLInputElement>
+  inputRef: React.RefObject<HTMLTextAreaElement | null>
+  fileInputRef: React.RefObject<HTMLInputElement | null>
   hasDraft: boolean
   sending: boolean
   attachmentFile: File | null

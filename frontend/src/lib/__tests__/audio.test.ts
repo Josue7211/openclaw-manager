@@ -42,7 +42,7 @@ describe('playNotificationChime', () => {
 
   it('creates an oscillator and gain node when AudioContext is available', async () => {
     const { ctx, oscillator, gainNode } = createMockAudioContext()
-    const MockAudioContext = vi.fn(function (this: unknown) {
+    const MockAudioContext = vi.fn(function (this: object) {
       return Object.assign(this, ctx)
     })
     vi.stubGlobal('AudioContext', MockAudioContext)

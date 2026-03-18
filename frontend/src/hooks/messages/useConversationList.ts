@@ -3,23 +3,7 @@ import { api, ApiError } from '@/lib/api'
 import { ensureAvatarBatchCheck } from '@/components/messages/ContactAvatar'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 import { getReadOverrides } from './readOverrides'
-
-interface Participant { address: string; service: string }
-
-interface Conversation {
-  guid: string
-  chatId: string
-  displayName: string | null
-  participants: Participant[]
-  service: string
-  lastMessage: string | null
-  lastDate: number | null
-  lastFromMe: number
-  isUnread?: boolean
-  isJunk?: boolean
-}
-
-type ServiceFilter = 'all' | 'iMessage' | 'SMS'
+import type { Conversation, ServiceFilter } from '@/pages/messages/types'
 
 function isIMessage(conv: Conversation): boolean {
   const svc = conv.service?.toLowerCase() || ''
