@@ -146,11 +146,22 @@ export function setSidebarConfig(config: SidebarConfig): void {
   }
   // New edit invalidates redo history
   _redoStack.length = 0
-  // Auto-clean empty standalone categories (no name, no items)
-  config = {
-    ...config,
-    categories: config.categories.filter(c => c.name || c.items.length > 0),
+  // Auto-clean standalone categories: remove empty ones, split multi-item ones
+  const cleanedCats: SidebarCategory[] = []
+  for (const c of config.categories) {
+    if (c.name) {
+      cleanedCats.push(c)
+    } else if (c.items.length === 1) {
+      cleanedCats.push(c)
+    } else if (c.items.length > 1) {
+      // Split each item into its own standalone category
+      for (const item of c.items) {
+        cleanedCats.push({ id: `standalone-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: '', items: [item] })
+      }
+    }
+    // empty standalones (items.length === 0) are dropped
   }
+  config = { ...config, categories: cleanedCats }
   _cached = config
   localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
   _listeners.forEach(fn => fn())

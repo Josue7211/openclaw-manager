@@ -227,12 +227,19 @@ export default function SettingsModules() {
 
     const targetCat = newCategories.find(c => c.id === catId)
     if (targetCat) {
-      let adjustedIndex = index
-      if (fromCat === catId) {
-        const oldIndex = config.categories.find(c => c.id === catId)!.items.indexOf(draggedHref)
-        if (oldIndex < index) adjustedIndex = Math.max(0, index - 1)
+      // If target is a standalone category, create a new standalone after it instead of merging
+      if (!targetCat.name && targetCat.items.length > 0 && fromCat !== catId) {
+        const targetIdx = newCategories.indexOf(targetCat)
+        const newStandalone = { id: `standalone-${Date.now()}`, name: '', items: [draggedHref] }
+        newCategories.splice(targetIdx + 1, 0, newStandalone)
+      } else {
+        let adjustedIndex = index
+        if (fromCat === catId) {
+          const oldIndex = config.categories.find(c => c.id === catId)!.items.indexOf(draggedHref)
+          if (oldIndex < index) adjustedIndex = Math.max(0, index - 1)
+        }
+        targetCat.items.splice(adjustedIndex, 0, draggedHref)
       }
-      targetCat.items.splice(adjustedIndex, 0, draggedHref)
     }
 
     setSidebarConfig({ ...config, categories: newCategories })
@@ -593,7 +600,7 @@ export default function SettingsModules() {
               const Icon = resolved.icon
               const displayName = sidebarConfig.customNames[href] || resolved.label
               const isEnabled = !resolved.moduleId || enabledModules.includes(resolved.moduleId)
-              if (!isEnabled) return null
+              if (!isEnabled && cat.name) return null // standalone items always visible
               const isDragTarget = modDropCat === cat.id && modDropIdx === idx && modDragHref !== href
               const isDragTargetAfter = modDropCat === cat.id && modDropIdx === idx + 1 && idx === cat.items.length - 1 && modDragHref !== href
               const isBeingDragged = modDragHref === href
@@ -777,15 +784,15 @@ export default function SettingsModules() {
                   })
                 }
               } else {
-                // Module from sidebar → unused: disable it
+                // Module from sidebar → unused: disable + remove from category
                 const item = resolveItem(href)
                 if (item?.moduleId && enabledModules.includes(item.moduleId)) {
                   toggleModule(item.moduleId)
-                } else if (!href.startsWith('/custom/')) {
-                  // Already disabled — no-op
-                } else {
-                  // Custom module — remove from category (orphan it)
-                  const cfg = getSidebarConfig()
+                }
+                // Always remove from categories (handles standalone items too)
+                const cfg = getSidebarConfig()
+                const hasCat = cfg.categories.some(c => c.items.includes(href))
+                if (hasCat) {
                   setSidebarConfig({
                     ...cfg,
                     categories: cfg.categories.map(c => ({
