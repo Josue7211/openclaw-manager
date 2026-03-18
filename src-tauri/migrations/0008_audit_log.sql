@@ -1,7 +1,10 @@
 -- Immutable audit log for tracking security-sensitive mutations.
 -- Entries are append-only; no UPDATE or DELETE should ever run against this table.
+-- Replaces the old audit_log from 0001_init.sql (which had different columns).
 
-CREATE TABLE IF NOT EXISTS audit_log (
+DROP TABLE IF EXISTS audit_log;
+
+CREATE TABLE audit_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT NOT NULL,
     action TEXT NOT NULL,         -- create, update, delete, read, export, logout
@@ -11,6 +14,6 @@ CREATE TABLE IF NOT EXISTS audit_log (
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id);
-CREATE INDEX IF NOT EXISTS idx_audit_log_resource ON audit_log(resource_type, resource_id);
-CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);
+CREATE INDEX idx_audit_log_user ON audit_log(user_id);
+CREATE INDEX idx_audit_log_resource ON audit_log(resource_type, resource_id);
+CREATE INDEX idx_audit_log_created ON audit_log(created_at);

@@ -30,15 +30,28 @@ const MAX_CHAT_SSE_CONNECTIONS: usize = 5;
 struct ChatSseConnectionGuard;
 
 impl ChatSseConnectionGuard {
-    fn new() -> Self {
-        CHAT_SSE_CONNECTIONS.fetch_add(1, Ordering::Relaxed);
-        Self
+    /// Try to acquire a slot. Returns `None` if the limit is reached (CAS loop).
+    fn try_new() -> Option<Self> {
+        loop {
+            let current = CHAT_SSE_CONNECTIONS.load(Ordering::Acquire);
+            if current >= MAX_CHAT_SSE_CONNECTIONS {
+                return None;
+            }
+            if CHAT_SSE_CONNECTIONS.compare_exchange(
+                current,
+                current + 1,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ).is_ok() {
+                return Some(Self);
+            }
+        }
     }
 }
 
 impl Drop for ChatSseConnectionGuard {
     fn drop(&mut self) {
-        CHAT_SSE_CONNECTIONS.fetch_sub(1, Ordering::Relaxed);
+        CHAT_SSE_CONNECTIONS.fetch_sub(1, Ordering::AcqRel);
     }
 }
 
@@ -784,14 +797,17 @@ async fn get_history(State(state): State<AppState>, RequireAuth(_session): Requi
 async fn get_stream(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Response {
     use axum::response::IntoResponse as _;
 
-    // Enforce concurrent SSE connection limit
-    if CHAT_SSE_CONNECTIONS.load(Ordering::Relaxed) >= MAX_CHAT_SSE_CONNECTIONS {
-        return (
-            axum::http::StatusCode::TOO_MANY_REQUESTS,
-            Json(json!({"error": "too many chat SSE connections"})),
-        )
-            .into_response();
-    }
+    // Enforce concurrent SSE connection limit (atomic CAS — no race)
+    let _guard = match ChatSseConnectionGuard::try_new() {
+        Some(g) => g,
+        None => {
+            return (
+                axum::http::StatusCode::TOO_MANY_REQUESTS,
+                Json(json!({"error": "too many chat SSE connections"})),
+            )
+                .into_response();
+        }
+    };
 
     let dir = openclaw_dir_from(&state);
     let local_session = if dir.exists() { get_session_file(&state) } else { None };
@@ -802,8 +818,6 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
             .map(|m| m.len())
             .unwrap_or(0);
         let mut last_count = parse_messages(&file_path).len();
-
-        let _guard = ChatSseConnectionGuard::new();
         let stream = async_stream::stream! {
             let mut ticker = interval(Duration::from_secs(1));
 
@@ -850,7 +864,7 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
         let mut last_count = initial.len();
         let state_clone = state.clone();
 
-        let _guard = ChatSseConnectionGuard::new();
+        // Guard already acquired above — no double-count needed
         let stream = async_stream::stream! {
             let mut ticker = interval(Duration::from_secs(2));
 
@@ -1013,37 +1027,53 @@ async fn ws_upgrade(
     RequireAuth(_session): RequireAuth,
     ws: WebSocketUpgrade,
 ) -> Response {
-    if WS_CONNECTIONS.load(Ordering::Relaxed) >= MAX_WS_CONNECTIONS {
-        return (
-            axum::http::StatusCode::TOO_MANY_REQUESTS,
-            Json(json!({"error": "too many WebSocket connections"})),
-        )
-            .into_response();
-    }
+    // Enforce concurrent WebSocket limit (atomic CAS — no race)
+    let guard = match WsConnectionGuard::try_new() {
+        Some(g) => g,
+        None => {
+            return (
+                axum::http::StatusCode::TOO_MANY_REQUESTS,
+                Json(json!({"error": "too many WebSocket connections"})),
+            )
+                .into_response();
+        }
+    };
 
     ws.max_message_size(64 * 1024)
         .max_frame_size(64 * 1024)
-        .on_upgrade(move |socket| handle_ws(socket, state))
+        .on_upgrade(move |socket| handle_ws(socket, state, guard))
 }
 
 /// RAII guard that decrements the WebSocket connection counter on drop.
 struct WsConnectionGuard;
 
 impl WsConnectionGuard {
-    fn new() -> Self {
-        WS_CONNECTIONS.fetch_add(1, Ordering::Relaxed);
-        Self
+    /// Try to acquire a slot. Returns `None` if the limit is reached (CAS loop).
+    fn try_new() -> Option<Self> {
+        loop {
+            let current = WS_CONNECTIONS.load(Ordering::Acquire);
+            if current >= MAX_WS_CONNECTIONS {
+                return None;
+            }
+            if WS_CONNECTIONS.compare_exchange(
+                current,
+                current + 1,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ).is_ok() {
+                return Some(Self);
+            }
+        }
     }
 }
 
 impl Drop for WsConnectionGuard {
     fn drop(&mut self) {
-        WS_CONNECTIONS.fetch_sub(1, Ordering::Relaxed);
+        WS_CONNECTIONS.fetch_sub(1, Ordering::AcqRel);
     }
 }
 
-async fn handle_ws(mut socket: WebSocket, state: AppState) {
-    let _guard = WsConnectionGuard::new();
+async fn handle_ws(mut socket: WebSocket, state: AppState, _guard: WsConnectionGuard) {
     let dir = openclaw_dir_from(&state);
     let local_session = if dir.exists() { get_session_file(&state) } else { None };
 

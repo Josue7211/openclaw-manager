@@ -48,5 +48,9 @@ src-tauri/resources/*
 # Claude Code
 .claude/
 
+# Playwright MCP
+.playwright-mcp/
+
 # Supabase
 supabase/.temp/
+.security/

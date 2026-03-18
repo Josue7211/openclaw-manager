@@ -66,7 +66,6 @@ pub(super) fn validate_cli_flags(flags: &str) -> Result<&str, AppError> {
         "-v",
         "--allowedTools",
         "--output-format",
-        "--dangerously-skip-permissions",
     ];
     let parts: Vec<&str> = flags.split_whitespace().collect();
     for (i, part) in parts.iter().enumerate() {

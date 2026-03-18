@@ -15,6 +15,8 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::sync::RwLock;
 
+use std::sync::Arc;
+
 use crate::server::{AppState, RequireAuth};
 use super::util::{percent_encode, random_uuid, base64_decode};
 
@@ -291,7 +293,7 @@ async fn fetch_contact_map(client: &reqwest::Client, state: &AppState) -> HashMa
 // ---------------------------------------------------------------------------
 
 struct AvatarCache {
-    map: HashMap<String, Vec<u8>>,
+    map: HashMap<String, Arc<Vec<u8>>>,
     fetched_at: std::time::Instant,
 }
 
@@ -304,9 +306,12 @@ fn avatar_cache() -> &'static RwLock<Option<AvatarCache>> {
 const AVATAR_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(10 * 60);
 const MAX_AVATAR_BYTES: usize = 512 * 1024;
 const MAX_CACHE_BYTES: usize = 100 * 1024 * 1024;
+/// Maximum video size allowed for transcoding (50 MB). Videos exceeding this
+/// are served as-is to avoid unbounded memory usage during ffmpeg processing.
+const MAX_TRANSCODE_BYTES: usize = 50 * 1024 * 1024;
 
-async fn get_bb_contact_avatars(client: &reqwest::Client, state: &AppState) -> HashMap<String, Vec<u8>> {
-    // Check cache
+async fn get_bb_contact_avatars(client: &reqwest::Client, state: &AppState) -> HashMap<String, Arc<Vec<u8>>> {
+    // Check cache — Arc<Vec<u8>> makes this clone cheap (ref-count bump, no data copy)
     {
         let cache = avatar_cache().read().await;
         if let Some(ref c) = *cache {
@@ -330,7 +335,7 @@ async fn get_bb_contact_avatars(client: &reqwest::Client, state: &AppState) -> H
     map
 }
 
-async fn fetch_bb_contact_avatars(client: &reqwest::Client, state: &AppState) -> HashMap<String, Vec<u8>> {
+async fn fetch_bb_contact_avatars(client: &reqwest::Client, state: &AppState) -> HashMap<String, Arc<Vec<u8>>> {
     let host = bb_host(state);
     if host.is_empty() {
         return HashMap::new();
@@ -388,12 +393,15 @@ async fn fetch_bb_contact_avatars(client: &reqwest::Client, state: &AppState) ->
             break;
         }
 
+        // Wrap in Arc so cache clones are cheap (ref-count bump, no data copy)
+        let arc_buf = Arc::new(buf);
+
         if let Some(phones) = c.get("phoneNumbers").and_then(|v| v.as_array()) {
             for ph in phones {
                 if let Some(addr) = ph.get("address").and_then(|v| v.as_str()) {
                     let n = normalize_phone(addr);
                     if n.len() >= 7 {
-                        map.insert(n, buf.clone());
+                        map.insert(n, Arc::clone(&arc_buf));
                     }
                 }
             }
@@ -402,12 +410,12 @@ async fn fetch_bb_contact_avatars(client: &reqwest::Client, state: &AppState) ->
             for em in emails {
                 if let Some(addr) = em.get("address").and_then(|v| v.as_str()) {
                     if addr.contains('@') {
-                        map.insert(addr.to_lowercase(), buf.clone());
+                        map.insert(addr.to_lowercase(), Arc::clone(&arc_buf));
                     }
                 }
             }
         }
-        total_bytes += buf.len();
+        total_bytes += arc_buf.len();
     }
 
     map
@@ -1490,7 +1498,7 @@ async fn get_avatar(
                 (header::CONTENT_TYPE, "image/jpeg"),
                 (header::CACHE_CONTROL, "public, max-age=3600"),
             ],
-            buf.clone(),
+            buf.as_ref().clone(),
         )
             .into_response();
     }
@@ -1726,41 +1734,50 @@ async fn get_link_preview(
             .into_response();
     }
 
-    // DNS resolution check: block requests that resolve to private/loopback IPs
-    // This prevents SSRF via DNS rebinding or hostnames pointing to internal IPs
-    if let Ok(addrs) = format!("{}:80", hostname).to_socket_addrs() {
-        for addr in addrs {
-            let blocked = match addr.ip() {
-                std::net::IpAddr::V4(ipv4) => {
-                    ipv4.is_loopback()
-                        || ipv4.is_private()
-                        || ipv4.is_link_local()
-                        || ipv4.is_unspecified()
-                        || ipv4.is_broadcast()
-                        || (ipv4.octets()[0] == 100 && ipv4.octets()[1] >= 64 && ipv4.octets()[1] <= 127)
-                }
-                std::net::IpAddr::V6(ipv6) => {
-                    if let Some(mapped) = ipv6.to_ipv4_mapped() {
-                        mapped.is_loopback()
-                            || mapped.is_private()
-                            || mapped.is_link_local()
-                            || mapped.is_unspecified()
-                            || mapped.is_broadcast()
-                            || (mapped.octets()[0] == 100 && mapped.octets()[1] >= 64 && mapped.octets()[1] <= 127)
-                    } else {
-                        ipv6.is_loopback() || ipv6.is_unspecified()
+    // DNS resolution check: block requests that resolve to private/loopback IPs.
+    // We also capture the first valid resolved address so we can pin it on the
+    // HTTP client below, preventing DNS rebinding TOCTOU attacks where a second
+    // lookup could return a different (internal) IP.
+    let resolved_addr: Option<std::net::SocketAddr> = {
+        let mut first_safe: Option<std::net::SocketAddr> = None;
+        if let Ok(addrs) = format!("{}:80", hostname).to_socket_addrs() {
+            for addr in addrs {
+                let blocked = match addr.ip() {
+                    std::net::IpAddr::V4(ipv4) => {
+                        ipv4.is_loopback()
+                            || ipv4.is_private()
+                            || ipv4.is_link_local()
+                            || ipv4.is_unspecified()
+                            || ipv4.is_broadcast()
+                            || (ipv4.octets()[0] == 100 && ipv4.octets()[1] >= 64 && ipv4.octets()[1] <= 127)
                     }
+                    std::net::IpAddr::V6(ipv6) => {
+                        if let Some(mapped) = ipv6.to_ipv4_mapped() {
+                            mapped.is_loopback()
+                                || mapped.is_private()
+                                || mapped.is_link_local()
+                                || mapped.is_unspecified()
+                                || mapped.is_broadcast()
+                                || (mapped.octets()[0] == 100 && mapped.octets()[1] >= 64 && mapped.octets()[1] <= 127)
+                        } else {
+                            ipv6.is_loopback() || ipv6.is_unspecified()
+                        }
+                    }
+                };
+                if blocked {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        Json(json!({ "error": "Blocked host (resolved to private IP)" })),
+                    )
+                        .into_response();
                 }
-            };
-            if blocked {
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(json!({ "error": "Blocked host (resolved to private IP)" })),
-                )
-                    .into_response();
+                if first_safe.is_none() {
+                    first_safe = Some(addr);
+                }
             }
         }
-    }
+        first_safe
+    };
 
     let is_twitter = {
         static RE: OnceLock<Regex> = OnceLock::new();
@@ -1830,11 +1847,33 @@ async fn get_link_preview(
         }))
     };
 
+    // Determine the actual hostname we will fetch (may differ for Twitter proxy).
+    let fetch_hostname = reqwest::Url::parse(&fetch_url)
+        .ok()
+        .and_then(|u| u.host_str().map(|s| s.to_string()));
+    let fetch_port = reqwest::Url::parse(&fetch_url)
+        .ok()
+        .and_then(|u| u.port_or_known_default())
+        .unwrap_or(443);
+
     // Build a one-off client with no redirect following (SSRF protection checks
     // redirect targets manually, mirroring the TS `redirect: 'manual'` behavior).
-    let no_redirect_client = reqwest::Client::builder()
+    // Pin the DNS resolution from above to prevent TOCTOU rebinding attacks.
+    let mut client_builder = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
-        .timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(5));
+
+    // Pin DNS: if the fetch hostname matches the original hostname, reuse the
+    // already-validated resolved IP so reqwest won't do a second DNS lookup that
+    // could return a different (malicious) address.
+    if let (Some(ref fh), Some(ref addr)) = (&fetch_hostname, &resolved_addr) {
+        if fh == hostname {
+            let pinned = std::net::SocketAddr::new(addr.ip(), fetch_port);
+            client_builder = client_builder.resolve(fh, pinned);
+        }
+    }
+
+    let no_redirect_client = client_builder
         .build()
         .unwrap_or_else(|_| state.http.clone());
 
@@ -2162,13 +2201,15 @@ async fn get_attachment(
 
             match res.bytes().await {
                 Ok(data) => {
-                    // Transcode HEVC/MOV videos to H.264 MP4 for WebKitGTK compatibility
+                    // Transcode HEVC/MOV videos to H.264 MP4 for WebKitGTK compatibility.
+                    // Skip transcoding for videos over MAX_TRANSCODE_BYTES (50 MB) to
+                    // prevent unbounded memory usage — serve them as-is instead.
                     let needs_transcode = safe_type == "video/quicktime"
                         || uti == "com.apple.quicktime-movie"
                         || uti == "public.mpeg-4"
                         || transfer_name.ends_with(".mov")
                         || transfer_name.ends_with(".MOV");
-                    if needs_transcode || safe_type.starts_with("video/") {
+                    if (needs_transcode || safe_type.starts_with("video/")) && data.len() <= MAX_TRANSCODE_BYTES {
                         if let Ok(transcoded) = transcode_to_h264(&data).await {
                             let builder = axum::http::Response::builder()
                                 .status(StatusCode::OK)
@@ -2207,9 +2248,18 @@ async fn get_attachment(
 }
 
 /// Transcode video to H.264 MP4 using ffmpeg for browser compatibility.
+/// Rejects inputs over MAX_TRANSCODE_BYTES to prevent unbounded memory usage.
 async fn transcode_to_h264(input: &[u8]) -> Result<Vec<u8>, String> {
     use tokio::process::Command;
     use tokio::io::AsyncWriteExt;
+
+    if input.len() > MAX_TRANSCODE_BYTES {
+        return Err(format!(
+            "video too large for transcode: {} bytes (limit {})",
+            input.len(),
+            MAX_TRANSCODE_BYTES
+        ));
+    }
 
     let mut child = Command::new("ffmpeg")
         .args([
@@ -2683,28 +2733,45 @@ const MAX_MSG_SSE_CONNECTIONS: usize = 5;
 struct MsgSseConnectionGuard;
 
 impl MsgSseConnectionGuard {
-    fn new() -> Self {
-        MSG_SSE_CONNECTIONS.fetch_add(1, Ordering::Relaxed);
-        Self
+    /// Try to acquire a slot. Returns `None` if the limit is reached (CAS loop).
+    fn try_new() -> Option<Self> {
+        loop {
+            let current = MSG_SSE_CONNECTIONS.load(Ordering::Acquire);
+            if current >= MAX_MSG_SSE_CONNECTIONS {
+                return None;
+            }
+            if MSG_SSE_CONNECTIONS.compare_exchange(
+                current,
+                current + 1,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ).is_ok() {
+                return Some(Self);
+            }
+        }
     }
 }
 
 impl Drop for MsgSseConnectionGuard {
     fn drop(&mut self) {
-        MSG_SSE_CONNECTIONS.fetch_sub(1, Ordering::Relaxed);
+        MSG_SSE_CONNECTIONS.fetch_sub(1, Ordering::AcqRel);
     }
 }
 
 async fn get_stream(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Response {
     use axum::response::sse::{Event, KeepAlive, Sse};
 
-    if MSG_SSE_CONNECTIONS.load(Ordering::Relaxed) >= MAX_MSG_SSE_CONNECTIONS {
-        return (
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(json!({ "error": "too many SSE connections" })),
-        )
-            .into_response();
-    }
+    // Enforce concurrent SSE connection limit (atomic CAS — no race)
+    let _guard = match MsgSseConnectionGuard::try_new() {
+        Some(g) => g,
+        None => {
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(json!({ "error": "too many SSE connections" })),
+            )
+                .into_response();
+        }
+    };
 
     let host = bb_host(&state);
     if host.is_empty() {
@@ -2714,8 +2781,6 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
         )
             .into_response();
     }
-
-    let _guard = MsgSseConnectionGuard::new();
     let client = state.http.clone();
     let stream_state = state.clone();
 

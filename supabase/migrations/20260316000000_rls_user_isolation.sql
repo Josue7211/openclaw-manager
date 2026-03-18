@@ -19,13 +19,17 @@
 -- 1. Shared trigger function: keep updated_at current on every UPDATE
 -- ============================================================================
 
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'update_updated_at_column') THEN
+    CREATE FUNCTION update_updated_at_column()
+    RETURNS TRIGGER AS $fn$
+    BEGIN
+      NEW.updated_at = now();
+      RETURN NEW;
+    END;
+    $fn$ LANGUAGE plpgsql;
+  END IF;
+END $$;
 
 -- ============================================================================
 -- 2. Add user_id, updated_at (where missing), deleted_at to all 21 tables

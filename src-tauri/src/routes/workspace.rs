@@ -346,6 +346,30 @@ async fn write_file(
         .await
         .map_err(|e| AppError::Internal(e.into()))?;
 
+    // Post-write safety: canonicalize the written file and verify it's still
+    // inside the workspace (guards against symlink races / TOCTOU).
+    let ws_canon = std::fs::canonicalize(workspace_dir())
+        .unwrap_or_else(|_| workspace_dir());
+    match std::fs::canonicalize(&full) {
+        Ok(real) => {
+            let ws_prefix = format!("{}{}", ws_canon.display(), std::path::MAIN_SEPARATOR);
+            let real_str = real.to_string_lossy().to_string();
+            let ws_str = ws_canon.to_string_lossy().to_string();
+            if real_str != ws_str && !real_str.starts_with(&ws_prefix) {
+                // File escaped the workspace — remove it
+                let _ = tokio::fs::remove_file(&full).await;
+                return Err(AppError::BadRequest("Path traversal detected".into()));
+            }
+        }
+        Err(_) => {
+            // Cannot canonicalize a file we just wrote — something is wrong
+            let _ = tokio::fs::remove_file(&full).await;
+            return Err(AppError::Internal(anyhow::anyhow!(
+                "Failed to verify written file"
+            )));
+        }
+    }
+
     Ok(Json(json!({ "ok": true })))
 }
 

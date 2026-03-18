@@ -114,8 +114,8 @@ export function SlidePanel({ entry, onClose, onDelete }: SlidePanelProps) {
             </div>
           )}
 
-          {/* Source URL */}
-          {entry.source_url && (
+          {/* Source URL — only render link for safe schemes */}
+          {entry.source_url && /^https?:\/\//i.test(entry.source_url) && (
             <a
               href={entry.source_url}
               target="_blank"

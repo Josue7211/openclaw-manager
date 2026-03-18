@@ -78,6 +78,27 @@ async fn send_notification(
         ));
     }
 
+    // CRLF injection protection: reject control characters in header-bound values
+    fn contains_header_injection(s: &str) -> bool {
+        s.contains('\r') || s.contains('\n') || s.contains('\0')
+    }
+
+    if contains_header_injection(title) || contains_header_injection(message) {
+        return Err(AppError::BadRequest(
+            "title/message must not contain control characters".into(),
+        ));
+    }
+
+    if let Some(ref tags) = body.tags {
+        for tag in tags {
+            if contains_header_injection(tag) {
+                return Err(AppError::BadRequest(
+                    "tags must not contain control characters".into(),
+                ));
+            }
+        }
+    }
+
     let url = state.secret("NTFY_URL")
         .ok_or_else(|| AppError::BadRequest("NTFY_URL not configured".into()))?;
     let topic = state.secret("NTFY_TOPIC")

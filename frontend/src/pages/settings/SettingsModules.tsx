@@ -221,25 +221,30 @@ export default function SettingsModules() {
     const newCategories = config.categories.map(c => ({ ...c, items: [...c.items] }))
 
     const sourceCat = newCategories.find(c => c.id === fromCat)
+    const targetCat = newCategories.find(c => c.id === catId)
+
+    // Both standalone → swap their positions in the array
+    if (sourceCat && targetCat && !sourceCat.name && !targetCat.name && fromCat !== catId) {
+      const srcIdx = newCategories.indexOf(sourceCat)
+      const tgtIdx = newCategories.indexOf(targetCat)
+      newCategories[srcIdx] = targetCat
+      newCategories[tgtIdx] = sourceCat
+      setSidebarConfig({ ...config, categories: newCategories })
+      setModDragHref(null); setModDragFromCat(null); setModDropCat(null); setModDropIdx(-1)
+      return
+    }
+
     if (sourceCat) {
       sourceCat.items = sourceCat.items.filter(h => h !== draggedHref)
     }
 
-    const targetCat = newCategories.find(c => c.id === catId)
     if (targetCat) {
-      // If target is a standalone category, create a new standalone after it instead of merging
-      if (!targetCat.name && targetCat.items.length > 0 && fromCat !== catId) {
-        const targetIdx = newCategories.indexOf(targetCat)
-        const newStandalone = { id: `standalone-${Date.now()}`, name: '', items: [draggedHref] }
-        newCategories.splice(targetIdx + 1, 0, newStandalone)
-      } else {
-        let adjustedIndex = index
-        if (fromCat === catId) {
-          const oldIndex = config.categories.find(c => c.id === catId)!.items.indexOf(draggedHref)
-          if (oldIndex < index) adjustedIndex = Math.max(0, index - 1)
-        }
-        targetCat.items.splice(adjustedIndex, 0, draggedHref)
+      let adjustedIndex = index
+      if (fromCat === catId) {
+        const oldIndex = config.categories.find(c => c.id === catId)!.items.indexOf(draggedHref)
+        if (oldIndex < index) adjustedIndex = Math.max(0, index - 1)
       }
+      targetCat.items.splice(adjustedIndex, 0, draggedHref)
     }
 
     setSidebarConfig({ ...config, categories: newCategories })
@@ -401,10 +406,10 @@ export default function SettingsModules() {
         }}
         style={{ minHeight: '100%', padding: '12px 0' }}
       >
-      {sidebarConfig.categories.filter(c => c.name || c.items.length > 0).map((cat, catIdx) => (
+      {sidebarConfig.categories.filter(c => c.name || c.items.length > 0).map((cat, catIdx, filteredCats) => (
         <React.Fragment key={cat.id}>
         {/* Inter-category drop zone — drop a module here to place it between categories */}
-        {catIdx === 0 && modDragHref && !modDragHref.startsWith('category:') && !modDragHref.startsWith('restore-category:') && (
+        {catIdx === 0 && modDragHref && !modDragHref.startsWith('category:') && !modDragHref.startsWith('restore-category:') && modDragFromCat !== cat.id && (
           <InterCategoryDropZone index={0} active={modDropCat === '__between_0__'} onDragOver={() => setModDropCat('__between_0__')} onDragLeave={() => { if (modDropCat === '__between_0__') setModDropCat(null) }} onDrop={(href) => {
             const config = getSidebarConfig()
             const cats = config.categories.map(c => ({ ...c, items: c.items.filter(h => h !== href) }))
@@ -704,8 +709,8 @@ export default function SettingsModules() {
             )}
           </div>
         </div>
-        {/* Inter-category drop zone after this category */}
-        {modDragHref && !modDragHref.startsWith('category:') && !modDragHref.startsWith('restore-category:') && (
+        {/* Inter-category drop zone after this category — hide if adjacent to source */}
+        {modDragHref && !modDragHref.startsWith('category:') && !modDragHref.startsWith('restore-category:') && modDragFromCat !== cat.id && (
           <InterCategoryDropZone index={catIdx + 1} active={modDropCat === `__between_${catIdx + 1}__`} onDragOver={() => setModDropCat(`__between_${catIdx + 1}__`)} onDragLeave={() => { if (modDropCat === `__between_${catIdx + 1}__`) setModDropCat(null) }} onDrop={(href) => {
             const config = getSidebarConfig()
             const cats = config.categories.map(c => ({ ...c, items: c.items.filter(h => h !== href) }))
@@ -725,17 +730,20 @@ export default function SettingsModules() {
 
       {/* Unused Modules */}
       {(() => {
-        const allCatHrefs = new Set(sidebarConfig.categories.flatMap(c => c.items))
-        // Built-in modules that are disabled
-        const disabledBuiltins = Array.from(allCatHrefs).filter(href => {
-          const item = resolveItem(href)
-          if (!item || !item.moduleId) return false
-          return !enabledModules.includes(item.moduleId)
+        const deletedHrefs = new Set((sidebarConfig.deletedItems || []).map(d => d.href))
+        // All disabled built-in modules — regardless of category
+        const allBuiltinHrefs = Array.from(navItemsByHref.entries())
+          .filter(([, item]) => item.moduleId)
+          .map(([href]) => href)
+        const disabledBuiltins = allBuiltinHrefs.filter(href => {
+          const item = navItemsByHref.get(href)
+          return item?.moduleId && !enabledModules.includes(item.moduleId) && !deletedHrefs.has(href)
         })
-        // Custom modules not in any category (orphaned)
+        // Orphaned custom modules (not in any category, not deleted)
+        const allCatHrefs = new Set(sidebarConfig.categories.flatMap(c => c.items))
         const orphanedCustom = (sidebarConfig.customModules || [])
           .map(m => `/custom/${m.id}`)
-          .filter(href => !allCatHrefs.has(href) && !(sidebarConfig.deletedItems || []).some(d => d.href === href))
+          .filter(href => !allCatHrefs.has(href) && !deletedHrefs.has(href))
         const disabledItems = [...disabledBuiltins, ...orphanedCustom]
         return (
           <ResizablePanel storageKey="sb-unused" title={panelTitle('unused', 'Unused')} onTitleChange={t => renamePanelTitle('unused', t)} panelId="unused" initialX={394} initialY={0} initialW={250} initialH={280} minW={160} minH={100} siblings={getSiblings('unused')} onRectChange={updatePanelRect('unused')} onSwap={handleSwap('unused')} forceRect={forceRects['unused']} swapTarget={swapHoverTarget === 'unused'} onSwapHover={setSwapHoverTarget}>
@@ -784,15 +792,15 @@ export default function SettingsModules() {
                   })
                 }
               } else {
-                // Module from sidebar → unused: disable + remove from category
+                // Module from sidebar → unused: disable + remove from standalone
                 const item = resolveItem(href)
                 if (item?.moduleId && enabledModules.includes(item.moduleId)) {
                   toggleModule(item.moduleId)
                 }
-                // Always remove from categories (handles standalone items too)
+                // Remove from standalone categories (no name) and custom orphans
                 const cfg = getSidebarConfig()
-                const hasCat = cfg.categories.some(c => c.items.includes(href))
-                if (hasCat) {
+                const inStandalone = cfg.categories.some(c => !c.name && c.items.includes(href))
+                if (inStandalone || href.startsWith('/custom/')) {
                   setSidebarConfig({
                     ...cfg,
                     categories: cfg.categories.map(c => ({

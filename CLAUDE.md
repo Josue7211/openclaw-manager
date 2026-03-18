@@ -270,6 +270,19 @@ Import `supabase` from `@/lib/supabase/client` — it's a singleton. Never call 
 - Rate limiting per-user per-path (not shared bucket)
 - SSRF protection with DNS pinning via `reqwest .resolve()`
 
+### Axum Route Gotchas
+- `cargo tauri dev` uses `--no-default-features` — `cargo build` alone produces a DIFFERENT binary. Always `cargo clean -p mission-control` before restart.
+- Handlers returning `Result<Response, AppError>` may silently fail to register in merged routers. Use `Result<Json<Value>, AppError>` to match all other handlers.
+- Test new routes with `curl` immediately after adding — don't assume compilation = registration.
+
+### Sidebar Configuration
+- `lib/sidebar-config.ts` — category layout, custom names, deleted items, recycled categories, panel titles (localStorage + Supabase sync)
+- `lib/modules.ts` — enabled/disabled module IDs (localStorage + Supabase sync via `enabled-modules` key)
+- Standalone items = categories with `name: ''` — auto-cleaned when empty, auto-split when >1 item
+- Unused panel shows ALL disabled built-in modules regardless of category membership
+- `SettingsModules.tsx` manages drag-and-drop between: Modules panel, Unused panel, Recycle Bin, and inter-category drop zones
+- `ResizablePanel.tsx` supports `onDragOver`/`onDrop` props and `onTitleChange` for double-click editing
+
 ### Notes / Vault
 - Backend proxy at `/api/vault/*` (`routes/vault.rs`) — CouchDB credentials never reach the frontend
 - CouchDB stores Obsidian LiveSync format: parent docs with `children` array → `h:*` chunk docs with `data` field
@@ -278,6 +291,11 @@ Import `supabase` from `@/lib/supabase/client` — it's a singleton. Never call 
 - Frontend `lib/vault.ts` uses the `api` wrapper (not raw fetch) — all CRUD through Axum proxy
 - Metadata cached in localStorage (`mc-notes-meta`); full content fetched from backend on demand
 - LiveSync internal docs (`h:*`, `ps:*`, `ix:*`, `cc:*`, `_design/*`) filtered on both backend and frontend
+- Image attachments: chunks decoded individually to bytes, concatenated, re-encoded as single base64 (padding per-chunk breaks concat)
+- Use query-param routes (`/vault/doc?id=...`) for doc IDs containing slashes (e.g. `homework/image.png`) — browsers decode `%2F` in paths
+- `is_attachment()` checks file extension to skip `decode_chunk_data` for binary files (PNG bytes aren't valid UTF-8)
+- LiveSync hidden files use `i:` prefix (not `!:`); filter with `.obsidian` substring match + `!:` + `!_` prefixes
+- Request logger in `server.rs` skips paths ending in `.png` — add explicit `tracing::info!` for image handlers
 
 ### Mac Bridge (macOS companion service)
 - REST API on MacBook exposing Apple services: Reminders, Notes, Contacts, Find My, Messages (mark-read + attachments)
