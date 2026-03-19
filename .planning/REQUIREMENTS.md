@@ -39,6 +39,16 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 - [x] **THEME-07**: Theme export as JSON file
 - [x] **THEME-08**: Smooth transition animation when switching themes
 
+### Theme Polish (Phase 02.1)
+
+- [ ] **POLISH-10**: System mode correctly detects dark GTK theme on Linux (Hyprland/gsettings fallback)
+- [ ] **POLISH-11**: 3-tier color hierarchy (accent, secondary/functional, tertiary/accent-blue) with dynamic tint derivation
+- [ ] **POLISH-12**: All hardcoded green (--green, --green-400, --emerald) references migrated to --secondary CSS variables
+- [ ] **POLISH-13**: All hardcoded blue (--accent-blue, --accent-secondary) references migrated to --tertiary CSS variables
+- [ ] **POLISH-14**: Settings Display page uses card-based section layout with compact color pickers
+- [ ] **POLISH-15**: Glow brightness/opacity slider controls ambient top glow intensity
+- [ ] **POLISH-16**: Border radius and panel opacity sliders in Advanced section
+
 ### Setup Wizard
 
 - [ ] **WIZARD-01**: First-run detection triggers setup wizard automatically
@@ -191,6 +201,13 @@ Deferred to post-v1.0 release. Tracked but not in current roadmap.
 | POLISH-07 | Phase 1 | Complete |
 | POLISH-08 | Phase 1 | Pending |
 | POLISH-09 | Phase 1 | Complete |
+| POLISH-10 | Phase 2.1 | Pending |
+| POLISH-11 | Phase 2.1 | Pending |
+| POLISH-12 | Phase 2.1 | Pending |
+| POLISH-13 | Phase 2.1 | Pending |
+| POLISH-14 | Phase 2.1 | Pending |
+| POLISH-15 | Phase 2.1 | Pending |
+| POLISH-16 | Phase 2.1 | Pending |
 | THEME-01 | Phase 2 | Complete |
 | THEME-02 | Phase 2 | Complete |
 | THEME-03 | Phase 2 | Complete |
@@ -256,10 +273,10 @@ Deferred to post-v1.0 release. Tracked but not in current roadmap.
 | EXPORT-03 | Phase 8 | Pending |
 
 **Coverage:**
-- v1 requirements: 72 total
-- Mapped to phases: 72
-- Unmapped: 0 ✓
+- v1 requirements: 79 total
+- Mapped to phases: 79
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-19*
-*Last updated: 2026-03-19 after initial definition*
+*Last updated: 2026-03-19*
