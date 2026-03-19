@@ -174,42 +174,55 @@ const isWebKitGTK =
   /Linux/.test(navigator.userAgent)
 
 /**
- * Overlay-based ripple fallback for browsers where View Transitions API is
- * unavailable or broken (webkit2gtk). Captures the current page as a
- * screenshot overlay, applies the new theme underneath, then animates
- * the overlay's clip-path from full-screen to nothing — revealing the
- * new theme expanding from the click point.
+ * Overlay-based ripple for webkit2gtk where View Transitions API crashes.
+ *
+ * Strategy: apply the new theme to the real DOM immediately, then place a
+ * full-screen overlay painted with the OLD bg-base on top. A radial CSS mask
+ * cuts a circular hole in that overlay, expanding from the click point via
+ * requestAnimationFrame. The hole has a soft feathered edge (24px gradient
+ * band) so it looks like a ripple wave, not a hard cutout.
  */
 function performOverlayRipple(applyFn: () => void, x: number, y: number): void {
-  const overlay = document.createElement('div')
-  const s = overlay.style
+  // 1. Snapshot old background before any changes
+  const oldBg =
+    getComputedStyle(document.documentElement).getPropertyValue('--bg-base').trim() ||
+    '#1a1a2e'
 
-  // Snapshot the current background color before the theme switch
-  const cs = getComputedStyle(document.documentElement)
-  const bg = cs.getPropertyValue('--bg-base').trim() || cs.backgroundColor || '#1a1a2e'
-
-  // Position a full-screen overlay with the OLD theme's background
-  s.position = 'fixed'
-  s.inset = '0'
-  s.zIndex = '2147483647'
-  s.pointerEvents = 'none'
-  s.backgroundColor = bg
-  // Start fully visible — the old theme color covers the whole screen
-  s.clipPath = `circle(150vmax at ${x}px ${y}px)`
-  document.body.appendChild(overlay)
-
-  // Apply the new theme underneath the overlay
+  // 2. Apply the new theme to the real DOM
   applyFn()
 
-  // Animate the overlay shrinking to nothing — reveals new theme from click point
-  requestAnimationFrame(() => {
-    const anim = overlay.animate(
-      { clipPath: [`circle(150vmax at ${x}px ${y}px)`, `circle(0px at ${x}px ${y}px)`] },
-      { duration: 400, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' },
-    )
-    anim.onfinish = () => overlay.remove()
-    anim.oncancel = () => overlay.remove()
-  })
+  // 3. Overlay the old bg on top — the mask will punch a growing hole
+  const overlay = document.createElement('div')
+  overlay.style.cssText =
+    `position:fixed;inset:0;z-index:2147483647;pointer-events:none;background:${oldBg}`
+  document.body.appendChild(overlay)
+
+  // 4. Animate: expand a feathered circular hole from the click point
+  const maxR = Math.hypot(
+    Math.max(x, window.innerWidth - x),
+    Math.max(y, window.innerHeight - y),
+  )
+  const duration = 420
+  const feather = 24 // px of soft edge
+  const start = performance.now()
+
+  const tick = (now: number) => {
+    const t = Math.min((now - start) / duration, 1)
+    // ease-out cubic for a natural deceleration
+    const ease = 1 - (1 - t) * (1 - t) * (1 - t)
+    const r = ease * maxR
+    const inner = Math.max(0, r - feather)
+    // transparent inside the hole, solid outside — feathered edge between
+    const mask =
+      `radial-gradient(circle ${r}px at ${x}px ${y}px, transparent ${inner}px, black ${r}px)`
+    overlay.style.maskImage = mask
+    overlay.style.webkitMaskImage = mask
+
+    if (t < 1) requestAnimationFrame(tick)
+    else overlay.remove()
+  }
+
+  requestAnimationFrame(tick)
 }
 
 /**
