@@ -396,12 +396,13 @@ Use `useSyncExternalStore` (same pattern as `keybindings.ts`, `sidebar-settings.
 ```
 
 - **Card width:** `min(160px, calc(25% - 12px))` -- 4 columns in default modal width
-- **Card height:** auto (artwork 120px + preview 60px + name/swatches 40px)
+- **Card height:** auto (artwork 200px + preview 60px + name/swatches 40px)
 - **Border radius:** `--radius-lg` (12px)
 - **Active card:** 2px accent border + subtle accent glow
 - **Hover:** `var(--bg-card-hover)` background, `transform: translateY(-2px)`, `var(--shadow-medium)`
 - **Swatch circles:** 12px diameter, 4-5 shown per card (bg-base, bg-card, accent, text-primary, secondary)
 - **Artwork:** Curated image per preset. For custom themes, auto-generate a gradient from theme colors.
+- **Custom theme trash icon:** Visible on hover, top-right corner of card, `aria-label="Delete {theme name}"`
 
 ### Theme Switching Animation (Ripple)
 
@@ -436,7 +437,7 @@ Use `useSyncExternalStore` (same pattern as `keybindings.ts`, `sidebar-settings.
 **Anatomy:** `[Moon icon] Dark | [Sun icon] Light | [Laptop icon] System`
 **Active state:** Accent background with `--text-on-accent` text, weight 600
 **Inactive state:** Transparent background, `--text-secondary` text, weight 400
-**Dimensions:** Each segment: 14px icon + 6px gap + label, padding `6px 14px`
+**Dimensions:** Each segment: 14px icon + 8px gap + label, padding `8px 16px`
 **Border radius:** `--radius-md` (10px) on outer container
 
 ### Import/Export Panel
@@ -630,6 +631,8 @@ interface ThemeSchedule {
 |---------|------|
 | **Theme picker title** | "Choose Theme" |
 | **Theme picker search placeholder** | "Search themes..." |
+| **Theme picker search empty state heading** | "No matching themes" |
+| **Theme picker search empty state body** | "Try a different search term." |
 | **Mode selector labels** | "Dark", "Light", "System" |
 | **Pinned section heading** | "Pinned" |
 | **Dark themes section heading** | "Dark" |
@@ -685,6 +688,9 @@ interface ThemeSchedule {
 | **Clear override** | "Clear override" |
 | **Empty custom themes** | heading: "No custom themes" / body: "Import a theme or save your current setup as a preset." |
 | **Super+T keybinding label** | "Theme picker" |
+| **Delete custom theme confirm** | "Delete {name}? This theme will be removed." |
+| **Delete custom theme confirm button** | "Delete" |
+| **Delete custom theme cancel button** | "Keep Theme" |
 
 ### Copy Voice
 
@@ -700,7 +706,7 @@ Consistent with Phase 1:
 | Action | Trigger | Confirmation |
 |--------|---------|-------------|
 | Reset theme to default | "Reset to Default" button per theme | Confirmation dialog: "Reset {name} to factory settings? Your customizations for this theme will be lost." with "Reset" (danger) and "Keep Changes" (secondary) buttons |
-| Delete custom theme | Hover > trash icon on custom theme card | Confirmation dialog: "Delete {name}? This theme will be removed." with "Delete" (danger) and "Cancel" (secondary) buttons |
+| Delete custom theme | Hover > trash icon on custom theme card (`aria-label="Delete {theme name}"`) | Confirmation dialog: "Delete {name}? This theme will be removed." with "Delete" (danger) and "Keep Theme" (secondary) buttons |
 | Clear custom CSS | "Clear Custom CSS" button | No confirmation (easily re-typed, and the button is labeled clearly) |
 | Clear branding field | "X" clear button per field | No confirmation (single field, default value restores) |
 
@@ -728,6 +734,7 @@ Consistent with Phase 1:
 - [ ] Theme switch announced via `aria-live="polite"` region: "Theme changed to {name}"
 - [ ] All new buttons are `<button>` elements, never `<div onClick>`
 - [ ] Import error states announced via `aria-live="assertive"`
+- [ ] Custom theme card trash icon: `aria-label="Delete {theme name}"` on each card's delete button
 
 ---
 
