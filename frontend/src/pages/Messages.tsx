@@ -21,7 +21,7 @@ import { usePageTitle } from '@/lib/hooks/usePageTitle'
 
 import { getReadOverrides, setReadOverride, clearReadOverride } from '@/hooks/messages/readOverrides'
 
-import { ConversationList, MessageThread, ComposePanel } from './messages'
+import { ConversationList, MessageThread, ComposePanel } from './messages/index'
 import type { Conversation, Message, ConvContextMenu } from './messages/types'
 import { formatTime, isIMessage } from './messages/utils'
 
