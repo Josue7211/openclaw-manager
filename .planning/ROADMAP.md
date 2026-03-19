@@ -1,13 +1,8 @@
-# Roadmap: OpenClaw Manager
-
-## Milestones
-
-- ✅ **v0.0.1 Initial Release** — Phases 0 (shipped 2026-03-19, pre-GSD)
-- 🚧 **v0.1.0 Onboarding Wizard Redesign** — Phases 1-5 (in progress)
+# Roadmap: OpenClaw Manager v1.0
 
 ## Overview
 
-v0.1.0 rewrites the onboarding wizard from scratch. The existing ~700-line OnboardingWelcome.tsx has broken state management, no demo escape hatch, and connection tests that 401 on fresh installs. The rewrite delivers a wizard that persists values, pre-fills from keychain, gates progression on successful tests, and offers demo mode at every step.
+OpenClaw Manager is a mature alpha with 17 working modules, solid security (96/100), and extensive tests. The path to a publishable v1.0 follows three parallel tracks: **(1)** polishing what exists (responsive layout, visual consistency, loading/error/empty states), **(2)** adding table-stakes features users expect (theming, setup wizard, customizable dashboard, data export), and **(3)** building the differentiating AI module builder that no competitor offers. The critical dependency chain is: responsive shell -> color audit -> theming -> setup wizard -> dashboard grid -> page experience -> module primitives -> Bjorn builder -> data export.
 
 ## Phases
 
@@ -17,82 +12,159 @@ v0.1.0 rewrites the onboarding wizard from scratch. The existing ~700-line Onboa
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-### 🚧 v0.1.0 Onboarding Wizard Redesign
-
-- [ ] **Phase 1: Wizard State Foundation** - Navigation, persistence, progress indicator, and pre-fill architecture
-- [ ] **Phase 2: Supabase Step** - Supabase URL/key entry, connection test, guide with setup links
-- [ ] **Phase 3: Service Steps** - All service configuration steps with graceful unconfigured states
-- [ ] **Phase 4: Demo Mode** - Demo entry from welcome and every step, in-app banner link back to wizard
-- [ ] **Phase 5: Polish** - Accessible markup, masked fields, responsive layout, dark-theme visual design
+- [ ] **Phase 1: Responsive Layout Shell + Visual Polish** - Stable responsive layout via container queries, sidebar auto-collapse, and full visual consistency audit (colors, spacing, typography, icons, shared feedback components)
+- [ ] **Phase 2: Theming System** - Light/dark/system themes, 6-8 curated presets, instant theme switching, import/export, and Supabase sync
+- [ ] **Phase 3: Setup Wizard + Onboarding** - First-run wizard covering service connections, module selection, theme pick, demo mode, with progressive disclosure and resumable state
+- [ ] **Phase 4: Dashboard Grid + Widget System** - Free-form drag/resize widget grid with edit mode, Widget Registry, layout persistence per breakpoint, and existing cards refactored as widgets
+- [ ] **Phase 5: Page Experience** - Seamless page transitions, state preservation on navigation, unread badges, keyboard shortcut discoverability, global search extension, and Discord-style sidebar categories
+- [ ] **Phase 6: Module Primitives Library** - 14 reusable component primitives (charts, lists, forms, tables, kanban, etc.) with documented config schemas, widget compatibility, and internal error handling
+- [ ] **Phase 7: Bjorn Module Builder** - AI-generated React modules via sandboxed iframe, static analysis gate, approval flow, hot-reload into Widget Registry, persistence, version history
+- [ ] **Phase 8: Data Export** - Export all Supabase data as JSON, SQLite database backup, and notes as markdown files from Settings
 
 ## Phase Details
 
-### Phase 1: Wizard State Foundation
-**Goal**: Users can navigate a multi-step wizard that never loses their values
+### Phase 1: Responsive Layout Shell + Visual Polish
+**Goal**: The app looks and feels like one cohesive product across all window sizes and monitor configurations -- no visual inconsistencies, no layout breakage, and clear feedback states everywhere.
 **Depends on**: Nothing (first phase)
-**Requirements**: FLOW-01, FLOW-02, FLOW-03, FLOW-04, FLOW-05, FLOW-06, FLOW-07, FLOW-08
+**Requirements**: LAYOUT-01, LAYOUT-02, LAYOUT-03, LAYOUT-04, LAYOUT-05, LAYOUT-06, POLISH-01, POLISH-02, POLISH-03, POLISH-04, POLISH-05, POLISH-06, POLISH-07, POLISH-08, POLISH-09
 **Success Criteria** (what must be TRUE):
-  1. User can click Back and forward repeatedly without any field losing its value
-  2. User sees a progress indicator that updates to show which step they are on out of the total
-  3. User can click "Skip to Demo" on any step and the wizard closes into demo mode
-  4. Fields are pre-populated with values from .env.local or the OS keychain on first mount
-  5. When the current step has no active connection test result, the Next button is disabled until the test passes
+  1. User can resize the app window from minimum (900px) to ultrawide without any content overflow, clipping, or overlapping elements on any page
+  2. Sidebar automatically collapses to icon-only mode when the main content area drops below 900px, and the resize handle operates without layout jank
+  3. Every page uses a consistent spacing scale, button hierarchy (primary/secondary/ghost/danger), typography scale, icon style, and border-radius/shadow depth
+  4. All hardcoded color values (hex, rgba, hsl in JSX/TS files) have been migrated to CSS variables -- zero remaining inline color literals
+  5. Every async page and widget displays a shared LoadingState, ErrorState (with retry), or EmptyState (with guidance) component instead of blank screens or raw spinners
 **Plans**: TBD
 
-### Phase 2: Supabase Step
-**Goal**: Users can configure their Supabase instance as the first required step
-**Depends on**: Phase 1
-**Requirements**: SUPA-01, SUPA-02, SUPA-03, SUPA-04
+Plans:
+- [ ] 01-01: TBD
+- [ ] 01-02: TBD
+- [ ] 01-03: TBD
+
+### Phase 2: Theming System
+**Goal**: Users can personalize the app's appearance with curated theme presets or imported themes, with changes applying instantly and syncing across devices.
+**Depends on**: Phase 1 (all hardcoded colors must be CSS variables before themes can override them)
+**Requirements**: THEME-01, THEME-02, THEME-03, THEME-04, THEME-05, THEME-06, THEME-07, THEME-08
 **Success Criteria** (what must be TRUE):
-  1. User sees a Supabase step with links to Supabase Cloud signup and the self-hosted Docker setup guide
-  2. User can enter a Supabase URL and anon key, and values are saved to the OS keychain when clicking Next
-  3. User can click "Test Connection" and sees a success state with latency in milliseconds or an error message
-  4. When values are pre-filled from environment variables, a "configured" badge appears and the test runs automatically
+  1. User can switch between light, dark, and system-follow modes, and the system-follow mode tracks OS preference changes in real time
+  2. User can choose from 6-8 curated theme presets (2 light, 2 dark, 2 high-contrast, 2 colorful accent) and every UI element across all pages responds to the selected theme
+  3. Theme selection persists across app restarts and syncs to other devices via Supabase
+  4. User can export the current theme as a JSON file and import a theme from a JSON file, with imported themes validated and sanitized
+  5. Theme switches apply instantly with a smooth transition animation and no page reload
 **Plans**: TBD
 
-### Phase 3: Service Steps
-**Goal**: Users can configure optional services without seeing 401 errors or confusing failures
-**Depends on**: Phase 2
-**Requirements**: SVC-01, SVC-02, SVC-03, SVC-04, SVC-05
+Plans:
+- [ ] 02-01: TBD
+- [ ] 02-02: TBD
+
+### Phase 3: Setup Wizard + Onboarding
+**Goal**: New users (including non-technical users) can go from first launch to a configured, personalized app in under 5 minutes without reading documentation.
+**Depends on**: Phase 2 (theme selection is part of the wizard flow)
+**Requirements**: WIZARD-01, WIZARD-02, WIZARD-03, WIZARD-04, WIZARD-05, WIZARD-06, WIZARD-07, WIZARD-08
+**Prior art**: A v0.1.0 setup wizard milestone is archived at `.planning-v0.1.0-wizard/` -- this phase incorporates and extends that work.
 **Success Criteria** (what must be TRUE):
-  1. A service step with no saved credentials shows a clear "not configured" message instead of a 401 error
-  2. Clicking "Test Connection" saves credentials to keychain first, then runs the test against the service
-  3. A passing connection test shows the service name and response latency in milliseconds
-  4. When keychain values are pre-filled on step mount, the connection test runs automatically without user action
-  5. Each optional service step has a labeled "Skip" button that advances without requiring a passing test
+  1. First-time users see the setup wizard automatically on launch, and returning users who completed setup go straight to the dashboard
+  2. User can connect services (BlueBubbles, OpenClaw, Supabase, CouchDB, Mac Bridge) individually with each being optional, select which modules to enable, and pick a theme -- all in a progressive, non-overwhelming flow
+  3. User can choose demo mode to explore the app with fake data, without any infrastructure
+  4. User can skip the wizard at any point and complete setup later via Settings, and an interrupted wizard resumes exactly where the user left off
 **Plans**: TBD
 
-### Phase 4: Demo Mode
-**Goal**: Users who cannot or do not want to configure services can reach a working demo in one click
-**Depends on**: Phase 1
-**Requirements**: DEMO-01, DEMO-02, DEMO-03, DEMO-04
+Plans:
+- [ ] 03-01: TBD
+- [ ] 03-02: TBD
+
+### Phase 4: Dashboard Grid + Widget System
+**Goal**: The dashboard is a user-owned canvas where widgets can be freely arranged, and the Widget Registry pattern establishes the foundation that Bjorn modules will plug into later.
+**Depends on**: Phase 1 (responsive shell for container-aware breakpoints), Phase 2 (theme engine for widget styling)
+**Requirements**: DASH-01, DASH-02, DASH-03, DASH-04, DASH-05, DASH-06, DASH-07, DASH-08, DASH-09, DASH-10, DASH-11
 **Success Criteria** (what must be TRUE):
-  1. User can click "Try Demo" on the welcome step and the wizard exits into demo mode without entering any credentials
-  2. User can click "Skip to Demo" on any service configuration step and immediately enter demo mode
-  3. After entering demo mode, all modules show realistic sample data without any backend connection
-  4. The demo mode banner inside the app contains a link that reopens the setup wizard
+  1. User can drag widgets to reposition them and resize widgets using handles, with widgets snapping to grid cells during both operations
+  2. User can enter and exit edit mode (via button and keyboard shortcut), where edit mode reveals grid lines, resize handles, add-widget button, and per-widget remove buttons -- and non-edit mode shows a clean layout with no edit chrome
+  3. User can add new widgets from a categorized picker and remove unwanted widgets, with the dashboard populated by a sensible default layout on first use based on enabled modules
+  4. All existing dashboard cards (HeartbeatCard, AgentsCard, MissionsCard, etc.) work as grid widgets, each with its own error boundary and loading state independent of other widgets
+  5. Dashboard layout persists across app restarts, syncs to Supabase per breakpoint, and adapts correctly when moving between monitors of different resolutions
 **Plans**: TBD
 
-### Phase 5: Polish
-**Goal**: The wizard is accessible, visually polished, and works at minimum window size
-**Depends on**: Phases 1-4
-**Requirements**: UI-01, UI-02, UI-03, UI-04
+Plans:
+- [ ] 04-01: TBD
+- [ ] 04-02: TBD
+- [ ] 04-03: TBD
+
+### Phase 5: Page Experience
+**Goal**: Navigating between modules feels instant and polished -- state is preserved, activity is visible at a glance, and power users can find anything in seconds.
+**Depends on**: Phase 4 (dashboard grid establishes the widget and page infrastructure)
+**Requirements**: PAGE-01, PAGE-02, PAGE-03, PAGE-04, PAGE-05, PAGE-06, PAGE-07
 **Success Criteria** (what must be TRUE):
-  1. The wizard visually matches the app's dark theme and uses only CSS variables from globals.css
-  2. Every button, input, and interactive element has an ARIA label and is fully keyboard-navigable
-  3. Password and secret fields show masked dots by default and reveal on clicking a show/hide toggle
-  4. The wizard is usable without horizontal scrolling at a 900x600 window size
+  1. Switching between modules produces no full-page reload, and navigating back to a previously visited page restores scroll position and form state
+  2. Sidebar items display unread badges for modules with new activity, and the Messages conversation list shows per-conversation unread counts
+  3. Keyboard shortcuts appear in tooltips and menus throughout the app, and global search returns results across notes, tasks, messages, calendar events, and knowledge entries
+  4. Sidebar categories are collapsible (Discord-style) and show activity indicators for sections with unread content
 **Plans**: TBD
+
+Plans:
+- [ ] 05-01: TBD
+- [ ] 05-02: TBD
+
+### Phase 6: Module Primitives Library
+**Goal**: A comprehensive set of tested, themed, widget-compatible UI primitives exists that both users and Bjorn can compose modules from.
+**Depends on**: Phase 4 (Widget Registry pattern for widget compatibility), Phase 2 (theme variables for consistent styling)
+**Requirements**: PRIM-01, PRIM-02, PRIM-03, PRIM-04, PRIM-05, PRIM-06, PRIM-07, PRIM-08, PRIM-09, PRIM-10, PRIM-11, PRIM-12, PRIM-13, PRIM-14
+**Success Criteria** (what must be TRUE):
+  1. All 14 primitives exist and render correctly: stat card, line chart, bar chart, list view, table, form, kanban board, progress bar, markdown display, timer/countdown, image gallery -- each with a documented JSON config schema
+  2. Every primitive can be added to the dashboard grid as a widget, respecting grid cell sizing and responsive breakpoints
+  3. Every primitive handles its own loading, error, and empty states internally -- a broken primitive never crashes other widgets or the dashboard
+  4. Every primitive respects the active theme (colors, typography, spacing) without any hardcoded visual values
+**Plans**: TBD
+
+Plans:
+- [ ] 06-01: TBD
+- [ ] 06-02: TBD
+- [ ] 06-03: TBD
+
+### Phase 7: Bjorn Module Builder
+**Goal**: Users can describe a module in natural language, see it previewed safely, approve it, and use it on their dashboard -- the differentiating feature that makes the app infinitely extensible.
+**Depends on**: Phase 6 (module primitives that Bjorn composes from), Phase 4 (Widget Registry for module installation)
+**Requirements**: BJORN-01, BJORN-02, BJORN-03, BJORN-04, BJORN-05, BJORN-06, BJORN-07, BJORN-08, BJORN-09, BJORN-10, BJORN-11, BJORN-12
+**Success Criteria** (what must be TRUE):
+  1. User can describe a module in natural language via chat with Bjorn, and Bjorn generates a working React component that renders in a sandboxed iframe preview alongside the main app
+  2. The sandbox has no access to the parent DOM, localStorage, cookies, Tauri IPC, or network -- and a static analysis gate rejects generated code containing fetch, XMLHttpRequest, WebSocket, document.cookie, window.parent, or other disallowed APIs
+  3. User can approve, reject, or request changes to a generated module -- approved modules appear in the dashboard widget picker and load without app restart (hot-reload)
+  4. Generated modules persist across app restarts, can be deleted or disabled by the user, and maintain a version history allowing rollback to any previous version
+**Plans**: TBD
+
+Plans:
+- [ ] 07-01: TBD
+- [ ] 07-02: TBD
+- [ ] 07-03: TBD
+
+### Phase 8: Data Export
+**Goal**: Users have full sovereignty over their data and can extract everything the app stores in standard, portable formats.
+**Depends on**: Phase 4 (Settings infrastructure for export UI)
+**Requirements**: EXPORT-01, EXPORT-02, EXPORT-03
+**Success Criteria** (what must be TRUE):
+  1. User can export all Supabase data as a JSON file from Settings
+  2. User can export the local SQLite database as a backup file from Settings
+  3. User can export all notes as individual markdown files from Settings
+**Plans**: TBD
+
+Plans:
+- [ ] 08-01: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Wizard State Foundation | 0/TBD | Not started | - |
-| 2. Supabase Step | 0/TBD | Not started | - |
-| 3. Service Steps | 0/TBD | Not started | - |
-| 4. Demo Mode | 0/TBD | Not started | - |
-| 5. Polish | 0/TBD | Not started | - |
+| 1. Responsive Layout Shell + Visual Polish | 0/3 | Not started | - |
+| 2. Theming System | 0/2 | Not started | - |
+| 3. Setup Wizard + Onboarding | 0/2 | Not started | - |
+| 4. Dashboard Grid + Widget System | 0/3 | Not started | - |
+| 5. Page Experience | 0/2 | Not started | - |
+| 6. Module Primitives Library | 0/3 | Not started | - |
+| 7. Bjorn Module Builder | 0/3 | Not started | - |
+| 8. Data Export | 0/1 | Not started | - |
+
+---
+*Roadmap created: 2026-03-19*
+*Last updated: 2026-03-19*

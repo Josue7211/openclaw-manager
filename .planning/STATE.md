@@ -1,43 +1,27 @@
----
-gsd_state_version: 1.0
-milestone: v0.0
-milestone_name: milestone
-status: planning
-stopped_at: Phase 1 context gathered
-last_updated: "2026-03-19T05:24:44.940Z"
-last_activity: 2026-03-19 — Roadmap created for v0.1.0
-progress:
-  total_phases: 5
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
----
-
 # Project State
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-03-19)
 
-**Core value:** Every external service proxied through local Axum server. Frontend never touches remote services. Secrets in OS keychain.
-**Current focus:** Phase 1 — Wizard State Foundation
+**Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
+**Current focus:** Phase 1: Responsive Layout Shell + Visual Polish
 
 ## Current Position
 
-Phase: 1 of 5 (Wizard State Foundation)
-Plan: 0 of TBD in current phase
+Phase: 1 of 8 (Responsive Layout Shell + Visual Polish)
+Plan: 0 of 3 in current phase
 Status: Ready to plan
-Last activity: 2026-03-19 — Roadmap created for v0.1.0
+Last activity: 2026-03-19 -- Roadmap created with 8 phases covering 72 requirements
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [░░░░░░░░░░░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
 **Velocity:**
 - Total plans completed: 0
-- Average duration: —
-- Total execution time: —
+- Average duration: -
+- Total execution time: 0 hours
 
 **By Phase:**
 
@@ -46,8 +30,8 @@ Progress: [░░░░░░░░░░] 0%
 | - | - | - | - |
 
 **Recent Trend:**
-- No plans completed yet
-- Trend: —
+- Last 5 plans: -
+- Trend: -
 
 *Updated after each plan completion*
 
@@ -55,10 +39,13 @@ Progress: [░░░░░░░░░░] 0%
 
 ### Decisions
 
+Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
-- [Setup]: Full rewrite approved — not a patch job on existing OnboardingWelcome.tsx
-- [Setup]: Supabase gets its own phase because it is the auth layer that gates everything else
-- [Setup]: Phase 4 (Demo Mode) depends only on Phase 1, not Phase 3 — demo mode must work even if service steps are not done
+
+- [Roadmap]: 8 phases derived from requirements, matching fine granularity config
+- [Roadmap]: Notes overhaul deferred to v2 per research recommendation
+- [Roadmap]: Color audit (POLISH-01) is a hard prerequisite for Phase 2 (theming)
+- [Roadmap]: Phase 3 (wizard) builds on archived v0.1.0 wizard work at `.planning-v0.1.0-wizard/`
 
 ### Pending Todos
 
@@ -66,11 +53,12 @@ None yet.
 
 ### Blockers/Concerns
 
-- Connection tests use /api/status/connections which requires auth — Phase 3 must handle the pre-auth context gracefully
-- Existing wizard code structure (SERVICE_GROUPS, field configs, keychain keys) can be reused but the state machine must be rebuilt
+- [Phase 4]: react-grid-layout v2 + React 19 compatibility needs validation during implementation (community fork available as fallback)
+- [Phase 7]: iframe sandbox behavior on Linux (WebKitGTK) needs platform-specific testing
+- [Phase 7]: Bjorn code generation quality depends on prompt engineering against primitives API contract
 
 ## Session Continuity
 
-Last session: 2026-03-19T05:24:44.939Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-wizard-state-foundation/01-CONTEXT.md
+Last session: 2026-03-19
+Stopped at: Roadmap and state files created, ready to plan Phase 1
+Resume file: None
