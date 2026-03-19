@@ -1,5 +1,5 @@
 import type React from 'react'
-import { CheckSquare, Target, Lightbulb } from 'lucide-react'
+import { CheckSquare, Target, Lightbulb } from '@phosphor-icons/react'
 
 export type WorkflowNote = {
   id: string

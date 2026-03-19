@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { X } from 'lucide-react'
+import { X } from '@phosphor-icons/react'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 

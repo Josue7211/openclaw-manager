@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { CornerUpLeft, Copy } from 'lucide-react'
+import { ArrowBendUpLeft, Copy } from '@phosphor-icons/react'
 import type { Message } from '@/pages/messages/types'
 
 /* ─── Types ────────────────────────────────────────────────────────────── */
@@ -130,7 +130,7 @@ function MessageMenu({ x, y, msg, onReact, onReply, onCopy, onClose }: {
           padding: '4px',
           boxShadow: '0 8px 32px var(--overlay-light)',
         }}>
-          <MButton icon={<CornerUpLeft size={16} />} label="Reply" onClick={onReply} />
+          <MButton icon={<ArrowBendUpLeft size={16} />} label="Reply" onClick={onReply} />
           {msg.text && <MButton icon={<Copy size={16} />} label="Copy" onClick={onCopy} />}
         </div>
       </div>

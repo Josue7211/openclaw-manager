@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { CaretDown, CaretUp } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
 import type { Email } from './types'
 import { formatDate } from './types'
@@ -97,7 +97,7 @@ export function EmailList({ emails, selectedAccountId, onInvalidateEmails }: Ema
                 {formatDate(email.date)}
               </div>
               <div style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
-                {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                {isExpanded ? <CaretUp size={12} /> : <CaretDown size={12} />}
               </div>
             </button>
 

@@ -1,4 +1,4 @@
-import { Cpu, Wifi } from 'lucide-react'
+import { Cpu, WifiHigh } from '@phosphor-icons/react'
 import { Skeleton, SkeletonRows } from '@/components/Skeleton'
 import type { ProxmoxVM, ProxmoxNodeStat, OPNsenseData } from './types'
 
@@ -102,7 +102,7 @@ export default function HomelabSection({ proxmoxVMs, proxmoxNodes, opnsense, mou
       {/* OPNsense */}
       <div className="card" style={{ padding: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-          <Wifi size={14} style={{ color: 'var(--accent-blue)' }} />
+          <WifiHigh size={14} style={{ color: 'var(--accent-blue)' }} />
           <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>OPNsense</span>
           {opnsense?.version && opnsense.version !== '\u2014' && (
             <span className="mono" style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--text-muted)' }}>v{opnsense.version}</span>

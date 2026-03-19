@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CheckSquare } from 'lucide-react'
+import { CheckSquare } from '@phosphor-icons/react'
 import { SkeletonRows } from '@/components/Skeleton'
 import { DemoBadge } from '@/components/DemoModeBanner'
 import type { Todo } from '@/lib/types'

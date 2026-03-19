@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { Bell, X, Check, CheckCheck, MessageSquare, AlertTriangle, Info, ChevronDown, ChevronRight } from 'lucide-react'
+import { Bell, X, Check, Checks, ChatText, Warning, Info, CaretDown, CaretRight } from '@phosphor-icons/react'
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 
@@ -142,8 +142,8 @@ function groupNotifications(items: Notification[]): NotificationGroup[] {
 
 function TypeIcon({ type }: { type: NotificationType }) {
   switch (type) {
-    case 'message': return <MessageSquare size={14} style={{ color: 'var(--blue)', flexShrink: 0 }} />
-    case 'alert': return <AlertTriangle size={14} style={{ color: 'var(--amber)', flexShrink: 0 }} />
+    case 'message': return <ChatText size={14} style={{ color: 'var(--blue)', flexShrink: 0 }} />
+    case 'alert': return <Warning size={14} style={{ color: 'var(--amber)', flexShrink: 0 }} />
     case 'system': return <Info size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
   }
 }
@@ -557,8 +557,8 @@ const GroupedNotificationRow = React.memo(function GroupedNotificationRow({
           aria-label={expanded ? 'Collapse messages' : 'Expand messages'}
         >
           {expanded
-            ? <ChevronDown size={13} />
-            : <ChevronRight size={13} />}
+            ? <CaretDown size={13} />
+            : <CaretRight size={13} />}
         </button>
       </div>
 
@@ -695,7 +695,7 @@ const NotificationPanel = forwardRef<HTMLDivElement, { onClose: () => void; posi
                   e.currentTarget.style.color = 'var(--text-muted)'
                 }}
               >
-                <CheckCheck size={12} />
+                <Checks size={12} />
                 Mark all read
               </button>
             )}

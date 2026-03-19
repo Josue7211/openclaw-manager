@@ -1,7 +1,7 @@
 import { memo, useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { Activity } from 'lucide-react'
+import { Pulse } from '@phosphor-icons/react'
 
 type ServiceStatus = 'connected' | 'degraded' | 'unreachable'
 
@@ -140,7 +140,7 @@ export const ConnectionStatus = memo(function ConnectionStatus({
           e.currentTarget.style.color = 'var(--text-secondary)'
         }}
       >
-        <Activity
+        <Pulse
           size={20}
           style={{
             flexShrink: 0,

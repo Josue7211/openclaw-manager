@@ -1,5 +1,5 @@
 import React from 'react'
-import { Target } from 'lucide-react'
+import { Target } from '@phosphor-icons/react'
 import { SkeletonRows } from '@/components/Skeleton'
 import type { Mission } from '@/lib/types'
 import { missionStatusStyle } from './types'

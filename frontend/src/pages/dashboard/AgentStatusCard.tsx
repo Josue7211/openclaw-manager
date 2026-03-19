@@ -1,5 +1,5 @@
 import React from 'react'
-import { Activity } from 'lucide-react'
+import { Pulse } from '@phosphor-icons/react'
 import { timeAgo } from '@/lib/utils'
 import { Skeleton } from '@/components/Skeleton'
 import type { StatusData } from './types'
@@ -13,7 +13,7 @@ export const AgentStatusCard = React.memo(function AgentStatusCard({ mounted, st
   return (
     <div className="card" style={{ padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-        <Activity size={14} style={{ color: 'var(--accent)' }} />
+        <Pulse size={14} style={{ color: 'var(--accent)' }} />
         <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Agent Status</span>
       </div>
       {!mounted ? (

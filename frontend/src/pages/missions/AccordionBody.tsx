@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
-import { Eye, Pause, Play, Cpu } from 'lucide-react'
+import { Eye, Pause, Play, Cpu } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
 import type { Mission, Agent, MissionEvent } from './types'
 import { EVENT_META, formatElapsed, formatDuration } from './utils'
@@ -240,7 +240,7 @@ export function AccordionBody({ missionId, mission, agent }: { missionId: string
       gap: '8px', padding: '24px 0 16px',
       color: 'var(--text-muted)',
     }}>
-      <Eye size={28} strokeWidth={1} style={{ opacity: 0.4 }} />
+      <Eye size={28} style={{ opacity: 0.4 }} />
       <div style={{ fontSize: '12px', fontStyle: 'italic', textAlign: 'center', lineHeight: 1.5 }}>
         No replay — logs auto-captured going forward
       </div>

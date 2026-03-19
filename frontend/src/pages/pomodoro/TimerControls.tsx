@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Play, Pause, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react'
+import { Play, Pause, ArrowCounterClockwise, CaretDown, CaretUp } from '@phosphor-icons/react'
 import type { Mode } from './types'
 import { MODE_LABELS } from './types'
 
@@ -38,7 +38,7 @@ export default function TimerControls({
               fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s',
             }}
           >
-            <RotateCcw size={13} />
+            <ArrowCounterClockwise size={13} />
             Reset
           </button>
 
@@ -68,7 +68,7 @@ export default function TimerControls({
             letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', padding: '2px 0',
           }}
         >
-          {settingsOpen ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+          {settingsOpen ? <CaretUp size={10} /> : <CaretDown size={10} />}
           Custom Durations
         </button>
 

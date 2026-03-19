@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
-import { Play, Pause } from 'lucide-react'
+import { Play, Pause } from '@phosphor-icons/react'
 
 /* ─── Helpers ──────────────────────────────────────────────────────────── */
 

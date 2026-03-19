@@ -1,4 +1,4 @@
-import { X, ExternalLink, Trash2 } from 'lucide-react'
+import { X, ArrowSquareOut, Trash } from '@phosphor-icons/react'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
 import type { KnowledgeEntry } from './shared'
@@ -72,7 +72,7 @@ export function SlidePanel({ entry, onClose, onDelete }: SlidePanelProps) {
                 alignItems: 'center',
               }}
             >
-              <Trash2 size={14} />
+              <Trash size={14} />
             </button>
             <button
               onClick={onClose}
@@ -134,7 +134,7 @@ export function SlidePanel({ entry, onClose, onDelete }: SlidePanelProps) {
                 width: 'fit-content',
               }}
             >
-              <ExternalLink size={12} />
+              <ArrowSquareOut size={12} />
               View Source
             </a>
           )}

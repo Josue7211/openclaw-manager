@@ -1,4 +1,4 @@
-import { Sun, Moon, Laptop } from 'lucide-react'
+import { Sun, Moon, Laptop } from '@phosphor-icons/react'
 import { ACCENT_PRESETS } from '@/lib/themes'
 import { row, sectionLabel } from './shared'
 

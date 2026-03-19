@@ -2,7 +2,7 @@
 
 
 import { useEffect, useState, useCallback } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { ArrowsClockwise } from '@phosphor-icons/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { BackendErrorBanner } from '@/components/BackendErrorBanner'
 import SecondsAgo from '@/components/SecondsAgo'
@@ -145,7 +145,7 @@ export default function PersonalDashboard() {
               display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', transition: 'all 0.25s var(--ease-spring)',
             }}
           >
-            <RefreshCw size={12} />
+            <ArrowsClockwise size={12} />
             Refresh
           </button>
         </div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Target } from 'lucide-react'
+import { Target } from '@phosphor-icons/react'
 import type { Mode, SessionEntry } from './pomodoro/types'
 import {
   DEFAULT_DURATIONS, MODE_LABELS, CELL_SIZE_STORAGE_KEY,

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useSyncExternalStore } from 'react'
-import { FileText, Plus, Trash2, Pencil, ArrowUp, ArrowDown, EyeOff, GripVertical } from 'lucide-react'
+import { FileText, Plus, Trash, PencilSimple, ArrowUp, ArrowDown, EyeSlash, DotsSixVertical } from '@phosphor-icons/react'
 import { APP_MODULES, getEnabledModules, setEnabledModules, subscribeModules } from '@/lib/modules'
 import {
   getSidebarConfig, setSidebarConfig, resetSidebarConfig, subscribeSidebarConfig,
@@ -492,11 +492,11 @@ export default function SettingsModules() {
               setSettingsCtxMenu({
                 x: e.clientX, y: e.clientY,
                 items: [
-                  { label: 'Rename Category', icon: Pencil, onClick: () => startEditCategory(cat.id, cat.name) },
+                  { label: 'Rename Category', icon: PencilSimple, onClick: () => startEditCategory(cat.id, cat.name) },
                   { label: 'Create Module Here', icon: FileText, onClick: () => handleCreateModule(cat.id) },
                   {
                     label: 'Move All to Unused',
-                    icon: EyeOff,
+                    icon: EyeSlash,
                     onClick: () => {
                       const current = getEnabledModules()
                       const toDisable = cat.items
@@ -506,7 +506,7 @@ export default function SettingsModules() {
                     },
                     disabled: cat.items.length === 0,
                   },
-                  ...(cat.items.length === 0 ? [{ label: 'Delete Category', icon: Trash2, onClick: () => deleteCategory(cat.id), danger: true }] : []),
+                  ...(cat.items.length === 0 ? [{ label: 'Delete Category', icon: Trash, onClick: () => deleteCategory(cat.id), danger: true }] : []),
                 ],
               })
             }}
@@ -577,7 +577,7 @@ export default function SettingsModules() {
                   }}
                   title="Delete empty category"
                 >
-                  <Trash2 size={12} />
+                  <Trash size={12} />
                 </button>
               )}
             </div>
@@ -624,11 +624,11 @@ export default function SettingsModules() {
                     onContextMenu={(e) => {
                       e.preventDefault()
                       const menuItems: { label: string; icon: React.ElementType; onClick: () => void; danger?: boolean; disabled?: boolean }[] = [
-                        { label: 'Rename', icon: Pencil, onClick: () => startEditItem(href) },
+                        { label: 'Rename', icon: PencilSimple, onClick: () => startEditItem(href) },
                         { label: 'Move Up', icon: ArrowUp, onClick: () => moveItem(href, 'up'), disabled: idx === 0 },
                         { label: 'Move Down', icon: ArrowDown, onClick: () => moveItem(href, 'down'), disabled: idx === cat.items.length - 1 },
                       ]
-                      menuItems.push({ label: 'Delete', icon: Trash2, onClick: () => handleDeleteModule(href), danger: true })
+                      menuItems.push({ label: 'Delete', icon: Trash, onClick: () => handleDeleteModule(href), danger: true })
                       setSettingsCtxMenu({ x: e.clientX, y: e.clientY, items: menuItems })
                     }}
                     style={{
@@ -645,7 +645,7 @@ export default function SettingsModules() {
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--hover-bg)' }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                   >
-                    <GripVertical size={14} style={{ color: 'var(--text-muted)', flexShrink: 0, cursor: 'grab' }} />
+                    <DotsSixVertical size={14} style={{ color: 'var(--text-muted)', flexShrink: 0, cursor: 'grab' }} />
                     <Icon size={16} style={{ flexShrink: 0, color: isEnabled ? 'var(--text-secondary)' : 'var(--text-muted)' }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {editingModItem === href ? (
@@ -852,7 +852,7 @@ export default function SettingsModules() {
                                 if (first) setSidebarConfig({ ...cfg, categories: cfg.categories.map(c => c === first ? { ...c, items: [...c.items, href] } : c) })
                               }
                             }},
-                            { label: 'Delete', icon: Trash2, onClick: () => softDeleteItem(href), danger: true },
+                            { label: 'Delete', icon: Trash, onClick: () => softDeleteItem(href), danger: true },
                           ],
                         })
                       }}

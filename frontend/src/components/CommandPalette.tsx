@@ -4,11 +4,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate as useRouterNavigate, useLocation } from 'react-router-dom'
-import {
-  Search, Plus, Settings, ArrowRight, PenSquare, CheckSquare,
-  Sun, Moon, BellOff, CheckCheck, Download, MessageSquare,
-  Target, CalendarDays, Mail, Bell, BookOpen, Loader2,
-} from 'lucide-react'
+import { MagnifyingGlass, Plus, Gear, ArrowRight, NotePencil, CheckSquare, Sun, Moon, BellSlash, Checks, DownloadSimple, ChatText, Target, CalendarDots, Envelope, Bell, BookOpen, SpinnerGap } from '@phosphor-icons/react'
 import { allNavItems } from '@/lib/nav-items'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { getKeybindings, subscribeKeybindings, formatKey } from '@/lib/keybindings'
@@ -27,7 +23,7 @@ interface PaletteItem {
   hint?: string
 }
 
-/* ─── Theme helpers (mirror Settings page logic) ───────────────────────── */
+/* ─── Theme helpers (mirror Gear page logic) ───────────────────────── */
 
 function getStoredTheme(): 'dark' | 'light' | 'system' {
   try {
@@ -67,7 +63,7 @@ function toggleDnd(): boolean {
   return next
 }
 
-/* ─── Settings export (matches Settings page) ─────────────────────────── */
+/* ─── Gear export (matches Gear page) ─────────────────────────── */
 
 function exportSettings() {
   const KNOWN_PREFIXES = [
@@ -181,8 +177,8 @@ export default function CommandPalette({
         const iconMap: Record<string, React.ReactNode> = {
           todos: <CheckSquare size={16} />,
           missions: <Target size={16} />,
-          calendar: <CalendarDays size={16} />,
-          emails: <Mail size={16} />,
+          calendar: <CalendarDots size={16} />,
+          emails: <Envelope size={16} />,
           reminders: <Bell size={16} />,
           knowledge: <BookOpen size={16} />,
         }
@@ -203,7 +199,7 @@ export default function CommandPalette({
             results.push({
               id: `search-${type}-${r.id || label}`,
               label,
-              icon: iconMap[type] || <Search size={16} />,
+              icon: iconMap[type] || <MagnifyingGlass size={16} />,
               hint: type,
               action: () => { router(routeMap[type] || '/'); onClose() },
               category: 'search',
@@ -257,7 +253,7 @@ export default function CommandPalette({
       {
         id: 'action-new-message',
         label: 'New message',
-        icon: <PenSquare size={16} />,
+        icon: <NotePencil size={16} />,
         action: () => {
           // Navigate to messages with compose=1 query param
           router('/messages?compose=1')
@@ -296,7 +292,7 @@ export default function CommandPalette({
       {
         id: 'action-toggle-dnd',
         label: 'Toggle Do Not Disturb',
-        icon: <BellOff size={16} />,
+        icon: <BellSlash size={16} />,
         action: () => {
           toggleDnd()
           onClose()
@@ -307,7 +303,7 @@ export default function CommandPalette({
       {
         id: 'action-mark-all-read',
         label: 'Mark all notifications read',
-        icon: <CheckCheck size={16} />,
+        icon: <Checks size={16} />,
         action: () => {
           markAllRead()
           onClose()
@@ -317,7 +313,7 @@ export default function CommandPalette({
       {
         id: 'action-export-settings',
         label: 'Export settings',
-        icon: <Download size={16} />,
+        icon: <DownloadSimple size={16} />,
         action: () => {
           exportSettings()
           onClose()
@@ -326,8 +322,8 @@ export default function CommandPalette({
       },
       {
         id: 'action-settings',
-        label: 'Go to Settings',
-        icon: <Settings size={16} />,
+        label: 'Go to Gear',
+        icon: <Gear size={16} />,
         action: () => navigate('/settings'),
         shortcut: 'G S',
         category: 'action',
@@ -339,7 +335,7 @@ export default function CommandPalette({
       ? recentConvs.map((conv) => ({
           id: `conv-${conv.guid}`,
           label: formatContactLabel(conv),
-          icon: <MessageSquare size={16} />,
+          icon: <ChatText size={16} />,
           hint: conv.lastMessage
             ? conv.lastMessage.length > 40
               ? conv.lastMessage.slice(0, 40) + '...'
@@ -487,7 +483,7 @@ export default function CommandPalette({
           animation: 'cp-scalein 0.2s var(--ease-spring)',
         }}
       >
-        {/* Search input */}
+        {/* MagnifyingGlass input */}
         <span id="cp-title" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap' }}>
           Command Palette
         </span>
@@ -501,7 +497,7 @@ export default function CommandPalette({
             flexShrink: 0,
           }}
         >
-          <Search
+          <MagnifyingGlass
             size={16}
             style={{ color: 'var(--text-muted)', flexShrink: 0 }}
           />
@@ -513,7 +509,7 @@ export default function CommandPalette({
               setSelectedIdx(0)
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Search everything..."
+            placeholder="MagnifyingGlass everything..."
             aria-label="Command palette search"
             role="combobox"
             aria-expanded={true}
@@ -573,7 +569,7 @@ export default function CommandPalette({
           )}
           {flatList.length === 0 && searching && (
             <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-              <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+              <SpinnerGap size={14} style={{ animation: 'spin 1s linear infinite' }} />
               Searching...
             </div>
           )}
@@ -711,7 +707,7 @@ export default function CommandPalette({
                 }}
               >
                 Results
-                {searching && <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />}
+                {searching && <SpinnerGap size={10} style={{ animation: 'spin 1s linear infinite' }} />}
               </div>
               {searchResults.map((item) => {
                 const idx = flatIdx++

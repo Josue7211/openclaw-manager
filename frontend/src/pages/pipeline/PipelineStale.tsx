@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { AlertTriangle, Trash2, Clock, BellOff } from 'lucide-react'
+import { Warning, Trash, Clock, BellSlash } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
 import type { StaleItem, ItemType } from './types'
 import { STALE_TYPE_COLORS, STALE_TYPE_ICONS } from './types'
@@ -41,7 +41,7 @@ export function PipelineStale() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
-        <AlertTriangle size={16} style={{ color: 'var(--gold)' }} />
+        <Warning size={16} style={{ color: 'var(--gold)' }} />
         <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>Stale Items</span>
         {!staleLoading && staleItems.length > 0 && (
           <span style={{
@@ -175,7 +175,7 @@ export function PipelineStale() {
                       gap: '3px',
                     }}
                   >
-                    <BellOff size={10} />
+                    <BellSlash size={10} />
                     3d
                   </button>
                   <button
@@ -195,7 +195,7 @@ export function PipelineStale() {
                       alignItems: 'center',
                     }}
                   >
-                    <Trash2 size={12} />
+                    <Trash size={12} />
                   </button>
                 </div>
               </div>

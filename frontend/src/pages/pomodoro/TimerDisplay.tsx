@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { CheckCircle2, Pencil } from 'lucide-react'
+import { CheckCircle, PencilSimple } from '@phosphor-icons/react'
 import type { Mode } from './types'
 import { MODE_LABELS } from './types'
 
@@ -119,7 +119,7 @@ export default function TimerDisplay({
                 fontWeight: 600, cursor: 'pointer',
               }}
             >
-              <CheckCircle2 size={14} />
+              <CheckCircle size={14} />
               Yes, done!
             </button>
             <button
@@ -182,14 +182,14 @@ export default function TimerDisplay({
               </div>
             )}
 
-            {/* Pencil hint on hover (when not running and not editing) */}
+            {/* PencilSimple hint on hover (when not running and not editing) */}
             {!running && !editingTime && hoveringTimer && (
               <div style={{
                 position: 'absolute', top: '8px', right: '-28px',
                 color: 'var(--text-muted)', opacity: 0.6,
                 pointerEvents: 'none',
               }}>
-                <Pencil size={14} />
+                <PencilSimple size={14} />
               </div>
             )}
           </div>

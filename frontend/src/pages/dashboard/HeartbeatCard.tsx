@@ -1,5 +1,5 @@
 import React from 'react'
-import { Cpu } from 'lucide-react'
+import { Cpu } from '@phosphor-icons/react'
 import { timeAgo, formatTime } from '@/lib/utils'
 import { Skeleton } from '@/components/Skeleton'
 import type { HeartbeatData } from './types'

@@ -2,7 +2,7 @@
 
 
 import { useEffect, useState, useRef } from 'react'
-import { CheckSquare, Plus, Flame } from 'lucide-react'
+import { CheckSquare, Plus, Fire } from '@phosphor-icons/react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -208,7 +208,7 @@ export default function TodosPage() {
               border: '1px solid rgba(239,68,68,0.18)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '12px' }}>
-                <Flame size={13} style={{ color: 'var(--red)' }} />
+                <Fire size={13} style={{ color: 'var(--red)' }} />
                 <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                   Today&apos;s Focus
                 </span>

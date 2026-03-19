@@ -1,5 +1,5 @@
 import { useRef, useCallback, lazy, Suspense } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { CaretDown } from '@phosphor-icons/react'
 import { type LightboxData } from '@/components/Lightbox'
 import { formatTime } from '@/lib/utils'
 import type { ChatMessage, OptimisticMsg } from './types'
@@ -262,7 +262,7 @@ export default function ChatThread({
             onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
           >
-            <ChevronDown size={13} /> scroll to bottom
+            <CaretDown size={13} /> scroll to bottom
           </button>
         </div>
       )}

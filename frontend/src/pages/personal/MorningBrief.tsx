@@ -1,4 +1,4 @@
-import { CheckSquare, Sun, Sunset, Moon, CalendarDays, Target } from 'lucide-react'
+import { CheckSquare, Sun, SunHorizon, Moon, CalendarDots, Target } from '@phosphor-icons/react'
 import { SkeletonRows } from '@/components/Skeleton'
 import { todayISO } from '@/lib/utils'
 import type { Todo, Mission, CalendarEvent } from '@/lib/types'
@@ -7,7 +7,7 @@ import { MOTIVATIONS } from './types'
 function getGreeting() {
   const h = new Date().getHours()
   if (h < 12) return { text: 'Good morning', Icon: Sun }
-  if (h < 18) return { text: 'Good afternoon', Icon: Sunset }
+  if (h < 18) return { text: 'Good afternoon', Icon: SunHorizon }
   return { text: 'Good evening', Icon: Moon }
 }
 
@@ -96,7 +96,7 @@ export default function MorningBrief({ todos, missions, calendarEvents, mounted 
         {/* On the Calendar */}
         <div style={{ background: 'var(--bg-white-03)', borderRadius: '10px', padding: '14px', border: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
-            <CalendarDays size={12} style={{ color: 'var(--accent-blue)' }} />
+            <CalendarDots size={12} style={{ color: 'var(--accent-blue)' }} />
             <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>On the Calendar</span>
           </div>
           {!mounted ? (

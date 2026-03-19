@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
+import { Warning, CaretDown, CaretUp } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 
 export function DemoModeBanner() {
@@ -22,7 +22,7 @@ export function DemoModeBanner() {
       transition: 'padding 0.2s ease',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+        <Warning size={14} style={{ flexShrink: 0 }} />
         <span>
           Demo Mode — showing sample data, no backend required
         </span>
@@ -40,7 +40,7 @@ export function DemoModeBanner() {
             alignItems: 'center',
           }}
         >
-          {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          {expanded ? <CaretUp size={14} /> : <CaretDown size={14} />}
         </button>
         <button
           onClick={() => navigate('/settings?section=connections')}

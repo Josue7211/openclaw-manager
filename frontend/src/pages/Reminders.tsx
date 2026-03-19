@@ -2,7 +2,7 @@
 
 
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Bell, RefreshCw, AlertCircle } from 'lucide-react'
+import { Bell, ArrowsClockwise, WarningCircle } from '@phosphor-icons/react'
 import { useTauriQuery } from '@/hooks/useTauriQuery'
 import { useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -142,7 +142,7 @@ export default function RemindersPage() {
           <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>Reminders</h1>
         </div>
         <div className="card" style={{ padding: '32px', textAlign: 'center' }}>
-          <AlertCircle size={32} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
+          <WarningCircle size={32} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
           <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>iCloud not configured</h2>
           <p style={{ margin: '0 0 20px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
             To sync iCloud Reminders, add your credentials to your environment:
@@ -192,7 +192,7 @@ export default function RemindersPage() {
               display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px',
             }}
           >
-            <RefreshCw size={12} />
+            <ArrowsClockwise size={12} />
             Refresh
           </button>
         </div>

@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, CheckSquare, Target, CalendarDays, Mail, Loader2 } from 'lucide-react'
+import { MagnifyingGlass, CheckSquare, Target, CalendarDots, Envelope, SpinnerGap } from '@phosphor-icons/react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { SkeletonList } from '@/components/Skeleton'
@@ -116,12 +116,12 @@ export default function SearchPage() {
       `}</style>
 
       <h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '24px' }}>
-        Search
+        MagnifyingGlass
       </h1>
 
-      {/* Search bar */}
+      {/* MagnifyingGlass bar */}
       <div style={{ position: 'relative', marginBottom: '24px' }}>
-        <Search size={16} style={{
+        <MagnifyingGlass size={16} style={{
           position: 'absolute',
           left: '14px',
           top: '50%',
@@ -133,8 +133,8 @@ export default function SearchPage() {
           ref={inputRef}
           value={query}
           onChange={handleChange}
-          placeholder="Search todos, missions, calendar, email..."
-          aria-label="Search"
+          placeholder="MagnifyingGlass todos, missions, calendar, email..."
+          aria-label="MagnifyingGlass"
           style={{
             width: '100%',
             padding: '12px 14px 12px 40px',
@@ -154,7 +154,7 @@ export default function SearchPage() {
           }}
         />
         {loading && (
-          <Loader2 size={16} style={{
+          <SpinnerGap size={16} style={{
             position: 'absolute',
             right: '14px',
             top: '50%',
@@ -171,8 +171,8 @@ export default function SearchPage() {
       {/* Empty state */}
       {!query && !loading && (
         <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '64px', fontSize: '14px' }}>
-          <Search size={32} style={{ margin: '0 auto 16px', display: 'block', opacity: 0.3 }} />
-          Search across your todos, missions, calendar, and email
+          <MagnifyingGlass size={32} style={{ margin: '0 auto 16px', display: 'block', opacity: 0.3 }} />
+          MagnifyingGlass across your todos, missions, calendar, and email
         </div>
       )}
 
@@ -254,7 +254,7 @@ export default function SearchPage() {
           {/* Calendar events */}
           {results.events.length > 0 && (
             <div>
-              <SectionHeader icon={CalendarDays} label="Calendar" count={results.events.length} />
+              <SectionHeader icon={CalendarDots} label="Calendar" count={results.events.length} />
               {results.events.map(event => (
                 <ResultCard key={event.id} href="/calendar">
                   <div>
@@ -273,7 +273,7 @@ export default function SearchPage() {
           {/* Emails */}
           {results.emails.length > 0 && (
             <div>
-              <SectionHeader icon={Mail} label="Email" count={results.emails.length} />
+              <SectionHeader icon={Envelope} label="Email" count={results.emails.length} />
               {results.emails.map(email => (
                 <ResultCard key={email.id} href="/email">
                   <div>

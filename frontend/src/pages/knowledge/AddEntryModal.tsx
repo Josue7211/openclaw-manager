@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { X } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'

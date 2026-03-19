@@ -1,5 +1,5 @@
 import React from 'react'
-import { Bot } from 'lucide-react'
+import { Robot } from '@phosphor-icons/react'
 import { timeAgo } from '@/lib/utils'
 import { SkeletonRows } from '@/components/Skeleton'
 import type { AgentInfo, AgentsData, SubagentData, ActiveSubagentData } from './types'
@@ -17,7 +17,7 @@ export const AgentsCard = React.memo(function AgentsCard({ mounted, sortedAgents
     <div className="card" style={{ padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Bot size={14} style={{ color: 'var(--accent)' }} />
+          <Robot size={14} style={{ color: 'var(--accent)' }} />
           <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Agents</span>
         </div>
         {subagents && subagents.count > 0 && (

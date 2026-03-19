@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { Star, Trash2, X, Eye, EyeOff } from 'lucide-react'
+import { Star, Trash, X, Eye, EyeSlash } from '@phosphor-icons/react'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
 import type { EmailAccount, AccountForm } from './types'
@@ -137,7 +137,7 @@ export function ManagePanel({
                     aria-label="Delete account"
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px' }}
                   >
-                    <Trash2 size={13} />
+                    <Trash size={13} />
                   </button>
                 </div>
               ))}
@@ -191,7 +191,7 @@ export function ManagePanel({
                       background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0,
                     }}
                   >
-                    {showPassword ? <EyeOff size={12} /> : <Eye size={12} />}
+                    {showPassword ? <EyeSlash size={12} /> : <Eye size={12} />}
                   </button>
                 </div>
               </div>

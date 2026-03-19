@@ -4,7 +4,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Mail, RefreshCw, AlertCircle, Settings } from 'lucide-react'
+import { Envelope, ArrowsClockwise, WarningCircle, Gear } from '@phosphor-icons/react'
 import { SkeletonList } from '@/components/Skeleton'
 
 import { api } from '@/lib/api'
@@ -207,11 +207,11 @@ export default function EmailPage() {
     return (
       <div style={{ maxWidth: '600px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px' }}>
-          <Mail size={20} style={{ color: 'var(--accent)' }} />
+          <Envelope size={20} style={{ color: 'var(--accent)' }} />
           <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>Email</h1>
         </div>
         <div className="card" style={{ padding: '32px', textAlign: 'center' }}>
-          <AlertCircle size={32} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
+          <WarningCircle size={32} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
           <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>Email not configured</h2>
           <p style={{ margin: '0 0 20px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
             Add an IMAP account via <strong>Manage Accounts</strong> or set env vars in{' '}
@@ -237,7 +237,7 @@ export default function EmailPage() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Mail size={20} style={{ color: 'var(--accent)' }} />
+          <Envelope size={20} style={{ color: 'var(--accent)' }} />
           <PageHeader defaultTitle="Email" />
           {!loading && unreadCount > 0 && (
             <span className="badge badge-green" style={{ marginLeft: '4px' }}>
@@ -262,7 +262,7 @@ export default function EmailPage() {
               display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px',
             }}
           >
-            <Settings size={12} />
+            <Gear size={12} />
             Manage Accounts
           </button>
 
@@ -275,7 +275,7 @@ export default function EmailPage() {
               display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px',
             }}
           >
-            <RefreshCw size={12} />
+            <ArrowsClockwise size={12} />
             Refresh
           </button>
         </div>
@@ -318,7 +318,7 @@ export default function EmailPage() {
           background: 'rgba(255,200,0,0.08)', border: '1px solid rgba(255,200,0,0.25)',
           color: 'var(--text-secondary)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px',
         }}>
-          <AlertCircle size={14} style={{ color: 'var(--amber-warm)', flexShrink: 0 }} />
+          <WarningCircle size={14} style={{ color: 'var(--amber-warm)', flexShrink: 0 }} />
           No credentials for this account. Select a different account or add credentials via Manage Accounts.
         </div>
       )}

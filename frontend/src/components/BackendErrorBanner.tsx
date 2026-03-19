@@ -1,4 +1,4 @@
-import { Wifi } from 'lucide-react'
+import { WifiHigh } from '@phosphor-icons/react'
 
 interface Props {
   /** Service-specific label, e.g. "BlueBubbles unreachable". Falls back to generic message. */
@@ -12,7 +12,7 @@ export function BackendErrorBanner({ label }: Props = {}) {
       background: 'var(--red-500-a12)', border: '1px solid var(--red-500-a25)',
       fontSize: '12px', color: 'var(--red)', display: 'flex', alignItems: 'center', gap: '8px',
     }}>
-      <Wifi size={12} /> {label || 'Backend unreachable'} — showing cached data
+      <WifiHigh size={12} /> {label || 'Backend unreachable'} — showing cached data
     </div>
   )
 }

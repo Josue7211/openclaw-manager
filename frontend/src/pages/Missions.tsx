@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Target, RefreshCw } from 'lucide-react'
+import { Target, ArrowsClockwise } from '@phosphor-icons/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
@@ -117,7 +117,7 @@ export default function MissionsPage() {
           onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
         >
-          <RefreshCw size={13} />
+          <ArrowsClockwise size={13} />
           Refresh
         </button>
       </div>
@@ -147,7 +147,7 @@ export default function MissionsPage() {
           </div>
         ) : filtered.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: '80px', gap: '12px', color: 'var(--text-muted)' }}>
-            <Target size={40} strokeWidth={1} />
+            <Target size={40} />
             <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
               {tab === 'all' ? 'No missions yet' : `No ${tab} missions`}
             </div>

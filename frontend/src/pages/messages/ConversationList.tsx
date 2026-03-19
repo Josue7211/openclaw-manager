@@ -1,9 +1,6 @@
 import { useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import {
-  MessageSquare, RefreshCw, Search, Check,
-  PenSquare, BellOff, Pin,
-} from 'lucide-react'
+import { ChatText, ArrowsClockwise, MagnifyingGlass, Check, NotePencil, BellSlash, PushPin } from '@phosphor-icons/react'
 import { formatContactLabel } from '@/lib/utils'
 import { ContactAvatar, GroupAvatar } from '@/components/messages/ContactAvatar'
 import { cleanPayloadText } from '@/hooks/messages'
@@ -138,7 +135,7 @@ export default function ConversationList({
           const btnOpacity = panelWidth >= 320 ? 1 : panelWidth <= 280 ? 0 : (panelWidth - 280) / 40
           return (
             <>
-              <MessageSquare size={iconSize} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+              <ChatText size={iconSize} style={{ color: 'var(--accent)', flexShrink: 0 }} />
               {charsVisible > 0 && (
                 <h1 style={{
                   margin: 0, fontSize: '20px', fontWeight: 700,
@@ -185,7 +182,7 @@ export default function ConversationList({
                       display: 'flex', alignItems: 'center',
                     }}
                   >
-                    <RefreshCw size={14} />
+                    <ArrowsClockwise size={14} />
                   </button>
                   <button
                     onClick={onStartCompose}
@@ -198,7 +195,7 @@ export default function ConversationList({
                       display: 'flex', alignItems: 'center',
                     }}
                   >
-                    <PenSquare size={14} />
+                    <NotePencil size={14} />
                   </button>
                 </div>
               )}
@@ -218,13 +215,13 @@ export default function ConversationList({
               transition: isDragging ? 'none' : 'height 0.25s ease, opacity 0.2s ease',
             }}>
               <div style={{ padding: '10px 14px 6px', position: 'relative' }}>
-                <Search size={13} style={{
+                <MagnifyingGlass size={13} style={{
                   position: 'absolute', left: '26px', top: '50%', transform: 'translateY(-50%)',
                   color: 'var(--text-muted)', pointerEvents: 'none',
                 }} />
                 <input
-                  type="text" placeholder="Search" value={searchQuery}
-                  aria-label="Search conversations"
+                  type="text" placeholder="MagnifyingGlass" value={searchQuery}
+                  aria-label="MagnifyingGlass conversations"
                   onChange={e => setSearchQuery(e.target.value)}
                   tabIndex={searchOpacity === 0 ? -1 : 0}
                   style={{
@@ -314,7 +311,7 @@ export default function ConversationList({
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             padding: '48px 16px', color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', gap: '12px',
           }}>
-            <MessageSquare size={32} style={{ opacity: 0.3 }} />
+            <ChatText size={32} style={{ opacity: 0.3 }} />
             <div>
               <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '4px' }}>No conversations yet</div>
               <div style={{ fontSize: '12px', fontFamily: 'monospace' }}>Messages will appear here once available</div>
@@ -365,7 +362,7 @@ export default function ConversationList({
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             padding: '32px 16px', color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', gap: '8px',
           }}>
-            <Search size={20} style={{ opacity: 0.4 }} />
+            <MagnifyingGlass size={20} style={{ opacity: 0.4 }} />
             <span>No conversations match your search</span>
           </div>
         )}
@@ -436,7 +433,7 @@ export default function ConversationList({
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             opacity: textOpacity,
                           }}>
-                            {isSel && <Check size={13} color="var(--text-on-color)" strokeWidth={3} />}
+                            {isSel && <Check size={13} color="var(--text-on-color)" />}
                           </div>
                         )}
 
@@ -469,8 +466,8 @@ export default function ConversationList({
                                 display: 'flex', alignItems: 'center', gap: '4px',
                               }}>
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{contactLabel(conv)}</span>
-                                {pinnedConvs.includes(conv.guid) && <Pin size={11} style={{ flexShrink: 0, opacity: 0.5 }} />}
-                                {mutedConvs.includes(conv.guid) && <BellOff size={11} style={{ flexShrink: 0, opacity: 0.5 }} />}
+                                {pinnedConvs.includes(conv.guid) && <PushPin size={11} style={{ flexShrink: 0, opacity: 0.5 }} />}
+                                {mutedConvs.includes(conv.guid) && <BellSlash size={11} style={{ flexShrink: 0, opacity: 0.5 }} />}
                               </span>
                               {timeOpacity > 0 && (
                                 <span style={{

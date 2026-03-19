@@ -1,4 +1,4 @@
-import { Send } from 'lucide-react'
+import { PaperPlaneTilt } from '@phosphor-icons/react'
 
 export function NotConfiguredBanner() {
   return (
@@ -9,7 +9,7 @@ export function NotConfiguredBanner() {
       borderRadius: '12px',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-        <Send size={14} style={{ color: 'var(--blue-solid)' }} />
+        <PaperPlaneTilt size={14} style={{ color: 'var(--blue-solid)' }} />
         <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--blue-solid)' }}>OpenClaw not reachable</span>
       </div>
       <p style={{ margin: '0 0 12px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { X, ChevronDown } from 'lucide-react'
+import { X, CaretDown } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
 import { useTableRealtime } from '@/lib/hooks/useRealtimeSSE'
 import { FilterDropdown } from './FilterDropdown'
@@ -252,7 +252,7 @@ export function PipelineIdeas() {
                   >
                     {isSelected && (
                       <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                        <path d="M1 4L3.5 6.5L9 1" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M1 4L3.5 6.5L9 1" stroke="#fff" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
                     )}
                   </div>
@@ -336,7 +336,7 @@ export function PipelineIdeas() {
                     transition: 'transform 0.2s ease',
                     display: 'flex', alignItems: 'center',
                   }}>
-                    <ChevronDown size={14} />
+                    <CaretDown size={14} />
                   </div>
                 </div>
 

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, lazy, Suspense } from 'react'
-import { Trash2, Network, PenLine, Cloud, CloudOff, GitBranch } from 'lucide-react'
+import { Trash, ShareNetwork, PenNib, Cloud, CloudSlash, GitBranch } from '@phosphor-icons/react'
 import { useVault } from '@/hooks/notes/useVault'
 import { noteIdFromTitle } from '@/lib/vault'
 import { API_BASE, api } from '@/lib/api'
@@ -236,7 +236,7 @@ export default function NotesPage() {
             }}
             title={syncing ? 'Syncing...' : 'Synced'}
           >
-            {syncing ? <Cloud size={12} /> : <CloudOff size={12} />}
+            {syncing ? <Cloud size={12} /> : <CloudSlash size={12} />}
           </div>
 
           {/* View toggle */}
@@ -262,7 +262,7 @@ export default function NotesPage() {
                 transition: 'all var(--duration-fast)',
               }}
             >
-              <PenLine size={11} />
+              <PenNib size={11} />
               Edit
             </button>
             <button
@@ -307,7 +307,7 @@ export default function NotesPage() {
                 ;(e.target as HTMLButtonElement).style.color = 'var(--text-muted)'
               }}
             >
-              <Trash2 size={13} />
+              <Trash size={13} />
             </button>
           )}
         </div>
@@ -457,7 +457,7 @@ function EmptyState({ onCreateNote }: { onCreateNote: () => void }) {
         border: '1px solid var(--border)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        <Network size={22} style={{ opacity: 0.3, color: 'var(--accent)' }} />
+        <ShareNetwork size={22} style={{ opacity: 0.3, color: 'var(--accent)' }} />
       </div>
       <div style={{ textAlign: 'center' }}>
         <div style={{

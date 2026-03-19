@@ -1,10 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import {
-  CheckCircle, ChevronLeft, ChevronRight, Loader2, SkipForward,
-  Database, MessageSquare, Bot, Rocket, Server, Film, Mail,
-  CalendarDays, Bell, Brain, Eye, EyeOff,
-} from 'lucide-react'
+import { CheckCircle, CaretLeft, CaretRight, SpinnerGap, SkipForward, Database, ChatText, Robot, Rocket, Desktop, FilmStrip, Envelope, CalendarDots, Bell, Brain, Eye, EyeSlash } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
@@ -115,13 +111,13 @@ const SERVICE_GROUPS: ServiceGroupDef[] = [
     id: 'bluebubbles',
     title: 'BlueBubbles',
     description: 'iMessage bridge for Messages. Requires a Mac running the BlueBubbles server.',
-    icon: MessageSquare,
+    icon: ChatText,
     moduleIds: ['messages'],
     optional: true,
     skipLabel: "Skip — I don't have a Mac",
     fields: [
       { label: 'BlueBubbles Host URL', keychainKey: 'bluebubbles.host', placeholder: 'http://100.x.x.x:1234' },
-      { label: 'BlueBubbles Password', keychainKey: 'bluebubbles.password', placeholder: 'Server password', secret: true },
+      { label: 'BlueBubbles Password', keychainKey: 'bluebubbles.password', placeholder: 'Desktop password', secret: true },
     ],
     services: [{ name: 'bluebubbles', fieldKeys: ['bluebubbles.host', 'bluebubbles.password'] }],
     testKey: 'bluebubbles',
@@ -130,7 +126,7 @@ const SERVICE_GROUPS: ServiceGroupDef[] = [
     id: 'openclaw',
     title: 'OpenClaw',
     description: 'Remote AI workspace that powers chat sessions and agent tasks.',
-    icon: Bot,
+    icon: Robot,
     moduleIds: ['chat'],
     optional: false,
     fields: [
@@ -146,7 +142,7 @@ const SERVICE_GROUPS: ServiceGroupDef[] = [
     id: 'homelab',
     title: 'Home Lab',
     description: 'Proxmox virtualization and OPNsense firewall monitoring.',
-    icon: Server,
+    icon: Desktop,
     moduleIds: ['homelab'],
     optional: true,
     skipLabel: "Skip — I don't have a homelab",
@@ -168,7 +164,7 @@ const SERVICE_GROUPS: ServiceGroupDef[] = [
     id: 'media',
     title: 'Media Radar',
     description: 'Plex media server, Sonarr for TV, and Radarr for movies.',
-    icon: Film,
+    icon: FilmStrip,
     moduleIds: ['media'],
     optional: true,
     skipLabel: 'Skip — no media stack',
@@ -190,7 +186,7 @@ const SERVICE_GROUPS: ServiceGroupDef[] = [
     id: 'email',
     title: 'Email',
     description: 'IMAP email integration for inbox monitoring.',
-    icon: Mail,
+    icon: Envelope,
     moduleIds: ['email'],
     optional: true,
     skipLabel: 'Skip — no email integration',
@@ -206,7 +202,7 @@ const SERVICE_GROUPS: ServiceGroupDef[] = [
     id: 'calendar',
     title: 'Calendar',
     description: 'CalDAV calendar integration.',
-    icon: CalendarDays,
+    icon: CalendarDots,
     moduleIds: ['calendar'],
     optional: true,
     skipLabel: 'Skip — no CalDAV',
@@ -287,9 +283,9 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
         background: 'var(--bg-white-03)', border: '1px solid var(--bg-white-04)',
       }}>
         <SetupFeature icon={Database} title="Supabase" desc="Database and authentication (required)" />
-        <SetupFeature icon={Bot} title="AI & Chat" desc="OpenClaw, Anthropic (optional)" />
-        <SetupFeature icon={MessageSquare} title="Messages" desc="iMessage via BlueBubbles (Mac only)" />
-        <SetupFeature icon={Server} title="Services" desc="Homelab, Media, Email, Calendar, Notifications" />
+        <SetupFeature icon={Robot} title="AI & Chat" desc="OpenClaw, Anthropic (optional)" />
+        <SetupFeature icon={ChatText} title="Messages" desc="iMessage via BlueBubbles (Mac only)" />
+        <SetupFeature icon={Desktop} title="Services" desc="Homelab, Media, Email, Calendar, Notifications" />
       </div>
       <button
         onClick={onNext}
@@ -297,7 +293,7 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
         style={{ ...primaryBtn, width: '100%', justifyContent: 'center', marginTop: '4px' }}
         className="hover-bg-bright"
       >
-        Let's Go <ChevronRight size={16} />
+        Let's Go <CaretRight size={16} />
       </button>
     </div>
   )
@@ -347,8 +343,8 @@ function StepModuleSelection({ onNext, onBack }: StepProps) {
   )
 
   const iconMap: Record<string, React.ElementType> = {
-    messages: MessageSquare, chat: Bot, homelab: Server, media: Film,
-    email: Mail, calendar: CalendarDays,
+    messages: ChatText, chat: Robot, homelab: Desktop, media: FilmStrip,
+    email: Envelope, calendar: CalendarDots,
   }
 
   return (
@@ -397,10 +393,10 @@ function StepModuleSelection({ onNext, onBack }: StepProps) {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
         <button onClick={onBack} style={secondaryBtn}>
-          <ChevronLeft size={14} /> Back
+          <CaretLeft size={14} /> Back
         </button>
         <button onClick={handleNext} style={primaryBtn}>
-          Next <ChevronRight size={14} />
+          Next <CaretRight size={14} />
         </button>
       </div>
     </div>
@@ -546,7 +542,7 @@ function StepSupabase({ onNext, onBack }: StepProps) {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
         <button onClick={onBack} style={secondaryBtn}>
-          <ChevronLeft size={14} /> Back
+          <CaretLeft size={14} /> Back
         </button>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {!envConfigured && (
@@ -556,11 +552,11 @@ function StepSupabase({ onNext, onBack }: StepProps) {
               style={{ ...secondaryBtn, opacity: (!url || !anonKey) ? 0.5 : 1 }}
               aria-label="Test Supabase connection"
             >
-              {testStatus === 'testing' ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Testing...</> : 'Test Connection'}
+              {testStatus === 'testing' ? <><SpinnerGap size={14} style={{ animation: 'spin 1s linear infinite' }} /> Testing...</> : 'Test Connection'}
             </button>
           )}
           <button onClick={onNext} style={primaryBtn}>
-            Next <ChevronRight size={14} />
+            Next <CaretRight size={14} />
           </button>
         </div>
       </div>
@@ -724,7 +720,7 @@ function StepServiceGroup({ group, onNext, onBack }: StepProps & { group: Servic
                       color: 'var(--text-muted)', display: 'flex', alignItems: 'center',
                     }}
                   >
-                    {isVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+                    {isVisible ? <EyeSlash size={14} /> : <Eye size={14} />}
                   </button>
                 )}
               </div>
@@ -737,7 +733,7 @@ function StepServiceGroup({ group, onNext, onBack }: StepProps & { group: Servic
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
         <button onClick={onBack} style={secondaryBtn}>
-          <ChevronLeft size={14} /> Back
+          <CaretLeft size={14} /> Back
         </button>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {group.testKey && hasAnyUrl && (
@@ -747,11 +743,11 @@ function StepServiceGroup({ group, onNext, onBack }: StepProps & { group: Servic
               style={secondaryBtn}
               aria-label={`Test ${group.title} connection`}
             >
-              {testStatus === 'testing' ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Testing...</> : 'Test'}
+              {testStatus === 'testing' ? <><SpinnerGap size={14} style={{ animation: 'spin 1s linear infinite' }} /> Testing...</> : 'Test'}
             </button>
           )}
           <button onClick={saveAndNext} disabled={saving} style={primaryBtn}>
-            {saving ? 'Saving...' : 'Next'} {!saving && <ChevronRight size={14} />}
+            {saving ? 'Saving...' : 'Next'} {!saving && <CaretRight size={14} />}
           </button>
         </div>
       </div>
@@ -889,7 +885,7 @@ function TestResult({ status, errorMsg }: { status: TestStatus; errorMsg: string
       background: 'var(--accent-a10)', border: '1px solid var(--accent-a12)',
       color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '6px',
     }}>
-      <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
+      <SpinnerGap size={12} style={{ animation: 'spin 1s linear infinite' }} />
       Testing connection...
     </div>
   )

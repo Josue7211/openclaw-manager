@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react'
-import { Plus, X, Tag, Trash2, Calendar, Rocket } from 'lucide-react'
+import { Plus, X, Tag, Trash, Calendar, Rocket } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
 import type { Idea, ChangelogEntry, IdeaStatus } from './types'
 import { IDEA_STATUS_META } from './types'
@@ -317,7 +317,7 @@ export function PipelineShipLog() {
                             opacity: 0.5,
                           }}
                         >
-                          <Trash2 size={13} />
+                          <Trash size={13} />
                         </button>
                       </div>
                       {entry.description && (

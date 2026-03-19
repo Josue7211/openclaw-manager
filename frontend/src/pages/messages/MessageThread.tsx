@@ -1,8 +1,5 @@
 import { useRef } from 'react'
-import {
-  Send, ArrowLeft, AlertCircle, Mic,
-  Paperclip, X, Search, ChevronDown, ChevronUp, CornerUpLeft, Check, CheckCheck, SmilePlus,
-} from 'lucide-react'
+import { PaperPlaneTilt, ArrowLeft, WarningCircle, Microphone, Paperclip, X, MagnifyingGlass, CaretDown, CaretUp, ArrowBendUpLeft, Check, Checks, SmileySticker } from '@phosphor-icons/react'
 
 import { API_BASE } from '@/lib/api'
 import { formatContactLabel } from '@/lib/utils'
@@ -41,7 +38,7 @@ interface MessageThreadProps {
   showScrollBtn: boolean
   scrollToBottom: (behavior?: ScrollBehavior) => void
 
-  // Search
+  // MagnifyingGlass
   showMessageSearch: boolean
   setShowMessageSearch: (fn: boolean | ((prev: boolean) => boolean)) => void
   messageSearch: string
@@ -219,7 +216,7 @@ export default function MessageThread({
               return !s
             })
           }}
-          aria-label="Search messages"
+          aria-label="MagnifyingGlass messages"
           style={{
             background: showMessageSearch ? 'var(--accent-a12)' : 'transparent',
             border: '1px solid var(--border)', borderRadius: '8px',
@@ -230,7 +227,7 @@ export default function MessageThread({
             transition: 'all 0.15s',
           }}
         >
-          <Search size={14} />
+          <MagnifyingGlass size={14} />
         </button>
       </div>
 
@@ -242,14 +239,14 @@ export default function MessageThread({
           background: 'rgba(167, 139, 250, 0.03)',
           animation: 'searchSlideDown 0.2s var(--ease-spring)', overflow: 'hidden',
         }}>
-          <Search size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+          <MagnifyingGlass size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="Search in conversation..."
+            placeholder="MagnifyingGlass in conversation..."
             value={messageSearch}
             onChange={e => setMessageSearch(e.target.value)}
-            aria-label="Search in conversation"
+            aria-label="MagnifyingGlass in conversation"
             onKeyDown={e => {
               if (e.key === 'Enter') {
                 if (e.shiftKey) jumpToPrevMatch()
@@ -286,7 +283,7 @@ export default function MessageThread({
                 opacity: searchMatches.length > 0 ? 1 : 0.4,
               }}
             >
-              <ChevronUp size={14} />
+              <CaretUp size={14} />
             </button>
             <button onClick={jumpToNextMatch} disabled={searchMatches.length === 0}
               aria-label="Next match"
@@ -297,7 +294,7 @@ export default function MessageThread({
                 opacity: searchMatches.length > 0 ? 1 : 0.4,
               }}
             >
-              <ChevronDown size={14} />
+              <CaretDown size={14} />
             </button>
           </div>
           <button onClick={() => { setShowMessageSearch(false); setMessageSearch(''); setActiveMatchIndex(0) }}
@@ -349,7 +346,7 @@ export default function MessageThread({
         {loadingMore && (
           <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--text-muted)', fontSize: '11px' }}>
             <svg width="16" height="16" viewBox="0 0 16 16" style={{ animation: 'spin 1s linear infinite', verticalAlign: 'middle', marginRight: '6px' }}>
-              <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="19 19" strokeLinecap="round" />
+              <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeDasharray="19 19" strokeLinecap="round" />
             </svg>
             Loading older messages...
           </div>
@@ -447,7 +444,7 @@ export default function MessageThread({
                       title="React"
                       aria-label="React"
                     >
-                      <SmilePlus size={14} />
+                      <SmileySticker size={14} />
                     </button>
                     <button onClick={() => { setReplyTo(msg); inputRef.current?.focus() }}
                       style={{
@@ -458,7 +455,7 @@ export default function MessageThread({
                       title="Reply"
                       aria-label="Reply"
                     >
-                      <CornerUpLeft size={14} />
+                      <ArrowBendUpLeft size={14} />
                     </button>
                   </div>
                 )}
@@ -485,7 +482,7 @@ export default function MessageThread({
                         padding: '0 12px', display: 'flex', alignItems: 'center', gap: '4px',
                         marginBottom: '1px',
                       }}>
-                        <CornerUpLeft size={10} style={{ flexShrink: 0 }} />
+                        <ArrowBendUpLeft size={10} style={{ flexShrink: 0 }} />
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {replyTarget.isFromMe ? 'You' : resolveSenderName(replyTarget.handle, contactLookup)}
                         </span>
@@ -607,7 +604,7 @@ export default function MessageThread({
 
                     {msg.isAudioMessage && (!msg.attachments || msg.attachments.length === 0) && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px' }}>
-                        <Mic size={14} />
+                        <Microphone size={14} />
                         <span style={{ fontSize: '12px', fontStyle: 'italic' }}>Audio Message</span>
                       </div>
                     )}
@@ -653,7 +650,7 @@ export default function MessageThread({
                       title="Reply"
                       aria-label="Reply"
                     >
-                      <CornerUpLeft size={14} />
+                      <ArrowBendUpLeft size={14} />
                     </button>
                     <button onClick={() => {
                         const rect = document.querySelector(`[data-msg-guid="${msg.guid}"]`)?.getBoundingClientRect()
@@ -667,7 +664,7 @@ export default function MessageThread({
                       title="React"
                       aria-label="React"
                     >
-                      <SmilePlus size={14} />
+                      <SmileySticker size={14} />
                     </button>
                   </div>
                 )}
@@ -679,7 +676,7 @@ export default function MessageThread({
                   padding: '2px 4px 0', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '5px',
                   fontFamily: "'JetBrains Mono', monospace",
                 }}>
-                  <AlertCircle size={11} />
+                  <WarningCircle size={11} />
                   <span>Failed to send</span>
                   <button
                     onClick={() => retryMessage(msg)}
@@ -710,7 +707,7 @@ export default function MessageThread({
                   fontFamily: "'JetBrains Mono', monospace",
                 }}>
                   <svg width="12" height="12" viewBox="0 0 12 12" style={{ animation: 'spin 1s linear infinite' }}>
-                    <circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="14 14" strokeLinecap="round" />
+                    <circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" strokeDasharray="14 14" strokeLinecap="round" />
                   </svg>
                   Sending...
                 </div>
@@ -727,7 +724,7 @@ export default function MessageThread({
                   display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '3px',
                 }}>
                   {deliveryMarkers[msg.guid].startsWith('Read') || deliveryMarkers[msg.guid] === 'Delivered'
-                    ? <CheckCheck size={12} />
+                    ? <Checks size={12} />
                     : <Check size={12} />}
                   {deliveryMarkers[msg.guid]}
                 </div>
@@ -753,7 +750,7 @@ export default function MessageThread({
           boxShadow: '0 4px 16px rgba(0,0,0,0.3)', zIndex: 10,
           animation: 'scrollBtnIn 0.2s var(--ease-spring)',
         }}>
-          <ChevronDown size={18} />
+          <CaretDown size={18} />
         </button>
       )}
 
@@ -765,7 +762,7 @@ export default function MessageThread({
           background: 'rgba(167,139,250,0.04)',
           animation: 'replySlideDown 0.2s var(--ease-spring)', overflow: 'hidden',
         }}>
-          <CornerUpLeft size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+          <ArrowBendUpLeft size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent)' }}>
               Replying to {replyTo.isFromMe ? 'yourself' : resolveSenderName(replyTo.handle, contactLookup)}
@@ -863,7 +860,7 @@ export default function MessageThread({
         <button
           onClick={handleSend}
           disabled={(!hasDraft && !attachmentFile) || sending}
-          aria-label="Send message"
+          aria-label="PaperPlaneTilt message"
           style={{
             width: '36px', height: '36px', borderRadius: '50%', border: 'none',
             background: (hasDraft || attachmentFile)
@@ -876,7 +873,7 @@ export default function MessageThread({
             transform: hasDraft ? 'scale(1)' : 'scale(0.9)',
           }}
         >
-          <Send size={16} style={{ marginLeft: '-1px' }} />
+          <PaperPlaneTilt size={16} style={{ marginLeft: '-1px' }} />
         </button>
       </div>
     </div>

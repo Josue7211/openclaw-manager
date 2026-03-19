@@ -2,7 +2,7 @@
 
 
 import { useEffect, useState, useRef } from 'react'
-import { Zap, Trash2 } from 'lucide-react'
+import { Lightning, Trash } from '@phosphor-icons/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { SkeletonList } from '@/components/Skeleton'
@@ -131,7 +131,7 @@ export default function CapturePage() {
       {/* Header */}
       <div style={{ marginBottom: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-          <Zap size={20} style={{ color: 'var(--gold)' }} />
+          <Lightning size={20} style={{ color: 'var(--gold)' }} />
           <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)' }}>
             Quick Capture
           </h1>
@@ -253,7 +253,7 @@ export default function CapturePage() {
                           alignItems: 'center',
                         }}
                       >
-                        <Trash2 size={13} />
+                        <Trash size={13} />
                       </button>
                     </div>
                   </div>
@@ -349,7 +349,7 @@ export default function CapturePage() {
                           alignItems: 'center',
                         }}
                       >
-                        <Trash2 size={13} />
+                        <Trash size={13} />
                       </button>
                     </div>
                   </div>

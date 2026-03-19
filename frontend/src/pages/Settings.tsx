@@ -1,5 +1,5 @@
 
-import { Settings, Bell, Palette, User, Server, Cpu, Zap, ChevronRight, ArrowLeft, Keyboard, Blocks, Plug, Download, EyeOff, FolderOpen, FileText, HeartPulse } from 'lucide-react'
+import { Gear, Bell, Palette, User, Desktop, Cpu, Lightning, CaretRight, ArrowLeft, Keyboard, SquaresFour, Plug, DownloadSimple, EyeSlash, FolderOpen, FileText, Heartbeat } from '@phosphor-icons/react'
 import { useState, useEffect, memo, useCallback, lazy, Suspense } from 'react'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 import { useSearchParams } from 'react-router-dom'
@@ -28,17 +28,17 @@ interface Pref {
 type SettingsSection = 'agent' | 'gateway' | 'app' | 'user' | 'connections' | 'display' | 'keybindings' | 'modules' | 'notifications' | 'privacy' | 'status'
 
 const SECTIONS: { key: SettingsSection; label: string; icon: React.ElementType; group: string }[] = [
-  { key: 'agent', label: 'Agent', icon: Zap, group: 'General' },
-  { key: 'gateway', label: 'Gateway', icon: Server, group: 'General' },
+  { key: 'agent', label: 'Agent', icon: Lightning, group: 'General' },
+  { key: 'gateway', label: 'Gateway', icon: Desktop, group: 'General' },
   { key: 'app', label: 'OpenClaw Manager', icon: Cpu, group: 'General' },
   { key: 'user', label: 'User', icon: User, group: 'General' },
   { key: 'connections', label: 'Connections', icon: Plug, group: 'General' },
-  { key: 'display', label: 'Personalization', icon: Palette, group: 'App Settings' },
-  { key: 'keybindings', label: 'Keybinds', icon: Keyboard, group: 'App Settings' },
-  { key: 'modules', label: 'Sidebar', icon: Blocks, group: 'App Settings' },
-  { key: 'notifications', label: 'Notifications', icon: Bell, group: 'App Settings' },
-  { key: 'privacy', label: 'Privacy & Data', icon: EyeOff, group: 'App Settings' },
-  { key: 'status', label: 'System Status', icon: HeartPulse, group: 'App Settings' },
+  { key: 'display', label: 'Personalization', icon: Palette, group: 'App Gear' },
+  { key: 'keybindings', label: 'Keybinds', icon: Keyboard, group: 'App Gear' },
+  { key: 'modules', label: 'Sidebar', icon: SquaresFour, group: 'App Gear' },
+  { key: 'notifications', label: 'Notifications', icon: Bell, group: 'App Gear' },
+  { key: 'privacy', label: 'Privacy & Data', icon: EyeSlash, group: 'App Gear' },
+  { key: 'status', label: 'System Status', icon: Heartbeat, group: 'App Gear' },
 ]
 
 const SECTION_GROUPS = [...new Set(SECTIONS.map(s => s.group))]
@@ -123,7 +123,7 @@ const AppSection = memo(function AppSection() {
           disabled
           title="Enable tauri-plugin-updater to use this feature"
         >
-          <Download size={14} />
+          <DownloadSimple size={14} />
           Check for updates
         </button>
       </div>
@@ -339,8 +339,8 @@ export default function SettingsPage() {
           padding: '0 20px', height: '57px', borderBottom: '1px solid var(--border)',
           display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0,
         }}>
-          <Settings size={20} style={{ color: 'var(--accent)' }} />
-          <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 700 }}>Settings</h1>
+          <Gear size={20} style={{ color: 'var(--accent)' }} />
+          <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 700 }}>Gear</h1>
         </div>
 
         <div
@@ -396,7 +396,7 @@ export default function SettingsPage() {
                   >
                     <s.icon size={16} style={{ flexShrink: 0, color: active ? 'var(--accent)' : undefined }} />
                     {s.label}
-                    {!selected && <ChevronRight size={14} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />}
+                    {!selected && <CaretRight size={14} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />}
                   </button>
                 )
               })}

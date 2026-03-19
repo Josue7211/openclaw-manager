@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { Search, CheckSquare, Target, CalendarDays, Mail, Bell, BookOpen, Loader2 } from 'lucide-react'
+import { MagnifyingGlass, CheckSquare, Target, CalendarDots, Envelope, Bell, BookOpen, SpinnerGap } from '@phosphor-icons/react'
 
 import { api } from '@/lib/api'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
@@ -15,8 +15,8 @@ function flattenResults(results: SearchResults): FlatSearchResult[] {
   const flat: FlatSearchResult[] = []
   ;(results.todos || []).forEach(t => flat.push({ id: 'todo-' + t.id, label: t.text, sub: t.done ? 'done' : 'open', href: '/todos', icon: CheckSquare }))
   ;(results.missions || []).forEach(m => flat.push({ id: 'mis-' + m.id, label: m.title, sub: m.status, href: '/missions', icon: Target }))
-  ;(results.events || []).forEach(e => flat.push({ id: 'evt-' + e.id, label: e.title, sub: e.calendar + ' · ' + (e.allDay ? new Date(e.start).toLocaleDateString() : new Date(e.start).toLocaleString()), href: '/calendar', icon: CalendarDays }))
-  ;(results.emails || []).forEach(e => flat.push({ id: 'em-' + e.id, label: e.subject, sub: e.from + ' · ' + new Date(e.date).toLocaleDateString(), href: '/email', icon: Mail }))
+  ;(results.events || []).forEach(e => flat.push({ id: 'evt-' + e.id, label: e.title, sub: e.calendar + ' · ' + (e.allDay ? new Date(e.start).toLocaleDateString() : new Date(e.start).toLocaleString()), href: '/calendar', icon: CalendarDots }))
+  ;(results.emails || []).forEach(e => flat.push({ id: 'em-' + e.id, label: e.subject, sub: e.from + ' · ' + new Date(e.date).toLocaleDateString(), href: '/email', icon: Envelope }))
   ;(results.reminders || []).forEach(r => flat.push({ id: 'rem-' + r.id, label: r.title, sub: r.list + ' · ' + (r.completed ? 'completed' : (r.dueDate ? new Date(r.dueDate).toLocaleDateString() : 'no due date')), href: '/reminders', icon: Bell }))
   ;(results.knowledge || []).forEach(k => flat.push({ id: 'kn-' + k.id, label: k.title, sub: (k.tags || []).length > 0 ? k.tags.join(', ') : 'no tags', href: '/knowledge', icon: BookOpen }))
   return flat
@@ -128,7 +128,7 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
         overflow: 'hidden',
         animation: 'gs-fadein 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
       }}>
-        {/* Search input inside popup */}
+        {/* MagnifyingGlass input inside popup */}
         <div style={{
           padding: '14px 18px',
           borderBottom: '1px solid rgba(255,255,255,0.07)',
@@ -137,12 +137,12 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
           gap: '10px',
           flexShrink: 0,
         }}>
-          <Search size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+          <MagnifyingGlass size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
           <div style={{ flex: 1, fontSize: '15px', color: 'var(--text-primary)', fontWeight: 500 }}>
             {query}
           </div>
           {loading && (
-            <Loader2 size={14} style={{ color: 'var(--accent)', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+            <SpinnerGap size={14} style={{ color: 'var(--accent)', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
           )}
         </div>
 
@@ -150,7 +150,7 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
         <div
           id={LISTBOX_ID}
           role="listbox"
-          aria-label="Search results"
+          aria-label="MagnifyingGlass results"
           aria-live="polite"
           aria-busy={loading}
           style={{ overflowY: 'auto', flex: 1 }}
@@ -227,7 +227,7 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
     return (
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
         <button
-          aria-label="Search"
+          aria-label="MagnifyingGlass"
           className="hover-bg"
           onClick={() => {
             window.dispatchEvent(new KeyboardEvent('keydown', {
@@ -250,7 +250,7 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
             justifyContent: 'center',
           }}
         >
-          <Search size={16} />
+          <MagnifyingGlass size={16} />
         </button>
       </div>
     )
@@ -275,10 +275,10 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
             transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
             padding: '0 10px',
           }}>
-            <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+            <MagnifyingGlass size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
             {(() => {
               // Typewriter placeholder with blinking cursor
-              const fullText = 'Search'
+              const fullText = 'MagnifyingGlass'
               const charW = 8
               const textAvail = Math.max(0, (sidebarWidth || 200) - 58)
               const charsVisible = Math.min(fullText.length, Math.floor(textAvail / charW))
@@ -295,7 +295,7 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
                     onFocus={() => setFocused(true)}
                     onBlur={() => setFocused(false)}
                     placeholder=""
-                    aria-label="Search"
+                    aria-label="MagnifyingGlass"
                     role="combobox"
                     aria-expanded={open}
                     aria-controls={LISTBOX_ID}
@@ -332,7 +332,7 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
             })()}
             {(() => {
               const sw = sidebarWidth || 200
-              if (loading) return <Loader2 size={13} style={{ color: 'var(--accent)', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+              if (loading) return <SpinnerGap size={13} style={{ color: 'var(--accent)', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
               if (sw < 130) return null
               return <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace', flexShrink: 0 }}>⌘K</span>
             })()}
@@ -352,15 +352,15 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
           boxSizing: 'border-box',
           flexShrink: 0,
         }}>
-          <Search size={14} style={{ color: 'var(--text-muted)', marginRight: '10px', flexShrink: 0 }} />
+          <MagnifyingGlass size={14} style={{ color: 'var(--text-muted)', marginRight: '10px', flexShrink: 0 }} />
           <input
             ref={inputRef}
             data-testid="global-search"
             value={query}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            placeholder="Search..."
-            aria-label="Search"
+            placeholder="MagnifyingGlass..."
+            aria-label="MagnifyingGlass"
             role="combobox"
             aria-expanded={open}
             aria-controls={LISTBOX_ID}
@@ -375,7 +375,7 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
             }}
           />
           {loading
-            ? <Loader2 size={13} style={{ color: 'var(--accent)', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+            ? <SpinnerGap size={13} style={{ color: 'var(--accent)', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
             : <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace', flexShrink: 0 }}>⌘K</span>
           }
         </div>

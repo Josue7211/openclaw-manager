@@ -3,7 +3,7 @@
 
 
 import { useState, useRef } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { useTauriQuery } from '@/hooks/useTauriQuery'
 import { PageHeader } from '@/components/PageHeader'
 import type { CronJob } from './crons/types'
@@ -49,13 +49,13 @@ export default function CronsPage() {
         <PageHeader defaultTitle="Cron Calendar" defaultSubtitle="automated routines · week view" />
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button onClick={() => setWeekOffset(w => w - 1)} style={navBtnStyle}>
-            <ChevronLeft size={13} /> Prev
+            <CaretLeft size={13} /> Prev
           </button>
           <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', minWidth: '160px', textAlign: 'center' }}>
             {formatWeekLabel(weekStart)}
           </span>
           <button onClick={() => setWeekOffset(w => w + 1)} style={navBtnStyle}>
-            Next <ChevronRight size={13} />
+            Next <CaretRight size={13} />
           </button>
           <button
             onClick={() => setWeekOffset(0)}

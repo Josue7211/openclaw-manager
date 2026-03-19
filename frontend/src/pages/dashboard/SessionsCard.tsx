@@ -1,5 +1,5 @@
 import React from 'react'
-import { MessageSquare } from 'lucide-react'
+import { ChatText } from '@phosphor-icons/react'
 import { timeAgo } from '@/lib/utils'
 import { SkeletonRows } from '@/components/Skeleton'
 import type { Session } from './types'
@@ -13,7 +13,7 @@ export const SessionsCard = React.memo(function SessionsCard({ mounted, sessions
   return (
     <div className="card" style={{ padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-        <MessageSquare size={14} style={{ color: 'var(--accent-blue)' }} />
+        <ChatText size={14} style={{ color: 'var(--accent-blue)' }} />
         <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Today&apos;s Sessions</span>
       </div>
       {!mounted ? (

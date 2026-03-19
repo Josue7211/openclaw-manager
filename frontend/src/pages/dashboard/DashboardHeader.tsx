@@ -1,4 +1,4 @@
-import { RefreshCw } from 'lucide-react'
+import { ArrowsClockwise } from '@phosphor-icons/react'
 import SecondsAgo from '@/components/SecondsAgo'
 import { PageHeader } from '@/components/PageHeader'
 import { DemoBadge } from '@/components/DemoModeBanner'
@@ -57,7 +57,7 @@ export function DashboardHeader({ isDemo, subagentsError, lastRefreshMs, onRefre
             WebkitBackdropFilter: 'blur(8px)',
           }}
         >
-          <RefreshCw size={12} />
+          <ArrowsClockwise size={12} />
           Refresh
         </button>
       </div>

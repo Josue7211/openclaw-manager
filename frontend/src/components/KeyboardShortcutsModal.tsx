@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
-import { X } from 'lucide-react'
+import { X } from '@phosphor-icons/react'
 import { getKeybindings, subscribeKeybindings, formatKey } from '@/lib/keybindings'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'

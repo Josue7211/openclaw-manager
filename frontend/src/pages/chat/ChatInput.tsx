@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Send, Image as ImageIcon, X } from 'lucide-react'
+import { PaperPlaneTilt, Image as ImageIcon, X } from '@phosphor-icons/react'
 import type { ModelOption } from './types'
 
 interface ChatInputProps {
@@ -156,7 +156,7 @@ function ChatInputBox({
           style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: '13px', lineHeight: 1.6, resize: 'none', fontFamily: 'inherit', maxHeight: '160px', overflowY: 'auto' }}
         />
 
-        <button onClick={onSend} disabled={sending || (!input.trim() && images.length === 0)} aria-label="Send message"
+        <button onClick={onSend} disabled={sending || (!input.trim() && images.length === 0)} aria-label="PaperPlaneTilt message"
           style={{
             flexShrink: 0,
             background: (sending || (!input.trim() && images.length === 0)) ? 'var(--hover-bg)' : 'var(--accent)',
@@ -165,7 +165,7 @@ function ChatInputBox({
             padding: '7px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all 0.25s var(--ease-spring)',
           }}
         >
-          <Send size={15} />
+          <PaperPlaneTilt size={15} />
         </button>
       </div>
     </div>

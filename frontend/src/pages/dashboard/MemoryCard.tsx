@@ -1,5 +1,5 @@
 import React from 'react'
-import { Brain } from 'lucide-react'
+import { Brain } from '@phosphor-icons/react'
 import { SkeletonRows } from '@/components/Skeleton'
 import type { MemoryEntry } from './types'
 

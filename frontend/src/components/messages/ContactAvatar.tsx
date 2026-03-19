@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore, memo } from 'react'
-import { User, Users } from 'lucide-react'
+import { User, Users } from '@phosphor-icons/react'
 import { API_BASE, api } from '@/lib/api'
 import { LRUCache } from '@/lib/lru-cache'
 
@@ -142,7 +142,7 @@ export const ContactAvatar = memo(function ContactAvatar({ address, name, isImsg
       {initial ? (
         <span style={{ fontSize: `${Math.round(size * 0.38)}px`, fontWeight: 700 }}>{initial}</span>
       ) : (
-        <User size={Math.round(size * 0.48)} strokeWidth={2} />
+        <User size={Math.round(size * 0.48)} />
       )}
     </div>
   )
@@ -194,7 +194,7 @@ export const GroupAvatar = memo(function GroupAvatar({ conv, size = 40 }: { conv
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       color: 'var(--text-on-color)',
     }}>
-      <Users size={Math.round(size * 0.44)} strokeWidth={2} />
+      <Users size={Math.round(size * 0.44)} />
     </div>
   )
 })

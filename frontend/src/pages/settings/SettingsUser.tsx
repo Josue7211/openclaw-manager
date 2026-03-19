@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Shield, LogOut } from 'lucide-react'
+import { Shield, SignOut } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
 import { isDemoMode } from '@/lib/demo-data'
 import { isWebAuthnSupported, registerWebAuthnKey } from '@/lib/webauthn'
@@ -305,7 +305,7 @@ export default function SettingsUser({
                   padding: '10px 0',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <path d="M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 10-4-4L2 18z" />
                       <circle cx="16.5" cy="7.5" r=".5" fill="var(--accent)" />
                     </svg>
@@ -381,7 +381,7 @@ export default function SettingsUser({
                   justifyContent: 'center',
                   flexShrink: 0,
                 }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 10-4-4L2 18z" />
                     <circle cx="16.5" cy="7.5" r=".5" fill="var(--accent)" />
                   </svg>
@@ -451,7 +451,7 @@ export default function SettingsUser({
           onMouseEnter={e => { e.currentTarget.style.background = 'var(--red-a08)' }}
           onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
         >
-          <LogOut size={14} />Sign out
+          <SignOut size={14} />Sign out
         </button>
       </div>
     </div>

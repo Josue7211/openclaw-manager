@@ -2,7 +2,7 @@
 
 
 import { useState } from 'react'
-import { Film, Tv, Play, RefreshCw, Calendar } from 'lucide-react'
+import { FilmStrip, Television, Play, ArrowsClockwise, Calendar } from '@phosphor-icons/react'
 import { useTauriQuery } from '@/hooks/useTauriQuery'
 import { PageHeader } from '@/components/PageHeader'
 
@@ -74,7 +74,7 @@ export default function MediaPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-            <Film size={20} style={{ color: 'var(--accent)' }} />
+            <FilmStrip size={20} style={{ color: 'var(--accent)' }} />
             <PageHeader defaultTitle="Media Radar" defaultSubtitle={data?.mock ? 'demo data' : 'live · Plex · Sonarr · Radarr'} />
           </div>
         </div>
@@ -87,7 +87,7 @@ export default function MediaPage() {
             background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '12px',
           }}
         >
-          <RefreshCw size={13} style={{ animation: isRefreshing ? 'spin 0.8s linear infinite' : 'none' }} />
+          <ArrowsClockwise size={13} style={{ animation: isRefreshing ? 'spin 0.8s linear infinite' : 'none' }} />
           Refresh
         </button>
       </div>
@@ -101,7 +101,7 @@ export default function MediaPage() {
           borderRadius: '12px',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-            <Film size={16} style={{ color: 'var(--blue-solid)' }} />
+            <FilmStrip size={16} style={{ color: 'var(--blue-solid)' }} />
             <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--blue-solid)' }}>Media services not configured</span>
           </div>
           <p style={{ margin: '0 0 12px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
@@ -206,8 +206,8 @@ RADARR_API_KEY=your-radarr-api-key`}
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 {item.type === 'movie'
-                  ? <Film size={15} style={{ color: 'var(--accent)' }} />
-                  : <Tv size={15} style={{ color: 'var(--green)' }} />}
+                  ? <FilmStrip size={15} style={{ color: 'var(--accent)' }} />
+                  : <Television size={15} style={{ color: 'var(--green)' }} />}
               </div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px', lineHeight: 1.3 }}>
                 {item.title}

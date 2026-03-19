@@ -2,10 +2,7 @@
 
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
-import {
-  MessageSquare, AlertCircle,
-  BellOff, Pin,
-} from 'lucide-react'
+import { ChatText, WarningCircle, BellSlash, PushPin } from '@phosphor-icons/react'
 
 import { useSearchParams } from 'react-router-dom'
 import { api } from '@/lib/api'
@@ -650,11 +647,11 @@ export default function MessagesPage() {
     return (
       <div style={{ maxWidth: '560px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px' }}>
-          <MessageSquare size={20} style={{ color: 'var(--accent)' }} />
+          <ChatText size={20} style={{ color: 'var(--accent)' }} />
           <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700 }}>Messages</h1>
         </div>
         <div className="card" style={{ padding: '32px', textAlign: 'center' }}>
-          <AlertCircle size={32} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
+          <WarningCircle size={32} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
           {error === 'bluebubbles_not_configured' ? (
             <>
               <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600 }}>BlueBubbles not configured</h2>
@@ -861,7 +858,7 @@ export default function MessagesPage() {
               onClick={() => toggleReadStatus(convCtx.convGuid, !convCtx.isUnread)}
             />
             <MButton
-              icon={<Pin size={16} color="var(--text-secondary)" style={convCtx.isPinned ? { fill: 'var(--text-secondary)' } : undefined} />}
+              icon={<PushPin size={16} color="var(--text-secondary)" style={convCtx.isPinned ? { fill: 'var(--text-secondary)' } : undefined} />}
               label={convCtx.isPinned ? 'Unpin' : 'Pin'}
               onClick={() => {
                 const guid = convCtx.convGuid
@@ -872,7 +869,7 @@ export default function MessagesPage() {
               }}
             />
             <MButton
-              icon={<BellOff size={16} color={convCtx.isMuted ? 'var(--apple-blue)' : 'var(--text-secondary)'} />}
+              icon={<BellSlash size={16} color={convCtx.isMuted ? 'var(--apple-blue)' : 'var(--text-secondary)'} />}
               label={convCtx.isMuted ? 'Unmute' : 'Mute'}
               onClick={() => {
                 const guid = convCtx.convGuid

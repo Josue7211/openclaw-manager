@@ -1,4 +1,4 @@
-import { X } from 'lucide-react'
+import { X } from '@phosphor-icons/react'
 import {
   CalendarEvent, calendarColor, toDateKey, parseLocalDate, formatTime,
   DAY_LABELS,

@@ -2,7 +2,7 @@
 
 
 import { useState, useRef, useEffect } from 'react'
-import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
+import { CalendarDots, CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { useTauriQuery } from '@/hooks/useTauriQuery'
 import { PageHeader } from '@/components/PageHeader'
 import {
@@ -136,8 +136,8 @@ export default function CalendarPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <PageHeader defaultTitle="Calendar" />
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <button onClick={goPrev} aria-label="Previous" style={btnStyle}><ChevronLeft size={14} /></button>
-            <button onClick={goNext} aria-label="Next" style={btnStyle}><ChevronRight size={14} /></button>
+            <button onClick={goPrev} aria-label="Previous" style={btnStyle}><CaretLeft size={14} /></button>
+            <button onClick={goNext} aria-label="Next" style={btnStyle}><CaretRight size={14} /></button>
             <button onClick={goToday} style={{ ...btnStyle, marginLeft: '4px', fontSize: '12px', padding: '5px 12px' }}>Today</button>
           </div>
           <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', minWidth: '180px' }}>
@@ -168,7 +168,7 @@ export default function CalendarPage() {
           borderRadius: '12px', flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-            <CalendarDays size={18} style={{ color: 'var(--accent)' }} />
+            <CalendarDots size={18} style={{ color: 'var(--accent)' }} />
             <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--accent-bright)' }}>Connect your iCloud Calendar</span>
           </div>
           <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>

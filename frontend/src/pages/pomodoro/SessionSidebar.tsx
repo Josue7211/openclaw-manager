@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Trash } from '@phosphor-icons/react'
 import type { SessionEntry } from './types'
 import { MODE_LABELS, todayStr, toDateKey } from './types'
 
@@ -107,7 +107,7 @@ export default function SessionSidebar({
                     border: 'none', color: 'var(--text-muted)', fontSize: '11px', cursor: 'pointer', padding: '2px 4px',
                   }}
                 >
-                  <Trash2 size={11} />
+                  <Trash size={11} />
                   Clear
                 </button>
               )}

@@ -1,8 +1,8 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Home, ArrowLeft } from 'lucide-react'
+import { House, ArrowLeft } from '@phosphor-icons/react'
 
 const quickLinks = [
-  { to: '/', label: 'Home' },
+  { to: '/', label: 'House' },
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/todos', label: 'Todos' },
   { to: '/messages', label: 'Messages' },
@@ -76,7 +76,7 @@ export default function NotFound() {
             textDecoration: 'none', cursor: 'pointer',
           }}
         >
-          <Home size={12} /> Home
+          <House size={12} /> House
         </Link>
       </div>
     </div>

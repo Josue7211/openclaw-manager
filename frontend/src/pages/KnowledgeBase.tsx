@@ -2,7 +2,7 @@
 
 
 import { useState, useRef, useCallback } from 'react'
-import { BookOpen, Plus, Search } from 'lucide-react'
+import { BookOpen, Plus, MagnifyingGlass } from '@phosphor-icons/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { SkeletonList } from '@/components/Skeleton'
@@ -95,9 +95,9 @@ export default function KnowledgePage() {
         </button>
       </div>
 
-      {/* Search */}
+      {/* MagnifyingGlass */}
       <div style={{ position: 'relative', marginBottom: '14px' }}>
-        <Search size={14} style={{
+        <MagnifyingGlass size={14} style={{
           position: 'absolute',
           left: '12px',
           top: '50%',
@@ -109,8 +109,8 @@ export default function KnowledgePage() {
           type="search"
           value={search}
           onChange={e => handleSearchChange(e.target.value)}
-          placeholder="Search title, content..."
-          aria-label="Search knowledge base"
+          placeholder="MagnifyingGlass title, content..."
+          aria-label="MagnifyingGlass knowledge base"
           style={{
             width: '100%',
             padding: '10px 14px 10px 36px',

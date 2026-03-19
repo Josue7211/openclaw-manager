@@ -1,7 +1,5 @@
 import { useRef, useState } from 'react'
-import {
-  MessageSquare, Send, ArrowLeft, PenSquare,
-} from 'lucide-react'
+import { ChatText, PaperPlaneTilt, ArrowLeft, NotePencil } from '@phosphor-icons/react'
 
 interface ComposePanelProps {
   onBack: () => void
@@ -42,7 +40,7 @@ export default function ComposePanel({
         >
           <ArrowLeft size={18} />
         </button>
-        <PenSquare size={20} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+        <NotePencil size={20} style={{ color: 'var(--accent)', flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: '14px', fontWeight: 600 }}>New Message</div>
           <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: "'JetBrains Mono', monospace" }}>
@@ -71,7 +69,7 @@ export default function ComposePanel({
       </div>
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
         <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
-          <MessageSquare size={32} style={{ opacity: 0.3, marginBottom: '12px' }} />
+          <ChatText size={32} style={{ opacity: 0.3, marginBottom: '12px' }} />
           <div>Start a new conversation</div>
         </div>
       </div>
@@ -113,7 +111,7 @@ export default function ComposePanel({
         <button
           onClick={onSend}
           disabled={!composeHasDraft || !composeTo.trim() || composeSending}
-          aria-label="Send message"
+          aria-label="PaperPlaneTilt message"
           style={{
             width: '36px', height: '36px', borderRadius: '50%', border: 'none',
             background: (composeHasDraft && composeTo.trim())
@@ -126,7 +124,7 @@ export default function ComposePanel({
             transform: composeHasDraft ? 'scale(1)' : 'scale(0.9)',
           }}
         >
-          <Send size={16} style={{ marginLeft: '-1px' }} />
+          <PaperPlaneTilt size={16} style={{ marginLeft: '-1px' }} />
         </button>
       </div>
     </div>

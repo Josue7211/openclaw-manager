@@ -1,18 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
-import {
-  HeartPulse,
-  Server,
-  Wifi,
-  Database,
-  Info,
-  RefreshCw,
-  Clock,
-  HardDrive,
-  Monitor,
-  Layers,
-} from 'lucide-react'
+import { Heartbeat, Desktop, WifiHigh, Database, Info, ArrowsClockwise, Clock, HardDrive, Monitor, Stack } from '@phosphor-icons/react'
 
 import type { HealthData, TailscaleData } from './status/types'
 import { formatUptime, formatBytes, statusColor, statusLabel } from './status/helpers'
@@ -75,7 +64,7 @@ export default function Status() {
         marginBottom: '28px',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <HeartPulse size={24} style={{ color: 'var(--accent)' }} />
+          <Heartbeat size={24} style={{ color: 'var(--accent)' }} />
           <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
             System Status
           </h1>
@@ -103,7 +92,7 @@ export default function Status() {
         {/* ── Services ────────────────────────────────────────────────── */}
         <div style={card}>
           <div style={sectionTitle}>
-            <Server size={14} />
+            <Desktop size={14} />
             Services
           </div>
           {healthLoading ? (
@@ -152,7 +141,7 @@ export default function Status() {
         {/* ── Tailscale Peers ─────────────────────────────────────────── */}
         <div style={card}>
           <div style={sectionTitle}>
-            <Wifi size={14} />
+            <WifiHigh size={14} />
             Tailscale Peers
           </div>
           {tsLoading ? (
@@ -198,7 +187,7 @@ export default function Status() {
             <>
               <div style={row}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Layers size={14} style={{ color: 'var(--text-muted)' }} />
+                  <Stack size={14} style={{ color: 'var(--text-muted)' }} />
                   Cached Entries
                 </span>
                 <span style={val}>{health?.sqlite_cache_entries ?? '--'}</span>
@@ -257,7 +246,7 @@ export default function Status() {
         {/* ── React Query Cache ───────────────────────────────────────── */}
         <div style={{ ...card, gridColumn: '1 / -1' }}>
           <div style={sectionTitle}>
-            <RefreshCw size={14} />
+            <ArrowsClockwise size={14} />
             React Query Cache
           </div>
           <div style={{

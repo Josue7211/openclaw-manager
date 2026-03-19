@@ -1,4 +1,4 @@
-import { Clock } from 'lucide-react'
+import { Clock } from '@phosphor-icons/react'
 import { SkeletonList } from '@/components/Skeleton'
 import type { CronJob } from './types'
 import { COLORS, humanSchedule, relativeTime } from './types'

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { CaretDown } from '@phosphor-icons/react'
 
 export function FilterDropdown({ label, value, options, onChange, colorMap }: {
   label: string
@@ -43,7 +43,7 @@ export function FilterDropdown({ label, value, options, onChange, colorMap }: {
         }}
       >
         {label}{value ? `: ${value}` : ''}
-        <ChevronDown size={11} style={{
+        <CaretDown size={11} style={{
           transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
           transition: 'transform 0.15s ease',
         }} />

@@ -1,5 +1,5 @@
 import React from 'react'
-import { ExternalLink } from 'lucide-react'
+import { ArrowSquareOut } from '@phosphor-icons/react'
 import type { KnowledgeEntry } from './shared'
 
 interface EntryCardProps {
@@ -74,7 +74,7 @@ export const EntryCard = React.memo(function EntryCard({ entry, onSelect }: Entr
         </span>
         {entry.source_url && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
-            <ExternalLink size={10} />
+            <ArrowSquareOut size={10} />
             Source
           </span>
         )}

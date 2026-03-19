@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useMemo, useSyncExternalStore, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronRight, ChevronDown, Settings, Plus, StickyNote, CheckSquare, Lightbulb, Flag, FileText, ArrowUp, ArrowDown, Pencil, Trash2, FolderPlus, EyeOff } from 'lucide-react'
+import { CaretRight, CaretDown, Gear, Plus, Note, CheckSquare, Lightbulb, Flag, FileText, ArrowUp, ArrowDown, PencilSimple, Trash, FolderPlus, EyeSlash } from '@phosphor-icons/react'
 import { useQueryClient } from '@tanstack/react-query'
 import GlobalSearch from './GlobalSearch'
 import { NotificationBell } from './NotificationCenter'
@@ -27,7 +27,7 @@ interface SidebarProps {
 type CaptureType = 'note' | 'task' | 'idea' | 'decision'
 
 const CAPTURE_TYPES: { type: CaptureType; label: string; icon: React.ElementType }[] = [
-  { type: 'note', label: 'Note', icon: StickyNote },
+  { type: 'note', label: 'Note', icon: Note },
   { type: 'task', label: 'Task', icon: CheckSquare },
   { type: 'idea', label: 'Idea', icon: Lightbulb },
   { type: 'decision', label: 'Decision', icon: Flag },
@@ -226,7 +226,7 @@ const NavSection = React.memo(function NavSection({
               display: 'flex',
               opacity: chevronOpacity,
             }}>
-              <ChevronDown size={12} />
+              <CaretDown size={12} />
             </span>
           )}
         </button>
@@ -915,7 +915,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
     const items: ContextMenuItem[] = [
       {
         label: 'Rename',
-        icon: Pencil,
+        icon: PencilSimple,
         onClick: () => {
           setEditingHref(href)
           setEditingValue(displayName)
@@ -937,7 +937,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
 
     items.push({
       label: 'Delete',
-      icon: Trash2,
+      icon: Trash,
       onClick: () => {
         softDeleteItem(href)
         if (pathname === href) navigate('/')
@@ -957,7 +957,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
     const items: ContextMenuItem[] = [
       {
         label: 'Rename Category',
-        icon: Pencil,
+        icon: PencilSimple,
         onClick: () => {
           setEditingCatId(catId)
           setEditingCatValue(cat.name)
@@ -977,7 +977,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
       },
       {
         label: 'Move to Unused',
-        icon: EyeOff,
+        icon: EyeSlash,
         onClick: () => {
           const cfg = getSidebarConfig()
           const c = cfg.categories.find(cc => cc.id === catId)
@@ -991,7 +991,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
       },
       {
         label: 'Delete Category',
-        icon: Trash2,
+        icon: Trash,
         onClick: () => {
           const cfg = getSidebarConfig()
           const c = cfg.categories.find(cc => cc.id === catId)
@@ -1203,7 +1203,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
                 },
                 {
                   label: 'Edit Sidebar',
-                  icon: Settings,
+                  icon: Gear,
                   onClick: () => navigate('/settings?section=modules'),
                 },
               ],
@@ -1291,7 +1291,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
           {!captureOpen && (
             <Link
               to="/settings"
-              title="Settings"
+              title="Gear"
               className="hover-bg"
               onMouseEnter={() => handleHoverItem('/settings')}
               style={{
@@ -1306,7 +1306,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
                 justifyContent: 'center',
               }}
             >
-              <Settings size={16} style={settingsIconStyle} />
+              <Gear size={16} style={settingsIconStyle} />
             </Link>
           )}
           {!captureOpen && <NotificationBell collapsed={true} textOpacity={0} />}
@@ -1345,7 +1345,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
             transition: `transform 0.3s var(--ease-spring)`,
             transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)',
           }}>
-            <ChevronRight size={14} />
+            <CaretRight size={14} />
           </span>
         </button>
       </div>

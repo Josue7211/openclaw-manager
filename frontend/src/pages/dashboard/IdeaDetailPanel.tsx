@@ -1,5 +1,5 @@
 import React from 'react'
-import { Lightbulb, X, CheckCircle, SkipForward, XCircle } from 'lucide-react'
+import { Lightbulb, X, CheckCircle, SkipForward, XCircle } from '@phosphor-icons/react'
 import type { Idea } from './types'
 import { effortColor } from './types'
 

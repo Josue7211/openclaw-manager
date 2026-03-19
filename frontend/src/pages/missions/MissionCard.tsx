@@ -1,5 +1,5 @@
 import React from 'react'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check, CaretDown } from '@phosphor-icons/react'
 import { timeAgo } from '@/lib/utils'
 import type { Mission, Agent } from './types'
 import { statusColor, statusIcon } from './utils'
@@ -184,7 +184,7 @@ export const MissionCard = React.memo(function MissionCard({
             transition: 'transform 0.2s ease',
             display: 'flex', alignItems: 'center',
           }}>
-            <ChevronDown size={14} />
+            <CaretDown size={14} />
           </div>
         </div>
 

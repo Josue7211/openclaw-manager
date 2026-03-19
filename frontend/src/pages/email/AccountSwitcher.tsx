@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Mail, ChevronDown, Star } from 'lucide-react'
+import { Envelope, CaretDown, Star } from '@phosphor-icons/react'
 import type { EmailAccount } from './types'
 
 interface AccountSwitcherProps {
@@ -40,9 +40,9 @@ export function AccountSwitcher({ accounts, selectedAccountId, onSelectAccount }
           display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 500,
         }}
       >
-        <Mail size={12} style={{ color: 'var(--accent)' }} />
+        <Envelope size={12} style={{ color: 'var(--accent)' }} />
         {selectedAccount?.label ?? 'Select account'}
-        <ChevronDown size={11} style={{ color: 'var(--text-muted)' }} />
+        <CaretDown size={11} style={{ color: 'var(--text-muted)' }} />
       </button>
       {open && (
         <div style={{

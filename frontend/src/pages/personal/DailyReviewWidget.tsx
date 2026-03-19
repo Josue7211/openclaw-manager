@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { ClipboardList, ChevronDown, ChevronRight, X } from 'lucide-react'
+import { ClipboardText, CaretDown, CaretRight, X } from '@phosphor-icons/react'
 import { Skeleton } from '@/components/Skeleton'
 import { api } from '@/lib/api'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
@@ -110,8 +110,8 @@ export default function DailyReviewWidget({ todos, missions }: { todos: Todo[]; 
             borderBottom: collapsed ? 'none' : '1px solid var(--border)',
           }}
         >
-          {collapsed ? <ChevronRight size={14} style={{ color: 'var(--accent)' }} /> : <ChevronDown size={14} style={{ color: 'var(--accent)' }} />}
-          <ClipboardList size={14} style={{ color: 'var(--accent)' }} />
+          {collapsed ? <CaretRight size={14} style={{ color: 'var(--accent)' }} /> : <CaretDown size={14} style={{ color: 'var(--accent)' }} />}
+          <ClipboardText size={14} style={{ color: 'var(--accent)' }} />
           <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
             Daily Review
           </span>

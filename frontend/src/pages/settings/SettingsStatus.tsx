@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Server, Wifi, Database, Info, RefreshCw, Clock, HardDrive, Layers, Monitor } from 'lucide-react'
+import { Desktop, WifiHigh, Database, Info, ArrowsClockwise, Clock, HardDrive, Stack, Monitor } from '@phosphor-icons/react'
 
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
@@ -259,7 +259,7 @@ export default memo(function SettingsStatus() {
         {/* Services */}
         <div style={statusCard}>
           <div style={statusSectionTitle}>
-            <Server size={14} />
+            <Desktop size={14} />
             Services
           </div>
           {healthLoading ? (
@@ -304,7 +304,7 @@ export default memo(function SettingsStatus() {
         {/* Tailscale Peers */}
         <div style={statusCard}>
           <div style={statusSectionTitle}>
-            <Wifi size={14} />
+            <WifiHigh size={14} />
             Tailscale Peers
           </div>
           {tsLoading ? (
@@ -349,7 +349,7 @@ export default memo(function SettingsStatus() {
             <>
               <div style={statusRow}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Layers size={14} style={{ color: 'var(--text-muted)' }} />
+                  <Stack size={14} style={{ color: 'var(--text-muted)' }} />
                   Cached Entries
                 </span>
                 <span style={statusVal}>{health?.sqlite_cache_entries ?? '--'}</span>
@@ -408,7 +408,7 @@ export default memo(function SettingsStatus() {
         {/* React Query Cache */}
         <div style={statusCard}>
           <div style={statusSectionTitle}>
-            <RefreshCw size={14} />
+            <ArrowsClockwise size={14} />
             React Query Cache
           </div>
           <div style={{

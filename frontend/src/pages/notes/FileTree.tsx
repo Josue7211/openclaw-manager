@@ -1,15 +1,5 @@
 import { useState, useMemo, useCallback, memo } from 'react'
-import {
-  ChevronRight,
-  ChevronDown,
-  FileText,
-  FolderOpen,
-  Folder,
-  Plus,
-  Search,
-  Hash,
-  Image,
-} from 'lucide-react'
+import { CaretRight, CaretDown, FileText, FolderOpen, Folder, Plus, MagnifyingGlass, Hash, Image } from '@phosphor-icons/react'
 import type { VaultNote, FolderNode } from './types'
 
 interface FileTreeProps {
@@ -102,9 +92,9 @@ const FolderItem = memo(function FolderItem({
           }}
         >
           {isExpanded ? (
-            <ChevronDown size={10} style={{ opacity: 0.5 }} />
+            <CaretDown size={10} style={{ opacity: 0.5 }} />
           ) : (
-            <ChevronRight size={10} style={{ opacity: 0.5 }} />
+            <CaretRight size={10} style={{ opacity: 0.5 }} />
           )}
           {isExpanded ? (
             <FolderOpen size={12} style={{ opacity: 0.6 }} />
@@ -274,9 +264,9 @@ export default function FileTree({
         overflow: 'hidden',
       }}
     >
-      {/* Search is the top element — no separate header needed */}
+      {/* MagnifyingGlass is the top element — no separate header needed */}
 
-      {/* Search */}
+      {/* MagnifyingGlass */}
       <div style={{ padding: '10px 10px 6px', flexShrink: 0 }}>
         <div
           style={{
@@ -291,12 +281,12 @@ export default function FileTree({
             transition: 'border-color var(--duration-fast)',
           }}
         >
-          <Search size={12} style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.5 }} />
+          <MagnifyingGlass size={12} style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.5 }} />
           <input
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search notes..."
-            aria-label="Search notes"
+            placeholder="MagnifyingGlass notes..."
+            aria-label="MagnifyingGlass notes"
             style={{
               background: 'transparent',
               border: 'none',

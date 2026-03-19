@@ -1,4 +1,4 @@
-import { Zap } from 'lucide-react'
+import { Lightning } from '@phosphor-icons/react'
 import type { CronJob } from './types'
 import { COLORS, humanSchedule } from './types'
 
@@ -13,7 +13,7 @@ export function FrequentBar({ frequentJobs, allJobs }: FrequentBarProps) {
   return (
     <div style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)', borderRadius: '10px', padding: '12px 16px', flexShrink: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
-        <Zap size={12} style={{ color: 'var(--orange)' }} />
+        <Lightning size={12} style={{ color: 'var(--orange)' }} />
         <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
           Frequent
         </span>

@@ -1,11 +1,11 @@
 import React from 'react'
-import { Wifi } from 'lucide-react'
+import { WifiHigh } from '@phosphor-icons/react'
 
 export const NetworkCard = React.memo(function NetworkCard() {
   return (
     <div className="card" style={{ padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-        <Wifi size={14} style={{ color: 'var(--accent-blue)' }} />
+        <WifiHigh size={14} style={{ color: 'var(--accent-blue)' }} />
         <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Network</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
