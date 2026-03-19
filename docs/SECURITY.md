@@ -6,7 +6,7 @@ This document describes OpenClaw Manager's security architecture, threat model, 
 
 OpenClaw Manager is a Tauri v2 desktop application with an embedded Axum HTTP server bound to `127.0.0.1:3000`. The frontend is a React SPA rendered in Tauri's WebView. All remote services (BlueBubbles, OpenClaw, Supabase) are accessed over a Tailscale WireGuard mesh VPN. Nothing is exposed to the public internet.
 
-![Architecture](architecture.png)
+![Architecture](./architecture.png)
 
 The Axum server acts as the sole gateway between the frontend and all backend services. The frontend never contacts remote services directly.
 
