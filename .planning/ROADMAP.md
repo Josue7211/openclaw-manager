@@ -52,11 +52,16 @@ Plans:
   3. Theme selection persists across app restarts and syncs to other devices via Supabase
   4. User can export the current theme as a JSON file and import a theme from a JSON file, with imported themes validated and sanitized
   5. Theme switches apply instantly with a smooth transition animation and no page reload
-**Plans**: TBD
+**Plans**: 7 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
+- [ ] 02-01-PLAN.md -- Foundation: deps install, ThemeDefinition types, 17 preset definitions, ThemeStore, migration v5, preferences-sync
+- [ ] 02-02-PLAN.md -- Theme engine: applyTheme(), ripple animation (View Transitions API), alpha tint derivation, mode switching, main.tsx wiring
+- [ ] 02-03-PLAN.md -- Theme validation, import/export, share codes (lz-string compression)
+- [ ] 02-04-PLAN.md -- Theme Picker modal (Super+Shift+T), ThemeCard, AccentPicker (react-colorful), LayoutShell integration
+- [ ] 02-05-PLAN.md -- Font system (4 slots, system font enumeration via font-kit, Google Fonts, base size slider) + custom branding
+- [ ] 02-06-PLAN.md -- Custom CSS editor (CodeMirror), theme scheduling (sunrise/sunset + manual), per-page override logic
+- [ ] 02-07-PLAN.md -- Settings Display rewrite, ThemeImportExport panel, sidebar context menu, end-to-end verification
 
 ### Phase 3: Setup Wizard + Onboarding
 **Goal**: New users (including non-technical users) can go from first launch to a configured, personalized app in under 5 minutes without reading documentation.
@@ -159,7 +164,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Responsive Layout Shell + Visual Polish | 4/5 | Gap closure | - |
-| 2. Theming System | 0/2 | Not started | - |
+| 2. Theming System | 0/7 | Not started | - |
 | 3. Setup Wizard + Onboarding | 0/2 | Not started | - |
 | 4. Dashboard Grid + Widget System | 0/3 | Not started | - |
 | 5. Page Experience | 0/2 | Not started | - |
