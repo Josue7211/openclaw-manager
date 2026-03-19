@@ -45,7 +45,7 @@ jobs:
             libssl-dev \
             patchelf
 
-      - uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc97eae # stable
+      - uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # stable
 
       - name: Rust tests
         run: cd src-tauri && cargo test
@@ -80,7 +80,7 @@ jobs:
       - name: Install frontend deps
         run: cd frontend && npm ci
 
-      - uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc97eae # stable
+      - uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # stable
         with:
           targets: ${{ matrix.platform.target }}
 
