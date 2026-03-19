@@ -17,6 +17,10 @@ import { DemoModeBanner } from '@/components/DemoModeBanner'
 import { IconContext } from '@phosphor-icons/react'
 import { ToastProvider } from '@/components/ui/Toast'
 import { NavigationProgressBar } from '@/components/ui/ProgressBar'
+import { useThemeState } from '@/lib/theme-store'
+import { getThemeById } from '@/lib/theme-definitions'
+import { getSidebarConfig } from '@/lib/sidebar-config'
+import { startScheduleTimer } from '@/lib/theme-scheduling'
 
 const _isDemo = isDemoMode()
 
