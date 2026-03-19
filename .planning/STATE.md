@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-04-PLAN.md
-last_updated: "2026-03-19T18:41:12.575Z"
+stopped_at: Completed 02-05-PLAN.md
+last_updated: "2026-03-19T18:41:34.632Z"
 progress:
   total_phases: 8
   completed_phases: 1
@@ -97,6 +97,8 @@ Recent decisions affecting current work:
 - [Phase 02]: Per-page override cleanup iterates snapshot to avoid mutation during iteration
 - [Phase 02]: Schedule timer only starts when schedule.type is not 'none'
 - [Phase 02]: matchesExtraModifier() enables chord keybindings (Ctrl+Shift+T) without conflicting with single-mod (Ctrl+T)
+- [Phase 02]: System fonts enumerated via font-kit Tauri command with browser-mode fallback
+- [Phase 02]: Google Fonts use CSS2 public endpoint with static 102-font list (no API key per Pitfall #4)
 
 ### Pending Todos
 
@@ -110,6 +112,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T18:40:58.014Z
-Stopped at: Completed 02-04-PLAN.md
+Last session: 2026-03-19T18:41:34.630Z
+Stopped at: Completed 02-05-PLAN.md
 Resume file: None
