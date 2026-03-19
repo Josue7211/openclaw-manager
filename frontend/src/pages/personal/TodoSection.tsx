@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { CheckSquare } from '@phosphor-icons/react'
+import { CheckSquare, ListChecks } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonRows } from '@/components/Skeleton'
 import { DemoBadge } from '@/components/DemoModeBanner'
 import type { Todo } from '@/lib/types'
@@ -33,7 +34,7 @@ export default function TodoSection({ todos, mounted, isDemo, onAdd, onToggle, o
         {!mounted ? (
           <SkeletonRows count={3} />
         ) : todos.length === 0 ? (
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>No todos yet</div>
+          <div style={{ padding: '8px 0' }}><EmptyState icon={ListChecks} title="All clear" description="You have no tasks." /></div>
         ) : todos.map(t => (
           <div key={t.id} style={{
             display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px',

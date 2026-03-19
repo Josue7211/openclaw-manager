@@ -3,6 +3,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { CalendarDots, CaretLeft, CaretRight } from '@phosphor-icons/react'
+import { ErrorState } from '@/components/ui/ErrorState'
 import { useTauriQuery } from '@/hooks/useTauriQuery'
 import { PageHeader } from '@/components/PageHeader'
 import {
@@ -13,7 +14,7 @@ import { WeekView } from './calendar/WeekView'
 import { MonthView } from './calendar/MonthView'
 
 export default function CalendarPage() {
-  const { data: calendarData, isLoading: loading } = useTauriQuery<CalendarResponse>(
+  const { data: calendarData, isLoading: loading, refetch } = useTauriQuery<CalendarResponse>(
     ['calendar'],
     '/api/calendar',
   )
@@ -187,9 +188,7 @@ CALDAV_PASSWORD=xxxx-xxxx-xxxx-xxxx`}
 
       {/* Error */}
       {error && (
-        <div style={{ marginBottom: '16px', padding: '12px 16px', background: 'var(--red-500-a12)', border: '1px solid var(--red-500-a25)', borderRadius: '8px', fontSize: '13px', color: 'var(--red-bright)', flexShrink: 0 }}>
-          {error}
-        </div>
+        <ErrorState resource="calendar" onRetry={() => refetch()} />
       )}
 
       {/* Loading */}

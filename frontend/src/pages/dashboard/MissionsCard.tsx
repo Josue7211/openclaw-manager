@@ -1,5 +1,6 @@
 import React from 'react'
-import { Target } from '@phosphor-icons/react'
+import { Target, Rocket } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonRows } from '@/components/Skeleton'
 import type { Mission } from '@/lib/types'
 import { missionStatusStyle } from './types'
@@ -25,7 +26,7 @@ export const MissionsCard = React.memo(function MissionsCard({ mounted, missions
         <div className="hidden-scrollbar" style={{ maxHeight: '320px', overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {missions.length === 0 ? (
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>No missions assigned</div>
+            <div style={{ padding: '8px 0' }}><EmptyState icon={Rocket} title="No missions" description="Active missions will appear here." /></div>
           ) : missions.map(m => (
             <div key={m.id} style={{
               display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px',

@@ -1,6 +1,9 @@
 
+import { Desktop } from '@phosphor-icons/react'
 import { useTauriQuery } from '@/hooks/useTauriQuery'
 import { PageHeader } from '@/components/PageHeader'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { ErrorState } from '@/components/ui/ErrorState'
 
 import type { HomelabData } from './homelab/types'
 import { formatUptime, formatBytes, cpuColor } from './homelab/helpers'
@@ -55,16 +58,7 @@ export default function HomelabPage() {
       )}
 
       {error && (
-        <div style={{
-          ...card,
-          borderColor: 'var(--red)',
-          color: 'var(--red)',
-          fontFamily: 'monospace',
-          fontSize: '13px',
-          marginBottom: '20px',
-        }}>
-          Error: {(error as Error).message}
-        </div>
+        <ErrorState resource="homelab" onRetry={() => refetch()} />
       )}
 
       {data?.mock && (
@@ -200,8 +194,8 @@ OPNSENSE_SECRET=your-api-secret`}
                     </div>
                   ))}
                   {data.proxmox.vms.length === 0 && (
-                    <div style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', padding: '12px' }}>
-                      No VMs found
+                    <div style={{ padding: '16px 0' }}>
+                      <EmptyState icon={Desktop} title="No VMs found" description="Connect to your Proxmox server in Settings." />
                     </div>
                   )}
                 </div>

@@ -2,7 +2,8 @@
 
 
 import { useEffect, useState, useRef } from 'react'
-import { CheckSquare, Plus, Fire } from '@phosphor-icons/react'
+import { CheckSquare, Plus, Fire, ListChecks } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -306,9 +307,7 @@ export default function TodosPage() {
           )}
 
           {todos.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic' }}>
-              No todos yet — add one above
-            </div>
+            <EmptyState icon={ListChecks} title="All clear" description="You have no tasks. Enjoy the free time." />
           )}
         </>
       )}

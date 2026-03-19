@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { MagnifyingGlass, CheckSquare, Target, CalendarDots, Envelope, SpinnerGap } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { SkeletonList } from '@/components/Skeleton'
@@ -181,9 +182,7 @@ export default function SearchPage() {
 
       {/* No results */}
       {!loading && results && !hasResults && (
-        <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '64px', fontSize: '14px' }}>
-          No results for &ldquo;{query}&rdquo;
-        </div>
+        <EmptyState icon={MagnifyingGlass} title={`No results for "${query}"`} description="Try a different search term." />
       )}
 
       {/* Results */}

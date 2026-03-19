@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react'
-import { Target, ArrowsClockwise } from '@phosphor-icons/react'
+import { Target, ArrowsClockwise, Rocket } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { ErrorState } from '@/components/ui/ErrorState'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
@@ -138,20 +140,9 @@ export default function MissionsPage() {
             ))}
           </div>
         ) : error ? (
-          <div style={{
-            padding: '20px', borderRadius: '10px',
-            background: 'var(--red-a08)', border: '1px solid var(--red-500-a20)',
-            color: 'var(--red-500)', fontSize: '13px', fontFamily: 'monospace',
-          }}>
-            Error: {error}
-          </div>
+          <ErrorState resource="missions" onRetry={refreshMissions} />
         ) : filtered.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: '80px', gap: '12px', color: 'var(--text-muted)' }}>
-            <Target size={40} />
-            <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-              {tab === 'all' ? 'No missions yet' : `No ${tab} missions`}
-            </div>
-          </div>
+          <EmptyState icon={Rocket} title={tab === 'all' ? 'No missions' : `No ${tab} missions`} description="Active missions from your agents will appear here." />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {filtered.map(mission => (

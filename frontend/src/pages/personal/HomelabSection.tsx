@@ -1,4 +1,5 @@
-import { Cpu, WifiHigh } from '@phosphor-icons/react'
+import { Cpu, WifiHigh, Desktop } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { Skeleton, SkeletonRows } from '@/components/Skeleton'
 import type { ProxmoxVM, ProxmoxNodeStat, OPNsenseData } from './types'
 
@@ -62,7 +63,7 @@ export default function HomelabSection({ proxmoxVMs, proxmoxNodes, opnsense, mou
               </div>
             )}
             {proxmoxVMs.length === 0 ? (
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>No VMs found</div>
+              <div style={{ padding: '8px 0' }}><EmptyState icon={Desktop} title="No VMs found" /></div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', overflowY: 'auto', flex: 1 }}>
                 {proxmoxVMs.map(vm => (

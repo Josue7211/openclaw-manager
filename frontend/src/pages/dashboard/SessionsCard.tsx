@@ -1,5 +1,6 @@
 import React from 'react'
-import { ChatText } from '@phosphor-icons/react'
+import { ChatText, Timer } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { timeAgo } from '@/lib/utils'
 import { SkeletonRows } from '@/components/Skeleton'
 import type { Session } from './types'
@@ -19,7 +20,7 @@ export const SessionsCard = React.memo(function SessionsCard({ mounted, sessions
       {!mounted ? (
         <SkeletonRows count={3} />
       ) : sessions.length === 0 ? (
-        <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>No sessions found</div>
+        <div style={{ padding: '8px 0' }}><EmptyState icon={Timer} title="No sessions yet" description="Start a pomodoro to track your focus." /></div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {sessions.slice(0, 10).map((s) => (

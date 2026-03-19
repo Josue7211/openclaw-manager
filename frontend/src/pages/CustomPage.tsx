@@ -1,5 +1,7 @@
 import { useParams } from 'react-router-dom'
+import { Sparkle } from '@phosphor-icons/react'
 import { PageHeader } from '@/components/PageHeader'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { useSyncExternalStore } from 'react'
 import { getSidebarConfig, subscribeSidebarConfig } from '@/lib/sidebar-config'
 
@@ -23,35 +25,7 @@ export default function CustomPage() {
         alignItems: 'center',
         justifyContent: 'center',
       }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', maxWidth: '400px' }}>
-          <div
-            role="img"
-            aria-label="OpenClaw Manager"
-            style={{
-              width: '64px',
-              height: '64px',
-              marginBottom: '20px',
-              WebkitMaskImage: 'url(/logo-128.png)',
-              WebkitMaskSize: 'contain',
-              WebkitMaskRepeat: 'no-repeat',
-              WebkitMaskPosition: 'center',
-              maskImage: 'url(/logo-128.png)',
-              maskSize: 'contain',
-              maskRepeat: 'no-repeat',
-              maskPosition: 'center',
-              background: 'var(--logo-color)',
-              opacity: 0.7,
-            } as React.CSSProperties}
-          />
-          <p style={{
-            fontSize: '14px',
-            color: 'var(--text-muted)',
-            lineHeight: 1.6,
-            textAlign: 'center',
-          }}>
-            This page is empty. Talk to your agent to create it.
-          </p>
-        </div>
+        <EmptyState icon={Sparkle} title="This page is empty" description="Talk to your agent to create it." />
       </div>
     </div>
   )

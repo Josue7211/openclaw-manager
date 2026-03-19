@@ -3,6 +3,7 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { BookOpen, Plus, MagnifyingGlass } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { SkeletonList } from '@/components/Skeleton'
@@ -146,16 +147,12 @@ export default function KnowledgePage() {
       {isLoading ? (
         <SkeletonList count={3} lines={3} layout="grid" />
       ) : entries.length === 0 ? (
-        <div style={{
-          textAlign: 'center',
-          padding: '60px 0',
-          color: 'var(--text-muted)',
-          fontSize: '13px',
-        }}>
-          {search || tagFilter
-            ? 'No entries match your filters'
-            : 'No knowledge entries yet — add a note, article, or link'}
-        </div>
+        <EmptyState
+          icon={BookOpen}
+          title={search || tagFilter ? 'No entries match your filters' : 'Knowledge base is empty'}
+          description={search || tagFilter ? 'Try adjusting your filters.' : 'Save articles, links, and snippets here.'}
+          action={!search && !tagFilter ? { label: 'Add Entry', onClick: () => setShowModal(true) } : undefined}
+        />
       ) : (
         <div style={{
           display: 'grid',

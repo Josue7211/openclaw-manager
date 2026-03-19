@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { Heartbeat, Desktop, WifiHigh, Database, Info, ArrowsClockwise, Clock, HardDrive, Monitor, Stack } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 import type { HealthData, TailscaleData } from './status/types'
 import { formatUptime, formatBytes, statusColor, statusLabel } from './status/helpers'
@@ -147,8 +148,8 @@ export default function Status() {
           {tsLoading ? (
             <LoadingSkeleton rows={3} />
           ) : uniquePeers.length === 0 ? (
-            <div style={{ fontSize: '13px', color: 'var(--text-muted)', padding: '8px 0' }}>
-              No peers found (tailscale may not be installed)
+            <div style={{ padding: '8px 0' }}>
+              <EmptyState icon={WifiHigh} title="No peers found" description="Tailscale may not be installed or running." />
             </div>
           ) : (
             uniquePeers.map((peer, i) => {

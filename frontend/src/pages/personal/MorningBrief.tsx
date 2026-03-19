@@ -1,4 +1,5 @@
-import { CheckSquare, Sun, SunHorizon, Moon, CalendarDots, Target } from '@phosphor-icons/react'
+import { CheckSquare, Sun, SunHorizon, Moon, CalendarDots, CalendarBlank, Target, CheckCircle } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonRows } from '@/components/Skeleton'
 import { todayISO } from '@/lib/utils'
 import type { Todo, Mission, CalendarEvent } from '@/lib/types'
@@ -80,7 +81,7 @@ export default function MorningBrief({ todos, missions, calendarEvents, mounted 
           {!mounted ? (
             <SkeletonRows count={2} />
           ) : focusTodos.length === 0 ? (
-            <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>All clear &mdash; nothing pending</p>
+            <div style={{ padding: '4px 0' }}><EmptyState icon={CheckCircle} title="All clear" description="Nothing pending." /></div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {focusTodos.map(t => (
@@ -102,7 +103,7 @@ export default function MorningBrief({ todos, missions, calendarEvents, mounted 
           {!mounted ? (
             <SkeletonRows count={2} />
           ) : todayEvents.length === 0 ? (
-            <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>No events today</p>
+            <div style={{ padding: '4px 0' }}><EmptyState icon={CalendarBlank} title="No events today" /></div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {todayEvents.slice(0, 3).map(e => {
