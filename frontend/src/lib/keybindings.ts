@@ -33,6 +33,9 @@ const DEFAULTS: Keybinding[] = [
   { id: 'nav-email', label: 'Go to Email', key: 'e', mod: true, route: '/email' },
   { id: 'nav-settings', label: 'Go to Settings', key: 's', mod: true, route: '/settings' },
   { id: 'nav-messages', label: 'Go to Messages', key: 'i', mod: true, route: '/messages' },
+
+  // Theme
+  { id: 'theme-picker', label: 'Theme picker', key: 't', mod: true, modifier: 'shift', action: 'theme-picker' },
 ]
 
 function load(): Keybinding[] {
@@ -150,6 +153,42 @@ export function isBindingModPressed(e: KeyboardEvent, b: Keybinding): boolean {
       // For non-standard modifiers, check if that key is currently held
       // via the global key state tracker
       return _heldKeys.has(mod)
+  }
+}
+
+/**
+ * Check whether a binding's additional modifier requirement matches.
+ * For bindings with `modifier` set AND `mod: true`, the binding requires
+ * both the global mod key AND the specified modifier. Returns true when
+ * the extra modifier state matches (pressed when required, not pressed when not required).
+ */
+export function matchesExtraModifier(e: KeyboardEvent, b: Keybinding): boolean {
+  // Binding has an explicit modifier override AND still uses mod: true
+  // This means it requires BOTH the global mod + the explicit modifier
+  if (!b.modifier) {
+    // No extra modifier required — make sure Shift is NOT pressed
+    // (to prevent Ctrl+Shift+T matching the Ctrl+T binding)
+    return !e.shiftKey
+  }
+  // Has extra modifier — check the global default mod is also pressed
+  const globalMod = _defaultMod
+  const globalPressed = (() => {
+    switch (globalMod) {
+      case 'alt': return e.altKey
+      case 'meta': return e.metaKey
+      case 'shift': return e.shiftKey
+      case 'ctrl': return e.ctrlKey
+      default: return _heldKeys.has(globalMod)
+    }
+  })()
+  if (!globalPressed) return false
+  // Now check the extra modifier itself
+  switch (b.modifier) {
+    case 'alt': return e.altKey
+    case 'meta': return e.metaKey
+    case 'shift': return e.shiftKey
+    case 'ctrl': return e.ctrlKey
+    default: return _heldKeys.has(b.modifier)
   }
 }
 
