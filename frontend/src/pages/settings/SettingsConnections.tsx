@@ -237,7 +237,7 @@ export default function SettingsConnections() {
 
       <div style={{ ...sectionLabel, marginTop: '24px' }}>Server Access</div>
       <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 16px' }}>
-        Allow external agents (like Bjorn) to reach the Mission Control API over Tailscale. Requires restart.
+        Allow external agents (like Bjorn) to reach the OpenClaw Manager API over Tailscale. Requires restart.
       </p>
 
       <div style={row}>

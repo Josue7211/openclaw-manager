@@ -1107,7 +1107,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
           justifyContent: logoVisible ? 'flex-start' : 'center',
         }}>
           {logoVisible && (
-            <div role="img" aria-label="Mission Control" style={logoStyle} />
+            <div role="img" aria-label="OpenClaw Manager" style={logoStyle} />
           )}
           <div style={{
             overflow: 'hidden',

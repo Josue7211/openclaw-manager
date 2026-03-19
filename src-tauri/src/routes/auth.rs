@@ -996,7 +996,7 @@ async fn mfa_enroll(State(state): State<AppState>) -> Result<Json<Value>, AppErr
         .map_err(|e| AppError::Internal(e))?;
 
     let resp = gotrue
-        .mfa_enroll_totp(&session.access_token, "Mission Control")
+        .mfa_enroll_totp(&session.access_token, "OpenClaw Manager")
         .await
         .map_err(|e| AppError::Internal(e))?;
 
@@ -1404,11 +1404,11 @@ fn callback_page(title: &str, heading: &str, msg: &str, is_error: bool) -> Strin
     let h1_class = if is_error { "err" } else { "ok" };
     format!(
         r##"<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>{title} — Mission Control</title>
+<html lang="en"><head><meta charset="utf-8"><title>{title} — OpenClaw Manager</title>
 <link rel="icon" type="image/png" href="/api/auth/favicon.png">
 <style>{style}</style></head>
 <body><div class="card">
-<img src="/api/auth/logo.png" width="64" height="64" alt="Mission Control" style="margin:0 auto 14px;display:block;filter:drop-shadow(0 2px 8px rgba(167,139,250,0.3))">
+<img src="/api/auth/logo.png" width="64" height="64" alt="OpenClaw Manager" style="margin:0 auto 14px;display:block;filter:drop-shadow(0 2px 8px rgba(167,139,250,0.3))">
 <h1 class="{h1_class}">{heading}</h1>
 <p>{msg}</p>
 </div>
@@ -1588,7 +1588,7 @@ async fn oauth_callback(
         Ok(Html(callback_page(
             "Signed In",
             "Signed in!",
-            "You\u{2019}re all set! You can close this tab and return to Mission Control.",
+            "You\u{2019}re all set! You can close this tab and return to OpenClaw Manager.",
             false,
         )))
     } else {

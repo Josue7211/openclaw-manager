@@ -52,8 +52,8 @@ export default function SettingsNotifications() {
     setNtfyStatus(null)
     try {
       const json = await api.post<{ ok?: boolean; error?: string }>('/api/notify', {
-        title: 'Mission Control',
-        message: 'Test notification from Mission Control',
+        title: 'OpenClaw Manager',
+        message: 'Test notification from OpenClaw Manager',
         priority: 3,
         tags: ['bell'],
       })
@@ -138,7 +138,7 @@ export default function SettingsNotifications() {
             if (systemNotifs && typeof Notification !== 'undefined') {
               if (Notification.permission === 'default') await Notification.requestPermission()
               if (Notification.permission === 'granted') {
-                new Notification('Mission Control', { body: 'This is a test notification', tag: 'mc-test-' + Date.now() })
+                new Notification('OpenClaw Manager', { body: 'This is a test notification', tag: 'mc-test-' + Date.now() })
               }
             }
             // In-app (just a brief visual confirmation here since we're not on Messages page)

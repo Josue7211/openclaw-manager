@@ -51,9 +51,9 @@ export default function PomodoroPage() {
     if (running) {
       document.title = `${mm}:${ss} — ${MODE_LABELS[mode]} · Pomodoro`
     } else {
-      document.title = 'Pomodoro · Mission Control'
+      document.title = 'Pomodoro · OpenClaw Manager'
     }
-    return () => { document.title = 'Pomodoro · Mission Control' }
+    return () => { document.title = 'Pomodoro · OpenClaw Manager' }
   }, [secondsLeft, running, mode, mounted])
 
   const advanceMode = useCallback(() => {

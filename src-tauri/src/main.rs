@@ -180,14 +180,14 @@ fn main() {
                 use tauri::menu::{MenuBuilder, MenuItemBuilder};
                 use tauri::Manager;
 
-                let show = MenuItemBuilder::with_id("show", "Show Mission Control").build(app)?;
+                let show = MenuItemBuilder::with_id("show", "Show OpenClaw Manager").build(app)?;
                 let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
                 let menu = MenuBuilder::new(app).items(&[&show, &quit]).build()?;
 
                 TrayIconBuilder::new()
                     .icon(app.default_window_icon().unwrap().clone())
                     .menu(&menu)
-                    .tooltip("Mission Control")
+                    .tooltip("OpenClaw Manager")
                     .on_menu_event(|app, event| match event.id().as_ref() {
                         "show" => {
                             if let Some(w) = app.get_webview_window("main") {

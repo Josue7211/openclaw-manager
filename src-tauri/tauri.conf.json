@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
-  "productName": "Mission Control",
+  "productName": "OpenClaw Manager",
   "version": "0.0.1-alpha",
-  "identifier": "com.mission-control.desktop",
+  "identifier": "com.openclaw.desktop",
   "build": {
     "beforeDevCommand": "cd frontend && npm run dev",
     "beforeBuildCommand": "cd frontend && npm run build",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Mission Control",
+        "title": "OpenClaw Manager",
         "width": 1280,
         "height": 800,
         "minWidth": 900,

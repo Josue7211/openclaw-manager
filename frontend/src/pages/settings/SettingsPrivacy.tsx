@@ -16,7 +16,7 @@ export default function SettingsPrivacy() {
         <div>
           <span>Anonymous crash reports</span>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', maxWidth: '340px', lineHeight: 1.5 }}>
-            Send anonymized error reports to help improve Mission Control. No personal data, messages, or credentials are ever included.
+            Send anonymized error reports to help improve OpenClaw Manager. No personal data, messages, or credentials are ever included.
           </div>
         </div>
         <Toggle on={errorReporting} onToggle={v => { setErrorReporting(v) }} label="Anonymous crash reports" />

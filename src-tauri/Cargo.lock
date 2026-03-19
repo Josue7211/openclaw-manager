@@ -2830,53 +2830,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mission-control"
-version = "0.0.1-alpha"
-dependencies = [
- "aes-gcm",
- "anyhow",
- "argon2",
- "async-imap",
- "async-native-tls",
- "async-stream",
- "axum",
- "axum-extra",
- "base64 0.22.1",
- "chrono",
- "dirs 5.0.1",
- "dotenvy",
- "futures",
- "hex",
- "ical",
- "image",
- "keyring",
- "libc",
- "rand 0.8.5",
- "regex",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "sha2",
- "sqlx",
- "subtle",
- "tauri",
- "tauri-build",
- "tauri-plugin-notification",
- "tauri-plugin-shell",
- "tokio",
- "tokio-stream",
- "tokio-tungstenite 0.21.0",
- "tokio-util",
- "tower 0.4.13",
- "tower-http 0.5.2",
- "tracing",
- "tracing-subscriber",
- "url",
- "urlencoding",
- "zeroize",
-]
-
-[[package]]
 name = "moxcms"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3236,6 +3189,53 @@ dependencies = [
  "is-wsl",
  "libc",
  "pathdiff",
+]
+
+[[package]]
+name = "openclaw"
+version = "0.0.1-alpha"
+dependencies = [
+ "aes-gcm",
+ "anyhow",
+ "argon2",
+ "async-imap",
+ "async-native-tls",
+ "async-stream",
+ "axum",
+ "axum-extra",
+ "base64 0.22.1",
+ "chrono",
+ "dirs 5.0.1",
+ "dotenvy",
+ "futures",
+ "hex",
+ "ical",
+ "image",
+ "keyring",
+ "libc",
+ "rand 0.8.5",
+ "regex",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "subtle",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-notification",
+ "tauri-plugin-shell",
+ "tokio",
+ "tokio-stream",
+ "tokio-tungstenite 0.21.0",
+ "tokio-util",
+ "tower 0.4.13",
+ "tower-http 0.5.2",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "urlencoding",
+ "zeroize",
 ]
 
 [[package]]

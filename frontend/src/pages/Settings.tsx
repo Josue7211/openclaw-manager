@@ -30,7 +30,7 @@ type SettingsSection = 'agent' | 'gateway' | 'app' | 'user' | 'connections' | 'd
 const SECTIONS: { key: SettingsSection; label: string; icon: React.ElementType; group: string }[] = [
   { key: 'agent', label: 'Agent', icon: Zap, group: 'General' },
   { key: 'gateway', label: 'Gateway', icon: Server, group: 'General' },
-  { key: 'app', label: 'Mission Control', icon: Cpu, group: 'General' },
+  { key: 'app', label: 'OpenClaw Manager', icon: Cpu, group: 'General' },
   { key: 'user', label: 'User', icon: User, group: 'General' },
   { key: 'connections', label: 'Connections', icon: Plug, group: 'General' },
   { key: 'display', label: 'Personalization', icon: Palette, group: 'App Settings' },
@@ -44,7 +44,7 @@ const SECTIONS: { key: SettingsSection; label: string; icon: React.ElementType; 
 const SECTION_GROUPS = [...new Set(SECTIONS.map(s => s.group))]
 
 
-/** Mission Control app settings section with logging info */
+/** OpenClaw Manager app settings section with logging info */
 const AppSection = memo(function AppSection() {
   const [logDir, setLogDir] = useState<string | null>(null)
   const [opening, setOpening] = useState(false)
@@ -71,7 +71,7 @@ const AppSection = memo(function AppSection() {
 
   return (
     <div>
-      <div style={sectionLabel}>Mission Control</div>
+      <div style={sectionLabel}>OpenClaw Manager</div>
       <div style={row}><span>Host</span><span style={val}>{window.location.host}</span></div>
       <div style={row}><span>Poll interval</span><span style={val}>2s</span></div>
       <div style={row}><span>Session file</span><span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace', fontSize: '11px' }}>~/.openclaw/agents/main/sessions/</span></div>

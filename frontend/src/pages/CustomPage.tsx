@@ -26,7 +26,7 @@ export default function CustomPage() {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', maxWidth: '400px' }}>
           <div
             role="img"
-            aria-label="Mission Control"
+            aria-label="OpenClaw Manager"
             style={{
               width: '64px',
               height: '64px',

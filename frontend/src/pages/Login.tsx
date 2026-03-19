@@ -252,7 +252,7 @@ export default function LoginPage() {
         <div style={{ textAlign: 'center' }}>
           <img
             src="/logo-128.png"
-            alt="Mission Control"
+            alt="OpenClaw Manager"
             width={64}
             height={64}
             style={{
@@ -272,7 +272,7 @@ export default function LoginPage() {
             textTransform: 'uppercase',
             transform: 'scaleY(1.3)',
           }}>
-            Mission Control
+            OpenClaw Manager
           </h1>
           <p style={{
             margin: '8px 0 0',

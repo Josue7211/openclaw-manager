@@ -261,7 +261,7 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '8px 0' }}>
       <img
         src="/logo-128.png"
-        alt="Mission Control"
+        alt="OpenClaw Manager"
         width={72}
         height={72}
         style={{ borderRadius: '18px' }}
@@ -271,7 +271,7 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
           margin: 0, fontSize: '22px', fontWeight: 700,
           color: 'var(--text-primary)', letterSpacing: '-0.02em',
         }}>
-          Welcome to Mission Control
+          Welcome to OpenClaw Manager
         </h2>
         <p style={{
           margin: '10px 0 0', fontSize: '13px',

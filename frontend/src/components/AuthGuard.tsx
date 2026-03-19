@@ -66,7 +66,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       background: 'var(--bg-primary, #0c0d11)',
     }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', animation: 'fadeIn 0.3s ease' }}>
-        <img src="/logo-128.png" alt="Mission Control" width={48} height={48} style={{ borderRadius: '12px' }} />
+        <img src="/logo-128.png" alt="OpenClaw Manager" width={48} height={48} style={{ borderRadius: '12px' }} />
         <div style={{
           width: '24px', height: '24px',
           border: '2px solid var(--border, var(--border-hover))',
