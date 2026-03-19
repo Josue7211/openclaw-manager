@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useMemo, useSyncExternalStore, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { CaretRight, CaretDown, Gear, Plus, Note, CheckSquare, Lightbulb, Flag, FileText, ArrowUp, ArrowDown, PencilSimple, Trash, FolderPlus, EyeSlash } from '@phosphor-icons/react'
+import { CaretRight, CaretDown, Gear, Plus, Note, CheckSquare, Lightbulb, Flag, FileText, ArrowUp, ArrowDown, PencilSimple, Trash, FolderPlus, EyeSlash, Palette, X } from '@phosphor-icons/react'
 import { useQueryClient } from '@tanstack/react-query'
 import GlobalSearch from './GlobalSearch'
 import { NotificationBell } from './NotificationCenter'
@@ -15,6 +15,14 @@ import {
 } from '@/lib/sidebar-config'
 import { queryKeys } from '@/lib/query-keys'
 import { api } from '@/lib/api'
+import { BUILT_IN_THEMES } from '@/lib/theme-definitions'
+import {
+  useThemeState,
+  setPageOverride,
+  clearPageOverride,
+  setCategoryOverride,
+  clearCategoryOverride,
+} from '@/lib/theme-store'
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 
@@ -160,6 +168,8 @@ const NavSection = React.memo(function NavSection({
   onDragEnd: onItemDragEnd,
   dragOverIdx,
   dragHref,
+  overrideColors,
+  categoryOverrideColor,
 }: {
   label: string
   items: NavItem[]
@@ -187,6 +197,10 @@ const NavSection = React.memo(function NavSection({
   onDragEnd?: () => void
   dragOverIdx?: number | null
   dragHref?: string | null
+  /** Map of href -> accent color for items with page theme overrides */
+  overrideColors?: Record<string, string>
+  /** Accent color for category override indicator */
+  categoryOverrideColor?: string
 }) {
   // Typewriter effect — calculate chars that physically fit in available space
   const labelCharWidth = 7 // ~10px uppercase font + letter-spacing
@@ -215,9 +229,23 @@ const NavSection = React.memo(function NavSection({
           onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-secondary)')}
           onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
         >
-          <span>
-            {labelText}
-            {labelIsTyping && <span className="type-cursor">|</span>}
+          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span>
+              {labelText}
+              {labelIsTyping && <span className="type-cursor">|</span>}
+            </span>
+            {categoryOverrideColor && (
+              <span
+                title="Category theme override active"
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: categoryOverrideColor,
+                  flexShrink: 0,
+                }}
+              />
+            )}
           </span>
           {chevronOpacity > 0 && (
             <span style={{
@@ -340,9 +368,23 @@ const NavSection = React.memo(function NavSection({
                     transition: `color var(--duration-fast)`,
                   }} />
                   {navCharsVisible > 0 && !collapsed && (
-                    <span>
-                      {navText}
-                      {navIsTyping && <span className="type-cursor">|</span>}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>
+                        {navText}
+                        {navIsTyping && <span className="type-cursor">|</span>}
+                      </span>
+                      {overrideColors?.[href] && (
+                        <span
+                          title="Page theme override active"
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            background: overrideColors[href],
+                            flexShrink: 0,
+                          }}
+                        />
+                      )}
                     </span>
                   )}
                   {/* Tooltip for collapsed sidebar — positioned to the right of the icon */}
@@ -729,6 +771,173 @@ const SectionDivider = React.memo(function SectionDivider() {
   return <div style={dividerStyle} />
 })
 
+/* ─── ThemeOverrideMenu ──────────────────────────────────────────────────── */
+
+const ThemeOverrideMenu = React.memo(function ThemeOverrideMenu({
+  x,
+  y,
+  type,
+  targetId,
+  currentOverrideId,
+  onClose,
+}: {
+  x: number
+  y: number
+  type: 'page' | 'category'
+  targetId: string
+  currentOverrideId?: string
+  onClose: () => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    const t = setTimeout(() => {
+      document.addEventListener('mousedown', handleClick)
+    }, 0)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      clearTimeout(t)
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [onClose])
+
+  const menuWidth = 200
+  const menuItemHeight = 28
+  const menuHeight = (BUILT_IN_THEMES.length + 2) * menuItemHeight + 16
+  const adjustedX = Math.min(x, window.innerWidth - menuWidth - 8)
+  const adjustedY = Math.min(y, window.innerHeight - Math.min(menuHeight, 400) - 8)
+
+  const handleSelect = (themeId: string) => {
+    if (type === 'page') {
+      setPageOverride(targetId, themeId)
+    } else {
+      setCategoryOverride(targetId, themeId)
+    }
+    onClose()
+  }
+
+  const handleClear = () => {
+    if (type === 'page') {
+      clearPageOverride(targetId)
+    } else {
+      clearCategoryOverride(targetId)
+    }
+    onClose()
+  }
+
+  const heading = type === 'page' ? 'Theme for this page' : 'Theme for this category'
+
+  return createPortal(
+    <div ref={ref} role="menu" style={{
+      position: 'fixed',
+      left: adjustedX,
+      top: adjustedY,
+      zIndex: 10001,
+      background: 'var(--bg-panel)',
+      border: '1px solid var(--border)',
+      borderRadius: '10px',
+      padding: '6px',
+      minWidth: '180px',
+      maxWidth: '220px',
+      maxHeight: '400px',
+      overflowY: 'auto',
+      boxShadow: '0 8px 32px var(--overlay)',
+      animation: 'fadeInUp 0.1s ease',
+    }}>
+      {/* Heading */}
+      <div style={{
+        fontSize: '10px',
+        fontWeight: 600,
+        color: 'var(--text-muted)',
+        textTransform: 'uppercase',
+        letterSpacing: '0.08em',
+        padding: '4px 8px 6px',
+      }}>
+        {heading}
+      </div>
+
+      {/* Global (no override) */}
+      <button
+        role="menuitemradio"
+        aria-checked={!currentOverrideId}
+        onClick={() => handleClear()}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          width: '100%',
+          padding: '5px 8px',
+          background: !currentOverrideId ? 'var(--accent-a10, rgba(167, 139, 250, 0.1))' : 'transparent',
+          border: 'none',
+          borderRadius: '5px',
+          color: !currentOverrideId ? 'var(--accent)' : 'var(--text-primary)',
+          fontSize: '12px',
+          fontWeight: !currentOverrideId ? 600 : 400,
+          cursor: 'pointer',
+          textAlign: 'left',
+          fontFamily: 'inherit',
+        }}
+        onMouseEnter={e => { if (currentOverrideId) (e.currentTarget as HTMLElement).style.background = 'var(--hover-bg)' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = !currentOverrideId ? 'var(--accent-a10, rgba(167, 139, 250, 0.1))' : 'transparent' }}
+      >
+        Use global theme
+      </button>
+
+      {/* Separator */}
+      <div style={{ height: '1px', background: 'var(--border)', margin: '4px 0' }} />
+
+      {/* Theme options */}
+      {BUILT_IN_THEMES.map(theme => {
+        const isSelected = currentOverrideId === theme.id
+        return (
+          <button
+            key={theme.id}
+            role="menuitemradio"
+            aria-checked={isSelected}
+            onClick={() => handleSelect(theme.id)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              width: '100%',
+              padding: '5px 8px',
+              background: isSelected ? 'var(--accent-a10, rgba(167, 139, 250, 0.1))' : 'transparent',
+              border: 'none',
+              borderRadius: '5px',
+              color: isSelected ? 'var(--accent)' : 'var(--text-primary)',
+              fontSize: '12px',
+              fontWeight: isSelected ? 600 : 400,
+              cursor: 'pointer',
+              textAlign: 'left',
+              fontFamily: 'inherit',
+            }}
+            onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--hover-bg)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = isSelected ? 'var(--accent-a10, rgba(167, 139, 250, 0.1))' : 'transparent' }}
+          >
+            {/* Color dot */}
+            <span style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: theme.colors['accent'] || '#a78bfa',
+              flexShrink: 0,
+            }} />
+            {theme.name}
+          </button>
+        )
+      })}
+    </div>,
+    document.body,
+  )
+})
+
 /* ─── Main Sidebar ───────────────────────────────────────────────────────── */
 
 export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarProps) {
@@ -742,6 +951,10 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
 
   // Context menu state
   const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null)
+  // Theme override submenu state
+  const [themeOverrideMenu, setThemeOverrideMenu] = useState<{
+    x: number; y: number; type: 'page' | 'category'; id: string
+  } | null>(null)
 
   // Inline rename state
   const [editingHref, setEditingHref] = useState<string | null>(null)
@@ -762,6 +975,9 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
   const searchVisible = useSyncExternalStore(subscribeSidebarSettings, getSidebarSearchVisible)
   const enabledModules = useSyncExternalStore(subscribeModules, getEnabledModules)
   const sidebarConfig = useSyncExternalStore(subscribeSidebarConfig, getSidebarConfig)
+
+  // Theme state for per-page/per-category overrides
+  const themeState = useThemeState()
 
   // Derived state
   const collapsed = width <= 64
@@ -851,6 +1067,30 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
     return offsets
   }, [resolvedCategories])
 
+  // Compute page override colors for indicator dots
+  const pageOverrideColors = useMemo(() => {
+    const map: Record<string, string> = {}
+    const overrides = themeState.pageOverrides
+    if (!overrides) return map
+    for (const [href, themeId] of Object.entries(overrides)) {
+      const t = BUILT_IN_THEMES.find(bt => bt.id === themeId) ?? themeState.customThemes.find(ct => ct.id === themeId)
+      if (t) map[href] = t.colors['accent'] || '#a78bfa'
+    }
+    return map
+  }, [themeState.pageOverrides, themeState.customThemes])
+
+  // Compute category override colors for indicator dots
+  const categoryOverrideColors = useMemo(() => {
+    const map: Record<string, string> = {}
+    const overrides = themeState.categoryOverrides
+    if (!overrides) return map
+    for (const [catId, themeId] of Object.entries(overrides)) {
+      const t = BUILT_IN_THEMES.find(bt => bt.id === themeId) ?? themeState.customThemes.find(ct => ct.id === themeId)
+      if (t) map[catId] = t.colors['accent'] || '#a78bfa'
+    }
+    return map
+  }, [themeState.categoryOverrides, themeState.customThemes])
+
   /* ── Sidebar drag-to-reorder handlers ──────────────────────────────── */
 
   const handleSbDragStart = useCallback((href: string, catId: string) => {
@@ -935,6 +1175,23 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
       },
     ]
 
+    // Theme override options
+    const hasPageOverride = !!(themeState.pageOverrides?.[href])
+    items.push({
+      label: hasPageOverride ? 'Change Page Theme' : 'Set Page Theme',
+      icon: Palette,
+      onClick: () => {
+        setThemeOverrideMenu({ x: e.clientX, y: e.clientY, type: 'page', id: href })
+      },
+    })
+    if (hasPageOverride) {
+      items.push({
+        label: 'Clear Page Theme',
+        icon: X,
+        onClick: () => clearPageOverride(href),
+      })
+    }
+
     items.push({
       label: 'Delete',
       icon: Trash,
@@ -946,7 +1203,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
     })
 
     setCtxMenu({ x: e.clientX, y: e.clientY, items })
-  }, [pathname, navigate])
+  }, [pathname, navigate, themeState.pageOverrides])
 
   const handleCategoryContextMenu = useCallback((catId: string, e: React.MouseEvent) => {
     e.preventDefault()
@@ -989,31 +1246,49 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
           })
         },
       },
-      {
-        label: 'Delete Category',
-        icon: Trash,
-        onClick: () => {
-          const cfg = getSidebarConfig()
-          const c = cfg.categories.find(cc => cc.id === catId)
-          if (!c) return
-          if (c.items.length > 0) {
-            // Move items to first remaining category
-            const remaining = cfg.categories.filter(cc => cc.id !== catId)
-            if (remaining.length > 0) {
-              remaining[0].items = [...remaining[0].items, ...c.items]
-            }
-            setSidebarConfig({ ...cfg, categories: remaining })
-          } else {
-            setSidebarConfig({ ...cfg, categories: cfg.categories.filter(cc => cc.id !== catId) })
-          }
-        },
-        danger: true,
-        disabled: config.categories.length <= 1,
-      },
     ]
 
+    // Theme override options for category
+    const hasCatOverride = !!(themeState.categoryOverrides?.[catId])
+    items.push({
+      label: hasCatOverride ? 'Change Category Theme' : 'Set Category Theme',
+      icon: Palette,
+      onClick: () => {
+        setThemeOverrideMenu({ x: e.clientX, y: e.clientY, type: 'category', id: catId })
+      },
+    })
+    if (hasCatOverride) {
+      items.push({
+        label: 'Clear Category Theme',
+        icon: X,
+        onClick: () => clearCategoryOverride(catId),
+      })
+    }
+
+    items.push({
+      label: 'Delete Category',
+      icon: Trash,
+      onClick: () => {
+        const cfg = getSidebarConfig()
+        const c = cfg.categories.find(cc => cc.id === catId)
+        if (!c) return
+        if (c.items.length > 0) {
+          // Move items to first remaining category
+          const remaining = cfg.categories.filter(cc => cc.id !== catId)
+          if (remaining.length > 0) {
+            remaining[0].items = [...remaining[0].items, ...c.items]
+          }
+          setSidebarConfig({ ...cfg, categories: remaining })
+        } else {
+          setSidebarConfig({ ...cfg, categories: cfg.categories.filter(cc => cc.id !== catId) })
+        }
+      },
+      danger: true,
+      disabled: config.categories.length <= 1,
+    })
+
     setCtxMenu({ x: e.clientX, y: e.clientY, items })
-  }, [navigate])
+  }, [navigate, themeState.categoryOverrides])
 
   /* ── Inline editing handlers ─────────────────────────────────────────── */
 
@@ -1123,6 +1398,22 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
 
       {/* ── Context menu ─────────────────────────────────────────────────── */}
       {ctxMenu && <ContextMenu {...ctxMenu} onClose={closeCtxMenu} />}
+
+      {/* Theme override submenu */}
+      {themeOverrideMenu && (
+        <ThemeOverrideMenu
+          x={themeOverrideMenu.x}
+          y={themeOverrideMenu.y}
+          type={themeOverrideMenu.type}
+          targetId={themeOverrideMenu.id}
+          currentOverrideId={
+            themeOverrideMenu.type === 'page'
+              ? themeState.pageOverrides?.[themeOverrideMenu.id]
+              : themeState.categoryOverrides?.[themeOverrideMenu.id]
+          }
+          onClose={() => setThemeOverrideMenu(null)}
+        />
+      )}
 
       {/* ── Logo header — slides up like search when hidden ────────────── */}
       <div style={{
@@ -1266,6 +1557,8 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
                   onDragEnd={handleSbDragEnd}
                   dragOverIdx={sbDropCat === cat.id ? sbDropIdx : null}
                   dragHref={sbDragHref}
+                  overrideColors={pageOverrideColors}
+                  categoryOverrideColor={categoryOverrideColors[cat.id]}
                 />
               )}
             </React.Fragment>
