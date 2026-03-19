@@ -7,7 +7,6 @@ import { useQuery } from '@tanstack/react-query'
 
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
-import { DEFAULT_ACCENT, DEFAULT_GLOW, DEFAULT_SECONDARY, DEFAULT_LOGO, applyAccentColor, applyGlowColor, applySecondaryColor, applyLogoColor } from '@/lib/themes'
 import { row, rowLast, val, inputStyle, btnStyle, btnSecondary, sectionLabel } from './settings/shared'
 
 // ── Lazy-loaded section components ──────────────────────────────────────────
@@ -156,50 +155,6 @@ export default function SettingsPage() {
   const [userName, setUserName] = useLocalStorageState('user-name', 'User')
   const [userAvatar, setUserAvatar] = useLocalStorageState('user-avatar', '🦍')
 
-  // Theme & color state — kept here because display section needs it
-  const [theme, setThemeState] = useLocalStorageState<'dark' | 'light' | 'system'>('theme', 'dark')
-  const [accentColor, setAccentColor] = useLocalStorageState('accent-color', DEFAULT_ACCENT)
-  const [glowColor, setGlowColor] = useLocalStorageState('glow-color', DEFAULT_GLOW)
-  const [secondaryColor, setSecondaryColor] = useLocalStorageState('secondary-color', DEFAULT_SECONDARY)
-  const [logoColor, setLogoColor] = useLocalStorageState('logo-color', DEFAULT_LOGO)
-
-  const setAccent = (color: string) => {
-    setAccentColor(color)
-    applyAccentColor(color)
-    if (color === DEFAULT_ACCENT) {
-      delete document.documentElement.dataset.accent
-    } else {
-      document.documentElement.dataset.accent = color
-    }
-  }
-
-  const setGlow = (color: string) => {
-    setGlowColor(color)
-    applyGlowColor(color)
-  }
-
-  const setSecondary = (color: string) => {
-    setSecondaryColor(color)
-    applySecondaryColor(color)
-  }
-
-  const setLogo = (color: string) => {
-    setLogoColor(color)
-    applyLogoColor(color)
-  }
-
-  const applyTheme = (t: 'dark' | 'light' | 'system') => {
-    let resolved: 'dark' | 'light' = t === 'system'
-      ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
-      : t
-    document.documentElement.dataset.theme = resolved
-  }
-
-  const setTheme = (t: 'dark' | 'light' | 'system') => {
-    setThemeState(t)
-    applyTheme(t)
-  }
-
   // Auth & MFA state
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [hasPassword, setHasPassword] = useState(false)
@@ -277,13 +232,7 @@ export default function SettingsPage() {
       case 'display':
         return (
           <Suspense fallback={<SectionFallback />}>
-            <SettingsDisplay
-              theme={theme} setTheme={setTheme}
-              accentColor={accentColor} setAccent={setAccent}
-              secondaryColor={secondaryColor} setSecondary={setSecondary}
-              glowColor={glowColor} setGlow={setGlow}
-              logoColor={logoColor} setLogo={setLogo}
-            />
+            <SettingsDisplay />
           </Suspense>
         )
       case 'keybindings':
