@@ -46,6 +46,8 @@ jobs:
             patchelf
 
       - uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # stable
+        with:
+          toolchain: stable
 
       - name: Rust tests
         run: cd src-tauri && cargo test
@@ -81,6 +83,8 @@ jobs:
         run: cd frontend && npm ci
 
       - uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # stable
+        with:
+          toolchain: stable
         with:
           targets: ${{ matrix.platform.target }}
 
