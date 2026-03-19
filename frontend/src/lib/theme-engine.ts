@@ -17,7 +17,6 @@ import {
   applyGlowColor,
   applySecondaryColor,
   applyLogoColor,
-  DEFAULT_SECONDARY,
 } from './themes'
 
 // ---------------------------------------------------------------------------
@@ -315,8 +314,8 @@ export function applyTheme(
       el.style.setProperty('--glow-top-rgb', def.colors['glow-top-rgb'] ?? '139, 92, 246')
     }
 
-    // 4. Apply secondary accent
-    const secondary = overrides?.secondary ?? def.colors['accent-secondary'] ?? DEFAULT_SECONDARY
+    // 4. Apply secondary accent — derive from theme accent when not explicitly set
+    const secondary = overrides?.secondary ?? def.colors['accent-secondary'] ?? accent
     applySecondaryColor(secondary)
 
     // 5. Apply logo color
@@ -325,6 +324,11 @@ export function applyTheme(
 
     // 6. Regenerate alpha tints from the active accent
     deriveAlphaTints(accent)
+
+    // 6b. Derive theme-adaptive utility variables
+    const isLight = def.category === 'light'
+    el.style.setProperty('--bg-white-03', isLight ? 'rgba(0, 0, 0, 0.03)' : 'rgba(255, 255, 255, 0.03)')
+    el.style.setProperty('--bg-white-05', isLight ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.05)')
 
     // 7. Set data-theme attribute for CSS cascade (light theme overrides in globals.css)
     el.dataset.theme = def.category === 'light' ? 'light' : 'dark'
