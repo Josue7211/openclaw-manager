@@ -8,11 +8,13 @@ import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 const CommandPalette = React.lazy(() => import('@/components/CommandPalette'))
 const KeyboardShortcutsModal = React.lazy(() => import('@/components/KeyboardShortcutsModal'))
 const OnboardingWelcome = React.lazy(() => import('@/components/OnboardingWelcome'))
-import { getKeybindings, subscribeKeybindings, isBindingModPressed } from '@/lib/keybindings'
+const ThemePicker = React.lazy(() => import('@/components/ThemePicker'))
+import { getKeybindings, subscribeKeybindings, isBindingModPressed, matchesExtraModifier } from '@/lib/keybindings'
 import { getTitleBarVisible, getTitleBarAutoHide, subscribeTitleBarSettings } from '@/lib/titlebar-settings'
 import { getSidebarTitleText, getSidebarDefaultWidth, subscribeSidebarSettings } from '@/lib/sidebar-settings'
 import { isDemoMode } from '@/lib/demo-data'
 import { DemoModeBanner } from '@/components/DemoModeBanner'
+import { IconContext } from '@phosphor-icons/react'
 import { ToastProvider } from '@/components/ui/Toast'
 import { NavigationProgressBar } from '@/components/ui/ProgressBar'
 
@@ -26,6 +28,7 @@ export default function LayoutShell() {
   const [offline, setOffline] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [themePickerOpen, setThemePickerOpen] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useLocalStorageState('sidebar-width', 260)
   const sidebarDraggingRef = useRef(false)
   const mainRef = useRef<HTMLElement>(null)
@@ -88,11 +91,12 @@ export default function LayoutShell() {
       if (inInput) return
 
       for (const b of bindings) {
-        if (b.mod && isBindingModPressed(e, b) && key === b.key) {
+        if (b.mod && isBindingModPressed(e, b) && key === b.key && matchesExtraModifier(e, b)) {
           if (b.action === 'undo' || b.action === 'redo') continue
           e.preventDefault()
           if (b.action === 'palette') { setPaletteOpen(prev => !prev); return }
           if (b.action === 'shortcuts') { setShortcutsOpen(prev => !prev); return }
+          if (b.action === 'theme-picker') { setThemePickerOpen(prev => !prev); return }
           if (b.route) { navigate(b.route); return }
         }
       }
@@ -136,11 +140,72 @@ export default function LayoutShell() {
     return () => window.removeEventListener('resize', check)
   }, [])
 
+  // Per-page / per-category theme override — apply scoped CSS variables to <main>
+  const themeState = useThemeState()
+  useEffect(() => {
+    const mainEl = mainRef.current
+    if (!mainEl) return
+
+    // Check for page-level override first (most specific)
+    const pageOverrideId = themeState.pageOverrides?.[pathname]
+
+    // If no page override, check category override
+    let overrideId = pageOverrideId
+    if (!overrideId && themeState.categoryOverrides) {
+      const config = getSidebarConfig()
+      for (const cat of config.categories) {
+        if (cat.items.includes(pathname)) {
+          overrideId = themeState.categoryOverrides[cat.id]
+          break
+        }
+      }
+    }
+
+    if (overrideId) {
+      const def = getThemeById(overrideId)
+        ?? themeState.customThemes.find(t => t.id === overrideId)
+      if (def) {
+        for (const [key, value] of Object.entries(def.colors)) {
+          mainEl.style.setProperty(`--${key}`, value)
+        }
+        return () => {
+          // Clean up: remove all inline custom properties
+          for (const key of Object.keys(def.colors)) {
+            mainEl.style.removeProperty(`--${key}`)
+          }
+        }
+      }
+    }
+
+    // No override — remove any previously set inline properties
+    // We iterate a snapshot of the style properties to avoid mutation during iteration
+    const propsToRemove: string[] = []
+    for (let i = 0; i < mainEl.style.length; i++) {
+      const prop = mainEl.style[i]
+      if (prop.startsWith('--')) {
+        propsToRemove.push(prop)
+      }
+    }
+    for (const prop of propsToRemove) {
+      mainEl.style.removeProperty(prop)
+    }
+  }, [pathname, themeState.pageOverrides, themeState.categoryOverrides, themeState.customThemes])
+
+  // Schedule timer — auto-switch themes based on schedule
+  useEffect(() => {
+    if (!themeState.schedule || themeState.schedule.type === 'none') return
+    const cleanup = startScheduleTimer()
+    return cleanup
+  }, [themeState.schedule])
+
   if (isLogin) {
     return <div><Outlet /></div>
   }
 
+  const iconContextValue = useMemo(() => ({ size: 20, weight: 'bold' as const }), [])
+
   return (
+    <IconContext.Provider value={iconContextValue}>
     <ToastProvider>
     <div style={{
       display: 'flex',
@@ -299,8 +364,12 @@ export default function LayoutShell() {
       <Suspense fallback={null}>
         <OnboardingWelcome />
       </Suspense>
+      <Suspense fallback={null}>
+        {themePickerOpen && <ThemePicker open={themePickerOpen} onClose={() => setThemePickerOpen(false)} />}
+      </Suspense>
       </div>
     </div>
     </ToastProvider>
+    </IconContext.Provider>
   )
 }
