@@ -36,9 +36,9 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 - [ ] Pre-built module primitives (charts, lists, forms) for Bjorn to compose from
 - [ ] Free-form dashboard grid (drag/resize/swap widgets, snap to grid cells)
 - [ ] Dashboard edit mode (enter/exit, rearrange widgets, add/remove)
-- [ ] Theming system — curated presets (light/dark base, accent colors)
-- [ ] Theming system — advanced CSS variable editor for full customization
-- [ ] Theme import/export and community sharing
+- ✓ Theming system — 17 curated presets (dark/light/colorful/high-contrast), accent/glow/secondary colors — Phase 2
+- ✓ Theming system — CodeMirror CSS variable editor, theme scheduling, per-page overrides — Phase 2
+- ✓ Theme import/export with validation and share codes (lz-string compressed) — Phase 2
 - [ ] Discord-style sidebar (modular categories, collapsible sections, activity indicators)
 - [ ] Seamless page transitions (no reloads, content stays loaded in background)
 - [ ] Notes overhaul — wiki-style [[linking]] with backlinks and graph view
@@ -63,9 +63,9 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 
 ## Context
 
-The app is in alpha. Core modules exist and work but need significant polish — visual inconsistency between pages, broken features (note linking doesn't work), poor responsive behavior (window resizing breaks layout, monitor switching isn't seamless), and missing feedback states throughout.
+The app is in alpha. Core modules exist and work but need significant polish — visual inconsistency between pages, broken features (note linking doesn't work), poor responsive behavior (window resizing breaks layout, monitor switching isn't seamless), and missing feedback states throughout. Phase 2 (Theming System) is complete — 17 presets, import/export, scheduling, custom CSS, per-page overrides, 1174 tests passing.
 
-The existing codebase has 1039 frontend tests, 231 Rust tests, and 21 E2E tests. Security score is 96/100. The foundation is solid but the UX needs to catch up.
+The existing codebase has 1174 frontend tests, 231 Rust tests, and 21 E2E tests. Security score is 96/100. The foundation is solid but the UX needs to catch up.
 
 Bjorn is an existing AI agent running on the OpenClaw VM. The challenge is bridging Bjorn's code generation into the running Tauri app safely — sandboxed preview, approval flow, then hot reload into production. This is the differentiating feature.
 
@@ -86,9 +86,9 @@ A v0.1.0 setup wizard milestone is already planned (archived at `.planning-v0.1.
 |----------|-----------|---------|
 | Bjorn modules sandboxed via dev preview panel | Prevents AI-generated code from crashing production app | — Pending |
 | Free-form grid over slot-based dashboard | More flexibility, matches iOS widget paradigm | — Pending |
-| Layered theming (presets + advanced editor) | Accessible for casual users, powerful for tinkerers | — Pending |
+| Layered theming (presets + advanced editor) | Accessible for casual users, powerful for tinkerers | ✓ Validated Phase 2 |
 | Everything in parallel (polish + features + Bjorn) | All workstreams are load-bearing for v1.0 publish | — Pending |
 | Download binary + setup wizard for distribution | Simplest path for users, Docker only for backend services | — Pending |
 
 ---
-*Last updated: 2026-03-19 after project initialization*
+*Last updated: 2026-03-19 after Phase 2 (Theming System) completion*
