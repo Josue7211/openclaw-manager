@@ -10,6 +10,7 @@
 
 import { useSyncExternalStore } from 'react'
 import type { ThemeState, UserThemeOverrides, ThemeDefinition, ThemeSchedule } from './theme-definitions'
+import { applyTheme } from './theme-engine'
 
 const STORAGE_KEY = 'theme-state'
 
@@ -83,10 +84,12 @@ export function clearLastClickEvent() {
 export function setActiveTheme(id: string, clickEvent?: { clientX: number; clientY: number }) {
   _lastClickEvent = clickEvent
   mutate(s => ({ ...s, activeThemeId: id }))
+  applyThemeFromState(clickEvent)
 }
 
 export function setMode(mode: 'dark' | 'light' | 'system') {
   mutate(s => ({ ...s, mode }))
+  applyThemeFromState()
 }
 
 function getOrCreateOverride(state: ThemeState): UserThemeOverrides {
@@ -105,6 +108,7 @@ export function setAccentOverride(color: string) {
     const ov = { ...getOrCreateOverride(s), accent: color }
     return withOverride(s, ov)
   })
+  applyThemeFromState()
 }
 
 export function setGlowOverride(color: string) {
@@ -112,6 +116,7 @@ export function setGlowOverride(color: string) {
     const ov = { ...getOrCreateOverride(s), glow: color }
     return withOverride(s, ov)
   })
+  applyThemeFromState()
 }
 
 export function setSecondaryOverride(color: string) {
@@ -119,6 +124,7 @@ export function setSecondaryOverride(color: string) {
     const ov = { ...getOrCreateOverride(s), secondary: color }
     return withOverride(s, ov)
   })
+  applyThemeFromState()
 }
 
 export function setLogoOverride(color: string) {
@@ -126,6 +132,7 @@ export function setLogoOverride(color: string) {
     const ov = { ...getOrCreateOverride(s), logo: color }
     return withOverride(s, ov)
   })
+  applyThemeFromState()
 }
 
 export function setFontOverride(slot: 'body' | 'heading' | 'mono' | 'ui', fontFamily: string) {
@@ -225,25 +232,16 @@ export function unpinTheme(themeId: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Theme Application (placeholder — Plan 02 implements full applyTheme)
+// Theme Application
 // ---------------------------------------------------------------------------
 
 /**
- * Apply the theme-state to the DOM.
- * For now, this only sets data-theme attribute for mode.
- * Plan 02-02 will add full CSS custom property application.
+ * Apply the full theme-state to the DOM via theme-engine.
+ * Uses the stored click event for ripple animation when available.
  */
-export function applyThemeFromState(state?: ThemeState) {
-  const s = state ?? _state
-  const mode = s.mode
+export function applyThemeFromState(clickEvent?: { clientX: number; clientY: number }) {
   if (typeof document === 'undefined') return
-
-  if (mode === 'system') {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    document.documentElement.dataset.theme = prefersDark ? 'dark' : 'light'
-  } else {
-    document.documentElement.dataset.theme = mode === 'light' ? 'light' : 'dark'
-  }
+  applyTheme(_state, clickEvent)
 }
 
 // ---------------------------------------------------------------------------

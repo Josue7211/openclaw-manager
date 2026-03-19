@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-
 import LayoutShell from './components/LayoutShell'
 import ErrorBoundary from './components/ErrorBoundary'
 import AuthGuard from './components/AuthGuard'
-import { applyAccentColor, getSavedAccent, applyGlowColor, getSavedGlowColor, applySecondaryColor, getSavedSecondaryColor, applyLogoColor, getSavedLogoColor } from './lib/themes'
+import { applyThemeFromState, getThemeState } from './lib/theme-store'
 import { PersonalSkeleton, DashboardSkeleton, MessagesSkeleton, SettingsSkeleton, GenericPageSkeleton } from './components/Skeleton'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -68,48 +68,15 @@ if (window.__TAURI_INTERNALS__) {
   })
 }
 
-// Apply saved theme preference on load
-;(() => {
-  let theme: string | null = null
-  try {
-    const stored = localStorage.getItem('theme')
-    if (stored) theme = JSON.parse(stored)
-  } catch { /* */ }
-  if (theme === 'light') {
-    document.documentElement.dataset.theme = 'light'
-  } else if (theme === 'system') {
-    document.documentElement.dataset.theme =
-      window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
-  } else {
-    document.documentElement.dataset.theme = 'dark'
-  }
-})()
+// Run migrations first — v5 migration converts old theme/accent keys to theme-state
+runMigrations()
 
-// Apply saved accent color before first paint
-;(() => {
-  const accent = getSavedAccent()
-  if (accent) {
-    applyAccentColor(accent)
-    document.documentElement.dataset.accent = accent
-  }
-  const glow = getSavedGlowColor()
-  if (glow) applyGlowColor(glow)
-  const secondary = getSavedSecondaryColor()
-  if (secondary) applySecondaryColor(secondary)
-  const logo = getSavedLogoColor()
-  if (logo) applyLogoColor(logo)
-})()
+// Apply saved theme before first paint (uses ThemeStore + ThemeEngine pipeline)
+applyThemeFromState()
 
 // Listen for system theme changes when in 'system' mode
-window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => {
-  let theme: string | null = null
-  try {
-    const stored = localStorage.getItem('theme')
-    if (stored) theme = JSON.parse(stored)
-  } catch { /* */ }
-  if (theme === 'system') {
-    document.documentElement.dataset.theme = e.matches ? 'light' : 'dark'
-  }
+window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+  if (getThemeState().mode === 'system') applyThemeFromState()
 })
 
 // Disable browser context menu in Tauri (not in browser dev mode)
@@ -134,8 +101,6 @@ if (window.__TAURI_INTERNALS__) {
     })
   })
 }
-
-runMigrations()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

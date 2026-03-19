@@ -43,7 +43,9 @@ export function resolveThemeDefinition(state: ThemeState): ThemeDefinition {
   const resolved = found ?? fallback
 
   if (state.mode === 'system') {
-    const osLight = window.matchMedia('(prefers-color-scheme: light)').matches
+    const osLight =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-color-scheme: light)').matches
     const isLightTheme = resolved.category === 'light'
 
     if (osLight && !isLightTheme) {
@@ -262,7 +264,9 @@ export function applyTheme(
   }
 
   // Decide whether to animate or apply instantly
-  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const prefersReducedMotion =
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   if (
     clickEvent &&
