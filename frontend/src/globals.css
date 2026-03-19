@@ -1049,3 +1049,19 @@ html:focus-within .traffic-lights button {
 .text-empty { font-size: 12px; color: var(--text-muted); font-style: italic; }
 .btn-ghost { background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; display: flex; align-items: center; }
 .tile { background: var(--bg-white-03); border-radius: var(--radius-md); padding: 12px; border: 1px solid var(--border); }
+
+/* ── Sidebar tooltip — shows on nav item hover when collapsed ── */
+.sidebar-nav-item:hover .sidebar-tooltip {
+  opacity: 1 !important;
+  transform: translateY(-50%) translateX(0px) !important;
+}
+
+/* ── Sidebar resize handle — hover-only visibility ── */
+.sidebar-resize-handle:hover {
+  opacity: 1 !important;
+  background: var(--border-hover);
+}
+.sidebar-resize-handle:active {
+  opacity: 1 !important;
+  background: var(--accent);
+}

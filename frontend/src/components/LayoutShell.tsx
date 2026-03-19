@@ -1,6 +1,6 @@
 
 
-import React, { useState, useEffect, useCallback, useRef, useSyncExternalStore, Suspense } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo, useSyncExternalStore, Suspense } from 'react'
 import { useLocation, useNavigate, Outlet } from 'react-router-dom'
 import Sidebar from '@/components/Sidebar'
 import PageErrorBoundary from '@/components/PageErrorBoundary'
@@ -26,6 +26,9 @@ export default function LayoutShell() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useLocalStorageState('sidebar-width', 260)
   const sidebarDraggingRef = useRef(false)
+  const mainRef = useRef<HTMLElement>(null)
+  const autoCollapsedRef = useRef(false)
+  const prevWidthBeforeAutoCollapse = useRef(sidebarWidth)
   const bindings = useSyncExternalStore(subscribeKeybindings, getKeybindings)
   const titleText = useSyncExternalStore(subscribeSidebarSettings, getSidebarTitleText)
 
@@ -36,6 +39,33 @@ export default function LayoutShell() {
     })
   }, [setSidebarWidth])
 
+  // Auto-collapse sidebar when main content area drops below 900px
+  useEffect(() => {
+    const el = mainRef.current
+    if (!el) return
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+    const observer = new ResizeObserver((entries) => {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        const mainWidth = entries[0].contentRect.width
+        // Auto-collapse when main content is too narrow
+        if (mainWidth < 900 && sidebarWidth > 64) {
+          prevWidthBeforeAutoCollapse.current = sidebarWidth
+          autoCollapsedRef.current = true
+          setSidebarWidth(64)
+        }
+        // Note: do NOT auto-expand — user controls expansion manually
+      }, 100)
+    })
+
+    observer.observe(el)
+    return () => {
+      observer.disconnect()
+      if (debounceTimer) clearTimeout(debounceTimer)
+    }
+  }, [sidebarWidth, setSidebarWidth])
 
   useEffect(() => {
     const on = () => setOffline(false)
@@ -220,13 +250,15 @@ export default function LayoutShell() {
         onWidthChange={setSidebarWidth}
         draggingRef={sidebarDraggingRef}
       />
-      <main id="main-content" data-testid="main-content" style={{
+      <main ref={mainRef} id="main-content" data-testid="main-content" style={{
         flex: 1,
         overflow: 'hidden',
         background: 'transparent',
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
+        containerType: 'inline-size',
+        containerName: 'main-content',
       }}>
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px', display: 'flex', flexDirection: 'column' }}>
         {offline && (

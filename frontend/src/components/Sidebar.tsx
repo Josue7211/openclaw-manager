@@ -62,10 +62,12 @@ const resizeHandleStyle: React.CSSProperties = {
   position: 'absolute',
   top: 0,
   right: 0,
-  width: '5px',
+  width: '8px',
   height: '100%',
   cursor: 'col-resize',
   zIndex: 10,
+  opacity: 0,
+  transition: 'opacity var(--duration-fast) ease',
 }
 
 const plusIconStyle: React.CSSProperties = { flexShrink: 0 }
@@ -271,6 +273,8 @@ const NavSection = React.memo(function NavSection({
               )
             }
 
+            const tooltipId = collapsed ? `tooltip-${href.replace(/\//g, '-')}` : undefined
+
             return (
               <div key={href}>
                 {showDropBefore && (
@@ -302,15 +306,17 @@ const NavSection = React.memo(function NavSection({
                     onItemDrop(categoryId, insertIdx)
                   } : undefined}
                   onDragEnd={onItemDragEnd}
-                  title={navCharsVisible < itemLabel.length ? itemLabel : undefined}
+                  title={!collapsed && navCharsVisible < itemLabel.length ? itemLabel : undefined}
+                  aria-label={collapsed ? itemLabel : undefined}
+                  aria-describedby={tooltipId}
                   onMouseEnter={() => onHoverItem(href)}
                   onContextMenu={categoryId && onItemContextMenu ? (e) => { e.preventDefault(); onItemContextMenu(href, categoryId, e) } : undefined}
-                  className="hover-bg"
+                  className="hover-bg sidebar-nav-item"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '10px',
-                    padding: '9px 16px',
+                    padding: collapsed ? '9px 0' : '9px 16px',
                     borderRadius: '10px',
                     marginBottom: '2px',
                     color: active ? 'var(--text-on-color)' : 'var(--text-secondary)',
@@ -320,7 +326,7 @@ const NavSection = React.memo(function NavSection({
                     fontSize: '13px',
                     fontWeight: active ? 600 : 450,
                     transition: isDragging ? 'none' : `background 0.25s var(--ease-spring), color 0.25s var(--ease-spring), transform 0.25s var(--ease-spring)`,
-                    justifyContent: 'flex-start',
+                    justifyContent: collapsed ? 'center' : 'flex-start',
                     position: 'relative',
                     animation: `fadeInUp 0.4s var(--ease-spring) ${(delayOffset + idx) * 30}ms both`,
                     whiteSpace: 'nowrap',
@@ -333,10 +339,38 @@ const NavSection = React.memo(function NavSection({
                     flexShrink: 0,
                     transition: `color var(--duration-fast)`,
                   }} />
-                  {navCharsVisible > 0 && (
+                  {navCharsVisible > 0 && !collapsed && (
                     <span>
                       {navText}
                       {navIsTyping && <span className="type-cursor">|</span>}
+                    </span>
+                  )}
+                  {/* Tooltip for collapsed sidebar — positioned to the right of the icon */}
+                  {collapsed && (
+                    <span
+                      id={tooltipId}
+                      role="tooltip"
+                      className="sidebar-tooltip"
+                      style={{
+                        position: 'absolute',
+                        left: 'calc(100% + 8px)',
+                        top: '50%',
+                        transform: 'translateY(-50%) translateX(4px)',
+                        background: 'var(--bg-card-solid)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-sm)',
+                        padding: '4px 8px',
+                        fontSize: 'var(--text-sm)',
+                        color: 'var(--text-primary)',
+                        whiteSpace: 'nowrap',
+                        pointerEvents: 'none',
+                        zIndex: 200,
+                        boxShadow: 'var(--shadow-medium)',
+                        opacity: 0,
+                        transition: 'opacity 0.15s ease, transform 0.15s ease',
+                      }}
+                    >
+                      {itemLabel}
                     </span>
                   )}
                 </Link>
@@ -1080,7 +1114,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
       WebkitBackdropFilter: 'blur(32px) saturate(180%)',
       display: 'flex',
       flexDirection: 'column',
-      transition: draggingRef.current ? 'none' : `width var(--duration-normal) var(--ease-spring), min-width var(--duration-normal) var(--ease-spring)`,
+      transition: draggingRef.current ? 'none' : `width 0.2s var(--ease-spring), min-width 0.2s var(--ease-spring)`,
       overflow: 'hidden',
       position: 'relative',
       zIndex: 100,
@@ -1316,9 +1350,10 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
         </button>
       </div>
 
-      {/* ── Resize handle (right edge) ───────────────────────────────────── */}
+      {/* ── Resize handle (right edge) — invisible until hover ─────────── */}
       <div
         onMouseDown={handleResizeStart}
+        className="sidebar-resize-handle"
         style={resizeHandleStyle}
       />
     </nav>
