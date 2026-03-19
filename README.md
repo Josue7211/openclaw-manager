@@ -48,7 +48,7 @@ Every module is optional. Enable only what you have:
 ## Architecture
 
 <p align="center">
-  <img src="docs/architecture.png" alt="Architecture diagram" width="800" />
+  <img src="docs/architecture.png" alt="Architecture diagram" />
 </p>
 
 > Open `docs/architecture.excalidraw` in [excalidraw.com](https://excalidraw.com) for the editable version.
