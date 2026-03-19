@@ -11,7 +11,7 @@ const Toggle = memo(function Toggle({ on, onToggle, label }: { on: boolean; onTo
         width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
         background: on ? 'var(--accent-solid)' : 'var(--bg-white-15)',
         position: 'relative', transition: 'background 0.25s var(--ease-spring)', padding: 0, flexShrink: 0,
-        boxShadow: on ? '0 0 8px rgba(167,139,250,0.15)' : 'none',
+        boxShadow: on ? '0 0 8px var(--accent-a15)' : 'none',
       }}
       onMouseDown={e => {
         const knob = e.currentTarget.querySelector('span') as HTMLElement
@@ -30,8 +30,8 @@ const Toggle = memo(function Toggle({ on, onToggle, label }: { on: boolean; onTo
         position: 'absolute', top: '2px',
         left: on ? '22px' : '2px',
         width: '20px', height: '20px', borderRadius: '50%',
-        background: '#fff',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+        background: 'var(--text-on-color)',
+        boxShadow: '0 1px 3px var(--overlay-light)',
         transition: 'left 0.25s var(--ease-spring), transform 0.2s var(--ease-spring)',
       }} />
     </button>

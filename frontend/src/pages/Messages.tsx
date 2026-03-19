@@ -842,7 +842,7 @@ export default function MessagesPage() {
           <div role="presentation" onClick={() => setConvCtx(null)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
           <div style={{
             position: 'fixed', left: convCtx.x, top: convCtx.y, zIndex: 999,
-            background: 'rgba(30,30,38,0.9)',
+            background: 'var(--bg-modal)',
             backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
             border: '1px solid var(--border-hover)',
             borderRadius: '10px', padding: '4px',
@@ -898,7 +898,7 @@ export default function MessagesPage() {
             }}
             style={{
               position: 'fixed', top: '16px', right: '20px', zIndex: 1100,
-              background: 'rgba(30,30,38,0.92)',
+              background: 'var(--bg-modal)',
               backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
               border: '1px solid var(--border-hover)',
               borderRadius: '14px', padding: '12px 16px',

@@ -495,7 +495,7 @@ const GroupedNotificationRow = React.memo(function GroupedNotificationRow({
                 fontSize: '10px',
                 fontWeight: 600,
                 color: 'var(--blue)',
-                background: 'rgba(96,165,250,0.15)',
+                background: 'var(--blue-a08)',
                 padding: '1px 6px',
                 borderRadius: '8px',
                 flexShrink: 0,
@@ -565,7 +565,7 @@ const GroupedNotificationRow = React.memo(function GroupedNotificationRow({
       {/* Expanded individual items */}
       {expanded && (
         <div style={{
-          background: 'rgba(0,0,0,0.15)',
+          background: 'var(--overlay-light)',
           borderBottom: '1px solid var(--bg-white-04)',
         }}>
           {group.items.map(notif => (
@@ -623,7 +623,7 @@ const NotificationPanel = forwardRef<HTMLDivElement, { onClose: () => void; posi
           left: `${position.left}px`,
           width: '340px',
           maxHeight: '460px',
-          background: 'rgba(16, 16, 22, 0.98)',
+          background: 'var(--bg-modal)',
           backdropFilter: 'blur(24px) saturate(180%)',
           WebkitBackdropFilter: 'blur(24px) saturate(180%)',
           border: '1px solid var(--border-hover)',
@@ -659,7 +659,7 @@ const NotificationPanel = forwardRef<HTMLDivElement, { onClose: () => void; posi
                 fontSize: '10px',
                 fontWeight: 600,
                 color: 'var(--blue)',
-                background: 'rgba(96,165,250,0.12)',
+                background: 'var(--blue-a08)',
                 padding: '2px 6px',
                 borderRadius: '10px',
               }}>

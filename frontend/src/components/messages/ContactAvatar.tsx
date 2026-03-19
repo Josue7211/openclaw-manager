@@ -5,6 +5,7 @@ import { LRUCache } from '@/lib/lru-cache'
 
 /* ─── Constants ────────────────────────────────────────────────────────── */
 
+/* intentionally hardcoded — fixed distinguishable palette for contact avatars */
 const AVATAR_COLORS = [
   '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
   '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE',
@@ -134,7 +135,7 @@ export const ContactAvatar = memo(function ContactAvatar({ address, name, isImsg
       width: `${size}px`, height: `${size}px`, minWidth: `${size}px`, minHeight: `${size}px`,
       borderRadius: '50%', flexShrink: 0,
       background: isImsg !== undefined
-        ? (isImsg ? 'linear-gradient(135deg, var(--apple-cyan), var(--apple-blue))' : 'linear-gradient(135deg, var(--apple-green), #30b04e)')
+        ? (isImsg ? 'linear-gradient(135deg, var(--apple-cyan), var(--apple-blue))' : 'linear-gradient(135deg, var(--apple-green), var(--apple-green))')
         : bgColor,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       color: 'var(--text-on-color)',
@@ -190,7 +191,7 @@ export const GroupAvatar = memo(function GroupAvatar({ conv, size = 40 }: { conv
   return (
     <div style={{
       width: `${size}px`, height: `${size}px`, borderRadius: '50%', flexShrink: 0,
-      background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+      background: 'linear-gradient(135deg, var(--accent-secondary), var(--accent-dim))',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       color: 'var(--text-on-color)',
     }}>

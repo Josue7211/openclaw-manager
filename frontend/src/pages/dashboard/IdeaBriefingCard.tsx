@@ -56,7 +56,7 @@ export const IdeaBriefingCard = React.memo(function IdeaBriefingCard({ pendingId
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             <button
               onClick={() => onIdeaAction(topIdea.id, 'approved')}
-              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '8px', border: 'none', cursor: 'pointer', background: 'rgba(52, 211, 153, 0.12)', color: 'var(--green)', transition: 'all 0.2s var(--ease-spring)' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '8px', border: 'none', cursor: 'pointer', background: 'var(--green-a12)', color: 'var(--green)', transition: 'all 0.2s var(--ease-spring)' }}
             >
               <CheckCircle size={11} /> Approve
             </button>
@@ -68,7 +68,7 @@ export const IdeaBriefingCard = React.memo(function IdeaBriefingCard({ pendingId
             </button>
             <button
               onClick={() => onIdeaAction(topIdea.id, 'rejected')}
-              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '8px', border: 'none', cursor: 'pointer', background: 'rgba(248, 113, 113, 0.12)', color: 'var(--red-bright)', transition: 'all 0.2s var(--ease-spring)' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '8px', border: 'none', cursor: 'pointer', background: 'var(--red-a12)', color: 'var(--red-bright)', transition: 'all 0.2s var(--ease-spring)' }}
             >
               <XCircle size={11} /> Reject
             </button>

@@ -137,16 +137,16 @@ const mcTheme = EditorView.theme(
       borderLeftWidth: '1.5px',
     },
     '.cm-selectionBackground': {
-      background: 'rgba(167, 139, 250, 0.18) !important',
+      background: 'var(--accent-a15) !important',
     },
     '&.cm-focused .cm-selectionBackground': {
-      background: 'rgba(167, 139, 250, 0.25) !important',
+      background: 'var(--accent-a30) !important',
     },
     '.cm-activeLine': {
       background: 'transparent',
     },
     '&.cm-focused .cm-activeLine': {
-      background: 'rgba(255, 255, 255, 0.015)',
+      background: 'var(--bg-white-02)',
     },
     '.cm-gutters': {
       display: 'none',
@@ -227,7 +227,7 @@ const mcTheme = EditorView.theme(
       opacity: 0.4,
     },
     '.cm-selectionMatch': {
-      background: 'rgba(167, 139, 250, 0.12)',
+      background: 'var(--accent-a12)',
     },
   },
   { dark: true },
@@ -250,17 +250,17 @@ const mcHighlighting = HighlightStyle.define([
   { tag: tags.meta, class: 'cm-formatting' },
   { tag: tags.comment, color: 'var(--text-muted)' },
   // Code block syntax highlighting
-  { tag: tags.keyword, color: '#c792ea' },
-  { tag: tags.string, color: '#c3e88d' },
-  { tag: tags.number, color: '#f78c6c' },
-  { tag: tags.bool, color: '#ff5370' },
-  { tag: tags.variableName, color: '#82aaff' },
-  { tag: tags.function(tags.variableName), color: '#82aaff' },
-  { tag: tags.typeName, color: '#ffcb6b' },
-  { tag: tags.className, color: '#ffcb6b' },
-  { tag: tags.propertyName, color: '#f07178' },
-  { tag: tags.operator, color: '#89ddff' },
-  { tag: tags.punctuation, color: '#89ddff' },
+  { tag: tags.keyword, color: 'var(--accent-bright)' },
+  { tag: tags.string, color: 'var(--green-bright)' },
+  { tag: tags.number, color: 'var(--orange)' },
+  { tag: tags.bool, color: 'var(--red)' },
+  { tag: tags.variableName, color: 'var(--blue)' },
+  { tag: tags.function(tags.variableName), color: 'var(--blue)' },
+  { tag: tags.typeName, color: 'var(--warning)' },
+  { tag: tags.className, color: 'var(--warning)' },
+  { tag: tags.propertyName, color: 'var(--red)' },
+  { tag: tags.operator, color: 'var(--cyan)' },
+  { tag: tags.punctuation, color: 'var(--cyan)' },
 ])
 
 interface NoteEditorProps {

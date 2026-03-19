@@ -272,7 +272,7 @@ export function MessagesThreadSkeleton() {
               radius={18}
               style={{
                 background: fromMe
-                  ? 'linear-gradient(90deg, rgba(129,140,248,0.12) 25%, rgba(129,140,248,0.2) 50%, rgba(129,140,248,0.12) 75%)'
+                  ? 'linear-gradient(90deg, var(--blue-a08) 25%, var(--blue-a25) 50%, var(--blue-a08) 75%)'
                   : undefined,
               }}
             />

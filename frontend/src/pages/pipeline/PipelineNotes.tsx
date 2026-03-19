@@ -94,8 +94,8 @@ export function PipelineNotes() {
                     style={{
                       flexShrink: 0,
                       padding: '4px 10px',
-                      background: n.applied ? 'rgba(5, 150, 105, 0.15)' : 'transparent',
-                      border: n.applied ? '1px solid rgba(5, 150, 105, 0.3)' : '1px solid var(--border-hover)',
+                      background: n.applied ? 'var(--emerald-a15)' : 'transparent',
+                      border: n.applied ? '1px solid var(--emerald-a15)' : '1px solid var(--border-hover)',
                       borderRadius: '6px',
                       color: n.applied ? 'var(--green)' : 'var(--text-muted)',
                       fontSize: '11px',

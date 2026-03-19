@@ -30,9 +30,9 @@ function DueDateBadge({ due_date }: { due_date: string | null | undefined }) {
   if (!status || !due_date) return null
 
   const styles: Record<string, { bg: string; color: string; label: string }> = {
-    overdue: { bg: 'rgba(239,68,68,0.12)', color: 'var(--red)', label: 'Overdue' },
+    overdue: { bg: 'var(--red-500-a12)', color: 'var(--red)', label: 'Overdue' },
     today: { bg: 'var(--yellow-bright-a12)', color: 'var(--warning)', label: 'Today' },
-    future: { bg: 'rgba(100,116,139,0.12)', color: 'var(--text-muted)', label: due_date },
+    future: { bg: 'var(--hover-bg)', color: 'var(--text-muted)', label: due_date },
   }
   const s = styles[status]
   return (
@@ -204,8 +204,8 @@ export default function TodosPage() {
           {focusTodos.length > 0 && (
             <div style={{
               marginBottom: '28px', padding: '16px 18px',
-              background: 'rgba(239,68,68,0.06)', borderRadius: '16px',
-              border: '1px solid rgba(239,68,68,0.18)',
+              background: 'var(--red-500-a12)', borderRadius: '16px',
+              border: '1px solid var(--red-500-a20)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '12px' }}>
                 <Fire size={13} style={{ color: 'var(--red)' }} />
@@ -218,7 +218,7 @@ export default function TodosPage() {
                   <div key={t.id} style={{
                     display: 'flex', alignItems: 'center', gap: '10px',
                     padding: '9px 12px', borderRadius: '10px',
-                    background: 'var(--bg-card)', border: '1px solid rgba(239,68,68,0.15)',
+                    background: 'var(--bg-card)', border: '1px solid var(--red-500-a12)',
                   }}>
                     <input
                       type="checkbox" checked={false} onChange={() => toggleTodo(t.id, t.done)}
@@ -243,9 +243,9 @@ export default function TodosPage() {
                 {sortedPending.map(t => (
                   <div key={t.id} style={{
                     display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px',
-                    background: focusIds.has(t.id) ? 'rgba(239,68,68,0.05)' : 'var(--bg-card)',
+                    background: focusIds.has(t.id) ? 'var(--red-500-a12)' : 'var(--bg-card)',
                     borderRadius: '10px',
-                    border: focusIds.has(t.id) ? '1px solid rgba(239,68,68,0.2)' : '1px solid var(--border)',
+                    border: focusIds.has(t.id) ? '1px solid var(--red-500-a20)' : '1px solid var(--border)',
                     transition: 'border-color 0.15s',
                   }}>
                     <input

@@ -106,7 +106,7 @@ export default function DailyReviewWidget({ todos, missions }: { todos: Todo[]; 
           style={{
             display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 20px',
             cursor: 'pointer', userSelect: 'none', width: '100%', border: 'none', fontSize: 'inherit', fontFamily: 'inherit',
-            background: 'rgba(155,132,236,0.04)',
+            background: 'var(--purple-a08)',
             borderBottom: collapsed ? 'none' : '1px solid var(--border)',
           }}
         >

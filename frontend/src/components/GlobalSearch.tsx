@@ -101,7 +101,7 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
       <div
         onClick={close}
         style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)',
+          position: 'fixed', inset: 0, background: 'var(--overlay-light)',
           backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
           zIndex: 9990,
         }}
@@ -116,7 +116,7 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
         width: '640px',
         maxWidth: 'calc(100vw - 32px)',
         maxHeight: '480px',
-        background: 'rgba(22, 22, 28, 0.95)',
+        background: 'var(--bg-modal)',
         backdropFilter: 'blur(32px) saturate(180%)',
         WebkitBackdropFilter: 'blur(32px) saturate(180%)',
         border: '1px solid var(--hover-bg-bright)',
@@ -131,7 +131,7 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
         {/* MagnifyingGlass input inside popup */}
         <div style={{
           padding: '14px 18px',
-          borderBottom: '1px solid rgba(255,255,255,0.07)',
+          borderBottom: '1px solid var(--bg-white-07)',
           display: 'flex',
           alignItems: 'center',
           gap: '10px',

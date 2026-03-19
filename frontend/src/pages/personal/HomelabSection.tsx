@@ -131,7 +131,7 @@ export default function HomelabSection({ proxmoxVMs, proxmoxNodes, opnsense, mou
               {opnsense === null ? (
                 <span className="badge badge-gray">Checking&hellip;</span>
               ) : opnsense.updateAvailable ? (
-                <span className="badge" style={{ background: 'rgba(245,166,35,0.15)', color: 'var(--warning)', border: '1px solid rgba(245,166,35,0.3)', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600 }}>
+                <span className="badge" style={{ background: 'var(--warning-a15)', color: 'var(--warning)', border: '1px solid var(--warning-a30)', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600 }}>
                   &#x26A0; Update available
                 </span>
               ) : (

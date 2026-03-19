@@ -126,7 +126,7 @@ const dotStyle = (online: boolean): React.CSSProperties => ({
   height: '8px',
   borderRadius: '50%',
   background: online ? 'var(--green-500)' : 'var(--red-500)',
-  boxShadow: online ? '0 0 6px rgba(34,197,94,0.4)' : '0 0 6px rgba(239,68,68,0.4)',
+  boxShadow: online ? '0 0 6px var(--green-400-a30)' : '0 0 6px var(--red-500-a25)',
   flexShrink: 0,
 })
 

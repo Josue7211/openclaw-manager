@@ -138,7 +138,7 @@ export function WeekGrid({ gridJobs, allJobs, weekStart, isCurrentWeek, todayDow
                 style={{
                   position: 'relative',
                   borderRight: colIdx < 6 ? '1px solid var(--border-strong)' : undefined,
-                  background: isToday ? 'rgba(155,132,236,0.025)' : undefined,
+                  background: isToday ? 'var(--purple-a08)' : undefined,
                 }}
               >
                 {/* Hour grid lines */}

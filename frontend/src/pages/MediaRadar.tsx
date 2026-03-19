@@ -125,15 +125,15 @@ RADARR_API_KEY=your-radarr-api-key`}
         </div>
         {data?.now_playing ? (
           <div style={{
-            background: 'linear-gradient(135deg, rgba(88,101,242,0.12) 0%, rgba(88,101,242,0.04) 100%)',
-            border: '1px solid rgba(88,101,242,0.25)',
+            background: 'linear-gradient(135deg, var(--blue-a08) 0%, var(--blue-a04) 100%)',
+            border: '1px solid var(--blue-a25)',
             borderRadius: '14px',
             padding: '20px',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
               <div style={{
                 width: '36px', height: '36px', borderRadius: '8px',
-                background: 'rgba(88,101,242,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'var(--blue-a25)', display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 <Play size={16} style={{ color: 'var(--blue-bright)', marginLeft: '2px' }} />
               </div>
@@ -148,8 +148,8 @@ RADARR_API_KEY=your-radarr-api-key`}
               <div style={{ marginLeft: 'auto' }}>
                 <span style={{
                   padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 600,
-                  background: 'rgba(88,101,242,0.2)', color: 'var(--blue-bright)',
-                  border: '1px solid rgba(88,101,242,0.3)',
+                  background: 'var(--blue-a25)', color: 'var(--blue-bright)',
+                  border: '1px solid var(--blue-a25)',
                 }}>
                   {data.now_playing.type === 'movie' ? 'Movie' : 'Episode'}
                 </span>
@@ -157,7 +157,7 @@ RADARR_API_KEY=your-radarr-api-key`}
             </div>
             {data.now_playing.progress !== null && (
               <div>
-                <div style={{ height: '4px', borderRadius: '2px', background: 'rgba(88,101,242,0.15)', overflow: 'hidden' }}>
+                <div style={{ height: '4px', borderRadius: '2px', background: 'var(--blue-a08)', overflow: 'hidden' }}>
                   <div style={{
                     height: '100%', borderRadius: '2px',
                     background: 'linear-gradient(90deg, var(--accent-blue), var(--blue-bright))',
@@ -216,7 +216,7 @@ RADARR_API_KEY=your-radarr-api-key`}
                 {item.year && <span style={{ marginRight: '6px' }}>{item.year}</span>}
                 <span style={{
                   padding: '1px 6px', borderRadius: '10px', fontSize: '10px',
-                  background: item.type === 'movie' ? 'var(--purple-a10)' : 'rgba(59,165,92,0.1)',
+                  background: item.type === 'movie' ? 'var(--purple-a10)' : 'var(--emerald-a12)',
                   color: item.type === 'movie' ? 'var(--accent)' : 'var(--green)',
                 }}>
                   {item.type === 'movie' ? 'Movie' : 'Show'}

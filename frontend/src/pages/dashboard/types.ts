@@ -13,8 +13,8 @@ export interface Idea { id: string; title: string; description: string | null; w
 
 // Pill color per mission status
 export function missionStatusStyle(status: string): React.CSSProperties {
-  if (status === 'done')   return { background: 'rgba(52, 211, 153, 0.2)', color: 'var(--green-bright)', border: '1px solid rgba(52, 211, 153, 0.25)' }
-  if (status === 'active') return { background: 'rgba(129, 140, 248, 0.2)', color: 'var(--blue-bright)', border: '1px solid rgba(129, 140, 248, 0.25)' }
+  if (status === 'done')   return { background: 'var(--green-a15)', color: 'var(--green-bright)', border: '1px solid var(--green-a25)' }
+  if (status === 'active') return { background: 'var(--blue-a25)', color: 'var(--blue-bright)', border: '1px solid var(--blue-a25)' }
   return { background: 'var(--hover-bg)', color: 'var(--text-muted)', border: '1px solid var(--border)' }
 }
 

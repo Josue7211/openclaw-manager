@@ -38,7 +38,7 @@ export default function TodoSection({ todos, mounted, isDemo, onAdd, onToggle, o
           <div key={t.id} style={{
             display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px',
             background: 'var(--bg-white-03)', borderRadius: '10px',
-            border: `1px solid ${t.done ? 'rgba(59,165,92,0.2)' : 'var(--border)'}`,
+            border: `1px solid ${t.done ? 'var(--emerald-a20)' : 'var(--border)'}`,
           }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, cursor: 'pointer', minWidth: 0 }}>
               <input

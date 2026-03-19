@@ -152,14 +152,14 @@ export const MissionCard = React.memo(function MissionCard({
                 display: 'flex', alignItems: 'center', gap: '4px',
                 padding: '3px 8px', borderRadius: '10px',
                 border: '1px solid var(--green-400-a30)',
-                background: 'rgba(74, 222, 128, 0.06)',
+                background: 'var(--green-400-a06)',
                 color: 'var(--green-400)',
                 fontSize: '11px', cursor: isMarkingDone ? 'wait' : 'pointer',
                 opacity: isMarkingDone ? 0.5 : 1,
                 transition: 'all 0.25s var(--ease-spring)',
               }}
-              onMouseEnter={e => { if (!isMarkingDone) { e.currentTarget.style.background = 'rgba(74, 222, 128, 0.14)'; e.currentTarget.style.borderColor = 'rgba(74, 222, 128, 0.45)' } }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(74, 222, 128, 0.06)'; e.currentTarget.style.borderColor = 'var(--green-400-a30)' }}
+              onMouseEnter={e => { if (!isMarkingDone) { e.currentTarget.style.background = 'var(--green-400-a14)'; e.currentTarget.style.borderColor = 'var(--green-400-a45)' } }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--green-400-a06)'; e.currentTarget.style.borderColor = 'var(--green-400-a30)' }}
             >
               <Check size={11} />
               Done
@@ -171,7 +171,7 @@ export const MissionCard = React.memo(function MissionCard({
             flexShrink: 0, fontSize: '10px', fontFamily: 'monospace',
             padding: '2px 8px', borderRadius: '10px',
             color: statusColor(mission.status),
-            background: done ? 'rgba(74, 222, 128, 0.08)' : mission.status === 'active' ? 'var(--purple-a10)' : 'var(--hover-bg)',
+            background: done ? 'var(--green-400-a08)' : mission.status === 'active' ? 'var(--purple-a10)' : 'var(--hover-bg)',
             border: `1px solid ${done ? 'var(--green-400-a15)' : mission.status === 'active' ? 'var(--purple-a20)' : 'var(--border)'}`,
           }}>
             {mission.status}

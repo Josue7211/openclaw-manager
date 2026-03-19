@@ -74,8 +74,8 @@ export function toDateKey(date: Date): string {
 export function getHeatColor(count: number): string {
   if (count === 0) return 'var(--bg-elevated)'
   if (count === 1) return 'var(--purple-a30)'
-  if (count === 2) return 'rgba(155, 132, 236, 0.55)'
-  if (count === 3) return 'rgba(155, 132, 236, 0.75)'
+  if (count === 2) return 'var(--purple-a55)'
+  if (count === 3) return 'var(--purple-a75)'
   return 'var(--accent-bright)'
 }
 

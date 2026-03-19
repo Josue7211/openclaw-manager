@@ -142,7 +142,7 @@ export function AddEntryModal({ onClose, onAdded }: AddEntryModalProps) {
           </div>
 
           {error && (
-            <div style={{ fontSize: '12px', color: 'var(--red)', background: 'rgba(240,71,71,0.1)', padding: '8px 10px', borderRadius: '6px' }}>
+            <div style={{ fontSize: '12px', color: 'var(--red)', background: 'var(--red-a12)', padding: '8px 10px', borderRadius: '6px' }}>
               {error}
             </div>
           )}

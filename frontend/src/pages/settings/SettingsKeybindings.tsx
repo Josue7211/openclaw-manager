@@ -174,7 +174,7 @@ export default function SettingsKeybindings() {
           minWidth: '24px', height: '26px', padding: '0 8px', borderRadius: '6px',
           fontSize: '12px', fontWeight: 500, fontFamily: "'JetBrains Mono', monospace",
           color: 'var(--text-primary)', background: 'var(--hover-bg-bright)',
-          border: '1px solid var(--border-hover)', boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+          border: '1px solid var(--border-hover)', boxShadow: '0 1px 2px var(--overlay-light)',
         }
         const isEditing = editingBindingId === b.id
         return (

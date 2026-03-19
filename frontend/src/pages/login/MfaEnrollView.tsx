@@ -24,7 +24,7 @@ export function MfaEnrollView({ mfaFactorId, mfaQr, mfaSecret, next }: MfaEnroll
       <div style={{
         padding: '10px 14px',
         background: 'var(--warning-a08)',
-        border: '1px solid rgba(251, 191, 36, 0.2)',
+        border: '1px solid var(--warning-a20)',
         borderRadius: '8px',
         fontSize: '12px',
         color: 'var(--warning)',
@@ -47,7 +47,7 @@ export function MfaEnrollView({ mfaFactorId, mfaQr, mfaSecret, next }: MfaEnroll
           display: 'flex',
           justifyContent: 'center',
           padding: '16px',
-          background: '#fff',
+          background: 'var(--text-on-color)',
           borderRadius: '12px',
           width: 'fit-content',
           margin: '0 auto',

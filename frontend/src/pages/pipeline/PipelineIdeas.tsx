@@ -88,7 +88,7 @@ export function PipelineIdeas() {
             padding: '5px 12px',
             borderRadius: '8px',
             border: '1px solid',
-            borderColor: ideasFilter === null ? 'rgba(255,255,255,0.2)' : 'transparent',
+            borderColor: ideasFilter === null ? 'var(--bg-white-15)' : 'transparent',
             cursor: 'pointer',
             fontSize: '12px',
             fontWeight: 600,
@@ -250,6 +250,7 @@ export function PipelineIdeas() {
                       transition: 'all 0.15s var(--ease-spring)',
                     }}
                   >
+                    {/* intentionally hardcoded — SVG checkmark on colored background */}
                     {isSelected && (
                       <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
                         <path d="M1 4L3.5 6.5L9 1" stroke="#fff" strokeLinecap="round" strokeLinejoin="round"/>

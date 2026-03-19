@@ -63,14 +63,14 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       height: '100vh', width: '100vw',
-      background: 'var(--bg-primary, #0c0d11)',
+      background: 'var(--bg-primary, var(--bg-base))',
     }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', animation: 'fadeIn 0.3s ease' }}>
         <img src="/logo-128.png" alt="OpenClaw Manager" width={48} height={48} style={{ borderRadius: '12px' }} />
         <div style={{
           width: '24px', height: '24px',
           border: '2px solid var(--border, var(--border-hover))',
-          borderTopColor: 'var(--accent, #a78bfa)',
+          borderTopColor: 'var(--accent, var(--accent))',
           borderRadius: '50%',
           animation: 'spin 0.8s linear infinite',
         }} />

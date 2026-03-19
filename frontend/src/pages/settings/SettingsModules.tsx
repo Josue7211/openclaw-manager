@@ -39,7 +39,7 @@ function InterCategoryDropZone({ index, active, onDragOver, onDragLeave, onDrop,
         margin: '0 8px',
         borderRadius: '6px',
         border: active ? '1px dashed var(--accent)' : '1px dashed transparent',
-        background: active ? 'rgba(155, 132, 236, 0.08)' : 'transparent',
+        background: active ? 'var(--purple-a08)' : 'transparent',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         transition: 'all 0.15s',
       }}
@@ -426,7 +426,7 @@ export default function SettingsModules() {
             marginBottom: cat.name ? '16px' : '2px',
             borderRadius: cat.name ? '10px' : '6px',
             border: cat.name ? '1px solid var(--border)' : 'none',
-            background: modDropCat === cat.id && modDragHref ? 'rgba(155, 132, 236, 0.04)' : 'transparent',
+            background: modDropCat === cat.id && modDragHref ? 'var(--purple-a08)' : 'transparent',
             transition: 'background 0.15s',
             overflow: 'hidden',
           }}
@@ -515,7 +515,7 @@ export default function SettingsModules() {
               alignItems: 'center',
               justifyContent: 'space-between',
               padding: '10px 12px',
-              background: 'rgba(255, 255, 255, 0.02)',
+              background: 'var(--bg-white-02)',
               borderBottom: '1px solid var(--border)',
             }}
           >
@@ -818,7 +818,7 @@ export default function SettingsModules() {
             }}
             style={{
               height: '100%',
-              background: modDropCat === '__unused__' ? 'rgba(155, 132, 236, 0.06)' : 'transparent',
+              background: modDropCat === '__unused__' ? 'var(--purple-a08)' : 'transparent',
               transition: 'background 0.15s',
             }}
           >
@@ -919,7 +919,7 @@ export default function SettingsModules() {
               >
                 <div style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '6px 10px', background: 'rgba(255,255,255,0.02)',
+                  padding: '6px 10px', background: 'var(--bg-white-02)',
                   borderBottom: ucat.items.length > 0 ? '1px solid var(--border)' : 'none',
                 }}>
                   <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
@@ -1273,7 +1273,7 @@ export default function SettingsModules() {
                 >
                   <div style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '6px 10px', background: 'rgba(255,255,255,0.02)',
+                    padding: '6px 10px', background: 'var(--bg-white-02)',
                     borderBottom: rcat.items.length > 0 ? '1px solid var(--border)' : 'none',
                   }}>
                     <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>

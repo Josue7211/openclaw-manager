@@ -187,7 +187,7 @@ CALDAV_PASSWORD=xxxx-xxxx-xxxx-xxxx`}
 
       {/* Error */}
       {error && (
-        <div style={{ marginBottom: '16px', padding: '12px 16px', background: 'rgba(237, 66, 69, 0.08)', border: '1px solid rgba(237, 66, 69, 0.25)', borderRadius: '8px', fontSize: '13px', color: 'var(--red-bright)', flexShrink: 0 }}>
+        <div style={{ marginBottom: '16px', padding: '12px 16px', background: 'var(--red-500-a12)', border: '1px solid var(--red-500-a25)', borderRadius: '8px', fontSize: '13px', color: 'var(--red-bright)', flexShrink: 0 }}>
           {error}
         </div>
       )}

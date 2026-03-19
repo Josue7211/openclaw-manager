@@ -90,7 +90,7 @@ export default function SettingsDisplay({
               style={{
                 width: 24, height: 24,
                 borderRadius: '50%',
-                background: `conic-gradient(from 0deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)`,
+                background: `conic-gradient(from 0deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)` /* intentionally hardcoded — rainbow color picker */,
                 cursor: 'pointer',
                 position: 'relative',
                 border: ACCENT_PRESETS.every(p => p.color !== value) ? '2px solid var(--text-primary)' : '2px solid transparent',

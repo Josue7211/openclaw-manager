@@ -188,7 +188,7 @@ export function PipelineStale() {
                       borderRadius: '6px',
                       border: 'none',
                       cursor: 'pointer',
-                      background: 'rgba(240,71,71,0.12)',
+                      background: 'var(--red-a12)',
                       color: 'var(--red)',
                       opacity: staleActing === `${item.id}-delete` ? 0.5 : 1,
                       display: 'flex',

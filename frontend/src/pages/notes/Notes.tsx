@@ -413,7 +413,7 @@ function AttachmentPreview({ id }: { id: string }) {
           style={{
             maxWidth: '100%', maxHeight: '80vh',
             objectFit: 'contain', borderRadius: 8,
-            boxShadow: '0 2px 16px rgba(0,0,0,0.3)',
+            boxShadow: '0 2px 16px var(--overlay-light)',
           }}
         />
       )}
@@ -476,7 +476,7 @@ function EmptyState({ onCreateNote }: { onCreateNote: () => void }) {
           background: 'var(--accent-dim)',
           border: 'none',
           borderRadius: 'var(--radius-sm)',
-          color: '#fff',
+          color: 'var(--text-on-color)',
           cursor: 'pointer',
           padding: '7px 18px',
           fontSize: 12, fontWeight: 500,

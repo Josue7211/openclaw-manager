@@ -105,7 +105,7 @@ export function renderTextWithLinks(text: string, fromMe: boolean): React.ReactN
         rel: 'noopener noreferrer',
         onClick: (e: React.MouseEvent) => e.stopPropagation(),
         style: {
-          color: fromMe ? 'rgba(255,255,255,0.95)' : 'var(--apple-blue)',
+          color: fromMe ? 'var(--bg-white-95)' : 'var(--apple-blue)',
           textDecoration: 'underline',
           textDecorationStyle: 'dotted' as const,
           textUnderlineOffset: '2px',
@@ -145,7 +145,7 @@ export function highlightSearchText(
         React.createElement('mark', {
           key: `hl-${keyCounter++}`,
           style: {
-            background: isActiveMatch ? 'rgba(255,204,0,0.5)' : 'rgba(255,204,0,0.25)',
+            background: isActiveMatch ? 'var(--yellow-bright-a35)' : 'var(--yellow-bright-a12)',
             color: 'inherit',
             borderRadius: '2px',
             padding: '0 1px',

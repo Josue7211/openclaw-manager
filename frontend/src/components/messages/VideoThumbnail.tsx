@@ -44,26 +44,26 @@ function VideoThumbnail({ src, br, onClick }: {
       {!ready && (
         <div style={{
           width: '240px', height: '160px', borderRadius: radius,
-          background: 'linear-gradient(135deg, #1a1a2e, #2a2a3e)',
+          background: 'linear-gradient(135deg, var(--bg-card-solid), var(--border-strong))',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }} />
       )}
       <div style={{
         position: 'absolute', inset: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: ready ? 'rgba(0,0,0,0.15)' : 'transparent',
+        background: ready ? 'var(--overlay-light)' : 'transparent',
         borderRadius: radius, pointerEvents: 'none',
       }}>
         <div style={{
           width: '44px', height: '44px', borderRadius: '50%',
-          background: 'rgba(255,255,255,0.9)',
+          background: 'var(--bg-white-90)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+          boxShadow: '0 2px 8px var(--overlay-light)',
         }}>
           <div style={{
             width: 0, height: 0,
             borderTop: '10px solid transparent', borderBottom: '10px solid transparent',
-            borderLeft: '16px solid #333', marginLeft: '3px',
+            borderLeft: '16px solid var(--border-strong)', marginLeft: '3px',
           }} />
         </div>
       </div>

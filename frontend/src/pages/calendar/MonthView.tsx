@@ -60,7 +60,7 @@ export function MonthView({ anchor, events, eventsByDate, todayKey, selectedDate
                       ? 'var(--purple-a08)'
                       : 'transparent',
                   border: isSelected
-                    ? '1px solid rgba(155, 132, 236, 0.4)'
+                    ? '1px solid var(--purple-a40)'
                     : isToday
                       ? '1px solid var(--border-accent)'
                       : '1px solid transparent',

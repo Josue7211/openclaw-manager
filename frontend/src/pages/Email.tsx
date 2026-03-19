@@ -304,7 +304,7 @@ export default function EmailPage() {
       {error && (
         <div style={{
           padding: '12px 16px', borderRadius: '8px', marginBottom: '16px',
-          background: 'rgba(255,95,95,0.1)', border: '1px solid rgba(255,95,95,0.3)',
+          background: 'var(--red-a12)', border: '1px solid var(--red-a30)',
           color: 'var(--red-bright)', fontSize: '12px',
         }}>
           {error}
@@ -315,7 +315,7 @@ export default function EmailPage() {
       {missingCreds && accounts.length > 0 && (
         <div style={{
           padding: '12px 16px', borderRadius: '8px', marginBottom: '16px',
-          background: 'rgba(255,200,0,0.08)', border: '1px solid rgba(255,200,0,0.25)',
+          background: 'var(--warning-a08)', border: '1px solid var(--warning-a25)',
           color: 'var(--text-secondary)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px',
         }}>
           <WarningCircle size={14} style={{ color: 'var(--amber-warm)', flexShrink: 0 }} />

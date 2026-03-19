@@ -148,7 +148,7 @@ export default function SettingsNotifications() {
               Object.assign(el.style, {
                 position: 'fixed', top: '16px', right: '16px', zIndex: '10000',
                 padding: '12px 20px', borderRadius: '12px', fontSize: '13px', fontWeight: '600',
-                background: 'rgba(18,18,24,0.95)', border: '1px solid var(--border-hover)',
+                background: 'var(--bg-modal)', border: '1px solid var(--border-hover)',
                 color: 'var(--text-primary)', boxShadow: '0 8px 32px var(--overlay-light)',
                 animation: 'fadeInUp 0.3s ease',
               })

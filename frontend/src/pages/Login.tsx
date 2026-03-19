@@ -219,7 +219,7 @@ export default function LoginPage() {
         left: '20%',
         width: '500px',
         height: '500px',
-        background: 'radial-gradient(circle, rgba(167, 139, 250, 0.06) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, var(--accent-a10) 0%, transparent 70%)',
         pointerEvents: 'none',
       }} />
       <div style={{
@@ -228,7 +228,7 @@ export default function LoginPage() {
         right: '15%',
         width: '400px',
         height: '400px',
-        background: 'radial-gradient(circle, rgba(129, 140, 248, 0.04) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, var(--blue-a04) 0%, transparent 70%)',
         pointerEvents: 'none',
       }} />
 

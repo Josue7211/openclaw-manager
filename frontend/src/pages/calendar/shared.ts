@@ -16,8 +16,8 @@ export interface CalendarResponse {
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 export const PALETTE = [
-  'var(--purple)', '#5865f2', '#3ba55c', '#ed4245', 'var(--amber-warm)',
-  '#57d687', '#818cf8', '#b9a8ff', '#ff6467',
+  'var(--purple)', 'var(--accent-secondary)', 'var(--green-500)', 'var(--red-500)', 'var(--amber-warm)',
+  'var(--green-400)', 'var(--accent-secondary)', 'var(--accent-bright)', 'var(--red)',
 ]
 
 export function calendarColor(name: string): string {

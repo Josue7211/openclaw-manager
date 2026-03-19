@@ -62,7 +62,7 @@ export default function Lightbox({ data, onClose }: LightboxProps) {
       aria-label="Media viewer"
       style={{
         position: 'fixed', inset: 0, zIndex: 10000,
-        background: 'rgba(0,0,0,0.88)',
+        background: 'var(--overlay-heavy)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         cursor: 'zoom-out', animation: 'lightboxIn 0.2s ease-out',
       }}
@@ -125,8 +125,8 @@ export default function Lightbox({ data, onClose }: LightboxProps) {
               <div id="loupe-lens" style={{
                 position: 'absolute', left: lx - LOUPE_W / 2, top: ly - LOUPE_H / 2,
                 width: LOUPE_W, height: LOUPE_H, borderRadius: '14px',
-                border: '2px solid rgba(255,255,255,0.35)',
-                boxShadow: '0 4px 24px rgba(0,0,0,0.7)',
+                border: '2px solid var(--bg-white-35)',
+                boxShadow: '0 4px 24px var(--overlay-heavy)',
                 backgroundImage: `url(${data.src})`,
                 backgroundSize: `${iw * loupe.zoom}px ${ih * loupe.zoom}px`,
                 backgroundPosition: `${LOUPE_W / 2 - loupe.x * loupe.zoom}px ${LOUPE_H / 2 - loupe.y * loupe.zoom}px`,
@@ -145,7 +145,7 @@ export default function Lightbox({ data, onClose }: LightboxProps) {
             playsInline
             style={{
               maxWidth: '85vw', maxHeight: '85vh', display: 'block',
-              borderRadius: '10px', outline: 'none', background: '#000',
+              borderRadius: '10px', outline: 'none', background: 'var(--bg-base)',
               boxShadow: '0 8px 40px var(--overlay-heavy)',
             }}
           />
@@ -162,7 +162,7 @@ export default function Lightbox({ data, onClose }: LightboxProps) {
           borderRadius: '50%', width: '36px', height: '36px', color: 'var(--text-on-color)', cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s',
         }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)' }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-white-15)' }}
         onMouseLeave={e => { e.currentTarget.style.background = 'var(--border-hover)' }}
       >
         <X size={18} />

@@ -204,7 +204,7 @@ export default function SearchPage() {
                       fontSize: '12px',
                       padding: '1px 7px',
                       borderRadius: '4px',
-                      background: todo.done ? 'rgba(74,222,128,0.1)' : 'var(--active-bg)',
+                      background: todo.done ? 'var(--green-400-a12)' : 'var(--active-bg)',
                       color: todo.done ? 'var(--green-400)' : 'var(--text-muted)',
                       flexShrink: 0,
                     }}>

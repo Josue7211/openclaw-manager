@@ -13,7 +13,7 @@ export function DemoModeBanner() {
       borderRadius: '10px',
       padding: expanded ? '12px 16px' : '8px 16px',
       fontSize: '13px',
-      color: 'rgba(251, 191, 36, 0.9)',
+      color: 'var(--warning)',
       marginBottom: 16,
       flexShrink: 0,
       display: 'flex',
@@ -33,7 +33,7 @@ export function DemoModeBanner() {
             marginLeft: 'auto',
             background: 'transparent',
             border: 'none',
-            color: 'rgba(251, 191, 36, 0.8)',
+            color: 'var(--warning)',
             cursor: 'pointer',
             padding: '2px',
             display: 'flex',
@@ -51,7 +51,7 @@ export function DemoModeBanner() {
             padding: '4px 12px',
             fontSize: '11px',
             fontWeight: 600,
-            color: 'rgba(251, 191, 36, 0.95)',
+            color: 'var(--warning)',
             cursor: 'pointer',
             whiteSpace: 'nowrap',
             transition: 'all 0.15s ease',
@@ -69,7 +69,7 @@ export function DemoModeBanner() {
       {expanded && (
         <div style={{
           fontSize: '12px',
-          color: 'rgba(251, 191, 36, 0.75)',
+          color: 'var(--warning)',
           lineHeight: 1.7,
           paddingLeft: '24px',
         }}>

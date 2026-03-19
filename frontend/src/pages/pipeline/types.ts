@@ -67,13 +67,13 @@ export const CATEGORIES = ['routing', 'delegation', 'user-preferences', 'lessons
 
 export const CATEGORY_COLORS: Record<string, string> = {
   routing: 'var(--accent-dim)',
-  delegation: '#0891b2',
-  'user-preferences': '#059669',
-  lessons: '#d97706',
+  delegation: 'var(--cyan)',
+  'user-preferences': 'var(--green-solid)',
+  lessons: 'var(--amber)',
 }
 
 export const STALE_TYPE_COLORS: Record<ItemType, { bg: string; color: string; border: string }> = {
-  todo: { bg: 'var(--emerald-a12)', color: 'var(--green)', border: 'rgba(59, 165, 92, 0.25)' },
+  todo: { bg: 'var(--emerald-a12)', color: 'var(--green)', border: 'var(--emerald-a15)' },
   mission: { bg: 'var(--purple-a12)', color: 'var(--accent-bright)', border: 'var(--border-accent)' },
   idea: { bg: 'var(--gold-a12)', color: 'var(--gold)', border: 'var(--gold-a25)' },
 }

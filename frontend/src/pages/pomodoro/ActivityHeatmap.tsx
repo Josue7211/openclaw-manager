@@ -102,7 +102,7 @@ export default function ActivityHeatmap({ sessions, mounted }: ActivityHeatmapPr
           left: tooltip.x,
           top: tooltip.y,
           transform: 'translate(-50%, -100%)',
-          background: 'rgba(20, 18, 30, 0.95)',
+          background: 'var(--bg-modal)',
           border: '1px solid var(--border-hover)',
           borderRadius: '6px',
           padding: '5px 8px',

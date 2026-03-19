@@ -216,7 +216,7 @@ export default function RemindersPage() {
             {tab.count > 0 && (
               <span style={{
                 marginLeft: '6px', fontSize: '10px', fontWeight: 700,
-                background: filter === tab.id ? 'rgba(255,255,255,0.25)' : 'var(--bg-base)',
+                background: filter === tab.id ? 'var(--bg-white-25)' : 'var(--bg-base)',
                 borderRadius: '10px', padding: '1px 6px',
               }}>
                 {tab.count}
@@ -230,7 +230,7 @@ export default function RemindersPage() {
       {errorMsg && (
         <div style={{
           padding: '12px 16px', borderRadius: '8px', marginBottom: '16px',
-          background: 'rgba(255,95,95,0.1)', border: '1px solid rgba(255,95,95,0.3)',
+          background: 'var(--red-a12)', border: '1px solid var(--red-a30)',
           color: 'var(--red-bright)', fontSize: '12px',
         }}>
           {errorMsg}

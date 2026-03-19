@@ -165,7 +165,7 @@ export default function ConversationList({
                       else setSelectMode(true)
                     }}
                     style={{
-                      background: selectMode ? 'rgba(0,122,255,0.15)' : 'transparent',
+                      background: selectMode ? 'var(--blue-a25)' : 'transparent',
                       border: '1px solid var(--border)', borderRadius: '8px',
                       color: selectMode ? 'var(--apple-blue)' : 'var(--text-secondary)',
                       padding: '7px 14px', cursor: 'pointer', fontSize: '12px', fontWeight: 500,
@@ -188,7 +188,7 @@ export default function ConversationList({
                     onClick={onStartCompose}
                     aria-label="New Message"
                     style={{
-                      background: composeMode ? 'rgba(0,122,255,0.15)' : 'transparent',
+                      background: composeMode ? 'var(--blue-a25)' : 'transparent',
                       border: '1px solid var(--border)', borderRadius: '8px',
                       color: composeMode ? 'var(--apple-blue)' : 'var(--text-secondary)',
                       padding: '7px 10px', cursor: 'pointer',
@@ -250,7 +250,7 @@ export default function ConversationList({
                       fontWeight: act ? 600 : 450,
                       color: act ? 'var(--text-on-color)' : 'var(--text-secondary)',
                       background: act
-                        ? (f === 'iMessage' ? 'rgba(0,122,255,0.25)' : f === 'SMS' ? 'rgba(52,199,89,0.2)' : 'var(--accent-a15)')
+                        ? (f === 'iMessage' ? 'var(--blue-a25)' : f === 'SMS' ? 'var(--green-a15)' : 'var(--accent-a15)')
                         : 'transparent',
                       border: act ? 'none' : '1px solid var(--border)',
                       borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s',
@@ -263,7 +263,7 @@ export default function ConversationList({
                   flex: 1, padding: '6px 8px', fontSize: '11px',
                   fontWeight: showJunk ? 600 : 450,
                   color: showJunk ? 'var(--text-on-color)' : 'var(--text-muted)',
-                  background: showJunk ? 'rgba(248,113,113,0.2)' : 'transparent',
+                  background: showJunk ? 'var(--red-a15)' : 'transparent',
                   border: showJunk ? 'none' : '1px solid var(--border)',
                   borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s',
                 }}>
@@ -406,7 +406,7 @@ export default function ConversationList({
                     display: 'flex', alignItems: 'center', gap: '12px',
                     padding: isPinnedDivider ? '10px 6px 6px 14px' : '6px 6px 6px 14px',
                     justifyContent: 'flex-start',
-                    background: isFocused ? 'var(--accent-a10)' : isSel ? 'rgba(0,122,255,0.08)' : 'transparent',
+                    background: isFocused ? 'var(--accent-a10)' : isSel ? 'var(--blue-a08)' : 'transparent',
                     border: 'none', borderRadius: '10px', cursor: 'pointer',
                     textAlign: 'left', transition: 'background 0.15s', marginBottom: '2px',
                     outline: isFocused ? '1px solid var(--accent-a40)' : 'none',
@@ -514,7 +514,7 @@ export default function ConversationList({
         }}>
           <button onClick={onBatchMarkRead} style={{
             flex: 1, padding: '8px', fontSize: '12px', fontWeight: 600,
-            background: 'rgba(0,122,255,0.12)', border: '1px solid rgba(0,122,255,0.2)',
+            background: 'var(--blue-a08)', border: '1px solid var(--blue-a25)',
             borderRadius: '8px', color: 'var(--apple-cyan)', cursor: 'pointer',
           }}>
             Mark Read ({selectedConvs.size})

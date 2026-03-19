@@ -40,7 +40,7 @@ export function JobList({ jobs, loading }: JobListProps) {
                   borderRadius: '6px',
                   background: 'transparent',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#1a1a1a')}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-inset)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
                 {/* Color dot */}
@@ -67,9 +67,9 @@ export function JobList({ jobs, loading }: JobListProps) {
                   padding: '2px 8px',
                   borderRadius: '4px',
                   fontWeight: 600,
-                  background: enabled ? 'rgba(74,222,128,0.12)' : 'transparent',
+                  background: enabled ? 'var(--green-400-a12)' : 'transparent',
                   color: enabled ? 'var(--green-400)' : 'var(--text-muted)',
-                  border: `1px solid ${enabled ? 'rgba(74,222,128,0.3)' : 'var(--border-strong)'}`,
+                  border: `1px solid ${enabled ? 'var(--green-400-a30)' : 'var(--border-strong)'}`,
                   flexShrink: 0,
                   minWidth: '60px',
                   textAlign: 'center',

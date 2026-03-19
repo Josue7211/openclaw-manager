@@ -57,12 +57,12 @@ function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
           maxWidth: '100%', overflow: 'hidden',
         }}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={fromMe ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={fromMe ? 'var(--bg-white-60)' : 'var(--text-muted)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
           <circle cx="12" cy="12" r="10" />
           <line x1="2" y1="12" x2="22" y2="12" />
           <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
         </svg>
-        <span style={{ fontSize: '11px', fontWeight: 600, color: fromMe ? 'rgba(255,255,255,0.8)' : 'var(--text-primary)' }}>
+        <span style={{ fontSize: '11px', fontWeight: 600, color: fromMe ? 'var(--bg-white-80)' : 'var(--text-primary)' }}>
           {domain}
         </span>
       </a>
@@ -94,7 +94,7 @@ function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
       <div style={{ padding: '8px 10px' }}>
         <div style={{
           fontSize: '10px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.03em',
-          color: fromMe ? 'rgba(255,255,255,0.45)' : 'var(--text-muted)',
+          color: fromMe ? 'var(--bg-white-45)' : 'var(--text-muted)',
           marginBottom: '2px',
         }}>
           {meta.siteName}
@@ -102,7 +102,7 @@ function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
         {meta.title && (
           <div style={{
             fontSize: '12px', fontWeight: 600, lineHeight: 1.3,
-            color: fromMe ? 'rgba(255,255,255,0.9)' : 'var(--text-primary)',
+            color: fromMe ? 'var(--bg-white-90)' : 'var(--text-primary)',
             display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
             overflow: 'hidden',
           }}>
@@ -112,7 +112,7 @@ function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
         {meta.description && (
           <div style={{
             fontSize: '11px', lineHeight: 1.3, marginTop: '2px',
-            color: fromMe ? 'rgba(255,255,255,0.55)' : 'var(--text-secondary)',
+            color: fromMe ? 'var(--bg-white-55)' : 'var(--text-secondary)',
             display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
             overflow: 'hidden',
           }}>

@@ -73,14 +73,14 @@ function AudioWaveform({ src, fromMe, guid }: { src: string; fromMe: boolean; gu
     setProgress(x)
   }
 
-  const active = fromMe ? 'rgba(255,255,255,0.9)' : 'var(--apple-blue)'
-  const dim = fromMe ? 'rgba(255,255,255,0.25)' : 'rgba(120,120,140,0.3)'
+  const active = fromMe ? 'var(--bg-white-90)' : 'var(--apple-blue)'
+  const dim = fromMe ? 'var(--bg-white-25)' : 'var(--hover-bg-bright)'
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', minWidth: '200px' }}>
       <button onClick={toggle} aria-label={playing ? 'Pause audio' : 'Play audio'} style={{
         width: '30px', height: '30px', borderRadius: '50%',
-        background: fromMe ? 'rgba(255,255,255,0.18)' : 'rgba(0,122,255,0.12)',
+        background: fromMe ? 'var(--bg-white-18)' : 'var(--blue-a08)',
         border: 'none', cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: active, flexShrink: 0,
@@ -105,7 +105,7 @@ function AudioWaveform({ src, fromMe, guid }: { src: string; fromMe: boolean; gu
       </button>
       <span style={{
         fontSize: '10px', minWidth: '30px', textAlign: 'right',
-        color: fromMe ? 'rgba(255,255,255,0.6)' : 'var(--text-secondary)',
+        color: fromMe ? 'var(--bg-white-60)' : 'var(--text-secondary)',
         fontFamily: "'JetBrains Mono', monospace",
       }}>
         {formatDuration(playing ? (audioRef.current?.currentTime || 0) : duration)}

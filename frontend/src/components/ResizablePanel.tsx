@@ -287,7 +287,7 @@ export function ResizablePanel({
     >
       <div onMouseDown={handleDragStart} style={{
         padding: '8px 12px',
-        background: 'rgba(255,255,255,0.02)',
+        background: 'var(--bg-white-02)',
         borderBottom: '1px solid var(--border)',
         cursor: 'grab', userSelect: 'none', flexShrink: 0,
       }}>

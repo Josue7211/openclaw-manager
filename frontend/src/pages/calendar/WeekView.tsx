@@ -134,7 +134,7 @@ export function WeekView({ anchor, events, todayKey, hourHeight, scrollRef }: We
                 <div key={di} style={{
                   height: `${hourHeight}px`,
                   borderLeft: '1px solid var(--border)',
-                  borderBottom: '1px solid rgba(42,42,42,0.5)',
+                  borderBottom: '1px solid var(--border-strong)',
                   position: 'relative',
                 }} />
               ))}

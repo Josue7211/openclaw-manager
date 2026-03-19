@@ -27,15 +27,15 @@ export function statusIcon(status: string) {
 /* ─── Event metadata ────────────────────────────────────────────────────── */
 
 export const EVENT_META: Record<string, { tickColor: string; icon: React.ReactNode; label: string; labelColor: string; bg: string; border: string }> = {
-  user:   { tickColor: '#ec4899', icon: <User size={11} />,      label: 'User',   labelColor: 'var(--pink)', bg: 'rgba(236,72,153,0.12)',  border: 'rgba(236,72,153,0.3)' },
+  user:   { tickColor: 'var(--pink)', icon: <User size={11} />,      label: 'User',   labelColor: 'var(--pink)', bg: 'var(--red-a12)',  border: 'var(--red-a30)' },
   think:  { tickColor: 'var(--purple)', icon: <Lightbulb size={11} />, label: 'Think',  labelColor: 'var(--accent-bright)', bg: 'var(--purple-a12)', border: 'var(--border-accent)' },
-  write:  { tickColor: 'var(--green-500)', icon: <FileText size={11} />,  label: 'Write',  labelColor: 'var(--green-400)', bg: 'rgba(34,197,94,0.15)',   border: 'rgba(34,197,94,0.35)' },
-  edit:   { tickColor: '#10b981', icon: <PencilSimple size={11} />,    label: 'Edit',   labelColor: 'var(--green)', bg: 'rgba(16,185,129,0.15)',  border: 'rgba(16,185,129,0.35)' },
-  bash:   { tickColor: '#3b82f6', icon: <Terminal size={11} />,  label: 'Bash',   labelColor: 'var(--blue)', bg: 'rgba(59,130,246,0.15)',  border: 'rgba(59,130,246,0.35)' },
-  read:   { tickColor: '#06b6d4', icon: <Eye size={11} />,       label: 'Read',   labelColor: 'var(--cyan)', bg: 'rgba(6,182,212,0.12)',   border: 'rgba(6,182,212,0.3)' },
-  glob:   { tickColor: '#f97316', icon: <MagnifyingGlass size={11} />,    label: 'Glob',   labelColor: 'var(--orange)', bg: 'rgba(249,115,22,0.12)',  border: 'rgba(249,115,22,0.3)' },
-  grep:   { tickColor: '#f97316', icon: <MagnifyingGlass size={11} />,    label: 'Grep',   labelColor: 'var(--orange)', bg: 'rgba(249,115,22,0.12)',  border: 'rgba(249,115,22,0.3)' },
-  result: { tickColor: 'var(--amber)', icon: <DotOutline size={11} />, label: 'Result', labelColor: 'var(--warning)', bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.35)' },
+  write:  { tickColor: 'var(--green-500)', icon: <FileText size={11} />,  label: 'Write',  labelColor: 'var(--green-400)', bg: 'var(--green-400-a15)',   border: 'var(--green-400-a30)' },
+  edit:   { tickColor: 'var(--green)', icon: <PencilSimple size={11} />,    label: 'Edit',   labelColor: 'var(--green)', bg: 'var(--green-a15)',  border: 'var(--green-a15)' },
+  bash:   { tickColor: 'var(--blue)', icon: <Terminal size={11} />,  label: 'Bash',   labelColor: 'var(--blue)', bg: 'var(--blue-a25)',  border: 'var(--blue-a25)' },
+  read:   { tickColor: 'var(--cyan)', icon: <Eye size={11} />,       label: 'Read',   labelColor: 'var(--cyan)', bg: 'var(--green-a12)',   border: 'var(--green-a15)' },
+  glob:   { tickColor: 'var(--orange)', icon: <MagnifyingGlass size={11} />,    label: 'Glob',   labelColor: 'var(--orange)', bg: 'var(--warning-a12)',  border: 'var(--warning-a30)' },
+  grep:   { tickColor: 'var(--orange)', icon: <MagnifyingGlass size={11} />,    label: 'Grep',   labelColor: 'var(--orange)', bg: 'var(--warning-a12)',  border: 'var(--warning-a30)' },
+  result: { tickColor: 'var(--amber)', icon: <DotOutline size={11} />, label: 'Result', labelColor: 'var(--warning)', bg: 'var(--warning-a15)',  border: 'var(--warning-a30)' },
 }
 
 /* ─── Formatting ────────────────────────────────────────────────────────── */
@@ -46,6 +46,7 @@ export function formatElapsed(seconds: number): string {
   return `+${m}:${s.toString().padStart(2, '0')}`
 }
 
+/* intentionally hardcoded — dynamic rgba generator for timeline colors */
 export function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16)
   const g = parseInt(hex.slice(3, 5), 16)

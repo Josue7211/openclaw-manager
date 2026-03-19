@@ -177,7 +177,7 @@ export default function MessageThread({
               <span style={{
                 width: '6px', height: '6px', borderRadius: '50%',
                 background: sseConnected ? 'var(--apple-green)' : 'var(--apple-yellow)',
-                boxShadow: sseConnected ? '0 0 4px rgba(52,199,89,0.5)' : '0 0 4px rgba(255,204,0,0.5)',
+                boxShadow: sseConnected ? '0 0 4px var(--green-400-a30)' : '0 0 4px var(--yellow-bright-a35)',
                 display: 'inline-block', flexShrink: 0,
                 animation: sseConnected ? undefined : 'pulse 1.5s ease-in-out infinite',
               }} />
@@ -236,7 +236,7 @@ export default function MessageThread({
         <div style={{
           padding: '8px 20px', borderBottom: '1px solid var(--border)',
           display: 'flex', alignItems: 'center', gap: '8px',
-          background: 'rgba(167, 139, 250, 0.03)',
+          background: 'var(--accent-a10)',
           animation: 'searchSlideDown 0.2s var(--ease-spring)', overflow: 'hidden',
         }}>
           <MagnifyingGlass size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
@@ -478,7 +478,7 @@ export default function MessageThread({
                     <>
                       <div style={{
                         fontSize: '11px',
-                        color: fromMe ? 'rgba(255,255,255,0.55)' : 'var(--text-muted)',
+                        color: fromMe ? 'var(--bg-white-55)' : 'var(--text-muted)',
                         padding: '0 12px', display: 'flex', alignItems: 'center', gap: '4px',
                         marginBottom: '1px',
                       }}>
@@ -490,9 +490,9 @@ export default function MessageThread({
                       <div style={{
                         fontSize: '11px', padding: '5px 10px', marginBottom: '2px',
                         borderRadius: '10px',
-                        background: fromMe ? 'var(--border-hover)' : 'rgba(120,120,140,0.1)',
+                        background: fromMe ? 'var(--border-hover)' : 'var(--hover-bg)',
                         border: fromMe ? '1px solid var(--border-hover)' : '1px solid var(--border)',
-                        color: fromMe ? 'rgba(255,255,255,0.65)' : 'var(--text-secondary)',
+                        color: fromMe ? 'var(--bg-white-65)' : 'var(--text-secondary)',
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                         alignSelf: fromMe ? 'flex-end' : 'flex-start',
                       }}>
@@ -513,7 +513,7 @@ export default function MessageThread({
                         ? '3px' : '8px 14px',
                       borderRadius: `${br.topLeft} ${br.topRight} ${br.bottomRight} ${br.bottomLeft}`,
                       background: isStickerMsg ? 'transparent' : fromMe
-                        ? (imsg ? 'linear-gradient(135deg, var(--apple-cyan), var(--apple-blue))' : 'linear-gradient(135deg, var(--apple-green), #30b04e)')
+                        ? (imsg ? 'linear-gradient(135deg, var(--apple-cyan), var(--apple-blue))' : 'linear-gradient(135deg, var(--apple-green), var(--apple-green))')
                         : 'var(--bg-elevated)',
                       color: fromMe ? 'var(--text-on-color)' : 'var(--text-primary)',
                       fontSize: '13px', lineHeight: 1.45, wordBreak: 'break-word',
@@ -576,10 +576,10 @@ export default function MessageThread({
                                 <div style={{ minWidth: 0 }}>
                                   <div style={{
                                     fontSize: '12px', fontWeight: 600,
-                                    color: fromMe ? 'rgba(255,255,255,0.9)' : 'var(--text-primary)',
+                                    color: fromMe ? 'var(--bg-white-90)' : 'var(--text-primary)',
                                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                                   }}>{att.transferName || 'Document.pdf'}</div>
-                                  <div style={{ fontSize: '10px', color: fromMe ? 'rgba(255,255,255,0.5)' : 'var(--text-muted)' }}>
+                                  <div style={{ fontSize: '10px', color: fromMe ? 'var(--bg-white-50)' : 'var(--text-muted)' }}>
                                     PDF Document
                                   </div>
                                 </div>
@@ -591,7 +591,7 @@ export default function MessageThread({
                             <a key={att.guid} href={src} target="_blank" rel="noreferrer"
                               onClick={e => e.stopPropagation()} style={{
                                 display: 'flex', alignItems: 'center', gap: '6px',
-                                fontSize: '12px', color: fromMe ? 'rgba(255,255,255,0.8)' : 'var(--accent)',
+                                fontSize: '12px', color: fromMe ? 'var(--bg-white-80)' : 'var(--accent)',
                                 textDecoration: 'none', padding: '4px 8px',
                               }}>
                               <Paperclip size={12} />
@@ -747,7 +747,7 @@ export default function MessageThread({
           backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
           border: '1px solid var(--border)', color: 'var(--text-secondary)',
           cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.3)', zIndex: 10,
+          boxShadow: '0 4px 16px var(--overlay-light)', zIndex: 10,
           animation: 'scrollBtnIn 0.2s var(--ease-spring)',
         }}>
           <CaretDown size={18} />
@@ -759,7 +759,7 @@ export default function MessageThread({
         <div style={{
           padding: '8px 20px', borderTop: '1px solid var(--border)',
           display: 'flex', alignItems: 'center', gap: '10px',
-          background: 'rgba(167,139,250,0.04)',
+          background: 'var(--accent-a10)',
           animation: 'replySlideDown 0.2s var(--ease-spring)', overflow: 'hidden',
         }}>
           <ArrowBendUpLeft size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
@@ -864,7 +864,7 @@ export default function MessageThread({
           style={{
             width: '36px', height: '36px', borderRadius: '50%', border: 'none',
             background: (hasDraft || attachmentFile)
-              ? (imsg ? 'linear-gradient(135deg, var(--apple-cyan), var(--apple-blue))' : 'linear-gradient(135deg, var(--apple-green), #30b04e)')
+              ? (imsg ? 'linear-gradient(135deg, var(--apple-cyan), var(--apple-blue))' : 'linear-gradient(135deg, var(--apple-green), var(--apple-green))')
               : 'var(--bg-elevated)',
             color: (hasDraft || attachmentFile) ? 'var(--text-on-color)' : 'var(--text-muted)',
             cursor: (hasDraft || attachmentFile) ? 'pointer' : 'default',

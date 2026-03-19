@@ -108,7 +108,7 @@ const editingInputStyle: React.CSSProperties = {
   background: 'transparent',
   border: 'none',
   borderBottom: '1px solid var(--accent)',
-  color: '#fff',
+  color: 'var(--text-on-color)',
   fontSize: '13px',
   fontWeight: 600,
   outline: 'none',

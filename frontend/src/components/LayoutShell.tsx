@@ -166,7 +166,7 @@ export default function LayoutShell() {
             height: showTitleBar ? '30px' : '0px',
             minHeight: showTitleBar ? '30px' : '0px',
             opacity: showTitleBar ? 1 : 0,
-            background: 'rgba(10, 10, 12, 0.95)',
+            background: 'var(--bg-modal)',
             borderBottom: showTitleBar ? '1px solid var(--border)' : 'none',
             display: 'flex',
             alignItems: 'center',
@@ -204,9 +204,9 @@ export default function LayoutShell() {
                 }
               }}
               aria-label="Hide to tray"
-              style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#ff5f57', border: 'none', cursor: 'pointer', padding: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'opacity 0.15s ease' }}
+              style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#ff5f57' /* macOS traffic light -- intentionally hardcoded */, border: 'none', cursor: 'pointer', padding: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'opacity 0.15s ease' }}
             >
-              <span className="tl-icon" style={{ opacity: 0, fontSize: '8px', lineHeight: 1, color: 'rgba(0,0,0,0.6)', fontWeight: 700, transition: 'opacity 0.15s ease', position: 'absolute' }}>&times;</span>
+              <span className="tl-icon" style={{ opacity: 0, fontSize: '8px', lineHeight: 1, color: 'var(--overlay-heavy)', fontWeight: 700, transition: 'opacity 0.15s ease', position: 'absolute' }}>&times;</span>
             </button>
             <button
               onClick={async () => {
@@ -216,9 +216,9 @@ export default function LayoutShell() {
                 }
               }}
               aria-label="Minimize to tray"
-              style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#febc2e', border: 'none', cursor: 'pointer', padding: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'opacity 0.15s ease' }}
+              style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#febc2e' /* macOS traffic light -- intentionally hardcoded */, border: 'none', cursor: 'pointer', padding: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'opacity 0.15s ease' }}
             >
-              <span className="tl-icon" style={{ opacity: 0, fontSize: '10px', lineHeight: 1, color: 'rgba(0,0,0,0.6)', fontWeight: 700, transition: 'opacity 0.15s ease', position: 'absolute', marginTop: '-2px' }}>&minus;</span>
+              <span className="tl-icon" style={{ opacity: 0, fontSize: '10px', lineHeight: 1, color: 'var(--overlay-heavy)', fontWeight: 700, transition: 'opacity 0.15s ease', position: 'absolute', marginTop: '-2px' }}>&minus;</span>
             </button>
             <button
               onClick={async () => {
@@ -230,9 +230,9 @@ export default function LayoutShell() {
                 }
               }}
               aria-label="Fullscreen"
-              style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#28c840', border: 'none', cursor: 'pointer', padding: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'opacity 0.15s ease' }}
+              style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#28c840' /* macOS traffic light -- intentionally hardcoded */, border: 'none', cursor: 'pointer', padding: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'opacity 0.15s ease' }}
             >
-              <span className="tl-icon" style={{ opacity: 0, fontSize: '7px', lineHeight: 1, color: 'rgba(0,0,0,0.6)', fontWeight: 700, transition: 'opacity 0.15s ease', position: 'absolute' }}>&#x2197;</span>
+              <span className="tl-icon" style={{ opacity: 0, fontSize: '7px', lineHeight: 1, color: 'var(--overlay-heavy)', fontWeight: 700, transition: 'opacity 0.15s ease', position: 'absolute' }}>&#x2197;</span>
             </button>
           </div>
           {/* Title centered */}
@@ -267,12 +267,12 @@ export default function LayoutShell() {
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px', display: 'flex', flexDirection: 'column' }}>
         {offline && (
           <div role="alert" aria-live="assertive" style={{
-            background: 'rgba(245, 158, 11, 0.1)',
-            border: '1px solid rgba(245, 158, 11, 0.3)',
+            background: 'var(--warning-a12)',
+            border: '1px solid var(--warning-a30)',
             borderRadius: '6px',
             padding: '8px 16px',
             fontSize: '13px',
-            color: 'rgba(245, 158, 11, 0.9)',
+            color: 'var(--warning)',
             marginBottom: 16,
             flexShrink: 0,
             display: 'flex',

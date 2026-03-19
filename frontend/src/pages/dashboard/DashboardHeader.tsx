@@ -26,8 +26,8 @@ export function DashboardHeader({ isDemo, subagentsError, lastRefreshMs, onRefre
             fontSize: '11px', color: 'var(--amber)',
             fontFamily: "'JetBrains Mono', monospace",
             padding: '4px 10px',
-            background: 'rgba(245, 158, 11, 0.08)',
-            border: '1px solid rgba(245, 158, 11, 0.2)',
+            background: 'var(--warning-a08)',
+            border: '1px solid var(--warning-a20)',
             borderRadius: '8px',
           }}>
             stale

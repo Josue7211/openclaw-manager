@@ -40,7 +40,7 @@ export const IdeaDetailPanel = React.memo(function IdeaDetailPanel({ idea, onClo
         zIndex: 201,
         display: 'flex', flexDirection: 'column',
         animation: 'slideInRight 0.35s var(--ease-spring)',
-        boxShadow: '-20px 0 60px rgba(0, 0, 0, 0.3)',
+        boxShadow: '-20px 0 60px var(--overlay-light)',
         overflowY: 'auto',
       }}>
         {/* Panel header */}
@@ -104,7 +104,7 @@ export const IdeaDetailPanel = React.memo(function IdeaDetailPanel({ idea, onClo
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button
               onClick={() => onIdeaAction(idea.id, 'approved')}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 18px', fontSize: '12px', fontWeight: 600, borderRadius: '10px', border: 'none', cursor: 'pointer', background: 'var(--green)', color: 'var(--text-on-accent)', transition: 'all 0.2s var(--ease-spring)', boxShadow: '0 2px 12px rgba(52, 211, 153, 0.25)' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 18px', fontSize: '12px', fontWeight: 600, borderRadius: '10px', border: 'none', cursor: 'pointer', background: 'var(--green)', color: 'var(--text-on-accent)', transition: 'all 0.2s var(--ease-spring)', boxShadow: '0 2px 12px var(--green-a25)' }}
             >
               <CheckCircle size={13} /> Approve
             </button>
@@ -116,7 +116,7 @@ export const IdeaDetailPanel = React.memo(function IdeaDetailPanel({ idea, onClo
             </button>
             <button
               onClick={() => onIdeaAction(idea.id, 'rejected')}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 18px', fontSize: '12px', fontWeight: 600, borderRadius: '10px', border: 'none', cursor: 'pointer', background: 'var(--red)', color: 'var(--text-on-accent)', transition: 'all 0.2s var(--ease-spring)', boxShadow: '0 2px 12px rgba(248, 113, 113, 0.25)' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 18px', fontSize: '12px', fontWeight: 600, borderRadius: '10px', border: 'none', cursor: 'pointer', background: 'var(--red)', color: 'var(--text-on-accent)', transition: 'all 0.2s var(--ease-spring)', boxShadow: '0 2px 12px var(--red-a30)' }}
             >
               <XCircle size={13} /> Reject
             </button>

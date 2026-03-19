@@ -234,7 +234,7 @@ export default function SettingsUser({
       {mfaEnrolling && (
         <div style={{ padding: '16px 0 4px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Scan with your authenticator app:</p>
-          {mfaQr && <div style={{ display: 'flex', justifyContent: 'center', padding: '16px', background: '#fff', borderRadius: '10px', width: 'fit-content' }}><img src={mfaQr} alt="TOTP QR" width={180} height={180} /></div>}
+          {mfaQr && <div style={{ display: 'flex', justifyContent: 'center', padding: '16px', background: 'var(--text-on-color)', borderRadius: '10px', width: 'fit-content' }}><img src={mfaQr} alt="TOTP QR" width={180} height={180} /></div>}
           {mfaSecret && <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>Key: <span style={{ color: 'var(--text-secondary)', userSelect: 'all' }}>{mfaSecret}</span></div>}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} value={mfaCode} onChange={e => setMfaCode(e.target.value.replace(/\D/g, ''))} placeholder="6-digit code" autoFocus aria-label="MFA verification code" style={{ ...inputStyle, width: '140px', textAlign: 'center', letterSpacing: '0.15em' }} />
@@ -259,7 +259,7 @@ export default function SettingsUser({
       )}
       {mfaEnabled && !mfaEnrolling && (
         <div style={{ padding: '12px 0 0' }}>
-          <button style={{ ...btnSecondary, color: 'var(--red)', borderColor: 'rgba(248, 113, 113, 0.3)' }} onClick={async () => {
+          <button style={{ ...btnSecondary, color: 'var(--red)', borderColor: 'var(--red-a30)' }} onClick={async () => {
             try {
               const data = await api.get<{ factors?: Array<{ id: string; status: string; type: string }> }>('/api/auth/mfa/factors')
               const totp = data.factors?.find(f => f.type === 'totp' && f.status === 'verified')
@@ -322,7 +322,7 @@ export default function SettingsUser({
                     style={{
                       ...btnSecondary,
                       color: 'var(--red)',
-                      borderColor: 'rgba(248, 113, 113, 0.3)',
+                      borderColor: 'var(--red-a30)',
                       fontSize: '11px',
                       padding: '6px 12px',
                     }}
@@ -445,7 +445,7 @@ export default function SettingsUser({
           onClick={async () => { await api.post('/api/auth/logout').catch(() => {}); window.location.href = '/login' }}
           style={{
             display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontSize: '13px', fontWeight: 500,
-            background: 'transparent', border: '1px solid rgba(248, 113, 113, 0.25)', borderRadius: '8px',
+            background: 'transparent', border: '1px solid var(--red-a30)', borderRadius: '8px',
             color: 'var(--red)', cursor: 'pointer',
           }}
           onMouseEnter={e => { e.currentTarget.style.background = 'var(--red-a08)' }}

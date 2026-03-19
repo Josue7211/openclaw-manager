@@ -275,8 +275,8 @@ export function AccordionBody({ missionId, mission, agent }: { missionId: string
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: '3px',
             fontSize: '10px', fontFamily: 'monospace',
-            background: 'rgba(6,182,212,0.1)',
-            border: '1px solid rgba(6,182,212,0.25)',
+            background: 'var(--green-a12)',
+            border: '1px solid var(--cyan-a25)',
             borderRadius: '10px', padding: '1px 6px',
             color: 'var(--cyan)', flexShrink: 0,
           }}>
@@ -350,7 +350,7 @@ export function AccordionBody({ missionId, mission, agent }: { missionId: string
           height: 'calc(100% + 8px)',
           background: 'var(--text-primary)',
           borderRadius: '2px',
-          boxShadow: '0 0 4px 1px rgba(155,132,236,0.9), 0 0 8px 3px var(--purple-a40)',
+          boxShadow: '0 0 4px 1px var(--purple-a90), 0 0 8px 3px var(--purple-a40)',
           zIndex: 3,
           pointerEvents: 'none',
           transition: isDragging ? 'none' : 'left 0.1s ease',
@@ -365,7 +365,7 @@ export function AccordionBody({ missionId, mission, agent }: { missionId: string
             height: '5px',
             background: 'var(--text-primary)',
             borderRadius: '1px',
-            boxShadow: '0 0 6px 1px rgba(155,132,236,0.9), 0 0 12px 2px rgba(155,132,236,0.5)',
+            boxShadow: '0 0 6px 1px var(--purple-a90), 0 0 12px 2px var(--purple-a40)',
           }} />
         </div>
 

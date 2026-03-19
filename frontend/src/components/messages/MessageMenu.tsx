@@ -79,7 +79,7 @@ function MessageMenu({ x, y, msg, onReact, onReply, onCopy, onClose }: {
     <>
       <div role="presentation" onClick={onClose} style={{
         position: 'fixed', inset: 0, zIndex: 998,
-        background: 'rgba(0,0,0,0.25)',
+        background: 'var(--overlay-light)',
         backdropFilter: 'blur(2px)',
         WebkitBackdropFilter: 'blur(2px)',
         animation: 'fadeIn 0.12s ease-out',

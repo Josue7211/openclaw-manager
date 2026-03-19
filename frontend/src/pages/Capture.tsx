@@ -228,7 +228,7 @@ export default function CapturePage() {
                   key={item.id}
                   style={{
                     background: 'var(--bg-panel)',
-                    border: '1px solid rgba(230,168,23,0.25)',
+                    border: '1px solid var(--gold-a25)',
                     borderRadius: '10px',
                     padding: '14px 16px',
                   }}
@@ -330,9 +330,9 @@ export default function CapturePage() {
                           fontSize: '11px',
                           padding: '2px 8px',
                           borderRadius: '20px',
-                          background: 'rgba(59,165,92,0.1)',
+                          background: 'var(--emerald-a12)',
                           color: 'var(--green)',
-                          border: '1px solid rgba(59,165,92,0.2)',
+                          border: '1px solid var(--emerald-a20)',
                         }}>
                           {ROUTE_LABELS[item.routed_to] || item.routed_to}
                         </span>

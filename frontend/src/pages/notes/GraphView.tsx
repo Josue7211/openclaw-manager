@@ -87,11 +87,11 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
       if (isSelected || isConnected) {
         const gradient = ctx.createRadialGradient(x, y, 0, x, y, baseRadius * 4)
         if (isSelected) {
-          gradient.addColorStop(0, 'rgba(139, 92, 246, 0.35)')
-          gradient.addColorStop(1, 'rgba(139, 92, 246, 0)')
+          gradient.addColorStop(0, 'var(--accent-a30)')
+          gradient.addColorStop(1, 'transparent')
         } else {
-          gradient.addColorStop(0, 'rgba(139, 92, 246, 0.15)')
-          gradient.addColorStop(1, 'rgba(139, 92, 246, 0)')
+          gradient.addColorStop(0, 'var(--accent-a15)')
+          gradient.addColorStop(1, 'transparent')
         }
         ctx.beginPath()
         ctx.arc(x, y, baseRadius * 4, 0, Math.PI * 2)
@@ -104,20 +104,20 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
       ctx.arc(x, y, baseRadius, 0, Math.PI * 2)
 
       if (isSelected) {
-        ctx.fillStyle = '#8b5cf6'
-        ctx.strokeStyle = '#a78bfa'
+        ctx.fillStyle = 'var(--accent-dim)'
+        ctx.strokeStyle = 'var(--accent)'
         ctx.lineWidth = 1.5
       } else if (isConnected) {
-        ctx.fillStyle = '#6d28d9'
-        ctx.strokeStyle = '#7c3aed'
+        ctx.fillStyle = 'var(--accent-dim)'
+        ctx.strokeStyle = 'var(--accent-solid)'
         ctx.lineWidth = 1
       } else if (node.links === 0) {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.12)'
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'
+        ctx.fillStyle = 'var(--bg-white-12)'
+        ctx.strokeStyle = 'var(--bg-white-15)'
         ctx.lineWidth = 0.5
       } else {
-        ctx.fillStyle = 'rgba(139, 92, 246, 0.4)'
-        ctx.strokeStyle = 'rgba(139, 92, 246, 0.5)'
+        ctx.fillStyle = 'var(--accent-a40)'
+        ctx.strokeStyle = 'var(--accent-a40)'
         ctx.lineWidth = 0.8
       }
 
@@ -135,14 +135,14 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
         const label = node.title.length > 24 ? node.title.slice(0, 22) + '…' : node.title
 
         // Text shadow for readability
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+        ctx.fillStyle = 'var(--overlay-heavy)'
         ctx.fillText(label, x + 0.3, y + baseRadius + 3.3)
 
         ctx.fillStyle = isSelected
-          ? '#e0d4ff'
+          ? 'var(--accent-bright)'
           : isConnected
-            ? '#c4b5fd'
-            : 'rgba(255, 255, 255, 0.6)'
+            ? 'var(--accent-bright)'
+            : 'var(--bg-white-60)'
         ctx.fillText(label, x, y + baseRadius + 3)
       }
     },
@@ -154,9 +154,9 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
       const sourceId = link.source?.id ?? link.source
       const targetId = link.target?.id ?? link.target
       if (sourceId === selectedId || targetId === selectedId) {
-        return 'rgba(139, 92, 246, 0.5)'
+        return 'var(--accent-a40)'
       }
-      return 'rgba(255, 255, 255, 0.06)'
+      return 'var(--active-bg)'
     },
     [selectedId],
   )
@@ -194,7 +194,7 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
       style={{
         flex: 1,
         overflow: 'hidden',
-        background: 'radial-gradient(ellipse at center, rgba(15, 10, 30, 1) 0%, rgba(5, 2, 15, 1) 100%)',
+        background: 'radial-gradient(ellipse at center, rgba(15, 10, 30, 1) 0%, rgba(5, 2, 15, 1) 100%)' /* intentionally hardcoded — deep purple graph background */,
         position: 'relative',
       }}
     >
@@ -217,7 +217,7 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
         linkCurvature={0.15}
         linkDirectionalParticles={0}
         onNodeClick={handleNodeClick}
-        backgroundColor="rgba(0,0,0,0)"
+        backgroundColor="transparent"
         cooldownTicks={100}
         d3AlphaDecay={0.02}
         d3VelocityDecay={0.3}
@@ -234,7 +234,7 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
           position: 'absolute',
           inset: 0,
           pointerEvents: 'none',
-          background: 'radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.4) 100%)',
+          background: 'radial-gradient(ellipse at center, transparent 50%, var(--overlay-light) 100%)',
         }}
       />
     </div>

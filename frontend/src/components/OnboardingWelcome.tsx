@@ -441,11 +441,11 @@ function ModuleToggleRow({ label, desc, icon: Icon, checked, onChange }: {
       }}>
         <div style={{
           width: '16px', height: '16px', borderRadius: '50%',
-          background: '#fff',
+          background: 'var(--text-on-color)',
           position: 'absolute', top: '2px',
           left: checked ? '18px' : '2px',
           transition: 'left 0.2s var(--ease-spring)',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+          boxShadow: '0 1px 3px var(--overlay-light)',
         }} />
       </div>
     </button>
@@ -500,7 +500,7 @@ function StepSupabase({ onNext, onBack }: StepProps) {
       {envConfigured ? (
         <div style={{
           padding: '12px 14px', borderRadius: '10px',
-          background: 'rgba(52,211,153,0.08)', border: '1px solid var(--green-a15)',
+          background: 'var(--green-a12)', border: '1px solid var(--green-a15)',
           fontSize: '12px', color: 'var(--green)', display: 'flex', alignItems: 'center', gap: '8px',
         }}>
           <CheckCircle size={14} />
@@ -892,7 +892,7 @@ function TestResult({ status, errorMsg }: { status: TestStatus; errorMsg: string
   if (status === 'ok') return (
     <div style={{
       padding: '8px 12px', borderRadius: '8px', fontSize: '12px',
-      background: 'rgba(52,211,153,0.08)', border: '1px solid var(--green-a15)',
+      background: 'var(--green-a12)', border: '1px solid var(--green-a15)',
       color: 'var(--green)', display: 'flex', alignItems: 'center', gap: '6px',
     }}>
       <CheckCircle size={12} />
@@ -1034,7 +1034,7 @@ export default function OnboardingWelcome({ forceOpen, onClose }: { forceOpen?: 
           maxHeight: 'calc(100vh - 64px)',
           overflowY: 'auto',
           overflowX: 'hidden',
-          background: 'rgba(18, 18, 24, 0.97)',
+          background: 'var(--bg-modal)',
           backdropFilter: 'blur(32px) saturate(180%)',
           WebkitBackdropFilter: 'blur(32px) saturate(180%)',
           border: '1px solid var(--hover-bg-bright)',
