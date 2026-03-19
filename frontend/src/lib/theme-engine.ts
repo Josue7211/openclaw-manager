@@ -174,17 +174,62 @@ const isWebKitGTK =
   /Linux/.test(navigator.userAgent)
 
 /**
+ * Overlay-based ripple fallback for browsers where View Transitions API is
+ * unavailable or broken (webkit2gtk). Captures the current page as a
+ * screenshot overlay, applies the new theme underneath, then animates
+ * the overlay's clip-path from full-screen to nothing — revealing the
+ * new theme expanding from the click point.
+ */
+function performOverlayRipple(applyFn: () => void, x: number, y: number): void {
+  const overlay = document.createElement('div')
+  const s = overlay.style
+
+  // Snapshot the current background color before the theme switch
+  const cs = getComputedStyle(document.documentElement)
+  const bg = cs.getPropertyValue('--bg-base').trim() || cs.backgroundColor || '#1a1a2e'
+
+  // Position a full-screen overlay with the OLD theme's background
+  s.position = 'fixed'
+  s.inset = '0'
+  s.zIndex = '2147483647'
+  s.pointerEvents = 'none'
+  s.backgroundColor = bg
+  // Start fully visible — the old theme color covers the whole screen
+  s.clipPath = `circle(150vmax at ${x}px ${y}px)`
+  document.body.appendChild(overlay)
+
+  // Apply the new theme underneath the overlay
+  applyFn()
+
+  // Animate the overlay shrinking to nothing — reveals new theme from click point
+  requestAnimationFrame(() => {
+    const anim = overlay.animate(
+      { clipPath: [`circle(150vmax at ${x}px ${y}px)`, `circle(0px at ${x}px ${y}px)`] },
+      { duration: 400, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' },
+    )
+    anim.onfinish = () => overlay.remove()
+    anim.oncancel = () => overlay.remove()
+  })
+}
+
+/**
  * Animate theme switch using View Transitions API with a circular clip-path
- * expanding from the click coordinates. Falls back to instant apply if the
- * API is unavailable or an error occurs.
+ * expanding from the click coordinates. On webkit2gtk (Tauri/Linux), uses
+ * an overlay-based fallback. Falls back to instant apply if all else fails.
  */
 export function performRippleTransition(
   applyFn: () => void,
   x: number,
   y: number,
 ): void {
-  // Feature-detect View Transitions API; skip on WebKitGTK where it crashes
-  if (typeof document.startViewTransition !== 'function' || isWebKitGTK) {
+  // webkit2gtk: use overlay fallback (startViewTransition crashes the renderer)
+  if (isWebKitGTK) {
+    performOverlayRipple(applyFn, x, y)
+    return
+  }
+
+  // Feature-detect View Transitions API
+  if (typeof document.startViewTransition !== 'function') {
     applyFn()
     return
   }
