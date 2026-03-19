@@ -12,12 +12,11 @@
 
 import { api } from './api'
 import { notifyModulesChanged } from './modules'
-import { applyAccentColor } from './themes'
+import { applyThemeFromState } from './theme-store'
 
 /** The localStorage keys we sync to/from Supabase */
 const SYNCED_KEYS = [
-  'theme',
-  'accent-color',
+  'theme-state',
   'dnd-enabled',
   'system-notifs',
   'in-app-notifs',
@@ -69,25 +68,15 @@ function applyRemote(remote: Record<string, unknown>) {
 
 /** Apply side effects for preferences that need immediate DOM updates */
 function applySideEffects(remote: Record<string, unknown>) {
-  // Theme
-  if ('theme' in remote) {
-    const theme = remote['theme'] as string
-    if (theme === 'light') {
-      document.documentElement.dataset.theme = 'light'
-    } else if (theme === 'system') {
-      document.documentElement.dataset.theme =
-        window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
-    } else {
-      document.documentElement.dataset.theme = 'dark'
-    }
-  }
-
-  // Accent color
-  if ('accent-color' in remote) {
-    const color = remote['accent-color'] as string
-    if (color) {
-      applyAccentColor(color)
-      document.documentElement.dataset.accent = color
+  // Theme state — apply mode (full theme application is handled by Plan 02-02)
+  if ('theme-state' in remote) {
+    try {
+      const state = remote['theme-state'] as { mode?: string }
+      if (state) {
+        applyThemeFromState(state as Parameters<typeof applyThemeFromState>[0])
+      }
+    } catch {
+      // Non-fatal — theme will be applied on next full render
     }
   }
 

@@ -8,8 +8,8 @@ vi.mock('../api', () => ({
   },
 }))
 
-vi.mock('../themes', () => ({
-  applyAccentColor: vi.fn(),
+vi.mock('../theme-store', () => ({
+  applyThemeFromState: vi.fn(),
 }))
 
 vi.mock('../modules', () => ({
@@ -35,14 +35,14 @@ afterEach(() => {
 async function loadModules() {
   const prefSync = await import('../preferences-sync')
   const apiModule = await import('../api')
-  const themesModule = await import('../themes')
+  const themeStoreModule = await import('../theme-store')
   const modulesModule = await import('../modules')
 
   return {
     initPreferencesSync: prefSync.initPreferencesSync,
     apiGet: apiModule.api.get as ReturnType<typeof vi.fn>,
     apiPatch: apiModule.api.patch as ReturnType<typeof vi.fn>,
-    applyAccentColor: themesModule.applyAccentColor as ReturnType<typeof vi.fn>,
+    applyThemeFromState: themeStoreModule.applyThemeFromState as ReturnType<typeof vi.fn>,
     notifyModulesChanged: modulesModule.notifyModulesChanged as ReturnType<typeof vi.fn>,
   }
 }
@@ -58,21 +58,21 @@ describe('initPreferencesSync', () => {
   })
 
   it('merges remote preferences into localStorage (remote wins)', async () => {
-    localStorage.setItem('theme', JSON.stringify('dark'))
+    localStorage.setItem('theme-state', JSON.stringify({ mode: 'dark', activeThemeId: 'default-dark', overrides: {}, customThemes: [] }))
     const { initPreferencesSync, apiGet } = await loadModules()
     apiGet.mockResolvedValue({
       ok: true,
-      data: { theme: 'light', 'accent-color': '#ff0000' },
+      data: { 'theme-state': { mode: 'light', activeThemeId: 'default-light', overrides: {}, customThemes: [] } },
     })
 
     await initPreferencesSync()
 
-    expect(JSON.parse(localStorage.getItem('theme')!)).toBe('light')
-    expect(JSON.parse(localStorage.getItem('accent-color')!)).toBe('#ff0000')
+    const state = JSON.parse(localStorage.getItem('theme-state')!)
+    expect(state.mode).toBe('light')
   })
 
   it('seeds remote with local prefs when remote is empty', async () => {
-    localStorage.setItem('theme', JSON.stringify('dark'))
+    localStorage.setItem('theme-state', JSON.stringify({ mode: 'dark', activeThemeId: 'default-dark', overrides: {}, customThemes: [] }))
     localStorage.setItem('dnd-enabled', JSON.stringify(true))
     const { initPreferencesSync, apiGet, apiPatch } = await loadModules()
     apiGet.mockResolvedValue({ ok: true, data: {} })
@@ -82,7 +82,6 @@ describe('initPreferencesSync', () => {
 
     expect(apiPatch).toHaveBeenCalledWith('/api/user-preferences', {
       preferences: expect.objectContaining({
-        theme: 'dark',
         'dnd-enabled': true,
       }),
     })
@@ -108,40 +107,28 @@ describe('initPreferencesSync', () => {
     warnSpy.mockRestore()
   })
 
-  it('applies theme=light side effect from remote', async () => {
-    const { initPreferencesSync, apiGet } = await loadModules()
+  it('applies theme-state side effect from remote (light mode)', async () => {
+    const { initPreferencesSync, apiGet, applyThemeFromState } = await loadModules()
     apiGet.mockResolvedValue({
       ok: true,
-      data: { theme: 'light' },
+      data: { 'theme-state': { mode: 'light', activeThemeId: 'default-light', overrides: {}, customThemes: [] } },
     })
 
     await initPreferencesSync()
 
-    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(applyThemeFromState).toHaveBeenCalled()
   })
 
-  it('applies theme=dark side effect from remote', async () => {
-    const { initPreferencesSync, apiGet } = await loadModules()
+  it('applies theme-state side effect from remote (dark mode)', async () => {
+    const { initPreferencesSync, apiGet, applyThemeFromState } = await loadModules()
     apiGet.mockResolvedValue({
       ok: true,
-      data: { theme: 'dark' },
+      data: { 'theme-state': { mode: 'dark', activeThemeId: 'default-dark', overrides: {}, customThemes: [] } },
     })
 
     await initPreferencesSync()
 
-    expect(document.documentElement.dataset.theme).toBe('dark')
-  })
-
-  it('applies accent-color side effect from remote', async () => {
-    const { initPreferencesSync, apiGet, applyAccentColor } = await loadModules()
-    apiGet.mockResolvedValue({
-      ok: true,
-      data: { 'accent-color': '#34d399' },
-    })
-
-    await initPreferencesSync()
-
-    expect(applyAccentColor).toHaveBeenCalledWith('#34d399')
+    expect(applyThemeFromState).toHaveBeenCalled()
   })
 
   it('notifies modules store when remote includes enabled-modules', async () => {
@@ -170,22 +157,23 @@ describe('initPreferencesSync', () => {
     const { initPreferencesSync, apiGet } = await loadModules()
     apiGet.mockResolvedValue({
       ok: true,
-      data: { theme: 'dark', 'unknown-key': 'should-not-appear' },
+      data: { 'theme-state': { mode: 'dark', activeThemeId: 'default-dark', overrides: {}, customThemes: [] }, 'unknown-key': 'should-not-appear' },
     })
 
     await initPreferencesSync()
 
     expect(localStorage.getItem('unknown-key')).toBeNull()
-    expect(JSON.parse(localStorage.getItem('theme')!)).toBe('dark')
+    const state = JSON.parse(localStorage.getItem('theme-state')!)
+    expect(state.mode).toBe('dark')
   })
 
   it('does not apply side effects when remote is empty', async () => {
-    const { initPreferencesSync, apiGet, applyAccentColor, notifyModulesChanged } = await loadModules()
+    const { initPreferencesSync, apiGet, applyThemeFromState, notifyModulesChanged } = await loadModules()
     apiGet.mockResolvedValue({ ok: true, data: {} })
 
     await initPreferencesSync()
 
-    expect(applyAccentColor).not.toHaveBeenCalled()
+    expect(applyThemeFromState).not.toHaveBeenCalled()
     expect(notifyModulesChanged).not.toHaveBeenCalled()
   })
 
@@ -193,7 +181,7 @@ describe('initPreferencesSync', () => {
     const { initPreferencesSync, apiGet, apiPatch } = await loadModules()
     apiGet.mockResolvedValue({
       ok: true,
-      data: { theme: 'light' },
+      data: { 'theme-state': { mode: 'light', activeThemeId: 'default-light', overrides: {}, customThemes: [] } },
     })
 
     await initPreferencesSync()
@@ -205,7 +193,7 @@ describe('initPreferencesSync', () => {
 
 describe('collectLocal (tested via seeding behavior)', () => {
   it('collects JSON-parseable localStorage values', async () => {
-    localStorage.setItem('theme', JSON.stringify('dark'))
+    localStorage.setItem('theme-state', JSON.stringify({ mode: 'dark', activeThemeId: 'default-dark', overrides: {}, customThemes: [] }))
     localStorage.setItem('dnd-enabled', JSON.stringify(false))
     const { initPreferencesSync, apiGet, apiPatch } = await loadModules()
     apiGet.mockResolvedValue({ ok: true, data: {} })
@@ -215,12 +203,12 @@ describe('collectLocal (tested via seeding behavior)', () => {
 
     const call = apiPatch.mock.calls[0]
     const prefs = call[1].preferences as Record<string, unknown>
-    expect(prefs.theme).toBe('dark')
+    expect((prefs['theme-state'] as { mode: string }).mode).toBe('dark')
     expect(prefs['dnd-enabled']).toBe(false)
   })
 
   it('collects raw string values for non-JSON localStorage entries', async () => {
-    localStorage.setItem('theme', 'not-valid-json{')
+    localStorage.setItem('dnd-enabled', 'not-valid-json{')
     const { initPreferencesSync, apiGet, apiPatch } = await loadModules()
     apiGet.mockResolvedValue({ ok: true, data: {} })
     apiPatch.mockResolvedValue({ ok: true })
@@ -229,6 +217,6 @@ describe('collectLocal (tested via seeding behavior)', () => {
 
     const call = apiPatch.mock.calls[0]
     const prefs = call[1].preferences as Record<string, unknown>
-    expect(prefs.theme).toBe('not-valid-json{')
+    expect(prefs['dnd-enabled']).toBe('not-valid-json{')
   })
 })

@@ -1,4 +1,4 @@
-const CURRENT_VERSION = 4
+const CURRENT_VERSION = 5
 
 export function runMigrations() {
   const stored = localStorage.getItem('app-version')
@@ -69,6 +69,78 @@ export function runMigrations() {
     // v3 -> v4: Set default toast position for existing users
     if (!localStorage.getItem('toast-position')) {
       localStorage.setItem('toast-position', 'top-left')
+    }
+  }
+
+  if (version < 5) {
+    // v4 -> v5: Migrate old per-key theme settings to unified theme-state.
+    // Old keys: 'theme' (mode string), 'accent-color', 'glow-color',
+    // 'secondary-color', 'logo-color' (each JSON-encoded hex strings).
+    // New key: 'theme-state' (ThemeState JSON object).
+    try {
+      // Skip if theme-state already exists (idempotent)
+      if (!localStorage.getItem('theme-state')) {
+        // Read old mode
+        let mode: 'dark' | 'light' | 'system' = 'dark'
+        const oldTheme = localStorage.getItem('theme')
+        if (oldTheme) {
+          try {
+            const parsed = JSON.parse(oldTheme) as string
+            if (parsed === 'light') mode = 'light'
+            else if (parsed === 'system') mode = 'system'
+          } catch {
+            // raw string fallback
+            if (oldTheme === 'light' || oldTheme === '"light"') mode = 'light'
+            else if (oldTheme === 'system' || oldTheme === '"system"') mode = 'system'
+          }
+        }
+
+        const activeThemeId = mode === 'light' ? 'default-light' : 'default-dark'
+
+        // Read old color overrides
+        const readOldColor = (key: string): string | null => {
+          try {
+            const raw = localStorage.getItem(key)
+            if (raw) return JSON.parse(raw)
+          } catch { /* ignore */ }
+          return null
+        }
+
+        const accent = readOldColor('accent-color')
+        const glow = readOldColor('glow-color')
+        const secondary = readOldColor('secondary-color')
+        const logo = readOldColor('logo-color')
+
+        // Build overrides object (only if any color was set)
+        const overrides: Record<string, { themeId: string; accent?: string; glow?: string; secondary?: string; logo?: string }> = {}
+        if (accent || glow || secondary || logo) {
+          overrides[activeThemeId] = {
+            themeId: activeThemeId,
+            ...(accent ? { accent } : {}),
+            ...(glow ? { glow } : {}),
+            ...(secondary ? { secondary } : {}),
+            ...(logo ? { logo } : {}),
+          }
+        }
+
+        const themeState = {
+          mode,
+          activeThemeId,
+          overrides,
+          customThemes: [],
+        }
+
+        localStorage.setItem('theme-state', JSON.stringify(themeState))
+      }
+
+      // Remove old keys regardless (they are superseded)
+      localStorage.removeItem('theme')
+      localStorage.removeItem('accent-color')
+      localStorage.removeItem('glow-color')
+      localStorage.removeItem('secondary-color')
+      localStorage.removeItem('logo-color')
+    } catch {
+      // Non-fatal — user will get default theme
     }
   }
 

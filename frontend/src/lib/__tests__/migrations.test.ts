@@ -12,11 +12,11 @@ beforeEach(async () => {
 describe('runMigrations', () => {
   it('sets app-version to "2" when no stored version exists', () => {
     runMigrations()
-    expect(localStorage.getItem('app-version')).toBe('4')
+    expect(localStorage.getItem('app-version')).toBe('5')
   })
 
   it('skips all migration bodies when version is already current', () => {
-    localStorage.setItem('app-version', '4')
+    localStorage.setItem('app-version', '5')
     localStorage.setItem('dnd-enabled', 'true')
     localStorage.setItem('enabled-modules', JSON.stringify(['chat']))
 
@@ -40,7 +40,7 @@ describe('runMigrations', () => {
     expect(localStorage.getItem('dnd-enabled')).toBe('true')
     expect(localStorage.getItem('system-notifs')).toBe('false')
     expect(localStorage.getItem('sidebar-header-visible')).toBe('true')
-    expect(localStorage.getItem('app-version')).toBe('4')
+    expect(localStorage.getItem('app-version')).toBe('5')
   })
 
   it('does not touch keys that have non-boolean values', () => {
@@ -61,7 +61,7 @@ describe('runMigrations', () => {
 
     expect(localStorage.getItem('in-app-notifs')).toBe('true')
     expect(localStorage.getItem('dnd-enabled')).toBeNull()
-    expect(localStorage.getItem('app-version')).toBe('4')
+    expect(localStorage.getItem('app-version')).toBe('5')
   })
 
   // v1 -> v2 migration tests
@@ -82,7 +82,7 @@ describe('runMigrations', () => {
     expect(updated).toContain('status')
     // Original modules preserved in order
     expect(updated.slice(0, oldModules.length)).toEqual(oldModules)
-    expect(localStorage.getItem('app-version')).toBe('4')
+    expect(localStorage.getItem('app-version')).toBe('5')
   })
 
   it('does not duplicate modules that are already in the list', () => {
@@ -108,7 +108,7 @@ describe('runMigrations', () => {
     runMigrations()
 
     expect(localStorage.getItem('enabled-modules')).toBeNull()
-    expect(localStorage.getItem('app-version')).toBe('4')
+    expect(localStorage.getItem('app-version')).toBe('5')
   })
 
   it('handles invalid JSON in enabled-modules gracefully', () => {
@@ -119,7 +119,7 @@ describe('runMigrations', () => {
 
     // Should leave invalid data untouched — modules.ts falls back to defaults
     expect(localStorage.getItem('enabled-modules')).toBe('not-valid-json')
-    expect(localStorage.getItem('app-version')).toBe('4')
+    expect(localStorage.getItem('app-version')).toBe('5')
   })
 
   it('runs both v0->v1 and v1->v2 migrations from fresh install', () => {
@@ -138,7 +138,7 @@ describe('runMigrations', () => {
     expect(updated).toContain('status')
     expect(updated).toContain('chat')
     expect(updated).toContain('todos')
-    expect(localStorage.getItem('app-version')).toBe('4')
+    expect(localStorage.getItem('app-version')).toBe('5')
   })
 
   // v2 -> v3 migration tests
@@ -151,7 +151,7 @@ describe('runMigrations', () => {
 
     expect(localStorage.getItem('mc-notes-vault')).toBeNull()
     expect(localStorage.getItem('notes-data')).toBeNull()
-    expect(localStorage.getItem('app-version')).toBe('4')
+    expect(localStorage.getItem('app-version')).toBe('5')
   })
 
   it('does not error when mc-notes-vault and notes-data are absent', () => {
@@ -161,7 +161,7 @@ describe('runMigrations', () => {
 
     expect(localStorage.getItem('mc-notes-vault')).toBeNull()
     expect(localStorage.getItem('notes-data')).toBeNull()
-    expect(localStorage.getItem('app-version')).toBe('4')
+    expect(localStorage.getItem('app-version')).toBe('5')
   })
 
   // v3 -> v4 migration tests
@@ -171,7 +171,7 @@ describe('runMigrations', () => {
     runMigrations()
 
     expect(localStorage.getItem('toast-position')).toBe('top-left')
-    expect(localStorage.getItem('app-version')).toBe('4')
+    expect(localStorage.getItem('app-version')).toBe('5')
   })
 
   it('does not overwrite existing toast-position preference', () => {
@@ -181,6 +181,6 @@ describe('runMigrations', () => {
     runMigrations()
 
     expect(localStorage.getItem('toast-position')).toBe('bottom-right')
-    expect(localStorage.getItem('app-version')).toBe('4')
+    expect(localStorage.getItem('app-version')).toBe('5')
   })
 })
