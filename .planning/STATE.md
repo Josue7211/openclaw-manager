@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-03-19T14:19:15Z"
-last_activity: "2026-03-19 -- Completed 01-03: Icon migration (lucide to Phosphor) + hardcoded color audit"
+stopped_at: Completed 01-04-PLAN.md
+last_updated: "2026-03-19T14:50:39Z"
+last_activity: "2026-03-19 -- Completed 01-04: Adopt EmptyState/ErrorState/Button across pages (batch 1)"
 progress:
   total_phases: 8
-  completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
-  percent: 15
+  completed_phases: 0
+  total_plans: 5
+  completed_plans: 4
+  percent: 18
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 
 ## Current Position
 
-Phase: 1 of 8 (Responsive Layout Shell + Visual Polish) -- COMPLETE
-Plan: 3 of 3 in current phase
-Status: Phase complete
-Last activity: 2026-03-19 -- Completed 01-03: Icon migration (lucide to Phosphor) + hardcoded color audit
+Phase: 1 of 8 (Responsive Layout Shell + Visual Polish)
+Plan: 4 of 5 in current phase
+Status: Executing
+Last activity: 2026-03-19 -- Completed 01-04: Adopt EmptyState/ErrorState/Button across pages (batch 1)
 
-Progress: [####░░░░░░░░░░░░░░░░] 15%
+Progress: [####░░░░░░░░░░░░░░░░] 18%
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [####░░░░░░░░░░░░░░░░] 15%
 | Phase 01 P01 | 4min | 2 tasks | 4 files |
 | Phase 01 P02 | 7min | 2 tasks | 14 files |
 | Phase 01 P03 | 17min | 2 tasks | 147 files |
+| Phase 01 P04 | 7min | 2 tasks | 19 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,9 @@ Recent decisions affecting current work:
 - [Phase 01]: useLocation() for ProgressBar (not useNavigation()) since app uses BrowserRouter
 - [Phase 01]: Toast uses replace mode (max 1 visible) with 5s auto-dismiss, position from localStorage
 - [Phase 01]: components/ui/ directory established for shared design system components
+- [Phase 01]: Compact EmptyState pattern: wrap in div with padding 8px-16px for card-sized containers
+- [Phase 01]: AccordionBody "No replay" left as specialized status message, not generic EmptyState
+- [Phase 01]: Pipeline filter/tab buttons kept custom -- toggle UI, not 4-variant Button hierarchy
 
 ### Pending Todos
 
@@ -88,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T14:19:15Z
-Stopped at: Completed 01-03-PLAN.md (Phase 1 complete)
+Last session: 2026-03-19T14:50:39Z
+Stopped at: Completed 01-04-PLAN.md
 Resume file: None

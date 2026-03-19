@@ -39,7 +39,7 @@ Plans:
 - [x] 01-01-PLAN.md -- Design system foundation + container query responsive shell
 - [x] 01-02-PLAN.md -- Shared UI feedback components (Button, EmptyState, ErrorState, Toast, ProgressBar)
 - [x] 01-03-PLAN.md -- Icon migration (lucide to Phosphor) + hardcoded color audit
-- [ ] 01-04-PLAN.md -- Gap closure: Adopt EmptyState/ErrorState/Button across pages (batch 1: Todos, Missions, Knowledge, Calendar, HomeLab, Status, Search, Pipeline, Personal, Dashboard)
+- [x] 01-04-PLAN.md -- Gap closure: Adopt EmptyState/ErrorState/Button across pages (batch 1: Todos, Missions, Knowledge, Calendar, HomeLab, Status, Search, Pipeline, Personal, Dashboard)
 - [ ] 01-05-PLAN.md -- Gap closure: Adopt EmptyState/ErrorState/Button across pages (batch 2: Messages, Chat, Email, Notes, Memory, Pomodoro, Settings, Agents, remaining)
 
 ### Phase 2: Theming System
@@ -158,7 +158,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Responsive Layout Shell + Visual Polish | 3/5 | Gap closure | - |
+| 1. Responsive Layout Shell + Visual Polish | 4/5 | Gap closure | - |
 | 2. Theming System | 0/2 | Not started | - |
 | 3. Setup Wizard + Onboarding | 0/2 | Not started | - |
 | 4. Dashboard Grid + Widget System | 0/3 | Not started | - |

@@ -184,11 +184,11 @@ Deferred to post-v1.0 release. Tracked but not in current roadmap.
 | LAYOUT-06 | Phase 1 | Complete |
 | POLISH-01 | Phase 1 | Pending |
 | POLISH-02 | Phase 1 | Complete |
-| POLISH-03 | Phase 1 | Pending |
+| POLISH-03 | Phase 1 | Complete |
 | POLISH-04 | Phase 1 | Complete |
-| POLISH-05 | Phase 1 | Pending |
-| POLISH-06 | Phase 1 | Pending |
-| POLISH-07 | Phase 1 | Pending |
+| POLISH-05 | Phase 1 | Complete |
+| POLISH-06 | Phase 1 | Complete |
+| POLISH-07 | Phase 1 | Complete |
 | POLISH-08 | Phase 1 | Pending |
 | POLISH-09 | Phase 1 | Complete |
 | THEME-01 | Phase 2 | Pending |
