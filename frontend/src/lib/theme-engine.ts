@@ -161,12 +161,17 @@ export function applyFontScale(scale: number | undefined): void {
 // ---------------------------------------------------------------------------
 
 /**
- * Detect WebKitGTK — Tauri's WebView on Linux. Its startViewTransition
- * implementation crashes the renderer when flushSync mutates the DOM
- * inside the transition callback.
+ * Detect webkit2gtk (Tauri's WebView on Linux). Its startViewTransition
+ * crashes the renderer when flushSync mutates the DOM inside the callback.
+ *
+ * webkit2gtk UA doesn't contain "WebKitGTK" — it looks like a normal Safari UA.
+ * Detect via Tauri internals + Linux platform instead.
  */
 const isWebKitGTK =
-  typeof navigator !== 'undefined' && /WebKitGTK/.test(navigator.userAgent)
+  typeof window !== 'undefined' &&
+  !!(window as Record<string, unknown>).__TAURI_INTERNALS__ &&
+  typeof navigator !== 'undefined' &&
+  /Linux/.test(navigator.userAgent)
 
 /**
  * Animate theme switch using View Transitions API with a circular clip-path
