@@ -30,11 +30,11 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 
 ### Theming
 
-- [ ] **THEME-01**: Three theme modes: light, dark, system-follow (via `prefers-color-scheme`)
-- [ ] **THEME-02**: 6-8 curated theme presets (2 light, 2 dark, 2 high-contrast, 2 colorful accent)
-- [ ] **THEME-03**: Theme selection persisted to Supabase via existing preferences-sync
-- [ ] **THEME-04**: Theme applies instantly without page reload
-- [ ] **THEME-05**: All UI elements respect active theme (zero hardcoded colors remaining after POLISH-01)
+- [x] **THEME-01**: Three theme modes: light, dark, system-follow (via `prefers-color-scheme`)
+- [x] **THEME-02**: 6-8 curated theme presets (2 light, 2 dark, 2 high-contrast, 2 colorful accent)
+- [x] **THEME-03**: Theme selection persisted to Supabase via existing preferences-sync
+- [x] **THEME-04**: Theme applies instantly without page reload
+- [x] **THEME-05**: All UI elements respect active theme (zero hardcoded colors remaining after POLISH-01)
 - [ ] **THEME-06**: Theme import from JSON file
 - [ ] **THEME-07**: Theme export as JSON file
 - [ ] **THEME-08**: Smooth transition animation when switching themes
@@ -191,11 +191,11 @@ Deferred to post-v1.0 release. Tracked but not in current roadmap.
 | POLISH-07 | Phase 1 | Complete |
 | POLISH-08 | Phase 1 | Pending |
 | POLISH-09 | Phase 1 | Complete |
-| THEME-01 | Phase 2 | Pending |
-| THEME-02 | Phase 2 | Pending |
-| THEME-03 | Phase 2 | Pending |
-| THEME-04 | Phase 2 | Pending |
-| THEME-05 | Phase 2 | Pending |
+| THEME-01 | Phase 2 | Complete |
+| THEME-02 | Phase 2 | Complete |
+| THEME-03 | Phase 2 | Complete |
+| THEME-04 | Phase 2 | Complete |
+| THEME-05 | Phase 2 | Complete |
 | THEME-06 | Phase 2 | Pending |
 | THEME-07 | Phase 2 | Pending |
 | THEME-08 | Phase 2 | Pending |
