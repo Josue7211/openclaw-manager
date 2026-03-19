@@ -1,12 +1,12 @@
-# Mission Control — iOS Quick Capture Shortcut
+# OpenClaw Manager — iOS Quick Capture Shortcut
 
-Capture tasks, ideas, and notes from anywhere on your iPhone and send them straight into Mission Control.
+Capture tasks, ideas, and notes from anywhere on your iPhone and send them straight into OpenClaw Manager.
 
 ---
 
 ## Prerequisites
 
-- Mission Control running and reachable at `http://<your-server-ip>:3000` (or your server IP)
+- OpenClaw Manager running and reachable at `http://<your-server-ip>:3000` (or your server IP)
 - `CAPTURE_API_KEY` set in your `.env.local` (see below)
 - iOS Shortcuts app
 
@@ -27,7 +27,7 @@ Restart the Next.js server after saving. If `CAPTURE_API_KEY` is **not set**, th
 ## 2. Build the iOS Shortcut
 
 Open the **Shortcuts** app → tap **+** to create a new shortcut.
-Name it **"Mission Control Capture"**.
+Name it **"OpenClaw Manager Capture"**.
 
 ### Action 1 — Ask for Input
 - Action: **Ask for Input**
@@ -68,7 +68,7 @@ Repeat this block inside **each** menu branch (Task, Idea, Note, Decision):
 
 ### Action 4 — Show Notification
 - Action: **Show Notification**
-- Title: `Mission Control`
+- Title: `OpenClaw Manager`
 - Body: `Captured!`
 
 ---
@@ -83,7 +83,7 @@ In the shortcut editor tap **⋯** → **Add to Home Screen** → give it an ico
 
 1. Run the shortcut
 2. Type something like `Buy groceries` and pick **Task**
-3. Check Mission Control → the item should appear in your Todos
+3. Check OpenClaw Manager → the item should appear in your Todos
 
 ---
 

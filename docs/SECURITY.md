@@ -1,21 +1,12 @@
 # Security Model
 
-This document describes Mission Control's security architecture, threat model, and hardening measures. It is intended for contributors, security reviewers, and anyone self-hosting the application.
+This document describes OpenClaw Manager's security architecture, threat model, and hardening measures. It is intended for contributors, security reviewers, and anyone self-hosting the application.
 
 ## Architecture Overview
 
-Mission Control is a Tauri v2 desktop application with an embedded Axum HTTP server bound to `127.0.0.1:3000`. The frontend is a React SPA rendered in Tauri's WebView. All remote services (BlueBubbles, OpenClaw, Supabase) are accessed over a Tailscale WireGuard mesh VPN. Nothing is exposed to the public internet.
+OpenClaw Manager is a Tauri v2 desktop application with an embedded Axum HTTP server bound to `127.0.0.1:3000`. The frontend is a React SPA rendered in Tauri's WebView. All remote services (BlueBubbles, OpenClaw, Supabase) are accessed over a Tailscale WireGuard mesh VPN. Nothing is exposed to the public internet.
 
-```
-User's Machine
-  Tauri App
-    React frontend (WebView)
-    Embedded Axum server (127.0.0.1:3000)
-        |                |                |
-        v                v                v
-  BlueBubbles       OpenClaw VM       Supabase
-  (macOS, Tailscale) (Linux, Tailscale) (Linux, Tailscale)
-```
+![Architecture](architecture.png)
 
 The Axum server acts as the sole gateway between the frontend and all backend services. The frontend never contacts remote services directly.
 

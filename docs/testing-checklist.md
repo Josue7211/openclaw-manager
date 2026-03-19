@@ -121,7 +121,7 @@ Use this checklist for end-to-end verification after major changes. Clear `local
 ## Settings
 
 ### Navigation
-- [ ] All 11 sections listed in left panel (Agent, Gateway, Mission Control, User, Connections, Display, Keybindings, Modules, Notifications, Account & Security, Data & Backup)
+- [ ] All 11 sections listed in left panel (Agent, Gateway, OpenClaw Manager, User, Connections, Display, Keybindings, Modules, Notifications, Account & Security, Data & Backup)
 - [ ] Sections grouped under "General" and "App Settings"
 - [ ] Arrow keys navigate section list (up/down)
 - [ ] Click section: right panel shows section content

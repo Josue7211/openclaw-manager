@@ -1,12 +1,12 @@
 # OpenClaw Workspace API
 
-A zero-dependency Node.js micro-server that exposes your [OpenClaw](https://openclaw.ai) workspace files over HTTP. Mission Control connects to it to read, edit, and delete workspace and memory files from the Memory page.
+A zero-dependency Node.js micro-server that exposes your [OpenClaw](https://openclaw.ai) workspace files over HTTP. OpenClaw Manager connects to it to read, edit, and delete workspace and memory files from the Memory page.
 
 ## Why
 
-Mission Control's Tauri backend can operate in two modes:
+OpenClaw Manager's Tauri backend can operate in two modes:
 
-- **Local mode** — reads `~/.openclaw/workspace` directly (works when Mission Control runs on the same machine as OpenClaw)
+- **Local mode** — reads `~/.openclaw/workspace` directly (works when OpenClaw Manager runs on the same machine as OpenClaw)
 - **Remote mode** — proxies requests to this API (when OpenClaw runs on a different machine, e.g. a homelab server)
 
 This script is the remote-mode server.
@@ -73,14 +73,14 @@ systemctl --user enable --now openclaw-api.service
 systemctl --user status openclaw-api.service
 ```
 
-## Connecting Mission Control
+## Connecting OpenClaw Manager
 
-In Mission Control's Settings page, set:
+In OpenClaw Manager's Settings page, set:
 
 - **openclaw.ws** — `http://<your-host>:3939`
 - **openclaw.password** — your `API_KEY` value
 
-Or set these environment variables before launching Mission Control:
+Or set these environment variables before launching OpenClaw Manager:
 
 ```bash
 OPENCLAW_API_URL=http://<your-host>:3939

@@ -1,13 +1,13 @@
 # Hyprland Configuration
 
-Mission Control works as a scratchpad window in Hyprland.
+OpenClaw Manager works as a scratchpad window in Hyprland.
 
 ## Window Rules
 
 Add to `~/.config/hypr/hyprland.conf`:
 
 ```conf
-# Mission Control scratchpad
+# OpenClaw Manager scratchpad
 windowrulev2 = float, class:^(mission-control)$
 windowrulev2 = size 75% 85%, class:^(mission-control)$
 windowrulev2 = center, class:^(mission-control)$

@@ -1,4 +1,4 @@
-# Mission Control — CLAUDE.md
+# OpenClaw Manager — CLAUDE.md
 
 ## What is this?
 A Tauri v2 desktop app — personal command center combining iMessage (via BlueBubbles), AI chat, task management, homelab monitoring, and agent orchestration. Think Discord meets iOS Settings.
@@ -36,7 +36,7 @@ The system runs across multiple machines. The Tauri app must work on ANY machine
 ┌─────────────────────────────────────────────────────────────┐
 │  USER'S MACHINE (Linux CachyOS / macOS / Windows)           │
 │  ┌───────────────────────────────────────────────────────┐  │
-│  │  Tauri App (Mission Control)                          │  │
+│  │  Tauri App (OpenClaw Manager)                          │  │
 │  │  ├── React frontend (Vite, port 5173)                 │  │
 │  │  └── Embedded Axum server (localhost:3000)             │  │
 │  │      ├── Proxies to BlueBubbles (macOS only)          │  │

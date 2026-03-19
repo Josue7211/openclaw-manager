@@ -1,6 +1,6 @@
 # Configuration
 
-Mission Control uses environment variables for all configuration. Copy `.env.example` to `.env.local` and fill in the values you need.
+OpenClaw Manager uses environment variables for all configuration. Copy `.env.example` to `.env.local` and fill in the values you need.
 
 ## Required
 

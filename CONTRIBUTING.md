@@ -1,4 +1,4 @@
-# Contributing to Mission Control
+# Contributing to OpenClaw Manager
 
 ## Getting Started
 

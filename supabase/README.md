@@ -1,6 +1,6 @@
 # Supabase Setup
 
-Mission Control uses a self-hosted Supabase instance (via Docker Compose) as its primary database. This guide walks through getting Supabase running and connected to the app.
+OpenClaw Manager uses a self-hosted Supabase instance (via Docker Compose) as its primary database. This guide walks through getting Supabase running and connected to the app.
 
 ## Prerequisites
 
@@ -88,7 +88,7 @@ Migration files (in `supabase/migrations/`):
 
 All migrations use `CREATE TABLE IF NOT EXISTS`, `IF NOT EXISTS`, and `ON CONFLICT DO NOTHING` so they are safe to re-run.
 
-## 3. Configure Mission Control
+## 3. Configure OpenClaw Manager
 
 Create a `.env.local` file in the project root (copy from `.env.example`):
 

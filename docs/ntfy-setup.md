@@ -37,9 +37,9 @@ Verify it's running:
 curl http://localhost:2586/health
 ```
 
-## Mission Control configuration
+## OpenClaw Manager configuration
 
-In Mission Control → Settings → Notifications:
+In OpenClaw Manager → Settings → Notifications:
 
 - **NTFY URL**: `http://<your-ntfy-host>:2586`
 - **Topic**: `mission-control`
@@ -65,7 +65,7 @@ NTFY_TOPIC=mission-control
 
 4. Tap **Subscribe**
 
-Notifications from Mission Control will now appear on your phone.
+Notifications from OpenClaw Manager will now appear on your phone.
 
 ## Events that trigger notifications
 
