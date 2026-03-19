@@ -318,6 +318,10 @@ export function applyTheme(
     for (const [key, value] of Object.entries(def.colors)) {
       el.style.setProperty(`--${key}`, value)
     }
+    // Override --bg-card with solid variant so cards are opaque
+    if (def.colors['bg-card-solid']) {
+      el.style.setProperty('--bg-card', def.colors['bg-card-solid'])
+    }
 
     // 2. Apply accent color (user override takes precedence)
     const accent = overrides?.accent ?? def.colors.accent
@@ -348,8 +352,10 @@ export function applyTheme(
     el.style.setProperty('--bg-white-03', isLight ? 'rgba(0, 0, 0, 0.03)' : 'rgba(255, 255, 255, 0.03)')
     el.style.setProperty('--bg-white-05', isLight ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.05)')
 
-    // 7. Set data-theme attribute for CSS cascade (light theme overrides in globals.css)
+    // 7. Set data-theme and color-scheme so native controls (checkboxes, inputs,
+    //    selects, scrollbars) render with the correct light/dark appearance
     el.dataset.theme = def.category === 'light' ? 'light' : 'dark'
+    el.style.colorScheme = def.category === 'light' ? 'light' : 'dark'
 
     // 8. Set data-themeId for component-level queries
     el.dataset.themeId = def.id

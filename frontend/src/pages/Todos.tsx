@@ -265,7 +265,7 @@ export default function TodosPage() {
                           title="Set due date"
                           aria-label={`Set due date for "${t.text}"`}
                           style={{
-                            background: 'var(--bg-white-03)', border: '1px solid var(--border)',
+                            background: 'var(--hover-bg)', border: '1px solid var(--border)',
                             borderRadius: '10px', padding: '3px 6px', fontSize: '11px',
                             color: 'var(--text-muted)', cursor: 'pointer', outline: 'none',
                             colorScheme: 'dark',
@@ -290,7 +290,7 @@ export default function TodosPage() {
                 {done.map(t => (
                   <div key={t.id} style={{
                     display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px',
-                    background: 'var(--bg-white-03)', borderRadius: '10px',
+                    background: 'var(--hover-bg)', borderRadius: '10px',
                     border: '1px solid var(--emerald-a15)',
                   }}>
                     <input

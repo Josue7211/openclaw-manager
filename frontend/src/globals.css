@@ -1115,6 +1115,41 @@ html:focus-within .traffic-lights button {
 .btn-ghost { background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; display: flex; align-items: center; }
 .tile { background: var(--bg-white-03); border-radius: var(--radius-md); padding: 12px; border: 1px solid var(--border); }
 
+/* ── Custom checkbox — WebKitGTK renders native checkboxes with black fill ── */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  min-width: 16px;
+  min-height: 16px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--text-secondary);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: inline-grid;
+  place-content: center;
+  margin: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+input[type="checkbox"]:hover {
+  border-color: var(--accent);
+}
+input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+input[type="checkbox"]:checked::before {
+  content: '';
+  width: 5px;
+  height: 9px;
+  border: solid var(--text-on-accent, #fff);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  margin-bottom: 2px;
+}
+
 /* ── Sidebar tooltip — shows on nav item hover when collapsed ── */
 .sidebar-nav-item:hover .sidebar-tooltip {
   opacity: 1 !important;
