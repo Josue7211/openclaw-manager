@@ -37,7 +37,7 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 - [x] **THEME-05**: All UI elements respect active theme (zero hardcoded colors remaining after POLISH-01)
 - [x] **THEME-06**: Theme import from JSON file
 - [x] **THEME-07**: Theme export as JSON file
-- [ ] **THEME-08**: Smooth transition animation when switching themes
+- [x] **THEME-08**: Smooth transition animation when switching themes
 
 ### Setup Wizard
 
@@ -198,7 +198,7 @@ Deferred to post-v1.0 release. Tracked but not in current roadmap.
 | THEME-05 | Phase 2 | Complete |
 | THEME-06 | Phase 2 | Complete |
 | THEME-07 | Phase 2 | Complete |
-| THEME-08 | Phase 2 | Pending |
+| THEME-08 | Phase 2 | Complete |
 | WIZARD-01 | Phase 3 | Pending |
 | WIZARD-02 | Phase 3 | Pending |
 | WIZARD-03 | Phase 3 | Pending |
