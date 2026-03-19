@@ -3,6 +3,7 @@
 pub mod audit;
 mod commands;
 pub mod crypto;
+mod fonts;
 mod db;
 mod error;
 pub mod gotrue;
@@ -159,6 +160,7 @@ fn main() {
             commands::get_openclaw_dir,
             commands::get_log_dir,
             commands::open_log_dir,
+            fonts::list_system_fonts,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
