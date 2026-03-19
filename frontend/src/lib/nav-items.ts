@@ -1,23 +1,4 @@
-import {
-  LayoutDashboard,
-  Brain,
-  MessageCircle,
-  Settings,
-  CalendarDays,
-  Bot,
-  Target,
-  Home,
-  CheckSquare,
-  Bell,
-  Timer,
-  Mail,
-  GitBranch,
-  Server,
-  Film,
-  BookOpen,
-  Smartphone,
-  FileText,
-} from 'lucide-react'
+import { SquaresFour, Brain, ChatCircle, Gear, CalendarDots, Robot, Target, House, CheckSquare, Bell, Timer, Envelope, GitBranch, Desktop, FilmStrip, BookOpen, DeviceMobile, FileText } from '@phosphor-icons/react'
 
 export interface NavItem {
   href: string
@@ -27,25 +8,25 @@ export interface NavItem {
 }
 
 export const personalDashboardItems: NavItem[] = [
-  { href: '/', label: 'Home', icon: Home },
-  { href: '/chat', label: 'Chat', icon: MessageCircle, moduleId: 'chat' },
+  { href: '/', label: 'Home', icon: House },
+  { href: '/chat', label: 'Chat', icon: ChatCircle, moduleId: 'chat' },
   { href: '/todos', label: 'Todos', icon: CheckSquare, moduleId: 'todos' },
-  { href: '/calendar', label: 'Calendar', icon: CalendarDays, moduleId: 'calendar' },
+  { href: '/calendar', label: 'Calendar', icon: CalendarDots, moduleId: 'calendar' },
   { href: '/reminders', label: 'Reminders', icon: Bell, moduleId: 'reminders' },
-  { href: '/messages', label: 'Messages', icon: Smartphone, moduleId: 'messages' },
+  { href: '/messages', label: 'Messages', icon: DeviceMobile, moduleId: 'messages' },
   { href: '/pomodoro', label: 'Pomodoro', icon: Timer, moduleId: 'pomodoro' },
-  { href: '/email', label: 'Email', icon: Mail, moduleId: 'email' },
-  { href: '/homelab', label: 'Home Lab', icon: Server, moduleId: 'homelab' },
-  { href: '/media', label: 'Media Radar', icon: Film, moduleId: 'media' },
+  { href: '/email', label: 'Email', icon: Envelope, moduleId: 'email' },
+  { href: '/homelab', label: 'Home Lab', icon: Desktop, moduleId: 'homelab' },
+  { href: '/media', label: 'Media Radar', icon: FilmStrip, moduleId: 'media' },
   { href: '/notes', label: 'Notes', icon: FileText, moduleId: 'notes' },
 ]
 
 export const agentDashboardItems: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, moduleId: 'dashboard' },
+  { href: '/dashboard', label: 'Dashboard', icon: SquaresFour, moduleId: 'dashboard' },
   { href: '/missions', label: 'Missions', icon: Target, moduleId: 'missions' },
-  { href: '/agents', label: 'Agents', icon: Bot, moduleId: 'agents' },
+  { href: '/agents', label: 'Agents', icon: Robot, moduleId: 'agents' },
   { href: '/memory', label: 'Memory', icon: Brain, moduleId: 'memory' },
-  { href: '/crons', label: 'Cron Jobs', icon: CalendarDays, moduleId: 'crons' },
+  { href: '/crons', label: 'Cron Jobs', icon: CalendarDots, moduleId: 'crons' },
   { href: '/pipeline', label: 'Pipeline', icon: GitBranch, moduleId: 'pipeline' },
   { href: '/knowledge', label: 'Knowledge', icon: BookOpen, moduleId: 'knowledge' },
 ]
@@ -53,7 +34,7 @@ export const agentDashboardItems: NavItem[] = [
 export const allNavItems: NavItem[] = [
   ...personalDashboardItems,
   ...agentDashboardItems,
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/settings', label: 'Settings', icon: Gear },
 ]
 
 /** Lookup any nav item by its href */

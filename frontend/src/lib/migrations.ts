@@ -1,4 +1,4 @@
-const CURRENT_VERSION = 3
+const CURRENT_VERSION = 4
 
 export function runMigrations() {
   const stored = localStorage.getItem('app-version')
@@ -63,6 +63,13 @@ export function runMigrations() {
     // now held in memory only; only metadata is cached (mc-notes-meta).
     localStorage.removeItem('mc-notes-vault')
     localStorage.removeItem('notes-data')
+  }
+
+  if (version < 4) {
+    // v3 -> v4: Set default toast position for existing users
+    if (!localStorage.getItem('toast-position')) {
+      localStorage.setItem('toast-position', 'top-left')
+    }
   }
 
   localStorage.setItem('app-version', String(CURRENT_VERSION))
