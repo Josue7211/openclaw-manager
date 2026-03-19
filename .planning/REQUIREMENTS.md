@@ -1,104 +1,265 @@
-# Requirements: OpenClaw Manager
+# Requirements: OpenClaw Manager v1.0
 
 **Defined:** 2026-03-19
-**Core Value:** Every external service proxied through local Axum server. Secrets in OS keychain.
+**Core Value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app — making it infinitely extensible without writing code.
 
-## v0.1.0 Requirements
+## v1 Requirements
 
-Requirements for onboarding wizard redesign. Each maps to roadmap phases.
+Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 
-### Wizard Flow
+### Responsive Layout
 
-- [ ] **FLOW-01**: User can navigate forward and back without losing entered values
-- [ ] **FLOW-02**: User sees a progress indicator showing current step and total steps
-- [ ] **FLOW-03**: User can skip to demo mode from any step in the wizard
-- [ ] **FLOW-04**: Pre-existing values from .env.local / OS keychain are pre-filled in all fields
-- [ ] **FLOW-05**: User's field entries are saved to OS keychain when clicking Next
-- [ ] **FLOW-06**: Wizard remembers which steps were completed if user closes and reopens
-- [ ] **FLOW-07**: User cannot proceed to next step until current step's connection test passes (Skip to Demo always available)
-- [ ] **FLOW-08**: If values are pre-filled, wizard auto-tests on mount and enables Next immediately on success
+- [ ] **LAYOUT-01**: App layout adapts to window resize without breaking (no overflow, no clipping, no overlapping elements)
+- [ ] **LAYOUT-02**: Sidebar auto-collapses to icon-only mode when main area drops below 900px
+- [ ] **LAYOUT-03**: Dashboard grid reflows to fewer columns at smaller container widths (3 breakpoints: compact, default, wide)
+- [ ] **LAYOUT-04**: Switching between 1080p and 1440p monitors preserves usable layout without manual adjustment
+- [ ] **LAYOUT-05**: All pages use CSS container queries for component-level responsiveness (not viewport media queries)
+- [ ] **LAYOUT-06**: Sidebar resize handle works smoothly without layout jank
 
-### Supabase Setup
+### Visual Polish
 
-- [ ] **SUPA-01**: User sees a guide with links to Supabase Cloud signup and self-hosted Docker setup
-- [ ] **SUPA-02**: User can enter Supabase URL and anon key, which are saved to OS keychain
-- [ ] **SUPA-03**: User can test Supabase connection with visual feedback (success/error/latency)
-- [ ] **SUPA-04**: Pre-filled values from env vars show a "configured" badge and auto-test
+- [ ] **POLISH-01**: All hardcoded color values (rgba, hex, hsl in JSX/TS) migrated to CSS variables
+- [ ] **POLISH-02**: Consistent spacing scale applied across all 17+ pages
+- [ ] **POLISH-03**: Unified button hierarchy (primary, secondary, ghost, danger) used consistently
+- [ ] **POLISH-04**: Consistent typography scale (headings, body, captions, labels)
+- [ ] **POLISH-05**: Shared `<LoadingState>` component used on all async pages/widgets
+- [ ] **POLISH-06**: Shared `<ErrorState>` component with retry action on all failable pages/widgets
+- [ ] **POLISH-07**: Shared `<EmptyState>` component with contextual guidance on all list/data pages
+- [ ] **POLISH-08**: Consistent icon style across all modules (no mixed icon sets)
+- [ ] **POLISH-09**: Consistent border-radius and shadow depth across all card/panel components
 
-### Service Configuration
+### Theming
 
-- [ ] **SVC-01**: Each service step shows "not configured" gracefully instead of 401 errors
-- [ ] **SVC-02**: Test button saves credentials to keychain first, then tests the connection
-- [ ] **SVC-03**: Successful connection tests show latency in milliseconds
-- [ ] **SVC-04**: Pre-filled values from keychain auto-test on step mount
-- [ ] **SVC-05**: Optional services have a clear "Skip" button with context
+- [ ] **THEME-01**: Three theme modes: light, dark, system-follow (via `prefers-color-scheme`)
+- [ ] **THEME-02**: 6-8 curated theme presets (2 light, 2 dark, 2 high-contrast, 2 colorful accent)
+- [ ] **THEME-03**: Theme selection persisted to Supabase via existing preferences-sync
+- [ ] **THEME-04**: Theme applies instantly without page reload
+- [ ] **THEME-05**: All UI elements respect active theme (zero hardcoded colors remaining after POLISH-01)
+- [ ] **THEME-06**: Theme import from JSON file
+- [ ] **THEME-07**: Theme export as JSON file
+- [ ] **THEME-08**: Smooth transition animation when switching themes
 
-### Demo Mode
+### Setup Wizard
 
-- [ ] **DEMO-01**: User can enter demo mode from the welcome step with one click
-- [ ] **DEMO-02**: User can enter demo mode from any service step via "Skip to Demo" button
-- [ ] **DEMO-03**: Demo mode shows sample data for all modules without any backend
-- [ ] **DEMO-04**: Demo mode banner in-app links back to the setup wizard
+- [ ] **WIZARD-01**: First-run detection triggers setup wizard automatically
+- [ ] **WIZARD-02**: Service connection step (BlueBubbles, OpenClaw, Supabase, CouchDB, Mac Bridge — each optional)
+- [ ] **WIZARD-03**: Module selection step (enable/disable from available modules)
+- [ ] **WIZARD-04**: Theme selection step (pick from presets, choose light/dark/system)
+- [ ] **WIZARD-05**: Demo mode option for users without infrastructure
+- [ ] **WIZARD-06**: Setup can be skipped and completed later via Settings
+- [ ] **WIZARD-07**: Progressive disclosure (no 20-step wall — collapse advanced options)
+- [ ] **WIZARD-08**: Setup state persisted so interrupted wizard resumes where user left off
 
-### Polish
+### Dashboard Grid
 
-- [ ] **UI-01**: Wizard has a clean, modern multi-step design matching app's dark theme
-- [ ] **UI-02**: All interactive elements have proper ARIA labels and keyboard navigation
-- [ ] **UI-03**: Password/secret fields are masked by default with show/hide toggle
-- [ ] **UI-04**: Wizard is responsive and works at minimum app window size (900x600)
+- [ ] **DASH-01**: Free-form grid layout with drag-to-reposition and resize handles
+- [ ] **DASH-02**: Widgets snap to grid cells during drag/resize
+- [ ] **DASH-03**: Edit mode toggle (enter/exit via button and keyboard shortcut)
+- [ ] **DASH-04**: Edit mode shows grid lines, resize handles, add widget button, remove widget X
+- [ ] **DASH-05**: Non-edit mode shows clean layout with no edit chrome
+- [ ] **DASH-06**: Add widget picker showing available widgets by category
+- [ ] **DASH-07**: Widget Registry mapping widget IDs to lazy-loaded React components
+- [ ] **DASH-08**: Layout persisted to SQLite + synced to Supabase per breakpoint
+- [ ] **DASH-09**: Default layout provided for first-time users (populated from enabled modules)
+- [ ] **DASH-10**: Existing dashboard cards (HeartbeatCard, AgentsCard, MissionsCard, etc.) refactored as grid widgets
+- [ ] **DASH-11**: Each widget has its own error boundary and loading state
 
-## Future Requirements
+### Page Experience
 
-### Onboarding v2
+- [ ] **PAGE-01**: Page transitions are seamless — no full-page reload when switching modules
+- [ ] **PAGE-02**: Previous page state preserved when navigating back (scroll position, form state)
+- [ ] **PAGE-03**: Unread badges on sidebar items for modules with new activity
+- [ ] **PAGE-04**: Per-conversation unread badge on Messages conversation list
+- [ ] **PAGE-05**: Keyboard shortcuts displayed in tooltips and menus
+- [ ] **PAGE-06**: Global search extended to query all module backends (notes, tasks, messages, calendar, knowledge)
+- [ ] **PAGE-07**: Discord-style collapsible categories in sidebar with activity indicators
 
-- **OB2-01**: Guided Supabase Cloud project creation via OAuth
-- **OB2-02**: Auto-detect services on the local network
-- **OB2-03**: Import configuration from another OpenClaw Manager instance
-- **OB2-04**: Video walkthrough embedded in setup steps
+### Module Primitives
+
+- [ ] **PRIM-01**: Stat card primitive (title, value, trend indicator, sparkline)
+- [ ] **PRIM-02**: Line chart primitive (time series, configurable axes, tooltip)
+- [ ] **PRIM-03**: Bar chart primitive (vertical/horizontal, grouped, stacked)
+- [ ] **PRIM-04**: List view primitive (sortable, filterable, paginated)
+- [ ] **PRIM-05**: Table primitive (sortable columns, row actions, pagination)
+- [ ] **PRIM-06**: Form primitive (text, number, select, toggle, date — schema-driven)
+- [ ] **PRIM-07**: Kanban board primitive (columns, drag between columns)
+- [ ] **PRIM-08**: Progress bar / gauge primitive
+- [ ] **PRIM-09**: Markdown display primitive (render markdown content)
+- [ ] **PRIM-10**: Timer / countdown primitive
+- [ ] **PRIM-11**: Image gallery primitive (grid, lightbox on click)
+- [ ] **PRIM-12**: Each primitive has a documented config schema (JSON)
+- [ ] **PRIM-13**: Each primitive is widget-compatible (renders inside dashboard grid)
+- [ ] **PRIM-14**: Each primitive handles loading, error, and empty states internally
+
+### Bjorn Module Builder
+
+- [ ] **BJORN-01**: User can describe a module in natural language via chat with Bjorn
+- [ ] **BJORN-02**: Bjorn generates a React component using module primitives
+- [ ] **BJORN-03**: Generated module renders in a sandboxed iframe (srcdoc, sandbox="allow-scripts", no allow-same-origin)
+- [ ] **BJORN-04**: Dev preview panel shows generated module alongside the main app
+- [ ] **BJORN-05**: User can approve, reject, or request changes to generated module
+- [ ] **BJORN-06**: Approved module installs into Widget Registry and appears in dashboard widget picker
+- [ ] **BJORN-07**: Hot-reload: approved module appears without app restart
+- [ ] **BJORN-08**: Static analysis gate rejects generated code containing network calls, DOM access, or disallowed APIs
+- [ ] **BJORN-09**: Module sandbox has no access to parent DOM, localStorage, cookies, or Tauri IPC
+- [ ] **BJORN-10**: Generated module persisted (survives app restart)
+- [ ] **BJORN-11**: User can delete/disable generated modules
+- [ ] **BJORN-12**: Version history for generated modules (rollback to previous version)
+
+### Data Export
+
+- [ ] **EXPORT-01**: Export all Supabase data as JSON from Settings
+- [ ] **EXPORT-02**: Export SQLite database backup from Settings
+- [ ] **EXPORT-03**: Export notes as markdown files from Settings
+
+## v2 Requirements
+
+Deferred to post-v1.0 release. Tracked but not in current roadmap.
+
+### Advanced Theming
+
+- **ATHEME-01**: Visual CSS variable editor with color pickers and sliders for all theme variables
+- **ATHEME-02**: Live preview as theme variables change
+- **ATHEME-03**: Community theme gallery (static JSON index hosted on GitHub)
+
+### Notes Overhaul
+
+- **NOTES-01**: Wiki-style `[[linking]]` with autocomplete suggestions while typing
+- **NOTES-02**: Backlinks panel showing all notes that link to the current note
+- **NOTES-03**: Graph view with force-directed layout showing note connections
+- **NOTES-04**: Rich text WYSIWYG editing (bold, italic, headings, inline images, tables, code blocks, checklists)
+- **NOTES-05**: Editor toolbar for formatting without memorizing markdown
+- **NOTES-06**: Full-text search across all notes with highlighted results
+- **NOTES-07**: Tag system for notes organization
+- **NOTES-08**: Starred/pinned notes
+- **NOTES-09**: CodeMirror retained as source/markdown fallback mode
+- **NOTES-10**: Round-trip fidelity: Tiptap → Markdown → Tiptap produces identical output
+- **NOTES-11**: Note sharing (export as markdown/PDF)
+- **NOTES-12**: Real-time co-editing (via CouchDB LiveSync)
+
+### Extended Modules
+
+- **FINANCE-01**: Manual transaction entry with categories
+- **FINANCE-02**: CSV/OFX file import for bank transactions
+- **FINANCE-03**: Monthly budget tracking with spending charts
+- **HEALTH-01**: Manual health data entry (weight, exercise, sleep, water, mood)
+- **HEALTH-02**: Trend charts over time
+- **BOOKMARK-01**: Save links with title, description, tags
+- **BOOKMARK-02**: Read-later queue with archive
+
+### AI Suggestions
+
+- **AISUG-01**: Local-only usage pattern tracking (never transmitted)
+- **AISUG-02**: Bjorn suggests new modules based on usage patterns
+- **AISUG-03**: Suggestion UI with dismissable cards
+
+### Embedded VM Viewer
+
+- **VM-01**: Embedded noVNC viewer for OpenClaw VM in a dashboard widget or dedicated page
+- **VM-02**: Proxmox API token authentication
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Supabase auto-provisioning | Requires OAuth integration with Supabase Cloud API, too complex for v0.1.0 |
-| Service auto-discovery | Network scanning is platform-specific and raises security concerns |
-| Config import/export | Useful but not critical for first-time experience |
+| Bank API integration (Plaid/Teller) | Security liability, PCI considerations, constant API breakage, massive support burden. Use CSV/OFX import instead. |
+| Native mobile app | Doubles codebase, Tauri doesn't target mobile well. Target audience uses desktop. Consider lightweight PWA later. |
+| Real-time collaboration (Google Docs) | CRDT editing is enormous engineering. CouchDB LiveSync handles note sync. Defer to Matrix integration. |
+| Plugin/extension marketplace | Requires sandboxing, API stability, review process, versioning. Bjorn module builder IS the extensibility system. |
+| Full email client (IMAP/SMTP) | Multi-year project (Thunderbird has 20 years). Email digest module covers the use case. |
+| Social media integration | API instability, content moderation liability. RSS-based widgets via Bjorn if needed. |
+| Telemetry / analytics | Explicitly prohibited. Local-only usage stats for AI suggestions (AISUG-01) only. |
+| Auto-updating without consent | Hostile UX for power users. Check + notify + user decides. |
+| Self-hosted Matrix integration | Future collaboration feature. Not v1 scope. |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FLOW-01 | Phase 1 | Pending |
-| FLOW-02 | Phase 1 | Pending |
-| FLOW-03 | Phase 1 | Pending |
-| FLOW-04 | Phase 1 | Pending |
-| FLOW-05 | Phase 1 | Pending |
-| FLOW-06 | Phase 1 | Pending |
-| FLOW-07 | Phase 1 | Pending |
-| FLOW-08 | Phase 1 | Pending |
-| SUPA-01 | Phase 2 | Pending |
-| SUPA-02 | Phase 2 | Pending |
-| SUPA-03 | Phase 2 | Pending |
-| SUPA-04 | Phase 2 | Pending |
-| SVC-01 | Phase 3 | Pending |
-| SVC-02 | Phase 3 | Pending |
-| SVC-03 | Phase 3 | Pending |
-| SVC-04 | Phase 3 | Pending |
-| SVC-05 | Phase 3 | Pending |
-| DEMO-01 | Phase 4 | Pending |
-| DEMO-02 | Phase 4 | Pending |
-| DEMO-03 | Phase 4 | Pending |
-| DEMO-04 | Phase 4 | Pending |
-| UI-01 | Phase 5 | Pending |
-| UI-02 | Phase 5 | Pending |
-| UI-03 | Phase 5 | Pending |
-| UI-04 | Phase 5 | Pending |
+| LAYOUT-01 | Phase 1 | Pending |
+| LAYOUT-02 | Phase 1 | Pending |
+| LAYOUT-03 | Phase 1 | Pending |
+| LAYOUT-04 | Phase 1 | Pending |
+| LAYOUT-05 | Phase 1 | Pending |
+| LAYOUT-06 | Phase 1 | Pending |
+| POLISH-01 | Phase 1 | Pending |
+| POLISH-02 | Phase 1 | Pending |
+| POLISH-03 | Phase 1 | Pending |
+| POLISH-04 | Phase 1 | Pending |
+| POLISH-05 | Phase 1 | Pending |
+| POLISH-06 | Phase 1 | Pending |
+| POLISH-07 | Phase 1 | Pending |
+| POLISH-08 | Phase 1 | Pending |
+| POLISH-09 | Phase 1 | Pending |
+| THEME-01 | Phase 2 | Pending |
+| THEME-02 | Phase 2 | Pending |
+| THEME-03 | Phase 2 | Pending |
+| THEME-04 | Phase 2 | Pending |
+| THEME-05 | Phase 2 | Pending |
+| THEME-06 | Phase 2 | Pending |
+| THEME-07 | Phase 2 | Pending |
+| THEME-08 | Phase 2 | Pending |
+| WIZARD-01 | Phase 3 | Pending |
+| WIZARD-02 | Phase 3 | Pending |
+| WIZARD-03 | Phase 3 | Pending |
+| WIZARD-04 | Phase 3 | Pending |
+| WIZARD-05 | Phase 3 | Pending |
+| WIZARD-06 | Phase 3 | Pending |
+| WIZARD-07 | Phase 3 | Pending |
+| WIZARD-08 | Phase 3 | Pending |
+| DASH-01 | Phase 4 | Pending |
+| DASH-02 | Phase 4 | Pending |
+| DASH-03 | Phase 4 | Pending |
+| DASH-04 | Phase 4 | Pending |
+| DASH-05 | Phase 4 | Pending |
+| DASH-06 | Phase 4 | Pending |
+| DASH-07 | Phase 4 | Pending |
+| DASH-08 | Phase 4 | Pending |
+| DASH-09 | Phase 4 | Pending |
+| DASH-10 | Phase 4 | Pending |
+| DASH-11 | Phase 4 | Pending |
+| PAGE-01 | Phase 5 | Pending |
+| PAGE-02 | Phase 5 | Pending |
+| PAGE-03 | Phase 5 | Pending |
+| PAGE-04 | Phase 5 | Pending |
+| PAGE-05 | Phase 5 | Pending |
+| PAGE-06 | Phase 5 | Pending |
+| PAGE-07 | Phase 5 | Pending |
+| PRIM-01 | Phase 6 | Pending |
+| PRIM-02 | Phase 6 | Pending |
+| PRIM-03 | Phase 6 | Pending |
+| PRIM-04 | Phase 6 | Pending |
+| PRIM-05 | Phase 6 | Pending |
+| PRIM-06 | Phase 6 | Pending |
+| PRIM-07 | Phase 6 | Pending |
+| PRIM-08 | Phase 6 | Pending |
+| PRIM-09 | Phase 6 | Pending |
+| PRIM-10 | Phase 6 | Pending |
+| PRIM-11 | Phase 6 | Pending |
+| PRIM-12 | Phase 6 | Pending |
+| PRIM-13 | Phase 6 | Pending |
+| PRIM-14 | Phase 6 | Pending |
+| BJORN-01 | Phase 7 | Pending |
+| BJORN-02 | Phase 7 | Pending |
+| BJORN-03 | Phase 7 | Pending |
+| BJORN-04 | Phase 7 | Pending |
+| BJORN-05 | Phase 7 | Pending |
+| BJORN-06 | Phase 7 | Pending |
+| BJORN-07 | Phase 7 | Pending |
+| BJORN-08 | Phase 7 | Pending |
+| BJORN-09 | Phase 7 | Pending |
+| BJORN-10 | Phase 7 | Pending |
+| BJORN-11 | Phase 7 | Pending |
+| BJORN-12 | Phase 7 | Pending |
+| EXPORT-01 | Phase 8 | Pending |
+| EXPORT-02 | Phase 8 | Pending |
+| EXPORT-03 | Phase 8 | Pending |
 
 **Coverage:**
-- v0.1.0 requirements: 22 total
-- Mapped to phases: 22
-- Unmapped: 0
+- v1 requirements: 72 total
+- Mapped to phases: 72
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-19*
-*Last updated: 2026-03-19 — traceability populated after roadmap creation*
+*Last updated: 2026-03-19 after initial definition*
