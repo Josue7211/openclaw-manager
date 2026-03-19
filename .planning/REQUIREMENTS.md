@@ -9,24 +9,24 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 
 ### Responsive Layout
 
-- [ ] **LAYOUT-01**: App layout adapts to window resize without breaking (no overflow, no clipping, no overlapping elements)
-- [ ] **LAYOUT-02**: Sidebar auto-collapses to icon-only mode when main area drops below 900px
-- [ ] **LAYOUT-03**: Dashboard grid reflows to fewer columns at smaller container widths (3 breakpoints: compact, default, wide)
-- [ ] **LAYOUT-04**: Switching between 1080p and 1440p monitors preserves usable layout without manual adjustment
-- [ ] **LAYOUT-05**: All pages use CSS container queries for component-level responsiveness (not viewport media queries)
-- [ ] **LAYOUT-06**: Sidebar resize handle works smoothly without layout jank
+- [x] **LAYOUT-01**: App layout adapts to window resize without breaking (no overflow, no clipping, no overlapping elements)
+- [x] **LAYOUT-02**: Sidebar auto-collapses to icon-only mode when main area drops below 900px
+- [x] **LAYOUT-03**: Dashboard grid reflows to fewer columns at smaller container widths (3 breakpoints: compact, default, wide)
+- [x] **LAYOUT-04**: Switching between 1080p and 1440p monitors preserves usable layout without manual adjustment
+- [x] **LAYOUT-05**: All pages use CSS container queries for component-level responsiveness (not viewport media queries)
+- [x] **LAYOUT-06**: Sidebar resize handle works smoothly without layout jank
 
 ### Visual Polish
 
 - [ ] **POLISH-01**: All hardcoded color values (rgba, hex, hsl in JSX/TS) migrated to CSS variables
-- [ ] **POLISH-02**: Consistent spacing scale applied across all 17+ pages
+- [x] **POLISH-02**: Consistent spacing scale applied across all 17+ pages
 - [ ] **POLISH-03**: Unified button hierarchy (primary, secondary, ghost, danger) used consistently
-- [ ] **POLISH-04**: Consistent typography scale (headings, body, captions, labels)
+- [x] **POLISH-04**: Consistent typography scale (headings, body, captions, labels)
 - [ ] **POLISH-05**: Shared `<LoadingState>` component used on all async pages/widgets
 - [ ] **POLISH-06**: Shared `<ErrorState>` component with retry action on all failable pages/widgets
 - [ ] **POLISH-07**: Shared `<EmptyState>` component with contextual guidance on all list/data pages
 - [ ] **POLISH-08**: Consistent icon style across all modules (no mixed icon sets)
-- [ ] **POLISH-09**: Consistent border-radius and shadow depth across all card/panel components
+- [x] **POLISH-09**: Consistent border-radius and shadow depth across all card/panel components
 
 ### Theming
 
@@ -176,21 +176,21 @@ Deferred to post-v1.0 release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| LAYOUT-01 | Phase 1 | Pending |
-| LAYOUT-02 | Phase 1 | Pending |
-| LAYOUT-03 | Phase 1 | Pending |
-| LAYOUT-04 | Phase 1 | Pending |
-| LAYOUT-05 | Phase 1 | Pending |
-| LAYOUT-06 | Phase 1 | Pending |
+| LAYOUT-01 | Phase 1 | Complete |
+| LAYOUT-02 | Phase 1 | Complete |
+| LAYOUT-03 | Phase 1 | Complete |
+| LAYOUT-04 | Phase 1 | Complete |
+| LAYOUT-05 | Phase 1 | Complete |
+| LAYOUT-06 | Phase 1 | Complete |
 | POLISH-01 | Phase 1 | Pending |
-| POLISH-02 | Phase 1 | Pending |
+| POLISH-02 | Phase 1 | Complete |
 | POLISH-03 | Phase 1 | Pending |
-| POLISH-04 | Phase 1 | Pending |
+| POLISH-04 | Phase 1 | Complete |
 | POLISH-05 | Phase 1 | Pending |
 | POLISH-06 | Phase 1 | Pending |
 | POLISH-07 | Phase 1 | Pending |
 | POLISH-08 | Phase 1 | Pending |
-| POLISH-09 | Phase 1 | Pending |
+| POLISH-09 | Phase 1 | Complete |
 | THEME-01 | Phase 2 | Pending |
 | THEME-02 | Phase 2 | Pending |
 | THEME-03 | Phase 2 | Pending |

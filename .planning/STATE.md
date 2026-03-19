@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 1 UI-SPEC approved
-last_updated: "2026-03-19T13:25:39.765Z"
-last_activity: 2026-03-19 -- Roadmap created with 8 phases covering 72 requirements
+status: executing
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-03-19T14:01:28.473Z"
+last_activity: "2026-03-19 -- Completed 01-01: Design system foundation + container query responsive shell"
 progress:
   total_phases: 8
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 3
+  completed_plans: 1
   percent: 0
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 1 of 8 (Responsive Layout Shell + Visual Polish)
-Plan: 0 of 3 in current phase
-Status: Ready to plan
-Last activity: 2026-03-19 -- Roadmap created with 8 phases covering 72 requirements
+Plan: 1 of 3 in current phase
+Status: Executing
+Last activity: 2026-03-19 -- Completed 01-01: Design system foundation + container query responsive shell
 
 Progress: [░░░░░░░░░░░░░░░░░░░░] 0%
 
@@ -50,6 +50,7 @@ Progress: [░░░░░░░░░░░░░░░░░░░░] 0%
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 01 P01 | 4min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -62,6 +63,10 @@ Recent decisions affecting current work:
 - [Roadmap]: Notes overhaul deferred to v2 per research recommendation
 - [Roadmap]: Color audit (POLISH-01) is a hard prerequisite for Phase 2 (theming)
 - [Roadmap]: Phase 3 (wizard) builds on archived v0.1.0 wizard work at `.planning-v0.1.0-wizard/`
+- [Phase 01]: Sidebar collapse 0.2s (was 0.35s) for snappier UX per UI-SPEC
+- [Phase 01]: Auto-collapse only, no auto-expand -- prevents surprise layout shifts
+- [Phase 01]: CSS-only tooltips via :hover instead of JS state for zero re-renders
+- [Phase 01]: Resize handle 8px hit area (was 5px) for easier targeting while invisible by default
 
 ### Pending Todos
 
@@ -75,6 +80,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T13:25:39.763Z
-Stopped at: Phase 1 UI-SPEC approved
-Resume file: .planning/phases/01-responsive-layout-visual-polish/01-UI-SPEC.md
+Last session: 2026-03-19T14:01:28.472Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: None
