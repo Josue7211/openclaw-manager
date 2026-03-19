@@ -31,34 +31,51 @@ import {
  *    appropriate default if the resolved theme's category doesn't match.
  * 3. Fallback to default-dark if nothing matches.
  */
+// Cache the OS dark preference — updated by detectSystemDarkMode() and the
+// matchMedia listener registered in main.tsx.
+let _osDarkCached: boolean | null = null
+
+/** Called from main.tsx on startup and whenever the system theme changes. */
+export function setOsDarkPreference(dark: boolean) {
+  _osDarkCached = dark
+}
+
 export function resolveThemeDefinition(state: ThemeState): ThemeDefinition {
   const fallback = getThemeById('default-dark') ?? BUILT_IN_THEMES[0]
 
-  // Look up in built-ins first, then custom themes
   const found =
     getThemeById(state.activeThemeId) ??
     state.customThemes.find(t => t.id === state.activeThemeId)
 
   const resolved = found ?? fallback
 
-  if (state.mode === 'system' && typeof window.matchMedia === 'function') {
-    // Check BOTH media queries — on Linux (WebKitGTK), neither may match
-    // when xdg-desktop-portal hasn't announced a preference. In that case,
-    // keep the user's selected theme as-is (don't force a mode switch).
-    const osDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const osLight = window.matchMedia('(prefers-color-scheme: light)').matches
+  if (state.mode === 'system') {
+    // Use cached OS preference (set from Tauri window.theme() or matchMedia)
+    const osDark = _osDarkCached ?? detectOsDark()
     const isLightTheme = resolved.category === 'light'
 
-    if (osLight && !osDark && !isLightTheme) {
+    if (!osDark && !isLightTheme) {
       return getThemeById('default-light') ?? fallback
     }
-    if (osDark && !osLight && isLightTheme) {
+    if (osDark && isLightTheme) {
       return fallback // default-dark
     }
-    // Neither or both match → no reliable OS preference → keep selected theme
   }
 
   return resolved
+}
+
+/**
+ * Synchronous fallback for OS dark mode detection via matchMedia.
+ * Used when the async Tauri detection hasn't populated the cache yet.
+ */
+function detectOsDark(): boolean {
+  if (typeof window.matchMedia !== 'function') return true // default to dark
+  const dark = window.matchMedia('(prefers-color-scheme: dark)').matches
+  const light = window.matchMedia('(prefers-color-scheme: light)').matches
+  if (dark) return true
+  if (light) return false
+  return true // no preference → default dark (most Linux desktops are dark)
 }
 
 // ---------------------------------------------------------------------------

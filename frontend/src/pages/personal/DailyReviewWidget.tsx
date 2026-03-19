@@ -10,7 +10,7 @@ import type { DailyReviewRecord } from './types'
 
 function ReviewField({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div style={{ background: 'var(--bg-white-03)', borderRadius: '10px', padding: '12px', border: '1px solid var(--border)' }}>
+    <div style={{ background: 'var(--hover-bg)', borderRadius: '10px', padding: '12px', border: '1px solid var(--border)' }}>
       <div style={{ fontSize: '10px', fontWeight: 700, color, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '6px' }}>{label}</div>
       <p style={{ margin: 0, fontSize: '12px', color: value ? 'var(--text-primary)' : 'var(--text-muted)', fontStyle: value ? 'normal' : 'italic', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
         {value || 'Nothing recorded'}
@@ -33,7 +33,7 @@ function ReviewPrompt({ label, placeholder, value, onChange, accentColor }: {
         aria-label={label}
         rows={3}
         style={{
-          width: '100%', background: 'var(--bg-white-03)', border: '1px solid var(--border)',
+          width: '100%', background: 'var(--hover-bg)', border: '1px solid var(--border)',
           borderRadius: '10px', padding: '10px 12px', fontSize: '13px', color: 'var(--text-primary)',
           outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5,
           boxSizing: 'border-box',

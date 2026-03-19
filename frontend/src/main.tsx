@@ -8,6 +8,7 @@ import LayoutShell from './components/LayoutShell'
 import ErrorBoundary from './components/ErrorBoundary'
 import AuthGuard from './components/AuthGuard'
 import { applyThemeFromState, getThemeState } from './lib/theme-store'
+import { setOsDarkPreference } from './lib/theme-engine'
 import { PersonalSkeleton, DashboardSkeleton, MessagesSkeleton, SettingsSkeleton, GenericPageSkeleton } from './components/Skeleton'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -74,10 +75,29 @@ runMigrations()
 // Apply saved theme before first paint (uses ThemeStore + ThemeEngine pipeline)
 applyThemeFromState()
 
-// Listen for system theme changes when in 'system' mode
-window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
-  if (getThemeState().mode === 'system') applyThemeFromState()
-})
+// Detect OS dark mode preference — use Tauri native API on desktop (reads GTK
+// settings on Linux), fall back to matchMedia in browser mode
+if (window.__TAURI_INTERNALS__) {
+  import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
+    getCurrentWindow().theme().then(theme => {
+      setOsDarkPreference(theme === 'dark')
+      if (getThemeState().mode === 'system') applyThemeFromState()
+    })
+    // Listen for OS theme changes
+    getCurrentWindow().onThemeChanged(({ payload }) => {
+      setOsDarkPreference(payload === 'dark')
+      if (getThemeState().mode === 'system') applyThemeFromState()
+    })
+  })
+} else {
+  // Browser fallback — matchMedia listener
+  const mq = window.matchMedia('(prefers-color-scheme: dark)')
+  setOsDarkPreference(mq.matches)
+  mq.addEventListener('change', (e) => {
+    setOsDarkPreference(e.matches)
+    if (getThemeState().mode === 'system') applyThemeFromState()
+  })
+}
 
 // Disable browser context menu in Tauri (not in browser dev mode)
 if (window.__TAURI_INTERNALS__) {
