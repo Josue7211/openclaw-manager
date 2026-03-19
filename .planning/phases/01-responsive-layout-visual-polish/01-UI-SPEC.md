@@ -39,54 +39,55 @@ Phosphor Icons replaces Lucide. Migration strategy: page-by-page during implemen
 
 ## Spacing Scale
 
-Declared values (4px-based grid, from CONTEXT decision):
+Declared values (8-point grid with 4px sub-unit):
 
 | Token | CSS Variable | Value | Usage |
 |-------|-------------|-------|-------|
 | 1 | `--space-1` | 4px | Icon gaps, inline padding, tight element margins |
-| 2 | `--space-2` | 8px | Compact element spacing, button internal padding |
-| 3 | `--space-3` | 12px | List item padding, form field gaps |
-| 4 | `--space-4` | 16px | Default element spacing, card internal padding |
-| 5 | `--space-5` | 20px | Section gaps within cards |
-| 6 | `--space-6` | 24px | Section padding, card-to-card gaps |
+| 2 | `--space-2` | 8px | Compact element spacing, button internal padding, icon-to-label gaps |
+| 4 | `--space-4` | 16px | Default element spacing, card internal padding, form field gaps, card-to-card gaps |
+| 6 | `--space-6` | 24px | Section padding, card-to-card gaps, page title to first content |
 | 8 | `--space-8` | 32px | Layout-level gaps, page section breaks |
 | 12 | `--space-12` | 48px | Major section breaks, page top/bottom margins |
+| 16 | `--space-16` | 64px | Full-page vertical separation (e.g. hero to content) |
 
 Exceptions:
 - Touch targets: minimum 44px height/width for interactive elements (Apple HIG, already in `.touch-target` class)
-- Main content padding: `20px 28px` (existing value in LayoutShell -- kept for continuity, not changed to pure scale values)
 
 ### Spacing Application Rules
 
-- **Card internal padding:** `--space-4` (16px) to `--space-5` (20px)
+- **Card internal padding:** `--space-4` (16px)
 - **Card-to-card gap:** `--space-4` (16px) in grids
 - **Section label to content:** `--space-2` (8px)
 - **Page title to first content:** `--space-6` (24px)
 - **Sidebar item vertical padding:** `--space-2` (8px)
-- **Button internal padding:** `--space-2` (8px) vertical, `--space-4` (16px) to `--space-5` (20px) horizontal
-- **Form field gap:** `--space-3` (12px)
+- **Button internal padding:** `--space-2` (8px) vertical, `--space-4` (16px) horizontal
+- **Form field gap:** `--space-4` (16px)
 - **Icon-to-label gap:** `--space-2` (8px)
+- **Main content padding:** `--space-6` (24px) all sides
 
 ---
 
 ## Typography
 
-All sizes use the existing `--text-*` CSS variable scale from `globals.css`. Font: Inter at weight 400 (regular) and 600 (semibold).
+Four active type roles using Inter at weight 400 (regular) and 600 (semibold). This phase uses exactly these 4 sizes as active design roles.
 
 | Role | CSS Variable | Size | Weight | Line Height | Usage |
 |------|-------------|------|--------|-------------|-------|
-| Caption | `--text-xs` | 11px | 400 | 1.4 | Timestamps, metadata, helper text |
-| Label | `--text-sm` | 13px | 600 | 1.4 | Section labels, button text, nav items |
-| Body | `--text-base` | 15px | 400 | 1.5 | Default paragraph text, list items, descriptions |
-| Subheading | `--text-lg` | 17px | 600 | 1.3 | Card titles, subsection headings |
-| Heading | `--text-xl` | 20px | 600 | 1.2 | Page section headings |
+| Caption | `--text-sm` | 12px | 400 | 1.4 | Timestamps, metadata, helper text, section labels (when uppercase + weight 600) |
+| Body | `--text-base` | 15px | 400 | 1.5 | Default paragraph text, list items, descriptions, button text, nav items |
+| Heading | `--text-lg` | 20px | 600 | 1.2 | Page section headings, card titles, subsection headings |
 | Display | `--text-2xl` | 24px | 600 | 1.2 | Page titles |
+
+### Legacy CSS Variables
+
+The existing `globals.css` may retain `--text-xs` (11px), `--text-sm` (13px), and `--text-lg` (17px) for backward compatibility with components not yet migrated. However, all new and modified components in this phase MUST use only the 4 active roles above. The legacy variables are deprecated and should not be introduced in new code.
 
 ### Typography Rules
 
 - **Only two weights:** 400 (regular) and 600 (semibold). No 700 (bold) except in markdown rendered content.
 - **Letter spacing:** -0.02em on display/heading sizes (already applied to `h1` in globals.css). 0 for body. 0.1em for uppercase section labels.
-- **Section labels:** Uppercase, 10-11px, weight 600, color `var(--text-muted)`, letter-spacing 0.1em (matches existing `.section-label` class).
+- **Section labels:** Uppercase, 12px, weight 600, color `var(--text-muted)`, letter-spacing 0.1em (matches existing `.section-label` class).
 - **Monospace:** JetBrains Mono at 12px for code, 10px for metadata (matches existing `.mono` and `.meta-mono` classes).
 
 ---
@@ -178,7 +179,7 @@ Cards currently use the glass-blur effect (`backdrop-filter: blur(24px)`) with h
 
 ## Button Hierarchy
 
-Four levels (from CONTEXT decision). All buttons use `--radius-md` (10px), weight 600, size 13px (`--text-sm`), padding `8px 20px`.
+Four levels (from CONTEXT decision). All buttons use `--radius-md` (10px), weight 600, size 15px (`--text-base`), padding `8px 16px`.
 
 | Level | Background | Border | Text Color | Usage |
 |-------|-----------|--------|------------|-------|
@@ -272,8 +273,8 @@ Anatomy:
 |                                           |
 |           [Error Icon - 48px]             |
 |                                           |
-|        Something went wrong               |  <-- heading, --text-lg, weight 600
-|   We couldn't load your {resource}.       |  <-- body, --text-sm, --text-muted
+|        Something went wrong               |  <-- heading, --text-lg (20px), weight 600
+|   We couldn't load your {resource}.       |  <-- body, --text-sm (12px), --text-muted
 |   Check your connection and try again.    |
 |                                           |
 |         [ Try Again ]  [ Reload ]         |  <-- Secondary + Primary buttons
@@ -296,8 +297,8 @@ Anatomy:
 |                                           |
 |           [Context Icon - 48px]           |
 |                                           |
-|          No {items} yet                   |  <-- heading, --text-lg, weight 600
-|   {Contextual guidance message.}          |  <-- body, --text-sm, --text-muted
+|          No {items} yet                   |  <-- heading, --text-lg (20px), weight 600
+|   {Contextual guidance message.}          |  <-- body, --text-sm (12px), --text-muted
 |                                           |
 |          [ {Action Button} ]              |  <-- Primary button (optional)
 |                                           |
@@ -347,7 +348,7 @@ interface EmptyStateProps {
 | **Empty state (Generic)** | heading: "Nothing here yet" / body: "Content will appear once data is available." |
 | **Offline banner** | "You're offline -- showing cached data" (existing copy, kept as-is) |
 | **Toast: sync failure** | "Sync failed -- changes saved locally. Will retry automatically." |
-| **Toast: API error** | "Request failed -- please try again." |
+| **Toast: API error** | "Couldn't complete {action} -- please try again." -- where {action} is the operation that failed (e.g., "saving note", "loading messages", "sending message") |
 | **Toast: success** | "Saved successfully." |
 | **Progress bar** | No text -- visual only (thin bar at top) |
 
@@ -358,6 +359,7 @@ interface EmptyStateProps {
 - **Calm:** No exclamation marks, no alarmist language
 - **Lowercase "we":** "We couldn't load" not "Failed to load" -- personal but not corporate
 - **No blame:** "Something went wrong" not "You made an error"
+- **Resource-aware errors:** Toast errors reference the specific action or resource when available, falling back to generic copy only when context is unavailable
 
 ### Destructive Actions in This Phase
 
@@ -449,7 +451,7 @@ Components that this phase creates or significantly modifies:
 | `<ProgressBar>` | **New** | Thin accent progress bar at viewport top for route transitions |
 | `LayoutShell.tsx` | **Modified** | Add container query context, sidebar auto-collapse logic, progress bar |
 | `Sidebar.tsx` | **Modified** | Collapsed icon-only mode, tooltip on hover, responsive behavior |
-| `globals.css` | **Modified** | Add `--font-body`, `--font-heading`, `--font-mono`, container query rules, new spacing vars (--space-12) |
+| `globals.css` | **Modified** | Add `--font-body`, `--font-heading`, `--font-mono`, container query rules, new spacing vars (--space-12, --space-16) |
 | All 17+ page components | **Modified** | Replace hardcoded colors with CSS variables, add loading/error/empty states |
 | `Skeleton.tsx` | **Unchanged** | Already complete with shimmer animation and page-specific variants |
 
