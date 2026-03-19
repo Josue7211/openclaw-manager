@@ -1250,7 +1250,7 @@
     }
   ],
   "appState": {
-    "viewBackgroundColor": "transparent",
+    "viewBackgroundColor": "#0d1117",
     "gridSize": 20
   },
   "files": {}
