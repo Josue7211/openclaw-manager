@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Josue7211/mission-control/releases"><img src="https://img.shields.io/github/v/release/Josue7211/mission-control?include_prereleases&label=Download&color=7c3aed" alt="Download" /></a>
+  <a href="https://github.com/Josue7211/openclaw-manager/releases"><img src="https://img.shields.io/github/v/release/Josue7211/openclaw-manager?include_prereleases&label=Download&color=7c3aed" alt="Download" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License" /></a>
   <img src="https://img.shields.io/badge/Tauri-v2-24C8D8?logo=tauri&logoColor=white" alt="Tauri v2" />
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -69,10 +69,10 @@ Grab the latest release for your platform:
 
 | Platform | Download |
 |----------|----------|
-| **Linux** (.deb) | [Releases page](https://github.com/Josue7211/mission-control/releases) |
-| **Linux** (.rpm) | [Releases page](https://github.com/Josue7211/mission-control/releases) |
-| **macOS** (.dmg) — Intel + Apple Silicon | [Releases page](https://github.com/Josue7211/mission-control/releases) |
-| **Windows** (.msi) | [Releases page](https://github.com/Josue7211/mission-control/releases) |
+| **Linux** (.deb) | [Releases page](https://github.com/Josue7211/openclaw-manager/releases) |
+| **Linux** (.rpm) | [Releases page](https://github.com/Josue7211/openclaw-manager/releases) |
+| **macOS** (.dmg) — Intel + Apple Silicon | [Releases page](https://github.com/Josue7211/openclaw-manager/releases) |
+| **Windows** (.msi) | [Releases page](https://github.com/Josue7211/openclaw-manager/releases) |
 
 Or build from source (see below).
 
@@ -90,7 +90,7 @@ Or build from source (see below).
 ### From source
 
 ```bash
-git clone https://github.com/Josue7211/mission-control.git
+git clone https://github.com/Josue7211/openclaw-manager.git
 cd mission-control
 
 # Install frontend dependencies
