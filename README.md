@@ -1,127 +1,134 @@
 <p align="center">
-  <img src="frontend/public/logo-128.png" alt="Mission Control" width="96" />
+  <img src="frontend/public/logo-128.png" alt="OpenClaw Manager" width="96" />
 </p>
 
-<h1 align="center">Mission Control</h1>
+<h1 align="center">OpenClaw Manager</h1>
 
 <p align="center">
-  A self-hosted personal command center — messages, AI chat, todos, homelab monitoring, and more in one desktop app.
+  A self-hosted personal command center — messages, AI chat, task management, homelab monitoring, and agent orchestration in one desktop app.
 </p>
 
 <p align="center">
+  <a href="https://github.com/Josue7211/mission-control/releases"><img src="https://img.shields.io/github/v/release/Josue7211/mission-control?include_prereleases&label=Download&color=7c3aed" alt="Download" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License" /></a>
   <img src="https://img.shields.io/badge/Tauri-v2-24C8D8?logo=tauri&logoColor=white" alt="Tauri v2" />
-  <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
+  <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey" alt="Platform" />
 </p>
 
-<!-- ![Screenshot](docs/screenshot.png) -->
+<!-- TODO: Add screenshot once UI is finalized -->
 
 ---
 
-## Features
+## What is this?
 
-Every module is optional. Enable only what you use.
+OpenClaw Manager is a **modular desktop app** that brings all your personal infrastructure into one interface. Think Discord meets iOS Settings — but self-hosted, private, and fully under your control.
 
-**Personal**
-- **Messages** -- iMessage via [BlueBubbles](https://bluebubbles.app) (read, send, search, attachments, reactions)
-- **AI Chat** -- Streaming conversational AI via OpenClaw
-- **Todos** -- Projects, labels, drag-and-drop ordering
-- **Calendar** -- CalDAV sync (iCloud, Nextcloud, etc.)
-- **Email** -- IMAP client with folder navigation
-- **Reminders** -- macOS Reminders sync
-- **Pomodoro** -- Focus timer with heatmap tracking
-- **Notes** -- Markdown note-taking
+Every module is optional. Enable only what you have:
 
-**Homelab & Media**
-- **Home Lab** -- Proxmox VM/container status, OPNsense firewall monitoring
-- **Media Radar** -- Track movies and TV shows via Sonarr, Radarr, Plex
+| Module | What it does | Requires |
+|--------|-------------|----------|
+| **Messages** | iMessage (read, send, search, reactions, attachments) | Mac + [BlueBubbles](https://bluebubbles.app) |
+| **AI Chat** | Streaming AI chat with model switching | [OpenClaw](https://github.com/Josue7211/openclaw) or any LLM gateway |
+| **Todos** | Task management with projects and labels | Supabase |
+| **Calendar** | CalDAV sync (iCloud, Nextcloud, etc.) | CalDAV server |
+| **Email** | IMAP client with folder navigation | IMAP server |
+| **Reminders** | Apple Reminders sync | Mac + [Mac Bridge](https://github.com/Josue7211/mac-bridge) |
+| **Notes** | Obsidian-compatible markdown notes | CouchDB + [LiveSync](https://github.com/vrtmrz/obsidian-livesync) |
+| **Pomodoro** | Focus timer with activity heatmap | Local only |
+| **Home Lab** | VM/container status, firewall monitoring | Proxmox + OPNsense |
+| **Media Radar** | Track movies/TV shows | Plex + Sonarr + Radarr |
+| **Dashboard** | Agent status, missions, pipelines | OpenClaw + Supabase |
+| **Agents** | AI agent management and monitoring | OpenClaw |
+| **Knowledge** | Shared reference documents | Supabase |
 
-**Agents & Automation**
-- **Dashboard** -- At-a-glance overview of missions, agents, and pipelines
-- **Missions** -- High-level objective tracking with event replay
-- **Agents** -- AI agent management
-- **Pipeline** -- Kanban workflow board
-- **Knowledge Base** -- Shared reference documents
+**App-wide features:** Command palette (`Ctrl+K`), global search, configurable keyboard shortcuts, native notifications with per-conversation mute, dark/light theming, custom sidebar layout, offline-first with sync.
 
-**App-wide**
-- Command palette (`Ctrl+K`), global search, configurable keyboard shortcuts
-- Native OS notifications with per-conversation mute and DND
-- Dark/light theming, custom sidebar layout, resizable panels
-- Offline-first with mutation queue and reconnect replay
-- Guided onboarding wizard for first-time setup
+---
 
 ## Architecture
 
-```
-+-----------------------+       +------------------------+       +-------------------+
-|                       |       |   Mission Control      |       |                   |
-|   Tauri Window        | <---> |   Axum Server          | <---> |   Supabase        |
-|   (React + Vite)      |       |   (localhost:3000)     |       |   (Postgres+Auth) |
-|                       |       |                        |       |                   |
-+-----------------------+       +-----+------+------+----+       +-------------------+
-                                      |      |      |
-                         Tailscale / LAN / private network
-                                      |      |      |
-                       +--------------+  +---+---+  +---------------+
-                       |              |  |       |  |               |
-                       | BlueBubbles  |  | Open- |  | Proxmox /     |
-                       | (iMessage)   |  | Claw  |  | OPNsense /    |
-                       +--------------+  | (AI)  |  | Plex / etc.   |
-                                         +-------+  +---------------+
+<p align="center">
+  <img src="docs/architecture.png" alt="Architecture diagram" width="800" />
+</p>
+
+> Open `docs/architecture.excalidraw` in [excalidraw.com](https://excalidraw.com) for the editable version.
+
+The app runs as a **Tauri v2 desktop application** with an embedded Axum HTTP server on `localhost:3000`. The React frontend never talks to remote services directly — everything is proxied through Axum. Secrets are stored in the OS keychain, never in environment files or source code.
+
+**Key design decisions:**
+- **Offline-first**: Local SQLite database syncs to Supabase every 30 seconds
+- **Multi-device**: Run on Linux + macOS simultaneously, data syncs via Supabase
+- **Zero telemetry**: No analytics, no phone-home, fully self-hosted
+- **Defense in depth**: API key auth + Tailscale ACLs + Cloudflare Access + MFA + RLS on all tables
+
+---
+
+## Download
+
+Grab the latest release for your platform:
+
+| Platform | Download |
+|----------|----------|
+| **Linux** (.deb) | [Releases page](https://github.com/Josue7211/mission-control/releases) |
+| **Linux** (.rpm) | [Releases page](https://github.com/Josue7211/mission-control/releases) |
+| **macOS** (.dmg) — Intel + Apple Silicon | [Releases page](https://github.com/Josue7211/mission-control/releases) |
+| **Windows** (.msi) | [Releases page](https://github.com/Josue7211/mission-control/releases) |
+
+Or build from source (see below).
+
+---
+
+## Quick Start
+
+### From release binary
+
+1. Download and install for your platform
+2. Launch the app
+3. The onboarding wizard guides you through connecting services
+4. No services configured? The app runs in **demo mode** with sample data
+
+### From source
+
+```bash
+git clone https://github.com/Josue7211/mission-control.git
+cd mission-control
+
+# Install frontend dependencies
+cd frontend && npm install && cd ..
+
+# Run in development mode (Tauri + Vite hot-reload)
+cargo tauri dev
+
+# Or production build
+cargo tauri build
 ```
 
-The React frontend runs inside a Tauri webview. On launch, Tauri starts an embedded Axum HTTP server on `127.0.0.1:3000` that proxies all external service calls. The frontend never talks to remote services directly. Secrets are stored in the OS keychain -- never in environment files or source code.
-
-## Prerequisites
+### Prerequisites
 
 | Requirement | Notes |
 |---|---|
 | **Node.js 20+** | [nodejs.org](https://nodejs.org) |
 | **Rust stable** | [rustup.rs](https://rustup.rs) |
-| **Tauri v2 system deps** | [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) (varies by OS) |
-| **Supabase** | Self-hosted or [Supabase Cloud](https://supabase.com) for auth + storage |
+| **Tauri v2 system deps** | [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) |
+| **Supabase** | Self-hosted (Docker) or [Supabase Cloud](https://supabase.com) |
 
-## Quick Start
-
-```bash
-git clone https://github.com/Josue7211/mission-control.git
-cd mission-control
-cd frontend && npm install && cd ..
-
-# Full desktop app (Tauri + Axum backend)
-cargo tauri dev
-
-# Or frontend only (browser at localhost:5173)
-cd frontend && npm run dev
-```
-
-On first launch the onboarding wizard walks you through connecting services.
-
-## Demo Mode
-
-No backend services? No problem. Run the frontend in demo mode:
-
-```bash
-cd frontend && npm run dev
-```
-
-Without configured services, the app loads with synthetic demo data so you can explore every page and feature. No Supabase, BlueBubbles, or other backends required.
+---
 
 ## Configuration
 
-All service URLs and secrets are configured through **Settings > Connections** in the app, or via a `.env.local` file in the project root.
+All service URLs and secrets are configured through **Settings > Connections** in the app. For development, you can also use a `.env.local` file:
 
 ```bash
-cp .env.example .env.local
+cp .env.example .env.local   # Edit with your values
 ```
 
-### Required
+### Required (for full functionality)
 
 | Variable | Description |
 |---|---|
-| `VITE_SUPABASE_URL` | Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anonymous key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side) |
+| `SUPABASE_URL` | Your Supabase project URL |
+| `SUPABASE_ANON_KEY` | Supabase anonymous key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) |
 
 ### Optional (per module)
 
@@ -129,67 +136,96 @@ cp .env.example .env.local
 |---|---|
 | `BLUEBUBBLES_HOST` / `BLUEBUBBLES_PASSWORD` | Messages |
 | `OPENCLAW_WS` / `OPENCLAW_API_URL` / `OPENCLAW_API_KEY` | AI Chat |
+| `MAC_BRIDGE_HOST` / `MAC_BRIDGE_API_KEY` | Reminders / Contacts |
+| `COUCHDB_URL` / `COUCHDB_USER` / `COUCHDB_PASSWORD` / `COUCHDB_DATABASE` | Notes |
 | `CALDAV_URL` / `CALDAV_USERNAME` / `CALDAV_PASSWORD` | Calendar |
 | `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_USER` / `EMAIL_PASSWORD` | Email |
 | `PROXMOX_HOST` / `PROXMOX_TOKEN_ID` / `PROXMOX_TOKEN_SECRET` | Home Lab |
 | `OPNSENSE_HOST` / `OPNSENSE_KEY` / `OPNSENSE_SECRET` | Home Lab |
 | `PLEX_URL` / `PLEX_TOKEN` | Media Radar |
 | `SONARR_URL` / `SONARR_API_KEY` / `RADARR_URL` / `RADARR_API_KEY` | Media Radar |
+| `MC_BIND_HOST` | Set to `0.0.0.0` to expose API over Tailscale |
+| `MC_AGENT_KEY` | Stable API key for external agents (e.g. Bjorn) |
 
-Sensitive credentials (API keys, passwords) are stored in the **OS keychain** at runtime. The `.env.local` file is gitignored and never committed.
+Sensitive credentials are stored in the **OS keychain** at runtime (macOS Keychain, Linux Secret Service, Windows Credential Manager). The `.env.local` file is a development fallback only and is gitignored.
+
+---
 
 ## Security
 
-- **No telemetry, no analytics, no phone-home** -- fully self-hosted and offline-capable
-- Secrets stored in OS keychain via `keyring` crate, never in env files or source
-- Local API protected by auto-generated `MC_API_KEY` (keychain-stored)
-- All remote services accessed over Tailscale (WireGuard-encrypted, ACL-enforced)
-- CSP blocks `unsafe-eval`; OAuth uses nonce verification
+OpenClaw Manager handles private data (messages, credentials, notes). Security is non-negotiable:
+
+- **No telemetry, no analytics, no phone-home** — fully self-hosted and offline-capable
+- **3-layer auth**: API key (constant-time) → Tailscale ACLs (WireGuard) → Cloudflare Access (OAuth)
+- **MFA hard gate** on all data endpoints — no data access without TOTP verification
+- **AES-256-GCM** encryption for user secrets, **Argon2id** key derivation
+- **RLS + FORCE** on all 28 Supabase tables — row-level user isolation
+- **CSP** blocks `unsafe-eval`, `object-src`, `frame-ancestors`
+- **Core dumps disabled**, debugger detection, binary integrity checks at startup
+- **Secrets zeroized** on drop — tokens cleared from memory when session ends
+- **24-hour hard session expiry** regardless of token refresh
+- **Append-only audit logs** for security-sensitive operations
+
+See [docs/SECURITY.md](docs/SECURITY.md) for the full security model, threat analysis, and contributor rules.
+
+---
 
 ## Testing
 
 ```bash
-# Frontend unit tests
+# Frontend (1039 tests)
 cd frontend && npx vitest run
 
-# Frontend type check
-cd frontend && npx tsc --noEmit
-
-# Rust tests
+# Rust (231 tests)
 cd src-tauri && cargo test
 
-# Rust linting
-cd src-tauri && cargo clippy -- -D warnings
+# Type check
+cd frontend && npx tsc --noEmit
 
-# Pre-commit (runs everything)
+# Pre-commit (runs everything: secrets scan, a11y, types, tests, build)
 ./scripts/pre-commit.sh
 ```
+
+---
 
 ## Project Structure
 
 ```
 mission-control/
-├── frontend/              # React + Vite + TypeScript
+├── frontend/                # React + Vite + TypeScript
 │   └── src/
-│       ├── components/    # Sidebar, CommandPalette, Lightbox, etc.
-│       ├── pages/         # Route pages (all lazy-loaded)
-│       ├── hooks/         # Custom React hooks
-│       └── lib/           # API client, types, keybindings, utilities
-├── src-tauri/             # Tauri v2 + Rust backend
+│       ├── components/      # Sidebar, CommandPalette, Lightbox, etc.
+│       ├── pages/           # Route pages (all lazy-loaded)
+│       ├── hooks/           # Custom React hooks
+│       └── lib/             # API client, types, keybindings, utilities
+├── src-tauri/               # Tauri v2 + Rust backend
 │   └── src/
-│       ├── main.rs        # Entry point, secrets, system tray
-│       ├── server.rs      # Axum server, middleware, CORS
-│       ├── routes/        # HTTP handlers per module
-│       └── secrets.rs     # OS keychain integration
-├── supabase/              # Database migrations
-├── scripts/               # Build and utility scripts
-└── Makefile               # Common dev commands
+│       ├── main.rs          # Entry, system tray, integrity checks
+│       ├── server.rs        # Axum server, auth middleware, rate limiting
+│       ├── routes/          # HTTP handlers per module
+│       ├── crypto.rs        # AES-256-GCM + Argon2id
+│       ├── secrets.rs       # OS keychain integration
+│       ├── sync.rs          # Offline-first SQLite ↔ Supabase sync
+│       └── audit.rs         # Append-only security audit log
+├── supabase/                # Database migrations (28 tables, RLS)
+├── docs/                    # Architecture diagrams, security docs
+├── scripts/                 # Pre-commit, e2e tests, utilities
+└── .github/workflows/       # CI (lint, test, build) + Release (all platforms)
 ```
+
+---
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. In short: fork, branch, run `./scripts/pre-commit.sh`, open a PR.
+1. Fork the repo
+2. Create a branch (`git checkout -b feature/my-feature`)
+3. Run `./scripts/pre-commit.sh` before committing
+4. Open a PR
+
+All PRs run through CI: type-check, 1039 frontend tests, 231 Rust tests, security audit, production build.
+
+---
 
 ## License
 
-[MIT](LICENSE) -- Josue Aparecedo
+[MIT](LICENSE) — Josue Aparcedo
