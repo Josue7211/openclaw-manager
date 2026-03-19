@@ -85,7 +85,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # stable
         with:
           toolchain: stable
-        with:
           targets: ${{ matrix.platform.target }}
 
       - name: Cache cargo
