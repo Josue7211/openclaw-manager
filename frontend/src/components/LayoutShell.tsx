@@ -13,6 +13,8 @@ import { getTitleBarVisible, getTitleBarAutoHide, subscribeTitleBarSettings } fr
 import { getSidebarTitleText, getSidebarDefaultWidth, subscribeSidebarSettings } from '@/lib/sidebar-settings'
 import { isDemoMode } from '@/lib/demo-data'
 import { DemoModeBanner } from '@/components/DemoModeBanner'
+import { ToastProvider } from '@/components/ui/Toast'
+import { NavigationProgressBar } from '@/components/ui/ProgressBar'
 
 const _isDemo = isDemoMode()
 
@@ -139,6 +141,7 @@ export default function LayoutShell() {
   }
 
   return (
+    <ToastProvider>
     <div style={{
       display: 'flex',
       flexDirection: 'column',
@@ -147,6 +150,7 @@ export default function LayoutShell() {
       position: 'relative',
       zIndex: 1,
     }}>
+      <NavigationProgressBar />
       {/* Custom macOS-style title bar */}
       <>
         {/* Hover trigger zone when title bar is auto-hidden */}
@@ -297,5 +301,6 @@ export default function LayoutShell() {
       </Suspense>
       </div>
     </div>
+    </ToastProvider>
   )
 }
