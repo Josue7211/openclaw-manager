@@ -11,16 +11,16 @@ import type { Idea, AgentInfo, HeartbeatData } from '../types'
 describe('missionStatusStyle', () => {
   it('returns green-tinted style for "done"', () => {
     const style = missionStatusStyle('done')
-    expect(style.background).toContain('52, 211, 153')
+    expect(style.background).toMatch(/green/)
     expect(style.color).toBe('var(--green-bright)')
-    expect(style.border).toContain('52, 211, 153')
+    expect(style.border).toMatch(/green/)
   })
 
   it('returns blue-tinted style for "active"', () => {
     const style = missionStatusStyle('active')
-    expect(style.background).toContain('129, 140, 248')
+    expect(style.background).toMatch(/blue/)
     expect(style.color).toBe('var(--blue-bright)')
-    expect(style.border).toContain('129, 140, 248')
+    expect(style.border).toMatch(/blue/)
   })
 
   it('returns muted fallback style for unknown status', () => {

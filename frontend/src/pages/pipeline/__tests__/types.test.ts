@@ -160,16 +160,16 @@ describe('CATEGORY_COLORS', () => {
     expect(CATEGORY_COLORS.routing).toBe('var(--accent-dim)')
   })
 
-  it('maps delegation to a hex color', () => {
-    expect(CATEGORY_COLORS.delegation).toBe('#0891b2')
+  it('maps delegation to a CSS variable', () => {
+    expect(CATEGORY_COLORS.delegation).toMatch(/^var\(--.+\)$/)
   })
 
-  it('maps user-preferences to a hex color', () => {
-    expect(CATEGORY_COLORS['user-preferences']).toBe('#059669')
+  it('maps user-preferences to a CSS variable', () => {
+    expect(CATEGORY_COLORS['user-preferences']).toMatch(/^var\(--.+\)$/)
   })
 
-  it('maps lessons to a hex color', () => {
-    expect(CATEGORY_COLORS.lessons).toBe('#d97706')
+  it('maps lessons to a CSS variable', () => {
+    expect(CATEGORY_COLORS.lessons).toMatch(/^var\(--.+\)$/)
   })
 })
 

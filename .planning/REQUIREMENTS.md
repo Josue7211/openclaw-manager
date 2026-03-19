@@ -20,11 +20,11 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 
 - [ ] **POLISH-01**: All hardcoded color values (rgba, hex, hsl in JSX/TS) migrated to CSS variables
 - [x] **POLISH-02**: Consistent spacing scale applied across all 17+ pages
-- [ ] **POLISH-03**: Unified button hierarchy (primary, secondary, ghost, danger) used consistently
+- [x] **POLISH-03**: Unified button hierarchy (primary, secondary, ghost, danger) used consistently
 - [x] **POLISH-04**: Consistent typography scale (headings, body, captions, labels)
-- [ ] **POLISH-05**: Shared `<LoadingState>` component used on all async pages/widgets
-- [ ] **POLISH-06**: Shared `<ErrorState>` component with retry action on all failable pages/widgets
-- [ ] **POLISH-07**: Shared `<EmptyState>` component with contextual guidance on all list/data pages
+- [x] **POLISH-05**: Shared `<LoadingState>` component used on all async pages/widgets
+- [x] **POLISH-06**: Shared `<ErrorState>` component with retry action on all failable pages/widgets
+- [x] **POLISH-07**: Shared `<EmptyState>` component with contextual guidance on all list/data pages
 - [ ] **POLISH-08**: Consistent icon style across all modules (no mixed icon sets)
 - [x] **POLISH-09**: Consistent border-radius and shadow depth across all card/panel components
 

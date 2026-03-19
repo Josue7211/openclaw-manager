@@ -30,11 +30,10 @@ describe('PALETTE', () => {
     }
   })
 
-  it('contains both CSS variable and hex colors', () => {
-    const hasVar = PALETTE.some(c => c.startsWith('var('))
-    const hasHex = PALETTE.some(c => c.startsWith('#'))
-    expect(hasVar).toBe(true)
-    expect(hasHex).toBe(true)
+  it('all entries are CSS variable references', () => {
+    for (const c of PALETTE) {
+      expect(c).toMatch(/^var\(--.+\)$/)
+    }
   })
 })
 

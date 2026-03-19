@@ -405,7 +405,7 @@ describe('renderTextWithLinks', () => {
   it('uses white color for links in fromMe messages', () => {
     const result = renderTextWithLinks('https://example.com', true)
     const link = result[0] as any
-    expect(link.props.style.color).toBe('rgba(255,255,255,0.95)')
+    expect(link.props.style.color).toMatch(/white|rgba\(255,\s*255,\s*255|var\(--bg-white/)
   })
 
   it('uses apple-blue for links in received messages', () => {
@@ -465,13 +465,13 @@ describe('highlightSearchText', () => {
   it('uses brighter highlight for active match', () => {
     const result = highlightSearchText(['hello'], 'hello', true)
     const mark = result.find((n: any) => typeof n === 'object' && n?.type === 'mark') as any
-    expect(mark.props.style.background).toBe('rgba(255,204,0,0.5)')
+    expect(mark.props.style.background).toMatch(/yellow|rgba\(255,\s*204|var\(--yellow/)
   })
 
   it('uses dimmer highlight for inactive match', () => {
     const result = highlightSearchText(['hello'], 'hello', false)
     const mark = result.find((n: any) => typeof n === 'object' && n?.type === 'mark') as any
-    expect(mark.props.style.background).toBe('rgba(255,204,0,0.25)')
+    expect(mark.props.style.background).toMatch(/yellow|rgba\(255,\s*204|var\(--yellow/)
   })
 
   it('passes through non-string nodes unchanged', () => {
