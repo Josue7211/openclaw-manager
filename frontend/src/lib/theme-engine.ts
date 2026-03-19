@@ -161,6 +161,14 @@ export function applyFontScale(scale: number | undefined): void {
 // ---------------------------------------------------------------------------
 
 /**
+ * Detect WebKitGTK — Tauri's WebView on Linux. Its startViewTransition
+ * implementation crashes the renderer when flushSync mutates the DOM
+ * inside the transition callback.
+ */
+const isWebKitGTK =
+  typeof navigator !== 'undefined' && /WebKitGTK/.test(navigator.userAgent)
+
+/**
  * Animate theme switch using View Transitions API with a circular clip-path
  * expanding from the click coordinates. Falls back to instant apply if the
  * API is unavailable or an error occurs.
@@ -170,8 +178,8 @@ export function performRippleTransition(
   x: number,
   y: number,
 ): void {
-  // Feature-detect View Transitions API (Pitfall #2: may be missing in WebKitGTK)
-  if (typeof document.startViewTransition !== 'function') {
+  // Feature-detect View Transitions API; skip on WebKitGTK where it crashes
+  if (typeof document.startViewTransition !== 'function' || isWebKitGTK) {
     applyFn()
     return
   }
@@ -235,9 +243,14 @@ export function applyTheme(
     const accent = overrides?.accent ?? def.colors.accent
     applyAccentColor(accent)
 
-    // 3. Apply glow color
-    const glow = overrides?.glow ?? def.colors['glow-top-rgb']
-    applyGlowColor(glow)
+    // 3. Apply glow color — theme defs store glow as RGB string ('r, g, b'),
+    //    user overrides store as hex. applyGlowColor expects hex, so set
+    //    the CSS variable directly when using the theme default.
+    if (overrides?.glow) {
+      applyGlowColor(overrides.glow)
+    } else {
+      el.style.setProperty('--glow-top-rgb', def.colors['glow-top-rgb'] ?? '139, 92, 246')
+    }
 
     // 4. Apply secondary accent
     const secondary = overrides?.secondary ?? def.colors['accent-secondary'] ?? DEFAULT_SECONDARY
