@@ -1,26 +1,60 @@
-# State
-
-## Current Position
-
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-19 — Milestone v0.1.0 started
+# Project State
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Every external service proxied through local Axum server. Frontend never touches remote services. Secrets in OS keychain.
-**Current focus:** Onboarding wizard redesign
+**Current focus:** Phase 1 — Wizard State Foundation
+
+## Current Position
+
+Phase: 1 of 5 (Wizard State Foundation)
+Plan: 0 of TBD in current phase
+Status: Ready to plan
+Last activity: 2026-03-19 — Roadmap created for v0.1.0
+
+Progress: [░░░░░░░░░░] 0%
+
+## Performance Metrics
+
+**Velocity:**
+- Total plans completed: 0
+- Average duration: —
+- Total execution time: —
+
+**By Phase:**
+
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| - | - | - | - |
+
+**Recent Trend:**
+- No plans completed yet
+- Trend: —
+
+*Updated after each plan completion*
 
 ## Accumulated Context
 
-- Existing wizard is ~700 lines in OnboardingWelcome.tsx
-- Has SERVICE_GROUPS config for each service (BlueBubbles, OpenClaw, Homelab, Media, Email, Calendar, ntfy, Anthropic)
-- Each group has fields, keychain keys, test endpoints, skip labels
-- Wizard loads keychain values on mount but doesn't persist across step navigation
-- Demo mode exists via isDemoMode() (detects missing VITE_SUPABASE_URL)
-- Supabase step uses direct fetch() for connection test (browser-side)
-- Service steps use /api/status/connections for tests (requires running backend + auth)
-- Connection tests fail with 401 on fresh install because user isn't authenticated yet
+### Decisions
+
+Recent decisions affecting current work:
+- [Setup]: Full rewrite approved — not a patch job on existing OnboardingWelcome.tsx
+- [Setup]: Supabase gets its own phase because it is the auth layer that gates everything else
+- [Setup]: Phase 4 (Demo Mode) depends only on Phase 1, not Phase 3 — demo mode must work even if service steps are not done
+
+### Pending Todos
+
+None yet.
+
+### Blockers/Concerns
+
+- Connection tests use /api/status/connections which requires auth — Phase 3 must handle the pre-auth context gracefully
+- Existing wizard code structure (SERVICE_GROUPS, field configs, keychain keys) can be reused but the state machine must be rebuilt
+
+## Session Continuity
+
+Last session: 2026-03-19
+Stopped at: Roadmap written, requirements traced, ready to plan Phase 1
+Resume file: None
