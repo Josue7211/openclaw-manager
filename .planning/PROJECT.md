@@ -2,11 +2,11 @@
 
 ## What This Is
 
-A self-hosted desktop app (Tauri v2 + Axum + React) that unifies personal infrastructure — iMessage, AI chat, task management, homelab monitoring, and agent orchestration — into one interface. Open source. All integrations are modular. Users enable only what they have.
+An all-in-one life productivity desktop app (Tauri v2 + Axum + React) that connects AI (OpenClaw) to automate and simplify everything — iMessage, tasks, notes, calendar, homelab, finance, health, and more. Highly modular and customizable: users enable only what they have, and an AI agent (Bjorn) can create entirely new modules on demand. Open source, designed for homelab enthusiasts and power users, but accessible enough for less tech-savvy people to set up.
 
 ## Core Value
 
-Every external service is proxied through a single local Axum server. The frontend never touches remote services directly. Secrets live in the OS keychain, never in source.
+The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside the running app — making it infinitely extensible without the user writing code.
 
 ## Requirements
 
@@ -24,59 +24,71 @@ Every external service is proxied through a single local Axum server. The fronte
 - ✓ Apple Reminders via Mac Bridge — v0.0.1
 - ✓ OAuth PKCE + MFA authentication — v0.0.1
 - ✓ AES-256-GCM encrypted user secrets — v0.0.1
-- ✓ Offline-first SQLite ↔ Supabase sync (30s interval) — v0.0.1
-- ✓ Tailscale agent access (MC_BIND_HOST + MC_AGENT_KEY) — v0.0.1
+- ✓ Offline-first SQLite ↔ Supabase sync — v0.0.1
+- ✓ Tailscale agent access — v0.0.1
 - ✓ CI release builds (Linux + macOS + Windows) — v0.0.1
-- ✓ 13-agent security sweep (score 96/100) — v0.0.1
-- ✓ Demo mode with sample data — v0.0.1
+- ✓ Security sweep (score 96/100) — v0.0.1
 
 ### Active
 
-- [ ] Onboarding wizard redesign (full first-time setup experience)
+- [ ] Setup wizard (onboarding, service connections, first-run experience)
+- [ ] Bjorn module builder (AI-generated modules with dev preview panel + hot reload)
+- [ ] Pre-built module primitives (charts, lists, forms) for Bjorn to compose from
+- [ ] Free-form dashboard grid (drag/resize/swap widgets, snap to grid cells)
+- [ ] Dashboard edit mode (enter/exit, rearrange widgets, add/remove)
+- [ ] Theming system — curated presets (light/dark base, accent colors)
+- [ ] Theming system — advanced CSS variable editor for full customization
+- [ ] Theme import/export and community sharing
+- [ ] Discord-style sidebar (modular categories, collapsible sections, activity indicators)
+- [ ] Seamless page transitions (no reloads, content stays loaded in background)
+- [ ] Notes overhaul — wiki-style [[linking]] with backlinks and graph view
+- [ ] Notes overhaul — rich text WYSIWYG editing (toolbar, inline images, tables, code blocks)
+- [ ] Notes overhaul — full-text search, tags, folders, starred notes
+- [ ] Notes overhaul — collaboration (sharing, permissions, real-time co-editing)
+- [ ] Responsive/adaptive layout (window resizing, multi-monitor, 1080p ↔ 1440p seamless)
+- [ ] Visual consistency across all pages (unified design language)
+- [ ] Loading states, error messages, empty states polish
+- [ ] Finance / budgeting module
+- [ ] Health / fitness module
+- [ ] Bookmarks / read-later module
+- [ ] Unread badges, notification counts per page
+- [ ] Simplified setup for non-technical users (cloud setup path)
 
 ### Out of Scope
 
-- Native mobile app — web-first desktop, mobile deferred
-- Real-time collaborative editing — single-user app
-- Embedded noVNC VM viewer — planned for future milestone
-
-## Current Milestone: v0.1.0 Onboarding Wizard Redesign
-
-**Goal:** A polished, functional first-time setup experience that guides new users from zero to a working app, with demo mode as an escape hatch.
-
-**Target features:**
-- Persistent field values across wizard navigation
-- "Skip to Demo" button on every step
-- Connection tests that handle unconfigured services gracefully
-- Pre-fill from .env.local / keychain when available
-- Supabase step saves to keychain
-- Clean, modern multi-step wizard UI
+- Native mobile app — web-first desktop app, mobile deferred
+- Self-hosted Matrix integration — future collaboration feature, not v1
+- Real-time chat (non-iMessage) — defer to Matrix integration later
+- Video posts / media hosting — storage/bandwidth concerns, defer
 
 ## Context
 
-- App just shipped v0.0.1 with production builds for all platforms
-- Current onboarding wizard has critical bugs: fields don't persist when navigating back, no demo mode escape, connection tests 401 on fresh installs, Supabase values not saved to keychain
-- User tested fresh install on Mac — wizard is non-functional for first-time users
-- Full redesign approved by user (not a patch job)
-- Existing wizard code is in `frontend/src/components/OnboardingWelcome.tsx` (~700 lines)
-- The app already has a working demo mode (`isDemoMode()` in `lib/demo-data.ts`)
+The app is in alpha. Core modules exist and work but need significant polish — visual inconsistency between pages, broken features (note linking doesn't work), poor responsive behavior (window resizing breaks layout, monitor switching isn't seamless), and missing feedback states throughout.
+
+The existing codebase has 1039 frontend tests, 231 Rust tests, and 21 E2E tests. Security score is 96/100. The foundation is solid but the UX needs to catch up.
+
+Bjorn is an existing AI agent running on the OpenClaw VM. The challenge is bridging Bjorn's code generation into the running Tauri app safely — sandboxed preview, approval flow, then hot reload into production. This is the differentiating feature.
+
+A v0.1.0 setup wizard milestone is already planned (archived at `.planning-v0.1.0-wizard/`) and will be completed as part of this project.
 
 ## Constraints
 
-- **Security**: Secrets must go through OS keychain (Tauri `invoke`), never localStorage
-- **Accessibility**: All interactive elements must have ARIA labels, focus traps on modals
-- **CSS**: Use CSS variables from globals.css, never hardcode colors
-- **Modules**: Each service step should respect enabled modules from `lib/modules.ts`
-- **Cross-platform**: Must work in Tauri WebView on Linux, macOS, Windows
+- **Tech stack**: Tauri v2 + Axum + React — locked in, massive existing codebase
+- **Security**: Zero private data in repo, all secrets via OS keychain, no telemetry
+- **Infrastructure**: All services over Tailscale mesh VPN, self-hosted Supabase
+- **Distribution**: Binary download + setup wizard — no Docker required for the app itself
+- **Accessibility**: WCAG compliance non-negotiable (buttons not divs, aria labels, focus traps)
+- **Open source**: Everything must work without personal data, demo mode for showcase
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Rename to OpenClaw Manager | Reflects the OpenClaw ecosystem branding | ✓ Good |
-| Drop Intel Mac builds | Apple Silicon only, Intel Mac dying | ✓ Good |
-| MC_AGENT_KEY for Tailscale access | Stable key for external agents (Bjorn) | ✓ Good |
-| Axum binds to 0.0.0.0 via MC_BIND_HOST | Enables Tailscale agent access | ✓ Good |
+| Bjorn modules sandboxed via dev preview panel | Prevents AI-generated code from crashing production app | — Pending |
+| Free-form grid over slot-based dashboard | More flexibility, matches iOS widget paradigm | — Pending |
+| Layered theming (presets + advanced editor) | Accessible for casual users, powerful for tinkerers | — Pending |
+| Everything in parallel (polish + features + Bjorn) | All workstreams are load-bearing for v1.0 publish | — Pending |
+| Download binary + setup wizard for distribution | Simplest path for users, Docker only for backend services | — Pending |
 
 ---
-*Last updated: 2026-03-19 after v0.0.1 release*
+*Last updated: 2026-03-19 after project initialization*
