@@ -35,8 +35,8 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 - [x] **THEME-03**: Theme selection persisted to Supabase via existing preferences-sync
 - [x] **THEME-04**: Theme applies instantly without page reload
 - [x] **THEME-05**: All UI elements respect active theme (zero hardcoded colors remaining after POLISH-01)
-- [ ] **THEME-06**: Theme import from JSON file
-- [ ] **THEME-07**: Theme export as JSON file
+- [x] **THEME-06**: Theme import from JSON file
+- [x] **THEME-07**: Theme export as JSON file
 - [ ] **THEME-08**: Smooth transition animation when switching themes
 
 ### Setup Wizard
@@ -196,8 +196,8 @@ Deferred to post-v1.0 release. Tracked but not in current roadmap.
 | THEME-03 | Phase 2 | Complete |
 | THEME-04 | Phase 2 | Complete |
 | THEME-05 | Phase 2 | Complete |
-| THEME-06 | Phase 2 | Pending |
-| THEME-07 | Phase 2 | Pending |
+| THEME-06 | Phase 2 | Complete |
+| THEME-07 | Phase 2 | Complete |
 | THEME-08 | Phase 2 | Pending |
 | WIZARD-01 | Phase 3 | Pending |
 | WIZARD-02 | Phase 3 | Pending |
