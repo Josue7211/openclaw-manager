@@ -41,20 +41,21 @@ export function resolveThemeDefinition(state: ThemeState): ThemeDefinition {
 
   const resolved = found ?? fallback
 
-  if (state.mode === 'system') {
-    const osLight =
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(prefers-color-scheme: light)').matches
+  if (state.mode === 'system' && typeof window.matchMedia === 'function') {
+    // Check BOTH media queries — on Linux (WebKitGTK), neither may match
+    // when xdg-desktop-portal hasn't announced a preference. In that case,
+    // keep the user's selected theme as-is (don't force a mode switch).
+    const osDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const osLight = window.matchMedia('(prefers-color-scheme: light)').matches
     const isLightTheme = resolved.category === 'light'
 
-    if (osLight && !isLightTheme) {
-      // OS wants light but theme is dark/colorful/high-contrast-dark
+    if (osLight && !osDark && !isLightTheme) {
       return getThemeById('default-light') ?? fallback
     }
-    if (!osLight && isLightTheme) {
-      // OS wants dark but theme is light
+    if (osDark && !osLight && isLightTheme) {
       return fallback // default-dark
     }
+    // Neither or both match → no reliable OS preference → keep selected theme
   }
 
   return resolved
