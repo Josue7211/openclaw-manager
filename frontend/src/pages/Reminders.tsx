@@ -3,6 +3,8 @@
 
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { Bell, ArrowsClockwise, WarningCircle } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { ErrorState } from '@/components/ui/ErrorState'
 import { useTauriQuery } from '@/hooks/useTauriQuery'
 import { useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -228,13 +230,7 @@ export default function RemindersPage() {
 
       {/* Error */}
       {errorMsg && (
-        <div style={{
-          padding: '12px 16px', borderRadius: '8px', marginBottom: '16px',
-          background: 'var(--red-a12)', border: '1px solid var(--red-a30)',
-          color: 'var(--red-bright)', fontSize: '12px',
-        }}>
-          {errorMsg}
-        </div>
+        <ErrorState resource="reminders" onRetry={() => refetch()} />
       )}
 
       {/* Loading */}
@@ -254,9 +250,10 @@ export default function RemindersPage() {
       {!loading && !errorMsg && (
         <>
           {filtered.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic' }}>
-              {filter === 'today' ? 'Nothing due today' : filter === 'scheduled' ? 'No scheduled reminders' : filter === 'flagged' ? 'No flagged reminders' : 'All caught up!'}
-            </div>
+            <EmptyState
+              icon={Bell}
+              title={filter === 'today' ? 'Nothing due today' : filter === 'scheduled' ? 'No scheduled reminders' : filter === 'flagged' ? 'No flagged reminders' : 'All caught up!'}
+            />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               {Object.entries(grouped).map(([listName, items]) => (

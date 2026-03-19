@@ -3,10 +3,12 @@
 
 import { useState, useCallback } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { Brain, Scroll } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
 import { timeAgo } from '@/lib/utils'
 import { SkeletonList } from '@/components/Skeleton'
 import { PageHeader } from '@/components/PageHeader'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 interface FileItem {
   name: string
@@ -156,7 +158,9 @@ export default function MemoryPage() {
                 Workspace Files
               </div>
               {filteredCore.length === 0 && (
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '4px 12px' }}>{q ? 'No matches' : 'No files found'}</div>
+                <div style={{ padding: '8px 0' }}>
+                  <EmptyState icon={Brain} title={q ? 'No matches' : 'No files found'} />
+                </div>
               )}
               {filteredCore.map(f => (
                 <FileRow
@@ -181,7 +185,9 @@ export default function MemoryPage() {
                 Memory Logs
               </div>
               {filteredMemory.length === 0 && (
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '4px 12px' }}>{q ? 'No matches' : 'No logs found'}</div>
+                <div style={{ padding: '8px 0' }}>
+                  <EmptyState icon={Scroll} title={q ? 'No matches' : 'No logs found'} />
+                </div>
               )}
               {filteredMemory.map(f => (
                 <FileRow

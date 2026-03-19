@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
-import { Star, Trash, X, Eye, EyeSlash } from '@phosphor-icons/react'
+import { Star, Trash, X, Eye, EyeSlash, EnvelopeSimple } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
 import type { EmailAccount, AccountForm } from './types'
@@ -238,9 +239,9 @@ export function ManagePanel({
           </div>
 
           {accounts.length === 0 && !editingAccount && (
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, textAlign: 'center' }}>
-              No accounts yet. Add one above.
-            </p>
+            <div style={{ padding: '16px 0' }}>
+              <EmptyState icon={EnvelopeSimple} title="No accounts yet" description="Add an email account above." />
+            </div>
           )}
         </div>
       </div>

@@ -5,6 +5,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Envelope, ArrowsClockwise, WarningCircle, Gear } from '@phosphor-icons/react'
+import { ErrorState } from '@/components/ui/ErrorState'
 import { SkeletonList } from '@/components/Skeleton'
 
 import { api } from '@/lib/api'
@@ -302,13 +303,7 @@ export default function EmailPage() {
 
       {/* Error */}
       {error && (
-        <div style={{
-          padding: '12px 16px', borderRadius: '8px', marginBottom: '16px',
-          background: 'var(--red-a12)', border: '1px solid var(--red-a30)',
-          color: 'var(--red-bright)', fontSize: '12px',
-        }}>
-          {error}
-        </div>
+        <ErrorState resource="emails" onRetry={() => refetchEmails()} />
       )}
 
       {/* Missing creds banner (accounts exist but selected has issue) */}

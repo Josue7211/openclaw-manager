@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChatText, ArrowsClockwise, MagnifyingGlass, Check, NotePencil, BellSlash, PushPin } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { formatContactLabel } from '@/lib/utils'
 import { ContactAvatar, GroupAvatar } from '@/components/messages/ContactAvatar'
 import { cleanPayloadText } from '@/hooks/messages'
@@ -307,16 +308,7 @@ export default function ConversationList({
       >
         {loading && !isDemoMode() && <MessagesConversationSkeleton />}
         {!loading && conversations.length === 0 && !searchQuery && !isDemoMode() && (
-          <div style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            padding: '48px 16px', color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', gap: '12px',
-          }}>
-            <ChatText size={32} style={{ opacity: 0.3 }} />
-            <div>
-              <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '4px' }}>No conversations yet</div>
-              <div style={{ fontSize: '12px', fontFamily: 'monospace' }}>Messages will appear here once available</div>
-            </div>
-          </div>
+          <EmptyState icon={ChatText} title="No conversations yet" description="Messages will appear here once available." />
         )}
         {!loading && conversations.length === 0 && !searchQuery && isDemoMode() && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', padding: '4px 0' }}>
@@ -358,12 +350,8 @@ export default function ConversationList({
           </div>
         )}
         {!loading && filteredConversations.length === 0 && searchQuery && (
-          <div style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            padding: '32px 16px', color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', gap: '8px',
-          }}>
-            <MagnifyingGlass size={20} style={{ opacity: 0.4 }} />
-            <span>No conversations match your search</span>
+          <div style={{ padding: '16px 0' }}>
+            <EmptyState icon={MagnifyingGlass} title="No conversations match your search" />
           </div>
         )}
         {!loading && filteredConversations.length > 0 && (

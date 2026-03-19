@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { Trash } from '@phosphor-icons/react'
+import { Trash, Timer } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
 import type { SessionEntry } from './types'
 import { MODE_LABELS, todayStr, toDateKey } from './types'
 
@@ -115,8 +116,8 @@ export default function SessionSidebar({
 
             <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', marginBottom: '16px' }}>
               {todaySessions.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic' }}>
-                  No sessions yet — start the timer
+                <div style={{ padding: '8px 0' }}>
+                  <EmptyState icon={Timer} title="No sessions yet" description="Start the timer to track your focus." />
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>

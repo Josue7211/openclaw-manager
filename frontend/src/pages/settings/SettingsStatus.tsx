@@ -4,6 +4,7 @@ import { Desktop, WifiHigh, Database, Info, ArrowsClockwise, Clock, HardDrive, S
 
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -310,8 +311,8 @@ export default memo(function SettingsStatus() {
           {tsLoading ? (
             <StatusLoadingSkeleton rows={3} />
           ) : uniquePeers.length === 0 ? (
-            <div style={{ fontSize: '13px', color: 'var(--text-muted)', padding: '8px 0' }}>
-              No peers found (tailscale may not be installed)
+            <div style={{ padding: '8px 0' }}>
+              <EmptyState icon={WifiHigh} title="No peers found" description="Tailscale may not be installed or running." />
             </div>
           ) : (
             uniquePeers.map((peer, i) => {

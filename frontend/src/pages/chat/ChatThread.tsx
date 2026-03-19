@@ -1,5 +1,6 @@
 import { useRef, useCallback, lazy, Suspense } from 'react'
-import { CaretDown } from '@phosphor-icons/react'
+import { CaretDown, ChatCircle } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { type LightboxData } from '@/components/Lightbox'
 import { formatTime } from '@/lib/utils'
 import type { ChatMessage, OptimisticMsg } from './types'
@@ -83,12 +84,8 @@ export default function ChatThread({
             ))}
           </div>
         ) : messages.length === 0 ? (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', gap: '12px', paddingTop: '80px' }}>
-            <span style={{ fontSize: '48px' }}>&#x1F9AC;</span>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '4px' }}>No messages yet</div>
-              <div style={{ fontSize: '12px', fontFamily: 'monospace' }}>Paste or drag images &middot; Shift+Enter for newline</div>
-            </div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <EmptyState icon={ChatCircle} title="No messages yet" description="Paste or drag images. Shift+Enter for newline." />
           </div>
         ) : null}
 

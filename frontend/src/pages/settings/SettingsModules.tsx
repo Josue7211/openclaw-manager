@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useSyncExternalStore } from 'react'
-import { FileText, Plus, Trash, PencilSimple, ArrowUp, ArrowDown, EyeSlash, DotsSixVertical } from '@phosphor-icons/react'
+import { FileText, Plus, Trash, PencilSimple, ArrowUp, ArrowDown, EyeSlash, DotsSixVertical, Recycle } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { APP_MODULES, getEnabledModules, setEnabledModules, subscribeModules } from '@/lib/modules'
 import {
   getSidebarConfig, setSidebarConfig, resetSidebarConfig, subscribeSidebarConfig,
@@ -1207,8 +1208,8 @@ export default function SettingsModules() {
           >
             <div style={{ padding: '4px 0', minHeight: '60px' }}>
               {deleted.length === 0 && (sidebarConfig.recycledCategories || []).length === 0 && (
-                <div style={{ padding: '16px 12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px', fontStyle: 'italic' }}>
-                  Recycle bin is empty
+                <div style={{ padding: '8px 0' }}>
+                  <EmptyState icon={Recycle} title="Recycle bin is empty" />
                 </div>
               )}
               {deleted.map(d => {

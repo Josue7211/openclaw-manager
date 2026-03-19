@@ -2,7 +2,8 @@
 
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
-import { ChatText, WarningCircle, BellSlash, PushPin } from '@phosphor-icons/react'
+import { ChatText, BellSlash, PushPin } from '@phosphor-icons/react'
+import { ErrorState } from '@/components/ui/ErrorState'
 
 import { useSearchParams } from 'react-router-dom'
 import { api } from '@/lib/api'
@@ -644,50 +645,33 @@ export default function MessagesPage() {
   /* ── Error state ── */
 
   if (error) {
+    if (error === 'bluebubbles_not_configured') {
+      return (
+        <div style={{ maxWidth: '560px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px' }}>
+            <ChatText size={20} style={{ color: 'var(--accent)' }} />
+            <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700 }}>Messages</h1>
+          </div>
+          <div className="card" style={{ padding: '32px', textAlign: 'center' }}>
+            <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600 }}>BlueBubbles not configured</h2>
+            <p style={{ margin: '0 0 20px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              Messages requires BlueBubbles running on your Mac.
+            </p>
+            <div style={{
+              background: 'var(--bg-base)', borderRadius: '8px', border: '1px solid var(--border)',
+              padding: '16px 20px', textAlign: 'left', fontFamily: 'monospace', fontSize: '12px',
+              color: 'var(--text-secondary)', lineHeight: 2,
+            }}>
+              <div><span style={{ color: 'var(--text-muted)' }}># .env.local</span></div>
+              <div>BLUEBUBBLES_HOST=http://mac-tailscale-ip:1234</div>
+              <div>BLUEBUBBLES_PASSWORD=your-server-password</div>
+            </div>
+          </div>
+        </div>
+      )
+    }
     return (
-      <div style={{ maxWidth: '560px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px' }}>
-          <ChatText size={20} style={{ color: 'var(--accent)' }} />
-          <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700 }}>Messages</h1>
-        </div>
-        <div className="card" style={{ padding: '32px', textAlign: 'center' }}>
-          <WarningCircle size={32} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
-          {error === 'bluebubbles_not_configured' ? (
-            <>
-              <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600 }}>BlueBubbles not configured</h2>
-              <p style={{ margin: '0 0 20px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                Messages requires BlueBubbles running on your Mac.
-              </p>
-              <div style={{
-                background: 'var(--bg-base)', borderRadius: '8px', border: '1px solid var(--border)',
-                padding: '16px 20px', textAlign: 'left', fontFamily: 'monospace', fontSize: '12px',
-                color: 'var(--text-secondary)', lineHeight: 2,
-              }}>
-                <div><span style={{ color: 'var(--text-muted)' }}># .env.local</span></div>
-                <div>BLUEBUBBLES_HOST=http://mac-tailscale-ip:1234</div>
-                <div>BLUEBUBBLES_PASSWORD=your-server-password</div>
-              </div>
-            </>
-          ) : (
-            <>
-              <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600 }}>Connection error</h2>
-              <p style={{ margin: '0 0 16px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                Could not reach BlueBubbles server.
-              </p>
-              <button
-                onClick={() => { setError(null); fetchConversations() }}
-                style={{
-                  marginTop: '16px', padding: '8px 20px', fontSize: '13px', fontWeight: 500,
-                  background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                  borderRadius: '8px', color: 'var(--text-primary)', cursor: 'pointer',
-                }}
-              >
-                Retry
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      <ErrorState resource="messages" onRetry={() => { setError(null); fetchConversations() }} />
     )
   }
 
