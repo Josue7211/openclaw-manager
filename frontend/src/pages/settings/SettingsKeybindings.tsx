@@ -4,7 +4,8 @@ import {
   getModifierKey, getModifierList, addModifier, removeModifier, reorderModifiers,
   getBindingMod, keyToModifier, modLabel,
 } from '@/lib/keybindings'
-import { row, btnSecondary, sectionLabel } from './shared'
+import { Button } from '@/components/ui/Button'
+import { row, sectionLabel } from './shared'
 
 export default function SettingsKeybindings() {
   const bindings = useSyncExternalStore(subscribeKeybindings, getKeybindings)
@@ -243,9 +244,9 @@ export default function SettingsKeybindings() {
         )
       })}
       <div style={{ marginTop: '16px' }}>
-        <button style={{ ...btnSecondary, color: 'var(--text-muted)' }} onClick={() => { resetKeybindings(); setEditingBindingId(null) }}>
+        <Button variant="secondary" onClick={() => { resetKeybindings(); setEditingBindingId(null) }} style={{ fontSize: '12px', padding: '8px 16px', color: 'var(--text-muted)' }}>
           Reset to defaults
-        </button>
+        </Button>
       </div>
     </div>
   )

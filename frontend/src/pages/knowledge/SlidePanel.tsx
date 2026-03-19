@@ -1,6 +1,7 @@
 import { X, ArrowSquareOut, Trash } from '@phosphor-icons/react'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
+import { Button } from '@/components/ui/Button'
 import type { KnowledgeEntry } from './shared'
 
 interface SlidePanelProps {
@@ -57,39 +58,23 @@ export function SlidePanel({ entry, onClose, onDelete }: SlidePanelProps) {
             {entry.title}
           </h2>
           <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-            <button
+            <Button
+              variant="ghost"
               onClick={onDelete}
               title="Delete entry"
               aria-label="Delete entry"
-              style={{
-                background: 'transparent',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                color: 'var(--text-muted)',
-                padding: '6px',
-                display: 'flex',
-                alignItems: 'center',
-              }}
+              style={{ padding: '6px', display: 'flex', alignItems: 'center', border: '1px solid var(--border)', borderRadius: '6px' }}
             >
               <Trash size={14} />
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
               onClick={onClose}
               aria-label="Close"
-              style={{
-                background: 'transparent',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                color: 'var(--text-muted)',
-                padding: '6px',
-                display: 'flex',
-                alignItems: 'center',
-              }}
+              style={{ padding: '6px', display: 'flex', alignItems: 'center', border: '1px solid var(--border)', borderRadius: '6px' }}
             >
               <X size={14} />
-            </button>
+            </Button>
           </div>
         </div>
 

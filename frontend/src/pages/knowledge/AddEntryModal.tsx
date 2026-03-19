@@ -3,6 +3,7 @@ import { X } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
+import { Button } from '@/components/ui/Button'
 
 interface AddEntryModalProps {
   onClose: () => void
@@ -147,23 +148,13 @@ export function AddEntryModal({ onClose, onAdded }: AddEntryModalProps) {
             </div>
           )}
 
-          <button
+          <Button
             type="submit"
+            variant="primary"
             disabled={loading}
-            style={{
-              padding: '10px',
-              borderRadius: '8px',
-              border: 'none',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              background: 'var(--purple-a20)',
-              color: 'var(--accent-bright)',
-              fontWeight: 600,
-              fontSize: '13px',
-              opacity: loading ? 0.7 : 1,
-            }}
           >
             {loading ? 'Adding...' : 'Add Entry'}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

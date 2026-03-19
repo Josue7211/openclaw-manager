@@ -4,7 +4,8 @@ import { api } from '@/lib/api'
 import { isDemoMode } from '@/lib/demo-data'
 import { useSaveSecret } from '@/hooks/useUserSecrets'
 import OnboardingWelcome, { resetSetupWizard } from '@/components/OnboardingWelcome'
-import { row, rowLast, val, inputStyle, btnStyle, btnSecondary, sectionLabel } from './shared'
+import { Button } from '@/components/ui/Button'
+import { row, rowLast, val, inputStyle, sectionLabel } from './shared'
 
 export default function SettingsConnections() {
   const [bbUrl, setBbUrl] = useState('')
@@ -222,12 +223,12 @@ export default function SettingsConnections() {
       </div>
 
       <div style={{ display: 'flex', gap: '8px', marginTop: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <button style={btnStyle} onClick={saveConnections} disabled={connSaving}>
+        <Button variant="primary" onClick={saveConnections} disabled={connSaving} style={{ fontSize: '12px', padding: '8px 16px' }}>
           {connSaving ? 'Saving...' : 'Save'}
-        </button>
-        <button style={btnSecondary} onClick={testConnections} disabled={connTesting}>
+        </Button>
+        <Button variant="secondary" onClick={testConnections} disabled={connTesting} style={{ fontSize: '12px', padding: '8px 16px' }}>
           {connTesting ? 'Testing...' : 'Test All'}
-        </button>
+        </Button>
         {connSaveStatus && (
           <span style={{ fontSize: '12px', fontFamily: 'monospace', color: connSaveStatus.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>
             {connSaveStatus}
@@ -277,15 +278,16 @@ export default function SettingsConnections() {
               Re-run the first-time setup wizard to reconfigure all connections
             </div>
           </div>
-          <button
-            style={btnSecondary}
+          <Button
+            variant="secondary"
             onClick={() => {
               resetSetupWizard()
               setShowSetupWizard(true)
             }}
+            style={{ fontSize: '12px', padding: '8px 16px' }}
           >
             Re-run Setup
-          </button>
+          </Button>
         </div>
       </div>
       {showSetupWizard && (

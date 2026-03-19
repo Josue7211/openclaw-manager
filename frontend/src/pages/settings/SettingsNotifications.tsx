@@ -4,7 +4,8 @@ import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 import Toggle from './Toggle'
-import { row, rowLast, inputStyle, btnStyle, btnSecondary, sectionLabel } from './shared'
+import { Button } from '@/components/ui/Button'
+import { row, rowLast, inputStyle, sectionLabel } from './shared'
 
 interface Pref {
   key: string
@@ -98,8 +99,9 @@ export default function SettingsNotifications() {
       </div>
 
       <div style={{ padding: '12px 0', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <button
-          style={btnSecondary}
+        <Button
+          variant="secondary"
+          style={{ fontSize: '12px', padding: '8px 16px' }}
           onClick={async () => {
             if (dndEnabled) {
               // DND on — show confirmation that nothing fired
@@ -161,7 +163,7 @@ export default function SettingsNotifications() {
           }}
         >
           Send test notification
-        </button>
+        </Button>
         <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
           {dndEnabled ? 'DND is on — test will verify silence' :
             [notifSound && 'sound', systemNotifs && 'system', inAppNotifs && 'in-app'].filter(Boolean).join(' + ') || 'All disabled'}
@@ -179,12 +181,12 @@ export default function SettingsNotifications() {
       </div>
       <div style={{ ...rowLast, flexDirection: 'column', alignItems: 'flex-start', gap: '10px' }}>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button style={btnSecondary} onClick={testNtfy} disabled={ntfyTesting}>
+          <Button variant="secondary" onClick={testNtfy} disabled={ntfyTesting} style={{ fontSize: '12px', padding: '8px 16px' }}>
             {ntfyTesting ? 'Sending...' : 'Test'}
-          </button>
-          <button style={btnStyle} onClick={() => { setNtfyStatus(null); saveNtfyMutation.mutate() }} disabled={saveNtfyMutation.isPending}>
+          </Button>
+          <Button variant="primary" onClick={() => { setNtfyStatus(null); saveNtfyMutation.mutate() }} disabled={saveNtfyMutation.isPending} style={{ fontSize: '12px', padding: '8px 16px' }}>
             {saveNtfyMutation.isPending ? 'Saving...' : 'Save'}
-          </button>
+          </Button>
         </div>
         {ntfyStatus && (
           <span style={{ fontSize: '12px', fontFamily: 'monospace', color: ntfyStatus.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>

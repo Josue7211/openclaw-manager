@@ -4,7 +4,8 @@ import { api } from '@/lib/api'
 import { isDemoMode } from '@/lib/demo-data'
 import { isWebAuthnSupported, registerWebAuthnKey } from '@/lib/webauthn'
 import type { WebAuthnCreationOptions } from '@/lib/webauthn'
-import { row, rowLast, val, inputStyle, btnStyle, btnSecondary, sectionLabel } from './shared'
+import { Button } from '@/components/ui/Button'
+import { row, rowLast, val, inputStyle, sectionLabel } from './shared'
 
 interface WebAuthnFactor {
   id: string
@@ -138,8 +139,8 @@ export default function SettingsUser({
                 if (e.key === 'Escape') setEditingName(false)
               }}
             />
-            <button style={btnStyle} onClick={() => { setUserName(nameInput); setEditingName(false); setNameSaved(true); setTimeout(() => setNameSaved(false), 1500) }}>Save</button>
-            <button style={btnSecondary} onClick={() => setEditingName(false)}>Cancel</button>
+            <Button variant="primary" onClick={() => { setUserName(nameInput); setEditingName(false); setNameSaved(true); setTimeout(() => setNameSaved(false), 1500) }} style={{ fontSize: '12px', padding: '8px 16px' }}>Save</Button>
+            <Button variant="secondary" onClick={() => setEditingName(false)} style={{ fontSize: '12px', padding: '8px 16px' }}>Cancel</Button>
           </div>
         )}
       </div>
@@ -162,8 +163,8 @@ export default function SettingsUser({
                 if (e.key === 'Escape') setEditingAvatar(false)
               }}
             />
-            <button style={btnStyle} onClick={() => { setUserAvatar(avatarInput); setEditingAvatar(false); setAvatarSaved(true); setTimeout(() => setAvatarSaved(false), 1500) }}>Save</button>
-            <button style={btnSecondary} onClick={() => setEditingAvatar(false)}>Cancel</button>
+            <Button variant="primary" onClick={() => { setUserAvatar(avatarInput); setEditingAvatar(false); setAvatarSaved(true); setTimeout(() => setAvatarSaved(false), 1500) }} style={{ fontSize: '12px', padding: '8px 16px' }}>Save</Button>
+            <Button variant="secondary" onClick={() => setEditingAvatar(false)} style={{ fontSize: '12px', padding: '8px 16px' }}>Cancel</Button>
           </div>
         )}
       </div>
@@ -193,9 +194,9 @@ export default function SettingsUser({
               <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="New password" autoComplete="new-password" aria-label="New password" style={{ ...inputStyle, width: '200px' }} />
               <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Confirm password" autoComplete="new-password" aria-label="Confirm password" style={{ ...inputStyle, width: '200px' }} />
               <div style={{ display: 'flex', gap: '6px' }}>
-                <button style={btnSecondary} onClick={() => { setChangingPw(false); setCurrentPw(''); setNewPw(''); setConfirmPw(''); setPwStatus(null) }}>Cancel</button>
-                <button
-                  style={currentPw.length > 0 && newPw.length >= 8 && newPw === confirmPw ? btnStyle : { ...btnStyle, opacity: 0.4, cursor: 'not-allowed' }}
+                <Button variant="secondary" onClick={() => { setChangingPw(false); setCurrentPw(''); setNewPw(''); setConfirmPw(''); setPwStatus(null) }} style={{ fontSize: '12px', padding: '8px 16px' }}>Cancel</Button>
+                <Button
+                  variant="primary"
                   disabled={currentPw.length === 0 || newPw.length < 8 || newPw !== confirmPw}
                   onClick={async () => {
                     setPwStatus(null)
@@ -206,7 +207,8 @@ export default function SettingsUser({
                       setPwStatus(`Error: ${err instanceof Error ? err.message : 'Failed'}`)
                     }
                   }}
-                >Save</button>
+                  style={{ fontSize: '12px', padding: '8px 16px' }}
+                >Save</Button>
               </div>
               {pwStatus && <span style={{ fontSize: '11px', fontFamily: 'monospace', color: pwStatus.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{pwStatus}</span>}
             </div>
@@ -219,7 +221,7 @@ export default function SettingsUser({
       </div>
       {!mfaEnabled && !mfaEnrolling && (
         <div style={{ padding: '8px 0' }}>
-          <button style={btnStyle} onClick={async () => {
+          <Button variant="primary" onClick={async () => {
             setMfaStatus(null)
             try {
               const data = await api.post<{ id: string; qr_code: string; secret: string }>('/api/auth/mfa/enroll')
@@ -227,7 +229,7 @@ export default function SettingsUser({
             } catch (err) {
               setMfaStatus(`Error: ${err instanceof Error ? err.message : 'Failed'}`)
             }
-          }}>Set up authenticator</button>
+          }} style={{ fontSize: '12px', padding: '8px 16px' }}>Set up authenticator</Button>
           {mfaStatus && <span style={{ fontSize: '12px', fontFamily: 'monospace', color: mfaStatus.startsWith('Error') ? 'var(--red)' : 'var(--green)', marginLeft: '10px' }}>{mfaStatus}</span>}
         </div>
       )}
@@ -238,7 +240,7 @@ export default function SettingsUser({
           {mfaSecret && <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>Key: <span style={{ color: 'var(--text-secondary)', userSelect: 'all' }}>{mfaSecret}</span></div>}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} value={mfaCode} onChange={e => setMfaCode(e.target.value.replace(/\D/g, ''))} placeholder="6-digit code" autoFocus aria-label="MFA verification code" style={{ ...inputStyle, width: '140px', textAlign: 'center', letterSpacing: '0.15em' }} />
-            <button style={mfaCode.length === 6 ? btnStyle : { ...btnStyle, opacity: 0.4, cursor: 'not-allowed' }} disabled={mfaCode.length !== 6} onClick={async () => {
+            <Button variant="primary" disabled={mfaCode.length !== 6} onClick={async () => {
               setMfaStatus(null); if (!mfaFactorId) return
               try {
                 const ch = await api.post<{ id: string }>('/api/auth/mfa/challenge', { factor_id: mfaFactorId })
@@ -248,18 +250,18 @@ export default function SettingsUser({
               } catch (err) {
                 setMfaStatus(`Error: ${err instanceof Error ? err.message : 'Failed'}`); setMfaCode('')
               }
-            }}>Verify</button>
-            <button style={btnSecondary} onClick={async () => {
+            }} style={{ fontSize: '12px', padding: '8px 16px' }}>Verify</Button>
+            <Button variant="secondary" onClick={async () => {
               if (mfaFactorId) await api.del(`/api/auth/mfa/unenroll/${mfaFactorId}`).catch(() => {})
               setMfaEnrolling(false); setMfaQr(null); setMfaSecret(null); setMfaCode(''); setMfaFactorId(null); setMfaStatus(null)
-            }}>Cancel</button>
+            }} style={{ fontSize: '12px', padding: '8px 16px' }}>Cancel</Button>
           </div>
           {mfaStatus && <span style={{ fontSize: '12px', fontFamily: 'monospace', color: mfaStatus.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{mfaStatus}</span>}
         </div>
       )}
       {mfaEnabled && !mfaEnrolling && (
         <div style={{ padding: '12px 0 0' }}>
-          <button style={{ ...btnSecondary, color: 'var(--red)', borderColor: 'var(--red-a30)' }} onClick={async () => {
+          <Button variant="danger" onClick={async () => {
             try {
               const data = await api.get<{ factors?: Array<{ id: string; status: string; type: string }> }>('/api/auth/mfa/factors')
               const totp = data.factors?.find(f => f.type === 'totp' && f.status === 'verified')
@@ -268,7 +270,7 @@ export default function SettingsUser({
                 setMfaEnabled(false)
               }
             } catch { /* silent */ }
-          }}>Remove authenticator</button>
+          }} style={{ fontSize: '12px', padding: '8px 16px' }}>Remove authenticator</Button>
         </div>
       )}
 
@@ -316,19 +318,14 @@ export default function SettingsUser({
                       </div>
                     </div>
                   </div>
-                  <button
+                  <Button
+                    variant="danger"
                     onClick={() => handleWebAuthnRemove(key.id)}
                     aria-label={`Remove hardware key ${key.name}`}
-                    style={{
-                      ...btnSecondary,
-                      color: 'var(--red)',
-                      borderColor: 'var(--red-a30)',
-                      fontSize: '11px',
-                      padding: '6px 12px',
-                    }}
+                    style={{ fontSize: '11px', padding: '6px 12px' }}
                   >
                     Remove
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>
@@ -347,13 +344,14 @@ export default function SettingsUser({
           {/* Enrollment form */}
           {!webAuthnEnrolling ? (
             <div style={{ padding: '4px 0' }}>
-              <button
-                style={btnStyle}
+              <Button
+                variant="primary"
                 onClick={() => { setWebAuthnEnrolling(true); setWebAuthnStatus(null) }}
                 aria-label="Add hardware security key"
+                style={{ fontSize: '12px', padding: '8px 16px' }}
               >
                 Add hardware key
-              </button>
+              </Button>
             </div>
           ) : (
             <div style={{
@@ -409,19 +407,21 @@ export default function SettingsUser({
               />
 
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  style={btnStyle}
+                <Button
+                  variant="primary"
                   onClick={handleWebAuthnEnroll}
                   aria-label="Register hardware security key"
+                  style={{ fontSize: '12px', padding: '8px 16px' }}
                 >
                   Register key
-                </button>
-                <button
-                  style={btnSecondary}
+                </Button>
+                <Button
+                  variant="secondary"
                   onClick={() => { setWebAuthnEnrolling(false); setWebAuthnKeyName(''); setWebAuthnStatus(null) }}
+                  style={{ fontSize: '12px', padding: '8px 16px' }}
                 >
                   Cancel
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -441,18 +441,13 @@ export default function SettingsUser({
       )}
 
       <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
-        <button
+        <Button
+          variant="danger"
           onClick={async () => { await api.post('/api/auth/logout').catch(() => {}); window.location.href = '/login' }}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontSize: '13px', fontWeight: 500,
-            background: 'transparent', border: '1px solid var(--red-a30)', borderRadius: '8px',
-            color: 'var(--red)', cursor: 'pointer',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--red-a08)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', padding: '10px 18px' }}
         >
           <SignOut size={14} />Sign out
-        </button>
+        </Button>
       </div>
     </div>
   )

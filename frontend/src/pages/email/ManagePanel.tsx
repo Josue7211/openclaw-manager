@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { Star, Trash, X, Eye, EyeSlash, EnvelopeSimple } from '@phosphor-icons/react'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { Button } from '@/components/ui/Button'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
 import type { EmailAccount, AccountForm } from './types'
@@ -212,27 +213,22 @@ export function ManagePanel({
               )}
 
               <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                <button
+                <Button
+                  variant="primary"
                   onClick={onFormSave}
                   disabled={formSaving}
-                  style={{
-                    flex: 1, padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
-                    background: 'var(--accent)', color: 'var(--text-on-color)', border: 'none', cursor: 'pointer',
-                  }}
+                  style={{ flex: 1, fontSize: '12px', padding: '8px' }}
                 >
                   {formSaving ? 'Saving…' : editingAccount ? 'Save Changes' : 'Add Account'}
-                </button>
+                </Button>
                 {editingAccount && (
-                  <button
+                  <Button
+                    variant="secondary"
                     onClick={onCancelEdit}
-                    style={{
-                      padding: '8px 14px', borderRadius: '6px', fontSize: '12px',
-                      background: 'var(--bg-panel)', border: '1px solid var(--border)',
-                      color: 'var(--text-secondary)', cursor: 'pointer',
-                    }}
+                    style={{ fontSize: '12px', padding: '8px 14px' }}
                   >
                     Cancel
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>

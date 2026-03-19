@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
-import { row, rowLast, btnStyle, btnSecondary, sectionLabel } from './shared'
+import { Button } from '@/components/ui/Button'
+import { row, rowLast, sectionLabel } from './shared'
 
 export default function SettingsData() {
   const [importStatus, setImportStatus] = useState<string | null>(null)
@@ -17,8 +18,9 @@ export default function SettingsData() {
           <span>Export settings</span>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Download all local settings as a .json file</div>
         </div>
-        <button
-          style={btnStyle}
+        <Button
+          variant="primary"
+          style={{ fontSize: '12px', padding: '8px 16px' }}
           onClick={() => {
             const KNOWN_PREFIXES = [
               'dnd-enabled', 'system-notifs', 'in-app-notifs', 'notif-sound',
@@ -46,7 +48,7 @@ export default function SettingsData() {
           }}
         >
           Export
-        </button>
+        </Button>
       </div>
 
       <div style={rowLast}>
@@ -99,9 +101,9 @@ export default function SettingsData() {
               e.target.value = ''
             }}
           />
-          <button style={btnSecondary} onClick={() => fileInputRef.current?.click()}>
+          <Button variant="secondary" onClick={() => fileInputRef.current?.click()} style={{ fontSize: '12px', padding: '8px 16px' }}>
             Import
-          </button>
+          </Button>
         </div>
       </div>
 
