@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { X, CaretDown } from '@phosphor-icons/react'
+import { X, CaretDown, Lightbulb } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { api } from '@/lib/api'
 import { useTableRealtime } from '@/lib/hooks/useRealtimeSSE'
 import { FilterDropdown } from './FilterDropdown'
@@ -198,9 +199,11 @@ export function PipelineIdeas() {
         {(() => {
           if (filtered.length === 0) {
             return (
-              <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)', fontSize: '13px' }}>
-                {hasActiveFilters ? 'No ideas match filters' : 'No ideas yet'}
-              </div>
+              <EmptyState
+                icon={Lightbulb}
+                title={hasActiveFilters ? 'No ideas match filters' : 'No ideas yet'}
+                description={hasActiveFilters ? 'Try adjusting your filters.' : 'Capture your first idea to get started.'}
+              />
             )
           }
           return filtered.map((idea, idx) => {

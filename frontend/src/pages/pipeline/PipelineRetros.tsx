@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
+import { ArrowCounterClockwise } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
+import { EmptyState } from '@/components/ui/EmptyState'
 import type { Retrospective } from './types'
 import { formatDate } from './utils'
 
@@ -25,7 +27,7 @@ export function PipelineRetros() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       {retros.length === 0 ? (
-        <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>No retrospectives yet.</div>
+        <EmptyState icon={ArrowCounterClockwise} title="No retrospectives yet" description="Retrospectives will appear after completed sprints." />
       ) : (
         retros.map((r) => (
           <div

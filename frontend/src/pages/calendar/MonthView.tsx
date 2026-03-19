@@ -1,4 +1,5 @@
-import { X } from '@phosphor-icons/react'
+import { X, CalendarBlank } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
 import {
   CalendarEvent, calendarColor, toDateKey, parseLocalDate, formatTime,
   DAY_LABELS,
@@ -146,7 +147,7 @@ export function MonthView({ anchor, events, eventsByDate, todayKey, selectedDate
           </div>
 
           {selectedEvents.length === 0 ? (
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>No events</div>
+            <div style={{ padding: '8px 0' }}><EmptyState icon={CalendarBlank} title="No events" /></div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {selectedEvents.map(ev => (

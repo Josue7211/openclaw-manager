@@ -1,5 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import { Plus, X, Tag, Trash, Calendar, Rocket } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { Button } from '@/components/ui/Button'
 import { api } from '@/lib/api'
 import type { Idea, ChangelogEntry, IdeaStatus } from './types'
 import { IDEA_STATUS_META } from './types'
@@ -208,38 +210,20 @@ export function PipelineShipLog() {
               />
             </div>
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button
+              <Button
+                variant="ghost"
                 type="button"
                 onClick={() => setShowShipForm(false)}
-                style={{
-                  padding: '8px 14px',
-                  borderRadius: '7px',
-                  border: '1px solid var(--border)',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  background: 'transparent',
-                  color: 'var(--text-secondary)',
-                }}
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
                 type="submit"
                 disabled={shipSubmitting || !shipForm.title.trim()}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '7px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  background: 'var(--purple-a20)',
-                  color: 'var(--accent-bright)',
-                  opacity: shipSubmitting ? 0.6 : 1,
-                }}
               >
                 {shipSubmitting ? 'Saving...' : 'Save Entry'}
-              </button>
+              </Button>
             </div>
           </form>
         )}
@@ -247,7 +231,7 @@ export function PipelineShipLog() {
         {shipLoading ? (
           <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Loading entries...</div>
         ) : entries.length === 0 ? (
-          <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>No entries yet. Start logging what you ship.</div>
+          <EmptyState icon={Rocket} title="No entries yet" description="Start logging what you ship." />
         ) : (
           <div>
             {Object.entries(shipGroups).map(([month, monthEntries]) => (

@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Warning, Trash, Clock, BellSlash } from '@phosphor-icons/react'
+import { Warning, Trash, Clock, BellSlash, CheckCircle } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { api } from '@/lib/api'
 import type { StaleItem, ItemType } from './types'
 import { STALE_TYPE_COLORS, STALE_TYPE_ICONS } from './types'
@@ -60,16 +61,7 @@ export function PipelineStale() {
       {staleLoading ? (
         <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Loading stale items...</div>
       ) : staleItems.length === 0 ? (
-        <div style={{
-          textAlign: 'center',
-          padding: '48px 24px',
-          color: 'var(--text-muted)',
-          fontSize: '13px',
-        }}>
-          <div style={{ fontSize: '32px', marginBottom: '12px' }}>{'\u2705'}</div>
-          <div style={{ fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>All clear</div>
-          <div>No stale items. Everything is up to date.</div>
-        </div>
+        <EmptyState icon={CheckCircle} title="All clear" description="No stale items found." />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {staleItems.map(item => {

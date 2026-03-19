@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
+import { Notepad } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
+import { EmptyState } from '@/components/ui/EmptyState'
 import type { WorkflowNote } from './types'
 import { CATEGORIES, CATEGORY_COLORS } from './types'
 import { formatDate } from './utils'
@@ -63,7 +65,7 @@ export function PipelineNotes() {
             </span>
           </div>
           {grouped[cat].length === 0 ? (
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', paddingLeft: '8px' }}>No notes yet.</div>
+            <div style={{ padding: '8px 0' }}><EmptyState icon={Notepad} title="No notes yet" description="Pipeline notes will appear here." /></div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {grouped[cat].map((n) => (
