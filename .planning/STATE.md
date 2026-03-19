@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-03-19T18:29:24.687Z"
+stopped_at: Completed 02-04-PLAN.md
+last_updated: "2026-03-19T18:41:12.575Z"
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 12
-  completed_plans: 8
+  completed_plans: 11
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 02 (theming-system) — EXECUTING
-Plan: 3 of 7
+Plan: 7 of 7
 
 ## Performance Metrics
 
@@ -54,6 +54,9 @@ Plan: 3 of 7
 | Phase 02 P01 | 8min | 2 tasks | 9 files |
 | Phase 02 P03 | 3min | 1 tasks | 2 files |
 | Phase 02 P02 | 7min | 2 tasks | 5 files |
+| Phase 02 P06 | 5min | 2 tasks | 5 files |
+| Phase 02 P04 | 7min | 2 tasks | 6 files |
+| Phase 02 P05 | 6min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -89,6 +92,11 @@ Recent decisions affecting current work:
 - [Phase 02]: matchMedia guarded with typeof check for test/SSR environments
 - [Phase 02]: applyThemeFromState signature changed from (state?) to (clickEvent?) for cleaner API
 - [Phase 02]: Font families append system fallback stacks rather than replacing entirely
+- [Phase 02]: Solar declination at 40deg latitude for scheduling (+/- 30min, no geolocation needed)
+- [Phase 02]: External CSS file uses 2-second polling via Tauri fs plugin (simpler than native watcher)
+- [Phase 02]: Per-page override cleanup iterates snapshot to avoid mutation during iteration
+- [Phase 02]: Schedule timer only starts when schedule.type is not 'none'
+- [Phase 02]: matchesExtraModifier() enables chord keybindings (Ctrl+Shift+T) without conflicting with single-mod (Ctrl+T)
 
 ### Pending Todos
 
@@ -102,6 +110,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T18:29:15.039Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-03-19T18:40:58.014Z
+Stopped at: Completed 02-04-PLAN.md
 Resume file: None
