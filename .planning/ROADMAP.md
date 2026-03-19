@@ -12,7 +12,7 @@ OpenClaw Manager is a mature alpha with 17 working modules, solid security (96/1
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Responsive Layout Shell + Visual Polish** - Stable responsive layout via container queries, sidebar auto-collapse, and full visual consistency audit (colors, spacing, typography, icons, shared feedback components)
+- [x] **Phase 1: Responsive Layout Shell + Visual Polish** - Stable responsive layout via container queries, sidebar auto-collapse, and full visual consistency audit (colors, spacing, typography, icons, shared feedback components)
 - [ ] **Phase 2: Theming System** - Light/dark/system themes, 6-8 curated presets, instant theme switching, import/export, and Supabase sync
 - [ ] **Phase 3: Setup Wizard + Onboarding** - First-run wizard covering service connections, module selection, theme pick, demo mode, with progressive disclosure and resumable state
 - [ ] **Phase 4: Dashboard Grid + Widget System** - Free-form drag/resize widget grid with edit mode, Widget Registry, layout persistence per breakpoint, and existing cards refactored as widgets
@@ -36,9 +36,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md -- Design system foundation + container query responsive shell
+- [x] 01-01-PLAN.md -- Design system foundation + container query responsive shell
 - [x] 01-02-PLAN.md -- Shared UI feedback components (Button, EmptyState, ErrorState, Toast, ProgressBar)
-- [ ] 01-03-PLAN.md -- Icon migration (lucide to Phosphor) + hardcoded color audit
+- [x] 01-03-PLAN.md -- Icon migration (lucide to Phosphor) + hardcoded color audit
 
 ### Phase 2: Theming System
 **Goal**: Users can personalize the app's appearance with curated theme presets or imported themes, with changes applying instantly and syncing across devices.
@@ -156,7 +156,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Responsive Layout Shell + Visual Polish | 2/3 | In progress | - |
+| 1. Responsive Layout Shell + Visual Polish | 3/3 | Complete | 2026-03-19 |
 | 2. Theming System | 0/2 | Not started | - |
 | 3. Setup Wizard + Onboarding | 0/2 | Not started | - |
 | 4. Dashboard Grid + Widget System | 0/3 | Not started | - |
