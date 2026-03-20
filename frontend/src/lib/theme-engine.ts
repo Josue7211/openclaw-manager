@@ -25,10 +25,55 @@ import {
 // ---------------------------------------------------------------------------
 
 let _osDarkCached: boolean | null = null
+let _gtkThemeId: string | null = null
 
 /** Called from main.tsx on startup and whenever the system theme changes. */
 export function setOsDarkPreference(dark: boolean) {
   _osDarkCached = dark
+}
+
+// ---------------------------------------------------------------------------
+// GTK theme name → built-in preset mapping
+// ---------------------------------------------------------------------------
+
+/** Map of lowercase GTK theme name patterns to built-in preset IDs. */
+const GTK_THEME_MAP: ReadonlyArray<[RegExp, string]> = [
+  [/^rose-?pine$/i, 'rose-pine'],
+  [/^catppuccin[- ]?mocha$/i, 'catppuccin-mocha'],
+  [/^catppuccin[- ]?latte$/i, 'catppuccin-latte'],
+  [/^dracula$/i, 'dracula'],
+  [/^nord(?:ic)?$/i, 'nord'],
+  [/^gruvbox[- ]?dark$/i, 'gruvbox-dark'],
+  [/^gruvbox[- ]?light$/i, 'gruvbox-light'],
+  [/^solarized[- ]?dark$/i, 'solarized-dark'],
+  [/^solarized[- ]?light$/i, 'solarized-light'],
+]
+
+/**
+ * Map a GTK theme name to a built-in preset ID.
+ * Returns null if no match is found (caller should fall back to defaults).
+ */
+export function mapGtkThemeToPreset(gtkThemeName: string): string | null {
+  const trimmed = gtkThemeName.trim()
+  if (!trimmed) return null
+
+  for (const [pattern, presetId] of GTK_THEME_MAP) {
+    if (pattern.test(trimmed)) return presetId
+  }
+
+  // Adwaita variants map to defaults
+  if (/^adwaita-?dark$/i.test(trimmed)) return 'default-dark'
+  if (/^adwaita$/i.test(trimmed)) return 'default-light'
+
+  return null
+}
+
+/**
+ * Called from main.tsx after detecting the GTK theme name.
+ * Stores the mapped preset ID for use in resolveThemeDefinition's system mode.
+ */
+export function setGtkThemeMapping(gtkThemeName: string) {
+  _gtkThemeId = mapGtkThemeToPreset(gtkThemeName)
 }
 
 export function resolveThemeDefinition(state: ThemeState): ThemeDefinition {
@@ -46,6 +91,13 @@ export function resolveThemeDefinition(state: ThemeState): ThemeDefinition {
     // Force dark: if the active theme is light, swap to dark fallback
     if (resolved.category === 'light') return fallbackDark
   } else if (state.mode === 'system') {
+    // System mode: if the GTK theme maps to a built-in preset, use it
+    if (_gtkThemeId) {
+      const gtkTheme = getThemeById(_gtkThemeId)
+      if (gtkTheme) return gtkTheme
+    }
+
+    // Otherwise fall back to dark/light based on OS preference
     const osDark = _osDarkCached ?? detectOsDark()
     const isLightTheme = resolved.category === 'light'
     if (!osDark && !isLightTheme) return fallbackLight

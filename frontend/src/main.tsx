@@ -8,7 +8,7 @@ import LayoutShell from './components/LayoutShell'
 import ErrorBoundary from './components/ErrorBoundary'
 import AuthGuard from './components/AuthGuard'
 import { applyThemeFromState, getThemeState } from './lib/theme-store'
-import { setOsDarkPreference } from './lib/theme-engine'
+import { setOsDarkPreference, setGtkThemeMapping } from './lib/theme-engine'
 import { PersonalSkeleton, DashboardSkeleton, MessagesSkeleton, SettingsSkeleton, GenericPageSkeleton } from './components/Skeleton'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -93,6 +93,19 @@ if (window.__TAURI_INTERNALS__) {
         }
       }
       setOsDarkPreference(isDark)
+
+      // On Linux, detect the GTK theme name and map it to a built-in preset
+      // so System mode matches the user's desktop theme (e.g. Rose-Pine, Catppuccin)
+      if (navigator.userAgent.includes('Linux')) {
+        try {
+          const { invoke } = await import('@tauri-apps/api/core')
+          const gtkTheme = await invoke<string>('detect_gtk_theme')
+          if (gtkTheme) setGtkThemeMapping(gtkTheme)
+        } catch {
+          // gsettings unavailable — fall back to dark/light detection only
+        }
+      }
+
       if (getThemeState().mode === 'system') applyThemeFromState()
     })
     // Listen for OS theme changes (works on macOS/Windows; on Linux this fires

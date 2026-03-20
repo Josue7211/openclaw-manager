@@ -62,6 +62,36 @@ pub fn detect_system_dark_mode() -> bool {
     }
 }
 
+/// Detect the current GTK theme name on Linux.
+///
+/// Runs `gsettings get org.gnome.desktop.interface gtk-theme` and returns the
+/// theme name (e.g. "Rose-Pine", "Catppuccin-Mocha", "Adwaita-dark").
+/// The frontend uses this to map the system GTK theme to a built-in preset.
+///
+/// Returns an empty string on non-Linux platforms or if gsettings is unavailable.
+#[tauri::command]
+pub fn detect_gtk_theme() -> String {
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(output) = std::process::Command::new("gsettings")
+            .args(["get", "org.gnome.desktop.interface", "gtk-theme"])
+            .output()
+        {
+            if output.status.success() {
+                // gsettings wraps the value in single quotes, e.g. 'Rose-Pine'
+                let raw = String::from_utf8_lossy(&output.stdout);
+                return raw.trim().trim_matches('\'').to_string();
+            }
+        }
+        String::new()
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        String::new()
+    }
+}
+
 /// Opens the log directory in the system file manager.
 #[tauri::command]
 pub async fn open_log_dir() -> Result<String, String> {
