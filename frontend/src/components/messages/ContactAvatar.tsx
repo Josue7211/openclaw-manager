@@ -191,7 +191,7 @@ export const GroupAvatar = memo(function GroupAvatar({ conv, size = 40 }: { conv
   return (
     <div style={{
       width: `${size}px`, height: `${size}px`, borderRadius: '50%', flexShrink: 0,
-      background: 'linear-gradient(135deg, var(--accent-secondary), var(--accent-dim))',
+      background: 'linear-gradient(135deg, var(--tertiary), var(--accent-dim))',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       color: 'var(--text-on-color)',
     }}>

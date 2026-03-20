@@ -16,10 +16,10 @@ describe('missionStatusStyle', () => {
     expect(style.border).toMatch(/secondary/)
   })
 
-  it('returns blue-tinted style for "active"', () => {
+  it('returns tertiary-tinted style for "active"', () => {
     const style = missionStatusStyle('active')
     expect(style.background).toMatch(/blue/)
-    expect(style.color).toBe('var(--blue-bright)')
+    expect(style.color).toBe('var(--tertiary-bright)')
     expect(style.border).toMatch(/blue/)
   })
 

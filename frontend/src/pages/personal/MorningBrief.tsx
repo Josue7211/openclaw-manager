@@ -97,7 +97,7 @@ export default function MorningBrief({ todos, missions, calendarEvents, mounted 
         {/* On the Calendar */}
         <div style={{ background: 'var(--bg-white-03)', borderRadius: '10px', padding: '14px', border: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
-            <CalendarDots size={12} style={{ color: 'var(--accent-blue)' }} />
+            <CalendarDots size={12} style={{ color: 'var(--tertiary)' }} />
             <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>On the Calendar</span>
           </div>
           {!mounted ? (
@@ -110,7 +110,7 @@ export default function MorningBrief({ todos, missions, calendarEvents, mounted 
                 const time = e.allDay ? 'All day' : new Date(e.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
                 return (
                   <div key={e.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                    <span style={{ fontSize: '10px', color: 'var(--accent-blue)', fontFamily: 'monospace', marginTop: '2px', flexShrink: 0 }}>{time}</span>
+                    <span style={{ fontSize: '10px', color: 'var(--tertiary)', fontFamily: 'monospace', marginTop: '2px', flexShrink: 0 }}>{time}</span>
                     <span style={{ fontSize: '12px', color: 'var(--text-primary)', lineHeight: 1.4 }}>{e.title}</span>
                   </div>
                 )

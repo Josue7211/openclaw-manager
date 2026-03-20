@@ -57,7 +57,7 @@ export function CpuBar({ value }: { value: number }) {
 
 export function MemBar({ used, total }: { used: number; total: number }) {
   const pct = total > 0 ? Math.round((used / total) * 100) : 0
-  const color = pct > 85 ? 'var(--red)' : pct > 65 ? 'var(--gold)' : 'var(--accent-blue)'
+  const color = pct > 85 ? 'var(--red)' : pct > 65 ? 'var(--gold)' : 'var(--tertiary)'
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
       <div style={{

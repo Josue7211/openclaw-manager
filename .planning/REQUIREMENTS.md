@@ -45,9 +45,9 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 - [x] **POLISH-11**: 3-tier color hierarchy (accent, secondary/functional, tertiary/accent-blue) with dynamic tint derivation
 - [ ] **POLISH-12**: All hardcoded green (--green, --green-400, --emerald) references migrated to --secondary CSS variables
 - [ ] **POLISH-13**: All hardcoded blue (--accent-blue, --accent-secondary) references migrated to --tertiary CSS variables
-- [ ] **POLISH-14**: Settings Display page uses card-based section layout with compact color pickers
-- [ ] **POLISH-15**: Glow brightness/opacity slider controls ambient top glow intensity
-- [ ] **POLISH-16**: Border radius and panel opacity sliders in Advanced section
+- [x] **POLISH-14**: Settings Display page uses card-based section layout with compact color pickers
+- [x] **POLISH-15**: Glow brightness/opacity slider controls ambient top glow intensity
+- [x] **POLISH-16**: Border radius and panel opacity sliders in Advanced section
 
 ### Setup Wizard
 
@@ -205,9 +205,9 @@ Deferred to post-v1.0 release. Tracked but not in current roadmap.
 | POLISH-11 | Phase 2.1 | Complete |
 | POLISH-12 | Phase 2.1 | Pending |
 | POLISH-13 | Phase 2.1 | Pending |
-| POLISH-14 | Phase 2.1 | Pending |
-| POLISH-15 | Phase 2.1 | Pending |
-| POLISH-16 | Phase 2.1 | Pending |
+| POLISH-14 | Phase 2.1 | Complete |
+| POLISH-15 | Phase 2.1 | Complete |
+| POLISH-16 | Phase 2.1 | Complete |
 | THEME-01 | Phase 2 | Complete |
 | THEME-02 | Phase 2 | Complete |
 | THEME-03 | Phase 2 | Complete |

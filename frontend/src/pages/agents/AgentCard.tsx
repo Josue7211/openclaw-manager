@@ -187,7 +187,7 @@ export function AgentCard({ agent, onSave, activeMission, models = [] }: AgentCa
               height: '100%',
               width: `${activeMission.progress}%`,
               borderRadius: '3px',
-              background: 'var(--accent-blue)',
+              background: 'var(--tertiary)',
               transition: 'width 0.4s ease',
             }} />
           </div>

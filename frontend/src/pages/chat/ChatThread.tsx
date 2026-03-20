@@ -107,8 +107,8 @@ export default function ChatThread({
             <div style={{
               flexShrink: 0,
               width: '26px', height: '26px', borderRadius: '50%',
-              background: msg.role === 'user' ? 'var(--accent-blue)' : 'var(--purple-a12)',
-              border: `1px solid ${msg.role === 'user' ? 'var(--accent-blue)' : 'var(--border-accent)'}`,
+              background: msg.role === 'user' ? 'var(--tertiary)' : 'var(--purple-a12)',
+              border: `1px solid ${msg.role === 'user' ? 'var(--tertiary)' : 'var(--border-accent)'}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: '13px',
             }}>
@@ -128,7 +128,7 @@ export default function ChatThread({
                 <div style={{
                   padding: '9px 13px',
                   borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                  background: msg.role === 'user' ? 'var(--accent-blue)' : 'var(--bg-card)',
+                  background: msg.role === 'user' ? 'var(--tertiary)' : 'var(--bg-card)',
                   border: `1px solid ${msg.role === 'user' ? 'transparent' : 'var(--border)'}`,
                   fontSize: '13px', lineHeight: 1.65,
                   color: msg.role === 'user' ? 'var(--text-on-color)' : 'var(--text-primary)',
@@ -155,7 +155,7 @@ export default function ChatThread({
             {/* Avatar */}
             <div style={{
               flexShrink: 0, width: '26px', height: '26px', borderRadius: '50%',
-              background: 'var(--accent-blue)', border: '1px solid var(--accent-blue)',
+              background: 'var(--tertiary)', border: '1px solid var(--tertiary)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px',
             }}>{'\u{1F98D}'}</div>
 
@@ -172,7 +172,7 @@ export default function ChatThread({
                 <div style={{
                   padding: '9px 13px',
                   borderRadius: '14px 14px 4px 14px',
-                  background: 'var(--accent-blue)',
+                  background: 'var(--tertiary)',
                   border: '1px solid transparent',
                   fontSize: '13px', lineHeight: 1.65,
                   color: 'var(--text-on-color)',

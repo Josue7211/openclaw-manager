@@ -68,13 +68,17 @@ Plans:
 **Goal:** System mode detects dark themes correctly on Linux, all functional/status colors are customizable via a 3-tier color hierarchy, and the Settings Display page is reorganized into card-based sections with advanced customization sliders.
 **Requirements**: POLISH-10, POLISH-11, POLISH-12, POLISH-13, POLISH-14, POLISH-15, POLISH-16
 **Depends on:** Phase 2
-**Plans:** 2/4 plans executed
+**Plans:** 4/4 plans executed
+**Success Criteria** (what must be TRUE):
+  1. System mode detects dark themes correctly on Linux (Hyprland/GNOME via gsettings)
+  2. All functional/status colors use a 3-tier hierarchy (accent, secondary, tertiary)
+  3. Settings Display is card-based with compact color pickers, live font preview, and advanced sliders
 
 Plans:
-- [ ] 02.1-01-PLAN.md -- System mode fix: Rust gsettings command + frontend Linux fallback
-- [ ] 02.1-02-PLAN.md -- Color hierarchy foundation: 3-tier types, tint derivation, migration v6, CSS variables
-- [ ] 02.1-03-PLAN.md -- Green-to-secondary + blue-to-tertiary migration across 57+ component files
-- [ ] 02.1-04-PLAN.md -- Settings Display redesign: card sections, compact colors, glow/radius/opacity sliders
+- [x] 02.1-01-PLAN.md -- System mode fix: Rust gsettings command + frontend Linux fallback
+- [x] 02.1-02-PLAN.md -- Color hierarchy foundation: 3-tier types, tint derivation, migration v6, CSS variables
+- [x] 02.1-03-PLAN.md -- Green-to-secondary + blue-to-tertiary migration across 57+ component files
+- [x] 02.1-04-PLAN.md -- Settings Display redesign: card sections, compact colors, glow/radius/opacity sliders
 
 ### Phase 3: Setup Wizard + Onboarding
 **Goal**: New users (including non-technical users) can go from first launch to a configured, personalized app in under 5 minutes without reading documentation.
@@ -178,7 +182,7 @@ Phases execute in numeric order: 1 -> 2 -> 2.1 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 |-------|----------------|--------|-----------|
 | 1. Responsive Layout Shell + Visual Polish | 4/5 | Gap closure | - |
 | 2. Theming System | 7/7 | Complete   | 2026-03-19 |
-| 2.1. Theme Settings Polish + System Mode Fix | 0/4 | Planning complete | - |
+| 2.1. Theme Settings Polish + System Mode Fix | 4/4 | Complete | 2026-03-20 |
 | 3. Setup Wizard + Onboarding | 0/2 | Not started | - |
 | 4. Dashboard Grid + Widget System | 0/3 | Not started | - |
 | 5. Page Experience | 0/2 | Not started | - |
@@ -188,4 +192,4 @@ Phases execute in numeric order: 1 -> 2 -> 2.1 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 
 ---
 *Roadmap created: 2026-03-19*
-*Last updated: 2026-03-19*
+*Last updated: 2026-03-20*

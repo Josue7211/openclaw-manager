@@ -13,7 +13,7 @@ export const HeartbeatCard = React.memo(function HeartbeatCard({ mounted, heartb
   return (
     <div className="card" style={{ padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-        <Cpu size={14} style={{ color: 'var(--accent-blue)' }} />
+        <Cpu size={14} style={{ color: 'var(--tertiary)' }} />
         <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Heartbeat</span>
       </div>
       {!mounted ? (

@@ -135,7 +135,7 @@ RADARR_API_KEY=your-radarr-api-key`}
                 width: '36px', height: '36px', borderRadius: '8px',
                 background: 'var(--blue-a25)', display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                <Play size={16} style={{ color: 'var(--blue-bright)', marginLeft: '2px' }} />
+                <Play size={16} style={{ color: 'var(--tertiary-bright)', marginLeft: '2px' }} />
               </div>
               <div>
                 <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)', marginBottom: '2px' }}>
@@ -148,7 +148,7 @@ RADARR_API_KEY=your-radarr-api-key`}
               <div style={{ marginLeft: 'auto' }}>
                 <span style={{
                   padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 600,
-                  background: 'var(--blue-a25)', color: 'var(--blue-bright)',
+                  background: 'var(--blue-a25)', color: 'var(--tertiary-bright)',
                   border: '1px solid var(--blue-a25)',
                 }}>
                   {data.now_playing.type === 'movie' ? 'Movie' : 'Episode'}
@@ -160,7 +160,7 @@ RADARR_API_KEY=your-radarr-api-key`}
                 <div style={{ height: '4px', borderRadius: '2px', background: 'var(--blue-a08)', overflow: 'hidden' }}>
                   <div style={{
                     height: '100%', borderRadius: '2px',
-                    background: 'linear-gradient(90deg, var(--accent-blue), var(--blue-bright))',
+                    background: 'linear-gradient(90deg, var(--tertiary), var(--tertiary-bright))',
                     width: `${data.now_playing.progress}%`, transition: 'width 0.5s ease',
                   }} />
                 </div>

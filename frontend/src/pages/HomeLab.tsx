@@ -206,7 +206,7 @@ OPNSENSE_SECRET=your-api-secret`}
           {/* OPNsense Section */}
           <div>
             <div style={sectionTitle}>
-              <span style={{ color: 'var(--accent-blue)' }}>◈</span> OPNsense Router
+              <span style={{ color: 'var(--tertiary)' }}>◈</span> OPNsense Router
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
 

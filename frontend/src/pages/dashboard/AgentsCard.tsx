@@ -38,9 +38,9 @@ export const AgentsCard = React.memo(function AgentsCard({ mounted, sortedAgents
 
             const isAwaitingDeploy = agent.status === 'awaiting_deploy'
             const badge = (isMain && !isMainWorking)
-              ? { cls: 'badge-green', dot: 'var(--green)', label: 'Online', pulse: true }
+              ? { cls: 'badge-green', dot: 'var(--secondary)', label: 'Online', pulse: true }
               : isActive
-              ? { cls: 'badge-blue', dot: 'var(--accent-blue)', label: 'Working', pulse: true }
+              ? { cls: 'badge-blue', dot: 'var(--tertiary)', label: 'Working', pulse: true }
               : isAwaitingDeploy
               ? { cls: '', dot: 'var(--yellow-bright)', label: '\u23F3 Awaiting Deploy', pulse: true, yellow: true }
               : { cls: 'badge-purple', dot: 'var(--accent)', label: 'Ready', pulse: false }
@@ -57,7 +57,7 @@ export const AgentsCard = React.memo(function AgentsCard({ mounted, sortedAgents
                   <div className="mono" style={{ fontSize: '10px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {agent.role} · {agent.model}
                     {isCodingWorking && activeSubagents.tasks[0] && (
-                      <span style={{ color: 'var(--accent-blue)' }}> · {timeAgo(activeSubagents.tasks[0].startedAt)}</span>
+                      <span style={{ color: 'var(--tertiary)' }}> · {timeAgo(activeSubagents.tasks[0].startedAt)}</span>
                     )}
                   </div>
                 </div>

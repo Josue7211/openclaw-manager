@@ -155,7 +155,7 @@ export default function DailyReviewWidget({ todos, missions }: { todos: Todo[]; 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
                 <ReviewField label="Accomplishments" value={review.accomplishments} color="var(--secondary)" />
                 <ReviewField label="Top Priority Tomorrow" value={review.priorities} color="var(--accent)" />
-                <ReviewField label="Blockers / Notes" value={review.notes} color="var(--accent-blue)" />
+                <ReviewField label="Blockers / Notes" value={review.notes} color="var(--tertiary)" />
               </div>
             )}
           </div>
@@ -217,7 +217,7 @@ export default function DailyReviewWidget({ todos, missions }: { todos: Todo[]; 
               placeholder="Waiting on X, context for tomorrow\u2026"
               value={form.notes}
               onChange={v => setForm(f => ({ ...f, notes: v }))}
-              accentColor="var(--accent-blue)"
+              accentColor="var(--tertiary)"
             />
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>

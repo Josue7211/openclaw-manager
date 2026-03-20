@@ -40,7 +40,7 @@ export const AgentStatusCard = React.memo(function AgentStatusCard({ mounted, st
               <span className="badge badge-green" aria-live="polite">
                 <span style={{
                   display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%',
-                  background: 'var(--green)', marginRight: '5px',
+                  background: 'var(--secondary)', marginRight: '5px',
                   animation: 'pulse-dot 2s infinite',
                 }} />
                 Online
@@ -48,7 +48,7 @@ export const AgentStatusCard = React.memo(function AgentStatusCard({ mounted, st
             </div>
             <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
               {[
-                { label: 'Model', val: status?.model, color: 'var(--accent-blue)' },
+                { label: 'Model', val: status?.model, color: 'var(--tertiary)' },
                 { label: 'Host',  val: status?.host,  color: 'var(--text-primary)' },
                 { label: 'IP',    val: status?.ip,    color: 'var(--text-primary)' },
                 { label: 'Last Active', val: timeAgo(status?.lastActive || null), color: 'var(--text-primary)' },

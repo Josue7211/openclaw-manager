@@ -14,7 +14,7 @@ export const SessionsCard = React.memo(function SessionsCard({ mounted, sessions
   return (
     <div className="card" style={{ padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-        <ChatText size={14} style={{ color: 'var(--accent-blue)' }} />
+        <ChatText size={14} style={{ color: 'var(--tertiary)' }} />
         <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Today&apos;s Sessions</span>
       </div>
       {!mounted ? (
@@ -33,7 +33,7 @@ export const SessionsCard = React.memo(function SessionsCard({ mounted, sessions
                 <div style={{ fontSize: '12px', color: 'var(--text-primary)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.label || s.id}</div>
                 {s.kind && <div className="mono" style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{s.kind}</div>}
               </div>
-              <div className="mono" style={{ fontSize: '10px', color: 'var(--blue-bright)', flexShrink: 0, marginLeft: '8px' }}>
+              <div className="mono" style={{ fontSize: '10px', color: 'var(--tertiary-bright)', flexShrink: 0, marginLeft: '8px' }}>
                 {s.lastActive ? timeAgo(s.lastActive) : '—'}
               </div>
             </div>

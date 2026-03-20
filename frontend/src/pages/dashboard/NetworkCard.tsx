@@ -5,7 +5,7 @@ export const NetworkCard = React.memo(function NetworkCard() {
   return (
     <div className="card" style={{ padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-        <WifiHigh size={14} style={{ color: 'var(--accent-blue)' }} />
+        <WifiHigh size={14} style={{ color: 'var(--tertiary)' }} />
         <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Network</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -16,7 +16,7 @@ export const NetworkCard = React.memo(function NetworkCard() {
         </div>
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
           <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>OpenClaw Manager</div>
-          <div className="mono" style={{ color: 'var(--blue-bright)', fontSize: '12px' }}>{window.location.origin}</div>
+          <div className="mono" style={{ color: 'var(--tertiary-bright)', fontSize: '12px' }}>{window.location.origin}</div>
           <span className="badge badge-blue" style={{ marginTop: '5px' }}>This app</span>
         </div>
       </div>

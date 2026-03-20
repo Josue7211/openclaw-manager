@@ -695,7 +695,7 @@ nav {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--green);
+  background: var(--secondary);
   animation: pulse-dot 2s infinite;
 }
 
@@ -704,7 +704,7 @@ nav {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: var(--green);
+  background: var(--secondary);
   animation: pulse-ring 2s infinite;
 }
 
@@ -767,15 +767,15 @@ nav {
 }
 
 .badge-green {
-  background: rgba(52, 211, 153, 0.12);
-  color: var(--green-bright);
-  border: 1px solid rgba(52, 211, 153, 0.2);
+  background: var(--secondary-a12);
+  color: var(--secondary-bright);
+  border: 1px solid var(--secondary-a20);
 }
 
 .badge-blue {
-  background: rgba(129, 140, 248, 0.12);
-  color: var(--blue-bright);
-  border: 1px solid rgba(129, 140, 248, 0.2);
+  background: var(--tertiary-a12);
+  color: var(--tertiary-bright);
+  border: 1px solid var(--tertiary-a20);
 }
 
 .badge-purple {
