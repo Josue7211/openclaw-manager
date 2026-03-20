@@ -85,7 +85,7 @@ Plans:
 **Goal:** System mode truly mirrors the desktop theme — shows only the active GTK theme, reads live Wallbash colors, syncs instantly with desktop transitions, and all light themes have readable text.
 **Requirements**: SYSMODE-01, SYSMODE-02, SYSMODE-03, SYSMODE-04, SYSMODE-05, SYSMODE-06, SYSMODE-07
 **Depends on:** Phase 02.1
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 02.2-01-PLAN.md -- Rust wallbash parser + file watcher, counterpart auto-switch, light theme contrast fix

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02.2-01-PLAN.md
-last_updated: "2026-03-20T02:51:28.845Z"
+stopped_at: "Checkpoint: 02.2-02-PLAN.md Task 3 (human-verify)"
+last_updated: "2026-03-20T03:01:18.192Z"
 progress:
   total_phases: 10
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 24
-  completed_plans: 17
+  completed_plans: 18
 ---
 
 # Project State
@@ -64,6 +64,7 @@ Plan: 2 of 2
 | Phase 02.1 P04 | 6min | 2 tasks | 7 files |
 | Phase 02.1 P03 | 8min | 2 tasks | 57 files |
 | Phase 02.2 P01 | 7min | 3 tasks | 7 files |
+| Phase 02.2 P02 | 6 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -125,6 +126,9 @@ Recent decisions affecting current work:
 - [Phase 02.2]: Testable inner functions separate from Tauri commands for unit testing
 - [Phase 02.2]: Catppuccin Latte text darkened to #44476a/#5c5f77 (official palette neighbors) for WCAG on composited surfaces
 - [Phase 02.2]: system->dark/light transitions do NOT trigger counterpart auto-switch (only explicit dark<->light toggles)
+- [Phase 02.2]: buildWallbashTheme uses rgba compositing for bg-panel/bg-card with wallbash base colors
+- [Phase 02.2]: Linux system mode shows single active theme card; macOS/Windows shows filtered presets
+- [Phase 02.2]: gsettings polling reduced from 1s to 3s — file watcher handles wallbash instant sync
 
 ### Roadmap Evolution
 
@@ -142,6 +146,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T02:51:28.843Z
-Stopped at: Completed 02.2-01-PLAN.md
+Last session: 2026-03-20T03:01:18.190Z
+Stopped at: Checkpoint: 02.2-02-PLAN.md Task 3 (human-verify)
 Resume file: None
