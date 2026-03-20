@@ -108,7 +108,7 @@ export const ConnectionStatus = memo(function ConnectionStatus({
   const anyUnreachable = items.some(s => s.status === 'unreachable')
 
   return (
-    <div style={{ padding: '0 8px', marginBottom: '2px' }} aria-live="polite">
+    <div data-tour="connection-status" style={{ padding: '0 8px', marginBottom: '2px' }} aria-live="polite">
       <button
         onClick={toggle}
         title={collapsed ? `Services: ${items.map(s => `${s.shortName} ${STATUS_LABELS[s.status]}`).join(', ')}` : undefined}

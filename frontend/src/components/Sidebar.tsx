@@ -1381,7 +1381,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
   /* ── Render ────────────────────────────────────────────────────────────── */
 
   return (
-    <nav aria-label="Main navigation" data-testid="sidebar" style={{
+    <nav aria-label="Main navigation" data-testid="sidebar" data-tour="sidebar" style={{
       width: `${width}px`,
       minWidth: `${width}px`,
       background: 'var(--glass-bg)',
@@ -1501,6 +1501,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
             })
           }
         }}
+        data-tour="module-list"
         style={{
           flex: 1,
           minHeight: 0,
@@ -1586,6 +1587,7 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
               to="/settings"
               title="Gear"
               className="hover-bg"
+              data-tour="settings"
               onMouseEnter={() => handleHoverItem('/settings')}
               style={{
                 flex: collapsed ? undefined : 1,

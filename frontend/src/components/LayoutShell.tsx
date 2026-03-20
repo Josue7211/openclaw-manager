@@ -9,11 +9,13 @@ const CommandPalette = React.lazy(() => import('@/components/CommandPalette'))
 const KeyboardShortcutsModal = React.lazy(() => import('@/components/KeyboardShortcutsModal'))
 const SetupWizard = React.lazy(() => import('@/components/SetupWizard'))
 const ThemePicker = React.lazy(() => import('@/components/ThemePicker'))
+const GuidedTour = React.lazy(() => import('@/components/GuidedTour'))
 import { getKeybindings, subscribeKeybindings, isBindingModPressed, matchesExtraModifier } from '@/lib/keybindings'
 import { getTitleBarVisible, getTitleBarAutoHide, subscribeTitleBarSettings } from '@/lib/titlebar-settings'
 import { getSidebarTitleText, getSidebarDefaultWidth, subscribeSidebarSettings } from '@/lib/sidebar-settings'
 import { isDemoMode } from '@/lib/demo-data'
 import { isFirstRun } from '@/lib/wizard-store'
+import { useTourState } from '@/lib/tour-store'
 import { DemoModeBanner } from '@/components/DemoModeBanner'
 import { IconContext } from '@phosphor-icons/react'
 import { ToastProvider } from '@/components/ui/Toast'
@@ -42,6 +44,7 @@ export default function LayoutShell() {
   const prevWidthBeforeAutoCollapse = useRef(sidebarWidth)
   const bindings = useSyncExternalStore(subscribeKeybindings, getKeybindings)
   const titleText = useSyncExternalStore(subscribeSidebarSettings, getSidebarTitleText)
+  const tourState = useTourState()
 
   // Sync sidebar width from settings store changes
   useEffect(() => {
@@ -325,7 +328,7 @@ export default function LayoutShell() {
         onWidthChange={setSidebarWidth}
         draggingRef={sidebarDraggingRef}
       />
-      <main ref={mainRef} id="main-content" data-testid="main-content" style={{
+      <main ref={mainRef} id="main-content" data-testid="main-content" data-tour="dashboard" style={{
         flex: 1,
         overflow: 'hidden',
         background: 'transparent',
@@ -375,6 +378,11 @@ export default function LayoutShell() {
       <Suspense fallback={null}>
         {themePickerOpen && <ThemePicker open={themePickerOpen} onClose={() => setThemePickerOpen(false)} />}
       </Suspense>
+      {tourState.active && (
+        <Suspense fallback={null}>
+          <GuidedTour />
+        </Suspense>
+      )}
       </div>
     </div>
     </ToastProvider>

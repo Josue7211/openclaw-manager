@@ -229,6 +229,7 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
         <button
           aria-label="MagnifyingGlass"
           className="hover-bg"
+          data-tour="command-palette"
           onClick={() => {
             window.dispatchEvent(new KeyboardEvent('keydown', {
               key: 'k',
@@ -264,7 +265,7 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
           padding: '0 8px',
           marginBottom: '8px',
         }}>
-          <div style={{
+          <div data-tour="search" style={{
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
