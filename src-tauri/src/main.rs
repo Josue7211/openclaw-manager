@@ -162,6 +162,8 @@ fn main() {
             commands::open_log_dir,
             commands::detect_system_dark_mode,
             commands::detect_gtk_theme,
+            commands::read_wallbash_colors,
+            commands::read_theme_conf,
             fonts::list_system_fonts,
         ])
         .setup(|app| {
@@ -231,6 +233,15 @@ fn main() {
                     tracing::error!("Server error: {}", e);
                 }
             });
+
+            // Wallbash / HyDE theme file watcher (Linux only)
+            #[cfg(target_os = "linux")]
+            {
+                let watcher_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    crate::commands::start_wallbash_watcher(watcher_handle).await;
+                });
+            }
 
             Ok(())
         })
