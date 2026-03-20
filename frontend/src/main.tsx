@@ -115,7 +115,7 @@ if (window.__TAURI_INTERNALS__) {
       setOsDarkPreference(payload === 'dark')
       // Skip apply if wallbash is driving theme — its events are authoritative
       if (getThemeState().mode === 'system' && !wallbashUpdatedRecently()) {
-        applyThemeFromState(undefined, true)
+        debouncedApply()
       }
     })
 
@@ -138,6 +138,18 @@ if (window.__TAURI_INTERNALS__) {
       })()
     }
 
+    // Debounced theme apply — coalesces rapid wallbash/gsettings events into one apply.
+    // Both the file watcher and gsettings monitor can fire for the same mode switch,
+    // and rapid switching generates overlapping events.
+    let _applyTimer: ReturnType<typeof setTimeout> | null = null
+    const debouncedApply = () => {
+      if (_applyTimer) clearTimeout(_applyTimer)
+      _applyTimer = setTimeout(() => {
+        _applyTimer = null
+        applyThemeFromState()
+      }, 100)
+    }
+
     // Combined wallbash event from Rust file watcher — colors + theme.conf
     // arrive as one atomic payload to prevent flash from stale intermediate state
     if (navigator.userAgent.includes('Linux')) {
@@ -154,7 +166,7 @@ if (window.__TAURI_INTERNALS__) {
             setWallbashColorScheme(scheme)
             setOsDarkPreference(theme.color_scheme === 'prefer-dark')
           }
-          applyThemeFromState(undefined, true)
+          debouncedApply()
         })
 
         // Instant color-scheme detection via gsettings monitor (Rust subprocess).
@@ -164,7 +176,7 @@ if (window.__TAURI_INTERNALS__) {
           if (wallbashUpdatedRecently()) return
           const isDark = event.payload === 'prefer-dark'
           setOsDarkPreference(isDark)
-          applyThemeFromState(undefined, true)
+          debouncedApply()
         })
       })
     }
@@ -183,7 +195,7 @@ if (window.__TAURI_INTERNALS__) {
           if (gtkTheme && gtkTheme !== lastGtkTheme) {
             lastGtkTheme = gtkTheme
             setGtkThemeMapping(gtkTheme)
-            applyThemeFromState(undefined, true)
+            debouncedApply()
           }
         } catch { /* gsettings unavailable */ }
       }, 3000)
