@@ -131,6 +131,7 @@ if (window.__TAURI_INTERNALS__) {
           const themeConf = await invoke<{ gtk_theme: string; color_scheme: string }>('read_theme_conf')
           if (themeConf?.color_scheme) {
             setWallbashColorScheme(themeConf.color_scheme === 'prefer-dark' ? 'prefer-dark' : 'prefer-light')
+            setOsDarkPreference(themeConf.color_scheme === 'prefer-dark')
           }
           if (getThemeState().mode === 'system') applyThemeFromState()
         } catch { /* wallbash files not present */ }
