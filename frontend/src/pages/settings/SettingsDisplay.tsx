@@ -1,15 +1,17 @@
 /**
- * SettingsDisplay -- comprehensive theme management panel.
+ * SettingsDisplay -- comprehensive theme management panel with card-based layout.
  *
  * Self-contained: reads from useThemeState() directly, no props.
- * Includes mode selector, theme presets grid, color pickers, fonts,
- * branding, import/export, scheduling, and custom CSS.
+ * Sections: mode selector, theme presets, compact colors, fonts + live preview,
+ * advanced sliders (glow, radius, opacity), reset, branding, import/export,
+ * scheduling, and custom CSS.
  */
 
 import { useState, useCallback, memo, useMemo } from 'react'
-import { Sun, Moon, Laptop } from '@phosphor-icons/react'
+import { Sun, Moon, Laptop, Palette, TextT, SlidersHorizontal } from '@phosphor-icons/react'
 
 import { BUILT_IN_THEMES, getThemeById } from '@/lib/theme-definitions'
+import { resolveThemeDefinition } from '@/lib/theme-engine'
 import {
   useThemeState,
   setMode,
@@ -17,7 +19,11 @@ import {
   setAccentOverride,
   setGlowOverride,
   setSecondaryOverride,
+  setTertiaryOverride,
   setLogoOverride,
+  setGlowOpacity,
+  setBorderRadius,
+  setPanelOpacity,
   resetThemeOverrides,
   removeCustomTheme,
   pinTheme,
@@ -29,8 +35,42 @@ import BrandingSettings from '@/components/BrandingSettings'
 import ThemeImportExport from '@/components/ThemeImportExport'
 import ThemeScheduler from '@/components/ThemeScheduler'
 import CustomCssEditor from '@/components/CustomCssEditor'
-import { row, sectionLabel, btnSecondary } from './shared'
+import { btnSecondary } from './shared'
 import { PushPin, PushPinSlash, Trash, ArrowCounterClockwise } from '@phosphor-icons/react'
+
+// ---------------------------------------------------------------------------
+// SettingsCard — reusable card wrapper for section grouping
+// ---------------------------------------------------------------------------
+
+function SettingsCard({ title, icon, children }: {
+  title: string
+  icon?: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <div style={{
+      background: 'var(--bg-card-solid)',
+      border: '1px solid var(--border)',
+      borderRadius: 'var(--radius-lg)',
+      padding: '16px',
+      marginBottom: '12px',
+    }}>
+      <h3 style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        fontSize: 'var(--text-sm)',
+        fontWeight: 600,
+        color: 'var(--text-primary)',
+        margin: '0 0 14px 0',
+      }}>
+        {icon}
+        {title}
+      </h3>
+      {children}
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Mode options
@@ -118,7 +158,7 @@ const ThemeCard = memo(function ThemeCard({
         </span>
       </button>
 
-      {/* Hover actions for custom themes */}
+      {/* Hover actions */}
       {hovered && (isCustom || isPinned || (!isCustom && !isPinned)) && (
         <div style={{
           position: 'absolute',
@@ -187,6 +227,87 @@ const miniActionBtnStyle: React.CSSProperties = {
 }
 
 // ---------------------------------------------------------------------------
+// Color item for compact color grid
+// ---------------------------------------------------------------------------
+
+type ColorKey = 'accent' | 'secondary' | 'tertiary' | 'glow' | 'logo'
+
+const COLOR_ITEMS: ReadonlyArray<{
+  key: ColorKey
+  label: string
+  description: string
+}> = [
+  { key: 'accent', label: 'Primary Accent', description: 'Buttons, links, active states' },
+  { key: 'secondary', label: 'Secondary (Status)', description: 'Success, online, completed' },
+  { key: 'tertiary', label: 'Tertiary (Accent Blue)', description: 'Chat bubbles, dashboard' },
+  { key: 'glow', label: 'Glow Color', description: 'Top gradient glow' },
+  { key: 'logo', label: 'Logo Color', description: 'Sidebar logo tint' },
+]
+
+const COLOR_SETTERS: Record<ColorKey, (color: string) => void> = {
+  accent: setAccentOverride,
+  secondary: setSecondaryOverride,
+  tertiary: setTertiaryOverride,
+  glow: setGlowOverride,
+  logo: setLogoOverride,
+}
+
+// ---------------------------------------------------------------------------
+// SliderRow — labeled range slider with value display
+// ---------------------------------------------------------------------------
+
+function SliderRow({ label, value, min, max, step, unit, onChange, ariaLabel }: {
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  unit: string
+  onChange: (v: number) => void
+  ariaLabel: string
+}) {
+  const displayValue = unit === '%'
+    ? `${Math.round(value * 100)}%`
+    : `${value}${unit}`
+
+  return (
+    <div style={{ marginBottom: '12px' }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '6px',
+      }}>
+        <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>{label}</span>
+        <span style={{
+          fontSize: 'var(--text-xs)',
+          color: 'var(--text-muted)',
+          fontFamily: 'monospace',
+          minWidth: '40px',
+          textAlign: 'right',
+        }}>
+          {displayValue}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={e => onChange(parseFloat(e.target.value))}
+        aria-label={ariaLabel}
+        style={{
+          width: '100%',
+          accentColor: 'var(--accent)',
+          cursor: 'pointer',
+        }}
+      />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // SettingsDisplay
 // ---------------------------------------------------------------------------
 
@@ -194,15 +315,27 @@ export default function SettingsDisplay() {
   const state = useThemeState()
   const overrides = state.overrides[state.activeThemeId]
   const [showResetConfirm, setShowResetConfirm] = useState(false)
+  const [expandedPicker, setExpandedPicker] = useState<ColorKey | null>(null)
 
-  // Get current color values (theme base + overrides)
+  // Resolve current theme definition
   const currentTheme = getThemeById(state.activeThemeId) ??
     state.customThemes.find(t => t.id === state.activeThemeId)
+  const resolvedTheme = resolveThemeDefinition(state)
+  const isLight = resolvedTheme.category === 'light'
 
-  const currentAccent = overrides?.accent ?? currentTheme?.colors['accent'] ?? '#a78bfa'
-  const currentSecondary = overrides?.secondary ?? currentTheme?.colors['accent-dim'] ?? '#818cf8'
-  const currentGlow = overrides?.glow ?? currentTheme?.colors['glow-top-rgb'] ?? '#8b5cf6'
-  const currentLogo = overrides?.logo ?? currentAccent
+  // Get current color values (theme base + overrides)
+  const currentColors: Record<ColorKey, string> = useMemo(() => ({
+    accent: overrides?.accent ?? currentTheme?.colors['accent'] ?? '#a78bfa',
+    secondary: overrides?.secondary ?? currentTheme?.colors['green'] ?? '#34d399',
+    tertiary: overrides?.tertiary ?? currentTheme?.colors['accent-secondary'] ?? (overrides?.accent ?? currentTheme?.colors['accent'] ?? '#a78bfa'),
+    glow: overrides?.glow ?? currentTheme?.colors['glow-top-rgb'] ?? '#8b5cf6',
+    logo: overrides?.logo ?? (overrides?.accent ?? currentTheme?.colors['accent'] ?? '#a78bfa'),
+  }), [overrides, currentTheme])
+
+  // Slider values from overrides with defaults
+  const glowOpacity = overrides?.glowOpacity ?? (isLight ? 0.06 : 0.10)
+  const borderRadius = overrides?.borderRadius ?? 12
+  const panelOpacity = overrides?.panelOpacity ?? 0.6
 
   // All themes: built-in + custom, pinned first
   const allThemes = useMemo(() => {
@@ -210,7 +343,6 @@ export default function SettingsDisplay() {
       ...BUILT_IN_THEMES.map(t => ({ ...t })),
       ...state.customThemes.map(t => ({ ...t })),
     ]
-    // Sort: pinned themes first
     return combined.sort((a, b) => {
       const aPinned = state.overrides[a.id]?.pinned ? 1 : 0
       const bPinned = state.overrides[b.id]?.pinned ? 1 : 0
@@ -222,62 +354,57 @@ export default function SettingsDisplay() {
   const handleReset = useCallback(() => {
     resetThemeOverrides(state.activeThemeId)
     setShowResetConfirm(false)
+    setExpandedPicker(null)
   }, [state.activeThemeId])
 
   return (
     <div>
-      {/* ── Display heading ── */}
-      <div style={sectionLabel}>Display</div>
-
-      {/* ── Mode selector ── */}
-      <div style={row}>
-        <span>Theme Mode</span>
+      {/* 1. Appearance — Mode Selector */}
+      <SettingsCard title="Appearance" icon={<Moon size={16} weight="duotone" />}>
         <div style={{
           display: 'flex',
-          borderRadius: '10px',
-          border: '1px solid var(--border)',
-          overflow: 'hidden',
+          justifyContent: 'space-between',
+          alignItems: 'center',
         }}>
-          {MODE_OPTIONS.map(({ value, icon: Icon, label }) => {
-            const active = state.mode === value
-            return (
-              <button
-                key={value}
-                onClick={() => setMode(value)}
-                aria-label={label}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 14px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: active ? 600 : 400,
-                  background: active ? 'var(--accent)' : 'transparent',
-                  color: active ? 'var(--text-on-accent)' : 'var(--text-secondary)',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <Icon size={14} />
-                {label}
-              </button>
-            )
-          })}
+          <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>Theme Mode</span>
+          <div style={{
+            display: 'flex',
+            borderRadius: '10px',
+            border: '1px solid var(--border)',
+            overflow: 'hidden',
+          }}>
+            {MODE_OPTIONS.map(({ value, icon: Icon, label }) => {
+              const active = state.mode === value
+              return (
+                <button
+                  key={value}
+                  onClick={() => setMode(value)}
+                  aria-label={label}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 14px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: active ? 600 : 400,
+                    background: active ? 'var(--accent)' : 'transparent',
+                    color: active ? 'var(--text-on-accent)' : 'var(--text-secondary)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <Icon size={14} />
+                  {label}
+                </button>
+              )
+            })}
+          </div>
         </div>
-      </div>
+      </SettingsCard>
 
-      {/* ── Theme Presets grid ── */}
-      <div style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
-        <span style={{
-          fontSize: 'var(--text-sm)',
-          color: 'var(--text-secondary)',
-          fontWeight: 500,
-          marginBottom: '10px',
-          display: 'block',
-        }}>
-          Theme Presets
-        </span>
+      {/* 2. Theme Presets */}
+      <SettingsCard title="Theme Presets">
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
@@ -305,30 +432,164 @@ export default function SettingsDisplay() {
             )
           })}
         </div>
-      </div>
+      </SettingsCard>
 
-      {/* ── Accent color ── */}
-      <div style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
-        <AccentPicker color={currentAccent} onChange={setAccentOverride} label="Accent" />
-      </div>
+      {/* 3. Colors — compact grid */}
+      <SettingsCard title="Colors" icon={<Palette size={16} weight="duotone" />}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '8px',
+        }}>
+          {COLOR_ITEMS.map(({ key, label, description }) => {
+            const color = currentColors[key]
+            const isExpanded = expandedPicker === key
+            return (
+              <div key={key} style={{
+                gridColumn: isExpanded ? '1 / -1' : undefined,
+              }}>
+                <button
+                  onClick={() => setExpandedPicker(isExpanded ? null : key)}
+                  aria-label={`Edit ${label} color`}
+                  aria-expanded={isExpanded}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    width: '100%',
+                    padding: '8px',
+                    background: isExpanded ? 'var(--hover-bg)' : 'transparent',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s ease',
+                  }}
+                >
+                  <span style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: '50%',
+                    background: color,
+                    border: '2px solid var(--border-hover)',
+                    flexShrink: 0,
+                  }} />
+                  <div style={{ textAlign: 'left', minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 'var(--text-xs)',
+                      fontWeight: 500,
+                      color: 'var(--text-primary)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}>
+                      {label}
+                    </div>
+                    <div style={{
+                      fontSize: '10px',
+                      color: 'var(--text-muted)',
+                      fontFamily: 'monospace',
+                    }}>
+                      {color}
+                    </div>
+                  </div>
+                </button>
+                {isExpanded && (
+                  <div style={{ padding: '12px 0 4px 0' }}>
+                    <AccentPicker
+                      color={color}
+                      onChange={COLOR_SETTERS[key]}
+                      label={label}
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </SettingsCard>
 
-      {/* ── Secondary color ── */}
-      <div style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
-        <AccentPicker color={currentSecondary} onChange={setSecondaryOverride} label="Secondary" />
-      </div>
+      {/* 4. Typography — fonts + live preview */}
+      <SettingsCard title="Typography" icon={<TextT size={16} weight="duotone" />}>
+        <FontPicker />
+        <div style={{
+          marginTop: '14px',
+          padding: '16px',
+          background: 'var(--bg-elevated)',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border)',
+        }}>
+          <div style={{
+            fontSize: 'var(--text-2xs)',
+            color: 'var(--text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            marginBottom: '10px',
+            fontFamily: 'monospace',
+          }}>
+            Live Preview
+          </div>
+          <div style={{
+            fontFamily: 'var(--font-heading)',
+            fontSize: 'var(--text-lg)',
+            color: 'var(--text-primary)',
+            marginBottom: '6px',
+          }}>
+            The quick brown fox
+          </div>
+          <div style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: 'var(--text-base)',
+            color: 'var(--text-secondary)',
+            marginBottom: '6px',
+          }}>
+            jumps over the lazy dog -- 0123456789
+          </div>
+          <div style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 'var(--text-sm)',
+            color: 'var(--text-muted)',
+          }}>
+            {'const greeting = "Hello, World!"'}
+          </div>
+        </div>
+      </SettingsCard>
 
-      {/* ── Glow color ── */}
-      <div style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
-        <AccentPicker color={currentGlow} onChange={setGlowOverride} label="Glow" />
-      </div>
+      {/* 5. Advanced — sliders */}
+      <SettingsCard title="Advanced" icon={<SlidersHorizontal size={16} weight="duotone" />}>
+        <SliderRow
+          label="Glow Brightness"
+          value={glowOpacity}
+          min={0}
+          max={0.25}
+          step={0.01}
+          unit="%"
+          onChange={setGlowOpacity}
+          ariaLabel="Glow brightness intensity"
+        />
+        <SliderRow
+          label="Border Radius"
+          value={borderRadius}
+          min={0}
+          max={24}
+          step={1}
+          unit="px"
+          onChange={setBorderRadius}
+          ariaLabel="Border radius for cards and panels"
+        />
+        <SliderRow
+          label="Panel Opacity"
+          value={panelOpacity}
+          min={0.4}
+          max={1.0}
+          step={0.05}
+          unit="%"
+          onChange={setPanelOpacity}
+          ariaLabel="Glass panel background opacity"
+        />
+      </SettingsCard>
 
-      {/* ── Logo color ── */}
-      <div style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
-        <AccentPicker color={currentLogo} onChange={setLogoOverride} label="Logo" />
-      </div>
-
-      {/* ── Reset to Default ── */}
-      <div style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
+      {/* 6. Reset to Default */}
+      <div style={{ marginBottom: '12px' }}>
         {!showResetConfirm ? (
           <button
             onClick={() => setShowResetConfirm(true)}
@@ -340,8 +601,8 @@ export default function SettingsDisplay() {
         ) : (
           <div style={{
             padding: '12px',
-            background: 'var(--bg-card)',
-            borderRadius: '8px',
+            background: 'var(--bg-card-solid)',
+            borderRadius: 'var(--radius-md)',
             border: '1px solid var(--border)',
           }}>
             <p style={{ fontSize: '13px', color: 'var(--text-primary)', margin: '0 0 10px 0' }}>
@@ -369,32 +630,25 @@ export default function SettingsDisplay() {
         )}
       </div>
 
-      {/* ── Fonts ── */}
-      <div style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
-        <FontPicker />
-      </div>
-
-      {/* ── Branding ── */}
-      <div style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
+      {/* 7. Branding */}
+      <SettingsCard title="Branding">
         <BrandingSettings />
-      </div>
+      </SettingsCard>
 
-      {/* ── Import/Export ── */}
-      <div style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
+      {/* 8. Import & Export */}
+      <SettingsCard title="Import & Export">
         <ThemeImportExport />
-      </div>
+      </SettingsCard>
 
-      {/* ── Schedule ── */}
-      <div style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
-        <div style={sectionLabel}>Schedule</div>
+      {/* 9. Schedule */}
+      <SettingsCard title="Schedule">
         <ThemeScheduler />
-      </div>
+      </SettingsCard>
 
-      {/* ── Custom CSS ── */}
-      <div style={{ padding: '12px 0' }}>
-        <div style={sectionLabel}>Custom CSS</div>
+      {/* 10. Custom CSS */}
+      <SettingsCard title="Custom CSS">
         <CustomCssEditor />
-      </div>
+      </SettingsCard>
     </div>
   )
 }

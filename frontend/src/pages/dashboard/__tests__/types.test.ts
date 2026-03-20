@@ -9,11 +9,11 @@ import type { Idea, AgentInfo, HeartbeatData } from '../types'
 /* ── missionStatusStyle ───────────────────────────────────────────────── */
 
 describe('missionStatusStyle', () => {
-  it('returns green-tinted style for "done"', () => {
+  it('returns secondary-tinted style for "done"', () => {
     const style = missionStatusStyle('done')
-    expect(style.background).toMatch(/green/)
-    expect(style.color).toBe('var(--green-bright)')
-    expect(style.border).toMatch(/green/)
+    expect(style.background).toMatch(/secondary/)
+    expect(style.color).toBe('var(--secondary-bright)')
+    expect(style.border).toMatch(/secondary/)
   })
 
   it('returns blue-tinted style for "active"', () => {
@@ -53,8 +53,8 @@ describe('missionStatusStyle', () => {
 /* ── effortColor ──────────────────────────────────────────────────────── */
 
 describe('effortColor', () => {
-  it('returns green for "low"', () => {
-    expect(effortColor('low')).toBe('var(--green)')
+  it('returns secondary for "low"', () => {
+    expect(effortColor('low')).toBe('var(--secondary)')
   })
 
   it('returns amber for "medium"', () => {
@@ -94,7 +94,7 @@ describe('pillStyle', () => {
   })
 
   it('uses effortColor for the color property', () => {
-    expect(pillStyle('low').color).toBe('var(--green)')
+    expect(pillStyle('low').color).toBe('var(--secondary)')
     expect(pillStyle('medium').color).toBe('var(--amber)')
     expect(pillStyle('high').color).toBe('var(--red-bright)')
     expect(pillStyle(null).color).toBe('var(--text-muted)')
@@ -102,7 +102,7 @@ describe('pillStyle', () => {
 
   it('background includes the color with alpha suffix', () => {
     const style = pillStyle('low')
-    expect(style.background).toContain('var(--green)')
+    expect(style.background).toContain('var(--secondary)')
     expect(style.background).toContain('22')
   })
 

@@ -196,8 +196,8 @@ describe('STALE_TYPE_COLORS', () => {
     }
   })
 
-  it('todo uses green color', () => {
-    expect(STALE_TYPE_COLORS.todo.color).toBe('var(--green)')
+  it('todo uses secondary color', () => {
+    expect(STALE_TYPE_COLORS.todo.color).toBe('var(--secondary)')
   })
 
   it('mission uses accent-bright color', () => {
@@ -228,8 +228,8 @@ describe('STALE_TYPE_ICONS', () => {
 /* ─── IDEA_LEVEL_COLORS ───────────────────────────────────────────────── */
 
 describe('IDEA_LEVEL_COLORS', () => {
-  it('maps low to green', () => {
-    expect(IDEA_LEVEL_COLORS.low).toBe('var(--green)')
+  it('maps low to secondary', () => {
+    expect(IDEA_LEVEL_COLORS.low).toBe('var(--secondary)')
   })
 
   it('maps medium to gold', () => {
@@ -280,9 +280,9 @@ describe('IDEA_STATUS_META', () => {
     expect(pending?.color).toBe('var(--gold)')
   })
 
-  it('approved has green color', () => {
+  it('approved has secondary color', () => {
     const approved = IDEA_STATUS_META.find(e => e.status === 'approved')
-    expect(approved?.color).toBe('var(--green)')
+    expect(approved?.color).toBe('var(--secondary)')
   })
 
   it('rejected has red color', () => {

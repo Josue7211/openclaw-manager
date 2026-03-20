@@ -3,7 +3,7 @@ import { statusColor, formatElapsed, hexToRgba, formatDuration, EVENT_META } fro
 
 describe('statusColor', () => {
   it('returns green for done', () => {
-    expect(statusColor('done')).toBe('var(--green-400)')
+    expect(statusColor('done')).toBe('var(--secondary)')
   })
 
   it('returns accent for active', () => {
