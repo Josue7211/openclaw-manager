@@ -2,6 +2,87 @@ use serde::Serialize;
 use serde_json::Value;
 use std::process::Command;
 
+// ── Wizard: Tailscale check ─────────────────────────────────────────────────
+
+/// Result of checking whether Tailscale is connected and available.
+/// Used by the setup wizard to detect network connectivity before
+/// configuring service URLs.
+#[derive(Debug, Clone, Serialize)]
+pub struct TailscaleCheck {
+    pub connected: bool,
+    pub self_ip: Option<String>,
+    pub peer_count: usize,
+    pub error: Option<String>,
+}
+
+/// Tauri IPC command: check whether Tailscale is connected and return
+/// the machine's own Tailscale IP plus peer count. Does not require
+/// a user session -- safe to call during the setup wizard.
+#[tauri::command]
+pub fn check_tailscale() -> TailscaleCheck {
+    let output = match Command::new("tailscale")
+        .args(["status", "--json"])
+        .output()
+    {
+        Ok(o) => o,
+        Err(e) => {
+            return TailscaleCheck {
+                connected: false,
+                self_ip: None,
+                peer_count: 0,
+                error: Some(format!("tailscale not found: {e}")),
+            };
+        }
+    };
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        return TailscaleCheck {
+            connected: false,
+            self_ip: None,
+            peer_count: 0,
+            error: Some(format!("tailscale status failed: {stderr}")),
+        };
+    }
+
+    let json: Value = match serde_json::from_slice(&output.stdout) {
+        Ok(v) => v,
+        Err(e) => {
+            return TailscaleCheck {
+                connected: false,
+                self_ip: None,
+                peer_count: 0,
+                error: Some(format!("failed to parse tailscale output: {e}")),
+            };
+        }
+    };
+
+    // Extract self IP from Self.TailscaleIPs[0]
+    let self_ip = json
+        .get("Self")
+        .and_then(|s| s.get("TailscaleIPs"))
+        .and_then(|ips| ips.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    // Count peers from the Peer map
+    let peer_count = json
+        .get("Peer")
+        .and_then(|p| p.as_object())
+        .map(|m| m.len())
+        .unwrap_or(0);
+
+    TailscaleCheck {
+        connected: self_ip.is_some(),
+        self_ip,
+        peer_count,
+        error: None,
+    }
+}
+
+// ── Peer types ──────────────────────────────────────────────────────────────
+
 /// A Tailscale peer with its IP addresses, hostname, and online status.
 #[derive(Debug, Clone, Serialize)]
 pub struct TailscalePeer {
@@ -321,5 +402,50 @@ mod tests {
         let result = verify_service_peer("http://100.64.0.3:1234", None, &peers);
         assert_eq!(result.peer_verified, None);
         assert_eq!(result.peer_hostname, Some("macbook".into()));
+    }
+
+    #[test]
+    fn tailscale_check_struct_construction() {
+        // Verify TailscaleCheck struct construction works (cannot call actual
+        // tailscale binary in CI, but struct and serialization should work)
+        let result = TailscaleCheck {
+            connected: false,
+            self_ip: None,
+            peer_count: 0,
+            error: Some("tailscale not found".into()),
+        };
+        assert!(!result.connected);
+        assert!(result.self_ip.is_none());
+        assert_eq!(result.peer_count, 0);
+        assert!(result.error.unwrap().contains("not found"));
+    }
+
+    #[test]
+    fn tailscale_check_connected() {
+        let result = TailscaleCheck {
+            connected: true,
+            self_ip: Some("100.64.0.1".into()),
+            peer_count: 3,
+            error: None,
+        };
+        assert!(result.connected);
+        assert_eq!(result.self_ip, Some("100.64.0.1".into()));
+        assert_eq!(result.peer_count, 3);
+        assert!(result.error.is_none());
+    }
+
+    #[test]
+    fn tailscale_check_serializes() {
+        let result = TailscaleCheck {
+            connected: true,
+            self_ip: Some("100.64.0.1".into()),
+            peer_count: 2,
+            error: None,
+        };
+        let json = serde_json::to_value(&result).unwrap();
+        assert_eq!(json["connected"], true);
+        assert_eq!(json["self_ip"], "100.64.0.1");
+        assert_eq!(json["peer_count"], 2);
+        assert!(json["error"].is_null());
     }
 }

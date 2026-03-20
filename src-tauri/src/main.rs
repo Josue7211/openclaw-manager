@@ -165,6 +165,7 @@ fn main() {
             commands::read_wallbash_colors,
             commands::read_theme_conf,
             fonts::list_system_fonts,
+            tailscale::check_tailscale,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
