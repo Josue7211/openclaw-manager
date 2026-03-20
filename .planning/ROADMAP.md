@@ -133,13 +133,14 @@ Plans:
 
 ### Phase 04.1: Wallbash GTK System Mode Integration Fix (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** Wallbash dark/light switching works reliably -- desktop theme changes are reflected in the app within 500ms, state updates are atomic (no partial reads during transitions), and the gsettings monitor recovers from crashes.
+**Requirements**: SYSMODE-01, SYSMODE-02, SYSMODE-03, SYSMODE-04, SYSMODE-05
 **Depends on:** Phase 04
-**Plans:** 5/6 plans executed
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 04.1 to break down)
+- [ ] 04.1-01-PLAN.md -- Atomic wallbash state API in theme-engine.ts, Rust watcher debounce fix, gsettings monitor restart
+- [ ] 04.1-02-PLAN.md -- Rewrite main.tsx event handlers, SettingsDisplay toggle fix, integration tests
 
 ### Phase 5: Page Experience
 **Goal**: Navigating between modules feels instant and polished -- state is preserved, activity is visible at a glance, and power users can find anything in seconds.
@@ -204,7 +205,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 2.1 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
+Phases execute in numeric order: 1 -> 2 -> 2.1 -> 3 -> 4 -> 4.1 -> 5 -> 6 -> 7 -> 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -214,6 +215,7 @@ Phases execute in numeric order: 1 -> 2 -> 2.1 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 2.2. Theme System Mode Fixes | 0/2 | Planned | - |
 | 3. Setup Wizard + Onboarding | 0/6 | Planned | - |
 | 4. Dashboard Grid + Widget System | 6/6 | Complete | 2026-03-20 |
+| 4.1. Wallbash GTK System Mode Integration Fix | 0/2 | Planned | - |
 | 5. Page Experience | 0/2 | Not started | - |
 | 6. Module Primitives Library | 0/3 | Not started | - |
 | 7. Bjorn Module Builder | 0/3 | Not started | - |
