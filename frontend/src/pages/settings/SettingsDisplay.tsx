@@ -11,7 +11,7 @@ import { useState, useCallback, memo, useMemo } from 'react'
 import { Sun, Moon, Laptop, Palette, TextT, SlidersHorizontal } from '@phosphor-icons/react'
 
 import { BUILT_IN_THEMES, getThemeById } from '@/lib/theme-definitions'
-import { resolveThemeDefinition, getActiveSystemTheme, isOsDark } from '@/lib/theme-engine'
+import { resolveThemeDefinition, getActiveSystemTheme, isOsDark, isWallbashActive } from '@/lib/theme-engine'
 import {
   useThemeState,
   setMode,
@@ -446,7 +446,9 @@ export default function SettingsDisplay() {
             <div>
               <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>Use GTK Theme</span>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Match desktop GTK theme colors instead of built-in dark/light
+                {isWallbashActive()
+                  ? 'Wallbash active \u2014 colors derived from wallpaper'
+                  : 'Match desktop GTK theme colors instead of built-in dark/light'}
               </div>
             </div>
             <Toggle on={state.useGtkTheme ?? false} onToggle={setUseGtkTheme} label="Use GTK theme" />

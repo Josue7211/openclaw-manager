@@ -3,7 +3,16 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { getActiveSystemTheme, isOsDark, setOsDarkPreference, setGtkThemeMapping } from '../theme-engine'
+import {
+  getActiveSystemTheme,
+  isOsDark,
+  setOsDarkPreference,
+  setGtkThemeMapping,
+  setWallbashState,
+  getWallbashColors,
+  getWallbashColorScheme,
+  wallbashUpdatedRecently,
+} from '../theme-engine'
 import type { ThemeState } from '../theme-definitions'
 
 function makeState(overrides: Partial<ThemeState> = {}): ThemeState {
@@ -193,5 +202,50 @@ describe('system theme name formatting', () => {
     setGtkThemeMapping('material-sakura')
     const info = getActiveSystemTheme(makeState())
     expect(info.activeThemeName).toBe('Material Sakura Dark')
+  })
+})
+
+describe('setWallbashState atomic updates (integration)', () => {
+  beforeEach(() => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15',
+      writable: true,
+      configurable: true,
+    })
+  })
+
+  it('setWallbashState updates colors and colorScheme atomically', () => {
+    setWallbashState({
+      colors: { wallbash_pry1: '#112233' },
+      colorScheme: 'prefer-light',
+      gtkThemeName: 'Wallbash-Gtk',
+    })
+    expect(getWallbashColors()).toEqual({ wallbash_pry1: '#112233' })
+    expect(getWallbashColorScheme()).toBe('prefer-light')
+  })
+
+  it('wallbashUpdatedRecently is true immediately after setWallbashState', () => {
+    setWallbashState({ colors: { wallbash_pry1: '#aabbcc' } })
+    expect(wallbashUpdatedRecently()).toBe(true)
+  })
+
+  it('wallbashUpdatedRecently respects custom window', () => {
+    setWallbashState({ colors: { wallbash_pry1: '#aabbcc' } })
+    // With a very large window, should be true
+    expect(wallbashUpdatedRecently(10000)).toBe(true)
+  })
+
+  it('resolveThemeDefinition ignores wallbash when useGtkTheme is false', () => {
+    setWallbashState({
+      colors: { wallbash_pry1: '#112233', wallbash_3xa5: '#445566' },
+      colorScheme: 'prefer-dark',
+      gtkThemeName: 'Wallbash-Gtk',
+    })
+    setOsDarkPreference(true)
+
+    const state = makeState({ useGtkTheme: false })
+    const info = getActiveSystemTheme(state)
+    // Should NOT be wallbash-live — useGtkTheme is false
+    expect(info.activeTheme?.id).not.toBe('wallbash-live')
   })
 })
