@@ -14,9 +14,10 @@ import { ResponsiveGridLayout, useContainerWidth } from 'react-grid-layout'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 
-import { useDashboardStore, updatePageLayouts } from '@/lib/dashboard-store'
+import { useDashboardStore, updatePageLayouts, removeWidget, setEditMode } from '@/lib/dashboard-store'
 import type { LayoutItem } from '@/lib/dashboard-store'
 import { WidgetWrapper } from '@/components/dashboard/WidgetWrapper'
+import { useLongPress } from '@/components/dashboard/DashboardEditBar'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SquaresFour } from '@phosphor-icons/react'
 
@@ -56,6 +57,11 @@ export const DashboardGrid = React.memo(function DashboardGrid({
   // Debounce timer ref
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Long-press: enter edit mode on any widget
+  const longPressHandlers = useLongPress(() => {
+    if (!editMode) setEditMode(true)
+  })
+
   // Collect all unique widget IDs across all breakpoints
   const widgetItems = useMemo(() => {
     if (!page) return []
@@ -85,6 +91,14 @@ export const DashboardGrid = React.memo(function DashboardGrid({
       debounceRef.current = setTimeout(() => {
         updatePageLayouts(pageId, allLayouts)
       }, DEBOUNCE_MS)
+    },
+    [pageId],
+  )
+
+  // Remove widget callback factory
+  const handleRemoveWidget = useCallback(
+    (widgetId: string) => {
+      removeWidget(pageId, widgetId)
     },
     [pageId],
   )
@@ -125,6 +139,7 @@ export const DashboardGrid = React.memo(function DashboardGrid({
             <div
               key={item.i}
               className={editMode && wobbleEnabled ? 'widget-wobble' : ''}
+              {...longPressHandlers}
             >
               <WidgetWrapper
                 widgetId={item.i}
@@ -132,6 +147,8 @@ export const DashboardGrid = React.memo(function DashboardGrid({
                 config={page.widgetConfigs[item.i] || {}}
                 isEditMode={editMode}
                 size={{ w: item.w, h: item.h }}
+                pageId={pageId}
+                onRemove={() => handleRemoveWidget(item.i)}
               />
             </div>
           ))}
