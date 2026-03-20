@@ -76,14 +76,27 @@ runMigrations()
 applyThemeFromState()
 
 // Detect OS dark mode preference — use Tauri native API on desktop (reads GTK
-// settings on Linux), fall back to matchMedia in browser mode
+// settings on Linux), fall back to matchMedia in browser mode.
+// On Linux (Hyprland/Wayland), Tauri's native theme() reads gtk-application-prefer-dark-theme
+// which is often unset, so we call our Rust detect_system_dark_mode command as a fallback.
 if (window.__TAURI_INTERNALS__) {
   import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
-    getCurrentWindow().theme().then(theme => {
-      setOsDarkPreference(theme === 'dark')
+    getCurrentWindow().theme().then(async (theme) => {
+      let isDark = theme === 'dark'
+      // On Linux, native detection may miss dark GTK themes — use gsettings fallback
+      if (!isDark && navigator.userAgent.includes('Linux')) {
+        try {
+          const { invoke } = await import('@tauri-apps/api/core')
+          isDark = await invoke<boolean>('detect_system_dark_mode')
+        } catch {
+          // gsettings unavailable or command failed — keep native result
+        }
+      }
+      setOsDarkPreference(isDark)
       if (getThemeState().mode === 'system') applyThemeFromState()
     })
-    // Listen for OS theme changes
+    // Listen for OS theme changes (works on macOS/Windows; on Linux this fires
+    // only if gtk-application-prefer-dark-theme changes, which is rare on Wayland)
     getCurrentWindow().onThemeChanged(({ payload }) => {
       setOsDarkPreference(payload === 'dark')
       if (getThemeState().mode === 'system') applyThemeFromState()
