@@ -1,27 +1,38 @@
 ---
 created: 2026-03-20T03:28:49.938Z
-title: Wallbash dark/light mode switching ignored
+title: Wallbash dark/light/auto switcher ignored + every theme needs light variant
 area: ui
 files:
   - src-tauri/src/commands.rs:242-308
   - frontend/src/lib/theme-engine.ts:62-120
+  - frontend/src/lib/theme-definitions.ts
   - frontend/src/main.tsx:137-156
 ---
 
 ## Problem
 
-Wallbash has 3 modes: **theme**, **dark**, **light** (plus auto). When wallbash is in "theme" mode, system mode works correctly — the app picks up GTK wallbash colors and mirrors the desktop theme.
+Two related issues:
 
-But switching wallbash to explicit "dark" or "light" mode doesn't change the app. It stays on the theme mode colors regardless.
+### 1. Wallbash dark/light/auto switcher ignored
 
-**Root cause hypothesis:** When wallbash switches between dark/light mode, it likely only writes `theme.conf` (changing `$COLOR_SCHEME` from `prefer-dark` to `prefer-light`) without rewriting `colors.conf`. The Rust file watcher's coalesced event currently requires `colors.conf` OR `theme.conf` to change, but the 150ms sleep + drain may swallow the theme.conf-only event. Additionally, `buildWallbashTheme()` may not be re-invoked because the wallbash colors haven't changed — only the scheme has.
+Wallbash has 4 modes: **theme**, **auto**, **dark**, **light**. When wallbash is in "theme" mode, system mode works correctly — the app picks up GTK wallbash colors and mirrors the desktop theme.
 
-**What works:** Theme mode + system mode correctly detects GTK theme and applies wallbash colors. The pry1↔pry4 swap based on COLOR_SCHEME is correct. The coalesced event prevents flash on theme switches.
+But switching wallbash to dark, light, or auto mode doesn't change the app. It stays on the theme mode colors regardless.
 
-**What's broken:** Switching wallbash dark↔light doesn't propagate to the app.
+**Root cause hypothesis:** When wallbash switches modes, it likely only writes `theme.conf` (changing `$COLOR_SCHEME`) without rewriting `colors.conf`. The file watcher's coalesced event + 150ms sleep + drain may swallow the theme.conf-only change. `buildWallbashTheme()` isn't re-invoked because wallbash colors haven't changed — only the scheme has.
+
+### 2. Every built-in theme needs a light mode variant
+
+Currently dark-only themes (Dracula, Nord, Tokyo Night, etc.) have no light counterpart. This means system mode can't do a clean dark↔light switch for every theme — it has to fall back to `default-light`. Every theme should have both a dark and light variant so system mode just picks the right variant without needing smart fallback logic.
 
 ## Solution
 
-1. Verify hypothesis: check if wallbash dark/light only writes `theme.conf` (add temp logging or `inotifywait`)
-2. If confirmed: ensure the watcher fires on theme.conf-only changes and that the frontend re-runs `buildWallbashTheme()` with the updated `_wallbashColorScheme` even when colors haven't changed
-3. May need to separate the "colors changed" and "scheme changed" paths — scheme change should trigger a re-apply even with same colors
+### For wallbash switcher:
+1. Verify: does wallbash dark/light only write `theme.conf`? (use `inotifywait` to check)
+2. Ensure watcher fires on theme.conf-only changes and frontend re-runs `buildWallbashTheme()` with updated scheme even when colors are unchanged
+3. May need to separate "colors changed" vs "scheme changed" paths
+
+### For theme light variants:
+1. Add light variants for all dark-only themes: Dracula Light, Nord Light, Tokyo Night Light, etc.
+2. Extend COUNTERPART_MAP with all new pairs
+3. System mode then always has a correct counterpart — no fallback needed
