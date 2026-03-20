@@ -65,12 +65,14 @@ export function buildWallbashTheme(
 ): ThemeDefinition {
   const isDark = colorScheme === 'prefer-dark'
 
-  // Select background groups based on dark/light
-  const bgBase = isDark ? (colors.wallbash_pry1 || '#11151A') : (colors.wallbash_pry4 || '#f5e8e6')
-  const bgPanel = isDark ? (colors.wallbash_pry2 || '#1a1e26') : (colors.wallbash_pry3 || '#2a2e36')
-  const bgElevated = isDark ? (colors.wallbash_pry3 || '#2a2e36') : (colors.wallbash_pry2 || '#1a1e26')
-  const textPrimary = isDark ? (colors.wallbash_txt1 || '#FFFFFF') : (colors.wallbash_txt4 || '#101111')
-  const textSecondary = isDark ? (colors.wallbash_txt2 || '#c0c0c0') : (colors.wallbash_txt3 || '#3a3a3a')
+  // Wallbash regenerates colors.conf on mode switch — pry1 is ALWAYS the current
+  // mode's base background (dark bg in dark mode, light bg in light mode).
+  // Never swap pry1↔pry4 based on isDark; use groups in natural order.
+  const bgBase = colors.wallbash_pry1 || (isDark ? '#11151A' : '#f5e8e6')
+  const bgPanel = colors.wallbash_pry2 || (isDark ? '#1a1e26' : '#e8dbd9')
+  const bgElevated = colors.wallbash_pry3 || (isDark ? '#2a2e36' : '#d5c8c6')
+  const textPrimary = colors.wallbash_txt1 || (isDark ? '#FFFFFF' : '#101111')
+  const textSecondary = colors.wallbash_txt2 || (isDark ? '#c0c0c0' : '#3a3a3a')
 
   const accent = colors.wallbash_3xa5 || '#6581A3'
   const accentDim = colors.wallbash_3xa3 || '#4a6580'
