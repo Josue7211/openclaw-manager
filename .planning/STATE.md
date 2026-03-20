@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-stopped_at: Completed 04-04-PLAN.md
-last_updated: "2026-03-20T22:23:32.708Z"
+status: phase-complete
+stopped_at: Completed 04-06-PLAN.md
+last_updated: "2026-03-20T23:22:00.000Z"
 progress:
   total_phases: 11
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 31
-  completed_plans: 30
+  completed_plans: 31
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 04 — dashboard-grid-widget-system
+**Current focus:** Phase 04 -- COMPLETE
 
 ## Current Position
 
-Phase: 04 (dashboard-grid-widget-system) — EXECUTING
-Plan: 6 of 6
+Phase: 04 (dashboard-grid-widget-system) -- COMPLETE
+Plan: 6 of 6 -- ALL DONE
 
 ## Performance Metrics
 
@@ -77,6 +77,7 @@ Plan: 6 of 6
 | Phase 04 P02 | 6 | 2 tasks | 5 files |
 | Phase 04 P05 | 26min | 1 tasks | 3 files |
 | Phase 04 P04 | 3min | 2 tasks | 6 files |
+| Phase 04 P06 | 5min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -140,7 +141,7 @@ Recent decisions affecting current work:
 - [Phase 02.2]: system->dark/light transitions do NOT trigger counterpart auto-switch (only explicit dark<->light toggles)
 - [Phase 02.2]: buildWallbashTheme uses rgba compositing for bg-panel/bg-card with wallbash base colors
 - [Phase 02.2]: Linux system mode shows single active theme card; macOS/Windows shows filtered presets
-- [Phase 02.2]: gsettings polling reduced from 1s to 3s — file watcher handles wallbash instant sync
+- [Phase 02.2]: gsettings polling reduced from 1s to 3s -- file watcher handles wallbash instant sync
 
 - [Phase 03]: Wizard store follows useSyncExternalStore pattern from theme-store.ts for codebase consistency
 - [Phase 03]: testResults excluded from localStorage persistence -- re-run on resume for security
@@ -176,11 +177,14 @@ Recent decisions affecting current work:
 - [Phase 04]: LAST_WRITE_WINS_KEYS pattern for dashboard-state timestamp comparison instead of remote-wins
 - [Phase 04]: dashboard-edit keybinding registered as action (not route) to coexist with nav-email on same key
 - [Phase 04]: Schema-driven config rendering: iterate configSchema.fields to render appropriate input components
+- [Phase 04]: WidgetPicker and RecycleBin lazy-loaded via React.lazy with named export wrapper
+- [Phase 04]: Long-press on any widget enters edit mode via useLongPress hook from DashboardEditBar
+- [Phase 04]: First-use default layout triggers via useEffect when active page has empty layouts
 
 ### Roadmap Evolution
 
-- Phase 02.1 inserted after Phase 02: Theme Settings Page Polish + System Mode Fix (URGENT) — System mode doesn't detect GTK dark themes on Hyprland, Settings Display page needs visual reorganization and improved customizability
-- Phase 04.1 inserted after Phase 04: Wallbash GTK System Mode Integration Fix (URGENT) — Wallbash dark↔light switching unreliable, gsettings monitor race conditions, useGtkTheme toggle state issues, crossfade crashes WebKitGTK
+- Phase 02.1 inserted after Phase 02: Theme Settings Page Polish + System Mode Fix (URGENT) -- System mode doesn't detect GTK dark themes on Hyprland, Settings Display page needs visual reorganization and improved customizability
+- Phase 04.1 inserted after Phase 04: Wallbash GTK System Mode Integration Fix (URGENT) -- Wallbash dark<->light switching unreliable, gsettings monitor race conditions, useGtkTheme toggle state issues, crossfade crashes WebKitGTK
 
 ### Pending Todos
 
@@ -194,6 +198,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T22:23:32.706Z
-Stopped at: Completed 04-04-PLAN.md
+Last session: 2026-03-20T23:22:00.000Z
+Stopped at: Completed 04-06-PLAN.md
 Resume file: None

@@ -72,8 +72,8 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 
 ### Dashboard Grid
 
-- [ ] **DASH-01**: Free-form grid layout with drag-to-reposition and resize handles
-- [ ] **DASH-02**: Widgets snap to grid cells during drag/resize
+- [x] **DASH-01**: Free-form grid layout with drag-to-reposition and resize handles
+- [x] **DASH-02**: Widgets snap to grid cells during drag/resize
 - [x] **DASH-03**: Edit mode toggle (enter/exit via button and keyboard shortcut)
 - [x] **DASH-04**: Edit mode shows grid lines, resize handles, add widget button, remove widget X
 - [x] **DASH-05**: Non-edit mode shows clean layout with no edit chrome
@@ -81,8 +81,8 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 - [x] **DASH-07**: Widget Registry mapping widget IDs to lazy-loaded React components
 - [x] **DASH-08**: Layout persisted to SQLite + synced to Supabase per breakpoint
 - [x] **DASH-09**: Default layout provided for first-time users (populated from enabled modules)
-- [ ] **DASH-10**: Existing dashboard cards (HeartbeatCard, AgentsCard, MissionsCard, etc.) refactored as grid widgets
-- [ ] **DASH-11**: Each widget has its own error boundary and loading state
+- [x] **DASH-10**: Existing dashboard cards (HeartbeatCard, AgentsCard, MissionsCard, etc.) refactored as grid widgets
+- [x] **DASH-11**: Each widget has its own error boundary and loading state
 
 ### Page Experience
 
@@ -234,8 +234,8 @@ Deferred to post-v1.0 release. Tracked but not in current roadmap.
 | WIZARD-06 | Phase 3 | Complete |
 | WIZARD-07 | Phase 3 | Complete |
 | WIZARD-08 | Phase 3 | Complete |
-| DASH-01 | Phase 4 | Pending |
-| DASH-02 | Phase 4 | Pending |
+| DASH-01 | Phase 4 | Complete |
+| DASH-02 | Phase 4 | Complete |
 | DASH-03 | Phase 4 | Complete |
 | DASH-04 | Phase 4 | Complete |
 | DASH-05 | Phase 4 | Complete |
@@ -243,8 +243,8 @@ Deferred to post-v1.0 release. Tracked but not in current roadmap.
 | DASH-07 | Phase 4 | Complete |
 | DASH-08 | Phase 4 | Complete |
 | DASH-09 | Phase 4 | Complete |
-| DASH-10 | Phase 4 | Pending |
-| DASH-11 | Phase 4 | Pending |
+| DASH-10 | Phase 4 | Complete |
+| DASH-11 | Phase 4 | Complete |
 | PAGE-01 | Phase 5 | Pending |
 | PAGE-02 | Phase 5 | Pending |
 | PAGE-03 | Phase 5 | Pending |
