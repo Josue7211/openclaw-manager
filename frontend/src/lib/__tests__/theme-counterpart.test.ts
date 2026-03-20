@@ -12,8 +12,8 @@ import { setMode, getThemeState, setActiveTheme } from '../theme-store'
 // ---------------------------------------------------------------------------
 
 describe('COUNTERPART_MAP', () => {
-  it('has 10 entries (5 bidirectional pairs)', () => {
-    expect(Object.keys(COUNTERPART_MAP)).toHaveLength(10)
+  it('has 36 entries (18 bidirectional pairs)', () => {
+    expect(Object.keys(COUNTERPART_MAP)).toHaveLength(36)
   })
 
   it('is fully bidirectional', () => {
@@ -22,13 +22,28 @@ describe('COUNTERPART_MAP', () => {
     }
   })
 
-  it('contains all 5 expected pairs', () => {
+  it('contains all 18 expected pairs', () => {
     const expectedPairs = [
+      // Original 5 pairs
       ['default-dark', 'default-light'],
       ['gruvbox-dark', 'gruvbox-light'],
       ['catppuccin-mocha', 'catppuccin-latte'],
       ['solarized-dark', 'solarized-light'],
       ['high-contrast-dark', 'high-contrast-light'],
+      // New 13 pairs
+      ['dracula', 'dracula-light'],
+      ['nord', 'nord-light'],
+      ['rose-pine', 'rose-pine-light'],
+      ['tokyo-night', 'tokyo-night-light'],
+      ['graphite-mono', 'graphite-mono-light'],
+      ['decay-green', 'decay-green-light'],
+      ['edge-runner', 'edge-runner-light'],
+      ['synth-wave', 'synth-wave-light'],
+      ['material-sakura', 'material-sakura-dark'],
+      ['terminal', 'terminal-light'],
+      ['monster-high', 'monster-high-light'],
+      ['purple-mode', 'purple-mode-light'],
+      ['pink-mode', 'pink-mode-light'],
     ]
     for (const [dark, light] of expectedPairs) {
       expect(COUNTERPART_MAP[dark], `${dark} -> ${light}`).toBe(light)
@@ -55,7 +70,7 @@ describe('setMode auto-switch', () => {
     // Since modules are cached, we use setActiveTheme + setMode to set up state
   })
 
-  // --- Counterpart pair: dark -> light ---
+  // --- Original counterpart pairs: dark -> light ---
 
   it('gruvbox-dark -> gruvbox-light when switching dark to light', () => {
     setActiveTheme('gruvbox-dark')
@@ -129,28 +144,62 @@ describe('setMode auto-switch', () => {
     expect(getThemeState().activeThemeId).toBe('high-contrast-dark')
   })
 
-  // --- No counterpart: falls back to default ---
+  // --- New counterpart pairs ---
 
-  it('dracula (no counterpart) falls back to default-light', () => {
+  it('dracula -> dracula-light when switching dark to light', () => {
     setActiveTheme('dracula')
     setMode('dark')
     setMode('light')
-    expect(getThemeState().activeThemeId).toBe('default-light')
+    expect(getThemeState().activeThemeId).toBe('dracula-light')
   })
 
-  it('material-sakura (no counterpart) falls back to default-dark', () => {
-    setActiveTheme('material-sakura')
+  it('dracula-light -> dracula when switching light to dark', () => {
+    setActiveTheme('dracula-light')
     setMode('light')
     setMode('dark')
-    expect(getThemeState().activeThemeId).toBe('default-dark')
+    expect(getThemeState().activeThemeId).toBe('dracula')
+  })
+
+  it('rose-pine -> rose-pine-light when switching dark to light', () => {
+    // Use system as bridge to set mode without triggering counterpart
+    setActiveTheme('rose-pine')
+    setMode('system')
+    setMode('dark')
+    setMode('light')
+    expect(getThemeState().activeThemeId).toBe('rose-pine-light')
+  })
+
+  it('tokyo-night -> tokyo-night-light when switching dark to light', () => {
+    setActiveTheme('tokyo-night')
+    setMode('system')
+    setMode('dark')
+    setMode('light')
+    expect(getThemeState().activeThemeId).toBe('tokyo-night-light')
+  })
+
+  it('material-sakura -> material-sakura-dark when switching light to dark', () => {
+    setActiveTheme('material-sakura')
+    setMode('system')
+    setMode('light')
+    setMode('dark')
+    expect(getThemeState().activeThemeId).toBe('material-sakura-dark')
+  })
+
+  it('terminal -> terminal-light when switching dark to light', () => {
+    setActiveTheme('terminal')
+    setMode('system')
+    setMode('dark')
+    setMode('light')
+    expect(getThemeState().activeThemeId).toBe('terminal-light')
   })
 
   // --- System mode: no auto-switch ---
 
   it('setMode("system") does NOT auto-switch theme', () => {
     setActiveTheme('gruvbox-dark')
-    setMode('dark')
-    setMode('system')
+    setMode('system') // bridge to avoid counterpart
+    setMode('dark')   // system->dark does NOT trigger counterpart
+    setMode('system') // dark->system does NOT trigger counterpart
     expect(getThemeState().activeThemeId).toBe('gruvbox-dark')
   })
 

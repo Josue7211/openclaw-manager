@@ -10,7 +10,7 @@
  */
 
 import { flushSync } from 'react-dom'
-import { BUILT_IN_THEMES, getThemeById } from './theme-definitions'
+import { BUILT_IN_THEMES, COUNTERPART_MAP, getThemeById } from './theme-definitions'
 import type { ThemeDefinition, ThemeState, UserThemeOverrides, WallbashColors } from './theme-definitions'
 import {
   applyAccentColor,
@@ -156,14 +156,18 @@ export function setOsDarkPreference(dark: boolean) {
 // GTK theme name → built-in preset mapping
 // ---------------------------------------------------------------------------
 
-/** Map of lowercase GTK theme name patterns to built-in preset IDs. */
+/**
+ * Map of GTK theme name patterns to built-in preset IDs.
+ * These map the DARK variant — resolveThemeDefinition picks the light counterpart
+ * via COUNTERPART_MAP when COLOR_SCHEME is prefer-light.
+ */
 const GTK_THEME_MAP: ReadonlyArray<[RegExp, string]> = [
   [/^rose-?pine$/i, 'rose-pine'],
   [/^catppuccin[- ]?mocha$/i, 'catppuccin-mocha'],
   [/^catppuccin[- ]?latte$/i, 'catppuccin-latte'],
   [/^dracula$/i, 'dracula'],
-  [/^nord(?:ic)?$/i, 'nord'],
-  [/^gruvbox[- ]?dark$/i, 'gruvbox-dark'],
+  [/^nord(?:ic)?(?:[- ]?blue)?$/i, 'nord'],
+  [/^gruvbox[- ]?(?:dark|retro)$/i, 'gruvbox-dark'],
   [/^gruvbox[- ]?light$/i, 'gruvbox-light'],
   [/^solarized[- ]?dark$/i, 'solarized-dark'],
   [/^solarized[- ]?light$/i, 'solarized-light'],
@@ -174,6 +178,7 @@ const GTK_THEME_MAP: ReadonlyArray<[RegExp, string]> = [
   [/^edge[- ]?runner$/i, 'edge-runner'],
   [/^synth[- ]?wave$/i, 'synth-wave'],
   [/^wallbash[- ]?gtk$/i, 'wallbash'],
+  [/^frosted[- ]?glass$/i, 'default-dark'],
 ]
 
 /**
@@ -223,10 +228,34 @@ export function resolveThemeDefinition(state: ThemeState): ThemeDefinition {
       return buildWallbashTheme(_wallbashColors, _wallbashColorScheme)
     }
 
-    // System mode: if the GTK theme maps to a built-in preset, use it
+    // System mode: if the GTK theme maps to a built-in preset, use it.
+    // When the GTK preset is dark but COLOR_SCHEME says prefer-light (or vice versa),
+    // look up the COUNTERPART_MAP to get the matching light/dark variant.
     if (_gtkThemeId) {
       const gtkTheme = getThemeById(_gtkThemeId)
-      if (gtkTheme) return gtkTheme
+      if (gtkTheme) {
+        const osDark = _osDarkCached ?? detectOsDark()
+        const gtkIsDark = gtkTheme.category !== 'light'
+        if (!osDark && gtkIsDark) {
+          // OS says light, but GTK preset is dark → use light counterpart
+          const counterpart = COUNTERPART_MAP[_gtkThemeId]
+          if (counterpart) {
+            const lightTheme = getThemeById(counterpart)
+            if (lightTheme) return lightTheme
+          }
+          return fallbackLight
+        }
+        if (osDark && !gtkIsDark) {
+          // OS says dark, but GTK preset is light → use dark counterpart
+          const counterpart = COUNTERPART_MAP[_gtkThemeId]
+          if (counterpart) {
+            const darkTheme = getThemeById(counterpart)
+            if (darkTheme) return darkTheme
+          }
+          return fallbackDark
+        }
+        return gtkTheme
+      }
     }
 
     // Otherwise fall back to dark/light based on OS preference

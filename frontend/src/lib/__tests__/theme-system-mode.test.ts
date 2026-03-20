@@ -138,17 +138,33 @@ describe('system theme name formatting', () => {
     })
   })
 
-  it('formatted label matches "System Theme: [name]" pattern', () => {
+  it('formatted label matches "System Theme: [name]" pattern (dark mode)', () => {
+    setOsDarkPreference(true)
     setGtkThemeMapping('dracula')
     const info = getActiveSystemTheme(makeState())
     const label = `System Theme: ${info.activeThemeName}`
     expect(label).toBe('System Theme: Dracula')
   })
 
-  it('formatted label for nord theme', () => {
+  it('formatted label for nord theme (dark mode)', () => {
+    setOsDarkPreference(true)
     setGtkThemeMapping('nord')
     const info = getActiveSystemTheme(makeState())
     const label = `System Theme: ${info.activeThemeName}`
     expect(label).toBe('System Theme: Nord')
+  })
+
+  it('uses light counterpart when OS prefers light', () => {
+    setOsDarkPreference(false)
+    setGtkThemeMapping('dracula')
+    const info = getActiveSystemTheme(makeState())
+    expect(info.activeThemeName).toBe('Dracula Light')
+  })
+
+  it('uses dark counterpart when OS prefers dark and GTK is light', () => {
+    setOsDarkPreference(true)
+    setGtkThemeMapping('material-sakura')
+    const info = getActiveSystemTheme(makeState())
+    expect(info.activeThemeName).toBe('Material Sakura Dark')
   })
 })

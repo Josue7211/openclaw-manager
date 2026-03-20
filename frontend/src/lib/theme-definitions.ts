@@ -1688,6 +1688,7 @@ export type WallbashColors = Record<string, string>
 
 /** Bidirectional counterpart mapping for dark<->light mode auto-switch. */
 export const COUNTERPART_MAP: Record<string, string> = {
+  // Existing pairs
   'default-dark': 'default-light',
   'default-light': 'default-dark',
   'gruvbox-dark': 'gruvbox-light',
@@ -1698,6 +1699,33 @@ export const COUNTERPART_MAP: Record<string, string> = {
   'solarized-light': 'solarized-dark',
   'high-contrast-dark': 'high-contrast-light',
   'high-contrast-light': 'high-contrast-dark',
+  // New pairs
+  'dracula': 'dracula-light',
+  'dracula-light': 'dracula',
+  'nord': 'nord-light',
+  'nord-light': 'nord',
+  'rose-pine': 'rose-pine-light',
+  'rose-pine-light': 'rose-pine',
+  'tokyo-night': 'tokyo-night-light',
+  'tokyo-night-light': 'tokyo-night',
+  'graphite-mono': 'graphite-mono-light',
+  'graphite-mono-light': 'graphite-mono',
+  'decay-green': 'decay-green-light',
+  'decay-green-light': 'decay-green',
+  'edge-runner': 'edge-runner-light',
+  'edge-runner-light': 'edge-runner',
+  'synth-wave': 'synth-wave-light',
+  'synth-wave-light': 'synth-wave',
+  'material-sakura': 'material-sakura-dark',
+  'material-sakura-dark': 'material-sakura',
+  'terminal': 'terminal-light',
+  'terminal-light': 'terminal',
+  'monster-high': 'monster-high-light',
+  'monster-high-light': 'monster-high',
+  'purple-mode': 'purple-mode-light',
+  'purple-mode-light': 'purple-mode',
+  'pink-mode': 'pink-mode-light',
+  'pink-mode-light': 'pink-mode',
 }
 
 // ---------------------------------------------------------------------------
