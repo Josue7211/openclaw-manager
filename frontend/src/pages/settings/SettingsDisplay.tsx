@@ -11,7 +11,7 @@ import { useState, useCallback, memo, useMemo } from 'react'
 import { Sun, Moon, Laptop, Palette, TextT, SlidersHorizontal } from '@phosphor-icons/react'
 
 import { BUILT_IN_THEMES, getThemeById } from '@/lib/theme-definitions'
-import { resolveThemeDefinition } from '@/lib/theme-engine'
+import { resolveThemeDefinition, getActiveSystemTheme, isOsDark } from '@/lib/theme-engine'
 import {
   useThemeState,
   setMode,
@@ -337,13 +337,17 @@ export default function SettingsDisplay() {
   const borderRadius = overrides?.borderRadius ?? 12
   const panelOpacity = overrides?.panelOpacity ?? 0.6
 
+  // System mode info (single card on Linux, filtered presets elsewhere)
+  const systemInfo = useMemo(() =>
+    getActiveSystemTheme(state), [state.mode, state.activeThemeId])
+
   // All themes: built-in + custom, filtered by mode, pinned first
   const allThemes = useMemo(() => {
     const combined = [
       ...BUILT_IN_THEMES.map(t => ({ ...t })),
       ...state.customThemes.map(t => ({ ...t })),
     ]
-    // Filter by active mode: dark → dark/colorful, light → light, system → show all
+    // Filter by active mode: dark → dark/colorful, light → light
     let modeFiltered = combined
     if (state.mode === 'dark') {
       modeFiltered = combined.filter(t =>
@@ -355,13 +359,27 @@ export default function SettingsDisplay() {
         t.category === 'light' ||
         (t.category === 'high-contrast' && t.id.includes('light'))
       )
+    } else if (state.mode === 'system' && !systemInfo.isLinux) {
+      // System mode on non-Linux: filter by OS dark/light preference
+      const osDark = isOsDark()
+      if (osDark) {
+        modeFiltered = combined.filter(t =>
+          t.category === 'dark' || t.category === 'colorful' ||
+          (t.category === 'high-contrast' && t.id.includes('dark'))
+        )
+      } else {
+        modeFiltered = combined.filter(t =>
+          t.category === 'light' ||
+          (t.category === 'high-contrast' && t.id.includes('light'))
+        )
+      }
     }
     return modeFiltered.sort((a, b) => {
       const aPinned = state.overrides[a.id]?.pinned ? 1 : 0
       const bPinned = state.overrides[b.id]?.pinned ? 1 : 0
       return bPinned - aPinned
     })
-  }, [state.customThemes, state.overrides, state.mode])
+  }, [state.customThemes, state.overrides, state.mode, systemInfo.isLinux])
 
   // Reset handler
   const handleReset = useCallback(() => {
@@ -418,33 +436,58 @@ export default function SettingsDisplay() {
 
       {/* 2. Theme Presets */}
       <SettingsCard title="Theme Presets">
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
-          gap: '8px',
-        }}>
-          {allThemes.map(theme => {
-            const active = state.activeThemeId === theme.id
-            const isPinned = state.overrides[theme.id]?.pinned ?? false
-            const isCustom = !theme.builtIn
-            return (
-              <ThemeCard
-                key={theme.id}
-                theme={theme}
-                active={active}
-                isPinned={isPinned}
-                isCustom={isCustom}
-                onClick={(e) => setActiveTheme(theme.id, { clientX: e.clientX, clientY: e.clientY })}
-                onPin={() => pinTheme(theme.id)}
-                onUnpin={() => unpinTheme(theme.id)}
-                onDelete={isCustom ? () => {
-                  removeCustomTheme(theme.id)
-                  if (active) setActiveTheme('default-dark')
-                } : undefined}
-              />
-            )
-          })}
-        </div>
+        {systemInfo.isSystemMode && systemInfo.isLinux && systemInfo.activeTheme ? (
+          <div style={{ textAlign: 'center', padding: '16px 0' }}>
+            <div style={{
+              display: 'inline-block',
+              padding: '16px 24px',
+              background: systemInfo.activeTheme.colors['bg-base'],
+              border: `2px solid ${systemInfo.activeTheme.colors['accent']}`,
+              borderRadius: 'var(--radius-lg)',
+              minWidth: '200px',
+            }}>
+              <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginBottom: '8px' }}>
+                <span style={{ width: 14, height: 14, borderRadius: '50%', background: systemInfo.activeTheme.colors['accent'] }} />
+                <span style={{ width: 14, height: 14, borderRadius: '50%', background: systemInfo.activeTheme.colors['text-primary'], opacity: 0.6 }} />
+                <span style={{ width: 14, height: 14, borderRadius: '50%', background: systemInfo.activeTheme.colors['green'] || '#34d399' }} />
+              </div>
+              <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: systemInfo.activeTheme.colors['text-primary'] }}>
+                System Theme: {systemInfo.activeThemeName}
+              </div>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>
+                Controlled by desktop theme
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+            gap: '8px',
+          }}>
+            {allThemes.map(theme => {
+              const active = state.activeThemeId === theme.id
+              const isPinned = state.overrides[theme.id]?.pinned ?? false
+              const isCustom = !theme.builtIn
+              return (
+                <ThemeCard
+                  key={theme.id}
+                  theme={theme}
+                  active={active}
+                  isPinned={isPinned}
+                  isCustom={isCustom}
+                  onClick={(e) => setActiveTheme(theme.id, { clientX: e.clientX, clientY: e.clientY })}
+                  onPin={() => pinTheme(theme.id)}
+                  onUnpin={() => unpinTheme(theme.id)}
+                  onDelete={isCustom ? () => {
+                    removeCustomTheme(theme.id)
+                    if (active) setActiveTheme('default-dark')
+                  } : undefined}
+                />
+              )
+            })}
+          </div>
+        )}
       </SettingsCard>
 
       {/* 3. Colors — compact grid */}

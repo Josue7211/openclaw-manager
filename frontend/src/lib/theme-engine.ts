@@ -229,6 +229,49 @@ function detectOsDark(): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// getActiveSystemTheme — UI helper for system mode rendering
+// ---------------------------------------------------------------------------
+
+export interface SystemThemeInfo {
+  isLinux: boolean
+  isSystemMode: boolean
+  activeTheme: ThemeDefinition | null
+  activeThemeName: string
+}
+
+/**
+ * Get info about the active system theme for UI rendering.
+ * On Linux: returns the single active GTK theme (or wallbash-live).
+ * On other platforms: returns null (UI should show filtered presets).
+ */
+export function getActiveSystemTheme(state: ThemeState): SystemThemeInfo {
+  const isLinux = typeof navigator !== 'undefined' && navigator.userAgent.includes('Linux')
+  const isSystemMode = state.mode === 'system'
+
+  if (!isSystemMode) {
+    return { isLinux, isSystemMode: false, activeTheme: null, activeThemeName: '' }
+  }
+
+  if (!isLinux) {
+    // Windows/macOS: no single system card — show filtered presets
+    return { isLinux: false, isSystemMode: true, activeTheme: null, activeThemeName: '' }
+  }
+
+  // Linux: resolve the active system theme
+  const resolved = resolveThemeDefinition(state)
+  const displayName = resolved.id === 'wallbash-live'
+    ? 'Wallbash'
+    : resolved.name
+
+  return {
+    isLinux: true,
+    isSystemMode: true,
+    activeTheme: resolved,
+    activeThemeName: displayName,
+  }
+}
+
+// ---------------------------------------------------------------------------
 // deriveAlphaTints
 // ---------------------------------------------------------------------------
 

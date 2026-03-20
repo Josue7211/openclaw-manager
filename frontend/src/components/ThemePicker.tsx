@@ -5,6 +5,7 @@ import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { BUILT_IN_THEMES } from '@/lib/theme-definitions'
 import type { ThemeDefinition } from '@/lib/theme-definitions'
 import { useThemeState, setActiveTheme, setMode, setAccentOverride } from '@/lib/theme-store'
+import { getActiveSystemTheme, isOsDark } from '@/lib/theme-engine'
 import ThemeCard from './ThemeCard'
 import AccentPicker from './AccentPicker'
 
@@ -90,9 +91,41 @@ export default function ThemePicker({ open, onClose }: ThemePickerProps) {
     return [...BUILT_IN_THEMES, ...custom]
   }, [state.customThemes])
 
+  // System mode info (single card on Linux, filtered presets elsewhere)
+  const systemInfo = useMemo(() =>
+    getActiveSystemTheme(state), [state.mode, state.activeThemeId])
+
   // Filter by mode + search
   const filteredThemes = useMemo(() => {
-    // Filter by active mode: dark → dark/colorful, light → light, system → show all
+    // System mode on Linux: show only the active system theme
+    if (systemInfo.isSystemMode && systemInfo.isLinux && systemInfo.activeTheme) {
+      if (!search.trim()) return [systemInfo.activeTheme]
+      const q = search.toLowerCase()
+      if (systemInfo.activeTheme.name.toLowerCase().includes(q)) return [systemInfo.activeTheme]
+      return []
+    }
+
+    // System mode on non-Linux: filter by OS dark/light preference
+    if (systemInfo.isSystemMode && !systemInfo.isLinux) {
+      const osDark = isOsDark()
+      let modeFiltered: ThemeDefinition[]
+      if (osDark) {
+        modeFiltered = allThemes.filter(t =>
+          t.category === 'dark' || t.category === 'colorful' ||
+          (t.category === 'high-contrast' && t.id.includes('dark'))
+        )
+      } else {
+        modeFiltered = allThemes.filter(t =>
+          t.category === 'light' ||
+          (t.category === 'high-contrast' && t.id.includes('light'))
+        )
+      }
+      if (!search.trim()) return modeFiltered
+      const q = search.toLowerCase()
+      return modeFiltered.filter(t => t.name.toLowerCase().includes(q))
+    }
+
+    // Dark/Light modes: existing filtering
     let modeFiltered = allThemes
     if (state.mode === 'dark') {
       modeFiltered = allThemes.filter(t =>
@@ -105,15 +138,19 @@ export default function ThemePicker({ open, onClose }: ThemePickerProps) {
         (t.category === 'high-contrast' && t.id.includes('light'))
       )
     }
-    // System mode shows all (system controls the selection)
 
     if (!search.trim()) return modeFiltered
     const q = search.toLowerCase()
     return modeFiltered.filter(t => t.name.toLowerCase().includes(q))
-  }, [allThemes, search, state.mode])
+  }, [allThemes, search, state.mode, systemInfo])
 
   // Group themes by category with Pinned section
   const sections = useMemo(() => {
+    // System mode on Linux: single section with the active system theme
+    if (systemInfo.isSystemMode && systemInfo.isLinux && systemInfo.activeTheme) {
+      return [{ label: `System Theme: ${systemInfo.activeThemeName}`, themes: [systemInfo.activeTheme] }]
+    }
+
     const groups: Array<{ label: string; themes: ThemeDefinition[] }> = []
 
     // Pinned section
@@ -137,7 +174,7 @@ export default function ThemePicker({ open, onClose }: ThemePickerProps) {
     }
 
     return groups
-  }, [filteredThemes, state.overrides, search])
+  }, [filteredThemes, state.overrides, search, systemInfo])
 
   const currentAccent = state.overrides[state.activeThemeId]?.accent
     ?? BUILT_IN_THEMES.find(t => t.id === state.activeThemeId)?.colors.accent

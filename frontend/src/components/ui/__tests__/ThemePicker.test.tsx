@@ -18,6 +18,13 @@ vi.mock('@/lib/theme-store', () => ({
 // Mock theme-engine (imported by theme-store)
 vi.mock('@/lib/theme-engine', () => ({
   applyTheme: vi.fn(),
+  getActiveSystemTheme: () => ({
+    isLinux: false,
+    isSystemMode: false,
+    activeTheme: null,
+    activeThemeName: '',
+  }),
+  isOsDark: () => true,
 }))
 
 import ThemePicker from '../../ThemePicker'
