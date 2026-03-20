@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Completed 04.1-01-PLAN.md
-last_updated: "2026-03-20T23:45:06.000Z"
+stopped_at: Completed 04.1-02-PLAN.md
+last_updated: "2026-03-20T23:54:00.000Z"
 progress:
   total_phases: 11
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 33
-  completed_plans: 32
+  completed_plans: 33
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 04.1 (wallbash-gtk-system-mode-integration-fix)
-Plan: 1 of 2
+Plan: 2 of 2 (COMPLETE)
 
 ## Performance Metrics
 
@@ -79,6 +79,7 @@ Plan: 1 of 2
 | Phase 04 P04 | 3min | 2 tasks | 6 files |
 | Phase 04 P06 | 5min | 2 tasks | 3 files |
 | Phase 04.1 P01 | 5min | 2 tasks | 3 files |
+| Phase 04.1 P02 | 4min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -186,6 +187,8 @@ Recent decisions affecting current work:
 - [Phase 04.1]: recv_timeout coalescing debounce replaces sleep+drain -- fires 200ms after LAST event instead of dropping events
 - [Phase 04.1]: gsettings monitor restart with exponential backoff 1s-60s, reset after 30s stable run
 - [Phase 04.1]: setWallbashState atomic updater with single generation increment for race-free state updates
+- [Phase 04.1]: debouncedApply moved to module level (150ms, was 100ms IIFE-scoped) for cross-scope event handler access
+- [Phase 04.1]: Removed direct setWallbashColors/setWallbashColorScheme from main.tsx event handlers -- only setWallbashState used
 
 ### Roadmap Evolution
 
@@ -204,6 +207,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T23:45:06Z
-Stopped at: Completed 04.1-01-PLAN.md
+Last session: 2026-03-20T23:54:00Z
+Stopped at: Completed 04.1-02-PLAN.md (Phase 04.1 COMPLETE)
 Resume file: None

@@ -136,7 +136,7 @@ Plans:
 **Goal:** Wallbash dark/light switching works reliably -- desktop theme changes are reflected in the app within 500ms, state updates are atomic (no partial reads during transitions), and the gsettings monitor recovers from crashes.
 **Requirements**: SYSMODE-01, SYSMODE-02, SYSMODE-03, SYSMODE-04, SYSMODE-05
 **Depends on:** Phase 04
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 04.1-01-PLAN.md -- Atomic wallbash state API in theme-engine.ts, Rust watcher debounce fix, gsettings monitor restart
