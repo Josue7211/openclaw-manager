@@ -127,6 +127,14 @@ export function setSecondaryOverride(color: string) {
   applyThemeFromState()
 }
 
+export function setTertiaryOverride(color: string) {
+  mutate(s => {
+    const ov = { ...getOrCreateOverride(s), tertiary: color }
+    return withOverride(s, ov)
+  })
+  applyThemeFromState()
+}
+
 export function setLogoOverride(color: string) {
   mutate(s => {
     const ov = { ...getOrCreateOverride(s), logo: color }

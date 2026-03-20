@@ -29,6 +29,7 @@ export interface UserThemeOverrides {
   themeId: string
   accent?: string
   secondary?: string
+  tertiary?: string
   glow?: string
   logo?: string
   fonts?: { body?: string; heading?: string; mono?: string; ui?: string }
