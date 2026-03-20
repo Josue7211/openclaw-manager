@@ -8,7 +8,7 @@ import LayoutShell from './components/LayoutShell'
 import ErrorBoundary from './components/ErrorBoundary'
 import AuthGuard from './components/AuthGuard'
 import { applyThemeFromState, getThemeState, setUseGtkTheme } from './lib/theme-store'
-import { setOsDarkPreference, setGtkThemeMapping, setWallbashColors, setWallbashColorScheme, isWallbashActive, wallbashUpdatedRecently } from './lib/theme-engine'
+import { setOsDarkPreference, setGtkThemeMapping, setWallbashState, isWallbashActive, wallbashUpdatedRecently } from './lib/theme-engine'
 import type { WallbashColors } from './lib/theme-definitions'
 import { PersonalSkeleton, DashboardSkeleton, MessagesSkeleton, SettingsSkeleton, GenericPageSkeleton } from './components/Skeleton'
 
@@ -76,6 +76,18 @@ runMigrations()
 // Apply saved theme before first paint (uses ThemeStore + ThemeEngine pipeline)
 applyThemeFromState()
 
+// Debounced theme apply — coalesces rapid wallbash/gsettings events into one apply.
+// Both the file watcher and gsettings monitor can fire for the same mode switch,
+// and rapid switching generates overlapping events.
+let _applyTimer: ReturnType<typeof setTimeout> | null = null
+const debouncedApply = () => {
+  if (_applyTimer) clearTimeout(_applyTimer)
+  _applyTimer = setTimeout(() => {
+    _applyTimer = null
+    applyThemeFromState()
+  }, 150)
+}
+
 // Detect OS dark mode preference — use Tauri native API on desktop (reads GTK
 // settings on Linux), fall back to matchMedia in browser mode.
 // On Linux (Hyprland/Wayland), Tauri's native theme() reads gtk-application-prefer-dark-theme
@@ -125,35 +137,30 @@ if (window.__TAURI_INTERNALS__) {
         try {
           const { invoke } = await import('@tauri-apps/api/core')
           const colors = await invoke<WallbashColors>('read_wallbash_colors')
-          const hasWallbash = colors && Object.keys(colors).length > 0
-          if (hasWallbash) {
-            setWallbashColors(colors)
-          }
           const themeConf = await invoke<{ gtk_theme: string; color_scheme: string }>('read_theme_conf')
-          if (themeConf?.gtk_theme) setGtkThemeMapping(themeConf.gtk_theme)
+
+          const hasWallbash = colors && Object.keys(colors).length > 0
+
+          // Atomic initial state setup
+          setWallbashState({
+            colors: hasWallbash ? colors : undefined,
+            colorScheme: themeConf?.color_scheme ? (themeConf.color_scheme === 'prefer-dark' ? 'prefer-dark' : 'prefer-light') : undefined,
+            gtkThemeName: themeConf?.gtk_theme || undefined,
+          })
+
+          // Also set osDarkPreference from theme.conf color_scheme
           if (themeConf?.color_scheme) {
-            setWallbashColorScheme(themeConf.color_scheme === 'prefer-dark' ? 'prefer-dark' : 'prefer-light')
             setOsDarkPreference(themeConf.color_scheme === 'prefer-dark')
           }
+
           // Auto-enable GTK theme mode on first detection — user can disable in Settings
           if ((hasWallbash || themeConf?.gtk_theme) && getThemeState().useGtkTheme === undefined) {
             setUseGtkTheme(true)
           }
+
           if (getThemeState().mode === 'system') applyThemeFromState()
         } catch { /* wallbash files not present */ }
       })()
-    }
-
-    // Debounced theme apply — coalesces rapid wallbash/gsettings events into one apply.
-    // Both the file watcher and gsettings monitor can fire for the same mode switch,
-    // and rapid switching generates overlapping events.
-    let _applyTimer: ReturnType<typeof setTimeout> | null = null
-    const debouncedApply = () => {
-      if (_applyTimer) clearTimeout(_applyTimer)
-      _applyTimer = setTimeout(() => {
-        _applyTimer = null
-        applyThemeFromState()
-      }, 100)
     }
 
     // Combined wallbash event from Rust file watcher — colors + theme.conf
@@ -163,15 +170,19 @@ if (window.__TAURI_INTERNALS__) {
         listen<{ colors: WallbashColors; theme: { gtk_theme: string; icon_theme: string; color_scheme: string } }>('wallbash-theme-update', (event) => {
           if (getThemeState().mode !== 'system') return
           const { colors, theme } = event.payload
-          if (colors && Object.keys(colors).length > 0) {
-            setWallbashColors(colors)
+
+          // Atomic state update — all wallbash state changes in one call
+          setWallbashState({
+            colors: (colors && Object.keys(colors).length > 0) ? colors : undefined,
+            colorScheme: theme.color_scheme ? (theme.color_scheme === 'prefer-dark' ? 'prefer-dark' : 'prefer-light') : undefined,
+            gtkThemeName: theme.gtk_theme || undefined,
+          })
+
+          // Auto-enable GTK theme on first wallbash detection
+          if (getThemeState().useGtkTheme === undefined) {
+            setUseGtkTheme(true)
           }
-          if (theme.gtk_theme) setGtkThemeMapping(theme.gtk_theme)
-          if (theme.color_scheme) {
-            const scheme = theme.color_scheme === 'prefer-dark' ? 'prefer-dark' : 'prefer-light'
-            setWallbashColorScheme(scheme)
-            setOsDarkPreference(theme.color_scheme === 'prefer-dark')
-          }
+
           debouncedApply()
         })
 
