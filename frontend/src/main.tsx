@@ -8,7 +8,8 @@ import LayoutShell from './components/LayoutShell'
 import ErrorBoundary from './components/ErrorBoundary'
 import AuthGuard from './components/AuthGuard'
 import { applyThemeFromState, getThemeState } from './lib/theme-store'
-import { setOsDarkPreference, setGtkThemeMapping } from './lib/theme-engine'
+import { setOsDarkPreference, setGtkThemeMapping, setWallbashColors, setWallbashColorScheme } from './lib/theme-engine'
+import type { WallbashColors } from './lib/theme-definitions'
 import { PersonalSkeleton, DashboardSkeleton, MessagesSkeleton, SettingsSkeleton, GenericPageSkeleton } from './components/Skeleton'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -115,8 +116,47 @@ if (window.__TAURI_INTERNALS__) {
       if (getThemeState().mode === 'system') applyThemeFromState()
     })
 
-    // Watch for GTK theme + color-scheme changes on Linux (1s poll — Wayland has no dbus signals)
-    // Detects: theme switches, Wallbash dark/light/auto mode changes, wallpaper color changes
+    // On Linux, fetch initial wallbash colors if Wallbash-Gtk is active
+    if (navigator.userAgent.includes('Linux')) {
+      (async () => {
+        try {
+          const { invoke } = await import('@tauri-apps/api/core')
+          const colors = await invoke<WallbashColors>('read_wallbash_colors')
+          if (colors && Object.keys(colors).length > 0) {
+            setWallbashColors(colors)
+          }
+          const themeConf = await invoke<{ gtk_theme: string; color_scheme: string }>('read_theme_conf')
+          if (themeConf?.color_scheme) {
+            setWallbashColorScheme(themeConf.color_scheme === 'prefer-dark' ? 'prefer-dark' : 'prefer-light')
+          }
+          if (getThemeState().mode === 'system') applyThemeFromState()
+        } catch { /* wallbash files not present */ }
+      })()
+    }
+
+    // File watcher events from Rust (instant sync — replaces most of the gsettings polling)
+    if (navigator.userAgent.includes('Linux')) {
+      import('@tauri-apps/api/event').then(({ listen }) => {
+        listen<WallbashColors>('wallbash-colors-changed', (event) => {
+          if (getThemeState().mode !== 'system') return
+          setWallbashColors(event.payload)
+          applyThemeFromState()
+        })
+
+        listen<{ gtk_theme: string; icon_theme: string; color_scheme: string }>('gtk-theme-changed', (event) => {
+          if (getThemeState().mode !== 'system') return
+          const { gtk_theme, color_scheme } = event.payload
+          if (gtk_theme) setGtkThemeMapping(gtk_theme)
+          const scheme = color_scheme === 'prefer-dark' ? 'prefer-dark' : 'prefer-light'
+          setWallbashColorScheme(scheme)
+          setOsDarkPreference(color_scheme === 'prefer-dark')
+          applyThemeFromState()
+        })
+      })
+    }
+
+    // Reduced to 3s — file watcher handles Wallbash instant sync
+    // Fallback poll for non-Wallbash GTK theme changes on Linux (Wayland has no dbus signals)
     if (navigator.userAgent.includes('Linux')) {
       let lastGtkTheme = ''
       let lastColorScheme = ''
@@ -138,7 +178,7 @@ if (window.__TAURI_INTERNALS__) {
             applyThemeFromState()
           }
         } catch { /* gsettings unavailable */ }
-      }, 1000)
+      }, 3000)
     }
   })
 } else {

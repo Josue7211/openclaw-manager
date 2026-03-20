@@ -11,7 +11,7 @@
 
 import { flushSync } from 'react-dom'
 import { BUILT_IN_THEMES, getThemeById } from './theme-definitions'
-import type { ThemeDefinition, ThemeState, UserThemeOverrides } from './theme-definitions'
+import type { ThemeDefinition, ThemeState, UserThemeOverrides, WallbashColors } from './theme-definitions'
 import {
   applyAccentColor,
   applyGlowColor,
@@ -26,6 +26,101 @@ import {
 
 let _osDarkCached: boolean | null = null
 let _gtkThemeId: string | null = null
+
+// ---------------------------------------------------------------------------
+// Wallbash live color state
+// ---------------------------------------------------------------------------
+
+let _wallbashColors: WallbashColors | null = null
+let _wallbashColorScheme: 'prefer-dark' | 'prefer-light' = 'prefer-dark'
+
+export function setWallbashColors(colors: WallbashColors) {
+  _wallbashColors = colors
+}
+
+export function setWallbashColorScheme(scheme: 'prefer-dark' | 'prefer-light') {
+  _wallbashColorScheme = scheme
+}
+
+export function getWallbashColors(): WallbashColors | null {
+  return _wallbashColors
+}
+
+export function getWallbashColorScheme(): 'prefer-dark' | 'prefer-light' {
+  return _wallbashColorScheme
+}
+
+// ---------------------------------------------------------------------------
+// buildWallbashTheme — maps wallbash color variables to a ThemeDefinition
+// ---------------------------------------------------------------------------
+
+function hexToRgbStr(hex: string): string {
+  const h = hex.replace('#', '')
+  return `${parseInt(h.slice(0, 2), 16)}, ${parseInt(h.slice(2, 4), 16)}, ${parseInt(h.slice(4, 6), 16)}`
+}
+
+export function buildWallbashTheme(
+  colors: WallbashColors,
+  colorScheme: 'prefer-dark' | 'prefer-light',
+): ThemeDefinition {
+  const isDark = colorScheme === 'prefer-dark'
+
+  // Select background groups based on dark/light
+  const bgBase = isDark ? (colors.wallbash_pry1 || '#11151A') : (colors.wallbash_pry4 || '#f5e8e6')
+  const bgPanel = isDark ? (colors.wallbash_pry2 || '#1a1e26') : (colors.wallbash_pry3 || '#2a2e36')
+  const bgElevated = isDark ? (colors.wallbash_pry3 || '#2a2e36') : (colors.wallbash_pry2 || '#1a1e26')
+  const textPrimary = isDark ? (colors.wallbash_txt1 || '#FFFFFF') : (colors.wallbash_txt4 || '#101111')
+  const textSecondary = isDark ? (colors.wallbash_txt2 || '#c0c0c0') : (colors.wallbash_txt3 || '#3a3a3a')
+
+  const accent = colors.wallbash_3xa5 || '#6581A3'
+  const accentDim = colors.wallbash_3xa3 || '#4a6580'
+  const accentBright = colors.wallbash_3xa7 || '#8aa0c0'
+  const secondary = colors.wallbash_1xa5 || '#34d399'
+  const tertiary = colors.wallbash_4xa5 || '#60a5fa'
+
+  return {
+    id: 'wallbash-live',
+    name: 'Wallbash',
+    category: isDark ? 'dark' : 'light',
+    builtIn: true,
+    colors: {
+      'bg-base': bgBase,
+      'bg-panel': `rgba(${hexToRgbStr(bgPanel)}, 0.85)`,
+      'bg-card': `rgba(${hexToRgbStr(bgPanel)}, 0.75)`,
+      'bg-card-hover': `rgba(${hexToRgbStr(bgPanel)}, 0.9)`,
+      'bg-elevated': `rgba(${hexToRgbStr(bgElevated)}, 0.6)`,
+      'bg-card-solid': bgPanel,
+      'bg-popover': `rgba(${hexToRgbStr(bgElevated)}, 0.92)`,
+      'bg-modal': `rgba(${hexToRgbStr(bgPanel)}, 0.97)`,
+      'text-primary': textPrimary,
+      'text-secondary': textSecondary,
+      'text-muted': isDark
+        ? `rgba(${hexToRgbStr(textPrimary)}, 0.55)`
+        : `rgba(${hexToRgbStr(textPrimary)}, 0.6)`,
+      'border': isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)',
+      'border-hover': isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.15)',
+      'border-strong': isDark ? bgElevated : 'rgba(0,0,0,0.12)',
+      'border-subtle': isDark ? bgPanel : 'rgba(0,0,0,0.06)',
+      'glass-bg': `rgba(${hexToRgbStr(bgPanel)}, 0.6)`,
+      'glass-border': isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+      'hover-bg': isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+      'hover-bg-bright': isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+      'active-bg': isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+      'overlay-light': 'rgba(0,0,0,0.3)',
+      'overlay': 'rgba(0,0,0,0.4)',
+      'overlay-heavy': 'rgba(0,0,0,0.55)',
+      'accent': accent,
+      'accent-dim': accentDim,
+      'accent-bright': accentBright,
+      'glow-top-rgb': hexToRgbStr(accentDim),
+      'green': secondary,
+      'red': colors.wallbash_2xa5 || '#f87171',
+      'red-500': colors.wallbash_2xa5 || '#ef4444',
+      'warning': colors.wallbash_2xa7 || '#fbbf24',
+      'accent-secondary': tertiary,
+    },
+  }
+}
 
 /** Called from main.tsx on startup and whenever the system theme changes. */
 export function setOsDarkPreference(dark: boolean) {
@@ -98,6 +193,11 @@ export function resolveThemeDefinition(state: ThemeState): ThemeDefinition {
     // Force dark: if the active theme is light, swap to dark fallback
     if (resolved.category === 'light') return fallbackDark
   } else if (state.mode === 'system') {
+    // If Wallbash-Gtk is active AND we have live colors, build theme from live wallbash data
+    if (_gtkThemeId === 'wallbash' && _wallbashColors) {
+      return buildWallbashTheme(_wallbashColors, _wallbashColorScheme)
+    }
+
     // System mode: if the GTK theme maps to a built-in preset, use it
     if (_gtkThemeId) {
       const gtkTheme = getThemeById(_gtkThemeId)
@@ -112,6 +212,11 @@ export function resolveThemeDefinition(state: ThemeState): ThemeDefinition {
   }
 
   return resolved
+}
+
+/** Expose the OS dark mode preference for UI consumers (e.g. ThemePicker). */
+export function isOsDark(): boolean {
+  return _osDarkCached ?? detectOsDark()
 }
 
 function detectOsDark(): boolean {
