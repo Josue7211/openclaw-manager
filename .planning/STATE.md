@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-05-PLAN.md
-last_updated: "2026-03-20T04:27:22.759Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-03-20T21:17:23Z"
 progress:
-  total_phases: 10
+  total_phases: 11
   completed_phases: 5
-  total_plans: 25
-  completed_plans: 25
+  total_plans: 31
+  completed_plans: 26
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 03 — setup-wizard-onboarding
+**Current focus:** Phase 04 — dashboard-grid-widget-system
 
 ## Current Position
 
-Phase: 03 (setup-wizard-onboarding) — EXECUTING
-Plan: 7 of 7
+Phase: 04 (dashboard-grid-widget-system) — EXECUTING
+Plan: 2 of 6
 
 ## Performance Metrics
 
@@ -72,6 +72,7 @@ Plan: 7 of 7
 | Phase 03 P03 | 6 | 3 tasks | 8 files |
 | Phase 03 P06 | 6 | 2 tasks | 7 files |
 | Phase 03 P05 | 7 | 3 tasks | 6 files |
+| Phase 04 P01 | 6min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -157,6 +158,13 @@ Recent decisions affecting current work:
 - [Phase 03]: Summary step hides nav bar -- has its own Launch Dashboard + Tour buttons
 - [Phase 03]: Completion flow uses best-effort credential saving -- wizard completes even if keychain save fails
 
+- [Phase 04]: Widget Registry uses Map for O(1) lookup with registerWidget() for future Bjorn AI-generated widgets
+- [Phase 04]: Dashboard store uses structuredClone for undo stack entries to prevent reference aliasing
+- [Phase 04]: All 8 built-in widgets always included in default layout regardless of enabled modules (graceful empty states)
+- [Phase 04]: Per-breakpoint curated layouts instead of auto-reflow: lg 12-col, md 8-col, sm/xs 4-col stacked
+- [Phase 04]: RecycleBin capped at 20 items, undo stack capped at 30 entries
+- [Phase 04]: setActivePage does NOT push to undo stack (navigation, not edit)
+
 ### Roadmap Evolution
 
 - Phase 02.1 inserted after Phase 02: Theme Settings Page Polish + System Mode Fix (URGENT) — System mode doesn't detect GTK dark themes on Hyprland, Settings Display page needs visual reorganization and improved customizability
@@ -174,6 +182,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T04:27:22.757Z
-Stopped at: Completed 03-05-PLAN.md
+Last session: 2026-03-20T21:17:23Z
+Stopped at: Completed 04-01-PLAN.md
 Resume file: None

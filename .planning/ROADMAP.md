@@ -124,7 +124,7 @@ Plans:
 **Plans**: 6 plans
 
 Plans:
-- [ ] 04-01-PLAN.md -- Foundation: react-grid-layout install, Widget Registry, dashboard store, default layout generator, CSS (wobble, grid-lines, z-indices)
+- [x] 04-01-PLAN.md -- Foundation: react-grid-layout install, Widget Registry, dashboard store, default layout generator, CSS (wobble, grid-lines, z-indices)
 - [ ] 04-02-PLAN.md -- Grid engine: DashboardGrid (react-grid-layout Responsive), WidgetWrapper (error boundary + lazy loading), Dashboard.tsx rewrite
 - [ ] 04-03-PLAN.md -- Edit mode controls: DashboardEditBar (toggle, Ctrl+E, long-press), DashboardTabs (page CRUD, rename, reorder), DotIndicators
 - [ ] 04-04-PLAN.md -- Widget management: WidgetPicker (categorized panel with search + size presets), RecycleBin (recovery drawer), WidgetConfigPanel (per-widget settings)
@@ -213,7 +213,7 @@ Phases execute in numeric order: 1 -> 2 -> 2.1 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 2.1. Theme Settings Polish + System Mode Fix | 4/4 | Complete | 2026-03-20 |
 | 2.2. Theme System Mode Fixes | 0/2 | Planned | - |
 | 3. Setup Wizard + Onboarding | 0/6 | Planned | - |
-| 4. Dashboard Grid + Widget System | 0/6 | Planned | - |
+| 4. Dashboard Grid + Widget System | 1/6 | In Progress | - |
 | 5. Page Experience | 0/2 | Not started | - |
 | 6. Module Primitives Library | 0/3 | Not started | - |
 | 7. Bjorn Module Builder | 0/3 | Not started | - |
