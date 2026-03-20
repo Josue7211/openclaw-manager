@@ -243,14 +243,23 @@ pub async fn start_wallbash_watcher(handle: tauri::AppHandle) {
     // theme switch. Instead of emitting two separate events (which causes a
     // flash of wrong colors), we coalesce: wait for writes to settle, then
     // emit a single "wallbash-theme-update" event with both colors and config.
+    //
+    // Uses recv_timeout-based coalescing debounce: events within 200ms of each
+    // other are coalesced, and the emit fires 200ms after the LAST event in a burst.
+    // This replaces the old sleep(150ms) + drain approach which could drop events.
     tokio::task::spawn_blocking(move || {
         let _watcher = watcher; // keep alive
 
-        let mut last_emit_ts = std::time::Instant::now() - std::time::Duration::from_secs(1);
-        let debounce = std::time::Duration::from_millis(250);
+        let debounce = std::time::Duration::from_millis(200);
+        let mut pending = false;
 
         loop {
-            match rx.recv() {
+            let timeout = if pending {
+                debounce
+            } else {
+                std::time::Duration::from_secs(86400)
+            };
+            match rx.recv_timeout(timeout) {
                 Ok(Ok(event)) => {
                     use notify::EventKind;
                     match event.kind {
@@ -262,39 +271,32 @@ pub async fn start_wallbash_watcher(handle: tauri::AppHandle) {
                         let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
                         name == "colors.conf" || name == "theme.conf"
                     });
-                    if !dominated {
-                        continue;
+                    if dominated {
+                        pending = true;
                     }
-
-                    let now = std::time::Instant::now();
-                    if now.duration_since(last_emit_ts) < debounce {
-                        continue;
-                    }
-
-                    // Wait a bit for the other file to finish writing
-                    std::thread::sleep(std::time::Duration::from_millis(150));
-                    // Drain any queued events that arrived during the sleep
-                    while rx.try_recv().is_ok() {}
-                    last_emit_ts = std::time::Instant::now();
-
-                    // Read BOTH files and emit a single combined event
-                    let colors = read_wallbash_colors_inner().ok();
-                    let theme = read_theme_conf_inner().ok();
-
-                    let payload = serde_json::json!({
-                        "colors": colors.unwrap_or_else(|| serde_json::json!({})),
-                        "theme": theme.unwrap_or_else(|| serde_json::json!({
-                            "gtk_theme": "", "icon_theme": "", "color_scheme": ""
-                        })),
-                    });
-
-                    tracing::info!("Wallbash theme update, emitting combined event");
-                    let _ = handle.emit("wallbash-theme-update", &payload);
                 }
                 Ok(Err(e)) => {
                     tracing::warn!("File watcher error: {}", e);
                 }
-                Err(_) => {
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    if pending {
+                        pending = false;
+                        // Read BOTH files and emit a single combined event
+                        let colors = read_wallbash_colors_inner().ok();
+                        let theme = read_theme_conf_inner().ok();
+
+                        let payload = serde_json::json!({
+                            "colors": colors.unwrap_or_else(|| serde_json::json!({})),
+                            "theme": theme.unwrap_or_else(|| serde_json::json!({
+                                "gtk_theme": "", "icon_theme": "", "color_scheme": ""
+                            })),
+                        });
+
+                        tracing::info!("Wallbash theme update, emitting combined event");
+                        let _ = handle.emit("wallbash-theme-update", &payload);
+                    }
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
                     tracing::info!("Wallbash watcher channel closed, stopping");
                     break;
                 }
@@ -330,45 +332,72 @@ pub async fn start_color_scheme_monitor(handle: tauri::AppHandle) {
 
         tokio::task::spawn_blocking(move || {
             use std::io::BufRead;
-            let child = std::process::Command::new("gsettings")
-                .args(["monitor", "org.gnome.desktop.interface", "color-scheme"])
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::null())
-                .spawn();
 
-            let mut child = match child {
-                Ok(c) => c,
-                Err(e) => {
-                    tracing::warn!("Failed to spawn gsettings monitor: {}", e);
-                    return;
+            let mut restart_delay = std::time::Duration::from_secs(1);
+            let max_delay = std::time::Duration::from_secs(60);
+
+            loop {
+                let started_at = std::time::Instant::now();
+
+                let child = std::process::Command::new("gsettings")
+                    .args(["monitor", "org.gnome.desktop.interface", "color-scheme"])
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::null())
+                    .spawn();
+
+                let mut child = match child {
+                    Ok(c) => c,
+                    Err(e) => {
+                        tracing::warn!("Failed to spawn gsettings monitor: {}", e);
+                        tracing::warn!("gsettings monitor restart in {:?}", restart_delay);
+                        std::thread::sleep(restart_delay);
+                        restart_delay = std::cmp::min(restart_delay * 2, max_delay);
+                        continue;
+                    }
+                };
+
+                tracing::info!("gsettings color-scheme monitor started");
+
+                let stdout = match child.stdout.take() {
+                    Some(s) => s,
+                    None => {
+                        let _ = child.wait();
+                        tracing::warn!("gsettings monitor had no stdout, restarting in {:?}", restart_delay);
+                        std::thread::sleep(restart_delay);
+                        restart_delay = std::cmp::min(restart_delay * 2, max_delay);
+                        continue;
+                    }
+                };
+
+                let reader = std::io::BufReader::new(stdout);
+                for line in reader.lines() {
+                    let line = match line {
+                        Ok(l) => l,
+                        Err(_) => break,
+                    };
+                    // Output format: "color-scheme: 'prefer-dark'" or "color-scheme: 'prefer-light'"
+                    let scheme = if line.contains("prefer-dark") {
+                        "prefer-dark"
+                    } else {
+                        "prefer-light"
+                    };
+                    tracing::info!("gsettings color-scheme changed: {}", scheme);
+                    let _ = handle.emit("gsettings-color-scheme-changed", scheme);
                 }
-            };
 
-            tracing::info!("gsettings color-scheme monitor started");
+                // Properly reap the child process before restarting
+                let _ = child.wait();
 
-            let stdout = match child.stdout.take() {
-                Some(s) => s,
-                None => return,
-            };
+                // Reset backoff if the process stayed alive for at least 30 seconds
+                let alive_duration = started_at.elapsed();
+                if alive_duration >= std::time::Duration::from_secs(30) {
+                    restart_delay = std::time::Duration::from_secs(1);
+                }
 
-            let reader = std::io::BufReader::new(stdout);
-            for line in reader.lines() {
-                let line = match line {
-                    Ok(l) => l,
-                    Err(_) => break,
-                };
-                // Output format: "color-scheme: 'prefer-dark'" or "color-scheme: 'prefer-light'"
-                let scheme = if line.contains("prefer-dark") {
-                    "prefer-dark"
-                } else {
-                    "prefer-light"
-                };
-                tracing::info!("gsettings color-scheme changed: {}", scheme);
-                let _ = handle.emit("gsettings-color-scheme-changed", scheme);
+                tracing::warn!("gsettings monitor exited after {:?}, restarting in {:?}", alive_duration, restart_delay);
+                std::thread::sleep(restart_delay);
+                restart_delay = std::cmp::min(restart_delay * 2, max_delay);
             }
-
-            tracing::info!("gsettings color-scheme monitor stopped");
-            let _ = child.kill();
         });
     }
 }
