@@ -32,17 +32,24 @@ export function setOsDarkPreference(dark: boolean) {
 }
 
 export function resolveThemeDefinition(state: ThemeState): ThemeDefinition {
-  const fallback = getThemeById('default-dark') ?? BUILT_IN_THEMES[0]
+  const fallbackDark = getThemeById('default-dark') ?? BUILT_IN_THEMES[0]
+  const fallbackLight = getThemeById('default-light') ?? fallbackDark
   const found =
     getThemeById(state.activeThemeId) ??
     state.customThemes.find(t => t.id === state.activeThemeId)
-  const resolved = found ?? fallback
+  const resolved = found ?? fallbackDark
 
-  if (state.mode === 'system') {
+  if (state.mode === 'light') {
+    // Force light: if the active theme is dark/colorful/high-contrast, swap to light fallback
+    if (resolved.category !== 'light') return fallbackLight
+  } else if (state.mode === 'dark') {
+    // Force dark: if the active theme is light, swap to dark fallback
+    if (resolved.category === 'light') return fallbackDark
+  } else if (state.mode === 'system') {
     const osDark = _osDarkCached ?? detectOsDark()
     const isLightTheme = resolved.category === 'light'
-    if (!osDark && !isLightTheme) return getThemeById('default-light') ?? fallback
-    if (osDark && isLightTheme) return fallback
+    if (!osDark && !isLightTheme) return fallbackLight
+    if (osDark && isLightTheme) return fallbackDark
   }
 
   return resolved
