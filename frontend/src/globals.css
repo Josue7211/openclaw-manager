@@ -145,8 +145,11 @@ input, textarea, [contenteditable="true"], code, pre, kbd {
 
   /* Z-index scale */
   --z-base: 1;
+  --z-edit-overlay: 50;
   --z-sidebar: 100;
+  --z-recycle-bin: 150;
   --z-dropdown: 200;
+  --z-widget-floating: 200;
   --z-modal-backdrop: 900;
   --z-modal: 1000;
   --z-toast: 5000;
@@ -1243,4 +1246,69 @@ input[type="checkbox"]:checked::before {
 ::view-transition-new(root) {
   animation: none;
   mix-blend-mode: normal;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Dashboard Grid — Widget System (Phase 4)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Wobble animation (iOS-style edit mode jiggle) ── */
+@keyframes widget-wobble {
+  0%   { transform: rotate(-0.5deg); }
+  25%  { transform: rotate(0.5deg); }
+  50%  { transform: rotate(-0.3deg); }
+  75%  { transform: rotate(0.3deg); }
+  100% { transform: rotate(-0.5deg); }
+}
+
+.widget-wobble {
+  animation: widget-wobble 0.4s ease-in-out infinite;
+}
+
+.widget-wobble:nth-child(odd)  { animation-delay: 0ms; }
+.widget-wobble:nth-child(even) { animation-delay: 100ms; }
+.widget-wobble:nth-child(3n)   { animation-delay: 200ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .widget-wobble { animation: none; }
+}
+[data-animation="reduced"] .widget-wobble,
+[data-animation="none"] .widget-wobble,
+[data-wobble="off"] .widget-wobble {
+  animation: none;
+}
+
+/* ── Grid-line overlay for edit mode ── */
+.dashboard-grid-lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms var(--ease-out);
+  background-image:
+    repeating-linear-gradient(90deg, var(--border) 0px, var(--border) 1px, transparent 1px, transparent),
+    repeating-linear-gradient(0deg, var(--border) 0px, var(--border) 1px, transparent 1px, transparent);
+  background-size: calc(100% / var(--grid-cols, 3)) 96px;
+  z-index: var(--z-edit-overlay);
+}
+.dashboard-grid-lines.visible { opacity: 0.4; }
+
+/* ── Drag placeholder styles ── */
+.react-grid-item.react-grid-placeholder {
+  background: var(--accent-a12) !important;
+  border: 1px dashed var(--accent) !important;
+  border-radius: var(--radius-lg) !important;
+  opacity: 1 !important;
+  transition: all 150ms var(--ease-out) !important;
+}
+
+/* ── Widget drag lift ── */
+.react-grid-item.react-draggable-dragging {
+  z-index: 100 !important;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.12) !important;
+  transform: scale(1.02);
+  transition: box-shadow 150ms var(--ease-spring), transform 150ms var(--ease-spring);
+}
+@media (prefers-reduced-motion: reduce) {
+  .react-grid-item.react-draggable-dragging { transform: none; }
 }
