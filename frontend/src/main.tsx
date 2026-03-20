@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-
 import LayoutShell from './components/LayoutShell'
 import ErrorBoundary from './components/ErrorBoundary'
 import AuthGuard from './components/AuthGuard'
-import { applyThemeFromState, getThemeState } from './lib/theme-store'
+import { applyThemeFromState, getThemeState, setUseGtkTheme } from './lib/theme-store'
 import { setOsDarkPreference, setGtkThemeMapping, setWallbashColors, setWallbashColorScheme, isWallbashActive, wallbashUpdatedRecently } from './lib/theme-engine'
 import type { WallbashColors } from './lib/theme-definitions'
 import { PersonalSkeleton, DashboardSkeleton, MessagesSkeleton, SettingsSkeleton, GenericPageSkeleton } from './components/Skeleton'
@@ -125,13 +125,19 @@ if (window.__TAURI_INTERNALS__) {
         try {
           const { invoke } = await import('@tauri-apps/api/core')
           const colors = await invoke<WallbashColors>('read_wallbash_colors')
-          if (colors && Object.keys(colors).length > 0) {
+          const hasWallbash = colors && Object.keys(colors).length > 0
+          if (hasWallbash) {
             setWallbashColors(colors)
           }
           const themeConf = await invoke<{ gtk_theme: string; color_scheme: string }>('read_theme_conf')
+          if (themeConf?.gtk_theme) setGtkThemeMapping(themeConf.gtk_theme)
           if (themeConf?.color_scheme) {
             setWallbashColorScheme(themeConf.color_scheme === 'prefer-dark' ? 'prefer-dark' : 'prefer-light')
             setOsDarkPreference(themeConf.color_scheme === 'prefer-dark')
+          }
+          // Auto-enable GTK theme mode on first detection — user can disable in Settings
+          if ((hasWallbash || themeConf?.gtk_theme) && getThemeState().useGtkTheme === undefined) {
+            setUseGtkTheme(true)
           }
           if (getThemeState().mode === 'system') applyThemeFromState()
         } catch { /* wallbash files not present */ }
