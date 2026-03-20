@@ -61,6 +61,9 @@ export interface ThemeState {
   pageOverrides?: Record<string, string>
   categoryOverrides?: Record<string, string>
   globalFontOverride?: boolean
+  /** When true, System mode uses GTK theme mapping (wallbash/counterparts).
+   *  When false, System mode just picks built-in dark/light based on OS preference. */
+  useGtkTheme?: boolean
   lastModified?: number
 }
 

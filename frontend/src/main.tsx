@@ -115,7 +115,7 @@ if (window.__TAURI_INTERNALS__) {
       setOsDarkPreference(payload === 'dark')
       // Skip apply if wallbash is driving theme — its events are authoritative
       if (getThemeState().mode === 'system' && !wallbashUpdatedRecently()) {
-        applyThemeFromState()
+        applyThemeFromState(undefined, true)
       }
     })
 
@@ -154,41 +154,39 @@ if (window.__TAURI_INTERNALS__) {
             setWallbashColorScheme(scheme)
             setOsDarkPreference(theme.color_scheme === 'prefer-dark')
           }
-          applyThemeFromState()
+          applyThemeFromState(undefined, true)
+        })
+
+        // Instant color-scheme detection via gsettings monitor (Rust subprocess).
+        // Fires immediately when gsettings color-scheme changes — no polling delay.
+        listen<string>('gsettings-color-scheme-changed', (event) => {
+          if (getThemeState().mode !== 'system') return
+          if (wallbashUpdatedRecently()) return
+          const isDark = event.payload === 'prefer-dark'
+          setOsDarkPreference(isDark)
+          applyThemeFromState(undefined, true)
         })
       })
     }
 
-    // Fallback poll for GTK theme and color-scheme changes on Linux (Wayland has no dbus signals).
-    // When wallbash is active, file watcher handles GTK theme + colors, but wallbash mode
-    // switching (dark↔light) may only update gsettings without modifying theme.conf — so we
-    // still poll for color-scheme changes even when wallbash is active.
+    // Fallback poll for GTK theme name changes on Linux (Wayland has no dbus signals).
+    // Color-scheme changes are handled by the gsettings monitor above; this poll only
+    // catches GTK theme name changes when wallbash is not active.
     if (navigator.userAgent.includes('Linux')) {
       let lastGtkTheme = ''
-      let lastColorScheme = ''
       setInterval(async () => {
         if (getThemeState().mode !== 'system') return
-        if (wallbashUpdatedRecently()) return // file watcher just fired — skip this tick
+        if (isWallbashActive()) return // file watcher handles wallbash GTK themes
         try {
           const { invoke } = await import('@tauri-apps/api/core')
-          const wallbash = isWallbashActive()
-          // When wallbash is active, only poll color-scheme (file watcher handles GTK theme).
-          // When wallbash is inactive, poll both GTK theme and color-scheme.
-          const isDark = await invoke<boolean>('detect_system_dark_mode')
-          const colorScheme = isDark ? 'dark' : 'light'
-          let gtkTheme = lastGtkTheme
-          if (!wallbash) {
-            gtkTheme = await invoke<string>('detect_gtk_theme') || lastGtkTheme
-          }
-          if ((gtkTheme !== lastGtkTheme) || colorScheme !== lastColorScheme) {
+          const gtkTheme = await invoke<string>('detect_gtk_theme')
+          if (gtkTheme && gtkTheme !== lastGtkTheme) {
             lastGtkTheme = gtkTheme
-            lastColorScheme = colorScheme
-            if (gtkTheme && !wallbash) setGtkThemeMapping(gtkTheme)
-            setOsDarkPreference(isDark)
-            applyThemeFromState()
+            setGtkThemeMapping(gtkTheme)
+            applyThemeFromState(undefined, true)
           }
         } catch { /* gsettings unavailable */ }
-      }, 1000)
+      }, 3000)
     }
   })
 } else {
@@ -197,7 +195,7 @@ if (window.__TAURI_INTERNALS__) {
   setOsDarkPreference(mq.matches)
   mq.addEventListener('change', (e) => {
     setOsDarkPreference(e.matches)
-    if (getThemeState().mode === 'system') applyThemeFromState()
+    if (getThemeState().mode === 'system') applyThemeFromState(undefined, true)
   })
 }
 

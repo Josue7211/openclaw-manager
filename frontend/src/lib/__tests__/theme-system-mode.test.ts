@@ -12,6 +12,7 @@ function makeState(overrides: Partial<ThemeState> = {}): ThemeState {
     activeThemeId: 'default-dark',
     overrides: {},
     customThemes: [],
+    useGtkTheme: true,
     ...overrides,
   }
 }
@@ -51,6 +52,7 @@ describe('getActiveSystemTheme', () => {
         writable: true,
         configurable: true,
       })
+      setOsDarkPreference(true)
     })
 
     it('returns isLinux=true and isSystemMode=true', () => {
@@ -104,6 +106,31 @@ describe('getActiveSystemTheme', () => {
       expect(info.activeTheme).toBeNull()
       expect(info.activeThemeName).toBe('')
     })
+  })
+})
+
+describe('useGtkTheme toggle', () => {
+  beforeEach(() => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15',
+      writable: true,
+      configurable: true,
+    })
+  })
+
+  it('with useGtkTheme=false, system mode uses dark/light fallback not GTK', () => {
+    setOsDarkPreference(true)
+    setGtkThemeMapping('dracula')
+    const info = getActiveSystemTheme(makeState({ useGtkTheme: false }))
+    // Should NOT resolve to Dracula — should fall back to default dark
+    expect(info.activeThemeName).not.toBe('Dracula')
+  })
+
+  it('with useGtkTheme=true, system mode uses GTK theme', () => {
+    setOsDarkPreference(true)
+    setGtkThemeMapping('dracula')
+    const info = getActiveSystemTheme(makeState({ useGtkTheme: true }))
+    expect(info.activeThemeName).toBe('Dracula')
   })
 })
 

@@ -28,6 +28,7 @@ import {
   removeCustomTheme,
   pinTheme,
   unpinTheme,
+  setUseGtkTheme,
 } from '@/lib/theme-store'
 import AccentPicker from '@/components/AccentPicker'
 import FontPicker from '@/components/FontPicker'
@@ -35,6 +36,7 @@ import BrandingSettings from '@/components/BrandingSettings'
 import ThemeImportExport from '@/components/ThemeImportExport'
 import ThemeScheduler from '@/components/ThemeScheduler'
 import CustomCssEditor from '@/components/CustomCssEditor'
+import Toggle from './Toggle'
 import { btnSecondary } from './shared'
 import { PushPin, PushPinSlash, Trash, ArrowCounterClockwise } from '@phosphor-icons/react'
 
@@ -432,6 +434,24 @@ export default function SettingsDisplay() {
             })}
           </div>
         </div>
+        {state.mode === 'system' && systemInfo.isLinux && (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginTop: '12px',
+            paddingTop: '12px',
+            borderTop: '1px solid var(--border)',
+          }}>
+            <div>
+              <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>Use GTK Theme</span>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Match desktop GTK theme colors instead of built-in dark/light
+              </div>
+            </div>
+            <Toggle on={state.useGtkTheme ?? false} onToggle={setUseGtkTheme} label="Use GTK theme" />
+          </div>
+        )}
       </SettingsCard>
 
       {/* 2. Theme Presets */}

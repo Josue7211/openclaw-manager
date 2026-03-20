@@ -223,42 +223,44 @@ export function resolveThemeDefinition(state: ThemeState): ThemeDefinition {
     // Force dark: if the active theme is light, swap to dark fallback
     if (resolved.category === 'light') return fallbackDark
   } else if (state.mode === 'system') {
-    // If Wallbash-Gtk is active AND we have live colors, build theme from live wallbash data
-    if (_gtkThemeId === 'wallbash' && _wallbashColors) {
-      return buildWallbashTheme(_wallbashColors, _wallbashColorScheme)
-    }
+    // When useGtkTheme is enabled, use GTK theme mapping (wallbash/counterparts).
+    // When disabled (or on non-Linux), just pick dark/light based on OS preference.
+    if (state.useGtkTheme) {
+      // If Wallbash-Gtk is active AND we have live colors, build theme from live wallbash data
+      if (_gtkThemeId === 'wallbash' && _wallbashColors) {
+        return buildWallbashTheme(_wallbashColors, _wallbashColorScheme)
+      }
 
-    // System mode: if the GTK theme maps to a built-in preset, use it.
-    // When the GTK preset is dark but COLOR_SCHEME says prefer-light (or vice versa),
-    // look up the COUNTERPART_MAP to get the matching light/dark variant.
-    if (_gtkThemeId) {
-      const gtkTheme = getThemeById(_gtkThemeId)
-      if (gtkTheme) {
-        const osDark = _osDarkCached ?? detectOsDark()
-        const gtkIsDark = gtkTheme.category !== 'light'
-        if (!osDark && gtkIsDark) {
-          // OS says light, but GTK preset is dark → use light counterpart
-          const counterpart = COUNTERPART_MAP[_gtkThemeId]
-          if (counterpart) {
-            const lightTheme = getThemeById(counterpart)
-            if (lightTheme) return lightTheme
+      // System mode: if the GTK theme maps to a built-in preset, use it.
+      // When the GTK preset is dark but COLOR_SCHEME says prefer-light (or vice versa),
+      // look up the COUNTERPART_MAP to get the matching light/dark variant.
+      if (_gtkThemeId) {
+        const gtkTheme = getThemeById(_gtkThemeId)
+        if (gtkTheme) {
+          const osDark = _osDarkCached ?? detectOsDark()
+          const gtkIsDark = gtkTheme.category !== 'light'
+          if (!osDark && gtkIsDark) {
+            const counterpart = COUNTERPART_MAP[_gtkThemeId]
+            if (counterpart) {
+              const lightTheme = getThemeById(counterpart)
+              if (lightTheme) return lightTheme
+            }
+            return fallbackLight
           }
-          return fallbackLight
-        }
-        if (osDark && !gtkIsDark) {
-          // OS says dark, but GTK preset is light → use dark counterpart
-          const counterpart = COUNTERPART_MAP[_gtkThemeId]
-          if (counterpart) {
-            const darkTheme = getThemeById(counterpart)
-            if (darkTheme) return darkTheme
+          if (osDark && !gtkIsDark) {
+            const counterpart = COUNTERPART_MAP[_gtkThemeId]
+            if (counterpart) {
+              const darkTheme = getThemeById(counterpart)
+              if (darkTheme) return darkTheme
+            }
+            return fallbackDark
           }
-          return fallbackDark
+          return gtkTheme
         }
-        return gtkTheme
       }
     }
 
-    // Otherwise fall back to dark/light based on OS preference
+    // Fall back to dark/light based on OS preference
     const osDark = _osDarkCached ?? detectOsDark()
     const isLightTheme = resolved.category === 'light'
     if (!osDark && !isLightTheme) return fallbackLight
@@ -506,6 +508,19 @@ export function performRippleTransition(applyFn: () => void, x: number, y: numbe
   } catch { applyFn() }
 }
 
+function performCrossfadeTransition(applyFn: () => void): void {
+  if (typeof document.startViewTransition !== 'function') { applyFn(); return }
+  try {
+    const transition = document.startViewTransition(() => { flushSync(applyFn) })
+    transition.ready.then(() => {
+      document.documentElement.animate(
+        { opacity: [0, 1] },
+        { duration: 300, easing: 'ease-out', pseudoElement: '::view-transition-new(root)' },
+      )
+    }).catch(() => {})
+  } catch { applyFn() }
+}
+
 // ---------------------------------------------------------------------------
 // applyAdvancedOverrides — glow opacity, border radius, panel opacity
 // ---------------------------------------------------------------------------
@@ -553,6 +568,7 @@ export function applyAdvancedOverrides(
 export function applyTheme(
   state: ThemeState,
   clickEvent?: { clientX: number; clientY: number },
+  crossfade?: boolean,
 ): void {
   const def = resolveThemeDefinition(state)
   const overrides = state.overrides[state.activeThemeId]
@@ -610,6 +626,8 @@ export function applyTheme(
 
   if (clickEvent && typeof document.startViewTransition === 'function' && !prefersReducedMotion) {
     performRippleTransition(apply, clickEvent.clientX, clickEvent.clientY)
+  } else if (crossfade && typeof document.startViewTransition === 'function' && !prefersReducedMotion) {
+    performCrossfadeTransition(apply)
   } else {
     apply()
   }

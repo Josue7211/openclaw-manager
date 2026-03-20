@@ -242,6 +242,10 @@ fn main() {
                 tauri::async_runtime::spawn(async move {
                     crate::commands::start_wallbash_watcher(watcher_handle).await;
                 });
+                let monitor_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    crate::commands::start_color_scheme_monitor(monitor_handle).await;
+                });
             }
 
             Ok(())

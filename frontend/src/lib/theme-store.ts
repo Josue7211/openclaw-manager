@@ -286,6 +286,11 @@ export function unpinTheme(themeId: string) {
   })
 }
 
+export function setUseGtkTheme(enabled: boolean) {
+  mutate(s => ({ ...s, useGtkTheme: enabled }))
+  applyThemeFromState()
+}
+
 // ---------------------------------------------------------------------------
 // Theme Application
 // ---------------------------------------------------------------------------
@@ -294,9 +299,9 @@ export function unpinTheme(themeId: string) {
  * Apply the full theme-state to the DOM via theme-engine.
  * Uses the stored click event for ripple animation when available.
  */
-export function applyThemeFromState(clickEvent?: { clientX: number; clientY: number }) {
+export function applyThemeFromState(clickEvent?: { clientX: number; clientY: number }, crossfade?: boolean) {
   if (typeof document === 'undefined') return
-  applyTheme(_state, clickEvent)
+  applyTheme(_state, clickEvent, crossfade)
 }
 
 // ---------------------------------------------------------------------------

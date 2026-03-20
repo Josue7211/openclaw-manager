@@ -303,6 +303,76 @@ pub async fn start_wallbash_watcher(handle: tauri::AppHandle) {
     });
 }
 
+/// Spawn `gsettings monitor` to detect color-scheme changes instantly (Linux only).
+///
+/// Emits `gsettings-color-scheme-changed` with "prefer-dark" or "prefer-light" payload.
+/// This replaces the frontend's polling approach with event-driven detection.
+pub async fn start_color_scheme_monitor(handle: tauri::AppHandle) {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = handle;
+        return;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        use tauri::Emitter;
+
+        // Verify gsettings is available
+        if std::process::Command::new("gsettings")
+            .arg("--version")
+            .output()
+            .is_err()
+        {
+            tracing::info!("gsettings not available, skipping color-scheme monitor");
+            return;
+        }
+
+        tokio::task::spawn_blocking(move || {
+            use std::io::BufRead;
+            let child = std::process::Command::new("gsettings")
+                .args(["monitor", "org.gnome.desktop.interface", "color-scheme"])
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::null())
+                .spawn();
+
+            let mut child = match child {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::warn!("Failed to spawn gsettings monitor: {}", e);
+                    return;
+                }
+            };
+
+            tracing::info!("gsettings color-scheme monitor started");
+
+            let stdout = match child.stdout.take() {
+                Some(s) => s,
+                None => return,
+            };
+
+            let reader = std::io::BufReader::new(stdout);
+            for line in reader.lines() {
+                let line = match line {
+                    Ok(l) => l,
+                    Err(_) => break,
+                };
+                // Output format: "color-scheme: 'prefer-dark'" or "color-scheme: 'prefer-light'"
+                let scheme = if line.contains("prefer-dark") {
+                    "prefer-dark"
+                } else {
+                    "prefer-light"
+                };
+                tracing::info!("gsettings color-scheme changed: {}", scheme);
+                let _ = handle.emit("gsettings-color-scheme-changed", scheme);
+            }
+
+            tracing::info!("gsettings color-scheme monitor stopped");
+            let _ = child.kill();
+        });
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Tests for wallbash / theme parsers
 // ---------------------------------------------------------------------------
