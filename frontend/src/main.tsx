@@ -134,22 +134,22 @@ if (window.__TAURI_INTERNALS__) {
       })()
     }
 
-    // File watcher events from Rust (instant sync — replaces most of the gsettings polling)
+    // Combined wallbash event from Rust file watcher — colors + theme.conf
+    // arrive as one atomic payload to prevent flash from stale intermediate state
     if (navigator.userAgent.includes('Linux')) {
       import('@tauri-apps/api/event').then(({ listen }) => {
-        listen<WallbashColors>('wallbash-colors-changed', (event) => {
+        listen<{ colors: WallbashColors; theme: { gtk_theme: string; icon_theme: string; color_scheme: string } }>('wallbash-theme-update', (event) => {
           if (getThemeState().mode !== 'system') return
-          setWallbashColors(event.payload)
-          applyThemeFromState()
-        })
-
-        listen<{ gtk_theme: string; icon_theme: string; color_scheme: string }>('gtk-theme-changed', (event) => {
-          if (getThemeState().mode !== 'system') return
-          const { gtk_theme, color_scheme } = event.payload
-          if (gtk_theme) setGtkThemeMapping(gtk_theme)
-          const scheme = color_scheme === 'prefer-dark' ? 'prefer-dark' : 'prefer-light'
-          setWallbashColorScheme(scheme)
-          setOsDarkPreference(color_scheme === 'prefer-dark')
+          const { colors, theme } = event.payload
+          if (colors && Object.keys(colors).length > 0) {
+            setWallbashColors(colors)
+          }
+          if (theme.gtk_theme) setGtkThemeMapping(theme.gtk_theme)
+          if (theme.color_scheme) {
+            const scheme = theme.color_scheme === 'prefer-dark' ? 'prefer-dark' : 'prefer-light'
+            setWallbashColorScheme(scheme)
+            setOsDarkPreference(theme.color_scheme === 'prefer-dark')
+          }
           applyThemeFromState()
         })
       })

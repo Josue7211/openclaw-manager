@@ -238,13 +238,16 @@ pub async fn start_wallbash_watcher(handle: tauri::AppHandle) {
 
     tracing::info!("Wallbash watcher started on {}", themes_dir.display());
 
-    // Move watcher into the blocking task so it doesn't get dropped
+    // Move watcher into the blocking task so it doesn't get dropped.
+    // Wallbash writes colors.conf and theme.conf in quick succession during a
+    // theme switch. Instead of emitting two separate events (which causes a
+    // flash of wrong colors), we coalesce: wait for writes to settle, then
+    // emit a single "wallbash-theme-update" event with both colors and config.
     tokio::task::spawn_blocking(move || {
         let _watcher = watcher; // keep alive
 
-        let mut last_colors_ts = std::time::Instant::now() - std::time::Duration::from_secs(1);
-        let mut last_theme_ts = std::time::Instant::now() - std::time::Duration::from_secs(1);
-        let debounce = std::time::Duration::from_millis(100);
+        let mut last_emit_ts = std::time::Instant::now() - std::time::Duration::from_secs(1);
+        let debounce = std::time::Duration::from_millis(250);
 
         loop {
             match rx.recv() {
@@ -255,46 +258,38 @@ pub async fn start_wallbash_watcher(handle: tauri::AppHandle) {
                         _ => continue,
                     }
 
-                    for path in &event.paths {
-                        let file_name = path
-                            .file_name()
-                            .and_then(|n| n.to_str())
-                            .unwrap_or("");
-
-                        if file_name == "colors.conf" {
-                            let now = std::time::Instant::now();
-                            if now.duration_since(last_colors_ts) < debounce {
-                                continue;
-                            }
-                            last_colors_ts = now;
-
-                            match read_wallbash_colors_inner() {
-                                Ok(colors) => {
-                                    tracing::info!("Wallbash colors changed, emitting event");
-                                    let _ = handle.emit("wallbash-colors-changed", &colors);
-                                }
-                                Err(e) => {
-                                    tracing::warn!("Failed to read wallbash colors: {}", e);
-                                }
-                            }
-                        } else if file_name == "theme.conf" {
-                            let now = std::time::Instant::now();
-                            if now.duration_since(last_theme_ts) < debounce {
-                                continue;
-                            }
-                            last_theme_ts = now;
-
-                            match read_theme_conf_inner() {
-                                Ok(theme) => {
-                                    tracing::info!("GTK theme changed, emitting event");
-                                    let _ = handle.emit("gtk-theme-changed", &theme);
-                                }
-                                Err(e) => {
-                                    tracing::warn!("Failed to read theme conf: {}", e);
-                                }
-                            }
-                        }
+                    let dominated = event.paths.iter().any(|p| {
+                        let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                        name == "colors.conf" || name == "theme.conf"
+                    });
+                    if !dominated {
+                        continue;
                     }
+
+                    let now = std::time::Instant::now();
+                    if now.duration_since(last_emit_ts) < debounce {
+                        continue;
+                    }
+
+                    // Wait a bit for the other file to finish writing
+                    std::thread::sleep(std::time::Duration::from_millis(150));
+                    // Drain any queued events that arrived during the sleep
+                    while rx.try_recv().is_ok() {}
+                    last_emit_ts = std::time::Instant::now();
+
+                    // Read BOTH files and emit a single combined event
+                    let colors = read_wallbash_colors_inner().ok();
+                    let theme = read_theme_conf_inner().ok();
+
+                    let payload = serde_json::json!({
+                        "colors": colors.unwrap_or_else(|| serde_json::json!({})),
+                        "theme": theme.unwrap_or_else(|| serde_json::json!({
+                            "gtk_theme": "", "icon_theme": "", "color_scheme": ""
+                        })),
+                    });
+
+                    tracing::info!("Wallbash theme update, emitting combined event");
+                    let _ = handle.emit("wallbash-theme-update", &payload);
                 }
                 Ok(Err(e)) => {
                     tracing::warn!("File watcher error: {}", e);
