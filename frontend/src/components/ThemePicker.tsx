@@ -155,8 +155,8 @@ export default function ThemePicker({ open, onClose }: ThemePickerProps) {
         aria-modal="true"
         aria-label="Choose theme"
         style={{
-          width: 'min(720px, 90vw)',
-          maxHeight: 'min(600px, 80vh)',
+          width: 'min(960px, 90vw)',
+          maxHeight: 'min(80vh, 840px)',
           borderRadius: 'var(--radius-xl)',
           background: 'var(--bg-modal)',
           border: '1px solid var(--border)',
