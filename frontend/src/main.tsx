@@ -159,25 +159,31 @@ if (window.__TAURI_INTERNALS__) {
       })
     }
 
-    // Fallback poll for non-Wallbash GTK theme changes on Linux (Wayland has no dbus signals).
-    // When wallbash is active, the file watcher is authoritative — skip polling entirely.
+    // Fallback poll for GTK theme and color-scheme changes on Linux (Wayland has no dbus signals).
+    // When wallbash is active, file watcher handles GTK theme + colors, but wallbash mode
+    // switching (dark↔light) may only update gsettings without modifying theme.conf — so we
+    // still poll for color-scheme changes even when wallbash is active.
     if (navigator.userAgent.includes('Linux')) {
       let lastGtkTheme = ''
       let lastColorScheme = ''
       setInterval(async () => {
         if (getThemeState().mode !== 'system') return
-        if (isWallbashActive()) return // file watcher handles wallbash themes
+        if (wallbashUpdatedRecently()) return // file watcher just fired — skip this tick
         try {
           const { invoke } = await import('@tauri-apps/api/core')
-          const [gtkTheme, isDark] = await Promise.all([
-            invoke<string>('detect_gtk_theme'),
-            invoke<boolean>('detect_system_dark_mode'),
-          ])
+          const wallbash = isWallbashActive()
+          // When wallbash is active, only poll color-scheme (file watcher handles GTK theme).
+          // When wallbash is inactive, poll both GTK theme and color-scheme.
+          const isDark = await invoke<boolean>('detect_system_dark_mode')
           const colorScheme = isDark ? 'dark' : 'light'
-          if ((gtkTheme && gtkTheme !== lastGtkTheme) || colorScheme !== lastColorScheme) {
-            lastGtkTheme = gtkTheme || lastGtkTheme
+          let gtkTheme = lastGtkTheme
+          if (!wallbash) {
+            gtkTheme = await invoke<string>('detect_gtk_theme') || lastGtkTheme
+          }
+          if ((gtkTheme !== lastGtkTheme) || colorScheme !== lastColorScheme) {
+            lastGtkTheme = gtkTheme
             lastColorScheme = colorScheme
-            if (gtkTheme) setGtkThemeMapping(gtkTheme)
+            if (gtkTheme && !wallbash) setGtkThemeMapping(gtkTheme)
             setOsDarkPreference(isDark)
             applyThemeFromState()
           }
