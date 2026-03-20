@@ -68,7 +68,7 @@ Plans:
 **Goal:** System mode detects dark themes correctly on Linux, all functional/status colors are customizable via a 3-tier color hierarchy, and the Settings Display page is reorganized into card-based sections with advanced customization sliders.
 **Requirements**: POLISH-10, POLISH-11, POLISH-12, POLISH-13, POLISH-14, POLISH-15, POLISH-16
 **Depends on:** Phase 2
-**Plans:** 4/4 plans executed
+**Plans:** 4/4 plans complete
 **Success Criteria** (what must be TRUE):
   1. System mode detects dark themes correctly on Linux (Hyprland/GNOME via gsettings)
   2. All functional/status colors use a 3-tier hierarchy (accent, secondary, tertiary)
