@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-20T01:08:07.004Z"
+stopped_at: Completed 02.2-01-PLAN.md
+last_updated: "2026-03-20T02:51:28.845Z"
 progress:
-  total_phases: 9
+  total_phases: 10
   completed_phases: 3
-  total_plans: 16
-  completed_plans: 16
+  total_plans: 24
+  completed_plans: 17
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 02.1 — theme-settings-page-polish-system-mode-fix
+**Current focus:** Phase 02.2 — theme-system-mode-fixes
 
 ## Current Position
 
-Phase: 02.1 (theme-settings-page-polish-system-mode-fix) — COMPLETE
-Plan: 4 of 4
+Phase: 02.2 (theme-system-mode-fixes) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -63,6 +63,7 @@ Plan: 4 of 4
 | Phase 02.1 P03 | -min | - tasks | 54 files |
 | Phase 02.1 P04 | 6min | 2 tasks | 7 files |
 | Phase 02.1 P03 | 8min | 2 tasks | 57 files |
+| Phase 02.2 P01 | 7min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -120,6 +121,10 @@ Recent decisions affecting current work:
 - [Phase 02.1]: Color grid uses 2-column layout with inline expansion rather than modals
 - [Phase 02.1]: var(--green-500) maps to var(--secondary-dim), var(--accent-blue) maps to var(--tertiary) for 3-tier color hierarchy
 - [Phase 02.1]: CSS .badge-green and .badge-blue classes use var(--secondary-a12) and var(--tertiary-a12) instead of hardcoded rgba()
+- [Phase 02.2]: notify crate with macos_fsevent feature for cross-platform file watching
+- [Phase 02.2]: Testable inner functions separate from Tauri commands for unit testing
+- [Phase 02.2]: Catppuccin Latte text darkened to #44476a/#5c5f77 (official palette neighbors) for WCAG on composited surfaces
+- [Phase 02.2]: system->dark/light transitions do NOT trigger counterpart auto-switch (only explicit dark<->light toggles)
 
 ### Roadmap Evolution
 
@@ -137,6 +142,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T01:03:31.157Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-dashboard-grid-widget-system/04-CONTEXT.md
+Last session: 2026-03-20T02:51:28.843Z
+Stopped at: Completed 02.2-01-PLAN.md
+Resume file: None

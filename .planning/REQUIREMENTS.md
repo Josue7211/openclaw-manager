@@ -52,11 +52,11 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 ### Theme System Mode Fixes (Phase 02.2)
 
 - [ ] **SYSMODE-01**: System mode shows only the active system theme card (detected GTK theme) — other presets hidden
-- [ ] **SYSMODE-02**: Dark↔Light mode auto-switches to counterpart preset (gruvbox-dark↔gruvbox-light, etc.)
-- [ ] **SYSMODE-03**: Live Wallbash color reading from ~/.config/hypr/themes/colors.conf when GTK theme is Wallbash-Gtk
+- [x] **SYSMODE-02**: Dark↔Light mode auto-switches to counterpart preset (gruvbox-dark↔gruvbox-light, etc.)
+- [x] **SYSMODE-03**: Live Wallbash color reading from ~/.config/hypr/themes/colors.conf when GTK theme is Wallbash-Gtk
 - [ ] **SYSMODE-04**: Wallbash dark/light/auto mode changes update app CSS variables without switching app mode toggle
-- [ ] **SYSMODE-05**: File watcher on Hyprland theme config for instant system theme sync (replace 1s polling)
-- [ ] **SYSMODE-06**: Light mode text contrast fix — all light themes meet WCAG AA for text-primary/secondary/muted on all surfaces
+- [x] **SYSMODE-05**: File watcher on Hyprland theme config for instant system theme sync (replace 1s polling)
+- [x] **SYSMODE-06**: Light mode text contrast fix — all light themes meet WCAG AA for text-primary/secondary/muted on all surfaces
 - [ ] **SYSMODE-07**: Windows/macOS fallback — System mode without GTK falls back to dark/light preset filtering
 
 ### Setup Wizard
