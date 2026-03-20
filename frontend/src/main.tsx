@@ -114,6 +114,27 @@ if (window.__TAURI_INTERNALS__) {
       setOsDarkPreference(payload === 'dark')
       if (getThemeState().mode === 'system') applyThemeFromState()
     })
+
+    // Poll for GTK theme changes on Linux (gsettings doesn't emit events on Wayland)
+    // Checks every 5 seconds when in System mode, detects Hyprland theme switches
+    if (navigator.userAgent.includes('Linux')) {
+      let lastGtkTheme = ''
+      setInterval(async () => {
+        if (getThemeState().mode !== 'system') return
+        try {
+          const { invoke } = await import('@tauri-apps/api/core')
+          const gtkTheme = await invoke<string>('detect_gtk_theme')
+          if (gtkTheme && gtkTheme !== lastGtkTheme) {
+            lastGtkTheme = gtkTheme
+            setGtkThemeMapping(gtkTheme)
+            // Also re-check dark mode preference
+            const isDark = await invoke<boolean>('detect_system_dark_mode')
+            setOsDarkPreference(isDark)
+            applyThemeFromState()
+          }
+        } catch { /* gsettings unavailable */ }
+      }, 5000)
+    }
   })
 } else {
   // Browser fallback — matchMedia listener
