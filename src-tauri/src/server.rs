@@ -846,6 +846,8 @@ const AUTH_EXEMPT_PATHS: &[&str] = &[
 ];
 
 /// Path prefixes exempt from API key authentication.
+/// Note: "/api/wizard/" endpoints are NOT exempt -- they require X-API-Key
+/// but not RequireAuth (no user session needed during setup wizard).
 const AUTH_EXEMPT_PREFIXES: &[&str] = &[
     "/api/auth/",
 ];

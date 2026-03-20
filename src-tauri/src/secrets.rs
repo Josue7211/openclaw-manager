@@ -5,7 +5,7 @@ use std::collections::HashMap;
 const SERVICE: &str = "com.mission-control";
 
 /// Mapping of keyring key names to environment variable names.
-const KEY_ENV_MAP: &[(&str, &str)] = &[
+pub(crate) const KEY_ENV_MAP: &[(&str, &str)] = &[
     ("bluebubbles.host", "BLUEBUBBLES_HOST"),
     ("bluebubbles.password", "BLUEBUBBLES_PASSWORD"),
     ("caldav.url", "CALDAV_URL"),
@@ -95,7 +95,7 @@ fn get_entry(key: &str) -> Option<String> {
     Entry::new(SERVICE, key).ok()?.get_password().ok()
 }
 
-fn set_entry(key: &str, value: &str) -> Result<(), String> {
+pub(crate) fn set_entry(key: &str, value: &str) -> Result<(), String> {
     Entry::new(SERVICE, key)
         .map_err(|e| e.to_string())?
         .set_password(value)
@@ -188,7 +188,7 @@ pub fn is_first_run() -> bool {
 // ---------------------------------------------------------------------------
 
 /// Check if a key is in the allowed set (KEY_ENV_MAP keys + USER_KEYS).
-fn is_allowed_key(key: &str) -> bool {
+pub(crate) fn is_allowed_key(key: &str) -> bool {
     KEY_ENV_MAP.iter().any(|&(k, _)| k == key) || USER_KEYS.contains(&key)
 }
 

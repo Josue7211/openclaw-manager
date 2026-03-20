@@ -36,6 +36,7 @@ pub mod user_secrets;
 pub mod util;
 pub mod workflow_notes;
 pub mod vault;
+pub mod wizard;
 pub mod workspace;
 
 /// Build the top-level API router, nesting all sub-module routes.
@@ -75,6 +76,7 @@ pub fn router() -> Router<AppState> {
         .merge(todos::router())
         .merge(user_secrets::router())
         .merge(vault::router())
+        .merge(wizard::router())
         .merge(crate::audit::router())
         .nest("/workspace", workspace::router())
 }
