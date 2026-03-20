@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-04-PLAN.md
-last_updated: "2026-03-20T04:15:35.597Z"
+stopped_at: Completed 03-03-PLAN.md
+last_updated: "2026-03-20T04:17:04.348Z"
 progress:
   total_phases: 10
   completed_phases: 4
   total_plans: 25
-  completed_plans: 22
+  completed_plans: 23
 ---
 
 # Project State
@@ -69,6 +69,7 @@ Plan: 7 of 7
 | Phase 03 P02 | 7 | 2 tasks | 6 files |
 | Phase 03 P07 | 10 | 3 tasks | 6 files |
 | Phase 03 P04 | 5 | 2 tasks | 7 files |
+| Phase 03 P03 | 6 | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -146,6 +147,9 @@ Recent decisions affecting current work:
 - [Phase 03]: resolveThemeDefinition uses COUNTERPART_MAP when GTK dark/light doesn't match OS COLOR_SCHEME
 - [Phase 03]: Stub WizardConnectionTest/WizardGuidePanel for parallel plan 03-03 dependency
 - [Phase 03]: Optional wizard steps auto-complete on unmount with skipped status if unconfigured
+- [Phase 03]: Logo uses existing /logo-128.png from public assets for wizard welcome screen
+- [Phase 03]: WizardGuidePanel uses max-height transition for expand/collapse (wider browser support)
+- [Phase 03]: SettingsConnections imports resetWizard from wizard-store as canonical reset function
 
 ### Roadmap Evolution
 
@@ -163,6 +167,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T04:15:31.829Z
-Stopped at: Completed 03-04-PLAN.md
+Last session: 2026-03-20T04:17:04.347Z
+Stopped at: Completed 03-03-PLAN.md
 Resume file: None
