@@ -8,7 +8,7 @@ import LayoutShell from './components/LayoutShell'
 import ErrorBoundary from './components/ErrorBoundary'
 import AuthGuard from './components/AuthGuard'
 import { applyThemeFromState, getThemeState } from './lib/theme-store'
-import { setOsDarkPreference, setGtkThemeMapping, setWallbashColors, setWallbashColorScheme } from './lib/theme-engine'
+import { setOsDarkPreference, setGtkThemeMapping, setWallbashColors, setWallbashColorScheme, isWallbashActive, wallbashUpdatedRecently } from './lib/theme-engine'
 import type { WallbashColors } from './lib/theme-definitions'
 import { PersonalSkeleton, DashboardSkeleton, MessagesSkeleton, SettingsSkeleton, GenericPageSkeleton } from './components/Skeleton'
 
@@ -113,7 +113,10 @@ if (window.__TAURI_INTERNALS__) {
     // only if gtk-application-prefer-dark-theme changes, which is rare on Wayland)
     getCurrentWindow().onThemeChanged(({ payload }) => {
       setOsDarkPreference(payload === 'dark')
-      if (getThemeState().mode === 'system') applyThemeFromState()
+      // Skip apply if wallbash is driving theme — its events are authoritative
+      if (getThemeState().mode === 'system' && !wallbashUpdatedRecently()) {
+        applyThemeFromState()
+      }
     })
 
     // On Linux, fetch initial wallbash colors if Wallbash-Gtk is active
@@ -155,13 +158,14 @@ if (window.__TAURI_INTERNALS__) {
       })
     }
 
-    // Reduced to 3s — file watcher handles Wallbash instant sync
-    // Fallback poll for non-Wallbash GTK theme changes on Linux (Wayland has no dbus signals)
+    // Fallback poll for non-Wallbash GTK theme changes on Linux (Wayland has no dbus signals).
+    // When wallbash is active, the file watcher is authoritative — skip polling entirely.
     if (navigator.userAgent.includes('Linux')) {
       let lastGtkTheme = ''
       let lastColorScheme = ''
       setInterval(async () => {
         if (getThemeState().mode !== 'system') return
+        if (isWallbashActive()) return // file watcher handles wallbash themes
         try {
           const { invoke } = await import('@tauri-apps/api/core')
           const [gtkTheme, isDark] = await Promise.all([
@@ -169,7 +173,6 @@ if (window.__TAURI_INTERNALS__) {
             invoke<boolean>('detect_system_dark_mode'),
           ])
           const colorScheme = isDark ? 'dark' : 'light'
-          // Re-apply if EITHER the theme name OR the color-scheme changed
           if ((gtkTheme && gtkTheme !== lastGtkTheme) || colorScheme !== lastColorScheme) {
             lastGtkTheme = gtkTheme || lastGtkTheme
             lastColorScheme = colorScheme
