@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, act } from '@testing-library/react'
-import React, { Suspense } from 'react'
+import { render, screen, act, fireEvent } from '@testing-library/react'
+import React from 'react'
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -47,6 +47,16 @@ vi.mock('@/lib/widget-registry', () => ({
   }),
 }))
 
+vi.mock('@/components/dashboard/WidgetConfigPanel', () => {
+  const MockPanel = ({ onClose }: { onClose: () => void }) => (
+    <div data-testid="config-panel">
+      <button onClick={onClose}>Close Config</button>
+    </div>
+  )
+  MockPanel.displayName = 'MockWidgetConfigPanel'
+  return { WidgetConfigPanel: MockPanel }
+})
+
 // Mock error-reporter to avoid side effects
 vi.mock('@/lib/error-reporter', () => ({
   reportError: vi.fn(),
@@ -75,6 +85,8 @@ describe('WidgetWrapper', () => {
     config: Record<string, unknown>
     isEditMode: boolean
     size: { w: number; h: number }
+    pageId: string
+    onRemove?: () => void
   }>
 
   beforeEach(async () => {
@@ -92,6 +104,7 @@ describe('WidgetWrapper', () => {
           config={{}}
           isEditMode={false}
           size={{ w: 4, h: 2 }}
+          pageId="page-1"
         />,
       )
     })
@@ -133,6 +146,9 @@ describe('WidgetWrapper', () => {
     vi.doMock('@/lib/error-reporter', () => ({
       reportError: vi.fn(),
     }))
+    vi.doMock('@/components/dashboard/WidgetConfigPanel', () => ({
+      WidgetConfigPanel: vi.fn(() => null),
+    }))
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve()))
 
     const freshMod = await import('@/components/dashboard/WidgetWrapper')
@@ -146,6 +162,7 @@ describe('WidgetWrapper', () => {
           config={{}}
           isEditMode={false}
           size={{ w: 4, h: 2 }}
+          pageId="page-1"
         />,
       )
     })
@@ -163,6 +180,7 @@ describe('WidgetWrapper', () => {
           config={{}}
           isEditMode={false}
           size={{ w: 4, h: 2 }}
+          pageId="page-1"
         />,
       )
     })
@@ -179,6 +197,7 @@ describe('WidgetWrapper', () => {
         config={{}}
         isEditMode={false}
         size={{ w: 4, h: 2 }}
+        pageId="page-1"
       />,
     )
 
@@ -194,6 +213,7 @@ describe('WidgetWrapper', () => {
           config={{ color: 'red' }}
           isEditMode={true}
           size={{ w: 8, h: 3 }}
+          pageId="page-1"
         />,
       )
     })
@@ -213,6 +233,7 @@ describe('WidgetWrapper', () => {
           config={{}}
           isEditMode={false}
           size={{ w: 4, h: 2 }}
+          pageId="page-1"
         />,
       )
     })
@@ -222,5 +243,203 @@ describe('WidgetWrapper', () => {
     const article = screen.getByRole('article')
     expect(article).toBeInTheDocument()
     expect(article).toHaveAttribute('aria-label', 'Test Widget')
+  })
+
+  // -----------------------------------------------------------------------
+  // Edit-mode chrome tests
+  // -----------------------------------------------------------------------
+
+  it('shows remove X button in edit mode when onRemove is provided', async () => {
+    const onRemove = vi.fn()
+
+    await act(async () => {
+      render(
+        <WidgetWrapper
+          widgetId="instance-edit"
+          pluginId="test-widget"
+          config={{}}
+          isEditMode={true}
+          size={{ w: 4, h: 2 }}
+          pageId="page-1"
+          onRemove={onRemove}
+        />,
+      )
+    })
+
+    await screen.findByTestId('mock-widget')
+
+    const removeBtn = screen.getByLabelText('Remove widget')
+    expect(removeBtn).toBeInTheDocument()
+    expect(removeBtn.tagName).toBe('BUTTON')
+    expect(removeBtn).toHaveClass('widget-remove-btn')
+
+    fireEvent.click(removeBtn)
+    expect(onRemove).toHaveBeenCalledOnce()
+  })
+
+  it('does NOT show remove X button when not in edit mode', async () => {
+    const onRemove = vi.fn()
+
+    await act(async () => {
+      render(
+        <WidgetWrapper
+          widgetId="instance-no-edit"
+          pluginId="test-widget"
+          config={{}}
+          isEditMode={false}
+          size={{ w: 4, h: 2 }}
+          pageId="page-1"
+          onRemove={onRemove}
+        />,
+      )
+    })
+
+    await screen.findByTestId('mock-widget')
+
+    expect(screen.queryByLabelText('Remove widget')).not.toBeInTheDocument()
+  })
+
+  it('renders gear icon button for widget settings', async () => {
+    await act(async () => {
+      render(
+        <WidgetWrapper
+          widgetId="instance-gear"
+          pluginId="test-widget"
+          config={{}}
+          isEditMode={false}
+          size={{ w: 4, h: 2 }}
+          pageId="page-1"
+        />,
+      )
+    })
+
+    await screen.findByTestId('mock-widget')
+
+    const gearBtn = screen.getByLabelText('Widget settings')
+    expect(gearBtn).toBeInTheDocument()
+    expect(gearBtn.tagName).toBe('BUTTON')
+    expect(gearBtn).toHaveClass('widget-gear-btn')
+  })
+
+  it('opens WidgetConfigPanel when gear icon is clicked', async () => {
+    // Fresh import to avoid module caching from prior tests (slow-widget test resets modules)
+    vi.resetModules()
+    vi.doMock('@/lib/widget-registry', () => ({
+      getWidget: vi.fn((id: string) => {
+        if (id === 'test-widget') {
+          return {
+            id: 'test-widget',
+            name: 'Test Widget',
+            description: 'A test widget',
+            icon: 'TestIcon',
+            category: 'monitoring',
+            tier: 'builtin',
+            defaultSize: { w: 4, h: 2 },
+            component: () => Promise.resolve({ default: mockWidget }),
+          }
+        }
+        return undefined
+      }),
+    }))
+    vi.doMock('@/components/dashboard/WidgetConfigPanel', () => {
+      const Panel = ({ onClose }: { onClose: () => void }) => (
+        <div data-testid="config-panel">
+          <button onClick={onClose}>Close Config</button>
+        </div>
+      )
+      return { WidgetConfigPanel: Panel }
+    })
+    vi.doMock('@/lib/error-reporter', () => ({
+      reportError: vi.fn(),
+    }))
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve()))
+
+    const freshMod = await import('@/components/dashboard/WidgetWrapper')
+    const FreshWrapper = freshMod.WidgetWrapper
+
+    await act(async () => {
+      render(
+        <FreshWrapper
+          widgetId="instance-config"
+          pluginId="test-widget"
+          config={{}}
+          isEditMode={true}
+          size={{ w: 4, h: 2 }}
+          pageId="page-1"
+        />,
+      )
+    })
+
+    await screen.findByTestId('mock-widget')
+
+    expect(screen.queryByTestId('config-panel')).not.toBeInTheDocument()
+
+    // Click the gear button
+    await act(async () => {
+      screen.getByLabelText('Widget settings').click()
+    })
+
+    // Config panel should now be visible
+    expect(screen.queryByTestId('config-panel')).toBeInTheDocument()
+  })
+
+  it('shows optional title header when config.showTitle is true', async () => {
+    await act(async () => {
+      render(
+        <WidgetWrapper
+          widgetId="instance-title"
+          pluginId="test-widget"
+          config={{ showTitle: true }}
+          isEditMode={false}
+          size={{ w: 4, h: 2 }}
+          pageId="page-1"
+        />,
+      )
+    })
+
+    await screen.findByTestId('mock-widget')
+
+    const title = document.querySelector('.widget-title-header')
+    expect(title).toBeInTheDocument()
+    expect(title!.textContent).toBe('Test Widget')
+  })
+
+  it('hides title header when config.showTitle is false', async () => {
+    await act(async () => {
+      render(
+        <WidgetWrapper
+          widgetId="instance-no-title"
+          pluginId="test-widget"
+          config={{ showTitle: false }}
+          isEditMode={false}
+          size={{ w: 4, h: 2 }}
+          pageId="page-1"
+        />,
+      )
+    })
+
+    await screen.findByTestId('mock-widget')
+
+    expect(document.querySelector('.widget-title-header')).not.toBeInTheDocument()
+  })
+
+  it('sets data-editing attribute in edit mode', async () => {
+    await act(async () => {
+      render(
+        <WidgetWrapper
+          widgetId="instance-data-editing"
+          pluginId="test-widget"
+          config={{}}
+          isEditMode={true}
+          size={{ w: 4, h: 2 }}
+          pageId="page-1"
+        />,
+      )
+    })
+
+    await screen.findByTestId('mock-widget')
+
+    const card = document.querySelector('.widget-card')
+    expect(card).toHaveAttribute('data-editing', 'true')
   })
 })

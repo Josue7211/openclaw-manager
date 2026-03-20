@@ -1313,6 +1313,88 @@ input[type="checkbox"]:checked::before {
   .react-grid-item.react-draggable-dragging { transform: none; }
 }
 
+/* ── Widget edit chrome ── */
+.widget-remove-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: none;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: background 150ms var(--ease-out), color 150ms var(--ease-out);
+}
+.widget-remove-btn:hover {
+  background: var(--red-500);
+  color: var(--text-on-color);
+}
+
+.widget-gear-btn {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 150ms var(--ease-out), color 150ms var(--ease-out);
+}
+.widget-gear-btn:hover { color: var(--accent); }
+.widget-card:hover .widget-gear-btn,
+.widget-card[data-editing="true"] .widget-gear-btn {
+  opacity: 1;
+}
+
+.widget-title-header {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Floating add widget FAB ── */
+.dashboard-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15), 0 1px 4px rgba(0,0,0,0.1);
+  z-index: var(--z-recycle-bin);
+  transition: background 150ms var(--ease-out), transform 150ms var(--ease-spring);
+}
+.dashboard-fab:hover {
+  background: var(--accent-bright);
+  transform: scale(1.05);
+}
+
 /* ── Widget picker slide-in ── */
 @keyframes widgetPickerSlideIn {
   from { transform: translateX(100%); }
