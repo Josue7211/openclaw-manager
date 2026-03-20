@@ -1,72 +1,69 @@
-
-
-
+import React from 'react'
 import { BackendErrorBanner } from '@/components/BackendErrorBanner'
-
-import { AgentStatusCard } from './dashboard/AgentStatusCard'
-import { HeartbeatCard } from './dashboard/HeartbeatCard'
-import { AgentsCard } from './dashboard/AgentsCard'
-import { MissionsCard } from './dashboard/MissionsCard'
-import { MemoryCard } from './dashboard/MemoryCard'
-import { IdeaBriefingCard } from './dashboard/IdeaBriefingCard'
-import { NetworkCard } from './dashboard/NetworkCard'
-import { SessionsCard } from './dashboard/SessionsCard'
 import { IdeaDetailPanel } from './dashboard/IdeaDetailPanel'
 import { DashboardHeader } from './dashboard/DashboardHeader'
+import { DashboardGrid } from './dashboard/DashboardGrid'
 import { useDashboardData } from './dashboard/useDashboardData'
+import { useDashboardStore } from '@/lib/dashboard-store'
+
+// ---------------------------------------------------------------------------
+// Context — shares useDashboardData return value with widget components
+// ---------------------------------------------------------------------------
+
+export const DashboardDataContext = React.createContext<ReturnType<typeof useDashboardData> | null>(null)
+
+export function useDashboardDataContext() {
+  const ctx = React.useContext(DashboardDataContext)
+  if (!ctx) throw new Error('useDashboardDataContext must be used within Dashboard')
+  return ctx
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
 
 export default function Dashboard() {
+  const dashboardData = useDashboardData()
+  const dashState = useDashboardStore()
+
   const {
     _demo,
-    mounted,
     backendError,
-    status,
-    heartbeat,
-    sessions,
-    subagents,
-    agentsData,
-    activeSubagents,
     subagentsError,
-    missions,
-    memory,
-    pendingIdeas,
     lastRefreshMs,
-    panelIdea, setPanelIdea,
-    sortedAgents,
+    panelIdea,
+    setPanelIdea,
     fastTick,
     slowTick,
     handleIdeaAction,
-    updateMissionStatus,
-    deleteMission,
-  } = useDashboardData()
+  } = dashboardData
 
   return (
-    <div>
-      {backendError && <BackendErrorBanner label={backendError} />}
+    <DashboardDataContext.Provider value={dashboardData}>
+      <div>
+        {backendError && <BackendErrorBanner label={backendError} />}
 
-      <DashboardHeader
-        isDemo={_demo}
-        subagentsError={subagentsError}
-        lastRefreshMs={lastRefreshMs}
-        onRefresh={() => { fastTick(); slowTick() }}
-      />
+        <DashboardHeader
+          isDemo={_demo}
+          subagentsError={subagentsError}
+          lastRefreshMs={lastRefreshMs}
+          onRefresh={() => { fastTick(); slowTick() }}
+        />
 
-      {/* Grid: responsive cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: 'min-content', gap: '16px' }}>
-        <AgentStatusCard mounted={mounted} status={status} />
-        <HeartbeatCard mounted={mounted} heartbeat={heartbeat} />
-        <AgentsCard mounted={mounted} sortedAgents={sortedAgents} agentsData={agentsData} subagents={subagents} activeSubagents={activeSubagents} />
-        <MissionsCard mounted={mounted} missions={missions} updateMissionStatus={updateMissionStatus} deleteMission={deleteMission} />
-        <MemoryCard mounted={mounted} memory={memory} />
-        <IdeaBriefingCard pendingIdeas={pendingIdeas} onIdeaAction={handleIdeaAction} onOpenDetail={setPanelIdea} />
-        <NetworkCard />
-        <SessionsCard mounted={mounted} sessions={sessions} />
+        <DashboardGrid
+          pageId={dashState.activePageId}
+          editMode={dashState.editMode}
+          wobbleEnabled={dashState.wobbleEnabled}
+        />
+
+        {panelIdea && (
+          <IdeaDetailPanel
+            idea={panelIdea}
+            onClose={() => setPanelIdea(null)}
+            onIdeaAction={handleIdeaAction}
+          />
+        )}
       </div>
-
-      {/* Idea Detail Side Panel */}
-      {panelIdea && (
-        <IdeaDetailPanel idea={panelIdea} onClose={() => setPanelIdea(null)} onIdeaAction={handleIdeaAction} />
-      )}
-    </div>
+    </DashboardDataContext.Provider>
   )
 }
