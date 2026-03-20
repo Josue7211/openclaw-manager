@@ -337,18 +337,31 @@ export default function SettingsDisplay() {
   const borderRadius = overrides?.borderRadius ?? 12
   const panelOpacity = overrides?.panelOpacity ?? 0.6
 
-  // All themes: built-in + custom, pinned first
+  // All themes: built-in + custom, filtered by mode, pinned first
   const allThemes = useMemo(() => {
     const combined = [
       ...BUILT_IN_THEMES.map(t => ({ ...t })),
       ...state.customThemes.map(t => ({ ...t })),
     ]
-    return combined.sort((a, b) => {
+    // Filter by active mode: dark → dark/colorful, light → light, system → show all
+    let modeFiltered = combined
+    if (state.mode === 'dark') {
+      modeFiltered = combined.filter(t =>
+        t.category === 'dark' || t.category === 'colorful' ||
+        (t.category === 'high-contrast' && t.id.includes('dark'))
+      )
+    } else if (state.mode === 'light') {
+      modeFiltered = combined.filter(t =>
+        t.category === 'light' ||
+        (t.category === 'high-contrast' && t.id.includes('light'))
+      )
+    }
+    return modeFiltered.sort((a, b) => {
       const aPinned = state.overrides[a.id]?.pinned ? 1 : 0
       const bPinned = state.overrides[b.id]?.pinned ? 1 : 0
       return bPinned - aPinned
     })
-  }, [state.customThemes, state.overrides])
+  }, [state.customThemes, state.overrides, state.mode])
 
   // Reset handler
   const handleReset = useCallback(() => {

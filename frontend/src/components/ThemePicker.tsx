@@ -90,12 +90,27 @@ export default function ThemePicker({ open, onClose }: ThemePickerProps) {
     return [...BUILT_IN_THEMES, ...custom]
   }, [state.customThemes])
 
-  // Filter by search
+  // Filter by mode + search
   const filteredThemes = useMemo(() => {
-    if (!search.trim()) return allThemes
+    // Filter by active mode: dark → dark/colorful, light → light, system → show all
+    let modeFiltered = allThemes
+    if (state.mode === 'dark') {
+      modeFiltered = allThemes.filter(t =>
+        t.category === 'dark' || t.category === 'colorful' ||
+        (t.category === 'high-contrast' && t.id.includes('dark'))
+      )
+    } else if (state.mode === 'light') {
+      modeFiltered = allThemes.filter(t =>
+        t.category === 'light' ||
+        (t.category === 'high-contrast' && t.id.includes('light'))
+      )
+    }
+    // System mode shows all (system controls the selection)
+
+    if (!search.trim()) return modeFiltered
     const q = search.toLowerCase()
-    return allThemes.filter(t => t.name.toLowerCase().includes(q))
-  }, [allThemes, search])
+    return modeFiltered.filter(t => t.name.toLowerCase().includes(q))
+  }, [allThemes, search, state.mode])
 
   // Group themes by category with Pinned section
   const sections = useMemo(() => {

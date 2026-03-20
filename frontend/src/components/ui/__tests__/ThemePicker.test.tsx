@@ -32,14 +32,17 @@ afterEach(() => {
 })
 
 describe('ThemePicker', () => {
-  it('renders all 24 built-in theme cards when open', () => {
+  it('renders mode-filtered theme cards when open (dark mode shows dark + colorful)', () => {
     render(<ThemePicker open={true} onClose={() => {}} />)
 
     const radios = screen.getAllByRole('radio')
-    // 24 theme cards + 3 mode radio buttons = 27 radios total
-    // Themes appear as role="radio" within radiogroup sections
+    // In dark mode: only dark, colorful, and high-contrast-dark themes show
     const themeRadios = radios.filter(r => r.getAttribute('aria-label')?.includes('theme'))
-    expect(themeRadios.length).toBe(BUILT_IN_THEMES.length)
+    const expectedDarkThemes = BUILT_IN_THEMES.filter(t =>
+      t.category === 'dark' || t.category === 'colorful' ||
+      (t.category === 'high-contrast' && t.id.includes('dark'))
+    )
+    expect(themeRadios.length).toBe(expectedDarkThemes.length)
   })
 
   it('has role="dialog" and aria-modal="true"', () => {
@@ -100,19 +103,20 @@ describe('ThemePicker', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('renders category section headings', () => {
+  it('renders category section headings filtered by mode (dark mode)', () => {
     render(<ThemePicker open={true} onClose={() => {}} />)
 
-    // "Dark" and "Light" appear twice each (once in mode selector, once as section heading)
+    // In dark mode: "Dark" appears as mode button + section heading
     const darkElements = screen.getAllByText('Dark')
-    expect(darkElements.length).toBeGreaterThanOrEqual(2) // mode button + section heading
+    expect(darkElements.length).toBeGreaterThanOrEqual(2)
 
+    // "Light" only appears as mode button (no light section in dark mode)
     const lightElements = screen.getAllByText('Light')
-    expect(lightElements.length).toBeGreaterThanOrEqual(2) // mode button + section heading
+    expect(lightElements.length).toBe(1) // mode button only
 
-    // These only appear as section headings
+    // Colorful section should show
     expect(screen.getByText('Colorful')).toBeInTheDocument()
-    expect(screen.getByText('High Contrast')).toBeInTheDocument()
+    // Custom section always shows
     expect(screen.getByText('Custom')).toBeInTheDocument()
   })
 })
