@@ -188,7 +188,7 @@ if (window.__TAURI_INTERNALS__) {
             applyThemeFromState()
           }
         } catch { /* gsettings unavailable */ }
-      }, 3000)
+      }, 1000)
     }
   })
 } else {
