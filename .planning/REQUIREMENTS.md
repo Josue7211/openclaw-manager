@@ -67,7 +67,7 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 - [ ] **WIZARD-04**: Theme selection step (pick from presets, choose light/dark/system)
 - [x] **WIZARD-05**: Demo mode option for users without infrastructure
 - [x] **WIZARD-06**: Setup can be skipped and completed later via Settings
-- [ ] **WIZARD-07**: Progressive disclosure (no 20-step wall — collapse advanced options)
+- [x] **WIZARD-07**: Progressive disclosure (no 20-step wall — collapse advanced options)
 - [x] **WIZARD-08**: Setup state persisted so interrupted wizard resumes where user left off
 
 ### Dashboard Grid
@@ -232,7 +232,7 @@ Deferred to post-v1.0 release. Tracked but not in current roadmap.
 | WIZARD-04 | Phase 3 | Pending |
 | WIZARD-05 | Phase 3 | Complete |
 | WIZARD-06 | Phase 3 | Complete |
-| WIZARD-07 | Phase 3 | Pending |
+| WIZARD-07 | Phase 3 | Complete |
 | WIZARD-08 | Phase 3 | Complete |
 | DASH-01 | Phase 4 | Pending |
 | DASH-02 | Phase 4 | Pending |
