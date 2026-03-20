@@ -68,9 +68,39 @@ export function isWallbashActive(): boolean {
   return _wallbashColors !== null
 }
 
-/** True if a wallbash event arrived within the last N ms — suppress competing sources. */
-export function wallbashUpdatedRecently(withinMs = 5000): boolean {
+/** True if a wallbash event arrived within the last N ms — suppress competing sources.
+ *  Default reduced from 5000ms to 500ms: 5s was suppressing legitimate gsettings events
+ *  that arrive 1-2s after a wallbash file write. 500ms is enough to coalesce the file
+ *  watcher's own burst without blocking gsettings. */
+export function wallbashUpdatedRecently(withinMs = 500): boolean {
   return _wallbashLastUpdate > 0 && (Date.now() - _wallbashLastUpdate) < withinMs
+}
+
+/**
+ * Atomically update wallbash colors, color scheme, and GTK theme mapping in a single call.
+ * Increments the generation counter exactly once regardless of how many fields are updated.
+ *
+ * This eliminates the race condition where resolveThemeDefinition reads partial state when
+ * setWallbashColors, setWallbashColorScheme, and setGtkThemeMapping are called independently
+ * from event handlers.
+ */
+export function setWallbashState(update: {
+  colors?: WallbashColors
+  colorScheme?: 'prefer-dark' | 'prefer-light'
+  gtkThemeName?: string
+}) {
+  if (update.colors && Object.keys(update.colors).length > 0) {
+    _wallbashColors = update.colors
+  }
+  if (update.colorScheme) {
+    _wallbashColorScheme = update.colorScheme
+    _osDarkCached = update.colorScheme === 'prefer-dark'
+  }
+  if (update.gtkThemeName) {
+    _gtkThemeId = mapGtkThemeToPreset(update.gtkThemeName)
+  }
+  _wallbashLastUpdate = Date.now()
+  _wallbashGeneration++
 }
 
 // ---------------------------------------------------------------------------

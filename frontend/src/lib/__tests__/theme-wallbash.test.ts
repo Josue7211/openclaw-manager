@@ -12,6 +12,10 @@ import {
   setWallbashColors,
   setWallbashColorScheme,
   getWallbashGeneration,
+  getWallbashColors,
+  getWallbashColorScheme,
+  setWallbashState,
+  wallbashUpdatedRecently,
 } from '../theme-engine'
 import type { WallbashColors } from '../theme-definitions'
 
@@ -204,6 +208,74 @@ describe('buildWallbashTheme', () => {
       expect(def.colors['bg-panel']).toBe('rgba(181, 180, 180, 0.85)')
       // pry2 = #1a1e26 -> rgb(26, 30, 38)
       expect(def.colors['bg-elevated']).toBe('rgba(26, 30, 38, 0.6)')
+    })
+  })
+
+  describe('setWallbashState — atomic update', () => {
+    it('updates colors and colorScheme in one call', () => {
+      setWallbashState({
+        colors: MOCK_COLORS,
+        colorScheme: 'prefer-light',
+      })
+      expect(getWallbashColors()).toBe(MOCK_COLORS)
+      expect(getWallbashColorScheme()).toBe('prefer-light')
+    })
+
+    it('increments generation exactly once (not twice)', () => {
+      const before = getWallbashGeneration()
+      setWallbashState({
+        colors: MOCK_COLORS,
+        colorScheme: 'prefer-dark',
+      })
+      expect(getWallbashGeneration()).toBe(before + 1)
+    })
+
+    it('increments generation once even with all three fields', () => {
+      const before = getWallbashGeneration()
+      setWallbashState({
+        colors: MOCK_COLORS,
+        colorScheme: 'prefer-dark',
+        gtkThemeName: 'Wallbash-Gtk',
+      })
+      expect(getWallbashGeneration()).toBe(before + 1)
+    })
+
+    it('updates only provided fields (partial update)', () => {
+      // First set known state
+      setWallbashState({ colors: MOCK_COLORS, colorScheme: 'prefer-dark' })
+      const gen = getWallbashGeneration()
+
+      // Then update only the color scheme
+      setWallbashState({ colorScheme: 'prefer-light' })
+      expect(getWallbashColorScheme()).toBe('prefer-light')
+      expect(getWallbashColors()).toBe(MOCK_COLORS) // unchanged
+      expect(getWallbashGeneration()).toBe(gen + 1)
+    })
+
+    it('skips colors update when colors object is empty', () => {
+      setWallbashState({ colors: MOCK_COLORS })
+      const gen = getWallbashGeneration()
+
+      setWallbashState({ colors: {} as WallbashColors })
+      // Colors should remain unchanged since empty object is skipped
+      expect(getWallbashColors()).toBe(MOCK_COLORS)
+      // Generation still increments (timestamp update)
+      expect(getWallbashGeneration()).toBe(gen + 1)
+    })
+
+    it('marks wallbash as recently updated', () => {
+      setWallbashState({ colors: MOCK_COLORS })
+      expect(wallbashUpdatedRecently()).toBe(true)
+    })
+  })
+
+  describe('wallbashUpdatedRecently — reduced window', () => {
+    it('defaults to 500ms window (not 5000ms)', () => {
+      setWallbashState({ colors: MOCK_COLORS })
+      // Immediately after update, should be true
+      expect(wallbashUpdatedRecently()).toBe(true)
+      // With an explicit 1ms window, should still be true (just updated)
+      expect(wallbashUpdatedRecently(1)).toBe(true)
     })
   })
 })
