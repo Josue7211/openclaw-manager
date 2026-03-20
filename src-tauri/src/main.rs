@@ -160,6 +160,7 @@ fn main() {
             commands::get_openclaw_dir,
             commands::get_log_dir,
             commands::open_log_dir,
+            commands::detect_system_dark_mode,
             fonts::list_system_fonts,
         ])
         .setup(|app| {
