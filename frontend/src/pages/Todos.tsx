@@ -157,7 +157,7 @@ export default function TodosPage() {
       {/* Header */}
       <div style={{ marginBottom: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-          <CheckSquare size={20} style={{ color: 'var(--green)' }} />
+          <CheckSquare size={20} style={{ color: 'var(--secondary)' }} />
           <PageHeader defaultTitle="Todos" defaultSubtitle="real-time · personal task list" />
           {_demo && <DemoBadge />}
           {(!isLoading || _demo) && (
@@ -186,7 +186,7 @@ export default function TodosPage() {
         <button
           onClick={addTodo}
           style={{
-            background: 'var(--green)', border: 'none', borderRadius: '10px', color: 'var(--text-on-color)',
+            background: 'var(--secondary)', border: 'none', borderRadius: '10px', color: 'var(--text-on-color)',
             padding: '10px 16px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: '6px',
           }}
@@ -224,7 +224,7 @@ export default function TodosPage() {
                     <input
                       type="checkbox" checked={false} onChange={() => toggleTodo(t.id, t.done)}
                       aria-label={`Mark "${t.text}" as done`}
-                      style={{ cursor: 'pointer', accentColor: 'var(--green)', width: '15px', height: '15px', flexShrink: 0 }}
+                      style={{ cursor: 'pointer', accentColor: 'var(--secondary)', width: '15px', height: '15px', flexShrink: 0 }}
                     />
                     <span style={{ flex: 1, fontSize: '13px', color: 'var(--text-primary)', lineHeight: 1.4 }}>{t.text}</span>
                     <DueDateBadge due_date={t.due_date} />
@@ -252,7 +252,7 @@ export default function TodosPage() {
                     <input
                       type="checkbox" checked={false} onChange={() => toggleTodo(t.id, t.done)}
                       aria-label={`Mark "${t.text}" as done`}
-                      style={{ cursor: 'pointer', accentColor: 'var(--green)', width: '16px', height: '16px', flexShrink: 0 }}
+                      style={{ cursor: 'pointer', accentColor: 'var(--secondary)', width: '16px', height: '16px', flexShrink: 0 }}
                     />
                     <span style={{ flex: 1, fontSize: '13px', color: 'var(--text-primary)', lineHeight: 1.4 }}>{t.text}</span>
                     {hasDueDateSupport && (
@@ -291,12 +291,12 @@ export default function TodosPage() {
                   <div key={t.id} style={{
                     display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px',
                     background: 'var(--hover-bg)', borderRadius: '10px',
-                    border: '1px solid var(--emerald-a15)',
+                    border: '1px solid var(--secondary-a15)',
                   }}>
                     <input
                       type="checkbox" checked onChange={() => toggleTodo(t.id, t.done)}
                       aria-label={`Mark "${t.text}" as not done`}
-                      style={{ cursor: 'pointer', accentColor: 'var(--green)', width: '16px', height: '16px', flexShrink: 0 }}
+                      style={{ cursor: 'pointer', accentColor: 'var(--secondary)', width: '16px', height: '16px', flexShrink: 0 }}
                     />
                     <span style={{ flex: 1, fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'line-through', lineHeight: 1.4 }}>{t.text}</span>
                     <button onClick={() => deleteTodo(t.id)} className="btn-delete" aria-label="Delete todo">✕</button>

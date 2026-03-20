@@ -96,10 +96,10 @@ export function PipelineNotes() {
                     style={{
                       flexShrink: 0,
                       padding: '4px 10px',
-                      background: n.applied ? 'var(--emerald-a15)' : 'transparent',
-                      border: n.applied ? '1px solid var(--emerald-a15)' : '1px solid var(--border-hover)',
+                      background: n.applied ? 'var(--secondary-a15)' : 'transparent',
+                      border: n.applied ? '1px solid var(--secondary-a15)' : '1px solid var(--border-hover)',
                       borderRadius: '6px',
-                      color: n.applied ? 'var(--green)' : 'var(--text-muted)',
+                      color: n.applied ? 'var(--secondary)' : 'var(--text-muted)',
                       fontSize: '11px',
                       cursor: 'pointer',
                       whiteSpace: 'nowrap',

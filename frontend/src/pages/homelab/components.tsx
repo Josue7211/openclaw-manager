@@ -90,8 +90,8 @@ export function StatusDot({ status }: { status: string }) {
       width: '8px',
       height: '8px',
       borderRadius: '50%',
-      background: online ? 'var(--green)' : 'var(--red)',
-      boxShadow: online ? '0 0 6px var(--green)' : '0 0 6px var(--red)',
+      background: online ? 'var(--secondary)' : 'var(--red)',
+      boxShadow: online ? '0 0 6px var(--secondary)' : '0 0 6px var(--red)',
       flexShrink: 0,
     }} />
   )

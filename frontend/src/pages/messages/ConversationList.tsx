@@ -251,7 +251,7 @@ export default function ConversationList({
                       fontWeight: act ? 600 : 450,
                       color: act ? 'var(--text-on-color)' : 'var(--text-secondary)',
                       background: act
-                        ? (f === 'iMessage' ? 'var(--blue-a25)' : f === 'SMS' ? 'var(--green-a15)' : 'var(--accent-a15)')
+                        ? (f === 'iMessage' ? 'var(--blue-a25)' : f === 'SMS' ? 'var(--secondary-a15)' : 'var(--accent-a15)')
                         : 'transparent',
                       border: act ? 'none' : '1px solid var(--border)',
                       borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s',

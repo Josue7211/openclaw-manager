@@ -330,9 +330,9 @@ export default function CapturePage() {
                           fontSize: '11px',
                           padding: '2px 8px',
                           borderRadius: '20px',
-                          background: 'var(--emerald-a12)',
-                          color: 'var(--green)',
-                          border: '1px solid var(--emerald-a20)',
+                          background: 'var(--secondary-a12)',
+                          color: 'var(--secondary)',
+                          border: '1px solid var(--secondary-a20)',
                         }}>
                           {ROUTE_LABELS[item.routed_to] || item.routed_to}
                         </span>

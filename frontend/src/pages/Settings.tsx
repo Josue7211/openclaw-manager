@@ -196,7 +196,7 @@ export default function SettingsPage() {
             <div style={sectionLabel}>Agent Configuration</div>
             <div style={row}><span>Name</span><span style={val}>{agentStatus?.name ?? '—'}</span></div>
             <div style={row}><span>Model</span><span style={val}>{agentStatus?.model ?? '—'}</span></div>
-            <div style={row}><span>Status</span><span style={{ ...val, color: agentStatus?.status === 'online' ? 'var(--green)' : undefined }}>{agentStatus?.status ?? '—'}</span></div>
+            <div style={row}><span>Status</span><span style={{ ...val, color: agentStatus?.status === 'online' ? 'var(--secondary)' : undefined }}>{agentStatus?.status ?? '—'}</span></div>
             <div style={rowLast}><span>Emoji</span><span style={{ fontSize: '18px' }}>{agentStatus?.emoji ?? '—'}</span></div>
           </div>
         )

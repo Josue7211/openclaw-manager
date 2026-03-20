@@ -177,7 +177,7 @@ export default function MessageThread({
               <span style={{
                 width: '6px', height: '6px', borderRadius: '50%',
                 background: sseConnected ? 'var(--apple-green)' : 'var(--apple-yellow)',
-                boxShadow: sseConnected ? '0 0 4px var(--green-400-a30)' : '0 0 4px var(--yellow-bright-a35)',
+                boxShadow: sseConnected ? '0 0 4px var(--secondary-a30)' : '0 0 4px var(--yellow-bright-a35)',
                 display: 'inline-block', flexShrink: 0,
                 animation: sseConnected ? undefined : 'pulse 1.5s ease-in-out infinite',
               }} />

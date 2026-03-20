@@ -75,7 +75,7 @@ export default function MorningBrief({ todos, missions, calendarEvents, mounted 
         {/* Today's Focus */}
         <div style={{ background: 'var(--bg-white-03)', borderRadius: '10px', padding: '14px', border: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
-            <CheckSquare size={12} style={{ color: 'var(--green)' }} />
+            <CheckSquare size={12} style={{ color: 'var(--secondary)' }} />
             <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Today&apos;s Focus</span>
           </div>
           {!mounted ? (
@@ -86,7 +86,7 @@ export default function MorningBrief({ todos, missions, calendarEvents, mounted 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {focusTodos.map(t => (
                 <div key={t.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                  <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--green)', marginTop: '5px', flexShrink: 0 }} />
+                  <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--secondary)', marginTop: '5px', flexShrink: 0 }} />
                   <span style={{ fontSize: '12px', color: 'var(--text-primary)', lineHeight: 1.4 }}>{t.text}</span>
                 </div>
               ))}

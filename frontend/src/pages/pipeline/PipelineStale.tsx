@@ -141,8 +141,8 @@ export function PipelineStale() {
                       cursor: 'pointer',
                       fontSize: '11px',
                       fontWeight: 600,
-                      background: 'var(--emerald-a15)',
-                      color: 'var(--green)',
+                      background: 'var(--secondary-a15)',
+                      color: 'var(--secondary)',
                       opacity: staleActing === `${item.id}-done` ? 0.5 : 1,
                     }}
                   >

@@ -15,5 +15,5 @@ export function formatBytes(bytes: number): string {
 export function cpuColor(cpu: number): string {
   if (cpu > 0.7) return 'var(--red)'
   if (cpu > 0.5) return 'var(--gold)'
-  return 'var(--green)'
+  return 'var(--secondary)'
 }

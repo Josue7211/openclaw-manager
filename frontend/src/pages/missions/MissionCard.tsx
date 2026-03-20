@@ -24,7 +24,7 @@ export const MissionCard = React.memo(function MissionCard({
   const canMarkDone = !done
   const barPct = done ? 100 : (mission.progress ?? 0)
   const barColor = done
-    ? 'var(--green-400)'
+    ? 'var(--secondary)'
     : mission.status === 'active'
       ? 'var(--accent)'
       : 'var(--text-muted)'
@@ -37,7 +37,7 @@ export const MissionCard = React.memo(function MissionCard({
       style={{
         borderRadius: '10px',
         background: isExpanded ? 'var(--hover-bg)' : 'var(--bg-card)',
-        border: `1px solid ${isExpanded ? 'var(--purple-a30)' : done ? 'var(--green-400-a15)' : 'var(--border)'}`,
+        border: `1px solid ${isExpanded ? 'var(--purple-a30)' : done ? 'var(--secondary-a15)' : 'var(--border)'}`,
         opacity: done ? 0.88 : 1,
         transition: 'border-color 0.15s, background 0.15s',
         overflow: 'hidden',
@@ -61,7 +61,7 @@ export const MissionCard = React.memo(function MissionCard({
         onMouseLeave={e => {
           if (!isExpanded) {
             const card = e.currentTarget.parentElement!
-            card.style.borderColor = done ? 'var(--green-400-a15)' : 'var(--border)'
+            card.style.borderColor = done ? 'var(--secondary-a15)' : 'var(--border)'
             card.style.background  = 'var(--bg-card)'
           }
         }}
@@ -78,7 +78,7 @@ export const MissionCard = React.memo(function MissionCard({
               textDecoration: done ? 'line-through' : 'none',
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>
-              {done && <span style={{ color: 'var(--green-400)', marginRight: '6px', textDecoration: 'none', display: 'inline-block' }}>&#10003;</span>}
+              {done && <span style={{ color: 'var(--secondary)', marginRight: '6px', textDecoration: 'none', display: 'inline-block' }}>&#10003;</span>}
               {mission.title}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: '2px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -96,7 +96,7 @@ export const MissionCard = React.memo(function MissionCard({
                 <>
                   <span>&middot;</span>
                   <span style={{
-                    color: mission.complexity > 70 ? 'var(--red-500)' : mission.complexity > 40 ? 'var(--amber)' : 'var(--green-400)',
+                    color: mission.complexity > 70 ? 'var(--red-500)' : mission.complexity > 40 ? 'var(--amber)' : 'var(--secondary)',
                   }}>
                     {mission.complexity}%
                   </span>
@@ -151,15 +151,15 @@ export const MissionCard = React.memo(function MissionCard({
                 flexShrink: 0,
                 display: 'flex', alignItems: 'center', gap: '4px',
                 padding: '3px 8px', borderRadius: '10px',
-                border: '1px solid var(--green-400-a30)',
-                background: 'var(--green-400-a06)',
-                color: 'var(--green-400)',
+                border: '1px solid var(--secondary-a30)',
+                background: 'var(--secondary-a06)',
+                color: 'var(--secondary)',
                 fontSize: '11px', cursor: isMarkingDone ? 'wait' : 'pointer',
                 opacity: isMarkingDone ? 0.5 : 1,
                 transition: 'all 0.25s var(--ease-spring)',
               }}
-              onMouseEnter={e => { if (!isMarkingDone) { e.currentTarget.style.background = 'var(--green-400-a14)'; e.currentTarget.style.borderColor = 'var(--green-400-a45)' } }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'var(--green-400-a06)'; e.currentTarget.style.borderColor = 'var(--green-400-a30)' }}
+              onMouseEnter={e => { if (!isMarkingDone) { e.currentTarget.style.background = 'var(--secondary-a14)'; e.currentTarget.style.borderColor = 'var(--secondary-a45)' } }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--secondary-a06)'; e.currentTarget.style.borderColor = 'var(--secondary-a30)' }}
             >
               <Check size={11} />
               Done
@@ -171,8 +171,8 @@ export const MissionCard = React.memo(function MissionCard({
             flexShrink: 0, fontSize: '10px', fontFamily: 'monospace',
             padding: '2px 8px', borderRadius: '10px',
             color: statusColor(mission.status),
-            background: done ? 'var(--green-400-a08)' : mission.status === 'active' ? 'var(--purple-a10)' : 'var(--hover-bg)',
-            border: `1px solid ${done ? 'var(--green-400-a15)' : mission.status === 'active' ? 'var(--purple-a20)' : 'var(--border)'}`,
+            background: done ? 'var(--secondary-a08)' : mission.status === 'active' ? 'var(--purple-a10)' : 'var(--hover-bg)',
+            border: `1px solid ${done ? 'var(--secondary-a15)' : mission.status === 'active' ? 'var(--purple-a20)' : 'var(--border)'}`,
           }}>
             {mission.status}
           </div>
@@ -195,7 +195,7 @@ export const MissionCard = React.memo(function MissionCard({
         <div style={{
           position: 'absolute', top: 0, left: 0, bottom: 0,
           width: `${barPct}%`,
-          background: done ? 'var(--green-400)' : 'var(--accent)',
+          background: done ? 'var(--secondary)' : 'var(--accent)',
           transition: 'width 0.4s ease',
         }} />
       </div>

@@ -168,10 +168,10 @@ export default function PomodoroPage() {
   }
 
   const isWork = mode === 'work'
-  const accentColor = isWork ? 'var(--accent)' : 'var(--green)'
-  const accentBright = isWork ? 'var(--accent-bright)' : 'var(--green-400)'
-  const accentBg = isWork ? 'var(--purple-a12)' : 'var(--emerald-a12)'
-  const accentBorder = isWork ? 'var(--border-accent)' : 'var(--emerald-a15)'
+  const accentColor = isWork ? 'var(--accent)' : 'var(--secondary)'
+  const accentBright = isWork ? 'var(--accent-bright)' : 'var(--secondary)'
+  const accentBg = isWork ? 'var(--purple-a12)' : 'var(--secondary-a12)'
+  const accentBorder = isWork ? 'var(--border-accent)' : 'var(--secondary-a15)'
 
   return (
     <div style={{ display: 'flex', gap: '24px', height: 'calc(100vh - 48px)', overflow: 'hidden' }}>

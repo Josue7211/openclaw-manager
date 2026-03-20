@@ -202,12 +202,12 @@ RADARR_API_KEY=your-radarr-api-key`}
             }}>
               <div style={{
                 width: '32px', height: '32px', borderRadius: '7px', marginBottom: '10px',
-                background: item.type === 'movie' ? 'var(--purple-a15)' : 'var(--emerald-a15)',
+                background: item.type === 'movie' ? 'var(--purple-a15)' : 'var(--secondary-a15)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 {item.type === 'movie'
                   ? <FilmStrip size={15} style={{ color: 'var(--accent)' }} />
-                  : <Television size={15} style={{ color: 'var(--green)' }} />}
+                  : <Television size={15} style={{ color: 'var(--secondary)' }} />}
               </div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px', lineHeight: 1.3 }}>
                 {item.title}
@@ -216,8 +216,8 @@ RADARR_API_KEY=your-radarr-api-key`}
                 {item.year && <span style={{ marginRight: '6px' }}>{item.year}</span>}
                 <span style={{
                   padding: '1px 6px', borderRadius: '10px', fontSize: '10px',
-                  background: item.type === 'movie' ? 'var(--purple-a10)' : 'var(--emerald-a12)',
-                  color: item.type === 'movie' ? 'var(--accent)' : 'var(--green)',
+                  background: item.type === 'movie' ? 'var(--purple-a10)' : 'var(--secondary-a12)',
+                  color: item.type === 'movie' ? 'var(--accent)' : 'var(--secondary)',
                 }}>
                   {item.type === 'movie' ? 'Movie' : 'Show'}
                 </span>

@@ -115,7 +115,7 @@ export default function TimerDisplay({
               style={{
                 display: 'flex', alignItems: 'center', gap: '6px',
                 padding: '9px 20px', borderRadius: '8px', border: 'none',
-                background: 'var(--green)', color: 'var(--text-on-color)', fontSize: '13px',
+                background: 'var(--secondary)', color: 'var(--text-on-color)', fontSize: '13px',
                 fontWeight: 600, cursor: 'pointer',
               }}
             >

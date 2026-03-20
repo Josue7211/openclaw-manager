@@ -4,7 +4,7 @@ import { CheckCircle, Clock, Lightning, Eye, XCircle, FileText, Terminal, Pencil
 
 export function statusColor(status: string): string {
   switch (status) {
-    case 'done': return 'var(--green-400)'
+    case 'done': return 'var(--secondary)'
     case 'active': return 'var(--accent-bright)'
     case 'awaiting_review': return 'var(--amber)'
     case 'failed': return 'var(--red-500)'
@@ -15,7 +15,7 @@ export function statusColor(status: string): string {
 
 export function statusIcon(status: string) {
   switch (status) {
-    case 'done': return <CheckCircle size={14} color="var(--green-400)" />
+    case 'done': return <CheckCircle size={14} color="var(--secondary)" />
     case 'active': return <Lightning size={14} color="var(--accent-bright)" />
     case 'awaiting_review': return <Eye size={14} color="var(--amber)" />
     case 'failed': return <XCircle size={14} color="var(--red-500)" />
@@ -29,10 +29,10 @@ export function statusIcon(status: string) {
 export const EVENT_META: Record<string, { tickColor: string; icon: React.ReactNode; label: string; labelColor: string; bg: string; border: string }> = {
   user:   { tickColor: 'var(--pink)', icon: <User size={11} />,      label: 'User',   labelColor: 'var(--pink)', bg: 'var(--red-a12)',  border: 'var(--red-a30)' },
   think:  { tickColor: 'var(--purple)', icon: <Lightbulb size={11} />, label: 'Think',  labelColor: 'var(--accent-bright)', bg: 'var(--purple-a12)', border: 'var(--border-accent)' },
-  write:  { tickColor: 'var(--green-500)', icon: <FileText size={11} />,  label: 'Write',  labelColor: 'var(--green-400)', bg: 'var(--green-400-a15)',   border: 'var(--green-400-a30)' },
-  edit:   { tickColor: 'var(--green)', icon: <PencilSimple size={11} />,    label: 'Edit',   labelColor: 'var(--green)', bg: 'var(--green-a15)',  border: 'var(--green-a15)' },
+  write:  { tickColor: 'var(--secondary-dim)', icon: <FileText size={11} />,  label: 'Write',  labelColor: 'var(--secondary)', bg: 'var(--secondary-a15)',   border: 'var(--secondary-a30)' },
+  edit:   { tickColor: 'var(--secondary)', icon: <PencilSimple size={11} />,    label: 'Edit',   labelColor: 'var(--secondary)', bg: 'var(--secondary-a15)',  border: 'var(--secondary-a15)' },
   bash:   { tickColor: 'var(--blue)', icon: <Terminal size={11} />,  label: 'Bash',   labelColor: 'var(--blue)', bg: 'var(--blue-a25)',  border: 'var(--blue-a25)' },
-  read:   { tickColor: 'var(--cyan)', icon: <Eye size={11} />,       label: 'Read',   labelColor: 'var(--cyan)', bg: 'var(--green-a12)',   border: 'var(--green-a15)' },
+  read:   { tickColor: 'var(--cyan)', icon: <Eye size={11} />,       label: 'Read',   labelColor: 'var(--cyan)', bg: 'var(--secondary-a12)',   border: 'var(--secondary-a15)' },
   glob:   { tickColor: 'var(--orange)', icon: <MagnifyingGlass size={11} />,    label: 'Glob',   labelColor: 'var(--orange)', bg: 'var(--warning-a12)',  border: 'var(--warning-a30)' },
   grep:   { tickColor: 'var(--orange)', icon: <MagnifyingGlass size={11} />,    label: 'Grep',   labelColor: 'var(--orange)', bg: 'var(--warning-a12)',  border: 'var(--warning-a30)' },
   result: { tickColor: 'var(--amber)', icon: <DotOutline size={11} />, label: 'Result', labelColor: 'var(--warning)', bg: 'var(--warning-a15)',  border: 'var(--warning-a30)' },

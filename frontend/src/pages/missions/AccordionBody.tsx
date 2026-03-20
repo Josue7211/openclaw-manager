@@ -275,7 +275,7 @@ export function AccordionBody({ missionId, mission, agent }: { missionId: string
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: '3px',
             fontSize: '10px', fontFamily: 'monospace',
-            background: 'var(--green-a12)',
+            background: 'var(--secondary-a12)',
             border: '1px solid var(--cyan-a25)',
             borderRadius: '10px', padding: '1px 6px',
             color: 'var(--cyan)', flexShrink: 0,
@@ -407,7 +407,7 @@ export function AccordionBody({ missionId, mission, agent }: { missionId: string
       {(filesModified.length > 0 || filesRead.length > 0) && (() => {
         const modifiedPaths = new Set(filesModified.map(([p]) => p))
         const allFiles = [
-          ...filesModified.map(([p]) => ({ path: p, color: 'var(--green-400)' })),
+          ...filesModified.map(([p]) => ({ path: p, color: 'var(--secondary)' })),
           ...filesRead.filter(([p]) => !modifiedPaths.has(p)).map(([p]) => ({ path: p, color: 'var(--text-muted)' })),
         ]
         const shown = allFiles.slice(0, 6)

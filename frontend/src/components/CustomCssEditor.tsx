@@ -397,7 +397,7 @@ const CustomCssEditor = memo(function CustomCssEditor() {
                 borderRadius: '50%',
                 background:
                   fileStatus === 'watching'
-                    ? 'var(--green)'
+                    ? 'var(--secondary)'
                     : fileStatus === 'missing'
                     ? 'var(--red)'
                     : 'var(--text-muted)',

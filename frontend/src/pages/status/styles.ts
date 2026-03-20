@@ -41,7 +41,7 @@ export const dotStyle = (online: boolean): React.CSSProperties => ({
   width: '8px',
   height: '8px',
   borderRadius: '50%',
-  background: online ? 'var(--green-500)' : 'var(--red-500)',
-  boxShadow: online ? '0 0 6px var(--green-400-a30)' : '0 0 6px var(--red-500-a25)',
+  background: online ? 'var(--secondary-dim)' : 'var(--red-500)',
+  boxShadow: online ? '0 0 6px var(--secondary-a30)' : '0 0 6px var(--red-500-a25)',
   flexShrink: 0,
 })

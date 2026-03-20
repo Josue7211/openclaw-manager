@@ -68,12 +68,12 @@ export const CATEGORIES = ['routing', 'delegation', 'user-preferences', 'lessons
 export const CATEGORY_COLORS: Record<string, string> = {
   routing: 'var(--accent-dim)',
   delegation: 'var(--cyan)',
-  'user-preferences': 'var(--green-solid)',
+  'user-preferences': 'var(--secondary-solid)',
   lessons: 'var(--amber)',
 }
 
 export const STALE_TYPE_COLORS: Record<ItemType, { bg: string; color: string; border: string }> = {
-  todo: { bg: 'var(--emerald-a12)', color: 'var(--green)', border: 'var(--emerald-a15)' },
+  todo: { bg: 'var(--secondary-a12)', color: 'var(--secondary)', border: 'var(--secondary-a15)' },
   mission: { bg: 'var(--purple-a12)', color: 'var(--accent-bright)', border: 'var(--border-accent)' },
   idea: { bg: 'var(--gold-a12)', color: 'var(--gold)', border: 'var(--gold-a25)' },
 }
@@ -85,14 +85,14 @@ export const STALE_TYPE_ICONS: Record<ItemType, React.ElementType> = {
 }
 
 export const IDEA_LEVEL_COLORS: Record<string, string> = {
-  low: 'var(--green)',
+  low: 'var(--secondary)',
   medium: 'var(--gold)',
   high: 'var(--red)',
 }
 
 export const IDEA_STATUS_META: { status: IdeaStatus; label: string; color: string }[] = [
   { status: 'pending', label: 'Pending', color: 'var(--gold)' },
-  { status: 'approved', label: 'Approved', color: 'var(--green)' },
+  { status: 'approved', label: 'Approved', color: 'var(--secondary)' },
   { status: 'built', label: 'Built', color: 'var(--accent-bright)' },
   { status: 'rejected', label: 'Rejected', color: 'var(--red)' },
   { status: 'deferred', label: 'Deferred', color: 'var(--text-muted)' },

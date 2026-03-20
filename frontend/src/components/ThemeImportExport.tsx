@@ -295,7 +295,7 @@ const ThemeImportExport = memo(function ThemeImportExport() {
               border: '1px solid rgba(52, 211, 153, 0.3)',
               borderRadius: '6px',
               fontSize: '12px',
-              color: 'var(--green)',
+              color: 'var(--secondary)',
             }}
           >
             {importSuccess}

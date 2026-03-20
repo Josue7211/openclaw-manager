@@ -12,7 +12,7 @@ function StatusDot({ active }: { active: boolean }) {
       width: '8px',
       height: '8px',
       borderRadius: '50%',
-      background: active ? 'var(--green-400)' : 'var(--text-muted)',
+      background: active ? 'var(--secondary)' : 'var(--text-muted)',
       animation: active ? 'pulse-dot 1.5s ease-in-out infinite' : 'none',
       flexShrink: 0,
     }} />
@@ -57,7 +57,7 @@ export function AgentCard({ agent, onSave, activeMission, models = [] }: AgentCa
       background: 'var(--bg-card)',
       backdropFilter: 'blur(24px)',
       WebkitBackdropFilter: 'blur(24px)',
-      border: `1px solid ${active ? 'var(--green-400-a30)' : awaitingDeploy ? 'var(--yellow-bright-a35)' : 'var(--accent)44'}`,
+      border: `1px solid ${active ? 'var(--secondary-a30)' : awaitingDeploy ? 'var(--yellow-bright-a35)' : 'var(--accent)44'}`,
       borderRadius: '16px',
       padding: '20px',
       display: 'flex',
@@ -167,7 +167,7 @@ export function AgentCard({ agent, onSave, activeMission, models = [] }: AgentCa
         ) : (
           <>
             <StatusDot active={active} />
-            <span style={{ fontSize: '11px', color: active ? 'var(--green-400)' : 'var(--text-muted)', fontWeight: 600 }}>
+            <span style={{ fontSize: '11px', color: active ? 'var(--secondary)' : 'var(--text-muted)', fontWeight: 600 }}>
               {active ? 'Working' : 'Idle'}
             </span>
           </>

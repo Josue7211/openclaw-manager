@@ -64,8 +64,8 @@ function ChatInputHeader({
       <div aria-live="polite" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
         <div style={{
           width: '7px', height: '7px', borderRadius: '50%',
-          background: connected ? 'var(--green)' : 'var(--red)',
-          boxShadow: connected ? '0 0 6px var(--green)' : 'none',
+          background: connected ? 'var(--secondary)' : 'var(--red)',
+          boxShadow: connected ? '0 0 6px var(--secondary)' : 'none',
         }} />
         <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
           {isDemo

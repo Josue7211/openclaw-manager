@@ -13,14 +13,14 @@ export interface Idea { id: string; title: string; description: string | null; w
 
 // Pill color per mission status
 export function missionStatusStyle(status: string): React.CSSProperties {
-  if (status === 'done')   return { background: 'var(--green-a15)', color: 'var(--green-bright)', border: '1px solid var(--green-a25)' }
+  if (status === 'done')   return { background: 'var(--secondary-a15)', color: 'var(--secondary-bright)', border: '1px solid var(--secondary-a25)' }
   if (status === 'active') return { background: 'var(--blue-a25)', color: 'var(--blue-bright)', border: '1px solid var(--blue-a25)' }
   return { background: 'var(--hover-bg)', color: 'var(--text-muted)', border: '1px solid var(--border)' }
 }
 
 // Shared effort/impact color helper
 export function effortColor(v: string | null): string {
-  return v === 'low' ? 'var(--green)' : v === 'medium' ? 'var(--amber)' : v === 'high' ? 'var(--red-bright)' : 'var(--text-muted)'
+  return v === 'low' ? 'var(--secondary)' : v === 'medium' ? 'var(--amber)' : v === 'high' ? 'var(--red-bright)' : 'var(--text-muted)'
 }
 
 // Shared pill style for effort/impact badges

@@ -500,8 +500,8 @@ function StepSupabase({ onNext, onBack }: StepProps) {
       {envConfigured ? (
         <div style={{
           padding: '12px 14px', borderRadius: '10px',
-          background: 'var(--green-a12)', border: '1px solid var(--green-a15)',
-          fontSize: '12px', color: 'var(--green)', display: 'flex', alignItems: 'center', gap: '8px',
+          background: 'var(--secondary-a12)', border: '1px solid var(--secondary-a15)',
+          fontSize: '12px', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '8px',
         }}>
           <CheckCircle size={14} />
           Configured via environment variables
@@ -810,10 +810,10 @@ function StepDone({ onFinish, activeGroups }: { onFinish: () => void; activeGrou
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '8px 0' }}>
       <div style={{
         width: '64px', height: '64px', borderRadius: '50%',
-        background: 'var(--green-a12)',
+        background: 'var(--secondary-a12)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        <Rocket size={28} style={{ color: 'var(--green)' }} />
+        <Rocket size={28} style={{ color: 'var(--secondary)' }} />
       </div>
 
       <div style={{ textAlign: 'center' }}>
@@ -861,12 +861,12 @@ function ConnectionSummaryRow({ label, connected }: { label: string; connected: 
       <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{label}</span>
       <span style={{
         fontSize: '11px', fontFamily: 'monospace',
-        color: connected ? 'var(--green)' : 'var(--text-muted)',
+        color: connected ? 'var(--secondary)' : 'var(--text-muted)',
         display: 'flex', alignItems: 'center', gap: '4px',
       }}>
         <span style={{
           width: '6px', height: '6px', borderRadius: '50%',
-          background: connected ? 'var(--green)' : 'var(--bg-white-15)',
+          background: connected ? 'var(--secondary)' : 'var(--bg-white-15)',
           display: 'inline-block',
         }} />
         {connected ? 'Configured' : 'Skipped'}
@@ -892,8 +892,8 @@ function TestResult({ status, errorMsg }: { status: TestStatus; errorMsg: string
   if (status === 'ok') return (
     <div style={{
       padding: '8px 12px', borderRadius: '8px', fontSize: '12px',
-      background: 'var(--green-a12)', border: '1px solid var(--green-a15)',
-      color: 'var(--green)', display: 'flex', alignItems: 'center', gap: '6px',
+      background: 'var(--secondary-a12)', border: '1px solid var(--secondary-a15)',
+      color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '6px',
     }}>
       <CheckCircle size={12} />
       Connection successful

@@ -127,7 +127,7 @@ export default function SettingsUser({
             <button onClick={() => { setNameInput(userName); setEditingName(true) }} style={{ ...val, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               {userName} <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: '6px' }}>edit</span>
             </button>
-            {nameSaved && <span style={{ fontSize: '11px', color: 'var(--green)', fontWeight: 500, animation: 'fadeIn 0.15s ease' }}>Saved</span>}
+            {nameSaved && <span style={{ fontSize: '11px', color: 'var(--secondary)', fontWeight: 500, animation: 'fadeIn 0.15s ease' }}>Saved</span>}
           </div>
         ) : (
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -151,7 +151,7 @@ export default function SettingsUser({
             <button onClick={() => { setAvatarInput(userAvatar); setEditingAvatar(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '24px' }}>
               {userAvatar} <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: '6px' }}>edit</span>
             </button>
-            {avatarSaved && <span style={{ fontSize: '11px', color: 'var(--green)', fontWeight: 500, animation: 'fadeIn 0.15s ease' }}>Saved</span>}
+            {avatarSaved && <span style={{ fontSize: '11px', color: 'var(--secondary)', fontWeight: 500, animation: 'fadeIn 0.15s ease' }}>Saved</span>}
           </div>
         ) : (
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -210,14 +210,14 @@ export default function SettingsUser({
                   style={{ fontSize: '12px', padding: '8px 16px' }}
                 >Save</Button>
               </div>
-              {pwStatus && <span style={{ fontSize: '11px', fontFamily: 'monospace', color: pwStatus.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{pwStatus}</span>}
+              {pwStatus && <span style={{ fontSize: '11px', fontFamily: 'monospace', color: pwStatus.startsWith('Error') ? 'var(--red)' : 'var(--secondary)' }}>{pwStatus}</span>}
             </div>
           )}
         </div>
       )}
       <div style={row}>
         <span>Two-factor (TOTP)</span>
-        <span style={{ ...val, color: mfaEnabled ? 'var(--green)' : 'var(--text-muted)' }}>{mfaEnabled ? 'Enabled' : 'Not set up'}</span>
+        <span style={{ ...val, color: mfaEnabled ? 'var(--secondary)' : 'var(--text-muted)' }}>{mfaEnabled ? 'Enabled' : 'Not set up'}</span>
       </div>
       {!mfaEnabled && !mfaEnrolling && (
         <div style={{ padding: '8px 0' }}>
@@ -230,7 +230,7 @@ export default function SettingsUser({
               setMfaStatus(`Error: ${err instanceof Error ? err.message : 'Failed'}`)
             }
           }} style={{ fontSize: '12px', padding: '8px 16px' }}>Set up authenticator</Button>
-          {mfaStatus && <span style={{ fontSize: '12px', fontFamily: 'monospace', color: mfaStatus.startsWith('Error') ? 'var(--red)' : 'var(--green)', marginLeft: '10px' }}>{mfaStatus}</span>}
+          {mfaStatus && <span style={{ fontSize: '12px', fontFamily: 'monospace', color: mfaStatus.startsWith('Error') ? 'var(--red)' : 'var(--secondary)', marginLeft: '10px' }}>{mfaStatus}</span>}
         </div>
       )}
       {mfaEnrolling && (
@@ -256,7 +256,7 @@ export default function SettingsUser({
               setMfaEnrolling(false); setMfaQr(null); setMfaSecret(null); setMfaCode(''); setMfaFactorId(null); setMfaStatus(null)
             }} style={{ fontSize: '12px', padding: '8px 16px' }}>Cancel</Button>
           </div>
-          {mfaStatus && <span style={{ fontSize: '12px', fontFamily: 'monospace', color: mfaStatus.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{mfaStatus}</span>}
+          {mfaStatus && <span style={{ fontSize: '12px', fontFamily: 'monospace', color: mfaStatus.startsWith('Error') ? 'var(--red)' : 'var(--secondary)' }}>{mfaStatus}</span>}
         </div>
       )}
       {mfaEnabled && !mfaEnrolling && (
@@ -432,7 +432,7 @@ export default function SettingsUser({
               marginTop: '8px',
               fontSize: '12px',
               fontFamily: 'monospace',
-              color: webAuthnStatus.startsWith('Error') ? 'var(--red)' : 'var(--green)',
+              color: webAuthnStatus.startsWith('Error') ? 'var(--red)' : 'var(--secondary)',
             }}>
               {webAuthnStatus}
             </div>

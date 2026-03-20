@@ -13,7 +13,7 @@ interface ServiceHealth {
 }
 
 const STATUS_COLORS: Record<ServiceStatus, string> = {
-  connected: 'var(--green-500)',
+  connected: 'var(--secondary-dim)',
   degraded: 'var(--yellow)',
   unreachable: 'var(--red-500)',
 }
@@ -145,7 +145,7 @@ export const ConnectionStatus = memo(function ConnectionStatus({
           style={{
             flexShrink: 0,
             minWidth: '20px',
-            color: anyUnreachable ? 'var(--red-500)' : allConnected ? 'var(--green-500)' : 'var(--yellow)',
+            color: anyUnreachable ? 'var(--red-500)' : allConnected ? 'var(--secondary-dim)' : 'var(--yellow)',
             transition: 'color 0.3s ease',
           }}
         />

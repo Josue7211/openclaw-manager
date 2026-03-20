@@ -21,7 +21,7 @@ export interface CronJob {
   enabled?: boolean
 }
 
-export const COLORS = ['var(--purple)', 'var(--blue)', 'var(--green-400)', 'var(--orange)', 'var(--pink)', 'var(--cyan)', 'var(--yellow-bright)']
+export const COLORS = ['var(--purple)', 'var(--blue)', 'var(--secondary)', 'var(--orange)', 'var(--pink)', 'var(--cyan)', 'var(--yellow-bright)']
 export const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 export const HOUR_HEIGHT = 60 // px per hour (60px = 60min, 1px per minute)
 export const TOTAL_HEIGHT = 24 * HOUR_HEIGHT // 1440px

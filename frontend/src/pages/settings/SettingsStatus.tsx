@@ -63,7 +63,7 @@ function formatBytes(bytes: number): string {
 
 function svcStatusColor(status: string): string {
   switch (status) {
-    case 'ok': return 'var(--green-500)'
+    case 'ok': return 'var(--secondary-dim)'
     case 'error': case 'degraded': return 'var(--yellow)'
     case 'unreachable': return 'var(--red-500)'
     case 'not_configured': return 'var(--text-muted)'
@@ -126,8 +126,8 @@ const dotStyle = (online: boolean): React.CSSProperties => ({
   width: '8px',
   height: '8px',
   borderRadius: '50%',
-  background: online ? 'var(--green-500)' : 'var(--red-500)',
-  boxShadow: online ? '0 0 6px var(--green-400-a30)' : '0 0 6px var(--red-500-a25)',
+  background: online ? 'var(--secondary-dim)' : 'var(--red-500)',
+  boxShadow: online ? '0 0 6px var(--secondary-a30)' : '0 0 6px var(--red-500-a25)',
   flexShrink: 0,
 })
 
@@ -327,7 +327,7 @@ export default memo(function SettingsStatus() {
                     <span style={{ ...statusVal, fontSize: '11px' }}>{peer.ip}</span>
                     <span style={{
                       fontSize: '11px', fontWeight: 500,
-                      color: peer.online ? 'var(--green-500)' : 'var(--red-500)',
+                      color: peer.online ? 'var(--secondary-dim)' : 'var(--red-500)',
                     }}>
                       {peer.online ? 'Online' : 'Offline'}
                     </span>
@@ -419,7 +419,7 @@ export default memo(function SettingsStatus() {
           }}>
             <StatusStatCard label="Total Queries" value={allQueries.length} />
             <StatusStatCard label="Stale Queries" value={staleQueries.length} accent={staleQueries.length > 0 ? 'var(--yellow)' : undefined} />
-            <StatusStatCard label="Active Fetches" value={allQueries.filter(q => q.state.fetchStatus === 'fetching').length} accent="var(--green-500)" />
+            <StatusStatCard label="Active Fetches" value={allQueries.filter(q => q.state.fetchStatus === 'fetching').length} accent="var(--secondary-dim)" />
           </div>
         </div>
       </div>

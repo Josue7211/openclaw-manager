@@ -110,8 +110,8 @@ OPNSENSE_SECRET=your-api-secret`}
                       fontSize: '10px',
                       padding: '2px 8px',
                       borderRadius: '4px',
-                      background: node.status === 'online' ? 'var(--emerald-a15)' : 'var(--red-500-a12)',
-                      color: node.status === 'online' ? 'var(--green-bright)' : 'var(--red-bright)',
+                      background: node.status === 'online' ? 'var(--secondary-a15)' : 'var(--red-500-a12)',
+                      color: node.status === 'online' ? 'var(--secondary-bright)' : 'var(--red-bright)',
                       fontFamily: 'monospace',
                       textTransform: 'uppercase',
                       letterSpacing: '0.05em',
@@ -183,8 +183,8 @@ OPNSENSE_SECRET=your-api-secret`}
                           fontSize: '10px',
                           padding: '2px 7px',
                           borderRadius: '4px',
-                          background: vm.status === 'running' ? 'var(--emerald-a12)' : 'var(--red-500-a12)',
-                          color: vm.status === 'running' ? 'var(--green-bright)' : 'var(--red-bright)',
+                          background: vm.status === 'running' ? 'var(--secondary-a12)' : 'var(--red-500-a12)',
+                          color: vm.status === 'running' ? 'var(--secondary-bright)' : 'var(--red-bright)',
                           fontFamily: 'monospace',
                           textTransform: 'uppercase',
                         }}>
@@ -222,8 +222,8 @@ OPNSENSE_SECRET=your-api-secret`}
                     fontSize: '10px',
                     padding: '2px 8px',
                     borderRadius: '4px',
-                    background: data.opnsense.status === 'online' ? 'var(--emerald-a15)' : 'var(--red-500-a12)',
-                    color: data.opnsense.status === 'online' ? 'var(--green-bright)' : 'var(--red-bright)',
+                    background: data.opnsense.status === 'online' ? 'var(--secondary-a15)' : 'var(--red-500-a12)',
+                    color: data.opnsense.status === 'online' ? 'var(--secondary-bright)' : 'var(--red-bright)',
                     fontFamily: 'monospace',
                     textTransform: 'uppercase',
                   }}>
@@ -263,7 +263,7 @@ OPNSENSE_SECRET=your-api-secret`}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <div>
                     <div style={label}>Inbound</div>
-                    <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--green-bright)', fontFamily: 'monospace' }}>
+                    <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--secondary-bright)', fontFamily: 'monospace' }}>
                       ↓ {data.opnsense.wan_in}
                     </div>
                   </div>

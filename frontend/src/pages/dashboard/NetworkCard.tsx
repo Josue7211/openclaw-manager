@@ -11,7 +11,7 @@ export const NetworkCard = React.memo(function NetworkCard() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
         <div>
           <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>OpenClaw Gateway</div>
-          <div className="mono" style={{ color: 'var(--green-bright)', fontSize: '12px' }}>{`${window.location.protocol}//${window.location.hostname}:18789`}</div>
+          <div className="mono" style={{ color: 'var(--secondary-bright)', fontSize: '12px' }}>{`${window.location.protocol}//${window.location.hostname}:18789`}</div>
           <span className="badge badge-green" style={{ marginTop: '5px' }}>● Active</span>
         </div>
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px' }}>

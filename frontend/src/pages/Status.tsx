@@ -165,7 +165,7 @@ export default function Status() {
                     <span style={{
                       fontSize: '11px',
                       fontWeight: 500,
-                      color: peer.online ? 'var(--green-500)' : 'var(--red-500)',
+                      color: peer.online ? 'var(--secondary-dim)' : 'var(--red-500)',
                     }}>
                       {peer.online ? 'Online' : 'Offline'}
                     </span>
@@ -257,7 +257,7 @@ export default function Status() {
           }}>
             <StatCard label="Total Queries" value={allQueries.length} />
             <StatCard label="Stale Queries" value={staleQueries.length} accent={staleQueries.length > 0 ? 'var(--yellow)' : undefined} />
-            <StatCard label="Active Fetches" value={allQueries.filter(q => q.state.fetchStatus === 'fetching').length} accent="var(--green-500)" />
+            <StatCard label="Active Fetches" value={allQueries.filter(q => q.state.fetchStatus === 'fetching').length} accent="var(--secondary-dim)" />
           </div>
         </div>
       </div>

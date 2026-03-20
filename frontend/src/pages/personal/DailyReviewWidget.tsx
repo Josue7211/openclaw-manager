@@ -153,7 +153,7 @@ export default function DailyReviewWidget({ todos, missions }: { todos: Todo[]; 
               </p>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-                <ReviewField label="Accomplishments" value={review.accomplishments} color="var(--green)" />
+                <ReviewField label="Accomplishments" value={review.accomplishments} color="var(--secondary)" />
                 <ReviewField label="Top Priority Tomorrow" value={review.priorities} color="var(--accent)" />
                 <ReviewField label="Blockers / Notes" value={review.notes} color="var(--accent-blue)" />
               </div>
@@ -203,7 +203,7 @@ export default function DailyReviewWidget({ todos, missions }: { todos: Todo[]; 
               placeholder="Shipped X, fixed Y, reviewed Z\u2026"
               value={form.accomplishments}
               onChange={v => setForm(f => ({ ...f, accomplishments: v }))}
-              accentColor="var(--green)"
+              accentColor="var(--secondary)"
             />
             <ReviewPrompt
               label="2. What's the top priority tomorrow?"

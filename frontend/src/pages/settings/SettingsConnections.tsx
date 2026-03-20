@@ -127,17 +127,17 @@ export default function SettingsConnections() {
 
   const statusDot = (s?: string) => ({
     display: 'inline-block' as const, width: '8px', height: '8px', borderRadius: '50%', marginRight: '6px',
-    background: s === 'ok' ? 'var(--green)' : s === 'not_configured' ? 'var(--text-muted)' : 'var(--red)',
+    background: s === 'ok' ? 'var(--secondary)' : s === 'not_configured' ? 'var(--text-muted)' : 'var(--red)',
   })
   const statusLabel = (r?: { status: string; latency_ms?: number; error?: string; peer_hostname?: string; peer_verified?: boolean }) => {
     if (!r) return null
     const parts: React.ReactNode[] = []
-    if (r.status === 'ok') parts.push(<span key="s" style={{ fontSize: '11px', color: 'var(--green)', fontFamily: 'monospace' }}><span style={statusDot('ok')} />OK ({r.latency_ms}ms)</span>)
+    if (r.status === 'ok') parts.push(<span key="s" style={{ fontSize: '11px', color: 'var(--secondary)', fontFamily: 'monospace' }}><span style={statusDot('ok')} />OK ({r.latency_ms}ms)</span>)
     else if (r.status === 'not_configured') parts.push(<span key="s" style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}><span style={statusDot('not_configured')} />Not configured</span>)
     else parts.push(<span key="s" style={{ fontSize: '11px', color: 'var(--red)', fontFamily: 'monospace' }}><span style={statusDot('error')} />{r.error || r.status}</span>)
     // Peer verification badge
     if (r.peer_verified === true) {
-      parts.push(<span key="pv" style={{ fontSize: '10px', color: 'var(--green)', fontFamily: 'monospace', marginLeft: '8px' }} title={`Peer: ${r.peer_hostname}`}>peer ok</span>)
+      parts.push(<span key="pv" style={{ fontSize: '10px', color: 'var(--secondary)', fontFamily: 'monospace', marginLeft: '8px' }} title={`Peer: ${r.peer_hostname}`}>peer ok</span>)
     } else if (r.peer_verified === false) {
       parts.push(<span key="pv" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: 'var(--gold)', fontFamily: 'monospace', marginLeft: '8px' }} title={`Peer hostname "${r.peer_hostname}" does not match expected`}><Warning size={11} />peer mismatch</span>)
     } else if (r.peer_hostname) {
@@ -230,7 +230,7 @@ export default function SettingsConnections() {
           {connTesting ? 'Testing...' : 'Test All'}
         </Button>
         {connSaveStatus && (
-          <span style={{ fontSize: '12px', fontFamily: 'monospace', color: connSaveStatus.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>
+          <span style={{ fontSize: '12px', fontFamily: 'monospace', color: connSaveStatus.startsWith('Error') ? 'var(--red)' : 'var(--secondary)' }}>
             {connSaveStatus}
           </span>
         )}

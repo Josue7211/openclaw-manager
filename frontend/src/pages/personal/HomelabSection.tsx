@@ -16,7 +16,7 @@ export default function HomelabSection({ proxmoxVMs, proxmoxNodes, opnsense, mou
       {/* Proxmox VMs */}
       <div className="card" style={{ padding: '20px', maxHeight: '320px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-          <Cpu size={14} style={{ color: 'var(--green)' }} />
+          <Cpu size={14} style={{ color: 'var(--secondary)' }} />
           <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Proxmox VMs</span>
           {proxmoxVMs.length > 0 && (
             <span className="badge badge-green" style={{ marginLeft: 'auto' }}>
@@ -31,8 +31,8 @@ export default function HomelabSection({ proxmoxVMs, proxmoxNodes, opnsense, mou
             {proxmoxNodes.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px', padding: '10px', background: 'var(--bg-white-03)', borderRadius: '10px', border: '1px solid var(--border)' }}>
                 {proxmoxNodes.map(n => {
-                  const cpuColor = n.cpuPercent >= 85 ? 'var(--red-bright)' : n.cpuPercent >= 60 ? 'var(--warning)' : 'var(--green)'
-                  const memColor = n.memPercent >= 85 ? 'var(--red-bright)' : n.memPercent >= 60 ? 'var(--warning)' : 'var(--green)'
+                  const cpuColor = n.cpuPercent >= 85 ? 'var(--red-bright)' : n.cpuPercent >= 60 ? 'var(--warning)' : 'var(--secondary)'
+                  const memColor = n.memPercent >= 85 ? 'var(--red-bright)' : n.memPercent >= 60 ? 'var(--warning)' : 'var(--secondary)'
                   return (
                     <div key={n.node}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
@@ -120,7 +120,7 @@ export default function HomelabSection({ proxmoxVMs, proxmoxNodes, opnsense, mou
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-white-03)', borderRadius: '10px', border: '1px solid var(--border)' }}>
                 <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>WAN &darr; in</span>
-                <span className="mono" style={{ fontSize: '14px', fontWeight: 600, color: 'var(--green)' }}>{opnsense?.wanIn ?? '\u2014'}</span>
+                <span className="mono" style={{ fontSize: '14px', fontWeight: 600, color: 'var(--secondary)' }}>{opnsense?.wanIn ?? '\u2014'}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-white-03)', borderRadius: '10px', border: '1px solid var(--border)' }}>
                 <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>WAN &uarr; out</span>

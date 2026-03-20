@@ -189,7 +189,7 @@ export default function SettingsNotifications() {
           </Button>
         </div>
         {ntfyStatus && (
-          <span style={{ fontSize: '12px', fontFamily: 'monospace', color: ntfyStatus.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>
+          <span style={{ fontSize: '12px', fontFamily: 'monospace', color: ntfyStatus.startsWith('Error') ? 'var(--red)' : 'var(--secondary)' }}>
             {ntfyStatus}
           </span>
         )}

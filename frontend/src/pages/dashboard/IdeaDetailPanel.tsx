@@ -104,7 +104,7 @@ export const IdeaDetailPanel = React.memo(function IdeaDetailPanel({ idea, onClo
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button
               onClick={() => onIdeaAction(idea.id, 'approved')}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 18px', fontSize: '12px', fontWeight: 600, borderRadius: '10px', border: 'none', cursor: 'pointer', background: 'var(--green)', color: 'var(--text-on-accent)', transition: 'all 0.2s var(--ease-spring)', boxShadow: '0 2px 12px var(--green-a25)' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 18px', fontSize: '12px', fontWeight: 600, borderRadius: '10px', border: 'none', cursor: 'pointer', background: 'var(--secondary)', color: 'var(--text-on-accent)', transition: 'all 0.2s var(--ease-spring)', boxShadow: '0 2px 12px var(--secondary-a25)' }}
             >
               <CheckCircle size={13} /> Approve
             </button>

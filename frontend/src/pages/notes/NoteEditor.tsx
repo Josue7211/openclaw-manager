@@ -251,7 +251,7 @@ const mcHighlighting = HighlightStyle.define([
   { tag: tags.comment, color: 'var(--text-muted)' },
   // Code block syntax highlighting
   { tag: tags.keyword, color: 'var(--accent-bright)' },
-  { tag: tags.string, color: 'var(--green-bright)' },
+  { tag: tags.string, color: 'var(--secondary-bright)' },
   { tag: tags.number, color: 'var(--orange)' },
   { tag: tags.bool, color: 'var(--red)' },
   { tag: tags.variableName, color: 'var(--blue)' },

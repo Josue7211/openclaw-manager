@@ -44,7 +44,7 @@ const iconForType: Record<Toast['type'], React.ElementType> = {
 }
 
 const iconColorForType: Record<Toast['type'], string> = {
-  success: 'var(--green)',
+  success: 'var(--secondary)',
   error: 'var(--red-500)',
   warning: 'var(--amber)',
   info: 'var(--blue)',

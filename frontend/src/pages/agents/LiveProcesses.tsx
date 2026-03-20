@@ -76,8 +76,8 @@ export function LiveProcesses({ agents }: { agents: Agent[] }) {
           {processes.length > 0 && (
             <span style={{
               fontSize: '10px', fontWeight: 700,
-              background: 'var(--green-400-a15)', color: 'var(--green-400)',
-              border: '1px solid var(--green-400-a30)',
+              background: 'var(--secondary-a15)', color: 'var(--secondary)',
+              border: '1px solid var(--secondary-a30)',
               borderRadius: '10px', padding: '1px 7px',
             }}>
               {processes.length}
@@ -109,9 +109,9 @@ export function LiveProcesses({ agents }: { agents: Agent[] }) {
         <div style={{
           fontSize: '11px', fontFamily: 'monospace', padding: '6px 10px',
           borderRadius: '10px', marginBottom: '10px',
-          background: deployOk ? 'var(--green-400-a12)' : 'var(--red-500-a12)',
-          color: deployOk ? 'var(--green-400)' : 'var(--red)',
-          border: `1px solid ${deployOk ? 'var(--green-400-a30)' : 'var(--red-500-a25)'}`,
+          background: deployOk ? 'var(--secondary-a12)' : 'var(--red-500-a12)',
+          color: deployOk ? 'var(--secondary)' : 'var(--red)',
+          border: `1px solid ${deployOk ? 'var(--secondary-a30)' : 'var(--red-500-a25)'}`,
         }}>
           {deployOk ? '' : ''} {deployLog}
         </div>
@@ -128,12 +128,12 @@ export function LiveProcesses({ agents }: { agents: Agent[] }) {
               display: 'flex', flexDirection: 'column', gap: '4px',
               padding: '10px 12px', borderRadius: '10px',
               background: 'var(--hover-bg)',
-              border: '1px solid var(--green-400-a15)',
+              border: '1px solid var(--secondary-a15)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{
                   display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%',
-                  background: 'var(--green-400)', animation: 'pulse-dot 1.5s ease-in-out infinite', flexShrink: 0,
+                  background: 'var(--secondary)', animation: 'pulse-dot 1.5s ease-in-out infinite', flexShrink: 0,
                 }} />
                 {p.agentEmoji && (
                   <span style={{ fontSize: '14px' }}>{p.agentEmoji}</span>
@@ -154,7 +154,7 @@ export function LiveProcesses({ agents }: { agents: Agent[] }) {
                 </div>
               )}
               <div style={{ display: 'flex', gap: '12px', fontFamily: 'monospace', fontSize: '10px', paddingLeft: '16px' }}>
-                <span style={{ color: 'var(--green-400)' }}>cpu {p.cpu}%</span>
+                <span style={{ color: 'var(--secondary)' }}>cpu {p.cpu}%</span>
                 <span style={{ color: 'var(--text-secondary)' }}>mem {p.mem}%</span>
                 {p.elapsed && <span style={{ color: 'var(--text-muted)' }}>{p.elapsed}</span>}
               </div>

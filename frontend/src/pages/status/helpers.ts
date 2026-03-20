@@ -20,7 +20,7 @@ export function formatBytes(bytes: number): string {
 export function statusColor(status: string): string {
   switch (status) {
     case 'ok':
-      return 'var(--green-500)'
+      return 'var(--secondary-dim)'
     case 'error':
     case 'degraded':
       return 'var(--yellow)'

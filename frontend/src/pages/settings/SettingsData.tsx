@@ -108,7 +108,7 @@ export default function SettingsData() {
       </div>
 
       {importStatus && (
-        <div style={{ marginTop: '12px', fontSize: '12px', fontFamily: 'monospace', color: importStatus.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>
+        <div style={{ marginTop: '12px', fontSize: '12px', fontFamily: 'monospace', color: importStatus.startsWith('Error') ? 'var(--red)' : 'var(--secondary)' }}>
           {importStatus}
         </div>
       )}

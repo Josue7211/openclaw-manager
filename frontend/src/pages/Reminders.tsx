@@ -286,7 +286,7 @@ export default function RemindersPage() {
                             padding: '12px 14px',
                             background: isCompleted ? 'var(--bg-base)' : 'var(--bg-panel)',
                             borderRadius: '8px',
-                            border: isCompleted ? '1px solid var(--emerald-a15)' : '1px solid var(--border)',
+                            border: isCompleted ? '1px solid var(--secondary-a15)' : '1px solid var(--border)',
                             transition: 'all 0.15s',
                           }}
                         >

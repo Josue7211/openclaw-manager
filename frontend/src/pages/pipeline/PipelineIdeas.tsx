@@ -304,7 +304,7 @@ export function PipelineIdeas() {
                       <>
                         <button onClick={() => updateIdeaStatus(idea.id, 'approved')} title="Approve" style={{
                           padding: '4px 8px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                          fontSize: '11px', fontWeight: 600, background: 'var(--green-a12)', color: 'var(--green)',
+                          fontSize: '11px', fontWeight: 600, background: 'var(--secondary-a12)', color: 'var(--secondary)',
                           transition: 'all 0.12s',
                         }}>Approve</button>
                         <button onClick={() => updateIdeaStatus(idea.id, 'rejected')} title="Reject" style={{
@@ -322,7 +322,7 @@ export function PipelineIdeas() {
                       </>
                     )}
                     {idea.status === 'approved' && idea.mission_id && (
-                      <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--green)', opacity: 0.8 }}>Queued</span>
+                      <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--secondary)', opacity: 0.8 }}>Queued</span>
                     )}
                     {idea.status === 'approved' && !idea.mission_id && (
                       <button onClick={() => updateIdeaStatus(idea.id, 'built')} style={{
@@ -414,7 +414,7 @@ export function PipelineIdeas() {
           <div style={{ width: '1px', height: '20px', background: 'var(--hover-bg-bright)' }} />
           <button onClick={() => bulkUpdateStatus('approved')} disabled={bulkActing} style={{
             padding: '6px 14px', borderRadius: '8px', border: 'none', cursor: bulkActing ? 'wait' : 'pointer',
-            fontSize: '12px', fontWeight: 600, background: 'var(--green-a15)', color: 'var(--green)',
+            fontSize: '12px', fontWeight: 600, background: 'var(--secondary-a15)', color: 'var(--secondary)',
             opacity: bulkActing ? 0.5 : 1, transition: 'all 0.12s',
           }}>Approve</button>
           <button onClick={() => bulkUpdateStatus('rejected')} disabled={bulkActing} style={{

@@ -133,7 +133,7 @@ export default function SessionSidebar({
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <div style={{
                             width: '7px', height: '7px', borderRadius: '50%',
-                            background: isWorkEntry ? 'var(--accent)' : 'var(--green)', flexShrink: 0,
+                            background: isWorkEntry ? 'var(--accent)' : 'var(--secondary)', flexShrink: 0,
                           }} />
                           <span style={{ fontSize: '12px', color: 'var(--text-primary)' }}>
                             {MODE_LABELS[s.type]}

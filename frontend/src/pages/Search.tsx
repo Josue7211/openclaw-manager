@@ -203,8 +203,8 @@ export default function SearchPage() {
                       fontSize: '12px',
                       padding: '1px 7px',
                       borderRadius: '4px',
-                      background: todo.done ? 'var(--green-400-a12)' : 'var(--active-bg)',
-                      color: todo.done ? 'var(--green-400)' : 'var(--text-muted)',
+                      background: todo.done ? 'var(--secondary-a12)' : 'var(--active-bg)',
+                      color: todo.done ? 'var(--secondary)' : 'var(--text-muted)',
                       flexShrink: 0,
                     }}>
                       {todo.done ? 'done' : 'open'}

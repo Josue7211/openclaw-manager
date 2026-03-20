@@ -51,7 +51,7 @@ export function PipelineRetros() {
             </div>
             {r.wins?.length > 0 && (
               <div style={{ marginBottom: '8px' }}>
-                <div style={{ fontSize: '11px', color: 'var(--green)', fontWeight: 600, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Wins</div>
+                <div style={{ fontSize: '11px', color: 'var(--secondary)', fontWeight: 600, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Wins</div>
                 {r.wins.map((w, i) => (
                   <div key={i} style={{ fontSize: '13px', color: 'var(--text-secondary)', paddingLeft: '8px' }}>{'\u2022'} {w}</div>
                 ))}

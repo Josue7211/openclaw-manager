@@ -26,7 +26,7 @@ export default function TodoSection({ todos, mounted, isDemo, onAdd, onToggle, o
   return (
     <div className="card" style={{ padding: '20px', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-        <CheckSquare size={14} style={{ color: 'var(--green)' }} />
+        <CheckSquare size={14} style={{ color: 'var(--secondary)' }} />
         <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>To-Do</span>
         {isDemo && <DemoBadge />}
       </div>
@@ -39,12 +39,12 @@ export default function TodoSection({ todos, mounted, isDemo, onAdd, onToggle, o
           <div key={t.id} style={{
             display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px',
             background: 'var(--hover-bg)', borderRadius: '10px',
-            border: `1px solid ${t.done ? 'var(--emerald-a20)' : 'var(--border)'}`,
+            border: `1px solid ${t.done ? 'var(--secondary-a20)' : 'var(--border)'}`,
           }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, cursor: 'pointer', minWidth: 0 }}>
               <input
                 type="checkbox" checked={t.done} onChange={() => onToggle(t.id, t.done)}
-                style={{ cursor: 'pointer', accentColor: 'var(--green)', flexShrink: 0 }}
+                style={{ cursor: 'pointer', accentColor: 'var(--secondary)', flexShrink: 0 }}
               />
               <span style={{
                 flex: 1, fontSize: '12px',
@@ -65,7 +65,7 @@ export default function TodoSection({ todos, mounted, isDemo, onAdd, onToggle, o
           aria-label="Add task"
           style={{ flex: 1, minWidth: 0, background: 'var(--hover-bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '6px 10px', fontSize: '12px', color: 'var(--text-primary)', outline: 'none' }}
         />
-        <button onClick={addTodo} style={{ background: 'var(--green)', border: 'none', borderRadius: '10px', color: 'var(--text-on-accent)', padding: '6px 12px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>Add</button>
+        <button onClick={addTodo} style={{ background: 'var(--secondary)', border: 'none', borderRadius: '10px', color: 'var(--text-on-accent)', padding: '6px 12px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>Add</button>
       </div>
     </div>
   )
