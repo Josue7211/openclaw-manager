@@ -44,7 +44,29 @@ input, textarea, [contenteditable="true"], code, pre, kbd {
   --red-bright: #fca5a5;
   --red-500: #ef4444;
 
-  /* Secondary accent */
+  /* Secondary (functional/status) — default green, overridden by theme engine */
+  --secondary: var(--green);
+  --secondary-dim: #059669;
+  --secondary-bright: #6ee7b7;
+  --secondary-solid: #047857;
+  --secondary-a06: rgba(52, 211, 153, 0.06);
+  --secondary-a08: rgba(52, 211, 153, 0.08);
+  --secondary-a12: rgba(52, 211, 153, 0.12);
+  --secondary-a14: rgba(52, 211, 153, 0.14);
+  --secondary-a15: rgba(52, 211, 153, 0.15);
+  --secondary-a20: rgba(52, 211, 153, 0.2);
+  --secondary-a25: rgba(52, 211, 153, 0.25);
+  --secondary-a30: rgba(52, 211, 153, 0.3);
+  --secondary-a45: rgba(52, 211, 153, 0.45);
+
+  /* Tertiary (accent-blue) — default derived from accent, overridden by theme engine */
+  --tertiary: var(--accent-blue, #818cf8);
+  --tertiary-dim: #6366f1;
+  --tertiary-bright: #a5b4fc;
+  --tertiary-a12: rgba(129, 140, 248, 0.12);
+  --tertiary-a15: rgba(129, 140, 248, 0.15);
+
+  /* Secondary accent (legacy — now aliased from tertiary) */
   --accent-secondary: #818cf8;
   --accent-secondary-dim: #6366f1;
   --accent-secondary-bright: #a5b4fc;
@@ -86,6 +108,7 @@ input, textarea, [contenteditable="true"], code, pre, kbd {
 
   /* Top ambient glow — RGB components for opacity control */
   --glow-top-rgb: 139, 92, 246;
+  --glow-opacity: 0.10;
 
   /* Logo */
   --logo-color: var(--accent);
@@ -347,6 +370,15 @@ input, textarea, [contenteditable="true"], code, pre, kbd {
   --green-bright: #10b981;
   --green-400: #16a34a;
   --green-500: #16a34a;
+
+  /* ── Secondary (light) — darker green for WCAG contrast ── */
+  --secondary: #059669;
+  --secondary-dim: #047857;
+  --secondary-bright: #10b981;
+  --secondary-solid: #047857;
+
+  /* ── Glow opacity — subtler on light ── */
+  --glow-opacity: 0.06;
 
   /* ── Red — darker for contrast on white ── */
   --red: #dc2626;
@@ -830,14 +862,9 @@ body::before {
   left: 0;
   right: 0;
   height: 250px;
-  background: linear-gradient(to bottom, rgba(var(--glow-top-rgb), 0.10) 0%, transparent 100%);
+  background: linear-gradient(to bottom, rgba(var(--glow-top-rgb), var(--glow-opacity)) 0%, transparent 100%);
   pointer-events: none;
   z-index: 0;
-}
-
-[data-theme="light"] body::before,
-:root[data-theme="light"] body::before {
-  background: linear-gradient(to bottom, rgba(var(--glow-top-rgb), 0.06) 0%, transparent 100%);
 }
 
 /* ── Selection highlight ── */

@@ -1,4 +1,4 @@
-const CURRENT_VERSION = 5
+const CURRENT_VERSION = 6
 
 export function runMigrations() {
   const stored = localStorage.getItem('app-version')
@@ -141,6 +141,33 @@ export function runMigrations() {
       localStorage.removeItem('logo-color')
     } catch {
       // Non-fatal — user will get default theme
+    }
+  }
+
+  if (version < 6) {
+    // v5 -> v6: Rename old "secondary" (blue) override to "tertiary".
+    // In the new 3-tier color hierarchy, "secondary" means green (functional/status)
+    // and "tertiary" means blue (chat/dashboard). Old overrides stored blue values
+    // under "secondary", so we move them to "tertiary" and clear "secondary" to
+    // let it default to green.
+    try {
+      const raw = localStorage.getItem('theme-state')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (parsed.overrides) {
+          for (const [key, override] of Object.entries(parsed.overrides)) {
+            const ov = override as Record<string, unknown>
+            if (ov.secondary) {
+              ov.tertiary = ov.secondary
+              delete ov.secondary
+              parsed.overrides[key] = ov
+            }
+          }
+          localStorage.setItem('theme-state', JSON.stringify(parsed))
+        }
+      }
+    } catch {
+      // Non-fatal — migration failure is acceptable
     }
   }
 

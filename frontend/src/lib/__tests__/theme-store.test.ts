@@ -148,7 +148,9 @@ describe('migration v5', () => {
     runMigrations()
     const state = JSON.parse(store['theme-state'])
     expect(state.overrides['default-dark'].glow).toBe('#00ff00')
-    expect(state.overrides['default-dark'].secondary).toBe('#0000ff')
+    // v6 migration renames old secondary (blue) to tertiary
+    expect(state.overrides['default-dark'].tertiary).toBe('#0000ff')
+    expect(state.overrides['default-dark'].secondary).toBeUndefined()
     expect(state.overrides['default-dark'].logo).toBe('#ff00ff')
   })
 
