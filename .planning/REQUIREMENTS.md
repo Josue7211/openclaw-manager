@@ -74,9 +74,9 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 
 - [ ] **DASH-01**: Free-form grid layout with drag-to-reposition and resize handles
 - [ ] **DASH-02**: Widgets snap to grid cells during drag/resize
-- [ ] **DASH-03**: Edit mode toggle (enter/exit via button and keyboard shortcut)
-- [ ] **DASH-04**: Edit mode shows grid lines, resize handles, add widget button, remove widget X
-- [ ] **DASH-05**: Non-edit mode shows clean layout with no edit chrome
+- [x] **DASH-03**: Edit mode toggle (enter/exit via button and keyboard shortcut)
+- [x] **DASH-04**: Edit mode shows grid lines, resize handles, add widget button, remove widget X
+- [x] **DASH-05**: Non-edit mode shows clean layout with no edit chrome
 - [ ] **DASH-06**: Add widget picker showing available widgets by category
 - [x] **DASH-07**: Widget Registry mapping widget IDs to lazy-loaded React components
 - [ ] **DASH-08**: Layout persisted to SQLite + synced to Supabase per breakpoint
@@ -236,9 +236,9 @@ Deferred to post-v1.0 release. Tracked but not in current roadmap.
 | WIZARD-08 | Phase 3 | Complete |
 | DASH-01 | Phase 4 | Pending |
 | DASH-02 | Phase 4 | Pending |
-| DASH-03 | Phase 4 | Pending |
-| DASH-04 | Phase 4 | Pending |
-| DASH-05 | Phase 4 | Pending |
+| DASH-03 | Phase 4 | Complete |
+| DASH-04 | Phase 4 | Complete |
+| DASH-05 | Phase 4 | Complete |
 | DASH-06 | Phase 4 | Pending |
 | DASH-07 | Phase 4 | Complete |
 | DASH-08 | Phase 4 | Pending |
