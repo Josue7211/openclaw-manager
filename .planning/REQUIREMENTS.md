@@ -61,14 +61,14 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 
 ### Setup Wizard
 
-- [ ] **WIZARD-01**: First-run detection triggers setup wizard automatically
+- [x] **WIZARD-01**: First-run detection triggers setup wizard automatically
 - [ ] **WIZARD-02**: Service connection step (BlueBubbles, OpenClaw, Supabase, CouchDB, Mac Bridge — each optional)
 - [ ] **WIZARD-03**: Module selection step (enable/disable from available modules)
 - [ ] **WIZARD-04**: Theme selection step (pick from presets, choose light/dark/system)
-- [ ] **WIZARD-05**: Demo mode option for users without infrastructure
+- [x] **WIZARD-05**: Demo mode option for users without infrastructure
 - [ ] **WIZARD-06**: Setup can be skipped and completed later via Settings
 - [ ] **WIZARD-07**: Progressive disclosure (no 20-step wall — collapse advanced options)
-- [ ] **WIZARD-08**: Setup state persisted so interrupted wizard resumes where user left off
+- [x] **WIZARD-08**: Setup state persisted so interrupted wizard resumes where user left off
 
 ### Dashboard Grid
 
@@ -226,14 +226,14 @@ Deferred to post-v1.0 release. Tracked but not in current roadmap.
 | THEME-06 | Phase 2 | Complete |
 | THEME-07 | Phase 2 | Complete |
 | THEME-08 | Phase 2 | Complete |
-| WIZARD-01 | Phase 3 | Pending |
+| WIZARD-01 | Phase 3 | Complete |
 | WIZARD-02 | Phase 3 | Pending |
 | WIZARD-03 | Phase 3 | Pending |
 | WIZARD-04 | Phase 3 | Pending |
-| WIZARD-05 | Phase 3 | Pending |
+| WIZARD-05 | Phase 3 | Complete |
 | WIZARD-06 | Phase 3 | Pending |
 | WIZARD-07 | Phase 3 | Pending |
-| WIZARD-08 | Phase 3 | Pending |
+| WIZARD-08 | Phase 3 | Complete |
 | DASH-01 | Phase 4 | Pending |
 | DASH-02 | Phase 4 | Pending |
 | DASH-03 | Phase 4 | Pending |

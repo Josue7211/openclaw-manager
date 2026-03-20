@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-stopped_at: "Checkpoint: 02.2-02-PLAN.md Task 3 (human-verify)"
-last_updated: "2026-03-20T03:35:53.845Z"
+status: executing
+stopped_at: "Completed 03-01-PLAN.md"
+last_updated: "2026-03-20T03:58:37Z"
 progress:
   total_phases: 10
   completed_phases: 4
-  total_plans: 24
-  completed_plans: 18
+  total_plans: 25
+  completed_plans: 19
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 02.2 — theme-system-mode-fixes
+**Current focus:** Phase 03 — setup-wizard-onboarding
 
 ## Current Position
 
-Phase: 02.2 (theme-system-mode-fixes) — EXECUTING
-Plan: 2 of 2
+Phase: 03 (setup-wizard-onboarding) — EXECUTING
+Plan: 2 of 7
 
 ## Performance Metrics
 
@@ -65,6 +65,7 @@ Plan: 2 of 2
 | Phase 02.1 P03 | 8min | 2 tasks | 57 files |
 | Phase 02.2 P01 | 7min | 3 tasks | 7 files |
 | Phase 02.2 P02 | 6 | 2 tasks | 7 files |
+| Phase 03 P01 | 4min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -130,6 +131,11 @@ Recent decisions affecting current work:
 - [Phase 02.2]: Linux system mode shows single active theme card; macOS/Windows shows filtered presets
 - [Phase 02.2]: gsettings polling reduced from 1s to 3s — file watcher handles wallbash instant sync
 
+- [Phase 03]: Wizard store follows useSyncExternalStore pattern from theme-store.ts for codebase consistency
+- [Phase 03]: testResults excluded from localStorage persistence -- re-run on resume for security
+- [Phase 03]: 24-hour TTL on wizard state to limit credential exposure in localStorage
+- [Phase 03]: Animation intensity respects prefers-reduced-motion as initial default via matchMedia
+
 ### Roadmap Evolution
 
 - Phase 02.1 inserted after Phase 02: Theme Settings Page Polish + System Mode Fix (URGENT) — System mode doesn't detect GTK dark themes on Hyprland, Settings Display page needs visual reorganization and improved customizability
@@ -146,6 +152,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T03:01:18.190Z
-Stopped at: Checkpoint: 02.2-02-PLAN.md Task 3 (human-verify)
+Last session: 2026-03-20T03:58:37Z
+Stopped at: Completed 03-01-PLAN.md
 Resume file: None
