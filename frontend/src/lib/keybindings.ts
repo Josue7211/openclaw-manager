@@ -34,6 +34,9 @@ const DEFAULTS: Keybinding[] = [
   { id: 'nav-settings', label: 'Go to Settings', key: 's', mod: true, route: '/settings' },
   { id: 'nav-messages', label: 'Go to Messages', key: 'i', mod: true, route: '/messages' },
 
+  // Dashboard
+  { id: 'dashboard-edit', label: 'Edit dashboard', key: 'e', mod: true, action: 'dashboard-edit' },
+
   // Theme
   { id: 'theme-picker', label: 'Theme picker', key: 't', mod: true, modifier: 'shift', action: 'theme-picker' },
 ]

@@ -1312,3 +1312,9 @@ input[type="checkbox"]:checked::before {
 @media (prefers-reduced-motion: reduce) {
   .react-grid-item.react-draggable-dragging { transform: none; }
 }
+
+/* ── Widget picker slide-in ── */
+@keyframes widgetPickerSlideIn {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
