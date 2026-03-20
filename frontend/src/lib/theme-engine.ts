@@ -35,15 +35,24 @@ let _wallbashColors: WallbashColors | null = null
 let _wallbashColorScheme: 'prefer-dark' | 'prefer-light' = 'prefer-dark'
 /** Timestamp of last wallbash event — used to suppress competing event sources */
 let _wallbashLastUpdate = 0
+/** Monotonically increasing counter — incremented on every wallbash state change.
+ *  Used to bust any potential caching when colors are identical but scheme changed. */
+let _wallbashGeneration = 0
 
 export function setWallbashColors(colors: WallbashColors) {
   _wallbashColors = colors
   _wallbashLastUpdate = Date.now()
+  _wallbashGeneration++
 }
 
 export function setWallbashColorScheme(scheme: 'prefer-dark' | 'prefer-light') {
   _wallbashColorScheme = scheme
   _wallbashLastUpdate = Date.now()
+  _wallbashGeneration++
+}
+
+export function getWallbashGeneration(): number {
+  return _wallbashGeneration
 }
 
 export function getWallbashColors(): WallbashColors | null {

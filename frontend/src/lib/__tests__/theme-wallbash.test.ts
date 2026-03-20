@@ -6,8 +6,13 @@
  * COLOR_SCHEME (prefer-dark / prefer-light) tells us which end to use.
  */
 
-import { describe, it, expect } from 'vitest'
-import { buildWallbashTheme } from '../theme-engine'
+import { describe, it, expect, beforeEach } from 'vitest'
+import {
+  buildWallbashTheme,
+  setWallbashColors,
+  setWallbashColorScheme,
+  getWallbashGeneration,
+} from '../theme-engine'
 import type { WallbashColors } from '../theme-definitions'
 
 /** Same colors for both modes — the gradient is fixed, COLOR_SCHEME picks the end */
@@ -140,6 +145,47 @@ describe('buildWallbashTheme', () => {
       const def = buildWallbashTheme({}, 'prefer-light')
       expect(def.colors['bg-base']).toBe('#f5e8e6')
       expect(def.colors['text-primary']).toBe('#101111')
+    })
+  })
+
+  describe('scheme-only changes produce different themes', () => {
+    it('same colors + different scheme → different bg-base', () => {
+      const dark = buildWallbashTheme(MOCK_COLORS, 'prefer-dark')
+      const light = buildWallbashTheme(MOCK_COLORS, 'prefer-light')
+      expect(dark.colors['bg-base']).not.toBe(light.colors['bg-base'])
+      expect(dark.category).toBe('dark')
+      expect(light.category).toBe('light')
+    })
+
+    it('same colors + different scheme → different text-primary', () => {
+      const dark = buildWallbashTheme(MOCK_COLORS, 'prefer-dark')
+      const light = buildWallbashTheme(MOCK_COLORS, 'prefer-light')
+      expect(dark.colors['text-primary']).not.toBe(light.colors['text-primary'])
+    })
+  })
+
+  describe('wallbash generation counter', () => {
+    it('getWallbashGeneration returns a number', () => {
+      expect(typeof getWallbashGeneration()).toBe('number')
+    })
+
+    it('increments on setWallbashColors', () => {
+      const before = getWallbashGeneration()
+      setWallbashColors(MOCK_COLORS)
+      expect(getWallbashGeneration()).toBe(before + 1)
+    })
+
+    it('increments on setWallbashColorScheme', () => {
+      const before = getWallbashGeneration()
+      setWallbashColorScheme('prefer-light')
+      expect(getWallbashGeneration()).toBe(before + 1)
+    })
+
+    it('increments independently for colors and scheme', () => {
+      const start = getWallbashGeneration()
+      setWallbashColors(MOCK_COLORS)
+      setWallbashColorScheme('prefer-dark')
+      expect(getWallbashGeneration()).toBe(start + 2)
     })
   })
 
