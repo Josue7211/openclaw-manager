@@ -99,3 +99,53 @@ describe('theme contrast audit', () => {
     })
   }
 })
+
+// ---------------------------------------------------------------------------
+// Composited surface tests (light themes only)
+// ---------------------------------------------------------------------------
+// Tests text against bg-panel and bg-card composited on bg-base — the real
+// visual surface users see. Catches colors that pass on raw bg-base but fail
+// when rendered on the lighter composited surfaces.
+
+describe('theme contrast audit — composited surfaces', () => {
+  const isLightTheme = (t: typeof BUILT_IN_THEMES[number]) =>
+    t.category === 'light' || t.id === 'high-contrast-light'
+
+  for (const theme of BUILT_IN_THEMES) {
+    if (!isLightTheme(theme)) continue
+
+    describe(`${theme.id} (composited)`, () => {
+      const bgBase = theme.colors['bg-base']
+      const bgPanel = resolveColor(theme.colors['bg-panel'], bgBase)
+      const bgCard = resolveColor(theme.colors['bg-card'], bgBase)
+      const tp = resolveColor(theme.colors['text-primary'], bgBase)
+      const ts = resolveColor(theme.colors['text-secondary'], bgBase)
+      const tm = resolveColor(theme.colors['text-muted'], bgBase)
+
+      it('text-primary vs bg-panel (composited) >= 7.0 (AAA)', () => {
+        const ratio = contrastRatio(tp, bgPanel)
+        expect(ratio, `${tp} on ${bgPanel} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(7.0)
+      })
+
+      it('text-secondary vs bg-panel (composited) >= 4.5 (AA)', () => {
+        const ratio = contrastRatio(ts, bgPanel)
+        expect(ratio, `${ts} on ${bgPanel} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(4.5)
+      })
+
+      it('text-muted vs bg-panel (composited) >= 3.0 (AA large)', () => {
+        const ratio = contrastRatio(tm, bgPanel)
+        expect(ratio, `${tm} on ${bgPanel} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(3.0)
+      })
+
+      it('text-primary vs bg-card (composited) >= 4.5 (AA)', () => {
+        const ratio = contrastRatio(tp, bgCard)
+        expect(ratio, `${tp} on ${bgCard} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(4.5)
+      })
+
+      it('text-secondary vs bg-card (composited) >= 4.5 (AA)', () => {
+        const ratio = contrastRatio(ts, bgCard)
+        expect(ratio, `${ts} on ${bgCard} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(4.5)
+      })
+    })
+  }
+})
