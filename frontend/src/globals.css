@@ -1193,6 +1193,51 @@ input[type="checkbox"]:checked::before {
   background: var(--accent);
 }
 
+/* ── Wizard z-index ── */
+:root { --z-wizard: 10000; }
+
+/* ── Wizard dot pulse animation ── */
+@keyframes dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--accent-a30, 167, 139, 250), 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(var(--accent-a30, 167, 139, 250), 0); }
+}
+
+/* ── Wizard ambient glow ── */
+.wizard-container {
+  position: relative;
+}
+.wizard-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  height: 300px;
+  background: radial-gradient(ellipse at center top, rgba(var(--glow-top-rgb), var(--glow-opacity)) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Logo reveal animation ── */
+@keyframes logo-reveal {
+  0% { clip-path: circle(0% at 50% 50%); filter: brightness(2) saturate(0.5); opacity: 0; }
+  30% { opacity: 1; }
+  100% { clip-path: circle(100% at 50% 50%); filter: brightness(1) saturate(1); opacity: 1; }
+}
+
+@keyframes logo-glow {
+  0% { box-shadow: 0 0 0 0 rgba(var(--glow-top-rgb), 0.3); }
+  50% { box-shadow: 0 0 40px 20px rgba(var(--glow-top-rgb), 0.15); }
+  100% { box-shadow: 0 0 60px 30px rgba(var(--glow-top-rgb), 0); }
+}
+
+/* ── Reduced motion / none overrides for wizard ── */
+[data-animation="none"] .wizard-container * {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.01ms !important;
+}
+
 /* ── View Transitions — theme ripple animation ── */
 ::view-transition-old(root),
 ::view-transition-new(root) {
