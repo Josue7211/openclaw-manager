@@ -79,7 +79,7 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 - [x] **DASH-05**: Non-edit mode shows clean layout with no edit chrome
 - [ ] **DASH-06**: Add widget picker showing available widgets by category
 - [x] **DASH-07**: Widget Registry mapping widget IDs to lazy-loaded React components
-- [ ] **DASH-08**: Layout persisted to SQLite + synced to Supabase per breakpoint
+- [x] **DASH-08**: Layout persisted to SQLite + synced to Supabase per breakpoint
 - [x] **DASH-09**: Default layout provided for first-time users (populated from enabled modules)
 - [ ] **DASH-10**: Existing dashboard cards (HeartbeatCard, AgentsCard, MissionsCard, etc.) refactored as grid widgets
 - [ ] **DASH-11**: Each widget has its own error boundary and loading state
@@ -241,7 +241,7 @@ Deferred to post-v1.0 release. Tracked but not in current roadmap.
 | DASH-05 | Phase 4 | Complete |
 | DASH-06 | Phase 4 | Pending |
 | DASH-07 | Phase 4 | Complete |
-| DASH-08 | Phase 4 | Pending |
+| DASH-08 | Phase 4 | Complete |
 | DASH-09 | Phase 4 | Complete |
 | DASH-10 | Phase 4 | Pending |
 | DASH-11 | Phase 4 | Pending |
