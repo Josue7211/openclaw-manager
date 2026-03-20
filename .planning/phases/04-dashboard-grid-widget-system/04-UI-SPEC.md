@@ -69,8 +69,8 @@ Exceptions:
 ### Phase 4 Spacing Application Rules
 
 - **Grid gap (widget-to-widget):** 16px (`--space-4`) in all directions
-- **Widget internal padding:** 20px (matches existing card padding in HeartbeatCard, AgentStatusCard)
-- **Widget header (optional title) padding:** 12px horizontal, 8px vertical
+- **Widget internal padding:** 20px -- off-scale value, justified: matches the existing card padding established in HeartbeatCard, AgentStatusCard, and all other dashboard cards in `pages/dashboard/`. Changing to 16px or 24px would create a visual mismatch with the card interiors users already see. Inherited, not new.
+- **Widget header (optional title) padding:** 12px horizontal, 8px vertical -- 12px is off-scale, justified: this is a compact sub-region within the 20px-padded card body. Using 16px would consume too much of the widget's limited header space; 8px would crowd the title against the card edge. The 12px value provides visual breathing room proportional to the header's 32px total height (8px top + ~16px text + 8px bottom). Horizontal only; vertical uses on-scale 8px.
 - **Dashboard page horizontal padding:** `--space-6` (24px)
 - **Dashboard page top padding:** 0 (title bar + tabs fill top area)
 - **Dashboard page bottom padding:** `--space-6` (24px)
@@ -133,7 +133,7 @@ In addition to the inherited accent uses from Phase 1/2:
 2. **Edit mode toggle (active)** -- `var(--accent)` background with `var(--text-on-accent)` icon
 3. **Floating "+" add widget button** -- `var(--accent)` background, `var(--text-on-accent)` plus icon
 4. **Selected widget border in edit mode** -- `2px solid var(--accent)` when widget is being dragged or resized
-5. **Widget picker "Add" button per card** -- Primary button style
+5. **Widget picker "Add Widget" button per card** -- Primary button style
 6. **Resize handle corner dots** -- `var(--accent)` at 60% opacity
 7. **Dot page indicators (active)** -- `var(--accent)` filled circle
 8. **Widget config gear icon hover** -- `var(--accent)` tint
@@ -281,7 +281,7 @@ Dashboard pages scroll vertically. The grid can be infinitely long. No horizonta
 | `DashboardTabs` | `components/dashboard/DashboardTabs.tsx` | Tab bar for multiple dashboard pages: rename (double-click), reorder (drag), add/delete |
 | `DashboardEditBar` | `components/dashboard/DashboardEditBar.tsx` | Edit mode toolbar: toggle button, "Done" button, layout reset, undo button |
 | `WidgetWrapper` | `components/dashboard/WidgetWrapper.tsx` | Per-widget container: error boundary, optional title header, config gear, remove X, resize handles in edit mode, wobble animation |
-| `WidgetPicker` | `components/dashboard/WidgetPicker.tsx` | Slide-in panel: categorized widget list, search, preview pane, size presets, "Add" button per widget |
+| `WidgetPicker` | `components/dashboard/WidgetPicker.tsx` | Slide-in panel: categorized widget list, search, preview pane, size presets, "Add Widget" button per widget |
 | `WidgetPickerCard` | `components/dashboard/WidgetPickerCard.tsx` | Individual widget card in picker: icon, name, description, size badges, preview thumbnail |
 | `WidgetConfigPanel` | `components/dashboard/WidgetConfigPanel.tsx` | Per-widget config popover: schema-driven settings form rendered from widget's `configSchema` |
 | `RecycleBin` | `components/dashboard/RecycleBin.tsx` | Bottom drawer: recently removed widgets as small cards, drag-to-restore, Ctrl+Z undo |
@@ -505,7 +505,7 @@ In edit mode, clicking an empty area of the grid opens the widget picker with th
 |  | Agent    |  | Heartbeat|             |
 |  | Status   |  | Monitor  |             |
 |  | S M L XL |  | S M L XL |             |
-|  | [+ Add]  |  | [+ Add]  |             |
+|  |[+Add Wdg]|  |[+Add Wdg]|             |
 |  +----------+  +----------+             |
 |                                          |
 |  -- Productivity --------------------    |
@@ -513,7 +513,7 @@ In edit mode, clicking an empty area of the grid opens the widget picker with th
 |  +--[icon]--+  +--[icon]--+             |
 |  | Missions |  | Ideas    |             |
 |  | S M L XL |  | S M L XL |             |
-|  | [+ Add]  |  | [+ Add]  |             |
+|  |[+Add Wdg]|  |[+Add Wdg]|             |
 |  +----------+  +----------+             |
 |                                          |
 |  -- Bundles -------------------------    |
@@ -538,7 +538,7 @@ In edit mode, clicking an empty area of the grid opens the widget picker with th
 |                                |
 |  (S) (M) (L) (XL)             |   <-- Size preset pills
 |                                |
-|  [+ Add to Dashboard]         |   <-- Primary button, compact
+|  [+ Add Widget]               |   <-- Primary button, compact
 +--------------------------------+
 ```
 
@@ -547,8 +547,8 @@ In edit mode, clicking an empty area of the grid opens the widget picker with th
 - **Card border radius:** `--radius-lg` (12px)
 - **Card padding:** `--space-4` (16px)
 - **Icon:** Phosphor icon, 32px, `regular` weight, `var(--accent)` for built-in widgets
-- **Size preset pills:** Horizontal row, each pill `24px x 20px`, `--radius-full`, background `var(--hover-bg)`, active: `var(--accent-a12)` bg + `var(--accent)` text. Default selection highlighted. Clicking a preset changes the grid size that will be placed.
-- **"+ Add" button:** Compact Primary button: 12px text, `6px 12px` padding
+- **Size preset pills:** Horizontal row, each pill `24px x 20px`, `--radius-full`, background `var(--hover-bg)`, active: `var(--accent-a12)` bg + `var(--accent)` text. Default selection highlighted. Clicking a preset changes the grid size that will be placed. Note: 20px pill height is off-scale -- justified: pills are inline badge elements where the 24px width sets the visual rhythm; 20px height provides a compact pill shape that does not compete with the "Add Widget" CTA below. Using 16px would make pills feel cramped; 24px would make them square.
+- **"+ Add Widget" button:** Compact Primary button: 12px text, `6px 12px` padding. Note: 12px text and 6px padding are off-scale -- justified: this is a compact button variant where full Body size (15px) would overwhelm the picker card layout. The 12px matches Caption size for visual harmony with the card description text. The 6px vertical padding is half of `--space-3` (12px) and produces a 24px total button height, keeping the CTA subordinate to the widget preview content above it.
 - **Search input:** Full width, `--radius-md`, `var(--bg-base)` background, `var(--border)` border, Phosphor `MagnifyingGlass` icon left, `placeholder: "Search widgets..."`
 - **Category headings:** Section label style (12px, weight 600, uppercase, `var(--text-muted)`, letter-spacing 0.1em)
 
@@ -619,7 +619,7 @@ In edit mode, clicking an empty area of the grid opens the widget picker with th
 - **"+" new page tab:** `var(--text-muted)` Plus icon (16px), same dimensions as a tab, `var(--hover-bg)` on hover
 - **Rename:** Double-click tab label enters inline edit mode. Text input replaces label, auto-focused, Enter to confirm, Escape to cancel. Max 20 characters.
 - **Reorder:** Drag tab left/right to reorder. Animated slide transition, 150ms, `var(--ease-spring)`.
-- **Delete:** Right-click tab shows context menu with "Delete page" option. Confirmation: "Delete '{page name}'? Widgets on this page will be moved to the recycle bin." with "Delete" (danger) and "Cancel" (secondary) buttons.
+- **Delete:** Right-click tab shows context menu with "Delete page" option. Confirmation: "Delete '{page name}'? Widgets on this page will be moved to the recycle bin." with "Delete Page" (danger) and "Keep Page" (secondary) buttons.
 - **Tab overflow:** If tabs exceed available width, show left/right scroll arrows (ChevronLeft/ChevronRight, 16px, `var(--text-muted)`).
 
 **Dot page indicators (Claude's Discretion -- optional, toggleable per CONTEXT.md):**
@@ -636,16 +636,16 @@ In edit mode, clicking an empty area of the grid opens the widget picker with th
 **Pattern:** Collapsible drawer that slides up from the bottom edge.
 
 ```
-+--------------------------------------------------------------------+
-| [handle bar]  Recycle Bin (3 items)           [Clear All] [Close]  |
-|                                                                      |
-|  +--------+  +--------+  +--------+                                 |
-|  | [icon] |  | [icon] |  | [icon] |                                 |
-|  | Agent  |  | Heart- |  | Memory |                                 |
-|  | Status |  | beat   |  |        |                                 |
-|  +--------+  +--------+  +--------+                                 |
-|                                                                      |
-+--------------------------------------------------------------------+
++------------------------------------------------------------------------+
+| [handle bar]  Recycle Bin (3 items)       [Clear All Widgets] [Close]  |
+|                                                                          |
+|  +--------+  +--------+  +--------+                                     |
+|  | [icon] |  | [icon] |  | [icon] |                                     |
+|  | Agent  |  | Heart- |  | Memory |                                     |
+|  | Status |  | beat   |  |        |                                     |
+|  +--------+  +--------+  +--------+                                     |
+|                                                                          |
++------------------------------------------------------------------------+
 ```
 
 **Collapsed state:**
@@ -658,7 +658,7 @@ In edit mode, clicking an empty area of the grid opens the widget picker with th
 - Shows: Horizontal row of recently removed widget thumbnails
 - Each thumbnail: 80px x 80px, `var(--bg-elevated)`, `--radius-md`, Phosphor icon (32px) + widget name (Caption 12px)
 - **Restore:** Drag widget from recycle bin back onto the grid, or double-click to restore to original position
-- **Clear All:** Ghost button, `var(--text-muted)`. Confirmation: "Clear the recycle bin? Widgets can't be restored after clearing." with "Clear" (danger) and "Cancel" (secondary) buttons.
+- **Clear All Widgets:** Ghost button, `var(--text-muted)`. Confirmation: "Clear the recycle bin? Widgets can't be restored after clearing." with "Clear All Widgets" (danger) and "Keep Widgets" (secondary) buttons.
 - **Auto-clear:** Recycle bin holds up to 20 items. Oldest items are removed when the limit is exceeded.
 
 **Visibility:** Only shown in edit mode. Hidden in normal viewing mode.
@@ -773,7 +773,7 @@ interface LayoutItem {
 | **Widget picker category: Productivity** | "Productivity" |
 | **Widget picker category: AI** | "AI" |
 | **Widget picker category: Bundles** | "Bundles" |
-| **Widget picker "Add" button** | "Add" |
+| **Widget picker "Add" button** | "Add Widget" |
 | **Widget picker bundle "Add" button** | "Add Bundle" |
 | **Widget config title** | "Widget Settings" |
 | **Widget config: show title** | "Show title header" |
@@ -786,15 +786,15 @@ interface LayoutItem {
 | **New page default name** | "New Page" |
 | **Tab rename placeholder** | "Page name" |
 | **Tab delete confirmation** | "Delete '{name}'? Widgets on this page will be moved to the recycle bin." |
-| **Tab delete confirm button** | "Delete" |
-| **Tab delete cancel button** | "Cancel" |
+| **Tab delete confirm button** | "Delete Page" |
+| **Tab delete cancel button** | "Keep Page" |
 | **Recycle bin label** | "Recycle Bin" |
 | **Recycle bin count** | "({N} items)" |
 | **Recycle bin empty** | "No removed widgets" |
-| **Recycle bin clear button** | "Clear All" |
+| **Recycle bin clear button** | "Clear All Widgets" |
 | **Recycle bin clear confirmation** | "Clear the recycle bin? Widgets can't be restored after clearing." |
-| **Recycle bin clear confirm** | "Clear" |
-| **Recycle bin clear cancel** | "Cancel" |
+| **Recycle bin clear confirm** | "Clear All Widgets" |
+| **Recycle bin clear cancel** | "Keep Widgets" |
 | **Undo toast** | "Undone: {action}" |
 | **Undo action: remove** | "removed {widget name}" |
 | **Undo action: move** | "moved {widget name}" |
@@ -805,7 +805,7 @@ interface LayoutItem {
 | **Layout reset confirm button** | "Reset Layout" |
 | **Layout reset cancel button** | "Keep Layout" |
 | **Global reset confirmation** | "Reset all dashboard pages to defaults? Your custom layouts and pages will be lost." |
-| **Global reset confirm button** | "Reset All" |
+| **Global reset confirm button** | "Reset All Layouts" |
 | **Global reset cancel button** | "Keep Layouts" |
 | **Widget error state heading** | "Widget error" |
 | **Widget error state body** | "This widget couldn't load. Try removing and re-adding it." |
@@ -832,10 +832,10 @@ Consistent with Phase 1/2/3:
 | Action | Trigger | Confirmation |
 |--------|---------|-------------|
 | Remove widget from grid | X button on widget in edit mode | No confirmation (goes to recycle bin, Ctrl+Z available) |
-| Delete dashboard page | Right-click tab > "Delete page" | Confirmation dialog: "Delete '{name}'? Widgets on this page will be moved to the recycle bin." |
-| Clear recycle bin | "Clear All" button in recycle bin | Confirmation dialog: "Clear the recycle bin? Widgets can't be restored after clearing." |
-| Reset page layout | Tab context menu > "Reset layout" | Confirmation dialog: "Reset this page to its default layout? Your current arrangement will be lost." |
-| Reset all layouts | Settings > Dashboard > "Reset All" | Confirmation dialog: "Reset all dashboard pages to defaults? Your custom layouts and pages will be lost." |
+| Delete dashboard page | Right-click tab > "Delete page" | Confirmation dialog: "Delete '{name}'? Widgets on this page will be moved to the recycle bin." Buttons: "Delete Page" (danger) / "Keep Page" (secondary) |
+| Clear recycle bin | "Clear All Widgets" button in recycle bin | Confirmation dialog: "Clear the recycle bin? Widgets can't be restored after clearing." Buttons: "Clear All Widgets" (danger) / "Keep Widgets" (secondary) |
+| Reset page layout | Tab context menu > "Reset layout" | Confirmation dialog: "Reset this page to its default layout? Your current arrangement will be lost." Buttons: "Reset Layout" (danger) / "Keep Layout" (secondary) |
+| Reset all layouts | Settings > Dashboard > "Reset All Layouts" | Confirmation dialog: "Reset all dashboard pages to defaults? Your custom layouts and pages will be lost." Buttons: "Reset All Layouts" (danger) / "Keep Layouts" (secondary) |
 
 ---
 
@@ -896,7 +896,7 @@ All animations respect the existing `@media (prefers-reduced-motion: reduce)` ru
 - [ ] Widget picker panel: `role="dialog"`, `aria-modal="true"`, `aria-label="Add widget"`, focus trapped via `useFocusTrap`
 - [ ] Widget picker search: `role="searchbox"`, `aria-label="Search widgets"`
 - [ ] Widget picker cards: `role="listitem"` within a `role="list"`, with descriptive `aria-label` including name and description
-- [ ] Widget picker "Add" buttons: `aria-label="Add {widget name} to dashboard"`
+- [ ] Widget picker "Add Widget" buttons: `aria-label="Add {widget name} to dashboard"`
 - [ ] Widget picker size presets: `role="radiogroup"` with `role="radio"` per size, `aria-checked`, `aria-label="{Size} ({width}x{height} grid units)"`
 - [ ] Widget config panel: `role="dialog"`, `aria-label="Settings for {widget name}"`, focus trapped
 - [ ] Widget config toggle: `role="switch"`, `aria-checked`, `aria-label="{setting label}"`
@@ -907,7 +907,7 @@ All animations respect the existing `@media (prefers-reduced-motion: reduce)` ru
 - [ ] Tab context menu: `role="menu"` with `role="menuitem"` per option
 - [ ] Recycle bin: `role="region"`, `aria-label="Recycle bin with {N} removed widgets"`
 - [ ] Recycle bin items: Each item has `aria-label="{widget name}, removed. Double-click to restore."`
-- [ ] Recycle bin clear button: `aria-label="Clear recycle bin"`
+- [ ] Recycle bin clear button: `aria-label="Clear all widgets from recycle bin"`
 - [ ] Floating "+" button: `<button>`, `aria-label="Add widget"`
 - [ ] Undo toast: `role="status"`, `aria-live="polite"`
 - [ ] Drag operations: `aria-grabbed`, `aria-dropeffect` attributes during drag interactions
