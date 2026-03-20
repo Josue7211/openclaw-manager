@@ -115,25 +115,30 @@ if (window.__TAURI_INTERNALS__) {
       if (getThemeState().mode === 'system') applyThemeFromState()
     })
 
-    // Poll for GTK theme changes on Linux (gsettings doesn't emit events on Wayland)
-    // Checks every 5 seconds when in System mode, detects Hyprland theme switches
+    // Watch for GTK theme + color-scheme changes on Linux (1s poll — Wayland has no dbus signals)
+    // Detects: theme switches, Wallbash dark/light/auto mode changes, wallpaper color changes
     if (navigator.userAgent.includes('Linux')) {
       let lastGtkTheme = ''
+      let lastColorScheme = ''
       setInterval(async () => {
         if (getThemeState().mode !== 'system') return
         try {
           const { invoke } = await import('@tauri-apps/api/core')
-          const gtkTheme = await invoke<string>('detect_gtk_theme')
-          if (gtkTheme && gtkTheme !== lastGtkTheme) {
-            lastGtkTheme = gtkTheme
-            setGtkThemeMapping(gtkTheme)
-            // Also re-check dark mode preference
-            const isDark = await invoke<boolean>('detect_system_dark_mode')
+          const [gtkTheme, isDark] = await Promise.all([
+            invoke<string>('detect_gtk_theme'),
+            invoke<boolean>('detect_system_dark_mode'),
+          ])
+          const colorScheme = isDark ? 'dark' : 'light'
+          // Re-apply if EITHER the theme name OR the color-scheme changed
+          if ((gtkTheme && gtkTheme !== lastGtkTheme) || colorScheme !== lastColorScheme) {
+            lastGtkTheme = gtkTheme || lastGtkTheme
+            lastColorScheme = colorScheme
+            if (gtkTheme) setGtkThemeMapping(gtkTheme)
             setOsDarkPreference(isDark)
             applyThemeFromState()
           }
         } catch { /* gsettings unavailable */ }
-      }, 5000)
+      }, 1000)
     }
   })
 } else {
