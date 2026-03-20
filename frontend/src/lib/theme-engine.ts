@@ -509,7 +509,7 @@ export function performRippleTransition(applyFn: () => void, x: number, y: numbe
 }
 
 function performCrossfadeTransition(applyFn: () => void): void {
-  if (typeof document.startViewTransition !== 'function') { applyFn(); return }
+  if (isWebKitGTK || typeof document.startViewTransition !== 'function') { applyFn(); return }
   try {
     const transition = document.startViewTransition(() => { flushSync(applyFn) })
     transition.ready.then(() => {
