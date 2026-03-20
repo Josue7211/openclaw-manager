@@ -121,12 +121,25 @@ Plans:
   3. User can add new widgets from a categorized picker and remove unwanted widgets, with the dashboard populated by a sensible default layout on first use based on enabled modules
   4. All existing dashboard cards (HeartbeatCard, AgentsCard, MissionsCard, etc.) work as grid widgets, each with its own error boundary and loading state independent of other widgets
   5. Dashboard layout persists across app restarts, syncs to Supabase per breakpoint, and adapts correctly when moving between monitors of different resolutions
-**Plans**: TBD
+**Plans**: 6 plans
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
-- [ ] 04-03: TBD
+- [ ] 04-01-PLAN.md -- Foundation: react-grid-layout install, Widget Registry, dashboard store, default layout generator, CSS (wobble, grid-lines, z-indices)
+- [ ] 04-02-PLAN.md -- Grid engine: DashboardGrid (react-grid-layout Responsive), WidgetWrapper (error boundary + lazy loading), Dashboard.tsx rewrite
+- [ ] 04-03-PLAN.md -- Edit mode controls: DashboardEditBar (toggle, Ctrl+E, long-press), DashboardTabs (page CRUD, rename, reorder), DotIndicators
+- [ ] 04-04-PLAN.md -- Widget management: WidgetPicker (categorized panel with search + size presets), RecycleBin (recovery drawer), WidgetConfigPanel (per-widget settings)
+- [ ] 04-05-PLAN.md -- Persistence: preferences-sync wiring for Supabase sync, dashboard-edit keybinding registration, integration tests
+- [ ] 04-06-PLAN.md -- Integration: Wire all components into Dashboard.tsx, edit-mode chrome on WidgetWrapper (remove X, gear, title, wobble), first-use default layout, floating FAB
+
+### Phase 04.1: Wallbash GTK System Mode Integration Fix (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 04
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 04.1 to break down)
 
 ### Phase 5: Page Experience
 **Goal**: Navigating between modules feels instant and polished -- state is preserved, activity is visible at a glance, and power users can find anything in seconds.
@@ -200,7 +213,7 @@ Phases execute in numeric order: 1 -> 2 -> 2.1 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 2.1. Theme Settings Polish + System Mode Fix | 4/4 | Complete | 2026-03-20 |
 | 2.2. Theme System Mode Fixes | 0/2 | Planned | - |
 | 3. Setup Wizard + Onboarding | 0/6 | Planned | - |
-| 4. Dashboard Grid + Widget System | 0/3 | Not started | - |
+| 4. Dashboard Grid + Widget System | 0/6 | Planned | - |
 | 5. Page Experience | 0/2 | Not started | - |
 | 6. Module Primitives Library | 0/3 | Not started | - |
 | 7. Bjorn Module Builder | 0/3 | Not started | - |
