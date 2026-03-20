@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-07-PLAN.md (Phase 2 complete)
-last_updated: "2026-03-19T19:04:37.709Z"
+stopped_at: Completed 02.1-01-PLAN.md
+last_updated: "2026-03-20T00:16:46.884Z"
 progress:
-  total_phases: 8
+  total_phases: 9
   completed_phases: 2
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 16
+  completed_plans: 13
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 02 — theming-system (COMPLETE)
+**Current focus:** Phase 02.1 — theme-settings-page-polish-system-mode-fix
 
 ## Current Position
 
-Phase: 02 (theming-system) — COMPLETE
-Plan: 7 of 7 (all done)
+Phase: 02.1 (theme-settings-page-polish-system-mode-fix) — EXECUTING
+Plan: 2 of 4
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Plan: 7 of 7 (all done)
 | Phase 02 P04 | 7min | 2 tasks | 6 files |
 | Phase 02 P05 | 6min | 2 tasks | 6 files |
 | Phase 02 P07 | 6min | 3 tasks | 4 files |
+| Phase 02.1 P01 | 4min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -104,6 +105,12 @@ Recent decisions affecting current work:
 - [Phase 02]: ThemeImportExport supports 4 import methods (file, paste, drag-drop, share code) plus export
 - [Phase 02]: Sidebar context menu uses role=menu/menuitemradio for accessibility
 - [Phase 02]: Override indicator 6px colored dot matching override theme accent color
+- [Phase 02.1]: gsettings color-scheme checked first (GNOME 42+), gtk-theme name as secondary fallback for Linux dark mode detection
+- [Phase 02.1]: Non-Linux platforms return false from detect_system_dark_mode (Tauri native detection works there)
+
+### Roadmap Evolution
+
+- Phase 02.1 inserted after Phase 02: Theme Settings Page Polish + System Mode Fix (URGENT) — System mode doesn't detect GTK dark themes on Hyprland, Settings Display page needs visual reorganization and improved customizability
 
 ### Pending Todos
 
@@ -117,6 +124,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T18:55:17Z
-Stopped at: Completed 02-07-PLAN.md (Phase 2 complete)
+Last session: 2026-03-20T00:16:46.882Z
+Stopped at: Completed 02.1-01-PLAN.md
 Resume file: None

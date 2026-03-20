@@ -68,7 +68,7 @@ Plans:
 **Goal:** System mode detects dark themes correctly on Linux, all functional/status colors are customizable via a 3-tier color hierarchy, and the Settings Display page is reorganized into card-based sections with advanced customization sliders.
 **Requirements**: POLISH-10, POLISH-11, POLISH-12, POLISH-13, POLISH-14, POLISH-15, POLISH-16
 **Depends on:** Phase 2
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 
 Plans:
 - [ ] 02.1-01-PLAN.md -- System mode fix: Rust gsettings command + frontend Linux fallback

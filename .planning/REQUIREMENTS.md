@@ -41,7 +41,7 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 
 ### Theme Polish (Phase 02.1)
 
-- [ ] **POLISH-10**: System mode correctly detects dark GTK theme on Linux (Hyprland/gsettings fallback)
+- [x] **POLISH-10**: System mode correctly detects dark GTK theme on Linux (Hyprland/gsettings fallback)
 - [ ] **POLISH-11**: 3-tier color hierarchy (accent, secondary/functional, tertiary/accent-blue) with dynamic tint derivation
 - [ ] **POLISH-12**: All hardcoded green (--green, --green-400, --emerald) references migrated to --secondary CSS variables
 - [ ] **POLISH-13**: All hardcoded blue (--accent-blue, --accent-secondary) references migrated to --tertiary CSS variables
@@ -201,7 +201,7 @@ Deferred to post-v1.0 release. Tracked but not in current roadmap.
 | POLISH-07 | Phase 1 | Complete |
 | POLISH-08 | Phase 1 | Pending |
 | POLISH-09 | Phase 1 | Complete |
-| POLISH-10 | Phase 2.1 | Pending |
+| POLISH-10 | Phase 2.1 | Complete |
 | POLISH-11 | Phase 2.1 | Pending |
 | POLISH-12 | Phase 2.1 | Pending |
 | POLISH-13 | Phase 2.1 | Pending |
