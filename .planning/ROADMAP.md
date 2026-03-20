@@ -85,11 +85,11 @@ Plans:
 **Goal:** System mode truly mirrors the desktop theme — shows only the active GTK theme, reads live Wallbash colors, syncs instantly with desktop transitions, and all light themes have readable text.
 **Requirements**: SYSMODE-01, SYSMODE-02, SYSMODE-03, SYSMODE-04, SYSMODE-05, SYSMODE-06, SYSMODE-07
 **Depends on:** Phase 02.1
-**Plans:** TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 02.2-01: TBD
-- [ ] 02.2-02: TBD
+- [ ] 02.2-01-PLAN.md -- Rust wallbash parser + file watcher, counterpart auto-switch, light theme contrast fix
+- [ ] 02.2-02-PLAN.md -- Frontend wallbash integration, event-driven sync, system mode single-card UI
 
 ### Phase 3: Setup Wizard + Onboarding
 **Goal**: New users (including non-technical users) can go from first launch to a configured, personalized app in under 5 minutes without reading documentation.
@@ -198,6 +198,7 @@ Phases execute in numeric order: 1 -> 2 -> 2.1 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 1. Responsive Layout Shell + Visual Polish | 4/5 | Gap closure | - |
 | 2. Theming System | 7/7 | Complete   | 2026-03-19 |
 | 2.1. Theme Settings Polish + System Mode Fix | 4/4 | Complete | 2026-03-20 |
+| 2.2. Theme System Mode Fixes | 0/2 | Planned | - |
 | 3. Setup Wizard + Onboarding | 0/6 | Planned | - |
 | 4. Dashboard Grid + Widget System | 0/3 | Not started | - |
 | 5. Page Experience | 0/2 | Not started | - |
