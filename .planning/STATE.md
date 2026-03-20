@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02.1-01-PLAN.md
-last_updated: "2026-03-20T00:16:46.884Z"
+stopped_at: Completed 02.1-02-PLAN.md
+last_updated: "2026-03-20T00:26:14.140Z"
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 16
-  completed_plans: 13
+  completed_plans: 14
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 02.1 (theme-settings-page-polish-system-mode-fix) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Plan: 2 of 4
 | Phase 02 P05 | 6min | 2 tasks | 6 files |
 | Phase 02 P07 | 6min | 3 tasks | 4 files |
 | Phase 02.1 P01 | 4min | 2 tasks | 3 files |
+| Phase 02.1 P02 | 14min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -107,6 +108,9 @@ Recent decisions affecting current work:
 - [Phase 02]: Override indicator 6px colored dot matching override theme accent color
 - [Phase 02.1]: gsettings color-scheme checked first (GNOME 42+), gtk-theme name as secondary fallback for Linux dark mode detection
 - [Phase 02.1]: Non-Linux platforms return false from detect_system_dark_mode (Tauri native detection works there)
+- [Phase 02.1]: DEFAULT_SECONDARY changed from blue to green (#34d399) for 3-tier color hierarchy
+- [Phase 02.1]: Legacy CSS aliases (--green, --accent-blue) set dynamically in apply functions for zero visual regression
+- [Phase 02.1]: Migration v6 renames all secondary overrides to tertiary across all theme entries
 
 ### Roadmap Evolution
 
@@ -124,6 +128,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T00:16:46.882Z
-Stopped at: Completed 02.1-01-PLAN.md
+Last session: 2026-03-20T00:26:14.138Z
+Stopped at: Completed 02.1-02-PLAN.md
 Resume file: None
