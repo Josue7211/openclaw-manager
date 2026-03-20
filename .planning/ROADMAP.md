@@ -80,6 +80,17 @@ Plans:
 - [x] 02.1-03-PLAN.md -- Green-to-secondary + blue-to-tertiary migration across 57+ component files
 - [x] 02.1-04-PLAN.md -- Settings Display redesign: card sections, compact colors, glow/radius/opacity sliders
 
+### Phase 02.2: Theme System Mode Fixes (INSERTED)
+
+**Goal:** System mode truly mirrors the desktop theme — shows only the active GTK theme, reads live Wallbash colors, syncs instantly with desktop transitions, and all light themes have readable text.
+**Requirements**: SYSMODE-01, SYSMODE-02, SYSMODE-03, SYSMODE-04, SYSMODE-05, SYSMODE-06, SYSMODE-07
+**Depends on:** Phase 02.1
+**Plans:** TBD
+
+Plans:
+- [ ] 02.2-01: TBD
+- [ ] 02.2-02: TBD
+
 ### Phase 3: Setup Wizard + Onboarding
 **Goal**: New users (including non-technical users) can go from first launch to a configured, personalized app in under 5 minutes without reading documentation.
 **Depends on**: Phase 2 (theme selection is part of the wizard flow)
