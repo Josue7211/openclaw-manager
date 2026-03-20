@@ -32,11 +32,11 @@ afterEach(() => {
 })
 
 describe('ThemePicker', () => {
-  it('renders all 17 built-in theme cards when open', () => {
+  it('renders all 24 built-in theme cards when open', () => {
     render(<ThemePicker open={true} onClose={() => {}} />)
 
     const radios = screen.getAllByRole('radio')
-    // 17 theme cards + 3 mode radio buttons = 20 radios total
+    // 24 theme cards + 3 mode radio buttons = 27 radios total
     // Themes appear as role="radio" within radiogroup sections
     const themeRadios = radios.filter(r => r.getAttribute('aria-label')?.includes('theme'))
     expect(themeRadios.length).toBe(BUILT_IN_THEMES.length)

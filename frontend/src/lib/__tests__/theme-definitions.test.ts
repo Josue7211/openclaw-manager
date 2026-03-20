@@ -20,8 +20,8 @@ const REQUIRED_STATUS_KEYS = [
 ]
 
 describe('theme-definitions', () => {
-  it('BUILT_IN_THEMES has exactly 17 entries', () => {
-    expect(BUILT_IN_THEMES).toHaveLength(17)
+  it('BUILT_IN_THEMES has exactly 24 entries', () => {
+    expect(BUILT_IN_THEMES).toHaveLength(24)
   })
 
   it('every preset has a unique id', () => {
@@ -77,14 +77,14 @@ describe('theme-definitions', () => {
     expect(getThemeById('nonexistent-theme')).toBeUndefined()
   })
 
-  it('dark presets have category dark (7 dark)', () => {
+  it('dark presets have category dark (13 dark)', () => {
     const dark = BUILT_IN_THEMES.filter(t => t.category === 'dark')
-    expect(dark).toHaveLength(7)
+    expect(dark).toHaveLength(13)
   })
 
-  it('light presets have category light (4 light)', () => {
+  it('light presets have category light (5 light)', () => {
     const light = BUILT_IN_THEMES.filter(t => t.category === 'light')
-    expect(light).toHaveLength(4)
+    expect(light).toHaveLength(5)
   })
 
   it('colorful presets have category colorful (4 colorful)', () => {

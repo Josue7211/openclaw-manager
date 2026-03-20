@@ -47,6 +47,13 @@ const GTK_THEME_MAP: ReadonlyArray<[RegExp, string]> = [
   [/^gruvbox[- ]?light$/i, 'gruvbox-light'],
   [/^solarized[- ]?dark$/i, 'solarized-dark'],
   [/^solarized[- ]?light$/i, 'solarized-light'],
+  [/^tokyo[- ]?night$/i, 'tokyo-night'],
+  [/^material[- ]?sakura$/i, 'material-sakura'],
+  [/^graphite[- ]?mono$/i, 'graphite-mono'],
+  [/^decay[- ]?green$/i, 'decay-green'],
+  [/^edge[- ]?runner$/i, 'edge-runner'],
+  [/^synth[- ]?wave$/i, 'synth-wave'],
+  [/^wallbash[- ]?gtk$/i, 'wallbash'],
 ]
 
 /**
