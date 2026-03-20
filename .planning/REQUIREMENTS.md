@@ -77,7 +77,7 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 - [x] **DASH-03**: Edit mode toggle (enter/exit via button and keyboard shortcut)
 - [x] **DASH-04**: Edit mode shows grid lines, resize handles, add widget button, remove widget X
 - [x] **DASH-05**: Non-edit mode shows clean layout with no edit chrome
-- [ ] **DASH-06**: Add widget picker showing available widgets by category
+- [x] **DASH-06**: Add widget picker showing available widgets by category
 - [x] **DASH-07**: Widget Registry mapping widget IDs to lazy-loaded React components
 - [x] **DASH-08**: Layout persisted to SQLite + synced to Supabase per breakpoint
 - [x] **DASH-09**: Default layout provided for first-time users (populated from enabled modules)
@@ -239,7 +239,7 @@ Deferred to post-v1.0 release. Tracked but not in current roadmap.
 | DASH-03 | Phase 4 | Complete |
 | DASH-04 | Phase 4 | Complete |
 | DASH-05 | Phase 4 | Complete |
-| DASH-06 | Phase 4 | Pending |
+| DASH-06 | Phase 4 | Complete |
 | DASH-07 | Phase 4 | Complete |
 | DASH-08 | Phase 4 | Complete |
 | DASH-09 | Phase 4 | Complete |
