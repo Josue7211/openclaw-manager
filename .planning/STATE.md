@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: phase-complete
-stopped_at: Completed 04-06-PLAN.md
-last_updated: "2026-03-20T23:22:00.000Z"
+status: in-progress
+stopped_at: Completed 04.1-01-PLAN.md
+last_updated: "2026-03-20T23:45:06.000Z"
 progress:
   total_phases: 11
   completed_phases: 6
-  total_plans: 31
-  completed_plans: 31
+  total_plans: 33
+  completed_plans: 32
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 04 -- COMPLETE
+**Current focus:** Phase 04.1 -- Wallbash GTK System Mode Integration Fix
 
 ## Current Position
 
-Phase: 04 (dashboard-grid-widget-system) -- COMPLETE
-Plan: 6 of 6 -- ALL DONE
+Phase: 04.1 (wallbash-gtk-system-mode-integration-fix)
+Plan: 1 of 2
 
 ## Performance Metrics
 
@@ -78,6 +78,7 @@ Plan: 6 of 6 -- ALL DONE
 | Phase 04 P05 | 26min | 1 tasks | 3 files |
 | Phase 04 P04 | 3min | 2 tasks | 6 files |
 | Phase 04 P06 | 5min | 2 tasks | 3 files |
+| Phase 04.1 P01 | 5min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -181,6 +182,11 @@ Recent decisions affecting current work:
 - [Phase 04]: Long-press on any widget enters edit mode via useLongPress hook from DashboardEditBar
 - [Phase 04]: First-use default layout triggers via useEffect when active page has empty layouts
 
+- [Phase 04.1]: wallbashUpdatedRecently window reduced from 5000ms to 500ms -- 5s was suppressing legitimate gsettings events
+- [Phase 04.1]: recv_timeout coalescing debounce replaces sleep+drain -- fires 200ms after LAST event instead of dropping events
+- [Phase 04.1]: gsettings monitor restart with exponential backoff 1s-60s, reset after 30s stable run
+- [Phase 04.1]: setWallbashState atomic updater with single generation increment for race-free state updates
+
 ### Roadmap Evolution
 
 - Phase 02.1 inserted after Phase 02: Theme Settings Page Polish + System Mode Fix (URGENT) -- System mode doesn't detect GTK dark themes on Hyprland, Settings Display page needs visual reorganization and improved customizability
@@ -198,6 +204,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T23:22:00.000Z
-Stopped at: Completed 04-06-PLAN.md
+Last session: 2026-03-20T23:45:06Z
+Stopped at: Completed 04.1-01-PLAN.md
 Resume file: None
