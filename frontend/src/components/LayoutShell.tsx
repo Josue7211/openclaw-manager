@@ -7,12 +7,13 @@ import PageErrorBoundary from '@/components/PageErrorBoundary'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 const CommandPalette = React.lazy(() => import('@/components/CommandPalette'))
 const KeyboardShortcutsModal = React.lazy(() => import('@/components/KeyboardShortcutsModal'))
-const OnboardingWelcome = React.lazy(() => import('@/components/OnboardingWelcome'))
+const SetupWizard = React.lazy(() => import('@/components/SetupWizard'))
 const ThemePicker = React.lazy(() => import('@/components/ThemePicker'))
 import { getKeybindings, subscribeKeybindings, isBindingModPressed, matchesExtraModifier } from '@/lib/keybindings'
 import { getTitleBarVisible, getTitleBarAutoHide, subscribeTitleBarSettings } from '@/lib/titlebar-settings'
 import { getSidebarTitleText, getSidebarDefaultWidth, subscribeSidebarSettings } from '@/lib/sidebar-settings'
 import { isDemoMode } from '@/lib/demo-data'
+import { isFirstRun } from '@/lib/wizard-store'
 import { DemoModeBanner } from '@/components/DemoModeBanner'
 import { IconContext } from '@phosphor-icons/react'
 import { ToastProvider } from '@/components/ui/Toast'
@@ -29,6 +30,7 @@ export default function LayoutShell() {
   const navigate = useNavigate()
   const isLogin = pathname === '/login' || pathname.startsWith('/auth/')
 
+  const [showWizard, setShowWizard] = useState(() => isFirstRun())
   const [offline, setOffline] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
@@ -365,9 +367,11 @@ export default function LayoutShell() {
       <Suspense fallback={null}>
         <KeyboardShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       </Suspense>
-      <Suspense fallback={null}>
-        <OnboardingWelcome />
-      </Suspense>
+      {showWizard && (
+        <Suspense fallback={null}>
+          <SetupWizard onComplete={() => setShowWizard(false)} />
+        </Suspense>
+      )}
       <Suspense fallback={null}>
         {themePickerOpen && <ThemePicker open={themePickerOpen} onClose={() => setThemePickerOpen(false)} />}
       </Suspense>
