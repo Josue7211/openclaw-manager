@@ -15,9 +15,9 @@ Two related issues:
 
 ### 1. Wallbash dark/light/auto switcher ignored
 
-Wallbash has 4 modes: **theme**, **auto**, **dark**, **light**. When wallbash is in "theme" mode, system mode works correctly — the app picks up GTK wallbash colors and mirrors the desktop theme.
+Wallbash has 4 modes: **theme**, **auto** (time-of-day dark/light switcher), **dark**, **light**. When wallbash is in "theme" mode, system mode works correctly — the app picks up GTK wallbash colors and mirrors the desktop theme.
 
-But switching wallbash to dark, light, or auto mode doesn't change the app. It stays on the theme mode colors regardless.
+But switching wallbash to dark, light, or auto mode doesn't change the app. It stays on the theme mode colors regardless. Auto mode is particularly important since it tracks time of day — the app should follow along as auto flips between dark and light.
 
 **Root cause hypothesis:** When wallbash switches modes, it likely only writes `theme.conf` (changing `$COLOR_SCHEME`) without rewriting `colors.conf`. The file watcher's coalesced event + 150ms sleep + drain may swallow the theme.conf-only change. `buildWallbashTheme()` isn't re-invoked because wallbash colors haven't changed — only the scheme has.
 
