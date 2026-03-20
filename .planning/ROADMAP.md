@@ -90,11 +90,15 @@ Plans:
   2. User can connect services (BlueBubbles, OpenClaw, Supabase, CouchDB, Mac Bridge) individually with each being optional, select which modules to enable, and pick a theme -- all in a progressive, non-overwhelming flow
   3. User can choose demo mode to explore the app with fake data, without any infrastructure
   4. User can skip the wizard at any point and complete setup later via Settings, and an interrupted wizard resumes exactly where the user left off
-**Plans**: TBD
+**Plans**: 6 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
+- [ ] 03-01-PLAN.md -- Foundation: wizard state store (useSyncExternalStore), animation intensity store, canvas-confetti install
+- [ ] 03-02-PLAN.md -- Backend: Rust wizard connection test endpoints, check_tailscale Tauri command, reload-secrets
+- [ ] 03-03-PLAN.md -- Wizard shell (full-screen takeover, step dots, morphing card transitions), welcome screen, shared components, LayoutShell integration
+- [ ] 03-04-PLAN.md -- Service step components: Tailscale, Supabase, OpenClaw (required) + Mac Services, Server Services (optional)
+- [ ] 03-05-PLAN.md -- Module selection (preset bundles + card grid), theme selection (8 presets + mode), summary + confetti, completion flow, demo mode, Settings integration
+- [ ] 03-06-PLAN.md -- Guided tour overlay with spotlight cutout, positioned tooltips, data-driven tour stops
 
 ### Phase 4: Dashboard Grid + Widget System
 **Goal**: The dashboard is a user-owned canvas where widgets can be freely arranged, and the Widget Registry pattern establishes the foundation that Bjorn modules will plug into later.
@@ -183,7 +187,7 @@ Phases execute in numeric order: 1 -> 2 -> 2.1 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 1. Responsive Layout Shell + Visual Polish | 4/5 | Gap closure | - |
 | 2. Theming System | 7/7 | Complete   | 2026-03-19 |
 | 2.1. Theme Settings Polish + System Mode Fix | 4/4 | Complete | 2026-03-20 |
-| 3. Setup Wizard + Onboarding | 0/2 | Not started | - |
+| 3. Setup Wizard + Onboarding | 0/6 | Planned | - |
 | 4. Dashboard Grid + Widget System | 0/3 | Not started | - |
 | 5. Page Experience | 0/2 | Not started | - |
 | 6. Module Primitives Library | 0/3 | Not started | - |
