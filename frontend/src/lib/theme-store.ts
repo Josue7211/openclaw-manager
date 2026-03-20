@@ -143,6 +143,33 @@ export function setLogoOverride(color: string) {
   applyThemeFromState()
 }
 
+export function setGlowOpacity(opacity: number) {
+  const clamped = Math.max(0, Math.min(0.25, opacity))
+  mutate(s => {
+    const ov = { ...getOrCreateOverride(s), glowOpacity: clamped }
+    return withOverride(s, ov)
+  })
+  applyThemeFromState()
+}
+
+export function setBorderRadius(radius: number) {
+  const clamped = Math.max(0, Math.min(24, radius))
+  mutate(s => {
+    const ov = { ...getOrCreateOverride(s), borderRadius: clamped }
+    return withOverride(s, ov)
+  })
+  applyThemeFromState()
+}
+
+export function setPanelOpacity(opacity: number) {
+  const clamped = Math.max(0.4, Math.min(1.0, opacity))
+  mutate(s => {
+    const ov = { ...getOrCreateOverride(s), panelOpacity: clamped }
+    return withOverride(s, ov)
+  })
+  applyThemeFromState()
+}
+
 export function setFontOverride(slot: 'body' | 'heading' | 'mono' | 'ui', fontFamily: string) {
   mutate(s => {
     const ov = getOrCreateOverride(s)

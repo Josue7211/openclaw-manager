@@ -35,6 +35,9 @@ export interface UserThemeOverrides {
   fonts?: { body?: string; heading?: string; mono?: string; ui?: string }
   fontScale?: number
   pinned?: boolean
+  glowOpacity?: number    // 0 to 0.25 (controls --glow-opacity)
+  borderRadius?: number   // 0 to 24 (controls --radius-md in px)
+  panelOpacity?: number   // 0.4 to 1.0 (controls glass panel alpha)
 }
 
 export interface ThemeSchedule {

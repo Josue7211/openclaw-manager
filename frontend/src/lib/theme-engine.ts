@@ -11,7 +11,7 @@
 
 import { flushSync } from 'react-dom'
 import { BUILT_IN_THEMES, getThemeById } from './theme-definitions'
-import type { ThemeDefinition, ThemeState } from './theme-definitions'
+import type { ThemeDefinition, ThemeState, UserThemeOverrides } from './theme-definitions'
 import {
   applyAccentColor,
   applyGlowColor,
@@ -239,6 +239,46 @@ export function performRippleTransition(applyFn: () => void, x: number, y: numbe
 }
 
 // ---------------------------------------------------------------------------
+// applyAdvancedOverrides — glow opacity, border radius, panel opacity
+// ---------------------------------------------------------------------------
+
+function parseRgbaAlpha(rgba: string, newAlpha: number): string {
+  const match = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
+  if (!match) return rgba
+  return `rgba(${match[1]}, ${match[2]}, ${match[3]}, ${newAlpha})`
+}
+
+export function applyAdvancedOverrides(
+  overrides: UserThemeOverrides | undefined,
+  def: ThemeDefinition,
+  isLight: boolean,
+): void {
+  const el = document.documentElement
+
+  // Glow opacity
+  const glowOpacity = overrides?.glowOpacity ?? (isLight ? 0.06 : 0.10)
+  el.style.setProperty('--glow-opacity', String(glowOpacity))
+
+  // Border radius — scale proportionally from --radius-sm through --radius-xl
+  if (overrides?.borderRadius != null) {
+    const val = overrides.borderRadius
+    el.style.setProperty('--radius-sm', `${Math.max(0, val - 4)}px`)
+    el.style.setProperty('--radius-md', `${val}px`)
+    el.style.setProperty('--radius-lg', `${val + 4}px`)
+    el.style.setProperty('--radius-xl', `${val + 8}px`)
+  }
+
+  // Panel opacity — replace alpha channel of glass-bg and bg-panel
+  if (overrides?.panelOpacity != null) {
+    const alpha = overrides.panelOpacity
+    const glassBg = def.colors['glass-bg'] ?? 'rgba(18, 18, 24, 0.6)'
+    const bgPanel = def.colors['bg-panel'] ?? 'rgba(18, 18, 22, 0.72)'
+    el.style.setProperty('--glass-bg', parseRgbaAlpha(glassBg, alpha))
+    el.style.setProperty('--bg-panel', parseRgbaAlpha(bgPanel, alpha))
+  }
+}
+
+// ---------------------------------------------------------------------------
 // applyTheme — main orchestrator
 // ---------------------------------------------------------------------------
 
@@ -292,6 +332,8 @@ export function applyTheme(
 
     applyFonts(overrides?.fonts ?? def.fonts, state.globalFontOverride)
     applyFontScale(overrides?.fontScale ?? def.fontScale)
+
+    applyAdvancedOverrides(overrides, def, isLight)
   }
 
   const prefersReducedMotion =
