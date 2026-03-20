@@ -160,6 +160,7 @@ Recent decisions affecting current work:
 ### Roadmap Evolution
 
 - Phase 02.1 inserted after Phase 02: Theme Settings Page Polish + System Mode Fix (URGENT) — System mode doesn't detect GTK dark themes on Hyprland, Settings Display page needs visual reorganization and improved customizability
+- Phase 04.1 inserted after Phase 04: Wallbash GTK System Mode Integration Fix (URGENT) — Wallbash dark↔light switching unreliable, gsettings monitor race conditions, useGtkTheme toggle state issues, crossfade crashes WebKitGTK
 
 ### Pending Todos
 
