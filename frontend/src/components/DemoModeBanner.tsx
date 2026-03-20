@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Warning, CaretDown, CaretUp } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
+import { resetWizard, deactivateDemoMode } from '@/lib/wizard-store'
 
 export function DemoModeBanner() {
   const navigate = useNavigate()
@@ -41,6 +42,33 @@ export function DemoModeBanner() {
           }}
         >
           {expanded ? <CaretUp size={14} /> : <CaretDown size={14} />}
+        </button>
+        <button
+          onClick={() => {
+            deactivateDemoMode()
+            resetWizard()
+            window.location.reload()
+          }}
+          style={{
+            background: 'var(--warning-a20)',
+            border: '1px solid var(--warning-a30)',
+            borderRadius: '6px',
+            padding: '4px 12px',
+            fontSize: '11px',
+            fontWeight: 600,
+            color: 'var(--warning)',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = 'var(--warning-a30)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = 'var(--warning-a20)'
+          }}
+        >
+          Run Setup Wizard
         </button>
         <button
           onClick={() => navigate('/settings?section=connections')}

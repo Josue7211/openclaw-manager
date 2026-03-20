@@ -8,6 +8,8 @@ import {
   STEP_NAMES,
   REQUIRED_STEPS,
 } from '@/lib/wizard-store'
+import { setEnabledModules } from '@/lib/modules'
+import { api } from '@/lib/api'
 import { shouldReduceMotion } from '@/lib/animation-intensity'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { WizardStepDots } from '@/components/wizard/WizardStepDots'
@@ -19,17 +21,14 @@ import { Play, ArrowLeft, ArrowRight } from '@phosphor-icons/react'
 // ---------------------------------------------------------------------------
 
 const WizardWelcome = React.lazy(() => import('@/components/wizard/WizardWelcome'))
-
-// Placeholder for steps not yet built
-function StepPlaceholder({ step }: { step: number }) {
-  return (
-    <div style={{ padding: 24 }}>
-      <p style={{ color: 'var(--text-muted)' }}>
-        Step {step + 1}: {STEP_NAMES[step]} -- coming soon
-      </p>
-    </div>
-  )
-}
+const WizardTailscale = React.lazy(() => import('@/components/wizard/WizardTailscale'))
+const WizardSupabase = React.lazy(() => import('@/components/wizard/WizardSupabase'))
+const WizardOpenClaw = React.lazy(() => import('@/components/wizard/WizardOpenClaw'))
+const WizardMacServices = React.lazy(() => import('@/components/wizard/WizardMacServices'))
+const WizardServerServices = React.lazy(() => import('@/components/wizard/WizardServerServices'))
+const WizardModules = React.lazy(() => import('@/components/wizard/WizardModules'))
+const WizardTheme = React.lazy(() => import('@/components/wizard/WizardTheme'))
+const WizardSummary = React.lazy(() => import('@/components/wizard/WizardSummary'))
 
 // ---------------------------------------------------------------------------
 // Transition state machine
@@ -61,6 +60,7 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
   const [displayedStep, setDisplayedStep] = useState(wizard.currentStep)
   const [direction, setDirection] = useState<'forward' | 'backward'>('forward')
   const [containerHeight, setContainerHeight] = useState<number | undefined>(undefined)
+  const [isCompleting, setIsCompleting] = useState(false)
 
   // Announce step change to screen readers
   const announceRef = useRef<HTMLDivElement>(null)
@@ -129,19 +129,78 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
   }, [wizard.currentStep, animateTransition, transitionPhase])
 
   // ---------------------------------------------------------------------------
+  // Completion flow: save credentials + reload + persist modules
+  // ---------------------------------------------------------------------------
+
+  const handleCompletion = useCallback(async () => {
+    if (isCompleting) return
+    setIsCompleting(true)
+
+    try {
+      // 1. Build credentials map from wizard state (only non-empty values)
+      const credentials: Record<string, string> = {}
+      if (wizard.supabaseUrl) credentials['supabase.url'] = wizard.supabaseUrl
+      if (wizard.supabaseAnonKey) credentials['supabase.anon-key'] = wizard.supabaseAnonKey
+      if (wizard.openclawUrl) credentials['openclaw.api-url'] = wizard.openclawUrl
+      if (wizard.openclawApiKey) credentials['openclaw.api-key'] = wizard.openclawApiKey
+      if (wizard.blueBubblesUrl) credentials['bluebubbles.host'] = wizard.blueBubblesUrl
+      if (wizard.blueBubblesPassword) credentials['bluebubbles.password'] = wizard.blueBubblesPassword
+      if (wizard.macBridgeUrl) credentials['mac-bridge.host'] = wizard.macBridgeUrl
+      if (wizard.macBridgeApiKey) credentials['mac-bridge.api-key'] = wizard.macBridgeApiKey
+      if (wizard.couchdbUrl) credentials['couchdb.url'] = wizard.couchdbUrl
+      if (wizard.couchdbUsername) credentials['couchdb.user'] = wizard.couchdbUsername
+      if (wizard.couchdbPassword) credentials['couchdb.password'] = wizard.couchdbPassword
+
+      // 2. Save credentials to OS keychain via backend
+      if (Object.keys(credentials).length > 0) {
+        await api.post('/api/wizard/save-credentials', { credentials }).catch(() => {
+          // Best effort -- wizard can complete even if save fails
+        })
+      }
+
+      // 3. Reload backend secrets so AppState picks up new values
+      await api.post('/api/wizard/reload-secrets').catch(() => {})
+
+      // 4. Persist module selection
+      setEnabledModules(wizard.enabledModules)
+
+      // 5. Complete wizard (deletes wizard-state, sets setup-complete)
+      completeWizard()
+
+      // 6. Exit animation then navigate
+      if (!shouldReduceMotion()) {
+        const container = containerRef.current
+        if (container) {
+          container.style.transition = 'opacity 0.3s var(--ease-out), transform 0.3s var(--ease-out)'
+          container.style.opacity = '0'
+          container.style.transform = 'scale(0.95)'
+          await new Promise(r => setTimeout(r, 300))
+        }
+      }
+
+      onComplete()
+    } catch {
+      // If anything fails, still complete the wizard
+      completeWizard()
+      onComplete()
+    } finally {
+      setIsCompleting(false)
+    }
+  }, [isCompleting, wizard, containerRef, onComplete])
+
+  // ---------------------------------------------------------------------------
   // Navigation handlers
   // ---------------------------------------------------------------------------
 
   const handleNext = useCallback(() => {
     if (wizard.currentStep >= TOTAL_STEPS) {
-      // At summary step -- launch dashboard
-      completeWizard()
-      onComplete()
+      // At summary step -- trigger completion flow
+      handleCompletion()
       return
     }
     markStepCompleted(wizard.currentStep)
     setWizardStep(wizard.currentStep + 1)
-  }, [wizard.currentStep, onComplete])
+  }, [wizard.currentStep, handleCompletion])
 
   const handleBack = useCallback(() => {
     if (wizard.currentStep > 0) {
@@ -165,6 +224,7 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
   // ---------------------------------------------------------------------------
 
   const isNextDisabled = (() => {
+    if (isCompleting) return true
     const step = wizard.currentStep
     if ((REQUIRED_STEPS as readonly number[]).includes(step)) {
       // Required steps need a passing test result
@@ -200,7 +260,7 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
   const isSummary = wizard.currentStep >= TOTAL_STEPS
   const isOptional = wizard.currentStep === 4 || wizard.currentStep === 5
   const showTryDemo = !isWelcome && !isSummary
-  const showBack = !isWelcome
+  const showBack = !isWelcome && !isSummary
   const showSkip = isOptional
 
   // ---------------------------------------------------------------------------
@@ -215,8 +275,62 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
             <WizardWelcome />
           </Suspense>
         )
+      case 1:
+        return (
+          <Suspense fallback={null}>
+            <WizardTailscale />
+          </Suspense>
+        )
+      case 2:
+        return (
+          <Suspense fallback={null}>
+            <WizardSupabase />
+          </Suspense>
+        )
+      case 3:
+        return (
+          <Suspense fallback={null}>
+            <WizardOpenClaw />
+          </Suspense>
+        )
+      case 4:
+        return (
+          <Suspense fallback={null}>
+            <WizardMacServices />
+          </Suspense>
+        )
+      case 5:
+        return (
+          <Suspense fallback={null}>
+            <WizardServerServices />
+          </Suspense>
+        )
+      case 6:
+        return (
+          <Suspense fallback={null}>
+            <WizardModules />
+          </Suspense>
+        )
+      case 7:
+        return (
+          <Suspense fallback={null}>
+            <WizardTheme />
+          </Suspense>
+        )
+      case 8:
+        return (
+          <Suspense fallback={null}>
+            <WizardSummary
+              onLaunch={handleCompletion}
+              onTour={() => {
+                // Complete wizard first, tour will be triggered after
+                handleCompletion()
+              }}
+            />
+          </Suspense>
+        )
       default:
-        return <StepPlaceholder step={step} />
+        return null
     }
   }
 
@@ -329,8 +443,8 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
         </div>
       </div>
 
-      {/* Navigation buttons */}
-      {!isWelcome && (
+      {/* Navigation buttons -- hidden on welcome (has its own CTA) and summary (has its own buttons) */}
+      {!isWelcome && !isSummary && (
         <div
           style={{
             display: 'flex',
@@ -385,18 +499,8 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
               aria-disabled={isNextDisabled || undefined}
               style={{ display: 'flex', alignItems: 'center', gap: 6 }}
             >
-              {nextLabel} {!isSummary && <ArrowRight size={16} />}
+              {nextLabel} <ArrowRight size={16} />
             </Button>
-            {isSummary && (
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  /* Tour will be implemented in a later plan */
-                }}
-              >
-                Take a Quick Tour
-              </Button>
-            )}
           </div>
         </div>
       )}

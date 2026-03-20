@@ -20,6 +20,7 @@ export default function SettingsConnections() {
   const [connTesting, setConnTesting] = useState(false)
   const [connResults, setConnResults] = useState<Record<string, { status: string; latency_ms?: number; error?: string; peer_hostname?: string; peer_verified?: boolean }> | null>(null)
   const [showSetupWizard, setShowSetupWizard] = useState(false)
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
 
   const saveSecretMutation = useSaveSecret()
 
@@ -279,17 +280,61 @@ export default function SettingsConnections() {
               Re-run the first-time setup wizard to reconfigure all connections
             </div>
           </div>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              resetSetupWizard()
-              setShowSetupWizard(true)
-            }}
-            style={{ fontSize: '12px', padding: '8px 16px' }}
-          >
-            Re-run Setup
-          </Button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                // Re-run walkthrough/tour without resetting setup
+                localStorage.removeItem('tour-progress')
+                // Tour feature will be added in a later plan
+              }}
+              style={{ fontSize: '12px', padding: '8px 16px', color: 'var(--text-secondary)' }}
+            >
+              Re-run Walkthrough
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setShowResetConfirm(true)}
+              style={{ fontSize: '12px', padding: '8px 16px' }}
+            >
+              Re-run Setup
+            </Button>
+          </div>
         </div>
+        {/* Confirmation dialog for re-run setup */}
+        {showResetConfirm && (
+          <div style={{
+            marginTop: '12px',
+            padding: '12px 16px',
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border)',
+            borderRadius: '10px',
+          }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.5 }}>
+              This will restart the setup wizard. Your current services and modules won't change.
+            </p>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <Button
+                variant="ghost"
+                onClick={() => setShowResetConfirm(false)}
+                style={{ fontSize: '12px', padding: '6px 14px' }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setShowResetConfirm(false)
+                  resetSetupWizard()
+                  window.location.reload()
+                }}
+                style={{ fontSize: '12px', padding: '6px 14px' }}
+              >
+                Restart
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
       {showSetupWizard && (
         <OnboardingWelcome forceOpen onClose={() => setShowSetupWizard(false)} />
