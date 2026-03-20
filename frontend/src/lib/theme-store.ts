@@ -10,6 +10,7 @@
 
 import { useSyncExternalStore } from 'react'
 import type { ThemeState, UserThemeOverrides, ThemeDefinition, ThemeSchedule } from './theme-definitions'
+import { COUNTERPART_MAP } from './theme-definitions'
 import { applyTheme } from './theme-engine'
 
 const STORAGE_KEY = 'theme-state'
@@ -88,7 +89,26 @@ export function setActiveTheme(id: string, clickEvent?: { clientX: number; clien
 }
 
 export function setMode(mode: 'dark' | 'light' | 'system') {
-  mutate(s => ({ ...s, mode }))
+  const prevMode = _state.mode
+  const prevThemeId = _state.activeThemeId
+
+  // Auto-switch to counterpart when toggling between dark<->light
+  let newThemeId = prevThemeId
+  if (
+    mode !== 'system' &&
+    prevMode !== 'system' &&
+    prevMode !== mode
+  ) {
+    const counterpart = COUNTERPART_MAP[prevThemeId]
+    if (counterpart) {
+      newThemeId = counterpart
+    } else {
+      // No counterpart -- fall back to default for target mode
+      newThemeId = mode === 'dark' ? 'default-dark' : 'default-light'
+    }
+  }
+
+  mutate(s => ({ ...s, mode, activeThemeId: newThemeId }))
   applyThemeFromState()
 }
 

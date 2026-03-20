@@ -1119,6 +1119,31 @@ export const BUILT_IN_THEMES: readonly ThemeDefinition[] = [
 ] as const
 
 // ---------------------------------------------------------------------------
+// Wallbash / HyDE integration types
+// ---------------------------------------------------------------------------
+
+/** Wallbash color map -- keys are variable names (e.g. "wallbash_pry1"), values are "#RRGGBB" */
+export type WallbashColors = Record<string, string>
+
+// ---------------------------------------------------------------------------
+// Dark <-> Light counterpart mapping
+// ---------------------------------------------------------------------------
+
+/** Bidirectional counterpart mapping for dark<->light mode auto-switch. */
+export const COUNTERPART_MAP: Record<string, string> = {
+  'default-dark': 'default-light',
+  'default-light': 'default-dark',
+  'gruvbox-dark': 'gruvbox-light',
+  'gruvbox-light': 'gruvbox-dark',
+  'catppuccin-mocha': 'catppuccin-latte',
+  'catppuccin-latte': 'catppuccin-mocha',
+  'solarized-dark': 'solarized-light',
+  'solarized-light': 'solarized-dark',
+  'high-contrast-dark': 'high-contrast-light',
+  'high-contrast-light': 'high-contrast-dark',
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
