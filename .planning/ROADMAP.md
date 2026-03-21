@@ -151,11 +151,12 @@ Plans:
   2. Sidebar items display unread badges for modules with new activity, and the Messages conversation list shows per-conversation unread counts
   3. Keyboard shortcuts appear in tooltips and menus throughout the app, and global search returns results across notes, tasks, messages, calendar events, and knowledge entries
   4. Sidebar categories are collapsible (Discord-style) and show activity indicators for sections with unread content
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: TBD
-- [ ] 05-02: TBD
+- [ ] 05-01-PLAN.md -- Navigation state preservation: scroll restoration, page-cache usePageState hook, page transition CSS
+- [ ] 05-02-PLAN.md -- Global search extension (calendar, knowledge, notes) + keyboard shortcut hints in CommandPalette
+- [ ] 05-03-PLAN.md -- Sidebar overhaul: collapsible categories, unread badges, activity indicators, dashboard sub-items
 
 ### Phase 6: Module Primitives Library
 **Goal**: A comprehensive set of tested, themed, widget-compatible UI primitives exists that both users and Bjorn can compose modules from.
@@ -216,7 +217,7 @@ Phases execute in numeric order: 1 -> 2 -> 2.1 -> 3 -> 4 -> 4.1 -> 5 -> 6 -> 7 -
 | 3. Setup Wizard + Onboarding | 0/6 | Planned | - |
 | 4. Dashboard Grid + Widget System | 6/6 | Complete | 2026-03-20 |
 | 4.1. Wallbash GTK System Mode Integration Fix | 1/2 | In Progress | - |
-| 5. Page Experience | 0/2 | Not started | - |
+| 5. Page Experience | 0/3 | Not started | - |
 | 6. Module Primitives Library | 0/3 | Not started | - |
 | 7. Bjorn Module Builder | 0/3 | Not started | - |
 | 8. Data Export | 0/1 | Not started | - |
