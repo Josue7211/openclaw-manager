@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { getCached, setCache } from '../page-cache'
+import { getCached, setCache, clearPageCache } from '../page-cache'
 
 describe('page-cache', () => {
   beforeEach(() => {
@@ -148,5 +148,41 @@ describe('page-cache', () => {
     const key = 'empty-str-' + Math.random()
     setCache(key, '')
     expect(getCached(key)).toBe('')
+  })
+})
+
+describe('clearPageCache', () => {
+  it('removes an existing entry', () => {
+    const key = 'clear-test-' + Math.random()
+    setCache(key, 'to-remove')
+    expect(getCached(key)).toBe('to-remove')
+    clearPageCache(key)
+    expect(getCached(key)).toBeNull()
+  })
+
+  it('does not throw for a non-existent key', () => {
+    expect(() => clearPageCache('no-such-key-' + Math.random())).not.toThrow()
+  })
+
+  it('does not affect other entries', () => {
+    const key1 = 'clear-a-' + Math.random()
+    const key2 = 'clear-b-' + Math.random()
+    setCache(key1, 'alpha')
+    setCache(key2, 'beta')
+    clearPageCache(key1)
+    expect(getCached(key1)).toBeNull()
+    expect(getCached(key2)).toBe('beta')
+  })
+})
+
+describe('usePageState exports', () => {
+  it('exports usePageState function', async () => {
+    const mod = await import('../page-cache')
+    expect(typeof mod.usePageState).toBe('function')
+  })
+
+  it('exports clearPageCache function', async () => {
+    const mod = await import('../page-cache')
+    expect(typeof mod.clearPageCache).toBe('function')
   })
 })
