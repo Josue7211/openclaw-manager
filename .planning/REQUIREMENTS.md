@@ -101,12 +101,12 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 - [x] **PRIM-03**: Bar chart primitive (vertical/horizontal, grouped, stacked)
 - [x] **PRIM-04**: List view primitive (sortable, filterable, paginated)
 - [x] **PRIM-05**: Table primitive (sortable columns, row actions, pagination)
-- [ ] **PRIM-06**: Form primitive (text, number, select, toggle, date — schema-driven)
-- [ ] **PRIM-07**: Kanban board primitive (columns, drag between columns)
+- [x] **PRIM-06**: Form primitive (text, number, select, toggle, date — schema-driven)
+- [x] **PRIM-07**: Kanban board primitive (columns, drag between columns)
 - [x] **PRIM-08**: Progress bar / gauge primitive
 - [x] **PRIM-09**: Markdown display primitive (render markdown content)
-- [ ] **PRIM-10**: Timer / countdown primitive
-- [ ] **PRIM-11**: Image gallery primitive (grid, lightbox on click)
+- [x] **PRIM-10**: Timer / countdown primitive
+- [x] **PRIM-11**: Image gallery primitive (grid, lightbox on click)
 - [x] **PRIM-12**: Each primitive has a documented config schema (JSON)
 - [x] **PRIM-13**: Each primitive is widget-compatible (renders inside dashboard grid)
 - [x] **PRIM-14**: Each primitive handles loading, error, and empty states internally
@@ -120,8 +120,8 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 - [x] **BJORN-05**: User can approve, reject, or request changes to generated module
 - [x] **BJORN-06**: Approved module installs into Widget Registry and appears in dashboard widget picker
 - [x] **BJORN-07**: Hot-reload: approved module appears without app restart
-- [ ] **BJORN-08**: Static analysis gate rejects generated code containing network calls, DOM access, or disallowed APIs
-- [ ] **BJORN-09**: Module sandbox has no access to parent DOM, localStorage, cookies, or Tauri IPC
+- [x] **BJORN-08**: Static analysis gate rejects generated code containing network calls, DOM access, or disallowed APIs
+- [x] **BJORN-09**: Module sandbox has no access to parent DOM, localStorage, cookies, or Tauri IPC
 - [x] **BJORN-10**: Generated module persisted (survives app restart)
 - [x] **BJORN-11**: User can delete/disable generated modules
 - [x] **BJORN-12**: Version history for generated modules (rollback to previous version)
