@@ -28,4 +28,6 @@ export const queryKeys = {
     list: () => ['secrets'] as const,
     detail: (service: string) => ['secrets', service] as const,
   },
+  bjornModules: ['bjorn', 'modules'] as const,
+  bjornVersions: (id: string) => ['bjorn', 'versions', id] as const,
 } as const

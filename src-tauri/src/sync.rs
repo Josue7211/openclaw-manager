@@ -34,6 +34,8 @@ const SYNC_TABLES: &[&str] = &[
     "retrospectives",
     "workflow_notes",
     "cache",
+    "bjorn_modules",
+    "bjorn_module_versions",
 ];
 
 /// Background sync engine that keeps local SQLite in sync with Supabase.
@@ -554,6 +556,7 @@ mod tests {
             "changelog_entries", "decisions", "knowledge_entries",
             "daily_reviews", "weekly_reviews", "retrospectives",
             "workflow_notes", "cache",
+            "bjorn_modules", "bjorn_module_versions",
         ];
         for table in expected {
             assert!(

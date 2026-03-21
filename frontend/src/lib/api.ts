@@ -48,6 +48,11 @@ export function setApiKey(key: string) {
   _apiKey = key
 }
 
+/** Get the current API key for raw fetch calls that bypass the api wrapper. */
+export function getApiKey(): string | undefined {
+  return _apiKey
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (_apiKey) {

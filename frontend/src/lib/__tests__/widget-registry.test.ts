@@ -188,4 +188,27 @@ describe('registerWidget', () => {
     expect(result!.name).toBe('Test Widget')
     expect(result!.tier).toBe('user')
   })
+
+  it('accepts "primitives" as a valid category', () => {
+    const primWidget: WidgetDefinition = {
+      id: 'test-prim-widget',
+      name: 'Primitive Widget',
+      description: 'A primitives category widget',
+      icon: 'Cube',
+      category: 'primitives',
+      tier: 'builtin',
+      defaultSize: { w: 2, h: 2 },
+      component: () => Promise.resolve({ default: (() => null) as unknown as React.ComponentType }),
+    }
+    registerWidget(primWidget)
+    const result = getWidget('test-prim-widget')
+    expect(result).toBeDefined()
+    expect(result!.category).toBe('primitives')
+
+    // Should also appear in getWidgetsByCategory under 'primitives'
+    const categories = getWidgetsByCategory()
+    expect(categories['primitives']).toBeDefined()
+    const primIds = categories['primitives'].map(w => w.id)
+    expect(primIds).toContain('test-prim-widget')
+  })
 })

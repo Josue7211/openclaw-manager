@@ -17,6 +17,7 @@ let setDashboardState: typeof import('../dashboard-store').setDashboardState
 let addWidgetToPage: typeof import('../dashboard-store').addWidgetToPage
 let clearRecycleBin: typeof import('../dashboard-store').clearRecycleBin
 let setWobbleEnabled: typeof import('../dashboard-store').setWobbleEnabled
+let updateWidgetConfig: typeof import('../dashboard-store').updateWidgetConfig
 
 // Mock crypto.randomUUID
 let uuidCounter = 0
@@ -45,6 +46,7 @@ beforeEach(async () => {
   addWidgetToPage = mod.addWidgetToPage
   clearRecycleBin = mod.clearRecycleBin
   setWobbleEnabled = mod.setWobbleEnabled
+  updateWidgetConfig = mod.updateWidgetConfig
 })
 
 describe('getDashboardState', () => {
@@ -302,6 +304,70 @@ describe('setWobbleEnabled', () => {
     expect(getDashboardState().wobbleEnabled).toBe(false)
     setWobbleEnabled(true)
     expect(getDashboardState().wobbleEnabled).toBe(true)
+  })
+})
+
+describe('addWidgetToPage _pluginId', () => {
+  it('stores pluginId in widgetConfigs[instanceId]._pluginId', () => {
+    const state = getDashboardState()
+    const pageId = state.pages[0].id
+    const instanceId = 'prim-stat-card-a1b2c3d4'
+    addWidgetToPage(pageId, 'prim-stat-card', {
+      i: instanceId, x: 0, y: 0, w: 4, h: 2,
+    })
+    const after = getDashboardState()
+    const page = after.pages.find(p => p.id === pageId)
+    expect(page!.widgetConfigs[instanceId]).toBeDefined()
+    expect(page!.widgetConfigs[instanceId]._pluginId).toBe('prim-stat-card')
+  })
+
+  it('preserves existing widgetConfigs when adding _pluginId', () => {
+    const state = getDashboardState()
+    const pageId = state.pages[0].id
+    // Pre-set some config
+    updateWidgetConfig(pageId, 'existing-widget', { title: 'Hello' })
+
+    addWidgetToPage(pageId, 'heartbeat', {
+      i: 'heartbeat', x: 0, y: 0, w: 4, h: 2,
+    })
+    const after = getDashboardState()
+    const page = after.pages.find(p => p.id === pageId)
+    // Existing config should still be there
+    expect(page!.widgetConfigs['existing-widget']?.title).toBe('Hello')
+    // New widget should have _pluginId
+    expect(page!.widgetConfigs['heartbeat']._pluginId).toBe('heartbeat')
+  })
+})
+
+describe('removeWidget _pluginId', () => {
+  it('copies _pluginId from widgetConfigs to RecycleBinItem.pluginId', () => {
+    const state = getDashboardState()
+    const pageId = state.pages[0].id
+    const instanceId = 'prim-stat-card-a1b2c3d4'
+    addWidgetToPage(pageId, 'prim-stat-card', {
+      i: instanceId, x: 0, y: 0, w: 4, h: 2,
+    })
+
+    removeWidget(pageId, instanceId)
+    const after = getDashboardState()
+    expect(after.recycleBin).toHaveLength(1)
+    expect(after.recycleBin[0].widgetId).toBe(instanceId)
+    expect(after.recycleBin[0].pluginId).toBe('prim-stat-card')
+  })
+
+  it('falls back to widgetId when _pluginId is not set', () => {
+    const state = getDashboardState()
+    const pageId = state.pages[0].id
+    // Manually add a layout item without going through addWidgetToPage
+    // (simulates legacy data)
+    updatePageLayouts(pageId, {
+      lg: [{ i: 'legacy-widget', x: 0, y: 0, w: 4, h: 2 }],
+    })
+
+    removeWidget(pageId, 'legacy-widget')
+    const after = getDashboardState()
+    expect(after.recycleBin).toHaveLength(1)
+    expect(after.recycleBin[0].pluginId).toBe('legacy-widget')
   })
 })
 

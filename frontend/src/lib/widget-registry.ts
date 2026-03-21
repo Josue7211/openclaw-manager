@@ -42,7 +42,7 @@ export interface WidgetDefinition {
   name: string
   description: string
   icon: string
-  category: 'monitoring' | 'productivity' | 'ai' | 'media' | 'custom'
+  category: 'monitoring' | 'productivity' | 'ai' | 'media' | 'custom' | 'primitives'
   tier: 'builtin' | 'user' | 'ai'
   defaultSize: { w: number; h: number }
   minSize?: { w: number; h: number }

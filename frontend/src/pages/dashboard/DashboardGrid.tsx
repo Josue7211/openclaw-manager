@@ -143,7 +143,7 @@ export const DashboardGrid = React.memo(function DashboardGrid({
             >
               <WidgetWrapper
                 widgetId={item.i}
-                pluginId={item.i}
+                pluginId={String(page.widgetConfigs[item.i]?._pluginId ?? item.i)}
                 config={page.widgetConfigs[item.i] || {}}
                 isEditMode={editMode}
                 size={{ w: item.w, h: item.h }}

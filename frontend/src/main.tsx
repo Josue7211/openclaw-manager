@@ -11,6 +11,8 @@ import { applyThemeFromState, getThemeState, setUseGtkTheme } from './lib/theme-
 import { setOsDarkPreference, setGtkThemeMapping, setWallbashState, isWallbashActive, wallbashUpdatedRecently } from './lib/theme-engine'
 import type { WallbashColors } from './lib/theme-definitions'
 import { PersonalSkeleton, DashboardSkeleton, MessagesSkeleton, SettingsSkeleton, GenericPageSkeleton } from './components/Skeleton'
+import { registerPrimitives } from './components/primitives/register'
+import { exposePrimitivesAPI, loadBjornModules } from './lib/bjorn-store'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Personal = lazy(() => import('./pages/Personal'))
@@ -250,6 +252,12 @@ if (window.__TAURI_INTERNALS__) {
     })
   })
 }
+
+// Register module primitives into Widget Registry before first render
+registerPrimitives()
+exposePrimitivesAPI()
+// Load Bjorn AI-generated modules from backend (non-blocking)
+loadBjornModules()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

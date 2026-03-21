@@ -300,7 +300,12 @@ export function addWidgetToPage(pageId: string, pluginId: string, layout: Layout
       for (const bp of breakpoints) {
         newLayouts[bp] = [...(newLayouts[bp] || []), layout]
       }
-      return { ...p, layouts: newLayouts }
+      // Store pluginId in widgetConfigs so DashboardGrid can resolve the registry ID
+      const newConfigs = {
+        ...p.widgetConfigs,
+        [layout.i]: { ...p.widgetConfigs[layout.i], _pluginId: pluginId },
+      }
+      return { ...p, layouts: newLayouts, widgetConfigs: newConfigs }
     }),
   }
   _persist()
@@ -326,11 +331,14 @@ export function removeWidget(pageId: string, widgetId: string): void {
     previousPosition = { i: widgetId, x: 0, y: 0, w: 4, h: 2 }
   }
 
+  // Read _pluginId from widgetConfigs (set by addWidgetToPage), fall back to widgetId for built-in singletons
+  const resolvedPluginId = String(page.widgetConfigs[widgetId]?._pluginId ?? widgetId)
+
   const newRecycleBin = [
     ..._cached.recycleBin,
     {
       widgetId,
-      pluginId: widgetId,
+      pluginId: resolvedPluginId,
       removedAt: new Date().toISOString(),
       previousPosition,
       previousPageId: pageId,

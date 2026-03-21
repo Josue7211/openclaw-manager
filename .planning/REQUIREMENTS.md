@@ -96,41 +96,41 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 
 ### Module Primitives
 
-- [ ] **PRIM-01**: Stat card primitive (title, value, trend indicator, sparkline)
-- [ ] **PRIM-02**: Line chart primitive (time series, configurable axes, tooltip)
-- [ ] **PRIM-03**: Bar chart primitive (vertical/horizontal, grouped, stacked)
-- [ ] **PRIM-04**: List view primitive (sortable, filterable, paginated)
-- [ ] **PRIM-05**: Table primitive (sortable columns, row actions, pagination)
+- [x] **PRIM-01**: Stat card primitive (title, value, trend indicator, sparkline)
+- [x] **PRIM-02**: Line chart primitive (time series, configurable axes, tooltip)
+- [x] **PRIM-03**: Bar chart primitive (vertical/horizontal, grouped, stacked)
+- [x] **PRIM-04**: List view primitive (sortable, filterable, paginated)
+- [x] **PRIM-05**: Table primitive (sortable columns, row actions, pagination)
 - [ ] **PRIM-06**: Form primitive (text, number, select, toggle, date — schema-driven)
 - [ ] **PRIM-07**: Kanban board primitive (columns, drag between columns)
-- [ ] **PRIM-08**: Progress bar / gauge primitive
-- [ ] **PRIM-09**: Markdown display primitive (render markdown content)
+- [x] **PRIM-08**: Progress bar / gauge primitive
+- [x] **PRIM-09**: Markdown display primitive (render markdown content)
 - [ ] **PRIM-10**: Timer / countdown primitive
 - [ ] **PRIM-11**: Image gallery primitive (grid, lightbox on click)
-- [ ] **PRIM-12**: Each primitive has a documented config schema (JSON)
-- [ ] **PRIM-13**: Each primitive is widget-compatible (renders inside dashboard grid)
-- [ ] **PRIM-14**: Each primitive handles loading, error, and empty states internally
+- [x] **PRIM-12**: Each primitive has a documented config schema (JSON)
+- [x] **PRIM-13**: Each primitive is widget-compatible (renders inside dashboard grid)
+- [x] **PRIM-14**: Each primitive handles loading, error, and empty states internally
 
 ### Bjorn Module Builder
 
-- [ ] **BJORN-01**: User can describe a module in natural language via chat with Bjorn
-- [ ] **BJORN-02**: Bjorn generates a React component using module primitives
-- [ ] **BJORN-03**: Generated module renders in a sandboxed iframe (srcdoc, sandbox="allow-scripts", no allow-same-origin)
-- [ ] **BJORN-04**: Dev preview panel shows generated module alongside the main app
-- [ ] **BJORN-05**: User can approve, reject, or request changes to generated module
-- [ ] **BJORN-06**: Approved module installs into Widget Registry and appears in dashboard widget picker
-- [ ] **BJORN-07**: Hot-reload: approved module appears without app restart
+- [x] **BJORN-01**: User can describe a module in natural language via chat with Bjorn
+- [x] **BJORN-02**: Bjorn generates a React component using module primitives
+- [x] **BJORN-03**: Generated module renders in a sandboxed iframe (srcdoc, sandbox="allow-scripts", no allow-same-origin)
+- [x] **BJORN-04**: Dev preview panel shows generated module alongside the main app
+- [x] **BJORN-05**: User can approve, reject, or request changes to generated module
+- [x] **BJORN-06**: Approved module installs into Widget Registry and appears in dashboard widget picker
+- [x] **BJORN-07**: Hot-reload: approved module appears without app restart
 - [ ] **BJORN-08**: Static analysis gate rejects generated code containing network calls, DOM access, or disallowed APIs
 - [ ] **BJORN-09**: Module sandbox has no access to parent DOM, localStorage, cookies, or Tauri IPC
-- [ ] **BJORN-10**: Generated module persisted (survives app restart)
-- [ ] **BJORN-11**: User can delete/disable generated modules
-- [ ] **BJORN-12**: Version history for generated modules (rollback to previous version)
+- [x] **BJORN-10**: Generated module persisted (survives app restart)
+- [x] **BJORN-11**: User can delete/disable generated modules
+- [x] **BJORN-12**: Version history for generated modules (rollback to previous version)
 
 ### Data Export
 
-- [ ] **EXPORT-01**: Export all Supabase data as JSON from Settings
-- [ ] **EXPORT-02**: Export SQLite database backup from Settings
-- [ ] **EXPORT-03**: Export notes as markdown files from Settings
+- [x] **EXPORT-01**: Export all Supabase data as JSON from Settings
+- [x] **EXPORT-02**: Export SQLite database backup from Settings
+- [x] **EXPORT-03**: Export notes as markdown files from Settings
 
 ## v2 Requirements
 
@@ -252,35 +252,35 @@ Deferred to post-v1.0 release. Tracked but not in current roadmap.
 | PAGE-05 | Phase 5 | Complete |
 | PAGE-06 | Phase 5 | Complete |
 | PAGE-07 | Phase 5 | Complete |
-| PRIM-01 | Phase 6 | Pending |
-| PRIM-02 | Phase 6 | Pending |
-| PRIM-03 | Phase 6 | Pending |
-| PRIM-04 | Phase 6 | Pending |
-| PRIM-05 | Phase 6 | Pending |
+| PRIM-01 | Phase 6 | Complete |
+| PRIM-02 | Phase 6 | Complete |
+| PRIM-03 | Phase 6 | Complete |
+| PRIM-04 | Phase 6 | Complete |
+| PRIM-05 | Phase 6 | Complete |
 | PRIM-06 | Phase 6 | Pending |
 | PRIM-07 | Phase 6 | Pending |
-| PRIM-08 | Phase 6 | Pending |
-| PRIM-09 | Phase 6 | Pending |
+| PRIM-08 | Phase 6 | Complete |
+| PRIM-09 | Phase 6 | Complete |
 | PRIM-10 | Phase 6 | Pending |
 | PRIM-11 | Phase 6 | Pending |
-| PRIM-12 | Phase 6 | Pending |
-| PRIM-13 | Phase 6 | Pending |
-| PRIM-14 | Phase 6 | Pending |
-| BJORN-01 | Phase 7 | Pending |
-| BJORN-02 | Phase 7 | Pending |
-| BJORN-03 | Phase 7 | Pending |
-| BJORN-04 | Phase 7 | Pending |
-| BJORN-05 | Phase 7 | Pending |
-| BJORN-06 | Phase 7 | Pending |
-| BJORN-07 | Phase 7 | Pending |
+| PRIM-12 | Phase 6 | Complete |
+| PRIM-13 | Phase 6 | Complete |
+| PRIM-14 | Phase 6 | Complete |
+| BJORN-01 | Phase 7 | Complete |
+| BJORN-02 | Phase 7 | Complete |
+| BJORN-03 | Phase 7 | Complete |
+| BJORN-04 | Phase 7 | Complete |
+| BJORN-05 | Phase 7 | Complete |
+| BJORN-06 | Phase 7 | Complete |
+| BJORN-07 | Phase 7 | Complete |
 | BJORN-08 | Phase 7 | Pending |
 | BJORN-09 | Phase 7 | Pending |
-| BJORN-10 | Phase 7 | Pending |
-| BJORN-11 | Phase 7 | Pending |
-| BJORN-12 | Phase 7 | Pending |
-| EXPORT-01 | Phase 8 | Pending |
-| EXPORT-02 | Phase 8 | Pending |
-| EXPORT-03 | Phase 8 | Pending |
+| BJORN-10 | Phase 7 | Complete |
+| BJORN-11 | Phase 7 | Complete |
+| BJORN-12 | Phase 7 | Complete |
+| EXPORT-01 | Phase 8 | Complete |
+| EXPORT-02 | Phase 8 | Complete |
+| EXPORT-03 | Phase 8 | Complete |
 
 **Coverage:**
 - v1 requirements: 79 total

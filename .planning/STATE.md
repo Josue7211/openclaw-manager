@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in-progress
-stopped_at: Completed 05-03-PLAN.md (Phase 05 COMPLETE)
-last_updated: "2026-03-21T01:59:45.213Z"
+status: complete
+stopped_at: Completed 08-02-PLAN.md
+last_updated: "2026-03-21T06:48:53.000Z"
 progress:
   total_phases: 11
-  completed_phases: 8
-  total_plans: 36
-  completed_plans: 36
+  completed_phases: 11
+  total_plans: 52
+  completed_plans: 52
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 05 -- Page Experience
+**Current focus:** Phase 08 — data-export (COMPLETE)
 
 ## Current Position
 
-Phase: 05 (page-experience)
-Plan: 3 of 3 (COMPLETE)
+Phase: 08 (data-export) — COMPLETE
+Plan: 2 of 2 (all complete)
 
 ## Performance Metrics
 
@@ -83,6 +83,17 @@ Plan: 3 of 3 (COMPLETE)
 | Phase 05 P01 | 4 | 2 tasks | 4 files |
 | Phase 05 P02 | 4 | 2 tasks | 4 files |
 | Phase 05 P03 | 5 | 2 tasks | 5 files |
+| Phase 06 P01 | 4 | 2 tasks | 9 files |
+| Phase 06 P02 | 9 | 2 tasks | 7 files |
+| Phase 06 P04 | 14 | 2 tasks | 5 files |
+| Phase 06 P03 | 15 | 2 tasks | 5 files |
+| Phase 07 P03 | 2 | 1 tasks | 2 files |
+| Phase 07 P04 | 2 | 1 tasks | 3 files |
+| Phase 07 P05 | 4min | 2 tasks | 5 files |
+| Phase 07 P06 | 4min | 2 tasks | 3 files |
+| Phase 07 P07 | 3 | 2 tasks | 1 files |
+| Phase 08 P01 | 3 | 2 tasks | 2 files |
+| Phase 08 P02 | 3 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -199,6 +210,31 @@ Recent decisions affecting current work:
 - [Phase 05]: Calendar event fields mapped in Rust (start_time->start, end_time->end, calendar_name->calendar) to match frontend CalendarEvent shape
 - [Phase 05]: Direct localStorage persist for collapsedCategories bypasses undo stack -- collapse is a view preference, not a structural edit
 - [Phase 05]: Dashboard sub-items only render when 2+ pages exist -- single page needs no sub-navigation
+- [Phase 06]: _pluginId stored in widgetConfigs during addWidgetToPage for O(1) registry lookup by DashboardGrid
+- [Phase 06]: resolveColor falls back to var(--accent) for unknown color keys
+- [Phase 06]: PrimitiveErrorFallback is inline display, not Error Boundary -- WidgetWrapper provides PageErrorBoundary
+- [Phase 06]: SVG sparkline uses polyline with normalized y-coordinates and preserveAspectRatio=none for fluid scaling
+- [Phase 06]: ProgressGauge circular variant uses stroke-dasharray/dashoffset with rotate(-90) for 12-o-clock start
+- [Phase 06]: MarkdownDisplay reuses same marked + sanitizeHtml pattern from existing MarkdownBubble.tsx
+- [Phase 06]: ListView uses 2-state sort toggle (asc/desc) while DataTable uses 3-state cycle (asc/desc/unsorted) -- tables need original order return
+- [Phase 06]: Pagination only renders when items exceed pageSize -- no unnecessary UI for small datasets
+- [Phase 06]: Shared iconBtnStyle and titleStyle extracted as const objects for consistency between data display primitives
+- [Phase 06]: Fixed 400x200 SVG viewBox avoids ResizeObserver complexity for chart primitives
+- [Phase 06]: CSS transform tooltip positioning instead of portals -- keeps charts self-contained
+- [Phase 06]: BarChart normalizes single-series data to multi-series internally for uniform rendering logic
+- [Phase 07]: event.source validation for postMessage (not origin) -- srcdoc iframes have opaque null origin
+- [Phase 07]: Blob URL revocation on re-register prevents memory leaks during hot-reload
+- [Phase 07]: wrapAsESModule appends export default BjornWidget as the module contract for blob URL imports
+- [Phase 07]: exposePrimitivesAPI uses lazy import references on window.__bjornAPI for blob module primitive access
+- [Phase 07]: BjornTab uses own message state separate from useChatState for independent Bjorn conversations
+- [Phase 07]: Bjorn system prompt sent as system_prompt field in api.post body to reuse existing /api/chat endpoint
+- [Phase 07]: module_row_to_json helper + fetch_module_row DRYs 4 serialization sites into 1 shared function
+- [Phase 07]: Re-fetch after mutation instead of constructing response from body -- ensures returned data matches DB state
+- [Phase 08]: Duplicated vault_config helper locally in export.rs rather than making vault.rs couch_config pub -- keeps module coupling low
+- [Phase 08]: EXPORT_TABLES includes bjorn_modules and bjorn_module_versions from Phase 7 additions to SYNC_TABLES
+- [Phase 08]: Best-effort per-table error handling -- individual table failures return error objects instead of failing entire export
+- [Phase 08]: Added getApiKey() export to api.ts for raw fetch binary downloads -- API key lives in module closure, not localStorage
+- [Phase 08]: JSON archive format for notes export instead of .zip to avoid adding zip library dependency
 
 ### Roadmap Evolution
 
@@ -217,6 +253,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-21T01:59:33.956Z
-Stopped at: Completed 05-03-PLAN.md (Phase 05 COMPLETE)
+Last session: 2026-03-21T06:48:53Z
+Stopped at: Completed 08-02-PLAN.md (Phase 08 complete)
 Resume file: None

@@ -21,9 +21,10 @@ const CATEGORY_LABELS: Record<string, string> = {
   ai: 'AI',
   media: 'Media',
   custom: 'Custom',
+  primitives: 'Primitives',
 }
 
-const CATEGORY_ORDER = ['monitoring', 'productivity', 'ai', 'media', 'custom']
+const CATEGORY_ORDER = ['monitoring', 'productivity', 'ai', 'media', 'custom', 'primitives']
 
 // ---------------------------------------------------------------------------
 // WidgetPicker

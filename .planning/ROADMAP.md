@@ -187,12 +187,16 @@ Plans:
   2. The sandbox has no access to the parent DOM, localStorage, cookies, Tauri IPC, or network -- and a static analysis gate rejects generated code containing fetch, XMLHttpRequest, WebSocket, document.cookie, window.parent, or other disallowed APIs
   3. User can approve, reject, or request changes to a generated module -- approved modules appear in the dashboard widget picker and load without app restart (hot-reload)
   4. Generated modules persist across app restarts, can be deleted or disabled by the user, and maintain a version history allowing rollback to any previous version
-**Plans**: TBD
+**Plans**: 7 plans
 
 Plans:
-- [ ] 07-01: TBD
-- [ ] 07-02: TBD
-- [ ] 07-03: TBD
+- [x] 07-01-PLAN.md -- Security foundation: shared types, static analysis gate (17-pattern blocklist), sandbox HTML builder with CSP + theme injection
+- [x] 07-02-PLAN.md -- Backend persistence: SQLite + Supabase migrations, Rust CRUD endpoints (list/create/update/delete/toggle/versions/rollback), sync engine wiring
+- [x] 07-03-PLAN.md -- Sandboxed iframe preview: BjornPreview component with sandbox="allow-scripts", postMessage data bridge, static analysis validation
+- [x] 07-04-PLAN.md -- Frontend store: bjorn-store with CRUD operations, blob URL hot-reload into Widget Registry, module lifecycle management
+- [x] 07-05-PLAN.md -- Bjorn chat tab: system prompt with 11 primitive schemas, code extraction, approval bar (approve/reject/edit), Chat page tab integration
+- [x] 07-06-PLAN.md -- Integration: main.tsx startup wiring, Settings Modules Bjorn section (enable/disable/delete/rollback/version history)
+- [ ] 07-07-PLAN.md -- Gap closure: Fix update/toggle/rollback endpoints to return full module JSON + defaultSize deserialization
 
 ### Phase 8: Data Export
 **Goal**: Users have full sovereignty over their data and can extract everything the app stores in standard, portable formats.
@@ -202,10 +206,11 @@ Plans:
   1. User can export all Supabase data as a JSON file from Settings
   2. User can export the local SQLite database as a backup file from Settings
   3. User can export all notes as individual markdown files from Settings
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 08-01: TBD
+- [ ] 08-01-PLAN.md -- Rust export endpoints: /api/export/supabase (JSON), /api/export/sqlite (binary), /api/export/notes (markdown)
+- [ ] 08-02-PLAN.md -- Frontend export UI in Settings Privacy & Data panel with 3 download buttons
 
 ## Progress
 
@@ -223,9 +228,9 @@ Phases execute in numeric order: 1 -> 2 -> 2.1 -> 3 -> 4 -> 4.1 -> 5 -> 6 -> 7 -
 | 4.1. Wallbash GTK System Mode Integration Fix | 2/2 | Complete | 2026-03-20 |
 | 5. Page Experience | 1/3 | In Progress | - |
 | 6. Module Primitives Library | 0/7 | Not started | - |
-| 7. Bjorn Module Builder | 0/3 | Not started | - |
-| 8. Data Export | 0/1 | Not started | - |
+| 7. Bjorn Module Builder | 7/7 | Complete | 2026-03-21 |
+| 8. Data Export | 2/2 | Complete | 2026-03-21 |
 
 ---
 *Roadmap created: 2026-03-19*
-*Last updated: 2026-03-20*
+*Last updated: 2026-03-21*
