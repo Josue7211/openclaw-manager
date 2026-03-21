@@ -154,7 +154,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 05-01-PLAN.md -- Navigation state preservation: scroll restoration, page-cache usePageState hook, page transition CSS
+- [x] 05-01-PLAN.md -- Navigation state preservation: scroll restoration, page-cache usePageState hook, page transition CSS
 - [ ] 05-02-PLAN.md -- Global search extension (calendar, knowledge, notes) + keyboard shortcut hints in CommandPalette
 - [ ] 05-03-PLAN.md -- Sidebar overhaul: collapsible categories, unread badges, activity indicators, dashboard sub-items
 
@@ -216,8 +216,8 @@ Phases execute in numeric order: 1 -> 2 -> 2.1 -> 3 -> 4 -> 4.1 -> 5 -> 6 -> 7 -
 | 2.2. Theme System Mode Fixes | 0/2 | Planned | - |
 | 3. Setup Wizard + Onboarding | 0/6 | Planned | - |
 | 4. Dashboard Grid + Widget System | 6/6 | Complete | 2026-03-20 |
-| 4.1. Wallbash GTK System Mode Integration Fix | 1/2 | In Progress | - |
-| 5. Page Experience | 0/3 | Not started | - |
+| 4.1. Wallbash GTK System Mode Integration Fix | 2/2 | Complete | 2026-03-20 |
+| 5. Page Experience | 1/3 | In Progress | - |
 | 6. Module Primitives Library | 0/3 | Not started | - |
 | 7. Bjorn Module Builder | 0/3 | Not started | - |
 | 8. Data Export | 0/1 | Not started | - |

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-03-21T01:56:10.795Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-03-21T01:58:00.165Z"
 progress:
   total_phases: 11
   completed_phases: 7
   total_plans: 36
-  completed_plans: 34
+  completed_plans: 35
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 05 (page-experience)
-Plan: 1 of 3 (COMPLETE)
+Plan: 2 of 3 (COMPLETE)
 
 ## Performance Metrics
 
@@ -81,6 +81,7 @@ Plan: 1 of 3 (COMPLETE)
 | Phase 04.1 P01 | 5min | 2 tasks | 3 files |
 | Phase 04.1 P02 | 4min | 2 tasks | 3 files |
 | Phase 05 P01 | 4 | 2 tasks | 4 files |
+| Phase 05 P02 | 4 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -193,6 +194,8 @@ Recent decisions affecting current work:
 - [Phase 05]: Manual scroll restoration via module-level Map (BrowserRouter incompatible with ScrollRestoration component)
 - [Phase 05]: usePageState uses in-memory cache (not localStorage) -- form state is ephemeral within a session
 - [Phase 05]: Generation counter pattern for useSyncExternalStore snapshot stability in page-cache
+- [Phase 05]: Notes search uses client-side localStorage cache instead of CouchDB text search for simplicity and instant results
+- [Phase 05]: Calendar event fields mapped in Rust (start_time->start, end_time->end, calendar_name->calendar) to match frontend CalendarEvent shape
 
 ### Roadmap Evolution
 
@@ -211,6 +214,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-21T01:56:10.793Z
-Stopped at: Completed 05-01-PLAN.md
+Last session: 2026-03-21T01:58:00.164Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None

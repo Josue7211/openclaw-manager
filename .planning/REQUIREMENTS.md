@@ -90,8 +90,8 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 - [x] **PAGE-02**: Previous page state preserved when navigating back (scroll position, form state)
 - [ ] **PAGE-03**: Unread badges on sidebar items for modules with new activity
 - [ ] **PAGE-04**: Per-conversation unread badge on Messages conversation list
-- [ ] **PAGE-05**: Keyboard shortcuts displayed in tooltips and menus
-- [ ] **PAGE-06**: Global search extended to query all module backends (notes, tasks, messages, calendar, knowledge)
+- [x] **PAGE-05**: Keyboard shortcuts displayed in tooltips and menus
+- [x] **PAGE-06**: Global search extended to query all module backends (notes, tasks, messages, calendar, knowledge)
 - [ ] **PAGE-07**: Discord-style collapsible categories in sidebar with activity indicators
 
 ### Module Primitives
@@ -249,8 +249,8 @@ Deferred to post-v1.0 release. Tracked but not in current roadmap.
 | PAGE-02 | Phase 5 | Complete |
 | PAGE-03 | Phase 5 | Pending |
 | PAGE-04 | Phase 5 | Pending |
-| PAGE-05 | Phase 5 | Pending |
-| PAGE-06 | Phase 5 | Pending |
+| PAGE-05 | Phase 5 | Complete |
+| PAGE-06 | Phase 5 | Complete |
 | PAGE-07 | Phase 5 | Pending |
 | PRIM-01 | Phase 6 | Pending |
 | PRIM-02 | Phase 6 | Pending |
