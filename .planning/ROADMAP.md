@@ -167,12 +167,16 @@ Plans:
   2. Every primitive can be added to the dashboard grid as a widget, respecting grid cell sizing and responsive breakpoints
   3. Every primitive handles its own loading, error, and empty states internally -- a broken primitive never crashes other widgets or the dashboard
   4. Every primitive respects the active theme (colors, typography, spacing) without any hardcoded visual values
-**Plans**: TBD
+**Plans**: 7 plans
 
 Plans:
-- [ ] 06-01: TBD
-- [ ] 06-02: TBD
-- [ ] 06-03: TBD
+- [ ] 06-01-PLAN.md -- Foundation: fix widget instance ID bug, add primitives category, shared config helpers, register.ts scaffold
+- [ ] 06-02-PLAN.md -- StatCard, ProgressGauge, and MarkdownDisplay primitives (simple pure-render)
+- [ ] 06-03-PLAN.md -- LineChart and BarChart primitives (custom SVG chart components)
+- [ ] 06-04-PLAN.md -- ListView and DataTable primitives (data display with sort/filter/paginate)
+- [ ] 06-05-PLAN.md -- FormWidget and KanbanBoard primitives (interactive components)
+- [ ] 06-06-PLAN.md -- TimerCountdown and ImageGallery primitives (specialized components)
+- [ ] 06-07-PLAN.md -- Integration: wire registerPrimitives into app, cross-cutting test suites (schemas, registration, error handling)
 
 ### Phase 7: Bjorn Module Builder
 **Goal**: Users can describe a module in natural language, see it previewed safely, approve it, and use it on their dashboard -- the differentiating feature that makes the app infinitely extensible.
@@ -218,7 +222,7 @@ Phases execute in numeric order: 1 -> 2 -> 2.1 -> 3 -> 4 -> 4.1 -> 5 -> 6 -> 7 -
 | 4. Dashboard Grid + Widget System | 6/6 | Complete | 2026-03-20 |
 | 4.1. Wallbash GTK System Mode Integration Fix | 2/2 | Complete | 2026-03-20 |
 | 5. Page Experience | 1/3 | In Progress | - |
-| 6. Module Primitives Library | 0/3 | Not started | - |
+| 6. Module Primitives Library | 0/7 | Not started | - |
 | 7. Bjorn Module Builder | 0/3 | Not started | - |
 | 8. Data Export | 0/1 | Not started | - |
 
