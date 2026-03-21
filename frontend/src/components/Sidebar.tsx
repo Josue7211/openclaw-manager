@@ -11,8 +11,11 @@ import { subscribeSidebarSettings, getSidebarHeaderVisible, getSidebarDefaultWid
 import { subscribeModules, getEnabledModules, setEnabledModules } from '@/lib/modules'
 import {
   getSidebarConfig, setSidebarConfig, subscribeSidebarConfig,
+  setCategoryCollapsed,
   moveItem, renameItem, renameCategory, createCustomModule, deleteCustomModule, softDeleteItem,
 } from '@/lib/sidebar-config'
+import { useUnreadCounts, markRead } from '@/lib/unread-store'
+import { getDashboardState, subscribeDashboard, setActivePage } from '@/lib/dashboard-store'
 import { queryKeys } from '@/lib/query-keys'
 import { api } from '@/lib/api'
 import { BUILT_IN_THEMES } from '@/lib/theme-definitions'
@@ -201,6 +204,8 @@ const NavSection = React.memo(function NavSection({
   overrideColors?: Record<string, string>
   /** Accent color for category override indicator */
   categoryOverrideColor?: string
+  /** Map of href -> unread count for badge rendering */
+  unreadCounts?: Record<string, number>
 }) {
   // Typewriter effect — calculate chars that physically fit in available space
   const labelCharWidth = 7 // ~10px uppercase font + letter-spacing
@@ -209,6 +214,8 @@ const NavSection = React.memo(function NavSection({
   const labelText = label.slice(0, labelCharsVisible)
   const labelIsTyping = labelCharsVisible > 0 && labelCharsVisible < label.length
   const chevronOpacity = Math.min(1, Math.max(0, (width - 180) / 40))
+  // Activity indicator for collapsed categories with unread children
+  const hasUnreadChild = !open && items.some(item => (unreadCounts?.[item.href] || 0) > 0)
   // Slide up only during snap (80→64), not while manually resizing
   const labelOpacity = width >= 80 ? 1 : width <= 64 ? 0 : (width - 64) / 16
   const labelHeight = width >= 80 ? 36 : width <= 64 ? 0 : ((width - 64) / 16) * 36
@@ -242,6 +249,18 @@ const NavSection = React.memo(function NavSection({
                   height: 6,
                   borderRadius: '50%',
                   background: categoryOverrideColor,
+                  flexShrink: 0,
+                }}
+              />
+            )}
+            {hasUnreadChild && (
+              <span
+                title="New activity in this category"
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: 'var(--accent)',
                   flexShrink: 0,
                 }}
               />
@@ -337,6 +356,7 @@ const NavSection = React.memo(function NavSection({
                   title={!collapsed && navCharsVisible < itemLabel.length ? itemLabel : undefined}
                   aria-label={collapsed ? itemLabel : undefined}
                   aria-describedby={tooltipId}
+                  onClick={() => { markRead(href); onHoverItem(href) }}
                   onMouseEnter={() => onHoverItem(href)}
                   onContextMenu={categoryId && onItemContextMenu ? (e) => { e.preventDefault(); onItemContextMenu(href, categoryId, e) } : undefined}
                   className="hover-bg sidebar-nav-item"
@@ -368,7 +388,7 @@ const NavSection = React.memo(function NavSection({
                     transition: `color var(--duration-fast)`,
                   }} />
                   {navCharsVisible > 0 && !collapsed && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0 }}>
                       <span>
                         {navText}
                         {navIsTyping && <span className="type-cursor">|</span>}
@@ -385,7 +405,32 @@ const NavSection = React.memo(function NavSection({
                           }}
                         />
                       )}
+                      {(unreadCounts?.[href] || 0) > 0 && (
+                        <span
+                          className="unread-dot"
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            background: 'var(--red-500)',
+                            flexShrink: 0,
+                            marginLeft: 'auto',
+                          }}
+                        />
+                      )}
                     </span>
+                  )}
+                  {/* Collapsed sidebar unread indicator on the icon */}
+                  {(unreadCounts?.[href] || 0) > 0 && collapsed && (
+                    <span style={{
+                      position: 'absolute',
+                      top: 4,
+                      right: 4,
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      background: 'var(--red-500)',
+                    }} />
                   )}
                   {/* Tooltip for collapsed sidebar — positioned to the right of the icon */}
                   {collapsed && (
@@ -945,7 +990,6 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({})
   const [isDragging, setIsDragging] = useState(false)
   const [captureOpen, setCaptureOpen] = useState(false)
 
@@ -975,6 +1019,12 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
   const searchVisible = useSyncExternalStore(subscribeSidebarSettings, getSidebarSearchVisible)
   const enabledModules = useSyncExternalStore(subscribeModules, getEnabledModules)
   const sidebarConfig = useSyncExternalStore(subscribeSidebarConfig, getSidebarConfig)
+
+  // Unread badge counts
+  const unreadCounts = useUnreadCounts()
+
+  // Dashboard state for sub-items
+  const dashboardState = useSyncExternalStore(subscribeDashboard, getDashboardState)
 
   // Theme state for per-page/per-category overrides
   const themeState = useThemeState()
@@ -1032,11 +1082,15 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
     return { show }
   }, [searchVisible, width])
 
+  // Derive collapsed categories from persisted config
+  const collapsedCats = sidebarConfig.collapsedCategories || {}
+
   // Memoize category toggle map — stable callbacks per category id
   const toggleCallbacksRef = useRef<Map<string, () => void>>(new Map())
 
   const toggleCategory = useCallback((id: string) => {
-    setOpenCategories(prev => ({ ...prev, [id]: !(prev[id] ?? true) }))
+    const current = getSidebarConfig().collapsedCategories || {}
+    setCategoryCollapsed(id, !(current[id] ?? false))
   }, [])
 
   // Build stable toggle callbacks — only recreate when categories change
@@ -1532,35 +1586,84 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
                   />
                 </div>
               ) : (
-                <NavSection
-                  label={cat.name}
-                  items={cat.items}
-                  pathname={pathname}
-                  collapsed={collapsed}
-                  textOpacity={textOpacity}
-                  width={width}
-                  open={openCategories[cat.id] ?? true}
-                  onToggle={categoryToggleCallbacks.get(cat.id)!}
-                  onHoverItem={handleHoverItem}
-                  isDragging={isDragging}
-                  delayOffset={categoryDelayOffsets[idx]}
-                  categoryId={cat.id}
-                  onItemContextMenu={handleItemContextMenu}
-                  onCategoryContextMenu={handleCategoryContextMenu}
-                  editingHref={editingHref}
-                  editingValue={editingValue}
-                  onEditingChange={setEditingValue}
-                  onEditingComplete={handleEditComplete}
-                  onEditingCancel={handleEditCancel}
-                  onDragStart={handleSbDragStart}
-                  onDragOver={handleSbDragOver}
-                  onDrop={handleSbDrop}
-                  onDragEnd={handleSbDragEnd}
-                  dragOverIdx={sbDropCat === cat.id ? sbDropIdx : null}
-                  dragHref={sbDragHref}
-                  overrideColors={pageOverrideColors}
-                  categoryOverrideColor={categoryOverrideColors[cat.id]}
-                />
+                <>
+                  <NavSection
+                    label={cat.name}
+                    items={cat.items}
+                    pathname={pathname}
+                    collapsed={collapsed}
+                    textOpacity={textOpacity}
+                    width={width}
+                    open={!(collapsedCats[cat.id] ?? false)}
+                    onToggle={categoryToggleCallbacks.get(cat.id)!}
+                    onHoverItem={handleHoverItem}
+                    isDragging={isDragging}
+                    delayOffset={categoryDelayOffsets[idx]}
+                    categoryId={cat.id}
+                    onItemContextMenu={handleItemContextMenu}
+                    onCategoryContextMenu={handleCategoryContextMenu}
+                    editingHref={editingHref}
+                    editingValue={editingValue}
+                    onEditingChange={setEditingValue}
+                    onEditingComplete={handleEditComplete}
+                    onEditingCancel={handleEditCancel}
+                    onDragStart={handleSbDragStart}
+                    onDragOver={handleSbDragOver}
+                    onDrop={handleSbDrop}
+                    onDragEnd={handleSbDragEnd}
+                    dragOverIdx={sbDropCat === cat.id ? sbDropIdx : null}
+                    dragHref={sbDragHref}
+                    overrideColors={pageOverrideColors}
+                    categoryOverrideColor={categoryOverrideColors[cat.id]}
+                    unreadCounts={unreadCounts}
+                  />
+                  {/* Dashboard page sub-items -- only when category contains /dashboard, multiple pages, expanded sidebar, and category is open */}
+                  {cat.items.some(i => i.href === '/dashboard') &&
+                    dashboardState.pages.length > 1 &&
+                    width > 120 &&
+                    !collapsed &&
+                    !(collapsedCats[cat.id] ?? false) && (
+                    <div style={{ paddingLeft: 28, marginBottom: 4 }}>
+                      {dashboardState.pages.map(page => (
+                        <button
+                          key={page.id}
+                          onClick={() => {
+                            setActivePage(page.id)
+                            if (pathname !== '/dashboard') navigate('/dashboard')
+                          }}
+                          aria-label={`Dashboard page: ${page.name}`}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '3px 12px',
+                            fontSize: '11px',
+                            color: page.id === dashboardState.activePageId ? 'var(--accent)' : 'var(--text-muted)',
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            width: '100%',
+                            borderRadius: 6,
+                            textAlign: 'left',
+                            fontFamily: 'inherit',
+                            fontWeight: page.id === dashboardState.activePageId ? 600 : 400,
+                          }}
+                          className="hover-bg"
+                        >
+                          <span style={{
+                            width: 4,
+                            height: 4,
+                            borderRadius: '50%',
+                            background: page.id === dashboardState.activePageId ? 'var(--accent)' : 'var(--text-muted)',
+                            flexShrink: 0,
+                            opacity: 0.6,
+                          }} />
+                          {page.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </React.Fragment>
           )

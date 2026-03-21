@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in-progress
-stopped_at: Completed 04.1-02-PLAN.md
-last_updated: "2026-03-20T23:54:00.000Z"
+status: unknown
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-03-21T01:56:10.795Z"
 progress:
   total_phases: 11
   completed_phases: 7
-  total_plans: 33
-  completed_plans: 33
+  total_plans: 36
+  completed_plans: 34
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 04.1 -- Wallbash GTK System Mode Integration Fix
+**Current focus:** Phase 05 -- Page Experience
 
 ## Current Position
 
-Phase: 04.1 (wallbash-gtk-system-mode-integration-fix)
-Plan: 2 of 2 (COMPLETE)
+Phase: 05 (page-experience)
+Plan: 1 of 3 (COMPLETE)
 
 ## Performance Metrics
 
@@ -80,6 +80,7 @@ Plan: 2 of 2 (COMPLETE)
 | Phase 04 P06 | 5min | 2 tasks | 3 files |
 | Phase 04.1 P01 | 5min | 2 tasks | 3 files |
 | Phase 04.1 P02 | 4min | 2 tasks | 3 files |
+| Phase 05 P01 | 4 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -189,6 +190,9 @@ Recent decisions affecting current work:
 - [Phase 04.1]: setWallbashState atomic updater with single generation increment for race-free state updates
 - [Phase 04.1]: debouncedApply moved to module level (150ms, was 100ms IIFE-scoped) for cross-scope event handler access
 - [Phase 04.1]: Removed direct setWallbashColors/setWallbashColorScheme from main.tsx event handlers -- only setWallbashState used
+- [Phase 05]: Manual scroll restoration via module-level Map (BrowserRouter incompatible with ScrollRestoration component)
+- [Phase 05]: usePageState uses in-memory cache (not localStorage) -- form state is ephemeral within a session
+- [Phase 05]: Generation counter pattern for useSyncExternalStore snapshot stability in page-cache
 
 ### Roadmap Evolution
 
@@ -207,6 +211,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T23:54:00Z
-Stopped at: Completed 04.1-02-PLAN.md (Phase 04.1 COMPLETE)
+Last session: 2026-03-21T01:56:10.793Z
+Stopped at: Completed 05-01-PLAN.md
 Resume file: None

@@ -86,8 +86,8 @@ Requirements for the publishable v1.0 release. Each maps to roadmap phases.
 
 ### Page Experience
 
-- [ ] **PAGE-01**: Page transitions are seamless — no full-page reload when switching modules
-- [ ] **PAGE-02**: Previous page state preserved when navigating back (scroll position, form state)
+- [x] **PAGE-01**: Page transitions are seamless — no full-page reload when switching modules
+- [x] **PAGE-02**: Previous page state preserved when navigating back (scroll position, form state)
 - [ ] **PAGE-03**: Unread badges on sidebar items for modules with new activity
 - [ ] **PAGE-04**: Per-conversation unread badge on Messages conversation list
 - [ ] **PAGE-05**: Keyboard shortcuts displayed in tooltips and menus
@@ -245,8 +245,8 @@ Deferred to post-v1.0 release. Tracked but not in current roadmap.
 | DASH-09 | Phase 4 | Complete |
 | DASH-10 | Phase 4 | Complete |
 | DASH-11 | Phase 4 | Complete |
-| PAGE-01 | Phase 5 | Pending |
-| PAGE-02 | Phase 5 | Pending |
+| PAGE-01 | Phase 5 | Complete |
+| PAGE-02 | Phase 5 | Complete |
 | PAGE-03 | Phase 5 | Pending |
 | PAGE-04 | Phase 5 | Pending |
 | PAGE-05 | Phase 5 | Pending |
