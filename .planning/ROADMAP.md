@@ -140,7 +140,7 @@ Plans:
 
 Plans:
 - [x] 04.1-01-PLAN.md -- Atomic wallbash state API in theme-engine.ts, Rust watcher debounce fix, gsettings monitor restart
-- [ ] 04.1-02-PLAN.md -- Rewrite main.tsx event handlers, SettingsDisplay toggle fix, integration tests
+- [x] 04.1-02-PLAN.md -- Rewrite main.tsx event handlers, SettingsDisplay toggle fix, integration tests
 
 ### Phase 5: Page Experience
 **Goal**: Navigating between modules feels instant and polished -- state is preserved, activity is visible at a glance, and power users can find anything in seconds.
