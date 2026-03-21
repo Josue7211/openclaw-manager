@@ -25,6 +25,7 @@ export interface SidebarConfig {
   unusedCategories?: SidebarCategory[] // categories moved to Unused
   recycledCategories?: SidebarCategory[] // categories moved to Recycle Bin
   panelTitles?: Record<string, string> // panelId -> custom title
+  collapsedCategories?: Record<string, boolean> // categoryId -> collapsed state
 }
 
 const STORAGE_KEY = 'sidebar-config'
@@ -212,6 +213,30 @@ export function resetSidebarConfig(): void {
 export function subscribeSidebarConfig(fn: () => void): () => void {
   _listeners.add(fn)
   return () => { _listeners.delete(fn) }
+}
+
+/** Get collapsed state for all categories. */
+export function getCollapsedCategories(): Record<string, boolean> {
+  return getSidebarConfig().collapsedCategories || {}
+}
+
+/**
+ * Set collapsed state for a single category.
+ * Uses direct persist (not setSidebarConfig) to avoid polluting the undo stack --
+ * collapse is a view preference, not a structural edit.
+ */
+export function setCategoryCollapsed(categoryId: string, collapsed: boolean): void {
+  const config = getSidebarConfig()
+  const updated = {
+    ...config,
+    collapsedCategories: {
+      ...(config.collapsedCategories || {}),
+      [categoryId]: collapsed,
+    },
+  }
+  _cached = updated
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+  _listeners.forEach(fn => fn())
 }
 
 /** Move an item up or down within its category */

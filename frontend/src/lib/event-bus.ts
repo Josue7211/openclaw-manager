@@ -13,6 +13,7 @@ export type EventType =
   | 'message-read'
   | 'mission-updated'
   | 'todo-changed'
+  | 'pipeline-updated'
   | 'settings-changed'
   | 'connection-status'
 
