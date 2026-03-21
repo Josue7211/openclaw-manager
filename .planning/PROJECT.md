@@ -28,30 +28,25 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 - ✓ Tailscale agent access — v0.0.1
 - ✓ CI release builds (Linux + macOS + Windows) — v0.0.1
 - ✓ Security sweep (score 96/100) — v0.0.1
+- ✓ Responsive layout shell with auto-collapsing sidebar and CSS container queries — v1.0
+- ✓ Visual polish — unified button hierarchy, shared LoadingState/ErrorState/EmptyState, consistent spacing — v1.0
+- ✓ Theming system — 15+ presets, GTK/Wallbash system mode, font customization, share codes, scheduling — v1.0
+- ✓ Setup wizard — 9-step onboarding, demo mode, guided tour, credential validation — v1.0
+- ✓ Dashboard grid — drag-and-drop widgets, Widget Registry, multi-page layouts, undo/redo — v1.0
+- ✓ Page experience — scroll restoration, page state cache, unread badges, collapsible categories — v1.0
+- ✓ 11 composable UI primitives (StatCard, charts, tables, forms, kanban, timer, gallery) — v1.0
+- ✓ Bjorn AI module builder — natural language → sandboxed preview → approve → dashboard with hot-reload — v1.0
+- ✓ Data export — Supabase JSON, SQLite backup, notes markdown from Settings — v1.0
 
 ### Active
 
-- [ ] Setup wizard (onboarding, service connections, first-run experience)
-- [ ] Bjorn module builder (AI-generated modules with dev preview panel + hot reload)
-- [ ] Pre-built module primitives (charts, lists, forms) for Bjorn to compose from
-- [ ] Free-form dashboard grid (drag/resize/swap widgets, snap to grid cells)
-- [ ] Dashboard edit mode (enter/exit, rearrange widgets, add/remove)
-- ✓ Theming system — 17 curated presets (dark/light/colorful/high-contrast), accent/glow/secondary colors — Phase 2
-- ✓ Theming system — CodeMirror CSS variable editor, theme scheduling, per-page overrides — Phase 2
-- ✓ Theme import/export with validation and share codes (lz-string compressed) — Phase 2
-- [ ] Discord-style sidebar (modular categories, collapsible sections, activity indicators)
-- [ ] Seamless page transitions (no reloads, content stays loaded in background)
 - [ ] Notes overhaul — wiki-style [[linking]] with backlinks and graph view
 - [ ] Notes overhaul — rich text WYSIWYG editing (toolbar, inline images, tables, code blocks)
 - [ ] Notes overhaul — full-text search, tags, folders, starred notes
 - [ ] Notes overhaul — collaboration (sharing, permissions, real-time co-editing)
-- [ ] Responsive/adaptive layout (window resizing, multi-monitor, 1080p ↔ 1440p seamless)
-- [ ] Visual consistency across all pages (unified design language)
-- [ ] Loading states, error messages, empty states polish
 - [ ] Finance / budgeting module
 - [ ] Health / fitness module
 - [ ] Bookmarks / read-later module
-- [ ] Unread badges, notification counts per page
 - [ ] Simplified setup for non-technical users (cloud setup path)
 
 ### Out of Scope
@@ -63,13 +58,11 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 
 ## Context
 
-The app is in alpha. Core modules exist and work but need significant polish — visual inconsistency between pages, broken features (note linking doesn't work), poor responsive behavior (window resizing breaks layout, monitor switching isn't seamless), and missing feedback states throughout. Phase 2 (Theming System) is complete — 17 presets, import/export, scheduling, custom CSS, per-page overrides, 1174 tests passing.
+**v1.0 shipped 2026-03-21.** The app is a publishable desktop application with 11 completed phases, 92 requirements satisfied, and full cross-phase integration verified. The codebase is 74,399 LOC TypeScript/React + 25,362 LOC Rust with 2,177 frontend tests and 245 Rust tests passing.
 
-The existing codebase has 1174 frontend tests, 231 Rust tests, and 21 E2E tests. Security score is 96/100. The foundation is solid but the UX needs to catch up.
+The differentiating feature — Bjorn AI module builder — is fully operational: users describe modules in natural language, see them previewed in a sandboxed iframe, approve to dashboard with hot-reload, and manage versions with rollback from Settings. 11 composable primitives provide the building blocks.
 
-Bjorn is an existing AI agent running on the OpenClaw VM. The challenge is bridging Bjorn's code generation into the running Tauri app safely — sandboxed preview, approval flow, then hot reload into production. This is the differentiating feature.
-
-A v0.1.0 setup wizard milestone is already planned (archived at `.planning-v0.1.0-wizard/`) and will be completed as part of this project.
+Next milestone focus areas: notes overhaul (wiki linking, WYSIWYG, search), new domain modules (finance, health, bookmarks), and cloud setup path for non-technical users.
 
 ## Constraints
 
@@ -84,11 +77,13 @@ A v0.1.0 setup wizard milestone is already planned (archived at `.planning-v0.1.
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Bjorn modules sandboxed via dev preview panel | Prevents AI-generated code from crashing production app | — Pending |
-| Free-form grid over slot-based dashboard | More flexibility, matches iOS widget paradigm | — Pending |
-| Layered theming (presets + advanced editor) | Accessible for casual users, powerful for tinkerers | ✓ Validated Phase 2 |
-| Everything in parallel (polish + features + Bjorn) | All workstreams are load-bearing for v1.0 publish | — Pending |
-| Download binary + setup wizard for distribution | Simplest path for users, Docker only for backend services | — Pending |
+| Bjorn modules sandboxed via iframe + CSP + static analysis | Prevents AI-generated code from accessing DOM, network, storage | ✓ Validated v1.0 |
+| Free-form grid over slot-based dashboard | More flexibility, matches iOS widget paradigm | ✓ Validated v1.0 |
+| Layered theming (presets + advanced editor) | Accessible for casual users, powerful for tinkerers | ✓ Validated v1.0 |
+| Everything in parallel (polish + features + Bjorn) | All workstreams are load-bearing for v1.0 publish | ✓ Validated v1.0 |
+| Download binary + setup wizard for distribution | Simplest path for users, Docker only for backend services | ✓ Validated v1.0 |
+| Widget Registry as integration hub | Single pattern for built-in, primitive, and Bjorn widgets | ✓ Validated v1.0 |
+| Soft-delete for all user data | Recycle bin pattern, never hard delete | ✓ Validated v1.0 |
 
 ---
-*Last updated: 2026-03-19 after Phase 2 (Theming System) completion*
+*Last updated: 2026-03-21 after v1.0 milestone completion*
