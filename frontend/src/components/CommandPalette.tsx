@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate as useRouterNavigate, useLocation } from 'react-router-dom'
-import { MagnifyingGlass, Plus, Gear, ArrowRight, NotePencil, CheckSquare, Sun, Moon, BellSlash, Checks, DownloadSimple, ChatText, Target, CalendarDots, Envelope, Bell, BookOpen, SpinnerGap } from '@phosphor-icons/react'
+import { MagnifyingGlass, Plus, Gear, ArrowRight, NotePencil, CheckSquare, Sun, Moon, BellSlash, Checks, DownloadSimple, ChatText, Target, CalendarDots, Envelope, Bell, BookOpen, FileText, SpinnerGap } from '@phosphor-icons/react'
 import { allNavItems } from '@/lib/nav-items'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { getKeybindings, subscribeKeybindings, formatKey } from '@/lib/keybindings'
@@ -177,18 +177,20 @@ export default function CommandPalette({
         const iconMap: Record<string, React.ReactNode> = {
           todos: <CheckSquare size={16} />,
           missions: <Target size={16} />,
-          calendar: <CalendarDots size={16} />,
+          events: <CalendarDots size={16} />,
           emails: <Envelope size={16} />,
           reminders: <Bell size={16} />,
           knowledge: <BookOpen size={16} />,
+          notes: <FileText size={16} />,
         }
         const routeMap: Record<string, string> = {
           todos: '/todos',
           missions: '/missions',
-          calendar: '/calendar',
+          events: '/calendar',
           emails: '/email',
           reminders: '/reminders',
           knowledge: '/knowledge',
+          notes: '/notes',
         }
         for (const [type, items] of Object.entries(data)) {
           if (!Array.isArray(items)) continue

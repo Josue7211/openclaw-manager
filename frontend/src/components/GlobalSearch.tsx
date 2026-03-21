@@ -3,13 +3,41 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { MagnifyingGlass, CheckSquare, Target, CalendarDots, Envelope, Bell, BookOpen, SpinnerGap } from '@phosphor-icons/react'
+import { MagnifyingGlass, CheckSquare, Target, CalendarDots, Envelope, Bell, BookOpen, FileText, SpinnerGap } from '@phosphor-icons/react'
 
 import { api } from '@/lib/api'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
-import type { SearchResults, FlatSearchResult } from '@/lib/types'
+import type { SearchResults, FlatSearchResult, NoteSearchResult } from '@/lib/types'
 
 const LISTBOX_ID = 'gs-results-listbox'
+
+/** Search the local notes metadata cache (mc-notes-meta) for matching paths. */
+function searchLocalNotes(query: string, limit = 10): NoteSearchResult[] {
+  try {
+    const raw = localStorage.getItem('mc-notes-meta')
+    if (!raw) return []
+    const meta = JSON.parse(raw) as Array<{ _id?: string; content?: string }>
+    const q = query.toLowerCase()
+    const matches: NoteSearchResult[] = []
+    for (const note of meta) {
+      if (!note._id) continue
+      const path = note._id
+      const pathMatch = path.toLowerCase().includes(q)
+      const contentSnippet = note.content
+        ? note.content.substring(0, 200).toLowerCase().includes(q)
+          ? note.content.substring(0, 100)
+          : undefined
+        : undefined
+      if (pathMatch || contentSnippet) {
+        matches.push({ id: path, path, snippet: contentSnippet })
+      }
+      if (matches.length >= limit) break
+    }
+    return matches
+  } catch {
+    return []
+  }
+}
 
 function flattenResults(results: SearchResults): FlatSearchResult[] {
   const flat: FlatSearchResult[] = []
@@ -19,6 +47,7 @@ function flattenResults(results: SearchResults): FlatSearchResult[] {
   ;(results.emails || []).forEach(e => flat.push({ id: 'em-' + e.id, label: e.subject, sub: e.from + ' · ' + new Date(e.date).toLocaleDateString(), href: '/email', icon: Envelope }))
   ;(results.reminders || []).forEach(r => flat.push({ id: 'rem-' + r.id, label: r.title, sub: r.list + ' · ' + (r.completed ? 'completed' : (r.dueDate ? new Date(r.dueDate).toLocaleDateString() : 'no due date')), href: '/reminders', icon: Bell }))
   ;(results.knowledge || []).forEach(k => flat.push({ id: 'kn-' + k.id, label: k.title, sub: (k.tags || []).length > 0 ? k.tags.join(', ') : 'no tags', href: '/knowledge', icon: BookOpen }))
+  ;(results.notes || []).forEach(n => flat.push({ id: 'note-' + n.id, label: n.path, sub: n.snippet || 'note', href: '/notes', icon: FileText }))
   return flat
 }
 
@@ -45,9 +74,15 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
     setLoading(true)
     try {
       const data = await api.get<SearchResults>(`/api/search?q=${encodeURIComponent(q)}`)
+      // Merge client-side notes search from localStorage cache
+      const localNotes = searchLocalNotes(q.trim())
+      const backendNotes = data.notes || []
+      data.notes = [...backendNotes, ...localNotes]
       setResults(data)
     } catch {
-      setResults({ todos: [], missions: [], events: [], emails: [], reminders: [], knowledge: [] })
+      // On error, still provide local notes results
+      const localNotes = searchLocalNotes(q.trim())
+      setResults({ todos: [], missions: [], events: [], emails: [], reminders: [], knowledge: [], notes: localNotes })
     } finally {
       setLoading(false)
     }

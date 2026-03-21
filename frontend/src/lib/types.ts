@@ -65,6 +65,12 @@ export interface KnowledgeEntry {
   tags: string[]
 }
 
+export interface NoteSearchResult {
+  id: string
+  path: string
+  snippet?: string
+}
+
 /** Aggregated search results returned by /api/search */
 export interface SearchResults {
   todos: Todo[]
@@ -73,6 +79,7 @@ export interface SearchResults {
   emails: EmailMessage[]
   reminders: Reminder[]
   knowledge: KnowledgeEntry[]
+  notes: NoteSearchResult[]
 }
 
 export interface FlatSearchResult {
