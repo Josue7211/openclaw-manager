@@ -27,6 +27,20 @@ import { startScheduleTimer } from '@/lib/theme-scheduling'
 
 const _isDemo = isDemoMode()
 
+// Module-level scroll position map -- persists across re-renders without causing re-renders.
+// Capped at 50 entries to prevent memory leaks.
+const scrollPositions = new Map<string, number>()
+const MAX_SCROLL_ENTRIES = 50
+
+function saveScrollPosition(pathname: string, scrollTop: number) {
+  scrollPositions.set(pathname, scrollTop)
+  if (scrollPositions.size > MAX_SCROLL_ENTRIES) {
+    // Delete oldest entry (first key in insertion order)
+    const firstKey = scrollPositions.keys().next().value
+    if (firstKey !== undefined) scrollPositions.delete(firstKey)
+  }
+}
+
 export default function LayoutShell() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
@@ -40,6 +54,8 @@ export default function LayoutShell() {
   const [sidebarWidth, setSidebarWidth] = useLocalStorageState('sidebar-width', 260)
   const sidebarDraggingRef = useRef(false)
   const mainRef = useRef<HTMLElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const prevPathnameRef = useRef(pathname)
   const autoCollapsedRef = useRef(false)
   const prevWidthBeforeAutoCollapse = useRef(sidebarWidth)
   const bindings = useSyncExternalStore(subscribeKeybindings, getKeybindings)
@@ -80,6 +96,28 @@ export default function LayoutShell() {
       if (debounceTimer) clearTimeout(debounceTimer)
     }
   }, [sidebarWidth, setSidebarWidth])
+
+  // Scroll restoration: save position on route change, restore on return
+  useEffect(() => {
+    const prev = prevPathnameRef.current
+    if (prev !== pathname) {
+      // Save scroll position for the page we're leaving
+      const container = scrollContainerRef.current
+      if (container) {
+        saveScrollPosition(prev, container.scrollTop)
+      }
+      prevPathnameRef.current = pathname
+
+      // Restore scroll position for the page we're entering
+      requestAnimationFrame(() => {
+        const c = scrollContainerRef.current
+        if (c) {
+          const saved = scrollPositions.get(pathname)
+          c.scrollTop = saved ?? 0
+        }
+      })
+    }
+  }, [pathname])
 
   useEffect(() => {
     const on = () => setOffline(false)
@@ -338,7 +376,7 @@ export default function LayoutShell() {
         containerType: 'inline-size',
         containerName: 'main-content',
       }}>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px', display: 'flex', flexDirection: 'column' }}>
+        <div ref={scrollContainerRef} style={{ flex: 1, overflowY: 'auto', padding: '20px 28px', display: 'flex', flexDirection: 'column' }}>
         {offline && (
           <div role="alert" aria-live="assertive" style={{
             background: 'var(--warning-a12)',
@@ -358,7 +396,7 @@ export default function LayoutShell() {
         )}
         {_isDemo && <DemoModeBanner />}
         <PageErrorBoundary key={pathname}>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', animation: 'pageEnter 0.25s var(--ease-spring) both' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', animation: 'pageEnter 0.15s ease-out both' }}>
             <Outlet />
           </div>
         </PageErrorBoundary>

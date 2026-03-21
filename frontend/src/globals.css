@@ -609,7 +609,7 @@ input, textarea, [contenteditable="true"], code, pre, kbd {
 }
 
 @keyframes pageEnter {
-  from { opacity: 0; transform: translateY(4px); }
+  from { opacity: 0; transform: translateY(2px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
