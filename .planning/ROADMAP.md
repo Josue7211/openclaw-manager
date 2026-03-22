@@ -98,7 +98,9 @@
   1. CI pipeline includes a bundle size check step
   2. Build fails if any single JS chunk exceeds 400KB uncompressed
   3. Build fails if total JS bundle exceeds 5MB uncompressed
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 05-01-PLAN.md — Bundle size check script + CI/pre-commit integration
 
 ### Phase 6: Supabase Migration for Projects
 **Goal**: Database schema ready for the project tracker with proper security and real-time support
