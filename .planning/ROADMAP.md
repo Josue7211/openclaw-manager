@@ -133,7 +133,9 @@ Plans:
   2. Dragging the slider updates the theme in real-time (RAF-throttled)
   3. Blend position persists across app restarts (localStorage + Supabase sync)
   4. System theme mode interaction: switching to "System" resets the slider appropriately
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 08-01-PLAN.md -- setBlendPosition store function + Theme Blend slider UI in SettingsDisplay
 
 ### Phase 9: OpenClaw Gateway Proxy Helper
 **Goal**: Security-critical proxy foundation that all OpenClaw CRUD routes build on
@@ -288,7 +290,7 @@ Plans:
 | 5. Set CI Bundle Budget | v0.0.3 | 1/1 | Complete | 2026-03-22 |
 | 6. Theme Blend -- OKLCH Helpers | v0.0.3 | 1/1 | Complete | 2026-03-22 |
 | 7. Theme Blend -- Interpolation Engine | v0.0.3 | 0/1 | Not started | - |
-| 8. Theme Blend -- Slider UI + Persistence | v0.0.3 | 0/? | Not started | - |
+| 8. Theme Blend -- Slider UI + Persistence | v0.0.3 | 0/1 | Not started | - |
 | 9. OpenClaw Gateway Proxy Helper | v0.0.3 | 0/? | Not started | - |
 | 10. OpenClaw Agent CRUD | v0.0.3 | 0/? | Not started | - |
 | 11. OpenClaw Cron CRUD | v0.0.3 | 0/? | Not started | - |
