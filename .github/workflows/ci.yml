@@ -85,6 +85,9 @@ jobs:
       - name: Build
         run: cd frontend && npx vite build
 
+      - name: Bundle size budget
+        run: bash scripts/check-bundle-size.sh --dist-dir frontend/dist
+
       - name: Print build size
         run: |
           echo "## Build size" >> "$GITHUB_STEP_SUMMARY"

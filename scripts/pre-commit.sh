@@ -184,6 +184,20 @@ if [ "$build_exit" -eq 0 ]; then
   # Extract bundle size info
   bundle_info=$(echo "$build_output" | grep -E 'dist/.*\.js' | tail -1 || echo "")
   pass "$ms" "Vite production build${bundle_info:+ — $bundle_info}"
+
+  # 5b. Bundle size budget check
+  step_start=$(date +%s%N 2>/dev/null || python3 -c 'import time; print(int(time.time()*1e9))')
+
+  budget_output=$(bash "$ROOT/scripts/check-bundle-size.sh" --dist-dir "$FRONTEND/dist" 2>&1) || budget_exit=$?
+  budget_exit=${budget_exit:-0}
+  ms=$(elapsed_ms "$step_start")
+
+  if [ "$budget_exit" -eq 0 ]; then
+    pass "$ms" "Bundle size budget (all chunks < 400KB, total < 5MB)"
+  else
+    fail "$ms" "Bundle size budget"
+    echo "$budget_output" | grep -E "FAIL|Total" | head -10 | while read -r line; do printf "      %s\n" "$line"; done
+  fi
 else
   fail "$ms" "Vite production build"
   echo "$build_output" | grep -iE 'error|failed|cannot find' | head -10 | while read -r line; do printf "      %s\n" "$line"; done
