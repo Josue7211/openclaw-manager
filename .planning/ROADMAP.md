@@ -120,7 +120,9 @@ Plans:
   2. Accent colors (Tier 2) are NOT blended -- they remain as the user chose
   3. Text color switches from light to dark based on background OKLCH lightness (not slider position)
   4. Every text/background pair meets WCAG AA contrast ratio (4.5:1) at every blend position
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 07-01-PLAN.md -- TDD interpolation engine with WCAG contrast enforcement + applyTheme wiring
 
 ### Phase 8: Theme Blend -- Slider UI + Persistence
 **Goal**: User-facing slider that blends between dark and light themes in real-time
@@ -285,7 +287,7 @@ Plans:
 | 4. Verify Widget Picker UX Fixes | v0.0.3 | 0/? | Not started | - |
 | 5. Set CI Bundle Budget | v0.0.3 | 1/1 | Complete | 2026-03-22 |
 | 6. Theme Blend -- OKLCH Helpers | v0.0.3 | 1/1 | Complete | 2026-03-22 |
-| 7. Theme Blend -- Interpolation Engine | v0.0.3 | 0/? | Not started | - |
+| 7. Theme Blend -- Interpolation Engine | v0.0.3 | 0/1 | Not started | - |
 | 8. Theme Blend -- Slider UI + Persistence | v0.0.3 | 0/? | Not started | - |
 | 9. OpenClaw Gateway Proxy Helper | v0.0.3 | 0/? | Not started | - |
 | 10. OpenClaw Agent CRUD | v0.0.3 | 0/? | Not started | - |
