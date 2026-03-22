@@ -2,13 +2,13 @@
 
 ## Milestones
 
-- ✅ **v1.0** -- Publishable release (shipped 2026-03-21) -- [Full details](milestones/v1.0-ROADMAP.md)
-- ✅ **v0.0.2** -- Widget-First Architecture (shipped 2026-03-22)
-- 🚧 **v0.0.3** -- Bug Fixes + OpenClaw Controller + Polish
+- v1.0 -- Publishable release (shipped 2026-03-21) -- [Full details](milestones/v1.0-ROADMAP.md)
+- v0.0.2 -- Widget-First Architecture (shipped 2026-03-22)
+- v0.0.3 -- AI Ops Center + OpenClaw Controller + Polish
 
 ## Phases
 
-### v0.0.3 -- Bug Fixes + OpenClaw Controller + Polish
+### v0.0.3 -- AI Ops Center + OpenClaw Controller + Polish
 
 **Group A: Bug Verification**
 - [ ] **Phase 1: Verify Widget Resize Fix** - Confirm widget resize handles work across all widget types
@@ -16,36 +16,32 @@
 - [ ] **Phase 3: Verify Widget Tab-Switch Fix** - Confirm widgets persist across page/tab navigation
 - [ ] **Phase 4: Verify Widget Picker UX Fixes** - Confirm duplicates, animations, preset feedback, delete dialog
 
-**Group B: Infrastructure Foundations**
-- [ ] **Phase 5: Set CI Bundle Budget** - CI check failing if any chunk >400KB or total >5MB
-- [ ] **Phase 6: Supabase Migration for Projects** - projects, project_columns, project_items tables with RLS + Realtime
-- [ ] **Phase 7: Install TipTap Packages** - TipTap packages installed, Vite chunks configured, build compiles
+**Group B: Infrastructure**
+- [x] **Phase 5: Set CI Bundle Budget** - CI check failing if any chunk >400KB or total >5MB *(completed 2026-03-22)*
 
-**Group C: Low-Risk Independent Features**
-- [ ] **Phase 8: Theme Blend -- OKLCH Helpers** - Color interpolation utilities with unit tests
-- [ ] **Phase 9: Theme Blend -- Interpolation Engine** - Working theme interpolation with WCAG contrast enforcement
-- [ ] **Phase 10: Theme Blend -- Slider UI + Persistence** - User-facing slider that blends dark/light themes in real-time
-- [ ] **Phase 11: OpenClaw Gateway Proxy Helper** - Reusable proxy function with credential protection and error sanitization
-- [ ] **Phase 12: OpenClaw Agent CRUD** - Agent create/update/delete + lifecycle controls (start/stop/restart)
-- [ ] **Phase 13: OpenClaw Cron CRUD** - Cron create/update/delete + human-readable schedule UI
-- [ ] **Phase 14: OpenClaw Usage + Models + Controller Page** - Usage dashboard, model listing, tool registry, unified page shell
-- [ ] **Phase 15: Project Tracker Backend + API** - Axum routes for project CRUD (boards, columns, items, drag reorder)
-- [ ] **Phase 16: Project Tracker Frontend + Kanban Board** - Drag-and-drop kanban page with card detail panel + Realtime sync
+**Group C: Theme Blend**
+- [ ] **Phase 6: Theme Blend -- OKLCH Helpers** - Color interpolation utilities with unit tests
+- [ ] **Phase 7: Theme Blend -- Interpolation Engine** - Working theme interpolation with WCAG contrast enforcement
+- [ ] **Phase 8: Theme Blend -- Slider UI + Persistence** - User-facing slider that blends dark/light themes in real-time
 
-**Group D: High-Complexity Features (TipTap Editor)**
-- [ ] **Phase 17: TipTap Markdown Roundtrip Test Suite** - Safety gate: validate roundtrip fidelity before any editor code
-- [ ] **Phase 18: TipTap Custom Extensions (Wikilinks + Image Embeds)** - Custom nodes with markdown serialization
-- [ ] **Phase 19: TipTap Editor Migration** - Rewrite NoteEditor.tsx and EditorToolbar.tsx with all features preserved
-- [ ] **Phase 20: TipTap Polish (Slash Commands + Floating Toolbar + Tables)** - Google Docs-level editing experience
-- [ ] **Phase 21: Remove CodeMirror Packages** - Clean bundle, no dual-editor overhead
+**Group D: OpenClaw Controller**
+- [ ] **Phase 9: OpenClaw Gateway Proxy Helper** - Reusable proxy function with credential protection and error sanitization
+- [ ] **Phase 10: OpenClaw Agent CRUD** - Agent create/update/delete + lifecycle controls (start/stop/restart)
+- [ ] **Phase 11: OpenClaw Cron CRUD** - Cron create/update/delete + human-readable schedule UI
+- [ ] **Phase 12: OpenClaw Usage + Models + Controller Page** - Usage dashboard, model listing, tool registry, unified page shell
 
-**Group E: Terminal (Highest Risk)**
-- [ ] **Phase 22: Terminal PTY Backend** - portable-pty + WebSocket relay + process group cleanup
-- [ ] **Phase 23: Terminal Frontend (xterm.js)** - Terminal component with resize, copy/paste, scrollback, theme integration
+**Group E: Terminal**
+- [ ] **Phase 13: Terminal PTY Backend** - portable-pty + WebSocket relay + process group cleanup
+- [ ] **Phase 14: Terminal Frontend (xterm.js)** - Terminal component with resize, copy/paste, scrollback, theme integration
 
-**Group F: Integration + Polish**
-- [ ] **Phase 24: Widget Registry + Sidebar Module Integration** - Register all new features as widgets and sidebar modules
-- [ ] **Phase 25: Final Verification + Bundle Audit** - End-to-end verification, bundle audit, contrast check, integration test
+**Group F: AI Ops Center**
+- [ ] **Phase 15: Claude Code Session Backend** - Rust backend for spawning/managing Claude Code sessions via SDK/CLI
+- [ ] **Phase 16: Session Monitor Frontend** - Live dashboard showing active sessions, their status, output, and controls
+- [ ] **Phase 17: Remote VM Viewer** - Embedded noVNC/Moonlight for watching the OpenClaw VM desktop
+
+**Group G: Integration + Polish**
+- [ ] **Phase 18: Widget Registry + Sidebar Module Integration** - Register all new features as widgets and sidebar modules
+- [ ] **Phase 19: Final Verification + Bundle Audit** - End-to-end verification, bundle audit, contrast check, integration test
 
 ## Phase Details
 
@@ -100,31 +96,9 @@
   3. Build fails if total JS bundle exceeds 5MB uncompressed
 **Plans:** 1 plan
 Plans:
-- [ ] 05-01-PLAN.md — Bundle size check script + CI/pre-commit integration
+- [x] 05-01-PLAN.md -- Bundle size check script + CI/pre-commit integration
 
-### Phase 6: Supabase Migration for Projects
-**Goal**: Database schema ready for the project tracker with proper security and real-time support
-**Depends on**: Nothing (parallel with Group A)
-**Requirements**: MH-12
-**Success Criteria** (what must be TRUE):
-  1. `projects`, `project_columns`, `project_items` tables exist with correct schema
-  2. RLS policies enforce user isolation (user can only see their own projects)
-  3. Realtime publication enabled for project_items
-  4. Indexes on foreign keys and position columns for sort performance
-**Plans**: TBD
-
-### Phase 7: Install TipTap Packages
-**Goal**: TipTap packages installed and build compiles with both TipTap and CodeMirror present
-**Depends on**: Nothing (parallel with Group A)
-**Requirements**: SH-04
-**Success Criteria** (what must be TRUE):
-  1. All 22 TipTap packages installed successfully
-  2. `npm run build` succeeds with no errors
-  3. TipTap packages are in their own Vite manual chunk
-  4. CodeMirror packages are NOT removed yet
-**Plans**: TBD
-
-### Phase 8: Theme Blend -- OKLCH Helpers
+### Phase 6: Theme Blend -- OKLCH Helpers
 **Goal**: Pure color interpolation utility functions ready for the theme blend engine
 **Depends on**: Nothing (parallel with other Group C phases)
 **Requirements**: MH-09
@@ -134,11 +108,12 @@ Plans:
   3. `interpolateHexOklch()` blends two hex colors in OKLCH space
   4. Round-trip hex -> OKLCH -> hex produces the same color (within 1 unit tolerance)
   5. Unit tests cover edge cases (black, white, pure colors, transparent)
-**Plans**: TBD
+Plans:
+- [ ] 06-01-PLAN.md -- OKLCH color utilities with TDD
 
-### Phase 9: Theme Blend -- Interpolation Engine
+### Phase 7: Theme Blend -- Interpolation Engine
 **Goal**: Working theme interpolation with automatic text color switching and WCAG contrast enforcement
-**Depends on**: Phase 8
+**Depends on**: Phase 6
 **Requirements**: MH-10
 **Success Criteria** (what must be TRUE):
   1. `interpolateThemes()` blends all Tier 1 CSS variables between dark and light theme values
@@ -147,9 +122,9 @@ Plans:
   4. Every text/background pair meets WCAG AA contrast ratio (4.5:1) at every blend position
 **Plans**: TBD
 
-### Phase 10: Theme Blend -- Slider UI + Persistence
+### Phase 8: Theme Blend -- Slider UI + Persistence
 **Goal**: User-facing slider that blends between dark and light themes in real-time
-**Depends on**: Phase 9
+**Depends on**: Phase 7
 **Requirements**: MH-11
 **Success Criteria** (what must be TRUE):
   1. Slider appears in Settings > Display with 0% (dark) to 100% (light) range
@@ -158,9 +133,9 @@ Plans:
   4. System theme mode interaction: switching to "System" resets the slider appropriately
 **Plans**: TBD
 
-### Phase 11: OpenClaw Gateway Proxy Helper
+### Phase 9: OpenClaw Gateway Proxy Helper
 **Goal**: Security-critical proxy foundation that all OpenClaw CRUD routes build on
-**Depends on**: Nothing (parallel with other Group C phases)
+**Depends on**: Nothing (parallel with other Group D phases)
 **Requirements**: MH-05
 **Success Criteria** (what must be TRUE):
   1. `gateway_forward()` function proxies requests to OPENCLAW_API_URL with API key
@@ -169,9 +144,9 @@ Plans:
   4. Returns "OpenClaw API not configured" when OPENCLAW_API_URL is not set
 **Plans**: TBD
 
-### Phase 12: OpenClaw Agent CRUD
+### Phase 10: OpenClaw Agent CRUD
 **Goal**: Full agent management from the OpenClaw Controller page
-**Depends on**: Phase 11
+**Depends on**: Phase 9
 **Requirements**: MH-06
 **Success Criteria** (what must be TRUE):
   1. User can create a new agent with name, model, and role
@@ -181,9 +156,9 @@ Plans:
   5. UI updates optimistically with rollback on error
 **Plans**: TBD
 
-### Phase 13: OpenClaw Cron CRUD
+### Phase 11: OpenClaw Cron CRUD
 **Goal**: Full cron job management with human-readable schedule editing
-**Depends on**: Phase 11
+**Depends on**: Phase 9
 **Requirements**: MH-07
 **Success Criteria** (what must be TRUE):
   1. User can create a cron job with a schedule picked from a UI (not raw crontab)
@@ -193,9 +168,9 @@ Plans:
   5. Duplicate crons prevented on retry (PUT with deterministic IDs)
 **Plans**: TBD
 
-### Phase 14: OpenClaw Usage + Models + Controller Page
+### Phase 12: OpenClaw Usage + Models + Controller Page
 **Goal**: Unified OpenClaw page with tabs for all management features plus read-only dashboards
-**Depends on**: Phases 12, 13
+**Depends on**: Phases 10, 11
 **Requirements**: MH-08, SH-01
 **Success Criteria** (what must be TRUE):
   1. OpenClawPage.tsx has tab navigation: Agents, Crons, Usage, Models, Tools
@@ -205,88 +180,7 @@ Plans:
   5. Page polls at 30s minimum, only when the page is active
 **Plans**: TBD
 
-### Phase 15: Project Tracker Backend + API
-**Goal**: Complete backend API for project management following existing CRUD patterns
-**Depends on**: Phase 6
-**Requirements**: MH-13
-**Success Criteria** (what must be TRUE):
-  1. `/api/projects` CRUD endpoints work for boards, columns, and items
-  2. Drag reorder updates `position` column correctly
-  3. Cascade delete works (deleting a board removes its columns and items)
-  4. All endpoints use RequireAuth and validate inputs
-**Plans**: TBD
-
-### Phase 16: Project Tracker Frontend + Kanban Board
-**Goal**: Full kanban board page with drag-and-drop and Supabase Realtime sync
-**Depends on**: Phase 15
-**Requirements**: MH-14
-**Success Criteria** (what must be TRUE):
-  1. User can create a project board and add named columns
-  2. User can create cards with title, description, labels, and due date
-  3. User can drag cards between columns (HTML5 DnD, no new library)
-  4. Card detail panel opens on click with full editing
-  5. Changes sync in real-time via Supabase Realtime
-**Plans**: TBD
-
-### Phase 17: TipTap Markdown Roundtrip Test Suite
-**Goal**: Safety gate ensuring TipTap does not silently drop or corrupt note content
-**Depends on**: Phase 7
-**Requirements**: MH-15
-**Research**: YES -- TipTap markdown extension is "early release"; edge cases undocumented
-**Success Criteria** (what must be TRUE):
-  1. Test suite loads 20+ representative notes through TipTap parse/serialize
-  2. All standard markdown constructs (headings, lists, code, links, images) roundtrip perfectly
-  3. Obsidian-specific constructs (frontmatter, callouts) are documented: either handled by passthrough nodes or explicitly deferred
-  4. Any content-losing diff is treated as a test failure
-**Plans**: TBD
-
-### Phase 18: TipTap Custom Extensions (Wikilinks + Image Embeds)
-**Goal**: Custom TipTap nodes that handle Obsidian-specific markdown syntax with perfect roundtrip
-**Depends on**: Phase 17
-**Requirements**: MH-16
-**Success Criteria** (what must be TRUE):
-  1. `[[target]]` and `[[target|display]]` render as clickable inline chips
-  2. `![[image.png]]` renders as an inline image via vault media proxy
-  3. Both serialize back to their original markdown syntax on save
-  4. Wikilink autocomplete triggers on `[[` and shows matching note titles
-**Plans**: TBD
-
-### Phase 19: TipTap Editor Migration
-**Goal**: WYSIWYG editor replaces CodeMirror with all existing features preserved
-**Depends on**: Phases 17, 18
-**Requirements**: MH-17
-**Success Criteria** (what must be TRUE):
-  1. User opens a note and sees WYSIWYG rendering (bold is bold, headings are large)
-  2. All toolbar buttons work (bold, italic, strike, code, lists, headings, links, blockquote, code blocks)
-  3. Keyboard shortcuts work (Cmd+B, Cmd+I, Cmd+K, Cmd+Shift+S)
-  4. Wikilink autocomplete works on `[[` trigger
-  5. Image embeds render inline and survive save/reload
-  6. Backlinks panel still resolves correctly
-**Plans**: TBD
-
-### Phase 20: TipTap Polish (Slash Commands + Floating Toolbar + Tables)
-**Goal**: Google Docs-level editing experience with advanced features
-**Depends on**: Phase 19
-**Requirements**: MH-18, SH-02, SH-03
-**Success Criteria** (what must be TRUE):
-  1. Selecting text shows a floating BubbleMenu with formatting options
-  2. Typing `/` shows a command palette of block types (heading, table, code, task list)
-  3. User can insert a table and add/remove rows and columns
-  4. Note templates available on note creation (meeting notes, daily journal, retro)
-**Plans**: TBD
-
-### Phase 21: Remove CodeMirror Packages
-**Goal**: Clean bundle with no dual-editor overhead
-**Depends on**: Phase 19 (verified working)
-**Requirements**: MH-19
-**Success Criteria** (what must be TRUE):
-  1. All 11 CodeMirror/@lezer packages removed from package.json
-  2. `npm ls @codemirror` returns empty
-  3. No CodeMirror imports remain in source code
-  4. Bundle size decreases measurably
-**Plans**: TBD
-
-### Phase 22: Terminal PTY Backend
+### Phase 13: Terminal PTY Backend
 **Goal**: Secure PTY spawning with WebSocket relay and robust process lifecycle management
 **Depends on**: Nothing (can start after Group A)
 **Requirements**: MH-21
@@ -299,9 +193,9 @@ Plans:
   5. Correct shell detected per platform (bash/zsh on Linux/macOS, PowerShell on Windows)
 **Plans**: TBD
 
-### Phase 23: Terminal Frontend (xterm.js)
+### Phase 14: Terminal Frontend (xterm.js)
 **Goal**: Working terminal component integrated with the app's theme and widget system
-**Depends on**: Phase 22
+**Depends on**: Phase 13
 **Requirements**: MH-22
 **Success Criteria** (what must be TRUE):
   1. Terminal renders in a widget with full ANSI color support
@@ -311,19 +205,62 @@ Plans:
   5. Terminal font uses the app's monospace CSS variable
 **Plans**: TBD
 
-### Phase 24: Widget Registry + Sidebar Module Integration
+### Phase 15: Claude Code Session Backend
+**Goal**: Rust backend for spawning and managing Claude Code sessions with real-time output streaming
+**Depends on**: Phase 13 (reuses WebSocket relay pattern from terminal)
+**Requirements**: MH-25
+**Research**: YES -- Claude Code SDK/CLI spawning, session lifecycle, output parsing
+**Success Criteria** (what must be TRUE):
+  1. `/api/claude-sessions` REST endpoints for CRUD (create, list, get, kill)
+  2. `/api/claude-sessions/:id/ws` WebSocket endpoint streams session output in real-time
+  3. Sessions spawn `claude` CLI as child processes with isolated working directories
+  4. Max 5 concurrent sessions enforced via CAS guard
+  5. Session metadata persisted (task description, start time, status, working directory)
+  6. Environment sanitized: no `MC_*` secrets leak to spawned Claude processes
+  7. Graceful shutdown kills all active sessions on app close
+**Plans**: TBD
+
+### Phase 16: Session Monitor Frontend
+**Goal**: Live dashboard showing all active Claude Code sessions with real-time status and output
+**Depends on**: Phase 15
+**Requirements**: MH-26
+**Success Criteria** (what must be TRUE):
+  1. Sessions page shows all active/recent Claude Code sessions in a list/grid
+  2. Each session card shows: task description, status (running/paused/completed/failed), duration, model
+  3. Clicking a session opens a live terminal-style output viewer (reuses xterm.js from Phase 14)
+  4. User can spawn a new session with a task prompt and optional working directory
+  5. User can pause, resume, or kill a running session
+  6. Session list auto-updates via WebSocket (no polling)
+**Plans**: TBD
+
+### Phase 17: Remote VM Viewer
+**Goal**: Embedded remote desktop viewer for watching the OpenClaw VM directly in the app
+**Depends on**: Nothing (parallel with Group F)
+**Requirements**: MH-27
+**Research**: YES -- noVNC WebSocket proxy, Moonlight/Sunshine protocol, Tailscale connectivity
+**Success Criteria** (what must be TRUE):
+  1. VNC viewer component renders the OpenClaw VM desktop in an app panel/widget
+  2. Connects via Tailscale IP to a VNC server (TigerVNC/x11vnc) on the VM
+  3. WebSocket proxy in Axum relays VNC traffic (no direct browser-to-VM connection)
+  4. Viewer supports: mouse input, keyboard input, clipboard sync, scaling
+  5. Connection status indicator shows connected/disconnected/reconnecting
+  6. Optional Moonlight/Sunshine integration for low-latency GPU-accelerated streaming
+**Plans**: TBD
+
+### Phase 18: Widget Registry + Sidebar Module Integration
 **Goal**: All new features accessible from sidebar navigation and widget picker
-**Depends on**: Phases 14, 16, 23
+**Depends on**: Phases 12, 14, 16, 17
 **Requirements**: MH-23
 **Success Criteria** (what must be TRUE):
   1. Terminal widget appears in Widget Picker under a "Developer" category
-  2. Kanban/Project Board widget appears in Widget Picker under "Productivity"
-  3. OpenClaw page accessible from sidebar with `requiresConfig` warning when unconfigured
-  4. Projects page accessible from sidebar
-  5. All new widgets are lazy-loaded via React.lazy
+  2. Session Monitor widget appears in Widget Picker under "AI Ops"
+  3. VNC Viewer widget appears in Widget Picker under "AI Ops"
+  4. OpenClaw page accessible from sidebar with `requiresConfig` warning when unconfigured
+  5. Sessions page accessible from sidebar
+  6. All new widgets are lazy-loaded via React.lazy
 **Plans**: TBD
 
-### Phase 25: Final Verification + Bundle Audit
+### Phase 19: Final Verification + Bundle Audit
 **Goal**: Verified v0.0.3 release candidate with no regressions
 **Depends on**: All previous phases
 **Requirements**: MH-24
@@ -332,11 +269,53 @@ Plans:
   2. Bundle stays under 5MB (CI budget passes)
   3. Theme slider produces readable text at every position (automated WCAG check)
   4. No regressions in existing tests (frontend + Rust + E2E)
-  5. CodeMirror fully removed, TipTap is the only editor
+  5. Claude Code session management works end-to-end
+  6. VNC viewer connects and renders the VM desktop
 **Plans**: TBD
 
+## Progress
+
+**Execution Order:** Phases within a group can run in parallel. Groups execute in order: A -> B -> C -> D -> E -> F -> G.
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. Verify Widget Resize Fix | v0.0.3 | 0/? | Not started | - |
+| 2. Verify Page Layout Fix | v0.0.3 | 0/? | Not started | - |
+| 3. Verify Widget Tab-Switch Fix | v0.0.3 | 0/? | Not started | - |
+| 4. Verify Widget Picker UX Fixes | v0.0.3 | 0/? | Not started | - |
+| 5. Set CI Bundle Budget | v0.0.3 | 1/1 | Complete | 2026-03-22 |
+| 6. Theme Blend -- OKLCH Helpers | v0.0.3 | 0/1 | Planned | - |
+| 7. Theme Blend -- Interpolation Engine | v0.0.3 | 0/? | Not started | - |
+| 8. Theme Blend -- Slider UI + Persistence | v0.0.3 | 0/? | Not started | - |
+| 9. OpenClaw Gateway Proxy Helper | v0.0.3 | 0/? | Not started | - |
+| 10. OpenClaw Agent CRUD | v0.0.3 | 0/? | Not started | - |
+| 11. OpenClaw Cron CRUD | v0.0.3 | 0/? | Not started | - |
+| 12. OpenClaw Usage + Models + Controller Page | v0.0.3 | 0/? | Not started | - |
+| 13. Terminal PTY Backend | v0.0.3 | 0/? | Not started | - |
+| 14. Terminal Frontend (xterm.js) | v0.0.3 | 0/? | Not started | - |
+| 15. Claude Code Session Backend | v0.0.3 | 0/? | Not started | - |
+| 16. Session Monitor Frontend | v0.0.3 | 0/? | Not started | - |
+| 17. Remote VM Viewer | v0.0.3 | 0/? | Not started | - |
+| 18. Widget Registry + Sidebar Integration | v0.0.3 | 0/? | Not started | - |
+| 19. Final Verification + Bundle Audit | v0.0.3 | 0/? | Not started | - |
+
 <details>
-<summary>✅ v0.0.2 -- Widget-First Architecture (7 phases) -- SHIPPED 2026-03-22</summary>
+<summary>Deferred from v0.0.3 to v0.0.4</summary>
+
+- Supabase Migration for Projects (was Phase 6)
+- Install TipTap Packages (was Phase 7)
+- Project Tracker Backend + API (was Phase 15)
+- Project Tracker Frontend + Kanban Board (was Phase 16)
+- TipTap Markdown Roundtrip Test Suite (was Phase 17)
+- TipTap Custom Extensions (Wikilinks + Image Embeds) (was Phase 18)
+- TipTap Editor Migration (was Phase 19)
+- TipTap Polish (Slash Commands + Floating Toolbar + Tables) (was Phase 20)
+- Remove CodeMirror Packages (was Phase 21)
+
+</details>
+
+<details>
+<summary>v0.0.2 -- Widget-First Architecture (7 phases) -- SHIPPED 2026-03-22</summary>
 
 - [x] Phase 1: Fix Widget Bugs + Decouple Existing Cards (MH-01 through MH-04)
 - [x] Phase 2: Convert Tier 1 Modules to Widgets (MH-05, MH-11, MH-14, MH-15)
@@ -351,7 +330,7 @@ Plans:
 </details>
 
 <details>
-<summary>✅ v1.0 (Phases 1-8 + 3 decimal insertions) -- SHIPPED 2026-03-21</summary>
+<summary>v1.0 (Phases 1-8 + 3 decimal insertions) -- SHIPPED 2026-03-21</summary>
 
 - [x] Phase 1: Responsive Layout Shell + Visual Polish (5/5 plans)
 - [x] Phase 2: Theming System (7/7 plans)
@@ -368,38 +347,6 @@ Plans:
 **Total:** 11 phases, 52 plans, 92 requirements -- all complete
 
 </details>
-
-## Progress
-
-**Execution Order:** Phases within a group can run in parallel. Groups execute in order: A -> B -> C -> D -> E -> F.
-
-| Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
-| 1. Verify Widget Resize Fix | v0.0.3 | 0/? | Not started | - |
-| 2. Verify Page Layout Fix | v0.0.3 | 0/? | Not started | - |
-| 3. Verify Widget Tab-Switch Fix | v0.0.3 | 0/? | Not started | - |
-| 4. Verify Widget Picker UX Fixes | v0.0.3 | 0/? | Not started | - |
-| 5. Set CI Bundle Budget | v0.0.3 | 0/? | Not started | - |
-| 6. Supabase Migration for Projects | v0.0.3 | 0/? | Not started | - |
-| 7. Install TipTap Packages | v0.0.3 | 0/? | Not started | - |
-| 8. Theme Blend -- OKLCH Helpers | v0.0.3 | 0/? | Not started | - |
-| 9. Theme Blend -- Interpolation Engine | v0.0.3 | 0/? | Not started | - |
-| 10. Theme Blend -- Slider UI + Persistence | v0.0.3 | 0/? | Not started | - |
-| 11. OpenClaw Gateway Proxy Helper | v0.0.3 | 0/? | Not started | - |
-| 12. OpenClaw Agent CRUD | v0.0.3 | 0/? | Not started | - |
-| 13. OpenClaw Cron CRUD | v0.0.3 | 0/? | Not started | - |
-| 14. OpenClaw Usage + Models + Controller Page | v0.0.3 | 0/? | Not started | - |
-| 15. Project Tracker Backend + API | v0.0.3 | 0/? | Not started | - |
-| 16. Project Tracker Frontend + Kanban Board | v0.0.3 | 0/? | Not started | - |
-| 17. TipTap Markdown Roundtrip Test Suite | v0.0.3 | 0/? | Not started | - |
-| 18. TipTap Custom Extensions | v0.0.3 | 0/? | Not started | - |
-| 19. TipTap Editor Migration | v0.0.3 | 0/? | Not started | - |
-| 20. TipTap Polish | v0.0.3 | 0/? | Not started | - |
-| 21. Remove CodeMirror Packages | v0.0.3 | 0/? | Not started | - |
-| 22. Terminal PTY Backend | v0.0.3 | 0/? | Not started | - |
-| 23. Terminal Frontend (xterm.js) | v0.0.3 | 0/? | Not started | - |
-| 24. Widget Registry + Sidebar Integration | v0.0.3 | 0/? | Not started | - |
-| 25. Final Verification + Bundle Audit | v0.0.3 | 0/? | Not started | - |
 
 ---
 *Roadmap created: 2026-03-19*

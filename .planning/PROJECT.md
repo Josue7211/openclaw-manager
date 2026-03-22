@@ -56,19 +56,18 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 - Real-time chat (non-iMessage) — defer to Matrix integration later
 - Video posts / media hosting — storage/bandwidth concerns, defer
 
-## Current Milestone: v0.0.3 — Bug Fixes + OpenClaw Controller + Polish
+## Current Milestone: v0.0.3 — AI Ops Center + OpenClaw Controller + Polish
 
-**Goal:** Fix all reported widget/layout bugs, add full OpenClaw gateway control (agent CRUD, cron management, usage tracking, terminal), upgrade the notes editor to Google Docs-level, add theme blend slider, and apply Apple-quality polish throughout.
+**Goal:** Transform Mission Control into an AI operations center — spawn and monitor Claude Code sessions, view the OpenClaw VM remotely, manage agents and crons, add theme blend slider, embedded terminal, and fix widget bugs. TipTap editor and project tracker deferred to v0.0.4.
 
 **Target features:**
 - Fix all widget system bugs (resize, tab switch, layout, picker state, animations)
-- Fix page layout issues (pages not filling screen width, poor resize handling)
 - Full OpenClaw gateway control (agent management, cron CRUD, usage tracking, terminal, memory)
-- Google Docs-level notes editor (TipTap/WYSIWYG, tables, embeds, templates, version history)
 - Theme blend slider (continuous dark↔light interpolation)
-- Discord-like features (activity feeds, presence, channels)
-- Project tracker module with kanban board
-- Apple-quality micro-interactions and polish
+- Claude Code session management (spawn, monitor, control coding sessions from the app)
+- Session monitor dashboard (who's working, what they're doing, live output)
+- Remote VM viewer (noVNC/Moonlight for watching the OpenClaw VM desktop)
+- Embedded terminal widget (local PTY with xterm.js)
 
 ## Context
 

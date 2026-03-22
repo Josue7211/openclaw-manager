@@ -1,7 +1,8 @@
-# Requirements: v0.0.3 -- Bug Fixes + OpenClaw Controller + Polish
+# Requirements: v0.0.3 -- AI Ops Center + OpenClaw Controller + Polish
 
 **Created:** 2026-03-22
-**Source:** Research (SUMMARY.md, FEATURES.md, ARCHITECTURE.md, PITFALLS.md)
+**Updated:** 2026-03-22
+**Source:** Research (SUMMARY.md, FEATURES.md, ARCHITECTURE.md, PITFALLS.md) + user vision session
 
 ## Must-Have (MH)
 
@@ -49,38 +50,6 @@ Add `interpolateThemes()` to theme-engine.ts. Text color switches based on backg
 Add slider to SettingsDisplay.tsx with real-time preview. Blend position persisted in ThemeState (localStorage + Supabase sync).
 **Success:** User drags a slider from dark to light and sees the theme blend in real-time. Position survives app restart. System theme mode interaction works correctly.
 
-### MH-12: Supabase Migration for Projects
-Create `projects`, `project_columns`, and `project_items` tables with RLS policies, indexes, and Realtime publication.
-**Success:** Migration applies cleanly. Tables have RLS enforcing user isolation. Realtime subscription works for project_items changes.
-
-### MH-13: Project Tracker Backend API
-Axum routes for project CRUD: boards, columns, items, drag reorder. Follows the todos.rs pattern with RequireAuth.
-**Success:** All `/api/projects/*` endpoints return correct data. Drag reorder updates `position` column. Cascade delete works (deleting a board deletes its columns and items).
-
-### MH-14: Project Tracker Frontend Kanban Board
-ProjectsPage.tsx with drag-and-drop kanban columns and cards, card detail panel, Realtime sync. Uses existing HTML5 DnD pattern.
-**Success:** User can create a board, add columns, create cards, drag cards between columns, open a card detail panel to edit description/labels/due date. Changes sync in real-time.
-
-### MH-15: TipTap Markdown Roundtrip Test Suite
-Load 20+ representative notes through TipTap parse/serialize cycle and diff against input. Any diff that loses content is a blocker.
-**Success:** Test suite runs against real vault content. All standard markdown constructs roundtrip perfectly. Edge cases (frontmatter, callouts) are documented with passthrough nodes or explicit deferral.
-
-### MH-16: TipTap Custom Extensions (Wikilinks + Image Embeds)
-Custom WikilinkExtension.ts and ImageEmbedExtension.ts TipTap nodes with markdown serialization that roundtrip correctly.
-**Success:** `[[target|display]]` renders as a clickable chip and serializes back to `[[target|display]]`. `![[image.png]]` renders inline and serializes back to `![[image.png]]`. Both pass roundtrip tests.
-
-### MH-17: TipTap Editor Migration
-Rewrite NoteEditor.tsx and EditorToolbar.tsx using TipTap. All existing features preserved: formatting toolbar, keyboard shortcuts, wikilink autocomplete, image embeds, backlinks.
-**Success:** User opens a note and sees WYSIWYG rendering (bold is bold, headings are large). All toolbar buttons work. Wikilink `[[` autocomplete works. Saving produces markdown identical to what CodeMirror would have produced for the same edits.
-
-### MH-18: TipTap Polish (Slash Commands + Floating Toolbar + Tables)
-Add BubbleMenu floating toolbar on text selection, slash commands via Suggestion API (`/heading`, `/table`, `/code`), and table extension for visual table editing.
-**Success:** User selects text and sees a floating formatting toolbar. User types `/` and sees a command palette of block types. User can insert and edit tables with add/remove rows and columns.
-
-### MH-19: Remove CodeMirror Packages
-After TipTap migration is verified, remove all 11 CodeMirror/@lezer packages from dependencies.
-**Success:** `npm ls @codemirror` returns empty. Bundle size decreases. No CodeMirror imports remain in source code.
-
 ### MH-20: CI Bundle Budget
 Add a CI check that fails if any JS chunk exceeds 400KB or total bundle exceeds 5MB uncompressed.
 **Success:** CI pipeline includes a bundle size check. A PR that adds a 500KB chunk fails CI.
@@ -94,30 +63,30 @@ xterm.js component with WebSocket connection, fit addon for resize, theme integr
 **Success:** User opens a terminal widget and gets a working shell. Terminal resizes when the widget resizes. Copy/paste works (Ctrl+Shift+C/V). Colors match the current theme.
 
 ### MH-23: Widget Registry + Sidebar Module Integration
-Register Terminal and Project Board as widgets. Add OpenClaw and Projects to sidebar modules. Wire Settings connections for OpenClaw.
-**Success:** Terminal and Kanban widgets appear in Widget Picker. OpenClaw and Projects pages are accessible from sidebar. OpenClaw module shows `requiresConfig` warning when API URL is not set.
+Register Terminal, Session Monitor, and VNC Viewer as widgets. Add OpenClaw, Sessions, and VM Viewer to sidebar modules. Wire Settings connections for OpenClaw.
+**Success:** Terminal, Session Monitor, and VNC widgets appear in Widget Picker. OpenClaw, Sessions pages are accessible from sidebar. OpenClaw module shows `requiresConfig` warning when API URL is not set.
 
 ### MH-24: Final Verification + Bundle Audit
 End-to-end verification of all features together. Bundle size audit. Theme slider contrast check across all positions. Cross-feature integration test.
 **Success:** All features work together without conflicts. Bundle stays under 5MB. Theme slider produces readable text at every position. No regressions in existing features.
+
+### MH-25: Claude Code Session Backend
+Rust backend for spawning and managing Claude Code sessions. Spawns `claude` CLI as child processes with isolated working directories. WebSocket relay for real-time session I/O. Session lifecycle management (create, list, get, pause, resume, kill). Max 5 concurrent sessions via CAS guard.
+**Success:** User can spawn a new Claude Code session from the app, send it a task, and receive streaming output. Sessions are tracked with metadata (task, status, duration, model). Environment sanitized so no MC secrets leak.
+
+### MH-26: Session Monitor Frontend
+Live dashboard showing all active Claude Code sessions with real-time status. Each session shows: task description, status (running/paused/completed/failed), duration, model. Live terminal-style output viewer per session (reuses xterm.js). Session controls: spawn, pause, resume, kill.
+**Success:** User can see all active sessions, click into one to view its live output, spawn new sessions, and manage lifecycle from the UI. Auto-updates via WebSocket.
+
+### MH-27: Remote VM Viewer
+Embedded remote desktop viewer for watching the OpenClaw VM. noVNC WebSocket proxy in Axum relays VNC traffic. Supports mouse/keyboard input, clipboard sync, and scaling. Optional Moonlight/Sunshine integration for low-latency GPU-accelerated streaming.
+**Success:** User can view the OpenClaw VM desktop directly in the app without switching to a separate VNC client. Connects via Tailscale.
 
 ## Should-Have (SH)
 
 ### SH-01: Agent Memory Browser
 View, edit, and clear agent RAG memory context from the OpenClaw Controller page.
 **Success:** User selects an agent and sees its memory entries. User can add, edit, or clear memory entries.
-
-### SH-02: Note Templates
-Pre-built templates for common note types: meeting notes, daily journal, retro. Applied on note creation.
-**Success:** When creating a new note, user can choose from a template dropdown. Selected template populates the note with structured content.
-
-### SH-03: Slash Commands (Editor)
-Captured under MH-18 for the core set. This covers extended slash commands beyond the basics: `/callout`, `/embed`, `/image`, `/task-list`.
-**Success:** Extended slash commands insert the corresponding block types. Autocomplete filters as user types.
-
-### SH-04: Install TipTap Packages
-Install all TipTap packages and configure Vite chunks. Build must compile. Do NOT remove CodeMirror packages yet.
-**Success:** `npm install` succeeds. `npm run build` succeeds with both TipTap and CodeMirror in the dependency tree. TipTap packages are in their own Vite manual chunk.
 
 ## Nice-to-Have (NH)
 
@@ -129,15 +98,29 @@ Search inside note content, not just titles. Backend endpoint over CouchDB conte
 View revision history for a note using CouchDB revisions. Diff view showing changes between versions.
 **Success:** User opens a note's history and sees a list of revisions with timestamps. Selecting two revisions shows a diff.
 
-### NH-03: Kanban Swimlanes
-Group kanban cards by assignee, priority, or label in horizontal swimlanes.
-**Success:** User toggles swimlane grouping and cards reorganize into horizontal rows by the selected attribute.
+## Deferred to v0.0.4
+
+### Project Tracker (MH-12, MH-13, MH-14)
+- Supabase migration for projects, project_columns, project_items tables
+- Backend API for project CRUD (boards, columns, items, drag reorder)
+- Frontend kanban board with drag-and-drop and Realtime sync
+
+### TipTap Editor (SH-04, MH-15, MH-16, MH-17, MH-18, MH-19)
+- Install TipTap packages + Vite chunk config
+- Markdown roundtrip test suite (safety gate)
+- Custom extensions (wikilinks, image embeds)
+- Editor migration (CodeMirror -> TipTap)
+- Polish (slash commands, floating toolbar, tables)
+- Remove CodeMirror packages
+
+### Advanced Notes (SH-02, SH-03)
+- Note templates (meeting notes, daily journal, retro)
+- Extended slash commands (/callout, /embed, /image, /task-list)
 
 ## Out of Scope (v0.0.3)
 
 - Real-time collaboration on notes (Yjs + Hocuspocus -- massive scope, defer to v0.0.4+)
 - Obsidian plugin compatibility (different paradigm)
-- Storing TipTap JSON in CouchDB (breaks LiveSync)
 - Full SSH client / multi-gateway support (scope creep)
 - Agent code editor (security risk, remote file sync complexity)
 - Gantt charts, sprints, time tracking on kanban cards
@@ -151,41 +134,30 @@ Group kanban cards by assignee, priority, or label in horizontal swimlanes.
 | MH-02 | Phase 2 | Pending |
 | MH-03 | Phase 3 | Pending |
 | MH-04 | Phase 4 | Pending |
-| MH-05 | Phase 11 | Pending |
-| MH-06 | Phase 12 | Pending |
-| MH-07 | Phase 13 | Pending |
-| MH-08 | Phase 14 | Pending |
-| MH-09 | Phase 8 | Pending |
-| MH-10 | Phase 9 | Pending |
-| MH-11 | Phase 10 | Pending |
-| MH-12 | Phase 6 | Pending |
-| MH-13 | Phase 15 | Pending |
-| MH-14 | Phase 16 | Pending |
-| MH-15 | Phase 17 | Pending |
-| MH-16 | Phase 18 | Pending |
-| MH-17 | Phase 19 | Pending |
-| MH-18 | Phase 20 | Pending |
-| MH-19 | Phase 21 | Pending |
-| MH-20 | Phase 5 | Pending |
-| MH-21 | Phase 22 | Pending |
-| MH-22 | Phase 23 | Pending |
-| MH-23 | Phase 24 | Pending |
-| MH-24 | Phase 25 | Pending |
-| SH-01 | Phase 14 | Pending |
-| SH-02 | Phase 20 | Pending |
-| SH-03 | Phase 20 | Pending |
-| SH-04 | Phase 7 | Pending |
-| NH-01 | Deferred (v0.0.4+) | Deferred |
-| NH-02 | Deferred (v0.0.4+) | Deferred |
-| NH-03 | Deferred (v0.0.4+) | Deferred |
+| MH-05 | Phase 9 | Pending |
+| MH-06 | Phase 10 | Pending |
+| MH-07 | Phase 11 | Pending |
+| MH-08 | Phase 12 | Pending |
+| MH-09 | Phase 6 | Pending |
+| MH-10 | Phase 7 | Pending |
+| MH-11 | Phase 8 | Pending |
+| MH-20 | Phase 5 | Complete |
+| MH-21 | Phase 13 | Pending |
+| MH-22 | Phase 14 | Pending |
+| MH-23 | Phase 18 | Pending |
+| MH-24 | Phase 19 | Pending |
+| MH-25 | Phase 15 | Pending |
+| MH-26 | Phase 16 | Pending |
+| MH-27 | Phase 17 | Pending |
+| SH-01 | Phase 12 | Pending |
 
 ## Success Criteria (Milestone-Level)
 
 1. All v0.0.2 bug fixes verified working in production builds
 2. Full OpenClaw gateway CRUD (agents, crons, usage) accessible from a dedicated controller page
 3. Theme blend slider produces readable themes at every position using OKLCH interpolation
-4. Kanban board with persistent cards, columns, drag-and-drop, and Realtime sync
-5. TipTap WYSIWYG editor with markdown round-trip, wikilinks, image embeds, slash commands, and tables
-6. Embedded terminal widget with local PTY and secure process management
+4. Embedded terminal widget with local PTY and secure process management
+5. Claude Code session management: spawn, monitor, and control AI coding sessions from the app
+6. Remote VM viewer: watch the OpenClaw VM desktop directly in the app
 7. Bundle stays under 5MB with CI enforcement
 8. All existing tests pass, no regressions
