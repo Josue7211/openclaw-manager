@@ -1,14 +1,18 @@
-import { Clock } from '@phosphor-icons/react'
+import { Clock, PencilSimple, Trash } from '@phosphor-icons/react'
 import { SkeletonList } from '@/components/Skeleton'
+import Toggle from '@/pages/settings/Toggle'
 import type { CronJob } from './types'
 import { COLORS, humanSchedule, relativeTime } from './types'
 
 interface JobListProps {
   jobs: CronJob[]
   loading: boolean
+  onEditJob?: (job: CronJob) => void
+  onToggleJob?: (id: string, enabled: boolean) => void
+  onDeleteJob?: (id: string) => void
 }
 
-export function JobList({ jobs, loading }: JobListProps) {
+export function JobList({ jobs, loading, onEditJob, onToggleJob, onDeleteJob }: JobListProps) {
   return (
     <div style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)', borderRadius: '10px', padding: '16px 20px', flexShrink: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
@@ -46,10 +50,29 @@ export function JobList({ jobs, loading }: JobListProps) {
                 {/* Color dot */}
                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />
 
-                {/* Name */}
-                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                {/* Name (clickable to edit) */}
+                <button
+                  onClick={() => onEditJob?.(job)}
+                  aria-label={'Edit ' + job.name}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 0,
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: 'var(--text-primary)',
+                    flex: 1,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    minWidth: 0,
+                    textAlign: 'left',
+                    fontFamily: 'inherit',
+                  }}
+                >
                   {job.name}
-                </span>
+                </button>
 
                 {/* Schedule */}
                 <span style={{ fontSize: '11px', fontFamily: 'monospace', color, background: `${color}18`, border: `1px solid ${color}33`, padding: '1px 7px', borderRadius: '4px', flexShrink: 0 }}>
@@ -61,21 +84,32 @@ export function JobList({ jobs, loading }: JobListProps) {
                   {nextRun ? relativeTime(nextRun) : '\u2014'}
                 </span>
 
-                {/* Badge */}
-                <span style={{
-                  fontSize: '10px',
-                  padding: '2px 8px',
-                  borderRadius: '4px',
-                  fontWeight: 600,
-                  background: enabled ? 'var(--secondary-a12)' : 'transparent',
-                  color: enabled ? 'var(--secondary)' : 'var(--text-muted)',
-                  border: `1px solid ${enabled ? 'var(--secondary-a30)' : 'var(--border-strong)'}`,
-                  flexShrink: 0,
-                  minWidth: '60px',
-                  textAlign: 'center',
-                }}>
-                  {enabled ? 'enabled' : 'disabled'}
-                </span>
+                {/* Toggle */}
+                <div onClick={e => e.stopPropagation()} style={{ flexShrink: 0 }}>
+                  <Toggle
+                    on={enabled}
+                    onToggle={(val) => onToggleJob?.(job.id, val)}
+                    label={'Toggle ' + job.name}
+                  />
+                </div>
+
+                {/* Action buttons */}
+                <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                  <button
+                    aria-label={'Edit ' + job.name}
+                    onClick={() => onEditJob?.(job)}
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', borderRadius: '4px' }}
+                  >
+                    <PencilSimple size={14} />
+                  </button>
+                  <button
+                    aria-label={'Delete ' + job.name}
+                    onClick={() => onDeleteJob?.(job.id)}
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', borderRadius: '4px' }}
+                  >
+                    <Trash size={14} />
+                  </button>
+                </div>
               </div>
             )
           })}
