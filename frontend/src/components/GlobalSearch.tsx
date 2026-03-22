@@ -3,11 +3,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { MagnifyingGlass, CheckSquare, Target, CalendarDots, Envelope, Bell, BookOpen, FileText, SpinnerGap } from '@phosphor-icons/react'
+import { MagnifyingGlass, CheckSquare, Target, CalendarDots, Envelope, Bell, BookOpen, FileText, SpinnerGap, MusicNote } from '@phosphor-icons/react'
 
 import { api } from '@/lib/api'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
-import type { SearchResults, FlatSearchResult, NoteSearchResult } from '@/lib/types'
+import type { SearchResults, FlatSearchResult, NoteSearchResult, KoelSearchResults } from '@/lib/types'
 
 const LISTBOX_ID = 'gs-results-listbox'
 
@@ -48,6 +48,23 @@ function flattenResults(results: SearchResults): FlatSearchResult[] {
   ;(results.reminders || []).forEach(r => flat.push({ id: 'rem-' + r.id, label: r.title, sub: r.list + ' · ' + (r.completed ? 'completed' : (r.dueDate ? new Date(r.dueDate).toLocaleDateString() : 'no due date')), href: '/reminders', icon: Bell }))
   ;(results.knowledge || []).forEach(k => flat.push({ id: 'kn-' + k.id, label: k.title, sub: (k.tags || []).length > 0 ? k.tags.join(', ') : 'no tags', href: '/knowledge', icon: BookOpen }))
   ;(results.notes || []).forEach(n => flat.push({ id: 'note-' + n.id, label: n.path, sub: n.snippet || 'note', href: '/notes', icon: FileText }))
+  if (results.music) {
+    const { songs, albums } = results.music
+    ;(songs || []).forEach(s => flat.push({
+      id: 'music-' + s.id,
+      label: s.title,
+      sub: s.artist?.name || 'Unknown artist',
+      href: '#',
+      icon: MusicNote,
+    }))
+    ;(albums || []).forEach(a => flat.push({
+      id: 'album-' + a.id,
+      label: a.name,
+      sub: `${a.artist?.name || ''} ${a.year ? '(' + a.year + ')' : ''}`.trim(),
+      href: '#',
+      icon: MusicNote,
+    }))
+  }
   return flat
 }
 
@@ -73,11 +90,23 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
     if (!q.trim()) { setResults(null); setLoading(false); return }
     setLoading(true)
     try {
+      // Fire music search in parallel (independent, gracefully handles Koel being unavailable)
+      const musicPromise = api.get<{ data: KoelSearchResults }>(`/api/koel/search?q=${encodeURIComponent(q)}`)
+        .then(r => r.data)
+        .catch(() => null)
+
       const data = await api.get<SearchResults>(`/api/search?q=${encodeURIComponent(q)}`)
       // Merge client-side notes search from localStorage cache
       const localNotes = searchLocalNotes(q.trim())
       const backendNotes = data.notes || []
       data.notes = [...backendNotes, ...localNotes]
+
+      // Merge music results from Koel
+      const musicData = await musicPromise
+      if (musicData) {
+        data.music = musicData
+      }
+
       setResults(data)
     } catch {
       // On error, still provide local notes results

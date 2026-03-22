@@ -4,13 +4,14 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate as useRouterNavigate, useLocation } from 'react-router-dom'
-import { MagnifyingGlass, Plus, Gear, ArrowRight, NotePencil, CheckSquare, Sun, Moon, BellSlash, Checks, DownloadSimple, ChatText, Target, CalendarDots, Envelope, Bell, BookOpen, FileText, SpinnerGap } from '@phosphor-icons/react'
+import { MagnifyingGlass, Plus, Gear, ArrowRight, NotePencil, CheckSquare, Sun, Moon, BellSlash, Checks, DownloadSimple, ChatText, Target, CalendarDots, Envelope, Bell, BookOpen, FileText, SpinnerGap, MusicNote } from '@phosphor-icons/react'
 import { allNavItems } from '@/lib/nav-items'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { getKeybindings, subscribeKeybindings, formatKey } from '@/lib/keybindings'
 import { markAllRead } from '@/components/NotificationCenter'
 import { formatContactLabel } from '@/lib/utils'
 import { api } from '@/lib/api'
+import type { KoelSearchResults } from '@/lib/types'
 
 interface PaletteItem {
   id: string
@@ -172,6 +173,11 @@ export default function CommandPalette({
     if (searchTimer.current) clearTimeout(searchTimer.current)
     searchTimer.current = setTimeout(async () => {
       try {
+        // Fire music search in parallel (independent, gracefully handles Koel being unavailable)
+        const musicPromise = api.get<{ data: KoelSearchResults }>(
+          `/api/koel/search?q=${encodeURIComponent(query.trim())}`
+        ).catch(() => null)
+
         const data = await api.get<Record<string, unknown[]>>(`/api/search?q=${encodeURIComponent(query.trim())}`)
         const results: PaletteItem[] = []
         const iconMap: Record<string, React.ReactNode> = {
@@ -208,6 +214,38 @@ export default function CommandPalette({
             })
           }
         }
+
+        // Merge music results from Koel
+        const musicData = await musicPromise
+        if (musicData?.data) {
+          const { songs, albums } = musicData.data
+          for (const song of (songs || []).slice(0, 5)) {
+            results.push({
+              id: `music-song-${song.id}`,
+              label: song.title,
+              icon: <MusicNote size={16} />,
+              hint: song.artist?.name || 'music',
+              action: () => {
+                api.post<{ url: string }>(`/api/koel/play/${song.id}`)
+                  .then(r => { window.open(r.url, '_blank') })
+                  .catch(() => {})
+                onClose()
+              },
+              category: 'search',
+            })
+          }
+          for (const album of (albums || []).slice(0, 3)) {
+            results.push({
+              id: `music-album-${album.id}`,
+              label: album.name,
+              icon: <MusicNote size={16} />,
+              hint: `${album.artist?.name || ''} album`.trim(),
+              action: () => { onClose() },
+              category: 'search',
+            })
+          }
+        }
+
         setSearchResults(results)
       } catch {
         setSearchResults([])

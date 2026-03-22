@@ -71,6 +71,33 @@ export interface NoteSearchResult {
   snippet?: string
 }
 
+export interface KoelSong {
+  id: string
+  title: string
+  length: number
+  artist: { id: number; name: string }
+  album: { id: number; name: string; cover: string | null }
+}
+
+export interface KoelAlbum {
+  id: number
+  name: string
+  cover: string | null
+  year: number | null
+  artist: { id: number; name: string }
+}
+
+export interface KoelArtist {
+  id: number
+  name: string
+}
+
+export interface KoelSearchResults {
+  songs: KoelSong[]
+  albums: KoelAlbum[]
+  artists: KoelArtist[]
+}
+
 /** Aggregated search results returned by /api/search */
 export interface SearchResults {
   todos: Todo[]
@@ -80,6 +107,7 @@ export interface SearchResults {
   reminders: Reminder[]
   knowledge: KnowledgeEntry[]
   notes: NoteSearchResult[]
+  music?: KoelSearchResults
 }
 
 export interface FlatSearchResult {
