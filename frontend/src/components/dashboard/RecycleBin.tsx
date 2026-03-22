@@ -39,24 +39,33 @@ const ICON_MAP: Record<string, React.ElementType> = {
 interface RecycleBinProps {
   items: RecycleBinItem[]
   visible: boolean
+  /** Override: custom restore handler instead of dashboard-store restoreWidget */
+  onRestore?: (index: number) => void
+  /** Override: custom clear handler instead of dashboard-store clearRecycleBin */
+  onClearAll?: () => void
 }
 
 export const RecycleBin = React.memo(function RecycleBin({
   items,
   visible,
+  onRestore,
+  onClearAll,
 }: RecycleBinProps) {
   const [expanded, setExpanded] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
 
+  const restorer = onRestore ?? restoreWidget
+  const clearer = onClearAll ?? clearRecycleBin
+
   const handleRestore = useCallback((index: number) => {
-    restoreWidget(index)
-  }, [])
+    restorer(index)
+  }, [restorer])
 
   const handleClearAll = useCallback(() => {
-    clearRecycleBin()
+    clearer()
     setShowConfirm(false)
     setExpanded(false)
-  }, [])
+  }, [clearer])
 
   if (!visible) return null
 

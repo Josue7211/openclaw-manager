@@ -1,179 +1,158 @@
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import { Plus } from '@phosphor-icons/react'
+import { DashboardGrid } from './dashboard/DashboardGrid'
+import { DashboardEditBar } from '@/components/dashboard/DashboardEditBar'
+import {
+  useHomeStore,
+  getHomeState,
+  setHomeState,
+  setHomeEditMode,
+  updateHomePageLayouts,
+  removeHomeWidget,
+  updateHomeWidgetConfig,
+  addHomeWidgetToPage,
+  undoHome,
+  restoreHomeWidget,
+  clearHomeRecycleBin,
+} from '@/lib/home-store'
+import { generateHomeDefaultLayout } from '@/lib/home-defaults'
 
+const WidgetPicker = React.lazy(() =>
+  import('@/components/dashboard/WidgetPicker').then(m => ({ default: m.WidgetPicker }))
+)
+const RecycleBin = React.lazy(() =>
+  import('@/components/dashboard/RecycleBin').then(m => ({ default: m.RecycleBin }))
+)
 
+// ---------------------------------------------------------------------------
+// Greeting helper
+// ---------------------------------------------------------------------------
 
-import { useEffect, useState, useCallback } from 'react'
-import { ArrowsClockwise } from '@phosphor-icons/react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { BackendErrorBanner } from '@/components/BackendErrorBanner'
-import SecondsAgo from '@/components/SecondsAgo'
-import { PageHeader } from '@/components/PageHeader'
+function getGreeting(): string {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 17) return 'Good afternoon'
+  return 'Good evening'
+}
 
-import { api, ApiError } from '@/lib/api'
-import { emit } from '@/lib/event-bus'
-import { queryKeys } from '@/lib/query-keys'
-import { useRealtimeSSE } from '@/lib/hooks/useRealtimeSSE'
-import { useTodos } from '@/lib/hooks/useTodos'
-import { isDemoMode, DEMO_TODOS, DEMO_MISSIONS, DEMO_CALENDAR_EVENTS, DEMO_PROXMOX_VMS, DEMO_PROXMOX_NODES, DEMO_OPNSENSE } from '@/lib/demo-data'
-import type { Todo, Mission, CalendarEvent } from '@/lib/types'
+// ---------------------------------------------------------------------------
+// Personal (Home) Dashboard
+// ---------------------------------------------------------------------------
 
-import type { ProxmoxVM, ProxmoxNodeStat, OPNsenseData } from './personal/types'
-import MorningBrief from './personal/MorningBrief'
-import DailyReviewWidget from './personal/DailyReviewWidget'
-import TodoSection from './personal/TodoSection'
-import HomelabSection from './personal/HomelabSection'
+export default function Personal() {
+  const homeState = useHomeStore()
+  const [pickerOpen, setPickerOpen] = useState(false)
 
-export default function PersonalDashboard() {
-  const queryClient = useQueryClient()
-  const _demo = isDemoMode()
-  const [proxmoxVMs, setProxmoxVMs] = useState<ProxmoxVM[]>(_demo ? DEMO_PROXMOX_VMS : [])
-  const [proxmoxNodes, setProxmoxNodes] = useState<ProxmoxNodeStat[]>(_demo ? DEMO_PROXMOX_NODES : [])
-  const [opnsense, setOpnsense] = useState<OPNsenseData | null>(_demo ? DEMO_OPNSENSE : null)
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
-  const [backendError, setBackendError] = useState<string | false>(false)
-  const { addMutation, toggleMutation, deleteMutation, invalidateTodos } = useTodos()
+  const activePage = useMemo(
+    () => homeState.pages.find(p => p.id === homeState.activePageId) || homeState.pages[0],
+    [homeState.pages, homeState.activePageId],
+  )
 
-  const { data: todosData, isSuccess: todosMounted } = useQuery<{ todos?: Todo[] }>({
-    queryKey: queryKeys.todos,
-    queryFn: () => api.get<{ todos?: Todo[] }>('/api/todos'),
-    enabled: !_demo,
-  })
-  const todos = _demo ? DEMO_TODOS : (todosData?.todos ?? [])
-
-  const { data: missionsData, isSuccess: missionsMounted } = useQuery<{ missions?: Mission[] }>({
-    queryKey: queryKeys.missions,
-    queryFn: () => api.get<{ missions?: Mission[] }>('/api/missions'),
-    enabled: !_demo,
-  })
-  const missions = _demo ? DEMO_MISSIONS : (missionsData?.missions ?? [])
-
-  const { data: calendarData, isSuccess: calendarMounted } = useQuery<{ events?: CalendarEvent[] }>({
-    queryKey: queryKeys.calendar,
-    queryFn: () => api.get<{ events?: CalendarEvent[] }>('/api/calendar'),
-    enabled: !_demo,
-  })
-  const calendarEvents = _demo ? DEMO_CALENDAR_EVENTS : (calendarData?.events ?? [])
-
-  const mounted = _demo || (todosMounted && missionsMounted && calendarMounted)
-
-  const fetchHomelab = useCallback(async () => {
-    if (_demo) return
-    try {
-      const d = await api.get<Record<string, unknown>>('/api/homelab')
-      setBackendError(false)
-      const proxmox = d.proxmox as Record<string, unknown> | undefined
-      if (proxmox?.vms) {
-        const toGB = (b: number) => +(b / 1073741824).toFixed(1)
-        setProxmoxVMs((proxmox.vms as Record<string, unknown>[]).map((v: Record<string, unknown>) => ({
-          vmid: 0, node: 'pve', name: v.name as string, status: v.status as string,
-          cpuPercent: Math.round((v.cpu as number) * 100),
-          memUsedGB: toGB(v.mem as number), memTotalGB: 0,
-        })))
-        if (proxmox.nodes) {
-          setProxmoxNodes((proxmox.nodes as Record<string, unknown>[]).map((n: Record<string, unknown>) => ({
-            node: n.name as string, cpuPercent: Math.round((n.cpu as number) * 100),
-            memUsedGB: toGB(n.mem_used as number), memTotalGB: toGB(n.mem_total as number),
-            memPercent: Math.round(((n.mem_used as number) / (n.mem_total as number)) * 100),
-          })))
-        }
-      }
-      const opnsense = d.opnsense as Record<string, unknown> | undefined
-      if (opnsense) {
-        setOpnsense({
-          wanIn: (opnsense.wan_in as string) ?? '—', wanOut: (opnsense.wan_out as string) ?? '—',
-          updateAvailable: false, version: '—',
-        })
-      }
-    } catch (e) {
-      setBackendError(e instanceof ApiError ? e.serviceLabel : 'Service unavailable')
-    }
-  }, [])
-
-  const refreshAll = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.todos })
-    queryClient.invalidateQueries({ queryKey: queryKeys.missions })
-    queryClient.invalidateQueries({ queryKey: queryKeys.calendar })
-    fetchHomelab()
-    setLastRefresh(new Date())
-  }, [queryClient, fetchHomelab])
-
+  // First-use: populate default layout if active page has no widgets
   useEffect(() => {
-    fetchHomelab()
-    const homelabInterval = setInterval(fetchHomelab, 10000)
-    return () => clearInterval(homelabInterval)
-  }, [fetchHomelab])
+    if (activePage && Object.keys(activePage.layouts).length === 0) {
+      const defaults = generateHomeDefaultLayout()
+      const state = getHomeState()
+      setHomeState({
+        ...state,
+        pages: state.pages.map(p =>
+          p.id === activePage.id
+            ? { ...p, layouts: defaults.layouts, widgetConfigs: defaults.widgetConfigs }
+            : p
+        ),
+      })
+    }
+  }, [activePage])
 
-  // Real-time subscriptions via SSE
-  useRealtimeSSE(['todos', 'cache'], {
-    onEvent: (table) => {
-      if (table === 'todos') {
-        invalidateTodos()
-        emit('todo-changed', null, 'supabase')
+  // Collect placed widget plugin IDs for the picker's "already added" check.
+  const placedWidgetIds = useMemo(() => {
+    if (!activePage?.layouts) return []
+    const ids = new Set<string>()
+    for (const items of Object.values(activePage.layouts)) {
+      for (const item of items as Array<{ i: string }>) {
+        const pluginId = String(activePage.widgetConfigs?.[item.i]?._pluginId ?? item.i)
+        ids.add(pluginId)
       }
-      if (table === 'cache') {
-        fetchHomelab()
-      }
-    },
-  })
+    }
+    return Array.from(ids)
+  }, [activePage?.layouts, activePage?.widgetConfigs])
 
-  const addTodo = async (text: string) => {
-    await addMutation.mutateAsync(text)
-  }
-  const toggleTodo = async (id: string, done: boolean) => {
-    await toggleMutation.mutateAsync({ id, done })
-  }
-  const deleteTodo = async (id: string) => {
-    await deleteMutation.mutateAsync(id)
-  }
+  // Stable callbacks that delegate to the home store
+  const handleUndo = useCallback(() => { undoHome() }, [])
 
   return (
     <div>
-      {backendError && <BackendErrorBanner label={backendError} />}
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+      {/* Header with greeting + edit bar */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        padding: '0 24px',
+        marginBottom: '16px',
+      }}>
         <div>
-          <PageHeader defaultTitle="Personal Dashboard" defaultSubtitle="home · todos · infra" />
+          <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+            {getGreeting()}
+          </h1>
+          <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-            refreshed <SecondsAgo sinceMs={lastRefresh.getTime()} />
-          </span>
-          <button
-            onClick={refreshAll}
-            style={{
-              background: 'transparent', border: '1px solid var(--border)', borderRadius: '10px',
-              color: 'var(--text-secondary)', padding: '6px 10px', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', transition: 'all 0.25s var(--ease-spring)',
-            }}
-          >
-            <ArrowsClockwise size={12} />
-            Refresh
-          </button>
+        <div style={{ paddingTop: '8px' }}>
+          <DashboardEditBar
+            editMode={homeState.editMode}
+            onOpenPicker={() => setPickerOpen(true)}
+            onToggleEdit={setHomeEditMode}
+            onUndo={handleUndo}
+          />
         </div>
       </div>
 
-      {/* Morning Brief */}
-      <MorningBrief todos={todos} missions={missions} calendarEvents={calendarEvents} mounted={mounted} />
-
-      {/* Daily Review Widget */}
-      <DailyReviewWidget todos={todos} missions={missions} />
-
-      {/* Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
-        <TodoSection
-          todos={todos}
-          mounted={mounted}
-          isDemo={_demo}
-          onAdd={addTodo}
-          onToggle={toggleTodo}
-          onDelete={deleteTodo}
-        />
-        <HomelabSection
-          proxmoxVMs={proxmoxVMs}
-          proxmoxNodes={proxmoxNodes}
-          opnsense={opnsense}
-          mounted={mounted}
+      {/* Widget Grid */}
+      <div style={{ padding: '0 24px 24px', position: 'relative' }}>
+        <DashboardGrid
+          pageId={activePage?.id || ''}
+          editMode={homeState.editMode}
+          wobbleEnabled={homeState.wobbleEnabled}
+          page={activePage}
+          onLayoutChange={updateHomePageLayouts}
+          onRemoveWidget={removeHomeWidget}
+          onSetEditMode={setHomeEditMode}
+          onUpdateConfig={updateHomeWidgetConfig}
         />
       </div>
+
+      {/* Floating "+" FAB (edit mode only) */}
+      {homeState.editMode && (
+        <button
+          className="dashboard-fab"
+          onClick={() => setPickerOpen(true)}
+          aria-label="Add widget"
+        >
+          <Plus size={24} weight="bold" />
+        </button>
+      )}
+
+      {/* Widget Picker panel (lazy-loaded) */}
+      <React.Suspense fallback={null}>
+        <WidgetPicker
+          open={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          pageId={activePage?.id || ''}
+          placedWidgetIds={placedWidgetIds}
+          onAddWidget={addHomeWidgetToPage}
+        />
+      </React.Suspense>
+
+      {/* Recycle Bin drawer (lazy-loaded) */}
+      <React.Suspense fallback={null}>
+        <RecycleBin
+          items={homeState.recycleBin}
+          visible={homeState.editMode}
+          onRestore={restoreHomeWidget}
+          onClearAll={clearHomeRecycleBin}
+        />
+      </React.Suspense>
     </div>
   )
 }

@@ -15,6 +15,8 @@ interface WidgetConfigPanelProps {
   config: Record<string, unknown>
   anchorRef: React.RefObject<HTMLElement>
   onClose: () => void
+  /** Override: custom config update handler instead of dashboard-store updateWidgetConfig */
+  onUpdateConfig?: (pageId: string, widgetId: string, config: Record<string, unknown>) => void
 }
 
 export const WidgetConfigPanel = React.memo(function WidgetConfigPanel({
@@ -24,7 +26,9 @@ export const WidgetConfigPanel = React.memo(function WidgetConfigPanel({
   config,
   anchorRef,
   onClose,
+  onUpdateConfig: onUpdateConfigProp,
 }: WidgetConfigPanelProps) {
+  const configUpdater = onUpdateConfigProp ?? updateWidgetConfig
   const panelRef = useRef<HTMLDivElement>(null)
 
   const widgetDef = useMemo(() => getWidget(pluginId), [pluginId])
@@ -86,9 +90,9 @@ export const WidgetConfigPanel = React.memo(function WidgetConfigPanel({
   const handleChange = useCallback(
     (key: string, value: unknown) => {
       const next = { ...currentConfig, [key]: value }
-      updateWidgetConfig(pageId, widgetId, next)
+      configUpdater(pageId, widgetId, next)
     },
-    [currentConfig, pageId, widgetId],
+    [currentConfig, pageId, widgetId, configUpdater],
   )
 
   const handleReset = useCallback(() => {
@@ -98,8 +102,8 @@ export const WidgetConfigPanel = React.memo(function WidgetConfigPanel({
         defaults[field.key] = field.default
       }
     }
-    updateWidgetConfig(pageId, widgetId, defaults)
-  }, [schema, pageId, widgetId])
+    configUpdater(pageId, widgetId, defaults)
+  }, [schema, pageId, widgetId, configUpdater])
 
   return (
     <div

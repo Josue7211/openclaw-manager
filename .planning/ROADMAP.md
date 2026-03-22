@@ -9,7 +9,7 @@
 
 ### v0.0.2 — Widget-First Architecture
 
-- [ ] Phase 1: Fix Widget Bugs + Decouple Existing Cards
+- [x] Phase 1: Fix Widget Bugs + Decouple Existing Cards
   - **Goal:** Fix broken edit mode (drag/resize/delete), config panel positioning, widget picker state. Decouple all 8 existing dashboard cards from DashboardDataContext to independent React Query hooks.
   - **Requirements:** MH-01, MH-02, MH-03, MH-04
   - **Success criteria:**
@@ -19,7 +19,7 @@
     - DashboardDataContext no longer required for card rendering
     - Existing dashboard tests pass
 
-- [ ] Phase 2: Convert Tier 1 Modules to Widgets
+- [x] Phase 2: Convert Tier 1 Modules to Widgets
   - **Goal:** Create widget representations for simple modules using the kernel hook + widget shell + page shell pattern.
   - **Requirements:** MH-05, MH-11, MH-14, MH-15
   - **Success criteria:**

@@ -41,12 +41,21 @@ export function useLongPress(onLongPress: () => void, ms = 500) {
 interface DashboardEditBarProps {
   editMode: boolean
   onOpenPicker: () => void
+  /** Override: custom edit mode setter instead of dashboard-store setEditMode */
+  onToggleEdit?: (editing: boolean) => void
+  /** Override: custom undo handler instead of dashboard-store undoDashboard */
+  onUndo?: () => void
 }
 
 export const DashboardEditBar = React.memo(function DashboardEditBar({
   editMode,
   onOpenPicker,
+  onToggleEdit,
+  onUndo,
 }: DashboardEditBarProps) {
+  const toggleEdit = onToggleEdit ?? setEditMode
+  const undo = onUndo ?? undoDashboard
+
   // Page-scoped keyboard handler — Ctrl+E toggles edit, Escape exits.
   // Intentionally NOT using the global keybinding system because Ctrl+E
   // is already mapped to nav-email. This handler only fires while the
@@ -56,16 +65,16 @@ export const DashboardEditBar = React.memo(function DashboardEditBar({
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') {
         e.preventDefault()
         e.stopPropagation()
-        setEditMode(!editMode)
+        toggleEdit(!editMode)
         return
       }
       if (e.key === 'Escape' && editMode) {
-        setEditMode(false)
+        toggleEdit(false)
       }
     }
     document.addEventListener('keydown', handleKeyDown, true)
     return () => document.removeEventListener('keydown', handleKeyDown, true)
-  }, [editMode])
+  }, [editMode, toggleEdit])
 
   return (
     <div
@@ -76,7 +85,7 @@ export const DashboardEditBar = React.memo(function DashboardEditBar({
         <>
           <Button
             variant="primary"
-            onClick={() => setEditMode(false)}
+            onClick={() => toggleEdit(false)}
             aria-label="Save dashboard"
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
@@ -92,7 +101,7 @@ export const DashboardEditBar = React.memo(function DashboardEditBar({
           </Button>
           <Button
             variant="ghost"
-            onClick={() => undoDashboard()}
+            onClick={() => undo()}
             aria-label="Undo last action"
             style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}
           >
@@ -101,7 +110,7 @@ export const DashboardEditBar = React.memo(function DashboardEditBar({
         </>
       ) : (
         <button
-          onClick={() => setEditMode(true)}
+          onClick={() => toggleEdit(true)}
           aria-label="Edit dashboard"
           className="hover-bg"
           style={{

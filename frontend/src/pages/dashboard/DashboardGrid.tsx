@@ -15,7 +15,7 @@ import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 
 import { useDashboardStore, updatePageLayouts, removeWidget, setEditMode } from '@/lib/dashboard-store'
-import type { LayoutItem } from '@/lib/dashboard-store'
+import type { LayoutItem, DashboardPage } from '@/lib/dashboard-store'
 import { WidgetWrapper } from '@/components/dashboard/WidgetWrapper'
 import { useLongPress } from '@/components/dashboard/DashboardEditBar'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -39,6 +39,16 @@ interface DashboardGridProps {
   pageId: string
   editMode: boolean
   wobbleEnabled: boolean
+  /** Override: provide page data directly instead of reading from dashboard-store */
+  page?: DashboardPage
+  /** Override: custom layout change handler instead of dashboard-store updatePageLayouts */
+  onLayoutChange?: (pageId: string, layouts: Record<string, LayoutItem[]>) => void
+  /** Override: custom remove widget handler instead of dashboard-store removeWidget */
+  onRemoveWidget?: (pageId: string, widgetId: string) => void
+  /** Override: custom edit mode setter instead of dashboard-store setEditMode */
+  onSetEditMode?: (editing: boolean) => void
+  /** Override: custom config update handler instead of dashboard-store updateWidgetConfig */
+  onUpdateConfig?: (pageId: string, widgetId: string, config: Record<string, unknown>) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -49,17 +59,24 @@ export const DashboardGrid = React.memo(function DashboardGrid({
   pageId,
   editMode,
   wobbleEnabled,
+  page: pageProp,
+  onLayoutChange: onLayoutChangeProp,
+  onRemoveWidget: onRemoveWidgetProp,
+  onSetEditMode,
+  onUpdateConfig,
 }: DashboardGridProps) {
   const dashState = useDashboardStore()
-  const page = dashState.pages.find(p => p.id === pageId)
+  // Use provided page prop or fall back to reading from dashboard-store
+  const page = pageProp ?? dashState.pages.find(p => p.id === pageId)
   const { width, mounted: widthMounted, containerRef } = useContainerWidth({ initialWidth: 1280 })
 
   // Debounce timer ref
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Long-press: enter edit mode on any widget
+  const enterEditMode = onSetEditMode ?? setEditMode
   const longPressHandlers = useLongPress(() => {
-    if (!editMode) setEditMode(true)
+    if (!editMode) enterEditMode(true)
   })
 
   // Collect all unique widget IDs across all breakpoints
@@ -83,24 +100,26 @@ export const DashboardGrid = React.memo(function DashboardGrid({
   }, [page])
 
   // Debounced layout change handler
+  const layoutUpdater = onLayoutChangeProp ?? updatePageLayouts
   const handleLayoutChange = useCallback(
     (_layout: unknown, allLayouts: Record<string, LayoutItem[]>) => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current)
       }
       debounceRef.current = setTimeout(() => {
-        updatePageLayouts(pageId, allLayouts)
+        layoutUpdater(pageId, allLayouts)
       }, DEBOUNCE_MS)
     },
-    [pageId],
+    [pageId, layoutUpdater],
   )
 
   // Remove widget callback factory
+  const widgetRemover = onRemoveWidgetProp ?? removeWidget
   const handleRemoveWidget = useCallback(
     (widgetId: string) => {
-      removeWidget(pageId, widgetId)
+      widgetRemover(pageId, widgetId)
     },
-    [pageId],
+    [pageId, widgetRemover],
   )
 
   // Empty state
@@ -146,6 +165,7 @@ export const DashboardGrid = React.memo(function DashboardGrid({
                   size={{ w: item.w, h: item.h }}
                   pageId={pageId}
                   onRemove={() => handleRemoveWidget(item.i)}
+                  onUpdateConfig={onUpdateConfig}
                 />
               </div>
             </div>

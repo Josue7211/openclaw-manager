@@ -35,6 +35,8 @@ interface WidgetPickerProps {
   onClose: () => void
   pageId: string
   placedWidgetIds: string[]
+  /** Override: custom add widget handler instead of dashboard-store addWidgetToPage */
+  onAddWidget?: (pageId: string, pluginId: string, layout: import('@/lib/dashboard-store').LayoutItem) => void
 }
 
 export const WidgetPicker = React.memo(function WidgetPicker({
@@ -42,7 +44,9 @@ export const WidgetPicker = React.memo(function WidgetPicker({
   onClose,
   pageId,
   placedWidgetIds,
+  onAddWidget,
 }: WidgetPickerProps) {
+  const widgetAdder = onAddWidget ?? addWidgetToPage
   const [search, setSearch] = useState('')
   const trapRef = useFocusTrap(open)
 
@@ -83,7 +87,7 @@ export const WidgetPicker = React.memo(function WidgetPicker({
   const handleAddWidget = useCallback(
     (widgetDef: WidgetDefinition, size: { w: number; h: number }) => {
       const instanceId = `${widgetDef.id}-${crypto.randomUUID().slice(0, 8)}`
-      addWidgetToPage(pageId, widgetDef.id, {
+      widgetAdder(pageId, widgetDef.id, {
         i: instanceId,
         x: 0,
         y: Infinity,
@@ -93,7 +97,7 @@ export const WidgetPicker = React.memo(function WidgetPicker({
         minH: widgetDef.minSize?.h,
       })
     },
-    [pageId],
+    [pageId, widgetAdder],
   )
 
   const handleAddBundle = useCallback(

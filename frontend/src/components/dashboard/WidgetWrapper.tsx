@@ -33,6 +33,8 @@ export interface WidgetWrapperProps {
   size: { w: number; h: number }
   pageId: string
   onRemove?: () => void
+  /** Override: custom config update handler instead of dashboard-store updateWidgetConfig */
+  onUpdateConfig?: (pageId: string, widgetId: string, config: Record<string, unknown>) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -82,6 +84,7 @@ export const WidgetWrapper = React.memo(function WidgetWrapper({
   size,
   pageId,
   onRemove,
+  onUpdateConfig,
 }: WidgetWrapperProps) {
   // Hooks must be called before any conditional returns (Rules of Hooks)
   const [configOpen, setConfigOpen] = useState(false)
@@ -176,6 +179,7 @@ export const WidgetWrapper = React.memo(function WidgetWrapper({
           config={config}
           anchorRef={gearRef as React.RefObject<HTMLElement>}
           onClose={() => setConfigOpen(false)}
+          onUpdateConfig={onUpdateConfig}
         />,
         document.body,
       )}
