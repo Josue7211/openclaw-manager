@@ -26,7 +26,7 @@
 
 **Group D: OpenClaw Controller**
 - [x] **Phase 9: OpenClaw Gateway Proxy Helper** - Reusable proxy function with credential protection and error sanitization *(completed 2026-03-22)*
-- [ ] **Phase 10: OpenClaw Agent Management** - Beautiful agents tab with right-panel settings editor (note-style)
+- [x] **Phase 10: OpenClaw Agent Management** - Beautiful agents tab with right-panel settings editor (note-style) *(completed 2026-03-22)*
 - [ ] **Phase 11: OpenClaw Agent Calendar** - Cron schedules displayed as a calendar view under agents
 - [ ] **Phase 12: OpenClaw Usage + Models + Controller Page** - Usage dashboard, model listing, tool registry, unified page shell
 
@@ -164,7 +164,7 @@ Plans:
 **Plans:** 2 plans
 Plans:
 - [x] 10-01-PLAN.md -- Backend POST/DELETE/lifecycle endpoints + Agent type update
-- [ ] 10-02-PLAN.md -- useAgents hook + split-pane page layout + detail panel + confirmation dialog
+- [x] 10-02-PLAN.md -- useAgents hook + split-pane page layout + detail panel + confirmation dialog
 
 ### Phase 11: OpenClaw Agent Calendar
 **Goal**: Cron schedules displayed as a calendar view under the agents category
@@ -297,7 +297,7 @@ Plans:
 | 7. Theme Blend -- Interpolation Engine | v0.0.3 | 0/1 | Not started | - |
 | 8. Theme Blend -- Slider UI + Persistence | v0.0.3 | 0/1 | Not started | - |
 | 9. OpenClaw Gateway Proxy Helper | v0.0.3 | 1/1 | Complete | 2026-03-22 |
-| 10. OpenClaw Agent CRUD | v0.0.3 | 1/2 | In progress | - |
+| 10. OpenClaw Agent CRUD | v0.0.3 | 2/2 | Complete | 2026-03-22 |
 | 11. OpenClaw Cron CRUD | v0.0.3 | 0/? | Not started | - |
 | 12. OpenClaw Usage + Models + Controller Page | v0.0.3 | 0/? | Not started | - |
 | 13. Terminal PTY Backend | v0.0.3 | 0/? | Not started | - |
