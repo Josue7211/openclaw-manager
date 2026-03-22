@@ -108,7 +108,13 @@ export function setMode(mode: 'dark' | 'light' | 'system') {
     }
   }
 
-  mutate(s => ({ ...s, mode, activeThemeId: newThemeId }))
+  const clearBlend = mode === 'system'
+  mutate(s => ({
+    ...s,
+    mode,
+    activeThemeId: newThemeId,
+    ...(clearBlend ? { blendPosition: undefined } : {}),
+  }))
   applyThemeFromState()
 }
 
@@ -288,6 +294,20 @@ export function unpinTheme(themeId: string) {
 
 export function setUseGtkTheme(enabled: boolean) {
   mutate(s => ({ ...s, useGtkTheme: enabled }))
+  applyThemeFromState()
+}
+
+export function setBlendPosition(position: number | undefined) {
+  if (position === undefined) {
+    mutate(s => {
+      const next = { ...s }
+      delete next.blendPosition
+      return next
+    })
+  } else {
+    const clamped = Math.max(0, Math.min(1, position))
+    mutate(s => ({ ...s, blendPosition: clamped }))
+  }
   applyThemeFromState()
 }
 
