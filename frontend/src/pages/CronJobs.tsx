@@ -1,26 +1,30 @@
-
-
-
-
 import { useState, useRef } from 'react'
-import { CaretLeft, CaretRight } from '@phosphor-icons/react'
-import { useTauriQuery } from '@/hooks/useTauriQuery'
+import { createPortal } from 'react-dom'
+import { CaretLeft, CaretRight, Plus } from '@phosphor-icons/react'
 import { PageHeader } from '@/components/PageHeader'
-import type { CronJob } from './crons/types'
+import { Button } from '@/components/ui/Button'
+import { useCrons } from '@/hooks/useCrons'
+import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
+import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
+import type { CronJob, CronSchedule } from './crons/types'
 import { FREQUENT_MS, navBtnStyle, getWeekStart, formatWeekLabel } from './crons/types'
 import { FrequentBar } from './crons/FrequentBar'
 import { WeekGrid } from './crons/WeekGrid'
 import { JobList } from './crons/JobList'
+import { CronFormModal } from './crons/CronFormModal'
 
 export default function CronsPage() {
-  const { data: cronsData, isLoading: loading } = useTauriQuery<{ jobs: CronJob[] }>(
-    ['crons'],
-    '/api/crons',
-  )
-  const jobs = cronsData?.jobs ?? []
+  const { jobs, loading, createMutation, updateMutation, deleteMutation } = useCrons()
 
   const [weekOffset, setWeekOffset] = useState(0)
   const now = useRef(new Date()).current
+
+  const [editingJob, setEditingJob] = useState<CronJob | null>(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+
+  const dialogRef = useFocusTrap(confirmDeleteId !== null)
+  useEscapeKey(() => setConfirmDeleteId(null), confirmDeleteId !== null)
 
   const baseWeekStart = getWeekStart(now)
   const weekStart = new Date(baseWeekStart)
@@ -41,6 +45,34 @@ export default function CronsPage() {
   const gridJobs = jobs.filter(
     j => !(j.schedule.kind === 'every' && j.schedule.everyMs && j.schedule.everyMs < FREQUENT_MS)
   )
+
+  // CRUD handlers
+  const handleCreateSave = (data: { name: string; schedule: CronSchedule; description?: string }) => {
+    createMutation.mutate(data)
+    setShowCreateModal(false)
+  }
+
+  const handleEditSave = (data: { name: string; schedule: CronSchedule; description?: string }) => {
+    if (editingJob) {
+      updateMutation.mutate({ id: editingJob.id, ...data })
+      setEditingJob(null)
+    }
+  }
+
+  const handleToggle = (id: string, enabled: boolean) => {
+    updateMutation.mutate({ id, enabled })
+  }
+
+  const handleDeleteRequest = (id: string) => {
+    setConfirmDeleteId(id)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (confirmDeleteId) {
+      deleteMutation.mutate(confirmDeleteId)
+      setConfirmDeleteId(null)
+    }
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '16px' }}>
@@ -68,10 +100,29 @@ export default function CronsPage() {
           >
             Today
           </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            aria-label="Create new cron job"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: 'var(--accent)',
+              border: 'none',
+              borderRadius: '6px',
+              color: 'var(--text-on-color)',
+              padding: '6px 12px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 600,
+            }}
+          >
+            <Plus size={14} weight="bold" /> New Job
+          </button>
         </div>
       </div>
 
-      <FrequentBar frequentJobs={frequentJobs} allJobs={jobs} />
+      <FrequentBar frequentJobs={frequentJobs} allJobs={jobs} onJobClick={setEditingJob} />
 
       <WeekGrid
         gridJobs={gridJobs}
@@ -82,9 +133,55 @@ export default function CronsPage() {
         weekDays={weekDays}
         now={now}
         loading={loading}
+        onJobClick={setEditingJob}
       />
 
-      <JobList jobs={jobs} loading={loading} />
+      <JobList
+        jobs={jobs}
+        loading={loading}
+        onEditJob={setEditingJob}
+        onToggleJob={handleToggle}
+        onDeleteJob={handleDeleteRequest}
+      />
+
+      {/* Create modal */}
+      {showCreateModal && (
+        <CronFormModal onSave={handleCreateSave} onClose={() => setShowCreateModal(false)} />
+      )}
+
+      {/* Edit modal */}
+      {editingJob && (
+        <CronFormModal job={editingJob} onSave={handleEditSave} onClose={() => setEditingJob(null)} />
+      )}
+
+      {/* Delete confirmation dialog */}
+      {confirmDeleteId && createPortal(
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--overlay-heavy)' }}
+          onClick={() => setConfirmDeleteId(null)}
+        >
+          <div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Confirm delete cron job"
+            onClick={e => e.stopPropagation()}
+            style={{ background: 'var(--bg-panel)', borderRadius: '12px', padding: '24px', width: '380px', border: '1px solid var(--border)', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}
+          >
+            <h3 style={{ margin: '0 0 12px', fontSize: '16px', color: 'var(--text-primary)' }}>
+              Delete Cron Job
+            </h3>
+            <p style={{ margin: '0 0 20px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              Are you sure you want to delete <strong>{jobs.find(j => j.id === confirmDeleteId)?.name ?? 'this job'}</strong>? This cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <Button variant="secondary" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
+              <Button variant="danger" onClick={handleDeleteConfirm}>Delete</Button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   )
 }

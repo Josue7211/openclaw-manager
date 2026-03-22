@@ -5,9 +5,10 @@ import { COLORS, humanSchedule } from './types'
 interface FrequentBarProps {
   frequentJobs: CronJob[]
   allJobs: CronJob[]
+  onJobClick?: (job: CronJob) => void
 }
 
-export function FrequentBar({ frequentJobs, allJobs }: FrequentBarProps) {
+export function FrequentBar({ frequentJobs, allJobs, onJobClick }: FrequentBarProps) {
   if (frequentJobs.length === 0) return null
 
   return (
@@ -25,6 +26,11 @@ export function FrequentBar({ frequentJobs, allJobs }: FrequentBarProps) {
           return (
             <div
               key={job.id}
+              role={onJobClick ? 'button' : undefined}
+              tabIndex={onJobClick ? 0 : undefined}
+              aria-label={onJobClick ? 'Edit ' + job.name : undefined}
+              onClick={() => onJobClick?.(job)}
+              onKeyDown={onJobClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onJobClick(job) } } : undefined}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -33,6 +39,7 @@ export function FrequentBar({ frequentJobs, allJobs }: FrequentBarProps) {
                 border: `1px solid ${color}44`,
                 borderRadius: '20px',
                 padding: '4px 12px',
+                cursor: onJobClick ? 'pointer' : 'default',
               }}
             >
               <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: color }} />

@@ -21,9 +21,10 @@ interface WeekGridProps {
   weekDays: Date[]
   now: Date
   loading: boolean
+  onJobClick?: (job: CronJob) => void
 }
 
-export function WeekGrid({ gridJobs, allJobs, weekStart, isCurrentWeek, todayDow, weekDays, now, loading }: WeekGridProps) {
+export function WeekGrid({ gridJobs, allJobs, weekStart, isCurrentWeek, todayDow, weekDays, now, loading, onJobClick }: WeekGridProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -183,6 +184,11 @@ export function WeekGrid({ gridJobs, allJobs, weekStart, isCurrentWeek, todayDow
                     <div
                       key={`${item.job.id}-${item.fire.ms}`}
                       title={`${item.job.name}\n${formatTimeMs(item.fire.ms)}`}
+                      role={onJobClick ? 'button' : undefined}
+                      tabIndex={onJobClick ? 0 : undefined}
+                      aria-label={onJobClick ? 'Edit ' + item.job.name : undefined}
+                      onClick={() => onJobClick?.(item.job)}
+                      onKeyDown={onJobClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onJobClick(item.job) } } : undefined}
                       style={{
                         position: 'absolute',
                         top: item.fire.top + 2,
@@ -197,6 +203,7 @@ export function WeekGrid({ gridJobs, allJobs, weekStart, isCurrentWeek, todayDow
                         overflow: 'hidden',
                         zIndex: 5,
                         boxSizing: 'border-box',
+                        cursor: onJobClick ? 'pointer' : 'default',
                       }}
                     >
                       <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '1.3' }}>
