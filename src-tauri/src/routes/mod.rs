@@ -21,6 +21,7 @@ pub mod events;
 pub mod habits;
 pub mod homelab;
 pub mod ideas;
+pub mod koel;
 pub mod knowledge;
 pub mod media;
 pub mod memory;
@@ -28,6 +29,7 @@ pub mod messages;
 pub mod missions;
 pub mod notify;
 pub mod openclaw_cli;
+pub mod openclaw_data;
 pub mod pipeline;
 pub mod preferences;
 pub mod reminders;
@@ -69,12 +71,14 @@ pub fn router() -> Router<AppState> {
         .merge(decisions::router())
         .merge(dlp::router())
         .merge(ideas::router())
+        .merge(koel::router())
         .merge(memory::router())
         .merge(search::router())
         .merge(workflow_notes::router())
         .merge(missions::router())
         .merge(notify::router())
         .merge(openclaw_cli::router())
+        .merge(openclaw_data::router())
         .merge(pipeline::router())
         .merge(preferences::router())
         .merge(reminders::router())
