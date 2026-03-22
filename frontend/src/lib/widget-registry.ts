@@ -362,6 +362,24 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     component: () => import('@/components/widgets/NowPlayingWidget').then(m => ({ default: m.NowPlayingWidget })),
   },
   {
+    id: 'music-now-playing',
+    name: 'Music',
+    description: 'Now playing from your music library',
+    icon: 'MusicNote',
+    category: 'media',
+    tier: 'builtin',
+    defaultSize: { w: 2, h: 2 },
+    minSize: { w: 2, h: 2 },
+    maxSize: { w: 3, h: 3 },
+    configSchema: {
+      fields: [
+        { key: 'showAlbumArt', label: 'Show album art', type: 'toggle', default: true },
+      ],
+    },
+    component: () => import('@/components/widgets/MusicNowPlayingWidget').then(m => ({ default: m.MusicNowPlayingWidget })),
+    metadata: { requiresService: 'koel' },
+  },
+  {
     id: 'upcoming-media',
     name: 'Upcoming Media',
     description: 'Upcoming episodes from Sonarr',
@@ -530,8 +548,8 @@ export function getWidgetBundles(): WidgetBundle[] {
     {
       id: 'media-suite',
       name: 'Media Suite',
-      description: 'Now playing and upcoming episodes',
-      widgetIds: ['now-playing', 'upcoming-media'],
+      description: 'Now playing, music, and upcoming episodes',
+      widgetIds: ['now-playing', 'music-now-playing', 'upcoming-media'],
     },
   ]
 }
@@ -580,12 +598,13 @@ export const WIDGET_PRESETS: WidgetPreset[] = [
   {
     id: 'media-center',
     name: 'Media Center',
-    description: 'Now playing, upcoming episodes, and recent additions',
+    description: 'Now playing, music, upcoming episodes, and recent additions',
     icon: 'Television',
     widgets: [
       { pluginId: 'now-playing', layout: { x: 0, y: 0, w: 4, h: 3 } },
-      { pluginId: 'upcoming-media', layout: { x: 4, y: 0, w: 4, h: 3 } },
-      { pluginId: 'inbox', layout: { x: 8, y: 0, w: 4, h: 3 } },
+      { pluginId: 'music-now-playing', layout: { x: 4, y: 0, w: 2, h: 2 } },
+      { pluginId: 'upcoming-media', layout: { x: 6, y: 0, w: 3, h: 3 } },
+      { pluginId: 'inbox', layout: { x: 9, y: 0, w: 3, h: 3 } },
     ],
   },
   {
