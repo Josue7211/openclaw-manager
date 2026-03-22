@@ -781,11 +781,29 @@ export function applyTheme(
   const el = document.documentElement
 
   const apply = () => {
+    // --- Theme blend interpolation ---
+    const bp = state.blendPosition
+    let blendedVars: Record<string, string> | null = null
+    if (bp != null && bp > 0 && bp < 1) {
+      const counterpartId = COUNTERPART_MAP[def.id]
+      if (counterpartId) {
+        const counterpart = getThemeById(counterpartId)
+        if (counterpart) {
+          const isDark = def.category !== 'light'
+          const darkDef = isDark ? def : counterpart
+          const lightDef = isDark ? counterpart : def
+          blendedVars = interpolateThemes(darkDef, lightDef, bp)
+        }
+      }
+    }
+
     for (const [key, value] of Object.entries(def.colors)) {
-      el.style.setProperty(`--${key}`, value)
+      const blendedValue = blendedVars?.[key]
+      el.style.setProperty(`--${key}`, blendedValue ?? value)
     }
     if (def.colors['bg-card-solid']) {
-      el.style.setProperty('--bg-card', def.colors['bg-card-solid'])
+      const blendedCardSolid = blendedVars?.['bg-card-solid']
+      el.style.setProperty('--bg-card', blendedCardSolid ?? def.colors['bg-card-solid'])
     }
 
     const accent = overrides?.accent ?? def.colors.accent
@@ -816,8 +834,13 @@ export function applyTheme(
     el.style.setProperty('--bg-white-03', isLight ? 'rgba(0, 0, 0, 0.03)' : 'rgba(255, 255, 255, 0.03)')
     el.style.setProperty('--bg-white-05', isLight ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.05)')
 
-    el.dataset.theme = def.category === 'light' ? 'light' : 'dark'
-    el.style.colorScheme = def.category === 'light' ? 'light' : 'dark'
+    if (blendedVars && bp != null) {
+      el.dataset.theme = bp > 0.5 ? 'light' : 'dark'
+      el.style.colorScheme = bp > 0.5 ? 'light' : 'dark'
+    } else {
+      el.dataset.theme = def.category === 'light' ? 'light' : 'dark'
+      el.style.colorScheme = def.category === 'light' ? 'light' : 'dark'
+    }
     el.dataset.themeId = def.id
 
     applyFonts(overrides?.fonts ?? def.fonts, state.globalFontOverride)
