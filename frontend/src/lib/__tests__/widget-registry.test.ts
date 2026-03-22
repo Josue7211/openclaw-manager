@@ -186,9 +186,9 @@ describe('getWidgetBundles', () => {
 })
 
 describe('getWidgetPresets', () => {
-  it('returns 4 presets', () => {
+  it('returns 7 presets', () => {
     const presets = getWidgetPresets()
-    expect(presets).toHaveLength(4)
+    expect(presets).toHaveLength(7)
   })
 
   it('each preset has required fields', () => {
