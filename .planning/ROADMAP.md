@@ -29,7 +29,7 @@
     - "View all" link navigates to full page
     - Lazy-loaded via React.lazy
 
-- [ ] Phase 3: Unify Personal + Dashboard Pages
+- [x] Phase 3: Unify Personal + Dashboard Pages
   - **Goal:** Replace the static Personal page with a DashboardGrid. Home becomes a customizable widget layout using the same system as Dashboard.
   - **Requirements:** MH-06
   - **Success criteria:**
@@ -39,7 +39,7 @@
     - Existing Personal page features preserved (morning brief, daily review, todos, homelab)
     - Dashboard state migration for existing users (localStorage)
 
-- [ ] Phase 4: Convert Tier 2 Modules to Widgets
+- [x] Phase 4: Convert Tier 2 Modules to Widgets
   - **Goal:** Convert complex modules (Notes, Pipeline, Email, Homelab, Media) into widgets with appropriate decomposition.
   - **Requirements:** MH-07, MH-11
   - **Success criteria:**
@@ -50,7 +50,7 @@
     - Email: inbox-summary widget
     - All widgets size-responsive and independently data-fetching
 
-- [ ] Phase 5: Category Presets + Widget Picker Enhancement
+- [x] Phase 5: Category Presets + Widget Picker Enhancement
   - **Goal:** Add category preset layouts and enhance the Widget Picker with category filtering.
   - **Requirements:** MH-08, MH-12
   - **Success criteria:**
@@ -59,7 +59,7 @@
     - Widget Picker has category tabs/filters
     - All module widgets appear in Widget Picker with correct categories
 
-- [ ] Phase 6: Convert Tier 3 Modules (Summary Widgets)
+- [x] Phase 6: Convert Tier 3 Modules (Summary Widgets)
   - **Goal:** Create summary-only widgets for Messages, Chat, and Agents that link to full page experiences.
   - **Requirements:** MH-09, MH-15
   - **Success criteria:**
@@ -69,7 +69,7 @@
     - Each links to full page experience
     - No attempt to replicate full interaction in widget
 
-- [ ] Phase 7: Remove DashboardDataContext + Cleanup
+- [x] Phase 7: Remove DashboardDataContext + Cleanup
   - **Goal:** Delete the monolithic DashboardDataContext, clean up deprecated code paths, verify production edit mode.
   - **Requirements:** MH-10, MH-13
   - **Success criteria:**
