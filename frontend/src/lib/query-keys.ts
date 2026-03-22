@@ -20,6 +20,7 @@ export const queryKeys = {
   missionEvents: (id: string) => ['mission-events', id] as const,
   chatHistory: ['chat', 'history'] as const,
   chatModels: ['chat', 'models'] as const,
+  crons: ['crons'] as const,
   subagentsActive: ['subagents', 'active'] as const,
   agentCache: ['agent-cache'] as const,
   connections: ['status', 'connections'] as const,
