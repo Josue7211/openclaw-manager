@@ -1,10 +1,10 @@
 import React from 'react'
 import { Lightbulb, CheckCircle, SkipForward, XCircle } from '@phosphor-icons/react'
 import { pillStyle } from './types'
-import { useDashboardDataContext } from './dashboard-context'
+import { useIdeas } from '@/lib/hooks/dashboard'
 
 export const IdeaBriefingCard = React.memo(function IdeaBriefingCard() {
-  const { pendingIdeas, handleIdeaAction: onIdeaAction, setPanelIdea: onOpenDetail } = useDashboardDataContext()
+  const { pendingIdeas, handleIdeaAction: onIdeaAction, setPanelIdea: onOpenDetail } = useIdeas()
   const topIdea = pendingIdeas[0] ?? null
   const pendingCount = pendingIdeas.length
 

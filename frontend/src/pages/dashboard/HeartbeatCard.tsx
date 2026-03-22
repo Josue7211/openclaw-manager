@@ -2,10 +2,10 @@ import React from 'react'
 import { Cpu } from '@phosphor-icons/react'
 import { timeAgo, formatTime } from '@/lib/utils'
 import { Skeleton } from '@/components/Skeleton'
-import { useDashboardDataContext } from './dashboard-context'
+import { useHeartbeat } from '@/lib/hooks/dashboard'
 
 export const HeartbeatCard = React.memo(function HeartbeatCard() {
-  const { mounted, heartbeat } = useDashboardDataContext()
+  const { mounted, heartbeat } = useHeartbeat()
   return (
     <div className="card" style={{ padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>

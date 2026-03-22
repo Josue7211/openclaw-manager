@@ -1,17 +1,17 @@
 import React from 'react'
 import { Brain } from '@phosphor-icons/react'
 import { SkeletonRows } from '@/components/Skeleton'
-import { useDashboardDataContext } from './dashboard-context'
+import { useMemoryEntries } from '@/lib/hooks/dashboard'
 
 export const MemoryCard = React.memo(function MemoryCard() {
-  const { mounted, memory } = useDashboardDataContext()
+  const { memory } = useMemoryEntries()
   return (
     <div className="card" style={{ padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
         <Brain size={14} style={{ color: 'var(--accent)' }} />
         <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Memory</span>
       </div>
-      {!mounted ? (
+      {memory === undefined ? (
         <SkeletonRows count={3} />
       ) : memory.length === 0 ? (
         <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>No memory files yet</div>

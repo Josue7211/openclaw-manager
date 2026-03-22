@@ -21,6 +21,7 @@ export const queryKeys = {
   chatHistory: ['chat', 'history'] as const,
   chatModels: ['chat', 'models'] as const,
   subagentsActive: ['subagents', 'active'] as const,
+  agentCache: ['agent-cache'] as const,
   connections: ['status', 'connections'] as const,
   tailscalePeers: ['status', 'tailscale'] as const,
   health: ['status', 'health'] as const,

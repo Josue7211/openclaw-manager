@@ -2,10 +2,12 @@ import React from 'react'
 import { Robot } from '@phosphor-icons/react'
 import { timeAgo } from '@/lib/utils'
 import { SkeletonRows } from '@/components/Skeleton'
-import { useDashboardDataContext } from './dashboard-context'
+import { useAgentsData } from '@/lib/hooks/dashboard/useAgentsData'
+import { useSubagentData } from '@/lib/hooks/dashboard/useSubagentData'
 
 export const AgentsCard = React.memo(function AgentsCard() {
-  const { mounted, sortedAgents, agentsData, subagents, activeSubagents } = useDashboardDataContext()
+  const { mounted, sortedAgents, agentsData } = useAgentsData()
+  const { subagents, activeSubagents } = useSubagentData()
   return (
     <div className="card" style={{ padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>

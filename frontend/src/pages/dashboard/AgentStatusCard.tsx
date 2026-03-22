@@ -2,10 +2,10 @@ import React from 'react'
 import { Pulse } from '@phosphor-icons/react'
 import { timeAgo } from '@/lib/utils'
 import { Skeleton } from '@/components/Skeleton'
-import { useDashboardDataContext } from './dashboard-context'
+import { useAgentStatus } from '@/lib/hooks/dashboard'
 
 export const AgentStatusCard = React.memo(function AgentStatusCard() {
-  const { mounted, status } = useDashboardDataContext()
+  const { mounted, status } = useAgentStatus()
   return (
     <div className="card" style={{ padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
