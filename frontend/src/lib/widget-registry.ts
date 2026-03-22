@@ -410,6 +410,35 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     minSize: { w: 1, h: 2 },
     component: () => import('@/components/widgets/AgentsSummaryWidget').then(m => ({ default: m.AgentsSummaryWidget })),
   },
+  {
+    id: 'activity-feed',
+    name: 'Activity Feed',
+    description: 'Unified timeline of recent actions across all modules',
+    icon: 'Pulse',
+    category: 'monitoring',
+    tier: 'builtin',
+    defaultSize: { w: 3, h: 4 },
+    minSize: { w: 2, h: 2 },
+    maxSize: { w: 6, h: 8 },
+    configSchema: {
+      fields: [
+        { key: 'maxItems', label: 'Max items', type: 'slider', default: 15, min: 5, max: 30 },
+      ],
+    },
+    component: () => import('@/components/widgets/ActivityFeedWidget').then(m => ({ default: m.ActivityFeedWidget })),
+  },
+  {
+    id: 'quick-capture',
+    name: 'Quick Capture',
+    description: 'Capture todos, ideas, and notes instantly',
+    icon: 'PencilLine',
+    category: 'productivity',
+    tier: 'builtin',
+    defaultSize: { w: 3, h: 1 },
+    minSize: { w: 2, h: 1 },
+    maxSize: { w: 6, h: 2 },
+    component: () => import('@/components/widgets/QuickCaptureWidget').then(m => ({ default: m.QuickCaptureWidget })),
+  },
 ]
 
 // ---------------------------------------------------------------------------
