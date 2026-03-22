@@ -6,18 +6,18 @@
 
 ## Summary
 
-This phase adds a secure terminal backend to the Tauri app: spawning PTY sessions, relaying I/O over WebSocket, enforcing connection limits, sanitizing the environment, and cleaning up process groups on close. The codebase already has strong patterns for every building block -- axum WebSocket handling (chat.rs), CAS connection guards (chat.rs), environment sanitization (pipeline/helpers.rs), and process group management (pipeline/helpers.rs). The new route module (`terminal.rs`) follows these established patterns closely.
+Phase 13 requires building a secure PTY backend in Rust that spawns pseudo-terminal sessions via WebSocket. The codebase already has a mature pattern for axum WebSocket endpoints with CAS-based concurrency guards (see `chat.rs`), which can be directly replicated for the terminal module. The `portable-pty` crate (v0.9.0, from the wezterm project) provides a battle-tested cross-platform PTY API covering Linux, macOS, and Windows (ConPTY/WinPTY).
 
-The recommended PTY crate is **portable-pty** (v0.9.0), the same crate used by wezterm. It provides cross-platform support (Unix PTY + Windows ConPTY), a `CommandBuilder` with `env_clear()`/`env_remove()`, `MasterPty::resize()` for SIGWINCH, and `process_group_leader()` for PID-based cleanup. No other crate offers this combination.
+The architecture is straightforward: a new `routes/terminal.rs` module registers a `/terminal/ws` WebSocket endpoint. On upgrade, it acquires a CAS guard (max 3 sessions), spawns a PTY via `portable-pty`, and runs two concurrent loops -- one forwarding PTY output to the WebSocket, one forwarding WebSocket input (including resize commands) to the PTY. On disconnect or error, the RAII guard drops, the PTY master is dropped (closing the file descriptor), and the process group is explicitly killed via `libc::killpg` on Unix or `ChildKiller::kill()` on Windows.
 
-**Primary recommendation:** Add `portable-pty = "0.9"` to Cargo.toml. Build `terminal.rs` following the chat.rs WebSocket + CAS guard pattern, with env sanitization from pipeline/helpers.rs and process group kill on drop.
+**Primary recommendation:** Use `portable-pty` 0.9.0 with the exact CAS guard pattern from `chat.rs`, `CommandBuilder::new_default_prog()` for cross-platform shell detection, and `libc::killpg(pgid, SIGKILL)` for process group cleanup on Unix.
 
 <phase_requirements>
 ## Phase Requirements
 
 | ID | Description | Research Support |
 |----|-------------|-----------------|
-| MH-21 | Terminal PTY Backend: WebSocket endpoint spawning PTY, CAS guard (max 3), zero orphan processes, env sanitization, cross-platform shell detection | portable-pty API (CommandBuilder, MasterPty, process_group_leader), chat.rs CAS guard pattern, pipeline/helpers.rs env_clear pattern, SHELL/COMSPEC detection |
+| MH-21 | Terminal PTY Backend -- PTY spawning, WebSocket relay, CAS guard (max 3), process group cleanup, env sanitization | portable-pty API verified (PtySystem, CommandBuilder, MasterPty, Child, ChildKiller), CAS pattern extracted from chat.rs, env var list extracted from secrets.rs, process group kill pattern documented |
 </phase_requirements>
 
 ## Standard Stack
@@ -25,46 +25,48 @@ The recommended PTY crate is **portable-pty** (v0.9.0), the same crate used by w
 ### Core
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
-| portable-pty | 0.9 | Cross-platform PTY spawning | Used by wezterm; only Rust crate with Unix + Windows ConPTY + resize + process_group_leader |
-| axum (ws feature) | 0.7 (already in Cargo.toml) | WebSocket endpoint | Already used for chat.rs WebSocket relay |
-| tokio | 1 (already in Cargo.toml, has `process` + `io-util` features) | Async runtime, spawn_blocking for PTY I/O | Already the project runtime |
-| libc | 0.2 (already in Cargo.toml) | kill(-pgid, SIGKILL) for process group cleanup | Already a dependency |
+| portable-pty | 0.9.0 | Cross-platform PTY spawning and management | Part of wezterm (production terminal emulator), supports Linux/macOS/Windows, provides CommandBuilder with env sanitization, PtySize for resize, process_group_leader for cleanup |
+| axum (ws feature) | 0.7 | WebSocket upgrade and message handling | Already in Cargo.toml with `ws` feature enabled |
+| tokio | 1 | Async runtime, `spawn_blocking` for PTY I/O, channels | Already in Cargo.toml with `process`, `sync`, `io-util` features |
+| libc | 0.2 | `killpg()` for process group signals on Unix | Already in Cargo.toml |
 
 ### Supporting
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
-| nix | 0.28 (transitive via portable-pty) | Low-level Unix PTY operations | Pulled in by portable-pty, not needed directly |
+| serde_json | 1 | Parse resize/control messages from WebSocket | Already in Cargo.toml |
+| tracing | 0.1 | Structured logging for PTY lifecycle events | Already in Cargo.toml |
 
 ### Alternatives Considered
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| portable-pty | pty-process | Has async support via tokio but Unix-only, no Windows ConPTY |
-| portable-pty | nix::pty directly | Lower-level, manual everything, no Windows support |
-| portable-pty | pseudoterminal crate | Newer but less battle-tested than wezterm's crate |
+| portable-pty | pty-process | pty-process is Unix-only, no Windows support; portable-pty covers all platforms |
+| portable-pty | tokio::process + raw PTY via nix crate | Requires manual PTY setup, no Windows abstraction, more code to maintain |
+| libc::killpg | kill_tree crate | External dep for something achievable in 5 lines with libc (already a dependency) |
 
 **Installation:**
 ```bash
 cd src-tauri && cargo add portable-pty@0.9
 ```
 
-**Note:** portable-pty's I/O is synchronous (`Read`/`Write` traits). Use `tokio::task::spawn_blocking` for the read loop and `tokio::task::spawn_blocking` or a dedicated thread for writes. The codebase already has the `tokio` features needed (`io-util`, `process`, `rt-multi-thread`).
+No other new dependencies needed -- axum ws, tokio, libc, serde_json are all already present.
 
 ## Architecture Patterns
 
 ### Recommended Project Structure
 ```
 src-tauri/src/routes/
-├── terminal.rs          # NEW: PTY WebSocket endpoint + session manager
-├── mod.rs               # Add: pub mod terminal; + .merge(terminal::router())
-└── ... (existing)
+├── terminal.rs          # New: PTY WebSocket endpoint + session management
+└── mod.rs               # Add: pub mod terminal; + .merge(terminal::router())
 ```
 
 ### Pattern 1: CAS Connection Guard (from chat.rs)
-**What:** Atomic compare-and-swap to limit concurrent connections with RAII cleanup.
-**When to use:** Always -- enforces the max 3 PTY sessions requirement.
+**What:** Atomic counter with Compare-And-Swap loop + RAII Drop guard
+**When to use:** Enforce max concurrent PTY sessions (3)
 **Example:**
 ```rust
-// Source: src-tauri/src/routes/chat.rs lines 21-76
+// Source: src-tauri/src/routes/chat.rs lines 22-76
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 static PTY_CONNECTIONS: AtomicUsize = AtomicUsize::new(0);
 const MAX_PTY_CONNECTIONS: usize = 3;
 
@@ -97,8 +99,8 @@ impl Drop for PtyConnectionGuard {
 ```
 
 ### Pattern 2: WebSocket Upgrade Handler (from chat.rs)
-**What:** Axum WebSocket upgrade with RequireAuth, connection guard, and message size limits.
-**When to use:** The `/api/terminal/ws` endpoint.
+**What:** axum WebSocket upgrade with RequireAuth + guard acquisition before upgrade
+**When to use:** The `/terminal/ws` endpoint
 **Example:**
 ```rust
 // Source: src-tauri/src/routes/chat.rs lines 1028-1048
@@ -117,388 +119,352 @@ async fn ws_upgrade(
         }
     };
 
-    ws.max_message_size(64 * 1024)
-      .on_upgrade(move |socket| handle_terminal_ws(socket, state, guard))
+    ws.on_upgrade(move |socket| handle_terminal_ws(socket, guard))
 }
 ```
 
-### Pattern 3: Environment Sanitization (from pipeline/helpers.rs)
-**What:** Clear all env vars, then whitelist only safe system vars.
-**When to use:** Before spawning the PTY shell.
+### Pattern 3: PTY Spawning with Environment Sanitization
+**What:** Spawn a PTY with the user's default shell, stripping sensitive env vars
+**When to use:** Inside the WebSocket handler after upgrade
 **Example:**
 ```rust
-// Source: src-tauri/src/routes/pipeline/helpers.rs lines 209-232
-// For terminal PTY: use portable-pty's CommandBuilder which has env_clear()
+// Source: portable-pty docs (docs.rs/portable-pty/0.9.0)
+use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 
-fn build_pty_command() -> CommandBuilder {
-    let shell = detect_shell();
-    let mut cmd = CommandBuilder::new(&shell);
+fn spawn_pty(cols: u16, rows: u16) -> Result<(PtyPair, Box<dyn Child + Send + Sync>), Error> {
+    let pty_system = native_pty_system();
+    let pair = pty_system.openpty(PtySize {
+        rows,
+        cols,
+        pixel_width: 0,
+        pixel_height: 0,
+    })?;
 
-    // Start with clean environment
-    cmd.env_clear();
+    let mut cmd = CommandBuilder::new_default_prog();
+    // new_default_prog uses $SHELL on Unix, or system default on Windows
 
-    // Whitelist only safe system variables
-    let safe_vars = ["HOME", "USER", "PATH", "SHELL", "TERM", "LANG",
-                     "LC_ALL", "LC_CTYPE", "LOGNAME", "DISPLAY",
-                     "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR"];
-    for key in safe_vars {
-        if let Ok(val) = std::env::var(key) {
-            cmd.env(key, val);
+    // Sanitize environment: remove all app secrets
+    const SENSITIVE_PREFIXES: &[&str] = &[
+        "MC_", "OPENCLAW_", "COUCHDB_", "SUPABASE_",
+        "BLUEBUBBLES_", "MAC_BRIDGE_", "PROXMOX_",
+        "OPNSENSE_", "PLEX_", "ANTHROPIC_", "SONARR_",
+        "RADARR_", "CALDAV_", "NTFY_", "EMAIL_",
+    ];
+    for (key, _) in std::env::vars() {
+        if SENSITIVE_PREFIXES.iter().any(|p| key.starts_with(p)) {
+            cmd.env_remove(&key);
         }
     }
 
-    // Force TERM to xterm-256color for proper terminal emulation
+    // Set standard terminal env
     cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
 
-    cmd
+    let child = pair.slave.spawn_command(cmd)?;
+    Ok((pair, child))
 }
 ```
 
-### Pattern 4: Process Group Kill on Drop
-**What:** RAII struct that kills the entire PTY process group when dropped.
-**When to use:** Wrap the PTY child handle so WebSocket disconnect triggers cleanup.
+### Pattern 4: Bidirectional WebSocket <-> PTY Bridge
+**What:** Two async tasks: PTY reader -> WS sender, WS receiver -> PTY writer
+**When to use:** The core of the terminal session
 **Example:**
 ```rust
-// Derived from: pipeline/helpers.rs process_group(0) pattern + portable-pty API
-struct PtySession {
-    child: Box<dyn Child + Send>,
-    master: Box<dyn MasterPty + Send>,
-    /// Process group leader PID for group kill
-    pgid: Option<i32>,
-}
-
-impl Drop for PtySession {
-    fn drop(&mut self) {
-        // First try graceful kill via portable-pty
-        let _ = self.child.kill();
-
-        // Then kill the entire process group (catches subprocesses)
-        #[cfg(unix)]
-        if let Some(pgid) = self.pgid {
-            unsafe {
-                libc::kill(-pgid, libc::SIGKILL);
-            }
-        }
-
-        // Wait to reap zombie
-        let _ = self.child.wait();
-    }
-}
-```
-
-### Pattern 5: Bidirectional WebSocket-PTY Relay
-**What:** Split the WebSocket, spawn two tasks: one reads PTY output and sends to WS, one reads WS input and writes to PTY.
-**When to use:** The main handler after WebSocket upgrade.
-**Example:**
-```rust
-async fn handle_terminal_ws(socket: WebSocket, state: AppState, _guard: PtyConnectionGuard) {
-    let (mut ws_sender, mut ws_receiver) = socket.split();
-
-    // Spawn PTY
-    let pty_system = portable_pty::native_pty_system();
-    let pair = match pty_system.openpty(PtySize {
-        rows: 24, cols: 80, pixel_width: 0, pixel_height: 0,
-    }) {
+// Conceptual pattern -- PTY reader/writer are blocking I/O, must use spawn_blocking
+async fn handle_terminal_ws(mut socket: WebSocket, _guard: PtyConnectionGuard) {
+    let (pair, mut child) = match spawn_pty(80, 24) {
         Ok(p) => p,
         Err(e) => {
-            tracing::error!("Failed to open PTY: {e}");
+            let _ = socket.send(Message::Text(
+                json!({"error": format!("failed to spawn PTY: {e}")}).to_string()
+            )).await;
             return;
         }
     };
 
-    let cmd = build_pty_command();
-    let child = match pair.slave.spawn_command(cmd) {
-        Ok(c) => c,
-        Err(e) => {
-            tracing::error!("Failed to spawn shell: {e}");
-            return;
-        }
-    };
-    // Drop slave -- not needed after spawn
-    drop(pair.slave);
-
-    let pgid = pair.master.process_group_leader();
     let reader = pair.master.try_clone_reader().unwrap();
     let writer = pair.master.take_writer().unwrap();
+    // Drop slave -- no longer needed after spawn
+    drop(pair.slave);
 
-    let session = Arc::new(Mutex::new(PtySession { child, master: pair.master, pgid }));
+    let (ws_tx, ws_rx) = socket.split();
 
-    // Task 1: PTY stdout -> WebSocket (spawn_blocking because Read is sync)
-    let session_clone = session.clone();
-    let read_task = tokio::spawn(async move {
-        let mut buf = [0u8; 4096];
-        loop {
-            let reader_clone = /* clone or Arc the reader */;
-            let n = tokio::task::spawn_blocking(move || reader_clone.read(&mut buf))
-                .await.unwrap_or(Ok(0)).unwrap_or(0);
-            if n == 0 { break; }
-            if ws_sender.send(Message::Binary(buf[..n].to_vec())).await.is_err() {
-                break;
-            }
+    // Task 1: PTY stdout -> WebSocket (blocking read in spawn_blocking)
+    // Task 2: WebSocket -> PTY stdin + resize commands
+    // On either task ending, kill the process group and clean up
+}
+```
+
+### Pattern 5: Process Group Kill on Cleanup
+**What:** Kill entire process group when PTY session ends
+**When to use:** In the cleanup/drop path of the terminal session
+**Example:**
+```rust
+// Unix: kill the process group using the PTY's process_group_leader
+#[cfg(unix)]
+fn kill_process_group(master: &dyn MasterPty, child: &mut Box<dyn Child + Send + Sync>) {
+    if let Some(pgid) = master.process_group_leader() {
+        unsafe {
+            libc::killpg(pgid, libc::SIGKILL);
         }
-    });
-
-    // Task 2: WebSocket -> PTY stdin
-    let write_task = tokio::spawn(async move {
-        while let Some(Ok(msg)) = ws_receiver.next().await {
-            match msg {
-                Message::Binary(data) | Message::Text(data) => {
-                    // Write to PTY (spawn_blocking)
-                },
-                Message::Close(_) => break,
-                _ => {}
-            }
-        }
-    });
-
-    // Wait for either task to finish, then cleanup
-    tokio::select! {
-        _ = read_task => {},
-        _ = write_task => {},
     }
-    // PtySession Drop handles process group kill
+    // Fallback: kill the child directly
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+// Windows: portable-pty's kill() handles ConPTY cleanup
+#[cfg(windows)]
+fn kill_process_group(child: &mut Box<dyn Child + Send + Sync>) {
+    let _ = child.kill();
+    let _ = child.wait();
+}
+```
+
+### Pattern 6: WebSocket Message Protocol
+**What:** JSON control messages for resize, binary data for terminal I/O
+**When to use:** Frontend <-> backend communication
+**Example:**
+```rust
+// Input from frontend:
+// - Binary/Text data: raw terminal input (keystrokes)
+// - JSON control: {"type": "resize", "cols": 120, "rows": 40}
+//
+// Output to frontend:
+// - Binary data: raw terminal output (ANSI sequences)
+//
+// This avoids base64 encoding overhead for terminal data.
+
+#[derive(Deserialize)]
+#[serde(tag = "type")]
+enum TerminalControl {
+    #[serde(rename = "resize")]
+    Resize { cols: u16, rows: u16 },
 }
 ```
 
 ### Anti-Patterns to Avoid
-- **Leaking PTY file descriptors:** Always `drop(pair.slave)` after `spawn_command()` -- keeping the slave open prevents the PTY from detecting EOF when the child exits.
-- **Using tokio::process for PTY I/O:** portable-pty returns `Box<dyn Read>` / `Box<dyn Write>` which are sync. Wrapping in `spawn_blocking` is correct; do NOT try to use `AsyncRead` adapters.
-- **Forgetting process group kill:** `child.kill()` only kills the immediate shell, not subprocesses (vim, htop, etc.). Must use `kill(-pgid, SIGKILL)` on Unix.
-- **Passing all env vars:** Never inherit the full process environment. The Tauri process has `MC_API_KEY`, `SUPABASE_*`, `OPENCLAW_*`, `COUCHDB_*`, `BLUEBUBBLES_*` secrets loaded via dotenvy. These MUST NOT leak to the PTY.
+- **Dropping the PTY master without killing the process group:** The shell process stays alive as an orphan. Always `killpg()` before dropping.
+- **Using `std::process::Command` instead of `CommandBuilder`:** No PTY attachment, the spawned process won't have a controlling terminal, interactive shells won't work.
+- **Blocking the tokio runtime with PTY I/O:** `MasterPty::try_clone_reader()` returns a blocking `Read` impl. Always use `tokio::task::spawn_blocking()` or wrap in `tokio::io::AsyncRead`.
+- **Inheriting the full process environment:** The PTY child would inherit `MC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and other secrets that are set as process env vars via dotenvy. Always sanitize.
+- **Not setting TERM:** Many programs check `$TERM` and fail or produce garbled output without it.
 
 ## Don't Hand-Roll
 
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
-| Cross-platform PTY | Manual `forkpty()`/ConPTY | `portable-pty` | Windows ConPTY API is complex; Unix has multiple pty flavors |
-| Terminal resize | Manual `ioctl(TIOCSWINSZ)` | `MasterPty::resize(PtySize)` | portable-pty handles platform differences |
-| Connection limiting | Mutex-based counter | `AtomicUsize` CAS loop + RAII guard | Pattern already proven in chat.rs, lock-free |
-| Process group kill | Manual `waitpid` loops | `kill(-pgid, SIGKILL)` + `child.wait()` | Standard POSIX pattern, portable-pty provides `process_group_leader()` |
-| Shell detection | Hardcoded paths | `$SHELL` (Unix) / `COMSPEC` or PowerShell (Windows) | Must respect user's configured shell |
+| Cross-platform PTY | Raw `openpty()` + `forkpty()` + Windows ConPTY API | `portable-pty` crate | Windows alone has 3 different PTY APIs (WinPTY, ConPTY, legacy console); portable-pty abstracts all of them |
+| Shell detection | Parsing `/etc/passwd`, checking `$SHELL`, Windows registry | `CommandBuilder::new_default_prog()` | Already handles `$SHELL` -> password database -> platform default chain |
+| CAS guard | Mutex-based counter, semaphore | AtomicUsize CAS loop + RAII Drop | Matches existing codebase pattern (chat.rs), lock-free, zero overhead |
+| WebSocket framing | Raw TCP + manual upgrade | axum's `WebSocketUpgrade` | Already in the codebase, handles upgrade negotiation, message framing, ping/pong |
 
-**Key insight:** portable-pty's `CommandBuilder` has `env_clear()` and `env()` methods that mirror `std::process::Command`, making the existing pipeline/helpers.rs sanitization pattern directly applicable.
+**Key insight:** The only new dependency needed is `portable-pty`. Everything else (WebSocket, CAS guards, auth, error handling) already exists in the codebase and should be reused verbatim.
 
 ## Common Pitfalls
 
-### Pitfall 1: PTY Slave File Descriptor Leak
-**What goes wrong:** If `pair.slave` is not dropped after `spawn_command()`, the PTY never signals EOF when the child process exits. The read loop hangs forever.
-**Why it happens:** The slave side must be closed in the parent process so only the child holds it.
-**How to avoid:** `drop(pair.slave)` immediately after `spawn_command()` succeeds.
-**Warning signs:** PTY read loop never returns 0 bytes even after `exit` command.
+### Pitfall 1: Orphaned Processes on WebSocket Disconnect
+**What goes wrong:** Client disconnects (network drop, tab close), the WebSocket handler returns, but the shell process and its children keep running forever.
+**Why it happens:** Dropping the PTY master FD sends SIGHUP to the foreground process group, but background jobs (e.g. `sleep 1000 &`) are not killed.
+**How to avoid:** On cleanup, call `libc::killpg(pgid, SIGKILL)` with the process group leader from `MasterPty::process_group_leader()`. Then `child.wait()` to reap the zombie.
+**Warning signs:** `ps aux | grep defunct` showing zombie processes after terminal sessions.
 
-### Pitfall 2: Environment Variable Leakage
-**What goes wrong:** The PTY shell inherits `MC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENCLAW_API_KEY`, etc.
-**Why it happens:** `CommandBuilder` inherits the parent process environment by default unless `env_clear()` is called.
-**How to avoid:** Always call `cmd.env_clear()` first, then explicitly whitelist safe variables. The codebase already does this in `pipeline/helpers.rs` -- follow the same pattern.
-**Warning signs:** Running `env` in the terminal shows secrets.
+### Pitfall 2: Blocking the Tokio Runtime with PTY I/O
+**What goes wrong:** PTY `read()` and `write()` are blocking syscalls. Calling them on the tokio runtime thread pool starves other tasks.
+**Why it happens:** `portable-pty`'s `MasterPty::try_clone_reader()` returns `Box<dyn Read>`, not an async reader.
+**How to avoid:** Use `tokio::task::spawn_blocking()` for the PTY read loop, or use `tokio::io::AsyncReadExt` with a pipe. Send data between blocking/async worlds via `tokio::sync::mpsc` channels.
+**Warning signs:** WebSocket ping/pong timeouts, other HTTP endpoints becoming slow during active terminal sessions.
 
-### Pitfall 3: Orphaned Processes After WebSocket Disconnect
-**What goes wrong:** User closes terminal tab, WebSocket drops, but vim/htop/long-running commands keep running.
-**Why it happens:** `child.kill()` only sends SIGKILL to the shell, not its child processes. On Unix, child processes are re-parented to PID 1.
-**How to avoid:** Use `process_group_leader()` to get the PGID, then `kill(-pgid, SIGKILL)` to kill the entire process group. Wrap in a Drop impl.
-**Warning signs:** `ps aux` shows orphaned processes after terminal close.
+### Pitfall 3: Environment Variable Leakage
+**What goes wrong:** The PTY child process inherits `MC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and other secrets from the parent process environment.
+**Why it happens:** dotenvy loads `.env.local` into the process environment at startup. `portable-pty`'s `CommandBuilder` inherits the parent environment by default.
+**How to avoid:** Call `cmd.env_remove()` for every sensitive prefix before spawning. Do NOT use `env_clear()` as that removes everything including PATH, HOME, USER, LANG, etc.
+**Warning signs:** Running `env | grep MC_` in a spawned terminal showing secrets.
 
-### Pitfall 4: Blocking the Tokio Runtime
-**What goes wrong:** Calling `reader.read()` or `writer.write()` directly in an async context blocks the tokio thread pool.
-**Why it happens:** portable-pty returns `Box<dyn Read + Send>` and `Box<dyn Write + Send>` -- these are synchronous I/O.
-**How to avoid:** Use `tokio::task::spawn_blocking` for read operations. For writes, either use `spawn_blocking` or a dedicated OS thread.
-**Warning signs:** App becomes unresponsive when terminal is active; other WebSocket connections stall.
+### Pitfall 4: Slave FD Leak
+**What goes wrong:** Not dropping `pair.slave` after spawning the child causes the PTY to never receive EOF when the child exits, leading to hung read loops.
+**Why it happens:** The slave FD is held open by the parent process, preventing the kernel from signaling EOF to the master.
+**How to avoid:** `drop(pair.slave)` immediately after `pair.slave.spawn_command(cmd)`.
+**Warning signs:** Terminal sessions that never detect child exit, read loops that block forever.
 
-### Pitfall 5: Missing TERM Environment Variable
-**What goes wrong:** Programs like vim, htop, tmux fail or display garbage.
-**Why it happens:** After `env_clear()`, TERM is not set. Programs can't determine terminal capabilities.
-**How to avoid:** Always set `cmd.env("TERM", "xterm-256color")` after clearing. This matches what xterm.js (Phase 14) will advertise.
-**Warning signs:** "unknown terminal type" errors, garbled output.
+### Pitfall 5: Windows PowerShell Default
+**What goes wrong:** On Windows, `CommandBuilder::new_default_prog()` may spawn `cmd.exe` instead of PowerShell depending on system configuration.
+**Why it happens:** Windows doesn't have a `$SHELL` equivalent; the default depends on the system and ConPTY/WinPTY implementation.
+**How to avoid:** On Windows, explicitly check for PowerShell: `CommandBuilder::new("powershell.exe")` or `pwsh.exe` for PowerShell 7+. Fall back to `cmd.exe`.
+**Warning signs:** Users getting `cmd.exe` when they expected PowerShell.
 
-### Pitfall 6: WebSocket Message Type Mismatch
-**What goes wrong:** PTY output arrives garbled or is silently dropped.
-**Why it happens:** PTY output is raw bytes (potentially non-UTF-8). Sending as `Message::Text` will fail UTF-8 validation. Must use `Message::Binary`.
-**How to avoid:** Send PTY output as `Message::Binary`. Accept both `Message::Text` (for typed input) and `Message::Binary` (for paste) on input. Handle resize commands as JSON text messages.
-**Warning signs:** Non-ASCII characters or ANSI escape sequences cause connection drops.
-
-### Pitfall 7: Race Between PTY Exit and Read Loop
-**What goes wrong:** Child exits but read loop tries to read, gets error, may panic.
-**Why it happens:** There's a race between the child process exiting and the last bytes being read from the PTY.
-**How to avoid:** Read loop should handle `Ok(0)` (EOF) and `Err(_)` gracefully by breaking. Check `child.try_wait()` after read returns 0.
-**Warning signs:** Spurious errors in logs when terminals are closed.
+### Pitfall 6: Resize Race Condition
+**What goes wrong:** Resize message arrives before the PTY is fully set up, causing a panic or error.
+**Why it happens:** The frontend sends an initial resize immediately on WebSocket open.
+**How to avoid:** Buffer the initial size from the WebSocket upgrade query params or first message, use it when creating the PtySize. Only process resize after the PTY is spawned.
+**Warning signs:** Intermittent "PTY not initialized" errors on session start.
 
 ## Code Examples
 
-### Shell Detection (Cross-Platform)
-```rust
-// No external source -- standard POSIX/Windows pattern
-fn detect_shell() -> String {
-    #[cfg(unix)]
-    {
-        // Prefer $SHELL (user's configured login shell)
-        if let Ok(shell) = std::env::var("SHELL") {
-            if !shell.is_empty() {
-                return shell;
-            }
-        }
-        // Fallback: check /etc/passwd (would require parsing)
-        // Final fallback
-        "/bin/sh".to_string()
-    }
+Verified patterns from official sources and codebase:
 
-    #[cfg(windows)]
-    {
-        // Prefer PowerShell (modern Windows)
-        if let Ok(pwsh) = std::env::var("COMSPEC") {
-            // COMSPEC usually points to cmd.exe; prefer PowerShell
-        }
-        // Check if pwsh.exe (PowerShell 7+) is on PATH
-        if which::which("pwsh").is_ok() {
-            return "pwsh".to_string();
-        }
-        // Fall back to PowerShell 5 (Windows PowerShell)
-        if which::which("powershell").is_ok() {
-            return "powershell".to_string();
-        }
-        // Last resort: cmd.exe
-        std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_string())
+### Spawning a PTY (portable-pty official API)
+```rust
+// Source: docs.rs/portable-pty/0.9.0/portable_pty
+use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+
+let pty_system = native_pty_system();
+let pair = pty_system.openpty(PtySize {
+    rows: 24,
+    cols: 80,
+    pixel_width: 0,
+    pixel_height: 0,
+})?;
+
+let cmd = CommandBuilder::new_default_prog();
+let child = pair.slave.spawn_command(cmd)?;
+drop(pair.slave); // Critical: drop slave after spawn
+
+let reader = pair.master.try_clone_reader()?;  // Blocking Read
+let writer = pair.master.take_writer()?;        // Blocking Write
+```
+
+### Resizing a PTY
+```rust
+// Source: docs.rs/portable-pty/0.9.0/portable_pty/trait.MasterPty.html
+pair.master.resize(PtySize {
+    rows: new_rows,
+    cols: new_cols,
+    pixel_width: 0,
+    pixel_height: 0,
+})?;
+```
+
+### Process Group Kill (Unix)
+```rust
+// Source: MasterPty::process_group_leader() + libc::killpg
+#[cfg(unix)]
+{
+    if let Some(pgid) = master.process_group_leader() {
+        // SIGKILL the entire process group
+        unsafe { libc::killpg(pgid, libc::SIGKILL); }
     }
+}
+// Always wait to reap zombie
+let _ = child.wait();
+```
+
+### WebSocket Upgrade in Axum (existing codebase pattern)
+```rust
+// Source: src-tauri/src/routes/chat.rs lines 1028-1048
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+
+async fn ws_upgrade(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    ws: WebSocketUpgrade,
+) -> Response {
+    ws.max_message_size(64 * 1024)
+       .max_frame_size(64 * 1024)
+       .on_upgrade(move |socket| handle_terminal_ws(socket, guard))
 }
 ```
 
-**Note on Windows shell detection:** The crate `which` is NOT currently in Cargo.toml. For simplicity, use `std::process::Command::new("pwsh").arg("--version").output()` to probe, or just default to `powershell.exe` since Windows 10+ always has it. Since the primary platform is Linux (CachyOS), Windows shell detection is lower priority.
-
-### Environment Sanitization Constants
+### CAS Guard (existing codebase pattern)
 ```rust
-/// Environment variables that are safe to pass through to the PTY.
-/// These are non-secret system variables needed for a functional shell.
-const PTY_SAFE_ENV_VARS: &[&str] = &[
-    "HOME", "USER", "LOGNAME", "PATH", "SHELL", "LANG",
-    "LC_ALL", "LC_CTYPE", "LC_MESSAGES", "LC_COLLATE",
-    "DISPLAY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR",
-    "XDG_SESSION_TYPE", "XDG_CURRENT_DESKTOP",
-    "DBUS_SESSION_BUS_ADDRESS",
-    "SSH_AUTH_SOCK",  // Allow SSH agent forwarding
-    "EDITOR", "VISUAL", "PAGER",
-    "COLORTERM", "TERM_PROGRAM",
-];
-
-/// Environment variable prefixes that MUST be excluded from the PTY.
-/// These contain application secrets loaded from the OS keychain.
-const PTY_BLOCKED_PREFIXES: &[&str] = &[
-    "MC_", "OPENCLAW_", "COUCHDB_", "SUPABASE_",
-    "BLUEBUBBLES_", "PROXMOX_", "OPNSENSE_",
-    "PLEX_", "CALDAV_", "SONARR_", "RADARR_",
-    "EMAIL_", "NTFY_", "MAC_BRIDGE_", "ANTHROPIC_",
-];
+// Source: src-tauri/src/routes/chat.rs lines 50-76
+// Identical pattern used for both ChatSseConnectionGuard and WsConnectionGuard
+// Reuse verbatim for PtyConnectionGuard with MAX=3
 ```
 
-### WebSocket Resize Command Protocol
+### Environment Sanitization
 ```rust
-// The frontend (xterm.js in Phase 14) will send resize commands as JSON text messages.
-// PTY data flows as binary messages.
-
-#[derive(Deserialize)]
-#[serde(tag = "type")]
-enum TerminalCommand {
-    #[serde(rename = "resize")]
-    Resize { cols: u16, rows: u16 },
-    #[serde(rename = "input")]
-    Input { data: String },
-}
-```
-
-### Route Registration
-```rust
-// Source pattern: src-tauri/src/routes/mod.rs
-// Add to mod.rs:
-pub mod terminal;
-
-// In router() function:
-.merge(terminal::router())
+// Source: secrets.rs KEY_ENV_MAP (all sensitive env var names)
+// Prefixes to strip: MC_, OPENCLAW_, COUCHDB_, SUPABASE_,
+// BLUEBUBBLES_, MAC_BRIDGE_, PROXMOX_, OPNSENSE_, PLEX_,
+// ANTHROPIC_, SONARR_, RADARR_, CALDAV_, NTFY_, EMAIL_
 ```
 
 ## State of the Art
 
 | Old Approach | Current Approach | When Changed | Impact |
 |--------------|------------------|--------------|--------|
-| Raw `forkpty()` + manual ConPTY | `portable-pty` (trait-based, cross-platform) | 2020+ (wezterm project) | Single API for all platforms |
-| `tokio-pty-process` (Unix only) | `portable-pty` + `spawn_blocking` | 2023+ (tokio-pty-process unmaintained) | Windows support, maintained |
-| Inherit parent env | `env_clear()` + whitelist | Security best practice | Prevents secret leakage |
-| `kill(pid)` for cleanup | `kill(-pgid, SIGKILL)` process group kill | POSIX standard | Catches all subprocesses |
+| WinPTY on Windows | ConPTY (preferred) with WinPTY fallback | Windows 10 1903+ (2019) | portable-pty `native_pty_system()` auto-selects the best available |
+| Manual forkpty/openpty | portable-pty abstraction | Stable since 2022 | Cross-platform without conditional compilation |
+| Polling PTY output | Blocking read in spawn_blocking + channel | Current best practice | Avoids busy-wait, integrates with tokio |
 
 **Deprecated/outdated:**
-- `tokio-pty-process`: Last updated 2019, Unix-only, no Windows support
-- Manual `libc::forkpty()`: Works but loses portability; portable-pty wraps this
+- Direct WinPTY usage: ConPTY is the modern Windows PTY API; WinPTY has unfixable bugs
+- `pty-process` crate: Unix-only, not suitable for cross-platform Tauri app
+
+## Open Questions
+
+1. **Windows PowerShell version detection**
+   - What we know: `CommandBuilder::new_default_prog()` may not pick PowerShell on Windows
+   - What's unclear: Whether `pwsh.exe` (PS7) or `powershell.exe` (PS5) should be preferred
+   - Recommendation: Check for `pwsh.exe` first (PS7), fall back to `powershell.exe`, then `cmd.exe`. Use `which`/`where` equivalent to detect.
+
+2. **WebSocket message size for terminal output**
+   - What we know: chat.rs uses 64KB max message size
+   - What's unclear: Whether terminal output bursts (e.g. `cat large_file`) could exceed this
+   - Recommendation: Use 64KB chunks for PTY output, fragment larger reads. Terminal emulators handle streaming well.
+
+3. **PTY read buffer size**
+   - What we know: Standard practice is 4KB-8KB read buffers for PTY output
+   - What's unclear: Optimal size for WebSocket forwarding latency vs throughput
+   - Recommendation: Start with 4KB buffer, tune if needed. Lower latency is better for interactive use.
 
 ## Validation Architecture
 
 ### Test Framework
 | Property | Value |
 |----------|-------|
-| Framework | cargo test (Rust stdlib, already configured) |
-| Config file | src-tauri/Cargo.toml (test profile implicit) |
-| Quick run command | `cd src-tauri && cargo test terminal --lib` |
+| Framework | cargo test (Rust built-in) |
+| Config file | src-tauri/Cargo.toml |
+| Quick run command | `cd src-tauri && cargo test terminal -- --nocapture` |
 | Full suite command | `cd src-tauri && cargo test` |
 
-### Phase Requirements to Test Map
+### Phase Requirements -> Test Map
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|-------------|
-| MH-21a | Shell detection returns valid path per platform | unit | `cd src-tauri && cargo test terminal::tests::test_detect_shell -x` | Wave 0 |
-| MH-21b | Environment sanitization blocks secret prefixes | unit | `cd src-tauri && cargo test terminal::tests::test_env_sanitization -x` | Wave 0 |
-| MH-21c | CAS guard enforces max 3 concurrent sessions | unit | `cd src-tauri && cargo test terminal::tests::test_pty_connection_guard -x` | Wave 0 |
-| MH-21d | PtySession Drop kills process group | integration | `cd src-tauri && cargo test terminal::tests::test_pty_cleanup -x` | Wave 0 |
-| MH-21e | WebSocket endpoint spawns PTY | integration | manual (requires running server) | manual-only |
-| MH-21f | 100 open/close cycles leave zero orphans | integration | manual (script-based stress test) | manual-only |
+| MH-21-a | CAS guard limits to 3 concurrent sessions | unit | `cd src-tauri && cargo test terminal::tests::cas_guard -x` | Wave 0 |
+| MH-21-b | Environment sanitization strips sensitive vars | unit | `cd src-tauri && cargo test terminal::tests::env_sanitization -x` | Wave 0 |
+| MH-21-c | Shell detection returns valid shell per platform | unit | `cd src-tauri && cargo test terminal::tests::shell_detection -x` | Wave 0 |
+| MH-21-d | Process group kill leaves no orphans | integration | Manual -- spawn PTY, run background job, close session, check `ps` | manual-only (requires PTY, cannot run in CI without TTY) |
+| MH-21-e | WebSocket endpoint spawns PTY and relays I/O | integration | Manual -- requires running server + WebSocket client | manual-only (requires full server) |
 
 ### Sampling Rate
-- **Per task commit:** `cd src-tauri && cargo test terminal --lib`
+- **Per task commit:** `cd src-tauri && cargo test terminal`
 - **Per wave merge:** `cd src-tauri && cargo test`
 - **Phase gate:** Full suite green before `/gsd:verify-work`
 
 ### Wave 0 Gaps
-- [ ] `src-tauri/src/routes/terminal.rs` -- new file with `#[cfg(test)] mod tests` section
-- [ ] portable-pty dependency in Cargo.toml
-- [ ] Manual stress test script for 100 open/close cycles (can be deferred to verification)
-
-## Open Questions
-
-1. **Windows Shell Detection without `which` crate**
-   - What we know: `which` is not in Cargo.toml. PowerShell is always available on Windows 10+.
-   - What's unclear: Whether to add `which` or probe via `Command::new("pwsh").output()`.
-   - Recommendation: Default to `"powershell.exe"` on Windows. Primary platform is Linux. Add `which` only if Windows testing reveals issues.
-
-2. **portable-pty `take_writer()` Ownership**
-   - What we know: `take_writer()` returns `Box<dyn Write + Send>` and can only be called once.
-   - What's unclear: How to share the writer between the WebSocket input task and potential resize operations.
-   - Recommendation: Use a `tokio::sync::mpsc` channel -- the write task owns the writer and receives both input data and resize commands. Resize goes through `MasterPty::resize()` (separate from the writer).
-
-3. **Read Buffer Size**
-   - What we know: PTY output can be bursty (e.g., `cat large_file`).
-   - What's unclear: Optimal buffer size for PTY read.
-   - Recommendation: Use 4096 bytes (standard terminal buffer size). If performance issues arise, increase to 16384.
+- [ ] `src-tauri/src/routes/terminal.rs` -- new file, contains all PTY logic + `#[cfg(test)] mod tests`
+- [ ] `portable-pty` dependency in `Cargo.toml` -- required before any tests compile
+- [ ] Unit tests for CAS guard (pure logic, no PTY needed)
+- [ ] Unit tests for env sanitization (pure logic, mock env)
+- [ ] Unit test for shell detection (can verify non-empty string returned)
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [portable-pty docs.rs](https://docs.rs/portable-pty/latest/portable_pty/) - Full API: MasterPty, SlavePty, CommandBuilder, PtySystem, PtySize
-- [portable-pty CommandBuilder](https://docs.rs/portable-pty/latest/portable_pty/cmdbuilder/struct.CommandBuilder.html) - env_clear, env, env_remove, cwd, set_controlling_tty
-- [portable-pty MasterPty](https://docs.rs/portable-pty/latest/portable_pty/trait.MasterPty.html) - resize, try_clone_reader, take_writer, process_group_leader
-- Codebase: `src-tauri/src/routes/chat.rs` lines 21-76, 1028-1165 - CAS guard + WebSocket patterns
-- Codebase: `src-tauri/src/routes/pipeline/helpers.rs` lines 209-320 - env_clear + process_group(0) patterns
-- Codebase: `src-tauri/src/secrets.rs` lines 8-49 - KEY_ENV_MAP showing all secret variable names
+- [portable-pty 0.9.0 API docs](https://docs.rs/portable-pty/0.9.0/portable_pty/) - PtySystem, MasterPty, SlavePty, Child, ChildKiller, CommandBuilder, PtySize
+- [portable-pty CommandBuilder docs](https://docs.rs/portable-pty/latest/portable_pty/cmdbuilder/struct.CommandBuilder.html) - env, env_clear, env_remove, cwd, new_default_prog, get_shell methods confirmed
+- [portable-pty MasterPty docs](https://docs.rs/portable-pty/latest/portable_pty/trait.MasterPty.html) - resize, try_clone_reader, take_writer, process_group_leader methods confirmed
+- `src-tauri/src/routes/chat.rs` lines 22-76, 1028-1165 - CAS guard + WebSocket patterns (in-codebase, verified)
+- `src-tauri/src/secrets.rs` lines 8-48 - Complete list of sensitive env var mappings (in-codebase, verified)
+- `src-tauri/src/server.rs` lines 129-192 - AppState struct, RequireAuth extractor (in-codebase, verified)
 
 ### Secondary (MEDIUM confidence)
-- [Rust Issue #115241](https://github.com/rust-lang/rust/issues/115241) - Child::kill doesn't kill process groups; use kill(-pgid)
-- [portable-pty crates.io](https://crates.io/crates/portable-pty) - Version 0.9.0, part of wezterm
-- [setsid(2) man page](https://man7.org/linux/man-pages/man2/setsid.2.html) - Process group session leader
-- [pty-process crates.io](https://crates.io/crates/pty-process) - Alternative crate (rejected: Unix-only)
+- [axum WebSocket example](https://github.com/tokio-rs/axum/blob/main/examples/websockets/src/main.rs) - Official axum WebSocket patterns
+- [Rust process group kill discussion](https://github.com/rust-lang/rust/issues/115241) - Child::kill limitation, killpg workaround
+- [Windows ConPTY blog post](https://devblogs.microsoft.com/commandline/windows-command-line-introducing-the-windows-pseudo-console-conpty/) - ConPTY API design and capabilities
 
 ### Tertiary (LOW confidence)
-- Windows PowerShell detection approach (based on general knowledge, not verified on Windows)
+- [wezterm portable-pty discussion #2392](https://github.com/wezterm/wezterm/discussions/2392) - EOF handling in PTY read loops (community discussion)
 
 ## Metadata
 
 **Confidence breakdown:**
-- Standard stack: HIGH - portable-pty is well-documented, version verified on docs.rs, all needed APIs confirmed
-- Architecture: HIGH - follows exact patterns already in the codebase (chat.rs, pipeline/helpers.rs)
-- Pitfalls: HIGH - process group cleanup, env sanitization, and sync I/O wrapping are well-documented concerns
-- Windows support: MEDIUM - portable-pty claims ConPTY support but not tested in this project context
+- Standard stack: HIGH - portable-pty is the de facto Rust PTY crate, used by wezterm (major terminal emulator). API verified via docs.rs.
+- Architecture: HIGH - WebSocket + CAS guard pattern directly extracted from existing codebase (chat.rs). No novel architecture needed.
+- Pitfalls: HIGH - Process group orphaning, env leakage, and blocking I/O are well-documented issues with verified mitigations.
+- Cross-platform: MEDIUM - Unix (Linux/macOS) path is well-understood. Windows ConPTY path is less tested but portable-pty abstracts it.
 
 **Research date:** 2026-03-22
-**Valid until:** 2026-04-22 (stable domain, portable-pty maintained as part of wezterm)
+**Valid until:** 2026-04-22 (30 days -- portable-pty is stable, unlikely to change)
