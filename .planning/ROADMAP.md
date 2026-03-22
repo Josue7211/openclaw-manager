@@ -25,7 +25,7 @@
 - [ ] **Phase 8: Theme Blend -- Slider UI + Persistence** - User-facing slider that blends dark/light themes in real-time
 
 **Group D: OpenClaw Controller**
-- [ ] **Phase 9: OpenClaw Gateway Proxy Helper** - Reusable proxy function with credential protection and error sanitization
+- [x] **Phase 9: OpenClaw Gateway Proxy Helper** - Reusable proxy function with credential protection and error sanitization *(completed 2026-03-22)*
 - [ ] **Phase 10: OpenClaw Agent Management** - Beautiful agents tab with right-panel settings editor (note-style)
 - [ ] **Phase 11: OpenClaw Agent Calendar** - Cron schedules displayed as a calendar view under agents
 - [ ] **Phase 12: OpenClaw Usage + Models + Controller Page** - Usage dashboard, model listing, tool registry, unified page shell

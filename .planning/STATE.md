@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.0.3
 milestone_name: -- AI Ops Center + OpenClaw Controller + Polish
-status: unknown
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-03-22T20:11:29.084Z"
+status: in-progress
+stopped_at: Completed 09-01-PLAN.md
+last_updated: "2026-03-22T20:53:27.097Z"
 progress:
   total_phases: 19
-  completed_phases: 4
-  total_plans: 4
-  completed_plans: 4
+  completed_phases: 5
+  total_plans: 5
+  completed_plans: 5
 ---
 
 # Project State
@@ -19,20 +19,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 09 — next phase
+**Current focus:** Phase 10 — next phase
 
 ## Current Position
 
-Phase: 09
+Phase: 10
 Plan: Not started
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 4
-- Average duration: ~2min
-- Total execution time: ~0.15 hours
+- Total plans completed: 5
+- Average duration: ~3min
+- Total execution time: ~0.22 hours
 
 **By Phase:**
 
@@ -42,6 +42,7 @@ Plan: Not started
 | 06 | 1/1 | 2min | 2min |
 | 07 | 1/1 | 2min | 2min |
 | 08 | 1/1 | 3min | 3min |
+| 09 | 1/1 | 4min | 4min |
 
 ## Accumulated Context
 
@@ -59,10 +60,11 @@ Recent decisions affecting current work:
 - OKLCH color utilities: pure math, zero deps, Bjorn Ottosson matrices, shortest-arc hue interpolation (Phase 6)
 - Theme blend engine: OKLCH-aware Tier 1 interpolation, WCAG AA text contrast enforcement, bp=0.5 data-theme switch (Phase 7)
 - Theme blend slider: setBlendPosition() with 0-1 clamping, system mode auto-reset, RAF-throttled UI in Settings > Display (Phase 8)
+- OpenClaw gateway: state.http (bare reqwest) over ServiceClient -- avoids 5xx retry on writes, forced JSON parsing (Phase 9)
+- OpenClaw gateway: 4xx=BadRequest (sanitized, user-visible), 5xx=Internal (hidden from client) (Phase 9)
 
 ### Pending Todos
 
-- Verify OpenClaw gateway API surface against actual endpoints (before Phase 9)
 - Resolve SSH passphrase key issue for terminal (Phase 13)
 - Research Claude Code SDK/CLI spawning for Phase 15
 - Research noVNC + Moonlight integration for Phase 17
@@ -75,6 +77,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-22T20:10:43.410Z
-Stopped at: Completed 08-01-PLAN.md
+Last session: 2026-03-22T20:53:27.092Z
+Stopped at: Completed 09-01-PLAN.md
 Resume file: None
