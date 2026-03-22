@@ -7,8 +7,8 @@
  * scheduling, and custom CSS.
  */
 
-import { useState, useCallback, memo, useMemo } from 'react'
-import { Sun, Moon, Laptop, Palette, TextT, SlidersHorizontal } from '@phosphor-icons/react'
+import { useState, useCallback, useRef, memo, useMemo } from 'react'
+import { Sun, Moon, Laptop, Palette, TextT, SlidersHorizontal, CircleHalf } from '@phosphor-icons/react'
 
 import { BUILT_IN_THEMES, getThemeById } from '@/lib/theme-definitions'
 import { resolveThemeDefinition, getActiveSystemTheme, isOsDark, isWallbashActive } from '@/lib/theme-engine'
@@ -29,6 +29,7 @@ import {
   pinTheme,
   unpinTheme,
   setUseGtkTheme,
+  setBlendPosition,
 } from '@/lib/theme-store'
 import AccentPicker from '@/components/AccentPicker'
 import FontPicker from '@/components/FontPicker'
@@ -383,6 +384,15 @@ export default function SettingsDisplay() {
     })
   }, [state.customThemes, state.overrides, state.mode, systemInfo.isLinux])
 
+  // Blend slider — RAF-throttled for real-time updates without jank
+  const rafRef = useRef<number>(0)
+  const handleBlendChange = useCallback((v: number) => {
+    cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(() => {
+      setBlendPosition(v)
+    })
+  }, [])
+
   // Reset handler
   const handleReset = useCallback(() => {
     resetThemeOverrides(state.activeThemeId)
@@ -454,6 +464,35 @@ export default function SettingsDisplay() {
             <Toggle on={state.useGtkTheme ?? false} onToggle={setUseGtkTheme} label="Use GTK theme" />
           </div>
         )}
+      </SettingsCard>
+
+      {/* 1.5. Theme Blend — dark/light interpolation slider */}
+      <SettingsCard title="Theme Blend" icon={<CircleHalf size={16} weight="duotone" />}>
+        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+          Blend between dark and light themes. Drag to find your perfect middle ground.
+        </div>
+        <SliderRow
+          label="Blend Position"
+          value={state.blendPosition ?? (state.mode === 'light' ? 1 : 0)}
+          min={0}
+          max={1}
+          step={0.01}
+          unit="%"
+          onChange={handleBlendChange}
+          ariaLabel="Theme blend position from dark to light"
+        />
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          fontSize: '11px',
+          color: 'var(--text-muted)',
+          marginTop: '-6px',
+          paddingLeft: '2px',
+          paddingRight: '2px',
+        }}>
+          <span>Dark</span>
+          <span>Light</span>
+        </div>
       </SettingsCard>
 
       {/* 2. Theme Presets */}
