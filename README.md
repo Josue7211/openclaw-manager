@@ -55,16 +55,11 @@ Every module is optional. Enable only what you have — but [OpenClaw](https://g
   <img src="docs/overview-simple.png" alt="Overview — what the app does" />
 </p>
 
-<details>
-<summary>Full technical architecture</summary>
-
 <p align="center">
   <img src="docs/architecture.png" alt="Technical architecture diagram" />
 </p>
 
-</details>
-
-> Open `docs/architecture.excalidraw` or `docs/overview-simple.excalidraw` in [excalidraw.com](https://excalidraw.com) for editable versions.
+> Open the `.excalidraw` files in `docs/` with [excalidraw.com](https://excalidraw.com) for editable versions.
 
 The app runs as a **Tauri v2 desktop application** with an embedded Axum HTTP server on `localhost:3000`. The React frontend never talks to remote services directly — everything is proxied through Axum. Secrets are stored in the OS keychain, never in environment files or source code.
 
