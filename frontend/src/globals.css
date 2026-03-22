@@ -1313,6 +1313,11 @@ input[type="checkbox"]:checked::before {
   .react-grid-item.react-draggable-dragging { transform: none; }
 }
 
+/* ── Resize handles above widget content ── */
+.react-grid-item > .react-resizable-handle {
+  z-index: 20;
+}
+
 /* ── Widget edit chrome ── */
 .widget-remove-btn {
   position: absolute;

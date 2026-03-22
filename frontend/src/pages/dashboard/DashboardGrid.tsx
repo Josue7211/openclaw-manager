@@ -79,15 +79,19 @@ export const DashboardGrid = React.memo(function DashboardGrid({
     if (!editMode) enterEditMode(true)
   })
 
-  // Collect all unique widget IDs across all breakpoints
+  // Collect all unique widget IDs across all breakpoints.
+  // Depend on page.id + page.layouts (not the page object reference) so the
+  // memo recomputes reliably when switching between dashboard tabs.
+  const pageId_ = page?.id
+  const pageLayouts = page?.layouts
   const widgetItems = useMemo(() => {
-    if (!page) return []
+    if (!pageId_ || !pageLayouts) return []
 
     const seen = new Set<string>()
     const items: LayoutItem[] = []
 
     // Gather unique widgets from all breakpoint layouts
-    for (const layoutItems of Object.values(page.layouts)) {
+    for (const layoutItems of Object.values(pageLayouts)) {
       for (const item of layoutItems as LayoutItem[]) {
         if (!seen.has(item.i)) {
           seen.add(item.i)
@@ -97,7 +101,7 @@ export const DashboardGrid = React.memo(function DashboardGrid({
     }
 
     return items
-  }, [page])
+  }, [pageId_, pageLayouts])
 
   // Debounced layout change handler
   const layoutUpdater = onLayoutChangeProp ?? updatePageLayouts
