@@ -109,6 +109,35 @@ OpenClaw Gateway (the web UI at openclaw.aparcedo.org) has features that Mission
 13. **Compaction indicator** — show context window management in chat
 14. **Chat split view** — side-by-side conversations
 
+## Additional Features from Community Mission Control Apps
+
+### From github.com/robsannaa/openclaw-mission-control (495 stars)
+15. **Kanban task board** — 4 columns (Backlog/In Progress/Review/Done) with drag-drop, syncs with agent workspace
+16. **Token usage + cost tracking** — per-model per-agent token counts with cost breakdowns, budget monitoring, usage charts
+17. **Agent hierarchy org chart** — visual tree showing agent relationships, subagent lifecycle controls
+18. **Memory management** — view/edit long-term memory + daily journals, vector semantic search
+19. **Models & credentials manager** — centralized model overview, provider credentials, fallback chains, per-agent model assignment
+20. **Health diagnostics ("Doctor")** — automated issue detection with one-click fixes
+21. **Terminal access** — full CLI in the dashboard with tabs and color support
+22. **Channel integrations** — Telegram, Discord, WhatsApp, Signal, Slack with QR pairing
+23. **Document browser** — workspace file explorer across all agents with semantic search (Cmd+K)
+24. **Security auditing** — setup audits, permission controls, credential masking
+25. **Error boundaries per section** — individual section isolation, isolated retry
+
+### From github.com/abhi1693/openclaw-mission-control
+26. **Board groups** — multi-level hierarchical task organization
+27. **Governance & approval flows** — route sensitive actions through explicit approvals, decision trails
+28. **Activity timeline** — system action audit log for debugging and accountability
+29. **API-first architecture** — unified UI + REST API for automation
+
 ## Solution
 
-These should be a future milestone (v0.0.3 or v0.1.0) focused on "OpenClaw Controller Parity." The agent management and cron CRUD are the highest priority since MC is supposed to be the primary way to manage OpenClaw.
+These should be a future milestone (v0.0.3 or v0.1.0) focused on "OpenClaw Controller Parity." Priority order:
+1. Agent management CRUD (files, tools, skills, model config) — THE core controller feature
+2. Token usage + cost tracking — essential for monitoring AI spend
+3. Cron job CRUD with proper forms — scheduling is a power feature
+4. Terminal/shell access — remote CLI from MC
+5. Memory management — view/edit agent memory
+6. Chat improvements (focus mode, attachments, tool cards, search)
+7. Kanban board — already planned as Project Tracker todo
+8. Everything else — health diagnostics, channel integrations, security auditing
