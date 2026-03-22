@@ -23,7 +23,7 @@
 
 OpenClaw Manager is a **modular desktop app** that brings all your personal infrastructure into one interface. Think Discord meets iOS Settings — but self-hosted, private, and fully under your control.
 
-Every module is optional. Enable only what you have:
+Every module is optional. Enable only what you have — but [OpenClaw](https://github.com/Josue7211/openclaw) is the heart of the app. Without it you still get a solid productivity hub (todos, calendar, email, notes, pomodoro), but you miss out on AI chat, autonomous agents, cron jobs, missions, and the full dashboard.
 
 | Module | What it does | Requires |
 |--------|-------------|----------|
@@ -39,7 +39,11 @@ Every module is optional. Enable only what you have:
 | **Media Radar** | Track movies/TV shows | Plex + Sonarr + Radarr |
 | **Dashboard** | Agent status, missions, pipelines | OpenClaw + Supabase |
 | **Agents** | AI agent management and monitoring | OpenClaw |
+| **Crons** | Scheduled jobs and recurring tasks | OpenClaw |
+| **Missions** | Autonomous agent task tracking and replay | OpenClaw + Supabase |
+| **Pipeline** | CI/CD pipeline management and ship log | Supabase |
 | **Knowledge** | Shared reference documents | Supabase |
+| **Personal** | Morning brief, daily review, habits | Supabase |
 
 **App-wide features:** Command palette (`Ctrl+K`), global search, configurable keyboard shortcuts, native notifications with per-conversation mute, dark/light theming, custom sidebar layout, offline-first with sync.
 
@@ -48,10 +52,19 @@ Every module is optional. Enable only what you have:
 ## Architecture
 
 <p align="center">
-  <img src="docs/architecture.png" alt="Architecture diagram" />
+  <img src="docs/overview-simple.png" alt="Overview — what the app does" />
 </p>
 
-> Open `docs/architecture.excalidraw` in [excalidraw.com](https://excalidraw.com) for the editable version.
+<details>
+<summary>Full technical architecture</summary>
+
+<p align="center">
+  <img src="docs/architecture.png" alt="Technical architecture diagram" />
+</p>
+
+</details>
+
+> Open `docs/architecture.excalidraw` or `docs/overview-simple.excalidraw` in [excalidraw.com](https://excalidraw.com) for editable versions.
 
 The app runs as a **Tauri v2 desktop application** with an embedded Axum HTTP server on `localhost:3000`. The React frontend never talks to remote services directly — everything is proxied through Axum. Secrets are stored in the OS keychain, never in environment files or source code.
 
@@ -130,12 +143,21 @@ cp .env.example .env.local   # Edit with your values
 | `SUPABASE_ANON_KEY` | Supabase anonymous key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) |
 
+### Recommended (unlocks AI features)
+
+| Variable | Description |
+|---|---|
+| `OPENCLAW_WS` | OpenClaw WebSocket URL (AI chat streaming) |
+| `OPENCLAW_API_URL` | OpenClaw HTTP API URL |
+| `OPENCLAW_API_KEY` | OpenClaw API key |
+
+OpenClaw powers AI Chat, Agents, Crons, Missions, and the full Dashboard. The app works without it as a productivity hub, but these are the features that make it special.
+
 ### Optional (per module)
 
 | Variable | Module |
 |---|---|
 | `BLUEBUBBLES_HOST` / `BLUEBUBBLES_PASSWORD` | Messages |
-| `OPENCLAW_WS` / `OPENCLAW_API_URL` / `OPENCLAW_API_KEY` | AI Chat |
 | `MAC_BRIDGE_HOST` / `MAC_BRIDGE_API_KEY` | Reminders / Contacts |
 | `COUCHDB_URL` / `COUCHDB_USER` / `COUCHDB_PASSWORD` / `COUCHDB_DATABASE` | Notes |
 | `CALDAV_URL` / `CALDAV_USERNAME` / `CALDAV_PASSWORD` | Calendar |
