@@ -207,7 +207,9 @@ Plans:
   3. Opening and closing 100 terminals leaves zero orphaned processes (process group kill)
   4. PTY environment is sanitized: no `MC_*`, `OPENCLAW_*`, `COUCHDB_*`, `SUPABASE_*` variables
   5. Correct shell detected per platform (bash/zsh on Linux/macOS, PowerShell on Windows)
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 13-01-PLAN.md -- portable-pty dependency + terminal.rs (CAS guard, env sanitization, PTY relay, process group cleanup) + route registration
 
 ### Phase 14: Terminal Frontend (xterm.js)
 **Goal**: Working terminal component integrated with the app's theme and widget system
@@ -306,7 +308,7 @@ Plans:
 | 10. OpenClaw Agent CRUD | v0.0.3 | 2/2 | Complete    | 2026-03-22 |
 | 11. OpenClaw Cron CRUD | v0.0.3 | 0/2 | Complete    | 2026-03-22 |
 | 12. OpenClaw Usage + Models + Controller Page | v0.0.3 | 1/2 | Complete    | 2026-03-22 |
-| 13. Terminal PTY Backend | v0.0.3 | 0/? | Not started | - |
+| 13. Terminal PTY Backend | v0.0.3 | 0/1 | Not started | - |
 | 14. Terminal Frontend (xterm.js) | v0.0.3 | 0/? | Not started | - |
 | 15. Claude Code Session Backend | v0.0.3 | 0/? | Not started | - |
 | 16. Session Monitor Frontend | v0.0.3 | 0/? | Not started | - |
