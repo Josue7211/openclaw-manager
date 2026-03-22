@@ -63,6 +63,17 @@ export interface WidgetBundle {
   widgetIds: string[]
 }
 
+export interface WidgetPreset {
+  id: string
+  name: string
+  description: string
+  icon: string
+  widgets: Array<{
+    pluginId: string
+    layout: { x: number; y: number; w: number; h: number }
+  }>
+}
+
 // ---------------------------------------------------------------------------
 // Built-in Widgets
 // ---------------------------------------------------------------------------
@@ -339,20 +350,90 @@ export function getWidgetBundles(): WidgetBundle[] {
     {
       id: 'agent-monitor',
       name: 'Agent Monitor',
-      description: 'Agent status and live processes',
-      widgetIds: ['agent-status', 'agents'],
+      description: 'Agent status, live processes, and heartbeat',
+      widgetIds: ['agent-status', 'agents', 'heartbeat'],
     },
     {
       id: 'mission-control',
       name: 'Mission Control',
-      description: 'Missions and idea pipeline',
-      widgetIds: ['missions', 'idea-briefing'],
+      description: 'Missions, idea pipeline, and pipeline status',
+      widgetIds: ['missions', 'idea-briefing', 'pipeline-status'],
     },
     {
       id: 'system-overview',
       name: 'System Overview',
-      description: 'Health, network, and sessions',
-      widgetIds: ['heartbeat', 'network', 'sessions'],
+      description: 'Homelab VMs, network, and sessions',
+      widgetIds: ['homelab-vms', 'network-status', 'network', 'sessions'],
+    },
+    {
+      id: 'daily-driver',
+      name: 'Daily Driver',
+      description: 'Todos, calendar, reminders, and inbox',
+      widgetIds: ['todos', 'calendar', 'reminders', 'inbox'],
+    },
+    {
+      id: 'media-suite',
+      name: 'Media Suite',
+      description: 'Now playing and upcoming episodes',
+      widgetIds: ['now-playing', 'upcoming-media'],
     },
   ]
+}
+
+// ---------------------------------------------------------------------------
+// Layout Presets — pre-configured dashboard pages
+// ---------------------------------------------------------------------------
+
+export const WIDGET_PRESETS: WidgetPreset[] = [
+  {
+    id: 'monitoring',
+    name: 'Monitoring',
+    description: 'Homelab VMs, network status, and agent overview',
+    icon: 'Pulse',
+    widgets: [
+      { pluginId: 'homelab-vms', layout: { x: 0, y: 0, w: 4, h: 3 } },
+      { pluginId: 'network-status', layout: { x: 4, y: 0, w: 4, h: 2 } },
+      { pluginId: 'agent-status', layout: { x: 8, y: 0, w: 4, h: 2 } },
+      { pluginId: 'pipeline-status', layout: { x: 4, y: 2, w: 4, h: 2 } },
+      { pluginId: 'heartbeat', layout: { x: 8, y: 2, w: 4, h: 2 } },
+    ],
+  },
+  {
+    id: 'productivity',
+    name: 'Productivity',
+    description: 'Todos, calendar, reminders, and pomodoro timer',
+    icon: 'CheckSquare',
+    widgets: [
+      { pluginId: 'todos', layout: { x: 0, y: 0, w: 4, h: 3 } },
+      { pluginId: 'calendar', layout: { x: 4, y: 0, w: 4, h: 3 } },
+      { pluginId: 'reminders', layout: { x: 8, y: 0, w: 4, h: 3 } },
+      { pluginId: 'pomodoro', layout: { x: 0, y: 3, w: 2, h: 2 } },
+      { pluginId: 'knowledge', layout: { x: 2, y: 3, w: 4, h: 2 } },
+    ],
+  },
+  {
+    id: 'notes-workspace',
+    name: 'Notes Workspace',
+    description: 'Recent notes and knowledge base entries',
+    icon: 'BookOpen',
+    widgets: [
+      { pluginId: 'recent-notes', layout: { x: 0, y: 0, w: 6, h: 3 } },
+      { pluginId: 'knowledge', layout: { x: 6, y: 0, w: 6, h: 3 } },
+    ],
+  },
+  {
+    id: 'media-center',
+    name: 'Media Center',
+    description: 'Now playing, upcoming episodes, and recent additions',
+    icon: 'Television',
+    widgets: [
+      { pluginId: 'now-playing', layout: { x: 0, y: 0, w: 4, h: 3 } },
+      { pluginId: 'upcoming-media', layout: { x: 4, y: 0, w: 4, h: 3 } },
+      { pluginId: 'inbox', layout: { x: 8, y: 0, w: 4, h: 3 } },
+    ],
+  },
+]
+
+export function getWidgetPresets(): WidgetPreset[] {
+  return WIDGET_PRESETS
 }

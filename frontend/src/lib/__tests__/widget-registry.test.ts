@@ -4,13 +4,14 @@ import {
   getWidget,
   getWidgetsByCategory,
   getWidgetBundles,
+  getWidgetPresets,
   registerWidget,
 } from '../widget-registry'
 import type { WidgetDefinition } from '../widget-registry'
 
 describe('BUILTIN_WIDGETS', () => {
-  it('has exactly 13 entries', () => {
-    expect(BUILTIN_WIDGETS).toHaveLength(13)
+  it('has exactly 21 entries', () => {
+    expect(BUILTIN_WIDGETS).toHaveLength(21)
   })
 
   it('contains all expected widget IDs', () => {
@@ -143,30 +144,113 @@ describe('getWidgetsByCategory', () => {
 })
 
 describe('getWidgetBundles', () => {
-  it('returns 3 bundles', () => {
+  it('returns 5 bundles', () => {
     const bundles = getWidgetBundles()
-    expect(bundles).toHaveLength(3)
+    expect(bundles).toHaveLength(5)
   })
 
   it('has Agent Monitor bundle', () => {
     const bundles = getWidgetBundles()
     const agentMonitor = bundles.find(b => b.name === 'Agent Monitor')
     expect(agentMonitor).toBeDefined()
-    expect(agentMonitor!.widgetIds).toEqual(['agent-status', 'agents'])
+    expect(agentMonitor!.widgetIds).toEqual(['agent-status', 'agents', 'heartbeat'])
   })
 
   it('has Mission Control bundle', () => {
     const bundles = getWidgetBundles()
     const missionControl = bundles.find(b => b.name === 'Mission Control')
     expect(missionControl).toBeDefined()
-    expect(missionControl!.widgetIds).toEqual(['missions', 'idea-briefing'])
+    expect(missionControl!.widgetIds).toEqual(['missions', 'idea-briefing', 'pipeline-status'])
   })
 
   it('has System Overview bundle', () => {
     const bundles = getWidgetBundles()
     const systemOverview = bundles.find(b => b.name === 'System Overview')
     expect(systemOverview).toBeDefined()
-    expect(systemOverview!.widgetIds).toEqual(['heartbeat', 'network', 'sessions'])
+    expect(systemOverview!.widgetIds).toEqual(['homelab-vms', 'network-status', 'network', 'sessions'])
+  })
+
+  it('has Daily Driver bundle', () => {
+    const bundles = getWidgetBundles()
+    const dailyDriver = bundles.find(b => b.name === 'Daily Driver')
+    expect(dailyDriver).toBeDefined()
+    expect(dailyDriver!.widgetIds).toEqual(['todos', 'calendar', 'reminders', 'inbox'])
+  })
+
+  it('has Media Suite bundle', () => {
+    const bundles = getWidgetBundles()
+    const mediaSuite = bundles.find(b => b.name === 'Media Suite')
+    expect(mediaSuite).toBeDefined()
+    expect(mediaSuite!.widgetIds).toEqual(['now-playing', 'upcoming-media'])
+  })
+})
+
+describe('getWidgetPresets', () => {
+  it('returns 4 presets', () => {
+    const presets = getWidgetPresets()
+    expect(presets).toHaveLength(4)
+  })
+
+  it('each preset has required fields', () => {
+    const presets = getWidgetPresets()
+    for (const preset of presets) {
+      expect(preset.id).toBeTruthy()
+      expect(preset.name).toBeTruthy()
+      expect(preset.description).toBeTruthy()
+      expect(preset.icon).toBeTruthy()
+      expect(preset.widgets.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('each preset widget has pluginId and layout', () => {
+    const presets = getWidgetPresets()
+    for (const preset of presets) {
+      for (const widget of preset.widgets) {
+        expect(widget.pluginId).toBeTruthy()
+        expect(widget.layout).toBeDefined()
+        expect(typeof widget.layout.x).toBe('number')
+        expect(typeof widget.layout.y).toBe('number')
+        expect(widget.layout.w).toBeGreaterThan(0)
+        expect(widget.layout.h).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  it('all preset widget pluginIds reference registered widgets', () => {
+    const presets = getWidgetPresets()
+    for (const preset of presets) {
+      for (const widget of preset.widgets) {
+        expect(getWidget(widget.pluginId)).toBeDefined()
+      }
+    }
+  })
+
+  it('has Monitoring preset', () => {
+    const presets = getWidgetPresets()
+    const monitoring = presets.find(p => p.id === 'monitoring')
+    expect(monitoring).toBeDefined()
+    expect(monitoring!.widgets).toHaveLength(5)
+  })
+
+  it('has Productivity preset', () => {
+    const presets = getWidgetPresets()
+    const productivity = presets.find(p => p.id === 'productivity')
+    expect(productivity).toBeDefined()
+    expect(productivity!.widgets).toHaveLength(5)
+  })
+
+  it('has Notes Workspace preset', () => {
+    const presets = getWidgetPresets()
+    const notes = presets.find(p => p.id === 'notes-workspace')
+    expect(notes).toBeDefined()
+    expect(notes!.widgets).toHaveLength(2)
+  })
+
+  it('has Media Center preset', () => {
+    const presets = getWidgetPresets()
+    const media = presets.find(p => p.id === 'media-center')
+    expect(media).toBeDefined()
+    expect(media!.widgets).toHaveLength(3)
   })
 })
 

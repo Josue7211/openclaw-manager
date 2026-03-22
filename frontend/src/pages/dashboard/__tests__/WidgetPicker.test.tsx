@@ -63,9 +63,32 @@ const mockBundles = [
   },
 ]
 
+const mockPresets = [
+  {
+    id: 'monitoring',
+    name: 'Monitoring',
+    description: 'Homelab VMs, network status, and agent overview',
+    icon: 'Pulse',
+    widgets: [
+      { pluginId: 'agent-status', layout: { x: 0, y: 0, w: 4, h: 3 } },
+      { pluginId: 'heartbeat', layout: { x: 4, y: 0, w: 4, h: 2 } },
+    ],
+  },
+  {
+    id: 'productivity',
+    name: 'Productivity',
+    description: 'Todos, calendar, reminders, and pomodoro timer',
+    icon: 'CheckSquare',
+    widgets: [
+      { pluginId: 'missions', layout: { x: 0, y: 0, w: 4, h: 3 } },
+    ],
+  },
+]
+
 vi.mock('@/lib/widget-registry', () => ({
   getWidgetsByCategory: () => mockWidgetsByCategory,
   getWidgetBundles: () => mockBundles,
+  getWidgetPresets: () => mockPresets,
   getWidget: (id: string) => {
     for (const widgets of Object.values(mockWidgetsByCategory)) {
       const found = widgets.find((w: any) => w.id === id)
@@ -123,9 +146,10 @@ describe('WidgetPicker', () => {
 
   it('renders category headings when open', () => {
     renderPicker()
-    expect(screen.getByText('Monitoring')).toBeInTheDocument()
-    expect(screen.getByText('Productivity')).toBeInTheDocument()
-    expect(screen.getByText('AI')).toBeInTheDocument()
+    // Category headings appear as uppercase labels — use getAllByText since tabs also show these names
+    expect(screen.getAllByText('Monitoring').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Productivity').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('AI').length).toBeGreaterThanOrEqual(1)
   })
 
   it('renders widgets within their categories', () => {
@@ -210,6 +234,93 @@ describe('WidgetPicker', () => {
     renderPicker({ placedWidgetIds: ['agent-status'] })
     // The Agent Status card should show "Added" text
     expect(screen.getByText('Added')).toBeInTheDocument()
+  })
+
+  it('renders category filter tabs', () => {
+    renderPicker()
+    const tablist = screen.getByRole('tablist')
+    expect(tablist).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'All' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Monitoring' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Productivity' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'AI' })).toBeInTheDocument()
+  })
+
+  it('"All" tab is active by default', () => {
+    renderPicker()
+    const allTab = screen.getByRole('tab', { name: 'All' })
+    expect(allTab).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('clicking a category tab filters to only that category', () => {
+    renderPicker()
+    // Click the "AI" tab
+    fireEvent.click(screen.getByRole('tab', { name: 'AI' }))
+    // Should show AI category widgets
+    expect(screen.getByText('Agents')).toBeInTheDocument()
+    // Should not show Monitoring or Productivity
+    expect(screen.queryByText('Agent Status')).not.toBeInTheDocument()
+    expect(screen.queryByText('Missions')).not.toBeInTheDocument()
+  })
+
+  it('clicking "All" tab shows all categories again', () => {
+    renderPicker()
+    // Filter to AI
+    fireEvent.click(screen.getByRole('tab', { name: 'AI' }))
+    expect(screen.queryByText('Agent Status')).not.toBeInTheDocument()
+    // Go back to All
+    fireEvent.click(screen.getByRole('tab', { name: 'All' }))
+    expect(screen.getByText('Agent Status')).toBeInTheDocument()
+    expect(screen.getByText('Agents')).toBeInTheDocument()
+  })
+
+  it('renders presets section when All tab is active and no search', () => {
+    renderPicker()
+    expect(screen.getByText('Presets')).toBeInTheDocument()
+    // Preset names appear alongside tabs and category headings — verify Apply buttons exist
+    expect(screen.getByRole('button', { name: /apply preset: monitoring/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /apply preset: productivity/i })).toBeInTheDocument()
+  })
+
+  it('hides presets section when search is active', () => {
+    renderPicker()
+    const input = screen.getByPlaceholderText('Search widgets...')
+    fireEvent.change(input, { target: { value: 'agent' } })
+    expect(screen.queryByText('Presets')).not.toBeInTheDocument()
+  })
+
+  it('hides presets section when a category tab is selected', () => {
+    renderPicker()
+    fireEvent.click(screen.getByRole('tab', { name: 'AI' }))
+    expect(screen.queryByText('Presets')).not.toBeInTheDocument()
+  })
+
+  it('clicking Apply on a preset calls widgetAdder for each widget', () => {
+    renderPicker()
+    const applyButton = screen.getByRole('button', { name: /apply preset: monitoring/i })
+    fireEvent.click(applyButton)
+    // Monitoring preset has 2 widgets (agent-status + heartbeat)
+    expect(mockAddWidgetToPage).toHaveBeenCalledTimes(2)
+    expect(mockAddWidgetToPage).toHaveBeenCalledWith(
+      'page-1',
+      'agent-status',
+      expect.objectContaining({
+        x: 0,
+        y: 0,
+        w: 4,
+        h: 3,
+      }),
+    )
+    expect(mockAddWidgetToPage).toHaveBeenCalledWith(
+      'page-1',
+      'heartbeat',
+      expect.objectContaining({
+        x: 4,
+        y: 0,
+        w: 4,
+        h: 2,
+      }),
+    )
   })
 })
 

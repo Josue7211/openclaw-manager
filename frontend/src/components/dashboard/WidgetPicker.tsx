@@ -1,13 +1,14 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react'
-import { X, MagnifyingGlass, Package } from '@phosphor-icons/react'
+import { X, MagnifyingGlass, Package, Pulse, CheckSquare, BookOpen, Television, Layout } from '@phosphor-icons/react'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
 import {
   getWidgetsByCategory,
   getWidgetBundles,
+  getWidgetPresets,
   getWidget,
 } from '@/lib/widget-registry'
-import type { WidgetDefinition } from '@/lib/widget-registry'
+import type { WidgetDefinition, WidgetPreset } from '@/lib/widget-registry'
 import { addWidgetToPage } from '@/lib/dashboard-store'
 import { WidgetPickerCard } from './WidgetPickerCard'
 
@@ -25,6 +26,23 @@ const CATEGORY_LABELS: Record<string, string> = {
 }
 
 const CATEGORY_ORDER = ['monitoring', 'productivity', 'ai', 'media', 'custom', 'primitives']
+
+const CATEGORY_TABS: Array<{ key: string | null; label: string }> = [
+  { key: null, label: 'All' },
+  { key: 'monitoring', label: 'Monitoring' },
+  { key: 'productivity', label: 'Productivity' },
+  { key: 'ai', label: 'AI' },
+  { key: 'media', label: 'Media' },
+  { key: 'custom', label: 'Custom' },
+  { key: 'primitives', label: 'Primitives' },
+]
+
+const PRESET_ICON_MAP: Record<string, React.ElementType> = {
+  Pulse,
+  CheckSquare,
+  BookOpen,
+  Television,
+}
 
 // ---------------------------------------------------------------------------
 // WidgetPicker
@@ -48,30 +66,45 @@ export const WidgetPicker = React.memo(function WidgetPicker({
 }: WidgetPickerProps) {
   const widgetAdder = onAddWidget ?? addWidgetToPage
   const [search, setSearch] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const trapRef = useFocusTrap(open)
 
   useEscapeKey(onClose, open)
 
-  // Reset search when panel opens
+  // Reset search and category when panel opens
   useEffect(() => {
-    if (open) setSearch('')
+    if (open) {
+      setSearch('')
+      setSelectedCategory(null)
+    }
   }, [open])
 
   const categorized = useMemo(() => getWidgetsByCategory(), [])
   const bundles = useMemo(() => getWidgetBundles(), [])
+  const presets = useMemo(() => getWidgetPresets(), [])
 
   const placedSet = useMemo(
     () => new Set(placedWidgetIds),
     [placedWidgetIds],
   )
 
-  // Filter by search
+  // Filter by search and selected category
   const filteredCategories = useMemo(() => {
     const term = search.toLowerCase().trim()
-    if (!term) return categorized
+
+    // Start with all categories or just the selected one
+    let source = categorized
+    if (selectedCategory) {
+      source = {}
+      if (categorized[selectedCategory]) {
+        source[selectedCategory] = categorized[selectedCategory]
+      }
+    }
+
+    if (!term) return source
 
     const result: Record<string, WidgetDefinition[]> = {}
-    for (const [cat, widgets] of Object.entries(categorized)) {
+    for (const [cat, widgets] of Object.entries(source)) {
       const filtered = widgets.filter(
         (w) =>
           w.name.toLowerCase().includes(term) ||
@@ -80,7 +113,7 @@ export const WidgetPicker = React.memo(function WidgetPicker({
       if (filtered.length > 0) result[cat] = filtered
     }
     return result
-  }, [categorized, search])
+  }, [categorized, search, selectedCategory])
 
   const hasResults = Object.keys(filteredCategories).length > 0
 
@@ -110,6 +143,26 @@ export const WidgetPicker = React.memo(function WidgetPicker({
       }
     },
     [handleAddWidget],
+  )
+
+  const handleApplyPreset = useCallback(
+    (preset: WidgetPreset) => {
+      for (const entry of preset.widgets) {
+        const def = getWidget(entry.pluginId)
+        if (!def) continue
+        const instanceId = `${entry.pluginId}-${crypto.randomUUID().slice(0, 8)}`
+        widgetAdder(pageId, entry.pluginId, {
+          i: instanceId,
+          x: entry.layout.x,
+          y: entry.layout.y,
+          w: entry.layout.w,
+          h: entry.layout.h,
+          minW: def.minSize?.w,
+          minH: def.minSize?.h,
+        })
+      }
+    },
+    [pageId, widgetAdder],
   )
 
   if (!open) return null
@@ -225,6 +278,47 @@ export const WidgetPicker = React.memo(function WidgetPicker({
           </div>
         </div>
 
+        {/* Category filter tabs */}
+        <div
+          role="tablist"
+          aria-label="Widget categories"
+          style={{
+            display: 'flex',
+            gap: 0,
+            borderBottom: '1px solid var(--border)',
+            padding: '0 24px',
+            overflowX: 'auto',
+            scrollbarWidth: 'none',
+          }}
+        >
+          {CATEGORY_TABS.map((tab) => {
+            const isActive = selectedCategory === tab.key
+            return (
+              <button
+                key={tab.label}
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setSelectedCategory(tab.key)}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '13px',
+                  fontWeight: isActive ? 600 : 500,
+                  color: isActive ? 'var(--accent)' : 'var(--text-muted)',
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  borderBottom: `2px solid ${isActive ? 'var(--accent)' : 'transparent'}`,
+                  whiteSpace: 'nowrap',
+                  fontFamily: 'inherit',
+                  transition: 'color 150ms ease, border-color 150ms ease',
+                }}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
+
         {/* Body */}
         <div
           style={{
@@ -270,6 +364,112 @@ export const WidgetPicker = React.memo(function WidgetPicker({
             </div>
           ) : (
             <>
+              {/* Presets — show when All tab and no search */}
+              {!search.trim() && selectedCategory === null && presets.length > 0 && (
+                <div style={{ marginBottom: '24px' }}>
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: 'var(--text-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.1em',
+                      marginBottom: '8px',
+                    }}
+                  >
+                    Presets
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                    }}
+                  >
+                    {presets.map((preset) => {
+                      const PresetIcon = PRESET_ICON_MAP[preset.icon] || Layout
+                      return (
+                        <div
+                          key={preset.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '12px 16px',
+                            background: 'var(--bg-elevated)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '12px',
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: '8px',
+                                background: 'var(--accent-a12)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                              }}
+                            >
+                              <PresetIcon
+                                size={18}
+                                weight="duotone"
+                                style={{ color: 'var(--accent)' }}
+                              />
+                            </div>
+                            <div>
+                              <div
+                                style={{
+                                  fontSize: '15px',
+                                  fontWeight: 600,
+                                  color: 'var(--text-primary)',
+                                }}
+                              >
+                                {preset.name}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: '12px',
+                                  color: 'var(--text-muted)',
+                                }}
+                              >
+                                {preset.description}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleApplyPreset(preset)}
+                            aria-label={`Apply preset: ${preset.name}`}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '999px',
+                              border: 'none',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              fontFamily: 'inherit',
+                              background: 'var(--accent)',
+                              color: 'var(--text-on-color)',
+                            }}
+                          >
+                            Apply
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Categories */}
               {CATEGORY_ORDER.filter(
                 (cat) => filteredCategories[cat]?.length,
