@@ -65,6 +65,7 @@ export interface ThemeState {
    *  When false, System mode just picks built-in dark/light based on OS preference. */
   useGtkTheme?: boolean
   lastModified?: number
+  blendPosition?: number
 }
 
 // ---------------------------------------------------------------------------

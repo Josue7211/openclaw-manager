@@ -19,6 +19,7 @@ import {
   applyTertiaryColor,
   applyLogoColor,
 } from './themes'
+import { hexToOklch, oklchToHex } from './color-utils'
 
 // ---------------------------------------------------------------------------
 // resolveThemeDefinition
@@ -549,6 +550,181 @@ function performCrossfadeTransition(applyFn: () => void): void {
       )
     }).catch(() => {})
   } catch { applyFn() }
+}
+
+// ---------------------------------------------------------------------------
+// Theme blend interpolation engine
+// ---------------------------------------------------------------------------
+
+const TIER_1_KEYS: ReadonlyArray<string> = [
+  'bg-base', 'bg-panel', 'bg-card', 'bg-card-hover', 'bg-elevated', 'bg-card-solid',
+  'bg-popover', 'bg-modal', 'text-primary', 'text-secondary', 'text-muted',
+  'border', 'border-hover', 'border-strong', 'border-subtle',
+  'glass-bg', 'glass-border', 'hover-bg', 'hover-bg-bright', 'active-bg',
+  'overlay-light', 'overlay', 'overlay-heavy',
+]
+
+/**
+ * Parse a CSS color value (hex or rgba) into [r, g, b, a] components.
+ */
+export function parseColor(val: string): [number, number, number, number] {
+  if (val.startsWith('#')) {
+    const r = parseInt(val.slice(1, 3), 16)
+    const g = parseInt(val.slice(3, 5), 16)
+    const b = parseInt(val.slice(5, 7), 16)
+    return [r, g, b, 1]
+  }
+  const rgbaMatch = val.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)/)
+  if (rgbaMatch) {
+    return [
+      parseInt(rgbaMatch[1], 10),
+      parseInt(rgbaMatch[2], 10),
+      parseInt(rgbaMatch[3], 10),
+      rgbaMatch[4] != null ? parseFloat(rgbaMatch[4]) : 1,
+    ]
+  }
+  return [0, 0, 0, 1]
+}
+
+/**
+ * Format [r, g, b, a] back to a CSS color string (hex if opaque, rgba otherwise).
+ */
+export function formatColor(r: number, g: number, b: number, a: number): string {
+  if (a === 1) {
+    return '#' +
+      r.toString(16).padStart(2, '0') +
+      g.toString(16).padStart(2, '0') +
+      b.toString(16).padStart(2, '0')
+  }
+  return `rgba(${r}, ${g}, ${b}, ${Math.round(a * 100) / 100})`
+}
+
+/**
+ * Compute WCAG 2.1 contrast ratio between two colors.
+ * Colors can be hex or rgba strings.
+ */
+export function contrastRatio(fg: string, bg: string): number {
+  const [fgR, fgG, fgB] = parseColor(fg)
+  const [bgR, bgG, bgB] = parseColor(bg)
+
+  const luminance = (r: number, g: number, b: number): number => {
+    const linearize = (c: number): number => {
+      const s = c / 255
+      return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+    }
+    return 0.2126 * linearize(r) + 0.7152 * linearize(g) + 0.0722 * linearize(b)
+  }
+
+  const L1 = luminance(fgR, fgG, fgB)
+  const L2 = luminance(bgR, bgG, bgB)
+  const lighter = Math.max(L1, L2)
+  const darker = Math.min(L1, L2)
+  return (lighter + 0.05) / (darker + 0.05)
+}
+
+/**
+ * Get the OKLCH lightness of a color value (hex or rgba).
+ */
+function bgLightness(hexOrRgba: string): number {
+  const [r, g, b] = parseColor(hexOrRgba)
+  const hex = '#' +
+    r.toString(16).padStart(2, '0') +
+    g.toString(16).padStart(2, '0') +
+    b.toString(16).padStart(2, '0')
+  return hexToOklch(hex)[0]
+}
+
+/**
+ * Interpolate between two ThemeDefinitions at position t in [0, 1].
+ *
+ * Only Tier 1 keys (surfaces, text, borders, glass, interactive, overlays) are blended.
+ * Tier 2 keys (accent, glow, status colors) are never included in the output.
+ *
+ * Text colors are auto-switched based on blended background OKLCH lightness,
+ * and nudged to maintain WCAG AA contrast (4.5:1) against bg-base.
+ */
+export function interpolateThemes(
+  darkDef: ThemeDefinition,
+  lightDef: ThemeDefinition,
+  t: number,
+): Record<string, string> {
+  const tc = Math.max(0, Math.min(1, t))
+  const result: Record<string, string> = {}
+
+  for (const key of TIER_1_KEYS) {
+    const darkVal = darkDef.colors[key]
+    const lightVal = lightDef.colors[key]
+    if (darkVal == null || lightVal == null) continue
+
+    const [r1, g1, b1, a1] = parseColor(darkVal)
+    const [r2, g2, b2, a2] = parseColor(lightVal)
+
+    const r = Math.round(r1 + (r2 - r1) * tc)
+    const g = Math.round(g1 + (g2 - g1) * tc)
+    const b = Math.round(b1 + (b2 - b1) * tc)
+    const a = Math.round((a1 + (a2 - a1) * tc) * 100) / 100
+
+    result[key] = formatColor(r, g, b, a)
+  }
+
+  // Text color auto-switch based on blended background lightness
+  const bgBase = result['bg-base']
+  if (bgBase) {
+    const bgL = bgLightness(bgBase)
+    const TEXT_KEYS = ['text-primary', 'text-secondary', 'text-muted'] as const
+
+    for (const textKey of TEXT_KEYS) {
+      const darkTextVal = darkDef.colors[textKey]
+      const lightTextVal = lightDef.colors[textKey]
+      if (!darkTextVal || !lightTextVal) continue
+
+      const darkTextL = bgLightness(darkTextVal)
+      const lightTextL = bgLightness(lightTextVal)
+
+      if (bgL > 0.6) {
+        // Light background -> use darker text
+        const darker = darkTextL < lightTextL ? darkTextVal : lightTextVal
+        const darkerL = Math.min(darkTextL, lightTextL)
+        result[textKey] = darkerL < 0.4 ? darker : (
+          textKey === 'text-primary' ? '#1d1d1f' :
+          textKey === 'text-secondary' ? '#6e6e73' : '#86868b'
+        )
+      } else {
+        // Dark background -> use lighter text
+        const lighter = darkTextL > lightTextL ? darkTextVal : lightTextVal
+        const lighterL = Math.max(darkTextL, lightTextL)
+        result[textKey] = lighterL > 0.7 ? lighter : (
+          textKey === 'text-primary' ? '#e4e4ec' :
+          textKey === 'text-secondary' ? '#9898a8' : '#8b8fa3'
+        )
+      }
+
+      // WCAG AA enforcement: nudge text toward black/white until 4.5:1 contrast
+      let cr = contrastRatio(result[textKey], bgBase)
+      if (cr < 4.5) {
+        const [tr, tg, tb] = parseColor(result[textKey])
+        let hex = '#' +
+          tr.toString(16).padStart(2, '0') +
+          tg.toString(16).padStart(2, '0') +
+          tb.toString(16).padStart(2, '0')
+        let oklch = hexToOklch(hex)
+        for (let i = 0; i < 20 && cr < 4.5; i++) {
+          if (bgL > 0.6) {
+            // Darken text
+            oklch = [Math.max(0, oklch[0] - 0.05), oklch[1], oklch[2]]
+          } else {
+            // Lighten text
+            oklch = [Math.min(1, oklch[0] + 0.05), oklch[1], oklch[2]]
+          }
+          hex = oklchToHex(oklch)
+          result[textKey] = hex
+          cr = contrastRatio(hex, bgBase)
+        }
+      }
+    }
+  }
+
+  return result
 }
 
 // ---------------------------------------------------------------------------
