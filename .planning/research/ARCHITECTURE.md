@@ -1,499 +1,796 @@
-# Architecture Patterns
+# Architecture Patterns: Widget-First Conversion
 
-**Domain:** All-in-one life productivity desktop app with AI module builder, dashboard grid, theming, rich notes, and responsive layout
-**Researched:** 2026-03-19
+**Domain:** Desktop app module system (dual-mode: full-page + dashboard widget)
+**Researched:** 2026-03-22
+**Confidence:** HIGH (derived from direct codebase analysis of 15+ source files)
 
-## Recommended Architecture
+---
 
-The five new systems layer onto the existing Tauri v2 + Axum + React architecture without replacing any current abstractions. Each system owns a clear boundary and communicates through well-defined interfaces.
+## Executive Summary
+
+The current architecture has two parallel rendering paths that must be unified:
+
+1. **Full-page route components** (`pages/*.tsx`) rendered by React Router inside `LayoutShell > main > Outlet`
+2. **Dashboard widget cards** (`pages/dashboard/*Card.tsx`) rendered by `DashboardGrid > WidgetWrapper > React.lazy(component)`
+
+These paths share nothing. Page components own their own data fetching (React Query hooks, SSE subscriptions). Widget cards read from `DashboardDataContext`, a monolithic context that bundles 20+ data streams from `useDashboardData()`. The conversion challenge is making every module work in both contexts without duplication, without breaking either rendering path, and without a monolithic context that scales to 17 modules.
+
+The recommended architecture introduces a **Module Kernel** layer: hooks that own all data fetching and logic, consumed independently by both widget shells (compact dashboard view) and page shells (full-page route). The DashboardDataContext is deprecated incrementally as each widget gains independent data fetching.
+
+---
+
+## Current Architecture (As-Is)
+
+### Component Hierarchy
 
 ```
-+-----------------------------------------------------------------------+
-|  FRONTEND (React)                                                      |
-|                                                                        |
-|  +------------------+  +-------------------+  +---------------------+  |
-|  | Dashboard Grid   |  | Notes Engine      |  | Theme Engine        |  |
-|  | (react-grid-     |  | (TipTap +         |  | (CSS var manager +  |  |
-|  |  layout v2)      |  |  custom wiki      |  |  preset store +     |  |
-|  |                  |  |  extension)        |  |  live editor)       |  |
-|  +--------+---------+  +--------+----------+  +----------+----------+  |
-|           |                     |                         |            |
-|  +--------+---------+  +--------+----------+  +-----------+----------+ |
-|  | Widget Registry  |  | Backlink Index    |  | Theme Serializer     | |
-|  | (lazy-loaded     |  | (client-side      |  | (JSON import/export) | |
-|  |  components +    |  |  link graph)      |  |                      | |
-|  |  Bjorn modules)  |  |                   |  |                      | |
-|  +--------+---------+  +-------------------+  +----------------------+ |
-|           |                                                            |
-|  +--------+-----------------------------------------------------------+|
-|  | Module Sandbox (iframe srcdoc)                                      |
-|  | - Bjorn-generated components rendered in isolation                   |
-|  | - postMessage bridge for data/events                                |
-|  | - Approval flow before promoting to production registry              |
-|  +---------------------------------------------------------------------+
-|                                                                        |
-|  +---------------------------------------------------------------------+
-|  | Responsive Layout Shell                                              |
-|  | - CSS container queries on main content area                         |
-|  | - Breakpoint-aware sidebar collapse                                  |
-|  | - Dashboard grid auto-adapts via react-grid-layout breakpoints       |
-|  +---------------------------------------------------------------------+
-+-----------------------------------------------------------------------+
-           |                    |                    |
-           v                    v                    v
-+-----------------------------------------------------------------------+
-|  BACKEND (Axum on localhost:3000)                                      |
-|                                                                        |
-|  /api/dashboard/layout    - CRUD for grid layouts per user             |
-|  /api/modules/bjorn       - Proxy to Bjorn for code generation         |
-|  /api/modules/registry    - List/approve/reject generated modules      |
-|  /api/themes              - CRUD for custom themes                     |
-|  /api/vault/*             - (existing) CouchDB notes proxy             |
-|  /api/vault/backlinks     - Backlink index queries                     |
-+-----------------------------------------------------------------------+
-           |                    |                    |
-           v                    v                    v
-+-----------------------------------------------------------------------+
-|  PERSISTENCE                                                           |
-|                                                                        |
-|  SQLite (local)           Supabase (remote)       CouchDB (notes)      |
-|  - dashboard_layouts      - dashboard_layouts     - note documents     |
-|  - module_registry        - module_registry       - (existing)         |
-|  - custom_themes          - custom_themes                              |
-|  - theme_presets (seed)   - theme_presets                              |
-+-----------------------------------------------------------------------+
+LayoutShell
+  Sidebar (nav-items.ts driven)
+  <main>
+    <Outlet />  (React Router)
+      Pages (e.g., Dashboard, Messages, Notes, Todos)
+
+Dashboard (page)
+  DashboardDataContext.Provider (useDashboardData hook)
+    DashboardGrid (react-grid-layout)
+      WidgetWrapper (per cell)
+        React.lazy(WidgetDefinition.component)
+          AgentStatusCard (reads from DashboardDataContext)
 ```
 
-### Component Boundaries
+### Key Contracts
 
-| Component | Responsibility | Communicates With | Data Ownership |
-|-----------|---------------|-------------------|----------------|
-| **Dashboard Grid** | Drag/resize widget placement, edit mode toggle, layout persistence | Widget Registry, Responsive Shell, Axum `/api/dashboard/layout` | Layout JSON (positions, sizes, breakpoint variants) |
-| **Widget Registry** | Maps widget IDs to lazy-loaded React components, includes both built-in and Bjorn-generated modules | Dashboard Grid, Module Sandbox, `modules.ts` store | Registry manifest (widget ID, component path, metadata) |
-| **Module Sandbox** | Isolates Bjorn-generated code in iframe, provides data bridge, handles approval flow | Widget Registry, Axum `/api/modules/bjorn`, Bjorn (via OpenClaw VM) | Module source code, approval status |
-| **Notes Engine** | Rich text editing with wiki links, backlinks, graph view | Axum `/api/vault/*`, Backlink Index | Note content (in CouchDB via existing vault proxy) |
-| **Backlink Index** | Maintains client-side graph of note-to-note links for instant backlink lookups | Notes Engine, Graph View | Derived link graph (computed from note content) |
-| **Theme Engine** | Manages CSS variable overrides, preset selection, live editing, import/export | `themes.ts` store, Axum `/api/themes`, localStorage | Theme definitions (JSON objects mapping CSS var names to values) |
-| **Responsive Shell** | Container query breakpoints, sidebar auto-collapse, layout adaptation | Dashboard Grid, LayoutShell, CSS container queries | Breakpoint state (derived from container dimensions) |
+| Contract | Location | What It Does |
+|----------|----------|--------------|
+| `WidgetProps` | `widget-registry.ts:22-26` | `{ widgetId, config, isEditMode, size }` passed to every widget |
+| `WidgetDefinition` | `widget-registry.ts:40-57` | Registry entry: id, metadata, lazy component, size constraints, config schema |
+| `WidgetWrapper` | `WidgetWrapper.tsx` | Error boundary + Suspense + edit chrome + lazy loading |
+| `DashboardDataContext` | `dashboard-context.ts` | Monolithic context from `useDashboardData()` |
+| `AppModule` | `modules.ts:1-9` | Module metadata: id, name, route, icon, platform |
+| `SidebarConfig` | `sidebar-config.ts` | Categories, custom names, drag order, recycle bin |
+| `DashboardState` | `dashboard-store.ts` | Pages, layouts per breakpoint, widget configs, edit mode |
 
-### Data Flow
+### Problems With Current Design
 
-**Dashboard Widget Rendering:**
+1. **DashboardDataContext is monolithic.** It fetches agent status, heartbeat, sessions, subagents, agents, missions, memory, ideas -- all in one hook. Adding 17 modules to this context would make it fetch everything on every dashboard render regardless of which widgets are placed.
+
+2. **Widget cards have no independent data fetching.** Every existing card calls `useDashboardDataContext()`. Without the Dashboard page as a parent, they crash (`throw new Error('must be used within Dashboard')`).
+
+3. **Full-page components are monoliths.** `Messages.tsx` is 800+ lines with 30+ state variables. `Notes.tsx` uses `position: absolute; inset: 0` for full-bleed layout. These cannot render inside a 4x3 grid cell as-is.
+
+4. **No concept of "widget variant" of a page.** The page IS the full experience. There is no compact/summary variant that could fit in a grid cell.
+
+5. **Personal page duplicates data fetching.** `Personal.tsx` re-fetches todos, missions, calendar, homelab -- same data as Dashboard but through different code paths.
+
+---
+
+## Recommended Architecture (To-Be)
+
+### Core Pattern: Module Kernel + View Shells
+
+Every module gets decomposed into three layers:
+
 ```
-1. User opens Dashboard page
-2. DashboardGrid fetches layout from Axum: GET /api/dashboard/layout
-3. Axum checks SQLite cache, falls back to Supabase
-4. Layout JSON describes widget positions: [{id: "heartbeat", x: 0, y: 0, w: 4, h: 2}, ...]
-5. DashboardGrid maps each widget ID through WidgetRegistry
-6. WidgetRegistry resolves: built-in -> React.lazy(import), Bjorn module -> iframe sandbox
-7. Each widget independently fetches its own data via React Query
-8. User drags/resizes -> onLayoutChange fires -> debounced save to Axum: PUT /api/dashboard/layout
-9. Axum writes to SQLite (immediate), syncs to Supabase (30s cycle)
-```
-
-**Bjorn Module Generation Flow:**
-```
-1. User requests new module (e.g., "Weather widget") via chat or module builder UI
-2. Frontend sends request to Axum: POST /api/modules/bjorn {prompt, context}
-3. Axum proxies to OpenClaw VM (Bjorn agent) via Tailscale
-4. Bjorn generates React component code + metadata
-5. Axum stores generated code in module_registry table (status: "preview")
-6. Frontend receives module code
-7. Module Sandbox renders code in srcdoc iframe:
-   - Injects React + component primitives library
-   - Renders the generated component
-   - postMessage bridge exposes: theme variables, API proxy, event bus
-8. User sees live preview in sandbox panel
-9. User approves -> status changes to "approved"
-10. Widget Registry adds module to available widgets
-11. User adds to dashboard grid like any other widget
+Module Kernel (data + logic)        -- hooks/[module]/use[Module]Data.ts
+  Widget Shell (compact view)       -- widgets/[module]/[Module]Widget.tsx
+  Page Shell (full view)            -- pages/[Module].tsx (composes widgets + page chrome)
 ```
 
-**Theme Application Flow:**
+**Module Kernel:** A custom hook (or set of hooks) that owns all data fetching via React Query, mutations, and real-time subscriptions. No UI. Fully independent -- works anywhere in the React tree.
+
+**Widget Shell:** A component that satisfies `WidgetProps`, calls the kernel hook, and renders a compact UI. Registered in the Widget Registry. Can be placed on any dashboard page.
+
+**Page Shell:** The full-page route component. Composes one or more widget shells plus page-specific chrome (headers, toolbars, navigation panels). For simple modules, the page shell IS the widget shell rendered full-size. For complex modules (Messages, Notes), the page shell adds layout panels (file tree, conversation list) around the widget.
+
+### Architecture Diagram
+
 ```
-1. User selects preset OR edits variables in Theme Editor
-2. ThemeEngine builds complete variable map: {--accent: "#a78bfa", --bg-base: "#0a0a0c", ...}
-3. ThemeEngine applies all variables to document.documentElement.style
-4. Derived variables computed automatically (dim = darken(accent, 25%), bright = lighten(accent, 25%))
-5. Theme JSON saved: localStorage (immediate) + Axum PUT /api/themes (persisted)
-6. Import/Export: JSON file containing full variable map + metadata (name, author, version)
+WidgetRegistry
+  registerWidget({ id: 'todos-list', component: () => import('widgets/todos/TodosWidget') })
+  registerWidget({ id: 'messages-recent', component: () => import('widgets/messages/MessagesWidget') })
+  registerWidget({ id: 'notes-editor', component: () => import('widgets/notes/NotesWidget') })
+  ...
+
+DashboardGrid
+  WidgetWrapper { pluginId: 'todos-list' }
+    TodosWidget (WidgetProps)
+      useTodosData()         -- kernel: React Query
+      <TodosCompactView />   -- size-responsive UI
+
+Pages/Todos.tsx (route)
+  <PageHeader />
+  <TodosWidget size={{ w: 12, h: 999 }} isEditMode={false} />
+  -- OR --
+  useTodosData()             -- same kernel
+  <TodosFullView />          -- expanded UI with more features
+
+Pages/Notes.tsx (route)   -- complex module
+  <FileTree />              -- page-only panel
+  <NotesEditorWidget />     -- registered widget
+  <NotesGraphWidget />      -- registered widget (separate)
 ```
 
-**Notes Wiki Link Flow:**
-```
-1. User types [[Page Name]] in TipTap editor
-2. Custom WikiLink extension detects pattern via ProseMirror inputRule
-3. Extension renders inline chip (styled node decoration) with link text
-4. On content change: parser extracts all [[links]], updates BacklinkIndex
-5. BacklinkIndex is a client-side Map<noteId, Set<noteId>> rebuilt on note list load
-6. Backlinks panel queries: "which notes link TO this note?" via BacklinkIndex
-7. Graph View reads BacklinkIndex to build force-directed graph (existing react-force-graph-2d)
-8. Clicking a wiki link: resolves title -> noteId, navigates to that note
-9. If target doesn't exist: prompts to create, then navigates
+### The WidgetProps Contract (No Changes Needed)
+
+The existing `WidgetProps` interface is sufficient:
+
+```typescript
+interface WidgetProps {
+  widgetId: string
+  config: Record<string, unknown>
+  isEditMode: boolean
+  size: { w: number; h: number }
+}
 ```
 
-**Responsive Adaptation Flow:**
+Widgets use `size` to determine their rendering density:
+- **Compact** (`w <= 4, h <= 3`): Summary view, minimal chrome, truncated lists
+- **Medium** (`w <= 8, h <= 5`): Expanded view, more detail, interactions enabled
+- **Full** (`w > 8 or h > 5`): Near-page experience, all features
+
+When rendered as a page, the page shell passes `size: { w: 12, h: 999 }` to signal "render at full size."
+
+### Data Fetching Independence
+
+**Before (DashboardDataContext):**
+```typescript
+// useDashboardData.ts -- fetches EVERYTHING
+const { missions, memory, status, heartbeat, ... } = useDashboardData()
+// DashboardDataContext.Provider wraps the entire grid
+// Every card must be a child of Dashboard
 ```
-1. LayoutShell wraps main content area in a container-query context
-2. CSS container queries apply breakpoint classes based on main area width (not viewport)
-3. Dashboard Grid uses react-grid-layout's ResponsiveGridLayout:
-   - Breakpoints map to main area width, not window width
-   - Layouts stored per breakpoint: {lg: [...], md: [...], sm: [...]}
-4. Sidebar auto-collapses when main area drops below threshold
-5. Pages use container-query utility classes for their internal responsive behavior
-6. On window resize / monitor switch: container width changes -> queries fire -> layout adapts
+
+**After (per-widget kernels):**
+```typescript
+// hooks/missions/useMissionsData.ts
+export function useMissionsData() {
+  const { data } = useQuery({
+    queryKey: queryKeys.missions,
+    queryFn: () => api.get('/api/missions'),
+    refetchInterval: 30_000,
+  })
+  // ... mutations, filtering, etc.
+  return { missions, updateStatus, deleteMission }
+}
+
+// widgets/missions/MissionsWidget.tsx
+export default function MissionsWidget({ size, config }: WidgetProps) {
+  const { missions, updateStatus } = useMissionsData()
+  // Render based on size
+}
 ```
+
+React Query's built-in deduplication means multiple widgets using `queryKeys.missions` share a single network request. No coordination needed.
+
+### Real-Time Subscriptions
+
+The existing `useRealtimeSSE` and `useTableRealtime` hooks work independently -- they invalidate React Query caches, not component state. Each widget that needs real-time updates calls its own subscription hook. React Query deduplication + SSE channel sharing means no duplicate connections.
+
+---
+
+## Component Boundaries
+
+### New Components to Create
+
+| Component | Location | Responsibility |
+|-----------|----------|----------------|
+| `hooks/[module]/use[Module]Data.ts` | Per-module kernel | Data fetching, mutations, real-time (17 modules) |
+| `widgets/[module]/[Module]Widget.tsx` | Per-module widget shell | Compact + responsive UI, satisfies `WidgetProps` |
+| `widgets/[module]/index.ts` | Per-module barrel | Re-exports for clean imports |
+| `widgets/register.ts` | Global | Registers all module widgets (parallel to `primitives/register.ts`) |
+| `lib/widget-presets.ts` | Global | Category preset definitions (Notes preset, Monitoring preset, etc.) |
+
+### Existing Components to Modify
+
+| Component | Change | Reason |
+|-----------|--------|--------|
+| `widget-registry.ts` | Add new category values, keep existing API | New module widgets need expanded categories |
+| `dashboard-context.ts` | Deprecate -- keep for backwards compat during migration | Widgets gain independent data fetching |
+| `useDashboardData.ts` | Gradually slim down -- remove data that widgets now fetch themselves | Reduce monolithic context |
+| `Dashboard.tsx` | Remove DashboardDataContext.Provider once all cards migrated | Clean up |
+| `dashboard-defaults.ts` | Generate layouts for new module widgets | More widgets in the picker |
+| `pages/Personal.tsx` | Convert to DashboardGrid-based layout | Unify with widget system |
+| `DashboardEditBar.tsx` | Enable for all grid pages, not just Dashboard route | Universal editing |
+| `modules.ts` | Add `widgetIds` field to AppModule | Map modules to their widgets |
+| `sidebar-config.ts` | Add preset support for complex modules | Category presets |
+| `main.tsx` | Call `registerModuleWidgets()` at startup | Parallel to `registerPrimitives()` |
+
+### Components That Do NOT Change
+
+| Component | Why Unchanged |
+|-----------|---------------|
+| `WidgetWrapper.tsx` (core logic) | Already handles lazy loading, error boundaries, Suspense, edit chrome |
+| `DashboardGrid.tsx` | Already handles responsive layouts, drag/resize, breakpoints |
+| `DashboardState / dashboard-store.ts` | Already supports multi-page, widget configs, recycle bin |
+| `LayoutShell.tsx` | Continues to render routes; pages just compose widgets internally |
+| `Sidebar.tsx` | Category system already supports drag reorder and customization |
+| React Router setup in `main.tsx` | Routes remain -- pages still exist as full-page experiences |
+
+---
 
 ## Patterns to Follow
 
-### Pattern 1: Widget as Lazy-Loaded Module
-**What:** Each dashboard widget is a self-contained React component that owns its own data fetching, error boundary, and loading state. Registered in a central manifest.
-**When:** Every built-in and Bjorn-generated dashboard widget.
-**Why:** Widgets must be independently loadable, crashable (without taking down the grid), and addable/removable at runtime.
+### Pattern 1: Size-Responsive Widget Rendering
+
+**What:** Widget components inspect the `size` prop and render different UI densities.
+
+**When:** Every widget that can appear on a dashboard AND as a page.
+
 **Example:**
 ```typescript
-// lib/widget-registry.ts
-export interface WidgetDefinition {
-  id: string
-  name: string
-  description: string
-  icon: string // lucide icon name
-  defaultSize: { w: number; h: number }
-  minSize?: { w: number; h: number }
-  maxSize?: { w: number; h: number }
-  source: 'builtin' | 'bjorn'
-  component: () => Promise<{ default: React.ComponentType<WidgetProps> }>
-}
+// widgets/todos/TodosWidget.tsx
+import { useTodosData } from '@/hooks/todos/useTodosData'
+import type { WidgetProps } from '@/lib/widget-registry'
 
-export interface WidgetProps {
-  id: string         // instance ID on the grid
-  width: number      // current pixel width (for responsive internals)
-  height: number     // current pixel height
-  isEditing: boolean // dashboard in edit mode
-}
-
-// Registration
-export const BUILTIN_WIDGETS: WidgetDefinition[] = [
-  {
-    id: 'heartbeat',
-    name: 'Heartbeat',
-    description: 'Agent heartbeat monitor',
-    icon: 'Heart',
-    defaultSize: { w: 4, h: 2 },
-    source: 'builtin',
-    component: () => import('@/pages/dashboard/HeartbeatCard'),
-  },
-  // ... more widgets
-]
-```
-
-### Pattern 2: Sandbox Isolation via srcdoc iframe
-**What:** Bjorn-generated modules render inside an iframe with `sandbox="allow-scripts"` using `srcdoc` to inject a self-contained HTML document. Communication happens exclusively via `postMessage`.
-**When:** Any AI-generated or user-submitted component before and after approval.
-**Why:** Prevents untrusted code from accessing the parent window's DOM, cookies, localStorage, or Tauri IPC. Sandboxed iframes cannot navigate the parent or access `window.parent` contents.
-**Example:**
-```typescript
-// components/ModuleSandbox.tsx
-interface SandboxProps {
-  code: string        // Generated React component source
-  theme: Record<string, string>  // CSS variables to inject
-  data?: unknown      // Initial data payload
-}
-
-function ModuleSandbox({ code, theme, data }: SandboxProps) {
-  const iframeRef = useRef<HTMLIFrameElement>(null)
-
-  const srcdoc = useMemo(() => buildSandboxHTML(code, theme, data), [code, theme, data])
-
-  useEffect(() => {
-    const handler = (e: MessageEvent) => {
-      if (e.source !== iframeRef.current?.contentWindow) return
-      // Handle messages: {type: 'api-request', path, method, body}
-      // Proxy through Axum, send response back via postMessage
-    }
-    window.addEventListener('message', handler)
-    return () => window.removeEventListener('message', handler)
-  }, [])
+export default function TodosWidget({ size, config, isEditMode }: WidgetProps) {
+  const { todos, addTodo, toggleTodo, deleteTodo } = useTodosData()
+  const isCompact = size.w <= 4 && size.h <= 3
+  const limit = isCompact ? 5 : undefined
 
   return (
-    <iframe
-      ref={iframeRef}
-      srcDoc={srcdoc}
-      sandbox="allow-scripts"
-      style={{ width: '100%', height: '100%', border: 'none' }}
-      title="Module Preview"
-    />
+    <div className="card" style={{ padding: isCompact ? '12px' : '20px', height: '100%' }}>
+      <WidgetHeader title="Todos" icon={CheckSquare} />
+      <TodoList
+        todos={todos}
+        limit={limit}
+        showInput={!isCompact}
+        onToggle={toggleTodo}
+        onDelete={deleteTodo}
+      />
+      {isCompact && todos.length > 5 && (
+        <WidgetFooterLink to="/todos" count={todos.length} />
+      )}
+    </div>
   )
 }
 ```
 
-### Pattern 3: Theme as Serializable JSON
-**What:** A theme is a plain JSON object mapping CSS variable names to values, with metadata. Themes are applied by iterating the object and calling `setProperty` on `documentElement`.
-**When:** Preset selection, custom editing, import/export, cross-device sync.
-**Why:** JSON serialization enables import/export, Supabase sync, and community sharing without any build step. CSS variables are already the app's styling primitive.
+### Pattern 2: Page as Widget Composition
+
+**What:** Full-page components compose their module's widgets plus page-specific chrome.
+
+**When:** Converting existing page components.
+
 **Example:**
 ```typescript
-// lib/theme-engine.ts
-export interface ThemeDefinition {
+// pages/Todos.tsx (converted)
+export default function TodosPage() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <PageHeader defaultTitle="Todos" />
+      <TodosWidget
+        widgetId="page-todos"
+        config={{}}
+        isEditMode={false}
+        size={{ w: 12, h: 999 }}  // signals "render full"
+      />
+    </div>
+  )
+}
+```
+
+### Pattern 3: Complex Module Decomposition
+
+**What:** Complex modules (Messages, Notes) decompose into multiple widgets, where each sub-component is independently widgetizable.
+
+**When:** Modules that have multiple panels/views that could be useful independently.
+
+**Example (Notes):**
+```
+Notes Module
+  notes-graph    -- Graph view widget (works standalone on dashboard)
+  notes-recent   -- Recent notes list (compact widget)
+  notes-editor   -- Note editor (needs larger space, minSize 6x4)
+
+Notes Page (route):
+  FileTree panel (page-only, not a widget)
+  Toolbar (page-only)
+  NotesEditorWidget OR NotesGraphWidget (based on viewMode)
+
+Dashboard:
+  notes-graph at size 4x3 (standalone graph visualization)
+  notes-recent at size 3x2 (recent notes list)
+```
+
+The key insight: not every sub-component needs to be a widget. The FileTree is page-only UI that provides navigation context. Only the parts that make sense standalone become widgets.
+
+### Pattern 4: Category Presets
+
+**What:** Pre-configured dashboard pages that set up an entire module experience as a collection of widgets.
+
+**When:** Complex modules that need multiple widgets working together to replicate a "page-like" experience on a dashboard.
+
+**Example:**
+```typescript
+// lib/widget-presets.ts
+export interface WidgetPreset {
   id: string
   name: string
-  author: string
-  version: number
-  base: 'dark' | 'light'
-  variables: Record<string, string>  // "--accent" -> "#a78bfa"
-  meta?: { description?: string; tags?: string[] }
+  description: string
+  icon: string
+  widgets: Array<{
+    pluginId: string
+    layout: { w: number; h: number; x: number; y: number }
+    config: Record<string, unknown>
+  }>
 }
 
-export function applyTheme(theme: ThemeDefinition): void {
-  const el = document.documentElement
-  el.setAttribute('data-theme', theme.base)
-  for (const [key, value] of Object.entries(theme.variables)) {
-    el.style.setProperty(key, value)
-  }
-  // Compute derived variables
-  const accent = theme.variables['--accent']
-  if (accent) {
-    el.style.setProperty('--accent-dim', darken(accent, 25))
-    el.style.setProperty('--accent-bright', lighten(accent, 25))
-  }
-}
-
-export function exportTheme(theme: ThemeDefinition): string {
-  return JSON.stringify(theme, null, 2)
-}
-
-export function importTheme(json: string): ThemeDefinition {
-  const parsed = JSON.parse(json)
-  // Validate shape, sanitize values (no url() or protocol handlers in values)
-  return validateThemeDefinition(parsed)
-}
+export const PRESETS: WidgetPreset[] = [
+  {
+    id: 'monitoring',
+    name: 'System Monitoring',
+    description: 'Agent status, heartbeat, network, and sessions',
+    icon: 'ChartLine',
+    widgets: [
+      { pluginId: 'agent-status', layout: { w: 4, h: 2, x: 0, y: 0 }, config: {} },
+      { pluginId: 'heartbeat', layout: { w: 4, h: 2, x: 4, y: 0 }, config: {} },
+      { pluginId: 'network', layout: { w: 4, h: 2, x: 8, y: 0 }, config: {} },
+      { pluginId: 'sessions', layout: { w: 6, h: 3, x: 0, y: 2 }, config: {} },
+    ],
+  },
+  {
+    id: 'notes-workspace',
+    name: 'Notes Workspace',
+    description: 'Knowledge graph, recent notes, and quick capture',
+    icon: 'FileText',
+    widgets: [
+      { pluginId: 'notes-graph', layout: { w: 8, h: 4, x: 0, y: 0 }, config: {} },
+      { pluginId: 'notes-recent', layout: { w: 4, h: 4, x: 8, y: 0 }, config: {} },
+    ],
+  },
+]
 ```
 
-### Pattern 4: TipTap with Custom WikiLink Node
-**What:** Replace CodeMirror (current) with TipTap for the notes editor, implementing wiki links as a custom ProseMirror Node type that renders as clickable inline chips.
-**When:** Notes overhaul phase.
-**Why:** TipTap provides true WYSIWYG editing (toolbar, inline images, tables, code blocks) while CodeMirror is a code/markdown editor. Wiki links as typed ProseMirror nodes enable structured backlink extraction, autocomplete suggestions, and proper rendering without regex parsing.
+Presets are applied to dashboard pages via the Widget Picker (new "Presets" tab) or when creating a new dashboard page.
+
+### Pattern 5: Widget Footer Link
+
+**What:** Compact widgets include a "View all" link that navigates to the full page.
+
+**When:** Any widget that truncates data in compact mode.
+
 **Example:**
 ```typescript
-// extensions/wiki-link.ts
-import { Node, mergeAttributes } from '@tiptap/core'
-
-export const WikiLink = Node.create({
-  name: 'wikiLink',
-  group: 'inline',
-  inline: true,
-  atom: true,  // Non-editable inline block
-
-  addAttributes() {
-    return {
-      target: { default: null },   // Target note title
-      alias: { default: null },    // Display text (optional)
-    }
-  },
-
-  parseHTML() {
-    return [{ tag: 'span[data-wiki-link]' }]
-  },
-
-  renderHTML({ HTMLAttributes }) {
-    return ['span', mergeAttributes(HTMLAttributes, {
-      'data-wiki-link': '',
-      class: 'wiki-link',
-    }), HTMLAttributes.alias || HTMLAttributes.target]
-  },
-
-  addInputRules() {
-    // Match [[Target|Alias]] or [[Target]]
-    return [
-      nodeInputRule({
-        find: /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/,
-        type: this.type,
-        getAttributes: match => ({
-          target: match[1].trim(),
-          alias: match[2]?.trim() || null,
-        }),
-      }),
-    ]
-  },
-})
-```
-
-### Pattern 5: Container Queries for Component-Level Responsiveness
-**What:** Use CSS `@container` queries on the main content area and individual widgets instead of viewport-based media queries. Each component adapts to its actual rendered size.
-**When:** All layout adaptation for window resizing, sidebar collapse, multi-monitor moves.
-**Why:** In a desktop app with a resizable sidebar, the viewport width is irrelevant -- what matters is the content area width. Container queries make widgets truly portable (same widget works in a narrow sidebar and a full-width panel).
-**Example:**
-```css
-/* In widget CSS */
-.widget-container {
-  container-type: inline-size;
-  container-name: widget;
-}
-
-@container widget (max-width: 300px) {
-  .widget-header { flex-direction: column; }
-  .widget-chart { height: 120px; }
-}
-
-@container widget (min-width: 500px) {
-  .widget-body { display: grid; grid-template-columns: 1fr 1fr; }
-}
-
-/* Main content area */
-.main-content {
-  container-type: inline-size;
-  container-name: main;
-}
-
-@container main (max-width: 600px) {
-  /* Compact layout rules */
+// components/widgets/WidgetFooterLink.tsx
+function WidgetFooterLink({ to, count, label }: { to: string; count?: number; label?: string }) {
+  const navigate = useNavigate()
+  return (
+    <button
+      onClick={() => navigate(to)}
+      style={{
+        background: 'none', border: 'none', cursor: 'pointer',
+        color: 'var(--accent)', fontSize: '11px', fontWeight: 500,
+        padding: '8px 0 0', width: '100%', textAlign: 'center',
+      }}
+    >
+      {label || `View all${count ? ` (${count})` : ''}`}
+    </button>
+  )
 }
 ```
+
+---
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Viewport Media Queries for Layout Decisions
-**What:** Using `@media (max-width: 768px)` to control dashboard grid or page layouts.
-**Why bad:** The sidebar width varies (160-360px user-resizable). A 1920px viewport with a 360px sidebar has 1560px of content space, but with a collapsed sidebar it has 1880px. Viewport queries cannot account for this. Widgets inside a grid cell have even less correlation with viewport width.
-**Instead:** Use CSS container queries (`@container`) on the main content area and individual widget containers. Use react-grid-layout's breakpoint system (keyed to grid container width) for grid-level responsiveness.
+### Anti-Pattern 1: Monolithic Data Context
 
-### Anti-Pattern 2: Running Bjorn Code in Main Window Context
-**What:** Using dynamic code evaluation or dynamic imports to run AI-generated module code directly in the React app's JavaScript context.
-**Why bad:** AI-generated code could access the DOM, steal tokens from `AppState`, call Tauri IPC, read localStorage, or crash the entire app. The app's CSP already blocks unsafe evaluation, so it would also break the security policy.
-**Instead:** Always render Bjorn modules in a sandboxed iframe with `srcdoc`. The iframe gets `sandbox="allow-scripts"` (no `allow-same-origin`, no `allow-top-navigation`). Communication via `postMessage` only. Even after approval, Bjorn modules continue to run in sandboxed iframes.
+**What:** Continuing to add data streams to `DashboardDataContext` / `useDashboardData()`.
 
-### Anti-Pattern 3: Single Monolithic Notes Editor Component
-**What:** Building the TipTap editor, wiki link resolution, backlink panel, graph view, file tree, and search all in one component or tightly coupled module.
-**Why bad:** The current `Notes.tsx` is already 492 lines with complex state. Adding TipTap + backlinks + toolbar would push it over 1000 lines. Testing and iterating on individual features becomes impossible.
-**Instead:** Split into: `NoteEditor` (TipTap instance), `EditorToolbar` (formatting commands), `BacklinkPanel` (queries BacklinkIndex), `WikiLinkAutocomplete` (suggestion popup), `NoteSearchPanel`, with a thin orchestrator (`NotesPage`) that wires them together via props and shared hooks.
+**Why bad:** The context re-renders all consumers on any state change. With 17 modules, every heartbeat tick would re-render every widget. Performance degrades quadratically.
 
-### Anti-Pattern 4: Theme Values in Component Props or State
-**What:** Passing theme colors as React props or storing them in React state, then applying via inline styles.
-**Why bad:** Every theme change triggers a React re-render cascade across the entire component tree. CSS variables update without React re-renders -- the browser handles repaint natively.
-**Instead:** Theme Engine sets CSS variables on `documentElement`. Components reference `var(--accent)` etc. React never needs to know the current theme values. Only the Theme Editor UI itself needs theme state (for its color pickers).
+**Instead:** Each widget uses its own React Query hooks. React Query handles caching, deduplication, and stale-while-revalidate. No coordination context needed.
 
-### Anti-Pattern 5: Dashboard Layout Stored Only in localStorage
-**What:** Persisting widget positions/sizes only in localStorage without server sync.
-**Why bad:** Layout is lost on device switch, browser clear, or app reinstall. The existing app has a SQLite-to-Supabase sync engine specifically for this purpose.
-**Instead:** Dashboard layouts go through the same sync path as todos, missions, etc.: write to SQLite immediately (for speed), sync to Supabase on 30s intervals, pull from Supabase on other devices.
+### Anti-Pattern 2: Render-Mode Prop Drilling
 
-## Component Dependency Graph and Build Order
+**What:** Passing a `mode: 'page' | 'widget'` prop and branching the entire component tree.
+
+**Why bad:** Creates two diverging code paths inside one component. Maintenance nightmare. The "widget mode" and "page mode" branches drift apart over time.
+
+**Instead:** Use the `size` prop from `WidgetProps`. Widgets render responsively based on available space. No explicit mode -- the widget simply renders differently at different sizes. Pages set `size.w = 12, size.h = 999` to signal "full size."
+
+### Anti-Pattern 3: Wrapping Full Pages in Widget Wrappers
+
+**What:** Registering `Messages.tsx` (800-line full-page component) as a widget.
+
+**Why bad:** Messages uses `position: absolute; inset: 0` for full-bleed layout. It manages 30+ state variables, SSE connections, drag-and-drop, compose mode, in-thread search. Cramming this into a 4x3 grid cell produces a broken UX and layout conflicts with the grid engine.
+
+**Instead:** Decompose. Extract `MessagesRecentWidget` (recent conversations list), `MessagesUnreadWidget` (unread count badge). The full Messages page remains a route component that provides the full experience.
+
+### Anti-Pattern 4: Two Widget Registries
+
+**What:** Creating a separate "page widget" registry alongside the existing widget registry.
+
+**Why bad:** Duplicates the registration pattern, config schema system, and picker UI.
+
+**Instead:** One registry. Module widgets are registered the same way as primitive widgets and dashboard cards. The WidgetPicker shows them all, differentiated by `category`.
+
+### Anti-Pattern 5: Eager Loading All Widget Modules
+
+**What:** Importing all 17 module widgets at startup instead of lazy-loading.
+
+**Why bad:** Adds all module code to the initial bundle.
+
+**Instead:** Every widget registration uses a lazy `component` function: `component: () => import('./widgets/todos/TodosWidget')`. This is already the pattern in `widget-registry.ts` and `primitives/register.ts`. Follow it exactly.
+
+---
+
+## Data Flow
+
+### Current Data Flow (Dashboard)
 
 ```
-Phase 1: Responsive Layout Shell  (no dependencies on other new systems)
-   |
-   +-- CSS container queries on LayoutShell
-   +-- Sidebar auto-collapse thresholds
-   +-- Page-level responsive utilities
-   |
-Phase 2: Theme Engine  (depends on: Responsive Shell for layout stability)
-   |
-   +-- ThemeDefinition type + serializer
-   +-- Preset catalog (8-12 curated themes)
-   +-- applyTheme() replacing current individual color functions
-   +-- CSS variable editor UI
-   +-- Import/export JSON
-   +-- Supabase sync via existing sync engine
-   |
-Phase 3: Dashboard Grid  (depends on: Responsive Shell, Theme Engine)
-   |
-   +-- react-grid-layout v2 integration
-   +-- WidgetRegistry with lazy loading
-   +-- Edit mode (enter/exit, add/remove widgets)
-   +-- Layout persistence (SQLite + Supabase)
-   +-- Existing dashboard cards refactored into widgets
-   |
-Phase 4: Notes Overhaul  (independent of Dashboard, depends on Theme for styling)
-   |
-   +-- TipTap editor replacing CodeMirror
-   +-- WikiLink custom extension
-   +-- BacklinkIndex (client-side)
-   +-- Backlinks panel UI
-   +-- Editor toolbar (formatting, tables, code blocks)
-   +-- Graph view updated to use BacklinkIndex
-   +-- Full-text search
-   |
-Phase 5: Bjorn Module Builder  (depends on: Dashboard Grid, Widget Registry)
-   |
-   +-- Module Sandbox (iframe srcdoc)
-   +-- postMessage data bridge
-   +-- Bjorn API proxy in Axum
-   +-- Approval flow UI
-   +-- Component primitives library (charts, lists, forms for Bjorn to compose)
-   +-- Hot-reload into Widget Registry after approval
+useDashboardData()
+  api.get('/api/cache') --> all agent data in one blob
+  api.post('/api/cache-refresh')
+  useQuery(queryKeys.missions)
+  useQuery(queryKeys.memory)
+  useQuery(queryKeys.ideas)
+  useQuery(queryKeys.subagentsActive)
+  useRealtimeSSE(['missions', 'agents', 'ideas', 'cache'])
+  setInterval(fastTick, 10_000)
+  setInterval(slowTick, 30_000)
+    |
+    v
+  DashboardDataContext.Provider value={dashboardData}
+    |
+    v
+  AgentStatusCard calls useDashboardDataContext() --> reads { status }
+  MissionsCard calls useDashboardDataContext()   --> reads { missions }
+  HeartbeatCard calls useDashboardDataContext()   --> reads { heartbeat }
+  ...every card reads from same context, all re-render together
 ```
 
-**Build order rationale:**
+### Target Data Flow (Per-Widget)
 
-1. **Responsive Shell first** because every subsequent system needs stable layout behavior. Building the grid or theme editor on a layout that breaks during resize wastes effort.
+```
+MissionsWidget
+  useMissionsData()
+    useQuery(queryKeys.missions, '/api/missions')
+    useTableRealtime('missions')
+    --> { missions, updateStatus, deleteMission }
 
-2. **Theme Engine second** because it replaces and consolidates the existing scattered color functions (`applyAccentColor`, `applyGlowColor`, `applySecondaryColor`, `applyLogoColor`) into a unified system. Both Dashboard and Notes need theming to look correct.
+AgentStatusWidget
+  useAgentCache()
+    useQuery(['agent-cache'], '/api/cache')
+    --> { status, heartbeat, sessions, network }  (parsed from cache blob)
+    Note: This is ONE shared query for all agent monitoring widgets.
+    Each widget reads only the fields it needs from the return value.
 
-3. **Dashboard Grid third** because it establishes the Widget Registry pattern that Bjorn modules will plug into. Existing dashboard cards (HeartbeatCard, AgentsCard, MissionsCard, etc.) get refactored into widgets, validating the pattern before AI-generated code enters the picture.
+TodosWidget
+  useTodosData()
+    useQuery(queryKeys.todos, '/api/todos')
+    useTableRealtime('todos')
+    --> { todos, addTodo, toggleTodo, deleteTodo }
 
-4. **Notes Overhaul fourth** because it's the most self-contained system -- it touches the `/notes` page and vault backend but doesn't affect other pages. The TipTap migration is a significant effort that benefits from having responsive layout and theming already stable.
+NotesGraphWidget
+  useVault()  (already exists in hooks/notes/useVault.ts)
+    --> { notes, loading, syncing }
+```
 
-5. **Bjorn Module Builder last** because it depends on the Widget Registry (from Dashboard Grid), the Module Sandbox pattern, and the Axum proxy to OpenClaw. It's also the highest-risk system (AI-generated code execution) and benefits from all other systems being stable first.
+React Query guarantees that `queryKeys.missions` is only fetched once regardless of how many `MissionsWidget` instances exist across different dashboard pages. The `staleTime: 30_000` in the QueryClient config handles the rest.
+
+### Data Flow for Complex Modules
+
+Messages is the hardest case. The SSE connection (`useMessagesSSE`), conversation list, and thread state are tightly coupled.
+
+```
+Messages Module Decomposition:
+
+MessagesRecentWidget (dashboard widget)
+  useConversationList()  (already exists as a hook in hooks/messages/)
+  --> shows 5 most recent conversations with unread count
+  --> click navigates to Messages page at that conversation
+
+MessagesPage (full route -- unchanged)
+  useConversationList()
+  useMessagesSSE()
+  useMessageCompose()
+  ConversationList | MessageThread | ComposePanel
+  --> full interactive experience with SSE, compose, drag-and-drop
+```
+
+The widget version does NOT maintain SSE connections or compose state. It fetches conversation list data (which is cheap) and links out to the full page. This is the right tradeoff -- you do not want persistent SSE connections per dashboard widget.
+
+---
+
+## Module Classification for Conversion
+
+### Tier 1: Simple Extraction (data hook + widget wrapper)
+
+These modules already have clean data hooks or very simple page components. Converting them is extracting the data logic into a standalone hook and wrapping the UI in a WidgetProps-compatible component.
+
+| Module | Existing Hook / Data Source | Widget Approach |
+|--------|---------------------------|-----------------|
+| Todos | `useTodos()` in `lib/hooks/useTodos.ts` | Extract list UI from `Todos.tsx`, make size-responsive |
+| Calendar | `useQuery(queryKeys.calendar)` | Compact: today's events. Full: week/month view |
+| Reminders | `useQuery` in page | Compact: due-soon list. Full: full list with create |
+| Knowledge | `useQuery(queryKeys.knowledge)` | Compact: recent entries. Full: search + slide panel |
+| Pomodoro | Component state (timer) | Compact: timer display only. Full: timer + heatmap + sidebar |
+| Memory | `useQuery(queryKeys.memory)` | Already a dashboard card -- make independent |
+| Missions | `useQuery(queryKeys.missions)` | Already a dashboard card -- make independent |
+
+### Tier 2: Moderate Decomposition (multiple widgets per module)
+
+These need multiple widget variants because they have distinct sub-views.
+
+| Module | Widgets | Notes |
+|--------|---------|-------|
+| Notes | `notes-graph`, `notes-recent`, `notes-editor` | Graph and recent work standalone; editor needs min 6x4 |
+| Pipeline | `pipeline-status`, `pipeline-ideas`, `pipeline-stale` | Each sub-tab becomes a widget |
+| Email | `email-unread`, `email-digest` | Compact: unread count. Full: list with account switcher |
+| Homelab | `homelab-vms`, `homelab-network` | Proxmox VMs and OPNsense as separate widgets |
+| Media | `media-upcoming`, `media-recent` | Upcoming shows and recent activity |
+
+### Tier 3: Complex (page remains primary, widget is summary only)
+
+These have deep interactive states that only make sense full-screen. The widget version is a summary/entry-point.
+
+| Module | Widget | Full Page |
+|--------|--------|-----------|
+| Messages | `messages-recent` (5 recent convos + unread) | Full conversation list + thread + compose |
+| Chat | `chat-quick` (last message + quick input) | Full chat thread with model switching |
+| Agents | `agents-overview` (status list) | Full agent management with live processes |
+
+### Existing Dashboard Cards (Migration Path)
+
+The 8 existing cards in `pages/dashboard/*Card.tsx` need migration from `useDashboardDataContext()` to independent hooks:
+
+| Card | Target Hook | Shares Query With |
+|------|-------------|-------------------|
+| AgentStatusCard | `useAgentCache()` | HeartbeatCard, NetworkCard, SessionsCard |
+| HeartbeatCard | `useAgentCache()` | AgentStatusCard, NetworkCard, SessionsCard |
+| NetworkCard | `useAgentCache()` | AgentStatusCard, HeartbeatCard, SessionsCard |
+| SessionsCard | `useAgentCache()` | AgentStatusCard, HeartbeatCard, NetworkCard |
+| AgentsCard | `useAgentCache()` + sorted agents | -- |
+| MissionsCard | `useMissionsData()` | Missions page widget |
+| MemoryCard | `useQuery(queryKeys.memory)` | Memory page widget |
+| IdeaBriefingCard | `useQuery(queryKeys.ideas)` | Ideas page widget |
+
+Note: `useAgentCache()` is a new hook that reads the `/api/cache` blob and returns typed fields. The 4 monitoring cards that currently share the `useDashboardData()` cache will share this new hook instead. React Query deduplication ensures `/api/cache` is fetched once.
+
+---
+
+## Widget Registration Strategy
+
+### Expanded Category Taxonomy
+
+Current categories: `'monitoring' | 'productivity' | 'ai' | 'media' | 'custom' | 'primitives'`
+
+Expand to:
+```typescript
+type WidgetCategory =
+  | 'monitoring'      // Agent status, heartbeat, network, sessions, homelab
+  | 'productivity'    // Todos, calendar, reminders, pomodoro, pipeline
+  | 'ai'              // Agents, missions, memory, chat
+  | 'communication'   // Messages, email
+  | 'media'           // Media radar
+  | 'knowledge'       // Notes, knowledge base
+  | 'custom'          // Bjorn-generated modules
+  | 'primitives'      // StatCard, charts, tables, forms, etc.
+```
+
+### Registration at Startup
+
+Follow the existing `registerPrimitives()` pattern:
+
+```typescript
+// widgets/register.ts
+export function registerModuleWidgets(): void {
+  registerWidget({
+    id: 'todos-list',
+    name: 'Todos',
+    description: 'Task list with add, toggle, and delete',
+    icon: 'CheckSquare',
+    category: 'productivity',
+    tier: 'builtin',
+    defaultSize: { w: 3, h: 3 },
+    minSize: { w: 2, h: 2 },
+    configSchema: { fields: [
+      { key: 'showCompleted', label: 'Show completed', type: 'toggle', default: false },
+      { key: 'limit', label: 'Max items', type: 'number', default: 10, min: 3, max: 50 },
+    ]},
+    component: () => import('./todos/TodosWidget'),
+  })
+  // ... one registerWidget() call per module widget
+}
+
+// main.tsx (add after existing calls)
+registerPrimitives()       // existing -- 11 primitive widgets
+registerModuleWidgets()    // NEW -- ~25 module widgets
+loadBjornModules()         // existing -- AI-generated modules
+```
+
+### Module-to-Widget Mapping
+
+Extend `AppModule` in `modules.ts`:
+
+```typescript
+export interface AppModule {
+  id: string
+  name: string
+  description: string
+  icon: string
+  route: string
+  widgetIds: string[]        // NEW: widgets this module provides
+  requiresConfig?: string[]
+  platform?: 'macos' | 'linux' | 'windows' | 'all'
+}
+```
+
+This lets the Widget Picker filter by enabled modules and lets the module toggle control widget visibility.
+
+---
+
+## Personal Page Unification
+
+The Personal page (`pages/Personal.tsx`) currently renders a static card layout:
+
+```
+MorningBrief
+DailyReviewWidget
+TodoSection
+HomelabSection
+```
+
+Convert it to a dashboard grid page. Instead of a hardcoded component tree, Personal becomes another dashboard page in the `DashboardState.pages` array.
+
+The "Home" page (route `/`) renders the first `DashboardState` page. The existing "Dashboard" page (route `/dashboard`) renders the same grid engine with the agents page ID. With unification, both routes point to the same `DashboardGrid` component with different `pageId` values.
+
+```typescript
+// Default pages in createInitialState():
+pages: [
+  {
+    id: 'home',
+    name: 'Home',
+    sortOrder: 0,
+    layouts: generateHomeDefault(),  // todos, calendar, morning-brief, homelab widgets
+    widgetConfigs: {},
+  },
+  {
+    id: 'agents',
+    name: 'Agents',
+    sortOrder: 1,
+    layouts: generateAgentDefault(), // agent-status, heartbeat, missions, etc.
+    widgetConfigs: {},
+  },
+]
+```
+
+---
+
+## Build Order (Suggested Phases for Roadmap)
+
+### Phase 1: Fix Widget Bugs + Decouple Existing Cards
+
+**Prerequisite for everything.** Fix the broken edit mode (drag/resize), config panel positioning, and widget picker state issues documented in the v1.0 post-ship bugs.
+
+Then migrate the 8 existing dashboard cards from `useDashboardDataContext()` to independent hooks. This proves the pattern works without adding new widgets.
+
+**New files:**
+- `hooks/agents/useAgentCache.ts` (replaces cache portion of useDashboardData)
+- `hooks/missions/useMissionsData.ts`
+
+**Modified files:**
+- All 8 `pages/dashboard/*Card.tsx` (remove context dependency)
+- `dashboard-context.ts` (add deprecation comment)
+- `useDashboardData.ts` (slim down, remove data now owned by kernel hooks)
+
+**Dependencies:** None
+**Risk:** Low (refactor existing code, no new features)
+
+### Phase 2: Convert Tier 1 Modules to Widgets
+
+Register simple module widgets. Each gets a kernel hook + widget component.
+
+**New files (per module, ~7 modules):**
+- `hooks/[module]/use[Module]Data.ts`
+- `widgets/[module]/[Module]Widget.tsx`
+- `widgets/register.ts`
+
+**Modules:** Todos, Calendar, Reminders, Knowledge, Pomodoro, Memory (page version), Missions (page version)
+
+**Dependencies:** Phase 1 (pattern proven with existing cards)
+**Risk:** Low (simple modules, clean extraction)
+
+### Phase 3: Unify Personal + Dashboard Pages
+
+Convert Personal page to use DashboardGrid. Both `/` and `/dashboard` render the grid engine with different page IDs. Add default layouts for the "Home" page using Tier 1 module widgets (todos, calendar, etc.).
+
+**Modified files:**
+- `pages/Personal.tsx` (rewrite to grid-based rendering)
+- `pages/Dashboard.tsx` (shared grid component)
+- `dashboard-store.ts` (initial state with Home + Agents pages)
+- `dashboard-defaults.ts` (add Home page default layout)
+
+**Dependencies:** Phase 2 (Tier 1 widgets exist to populate Home page)
+**Risk:** Medium (user-facing layout change, migration of existing dashboard-state)
+
+### Phase 4: Convert Tier 2 Modules to Widgets
+
+Handle modules that decompose into multiple widgets (Notes, Pipeline, Email, Homelab, Media).
+
+**New files (per module, ~5 modules with 2-3 widgets each):**
+- Multiple widget files per module
+- Shared kernel hooks per module
+
+**Dependencies:** Phase 2 (pattern proven with Tier 1)
+**Risk:** Medium (more complex decomposition decisions per module)
+
+### Phase 5: Category Presets + Widget Picker Enhancement
+
+Add preset system to Widget Picker. Allow one-click "Notes Workspace" or "Monitoring" preset that populates a dashboard page with a curated widget arrangement.
+
+**New files:**
+- `lib/widget-presets.ts`
+- Widget Picker "Presets" tab component
+
+**Modified files:**
+- `WidgetPicker.tsx` (add presets tab)
+- `dashboard-store.ts` (add applyPreset function)
+
+**Dependencies:** Phase 4 (all module widgets registered for presets to reference)
+**Risk:** Low (additive feature, no breaking changes)
+
+### Phase 6: Convert Tier 3 Modules (Summary Widgets)
+
+Create summary widgets for Messages, Chat, and Agents. These are compact entry-point widgets that link to the full page experience.
+
+**New files:**
+- `widgets/messages/MessagesRecentWidget.tsx`
+- `widgets/chat/ChatQuickWidget.tsx`
+- `widgets/agents/AgentsOverviewWidget.tsx`
+
+**Dependencies:** Phase 2 (pattern proven)
+**Risk:** Low (summary-only, no full interactive experience needed in widget)
+
+### Phase 7: Remove DashboardDataContext + Cleanup
+
+Once all cards use independent hooks, remove the monolithic context. Ensure edit mode works in production builds. Update tests.
+
+**Modified files:**
+- `Dashboard.tsx` (remove context provider wrapper)
+- `dashboard-context.ts` (delete file)
+- `useDashboardData.ts` (delete or keep for any remaining non-widget dashboard logic)
+
+**Dependencies:** All previous phases complete
+**Risk:** Low (cleanup, all widgets already independent)
+
+---
 
 ## Scalability Considerations
 
-| Concern | At 10 widgets | At 50 widgets | At 200+ widgets |
-|---------|--------------|---------------|-----------------|
-| Dashboard render | All visible, lazy-loaded | Only visible widgets rendered; offscreen ones unmounted | Virtualized grid or paginated widget pages |
-| Widget Registry | Static manifest object | IndexedDB-backed manifest with search | Paginated API from Supabase with local cache |
-| Theme variables | ~80 variables, instant apply | Same -- CSS variables don't degrade | Same -- browser handles thousands of CSS variables efficiently |
-| Backlink Index | In-memory Map, rebuilt on page load | In-memory Map, incrementally updated on note change | SQLite-backed index with full-text search |
-| Bjorn modules | 1-5 sandboxed iframes | Lazy-load iframes on scroll, pool limit of 8 concurrent | Module store with download-on-demand, iframe reuse pool |
+| Concern | At 8 widgets (current) | At 30 widgets (all modules) | At 100+ widgets (with Bjorn) |
+|---------|------------------------|---------------------------|------------------------------|
+| Bundle size | ~200KB lazy chunks | ~400KB total (all lazy-loaded) | No growth per unused widget |
+| React Query queries | 5 active queries | 15-20 active (deduplicated) | Bounded by visible widgets |
+| Re-renders | Entire grid on context change | Per-widget on query invalidation | Same isolation |
+| Memory | Single context holds all data | Per-query cache (GC'd by React Query) | React Query handles cleanup |
+| Widget Picker items | 19 items (8 built-in + 11 primitives) | 40-50 items | Need search/filter in picker |
+| Dashboard store | ~2KB localStorage | ~5KB localStorage | ~10KB max (layouts are compact) |
 
-## Key Technical Decisions
-
-### react-grid-layout v2 for Dashboard Grid
-**Confidence:** HIGH (researched, widely adopted, TypeScript-native in v2)
-
-Use `react-grid-layout` v2 which is a complete TypeScript rewrite with hooks-based API. It provides drag-and-drop, resize, responsive breakpoints, and collision prevention out of the box. The `ResponsiveGridLayout` component handles breakpoint-specific layouts automatically.
-
-Key configuration:
-- `breakpoints`: `{lg: 1200, md: 900, sm: 600}` (keyed to **container** width via a ResizeObserver wrapper, not viewport)
-- `cols`: `{lg: 12, md: 8, sm: 4}`
-- `rowHeight`: 80px (allows fine-grained vertical sizing)
-- `isDraggable` / `isResizable`: controlled by edit mode state
-- `onLayoutChange`: debounced save to Axum backend
-
-### TipTap for Rich Text Notes Editor
-**Confidence:** HIGH (industry standard for React WYSIWYG in 2025, ProseMirror foundation)
-
-Replace the current CodeMirror-based `NoteEditor.tsx` with TipTap. CodeMirror is excellent for source editing but cannot provide WYSIWYG rendering of headings, images, tables, and embedded content inline. TipTap's extension system allows custom WikiLink nodes, and its React integration (`@tiptap/react`) provides hooks like `useEditor` that fit the existing React Query + hooks architecture.
-
-The existing CodeMirror theme and syntax highlighting can be preserved for code blocks within TipTap via the `@tiptap/extension-code-block-lowlight` extension.
-
-### srcdoc iframe for Module Sandbox
-**Confidence:** HIGH (standard browser isolation, no external dependencies)
-
-Use `<iframe srcdoc="..." sandbox="allow-scripts">` for Bjorn module isolation. This is the strongest isolation boundary available in a browser context without using Web Workers (which cannot render UI). The `sandbox` attribute without `allow-same-origin` prevents the iframe from accessing the parent's cookies, localStorage, or DOM.
-
-Tauri's CSP adds an additional layer -- even if the iframe somehow escaped sandbox, CSP would block unauthorized script execution. On Linux, Tauri cannot distinguish iframe requests from window requests, so the sandbox attribute (not Tauri capabilities) is the primary security boundary.
-
-### CSS Container Queries for Responsive Layout
-**Confidence:** HIGH (shipped in all modern browsers, pure CSS, no library needed)
-
-Container queries are natively supported in Chrome 105+, Firefox 110+, Safari 16+. Since Tauri's webview uses the system's WebKit/Chromium, all target platforms support container queries. No polyfill or library needed.
-
-### Theme Engine as JSON + CSS Variables
-**Confidence:** HIGH (extends existing pattern, no new dependencies)
-
-The app already uses CSS variables for all colors and has `applyAccentColor()` / `applyGlowColor()` / etc. functions. The Theme Engine consolidates these into a single `applyTheme(ThemeDefinition)` function and adds serialization for import/export. No new library required -- just structured data plus `document.documentElement.style.setProperty()`.
+---
 
 ## Sources
 
-- [react-grid-layout GitHub](https://github.com/react-grid-layout/react-grid-layout) - Dashboard grid library (v2 TypeScript rewrite)
-- [TipTap Editor](https://tiptap.dev/docs/editor/getting-started/overview) - Rich text editor framework
-- [TipTap Custom Extensions](https://tiptap.dev/docs/editor/extensions/custom-extensions/create-new/extension) - WikiLink extension pattern
-- [TipTap React Integration](https://tiptap.dev/docs/editor/getting-started/install/react) - React hooks and components
-- [Sandpack by CodeSandbox](https://sandpack.codesandbox.io/) - Reference for code sandbox patterns
-- [Tauri v2 CSP](https://v2.tauri.app/security/csp/) - Content Security Policy in Tauri
-- [Tauri v2 Isolation Pattern](https://v2.tauri.app/concept/inter-process-communication/isolation/) - iframe sandboxing in Tauri
-- [CSS Container Queries Guide](https://dev.to/smriti_webdev/building-a-responsive-layout-in-2025-css-grid-vs-flexbox-vs-container-queries-234m) - Container queries best practices
-- [react-safe-src-doc-iframe](https://github.com/godaddy/react-safe-src-doc-iframe) - Secure iframe component reference
-- [ilert: Why React-Grid-Layout](https://www.ilert.com/blog/building-interactive-dashboards-why-react-grid-layout-was-our-best-choice) - Real-world RGL case study
-- [Liveblocks: Rich Text Editor Comparison 2025](https://liveblocks.io/blog/which-rich-text-editor-framework-should-you-choose-in-2025) - TipTap vs alternatives
-- [CSS Variables Theming Guide](https://www.frontendtools.tech/blog/css-variables-guide-design-tokens-theming-2025) - Design tokens and CSS variable patterns
+- Direct codebase analysis (2026-03-22), HIGH confidence:
+  - `frontend/src/lib/widget-registry.ts` -- WidgetProps contract, registration pattern
+  - `frontend/src/components/dashboard/WidgetWrapper.tsx` -- rendering pipeline
+  - `frontend/src/pages/dashboard/DashboardGrid.tsx` -- grid engine
+  - `frontend/src/pages/dashboard/useDashboardData.ts` -- monolithic context problem
+  - `frontend/src/pages/dashboard/dashboard-context.ts` -- context coupling
+  - `frontend/src/lib/dashboard-store.ts` -- state management (pages, layouts, configs)
+  - `frontend/src/lib/dashboard-defaults.ts` -- layout generation pattern
+  - `frontend/src/pages/notes/Notes.tsx` -- complex module (full-bleed, multi-panel)
+  - `frontend/src/pages/Messages.tsx` -- complex module (SSE, 30+ state vars)
+  - `frontend/src/pages/Personal.tsx` -- duplicate data fetching problem
+  - `frontend/src/pages/Todos.tsx` -- simple module baseline
+  - `frontend/src/lib/modules.ts` -- module definitions (17 modules)
+  - `frontend/src/lib/sidebar-config.ts` -- category system
+  - `frontend/src/components/LayoutShell.tsx` -- rendering container
+  - `frontend/src/main.tsx` -- router setup, startup registration
+  - `frontend/src/components/primitives/register.ts` -- widget registration pattern
+  - `frontend/src/pages/dashboard/AgentStatusCard.tsx` -- existing card context coupling
+  - `frontend/src/pages/dashboard/MissionsCard.tsx` -- existing card context coupling
+- React Query deduplication behavior: HIGH confidence (documented core feature)
+- react-grid-layout responsive grid: HIGH confidence (in production use)
