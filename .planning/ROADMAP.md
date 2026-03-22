@@ -206,18 +206,17 @@ Plans:
 **Plans**: TBD
 
 ### Phase 15: Claude Code Session Backend
-**Goal**: Rust backend for spawning and managing Claude Code sessions with real-time output streaming
-**Depends on**: Phase 13 (reuses WebSocket relay pattern from terminal)
+**Goal**: Rust backend for monitoring and controlling Gunther (Claude Code) sessions running on the OpenClaw VM
+**Depends on**: Phase 9 (reuses OpenClaw gateway proxy)
 **Requirements**: MH-25
-**Research**: YES -- Claude Code SDK/CLI spawning, session lifecycle, output parsing
+**Research**: YES -- OpenClaw session management API, Gunther session lifecycle, output streaming
 **Success Criteria** (what must be TRUE):
-  1. `/api/claude-sessions` REST endpoints for CRUD (create, list, get, kill)
-  2. `/api/claude-sessions/:id/ws` WebSocket endpoint streams session output in real-time
-  3. Sessions spawn `claude` CLI as child processes with isolated working directories
-  4. Max 5 concurrent sessions enforced via CAS guard
-  5. Session metadata persisted (task description, start time, status, working directory)
-  6. Environment sanitized: no `MC_*` secrets leak to spawned Claude processes
-  7. Graceful shutdown kills all active sessions on app close
+  1. `/api/claude-sessions` REST endpoints proxy to OpenClaw VM session management (list, get, create, kill)
+  2. `/api/claude-sessions/:id/ws` WebSocket endpoint streams live Gunther session output from OpenClaw VM
+  3. Session metadata surfaced: task description, status (running/paused/completed/failed), duration, model, working directory
+  4. Create endpoint can dispatch new tasks to Gunther via OpenClaw API
+  5. Kill endpoint gracefully terminates sessions on the remote VM
+  6. All requests proxied through gateway_forward() with credential protection
 **Plans**: TBD
 
 ### Phase 16: Session Monitor Frontend

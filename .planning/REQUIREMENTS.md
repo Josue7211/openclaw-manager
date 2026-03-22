@@ -71,8 +71,8 @@ End-to-end verification of all features together. Bundle size audit. Theme slide
 **Success:** All features work together without conflicts. Bundle stays under 5MB. Theme slider produces readable text at every position. No regressions in existing features.
 
 ### MH-25: Claude Code Session Backend
-Rust backend for spawning and managing Claude Code sessions. Spawns `claude` CLI as child processes with isolated working directories. WebSocket relay for real-time session I/O. Session lifecycle management (create, list, get, pause, resume, kill). Max 5 concurrent sessions via CAS guard.
-**Success:** User can spawn a new Claude Code session from the app, send it a task, and receive streaming output. Sessions are tracked with metadata (task, status, duration, model). Environment sanitized so no MC secrets leak.
+Rust backend for monitoring and controlling Gunther (Claude Code) sessions on the OpenClaw VM. Proxies to OpenClaw's session management API via gateway_forward(). WebSocket relay for real-time session output streaming. Session lifecycle management (list, get, create, kill). Gunther is already part of the architecture — this surfaces existing sessions in the MC UI.
+**Success:** User can see all active Gunther sessions, dispatch new tasks, and stream live output. Sessions proxied through the OpenClaw gateway with credential protection.
 
 ### MH-26: Session Monitor Frontend
 Live dashboard showing all active Claude Code sessions with real-time status. Each session shows: task description, status (running/paused/completed/failed), duration, model. Live terminal-style output viewer per session (reuses xterm.js). Session controls: spawn, pause, resume, kill.
