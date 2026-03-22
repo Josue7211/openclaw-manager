@@ -148,7 +148,7 @@ Plans:
   4. Returns "OpenClaw API not configured" when OPENCLAW_API_URL is not set
 **Plans:** 1 plan
 Plans:
-- [ ] 09-01-PLAN.md -- gateway_forward() proxy + error sanitization + health route + wiring
+- [x] 09-01-PLAN.md -- gateway_forward() proxy + error sanitization + health route + wiring
 
 ### Phase 10: OpenClaw Agent Management
 **Goal**: Beautiful agents tab with polished cards and a right-side settings panel (note-editor style)
@@ -163,7 +163,7 @@ Plans:
   6. UI updates optimistically with rollback on error
 **Plans:** 2 plans
 Plans:
-- [ ] 10-01-PLAN.md -- Backend POST/DELETE/lifecycle endpoints + Agent type update
+- [x] 10-01-PLAN.md -- Backend POST/DELETE/lifecycle endpoints + Agent type update
 - [ ] 10-02-PLAN.md -- useAgents hook + split-pane page layout + detail panel + confirmation dialog
 
 ### Phase 11: OpenClaw Agent Calendar
@@ -296,8 +296,8 @@ Plans:
 | 6. Theme Blend -- OKLCH Helpers | v0.0.3 | 1/1 | Complete | 2026-03-22 |
 | 7. Theme Blend -- Interpolation Engine | v0.0.3 | 0/1 | Not started | - |
 | 8. Theme Blend -- Slider UI + Persistence | v0.0.3 | 0/1 | Not started | - |
-| 9. OpenClaw Gateway Proxy Helper | v0.0.3 | 0/1 | Not started | - |
-| 10. OpenClaw Agent CRUD | v0.0.3 | 0/2 | Not started | - |
+| 9. OpenClaw Gateway Proxy Helper | v0.0.3 | 1/1 | Complete | 2026-03-22 |
+| 10. OpenClaw Agent CRUD | v0.0.3 | 1/2 | In progress | - |
 | 11. OpenClaw Cron CRUD | v0.0.3 | 0/? | Not started | - |
 | 12. OpenClaw Usage + Models + Controller Page | v0.0.3 | 0/? | Not started | - |
 | 13. Terminal PTY Backend | v0.0.3 | 0/? | Not started | - |
