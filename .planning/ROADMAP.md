@@ -20,14 +20,14 @@
 - [x] **Phase 5: Set CI Bundle Budget** - CI check failing if any chunk >400KB or total >5MB *(completed 2026-03-22)*
 
 **Group C: Theme Blend**
-- [ ] **Phase 6: Theme Blend -- OKLCH Helpers** - Color interpolation utilities with unit tests
+- [x] **Phase 6: Theme Blend -- OKLCH Helpers** - Color interpolation utilities with unit tests *(completed 2026-03-22)*
 - [ ] **Phase 7: Theme Blend -- Interpolation Engine** - Working theme interpolation with WCAG contrast enforcement
 - [ ] **Phase 8: Theme Blend -- Slider UI + Persistence** - User-facing slider that blends dark/light themes in real-time
 
 **Group D: OpenClaw Controller**
 - [ ] **Phase 9: OpenClaw Gateway Proxy Helper** - Reusable proxy function with credential protection and error sanitization
-- [ ] **Phase 10: OpenClaw Agent CRUD** - Agent create/update/delete + lifecycle controls (start/stop/restart)
-- [ ] **Phase 11: OpenClaw Cron CRUD** - Cron create/update/delete + human-readable schedule UI
+- [ ] **Phase 10: OpenClaw Agent Management** - Beautiful agents tab with right-panel settings editor (note-style)
+- [ ] **Phase 11: OpenClaw Agent Calendar** - Cron schedules displayed as a calendar view under agents
 - [ ] **Phase 12: OpenClaw Usage + Models + Controller Page** - Usage dashboard, model listing, tool registry, unified page shell
 
 **Group E: Terminal**
@@ -109,7 +109,7 @@ Plans:
   4. Round-trip hex -> OKLCH -> hex produces the same color (within 1 unit tolerance)
   5. Unit tests cover edge cases (black, white, pure colors, transparent)
 Plans:
-- [ ] 06-01-PLAN.md -- OKLCH color utilities with TDD
+- [x] 06-01-PLAN.md -- OKLCH color utilities with TDD
 
 ### Phase 7: Theme Blend -- Interpolation Engine
 **Goal**: Working theme interpolation with automatic text color switching and WCAG contrast enforcement
@@ -144,28 +144,29 @@ Plans:
   4. Returns "OpenClaw API not configured" when OPENCLAW_API_URL is not set
 **Plans**: TBD
 
-### Phase 10: OpenClaw Agent CRUD
-**Goal**: Full agent management from the OpenClaw Controller page
+### Phase 10: OpenClaw Agent Management
+**Goal**: Beautiful agents tab with polished cards and a right-side settings panel (note-editor style)
 **Depends on**: Phase 9
 **Requirements**: MH-06
 **Success Criteria** (what must be TRUE):
-  1. User can create a new agent with name, model, and role
-  2. User can edit an existing agent's configuration
-  3. User can start, stop, and restart an agent
-  4. User can delete an agent (with confirmation dialog)
-  5. UI updates optimistically with rollback on error
+  1. Agents tab shows agent cards in a polished grid/list layout
+  2. Clicking an agent's settings opens a right-side detail panel (like notes editor pattern)
+  3. Settings panel shows all agent configuration: name, model, role, status, memory
+  4. User can start, stop, restart agents from the card or settings panel
+  5. User can create new agents and delete existing ones (with confirmation)
+  6. UI updates optimistically with rollback on error
 **Plans**: TBD
 
-### Phase 11: OpenClaw Cron CRUD
-**Goal**: Full cron job management with human-readable schedule editing
+### Phase 11: OpenClaw Agent Calendar
+**Goal**: Cron schedules displayed as a calendar view under the agents category
 **Depends on**: Phase 9
 **Requirements**: MH-07
 **Success Criteria** (what must be TRUE):
-  1. User can create a cron job with a schedule picked from a UI (not raw crontab)
-  2. User can toggle a cron job enabled/disabled
-  3. User can edit a cron job's command and schedule
-  4. User can delete a cron job (with confirmation)
-  5. Duplicate crons prevented on retry (PUT with deterministic IDs)
+  1. Calendar view shows cron job schedules visually (week/month view)
+  2. User can create a cron job with a schedule picked from the calendar UI
+  3. User can toggle a cron job enabled/disabled
+  4. User can click a calendar entry to edit its command and schedule
+  5. User can delete a cron job (with confirmation)
 **Plans**: TBD
 
 ### Phase 12: OpenClaw Usage + Models + Controller Page
@@ -283,7 +284,7 @@ Plans:
 | 3. Verify Widget Tab-Switch Fix | v0.0.3 | 0/? | Not started | - |
 | 4. Verify Widget Picker UX Fixes | v0.0.3 | 0/? | Not started | - |
 | 5. Set CI Bundle Budget | v0.0.3 | 1/1 | Complete | 2026-03-22 |
-| 6. Theme Blend -- OKLCH Helpers | v0.0.3 | 0/1 | Planned | - |
+| 6. Theme Blend -- OKLCH Helpers | v0.0.3 | 1/1 | Complete | 2026-03-22 |
 | 7. Theme Blend -- Interpolation Engine | v0.0.3 | 0/? | Not started | - |
 | 8. Theme Blend -- Slider UI + Persistence | v0.0.3 | 0/? | Not started | - |
 | 9. OpenClaw Gateway Proxy Helper | v0.0.3 | 0/? | Not started | - |
