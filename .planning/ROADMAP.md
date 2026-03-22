@@ -305,7 +305,7 @@ Plans:
 | 9. OpenClaw Gateway Proxy Helper | v0.0.3 | 1/1 | Complete | 2026-03-22 |
 | 10. OpenClaw Agent CRUD | v0.0.3 | 2/2 | Complete    | 2026-03-22 |
 | 11. OpenClaw Cron CRUD | v0.0.3 | 0/2 | Complete    | 2026-03-22 |
-| 12. OpenClaw Usage + Models + Controller Page | v0.0.3 | 1/2 | In Progress|  |
+| 12. OpenClaw Usage + Models + Controller Page | v0.0.3 | 1/2 | Complete    | 2026-03-22 |
 | 13. Terminal PTY Backend | v0.0.3 | 0/? | Not started | - |
 | 14. Terminal Frontend (xterm.js) | v0.0.3 | 0/? | Not started | - |
 | 15. Claude Code Session Backend | v0.0.3 | 0/? | Not started | - |
