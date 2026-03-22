@@ -47,7 +47,7 @@ patterns-established:
 requirements-completed: [MH-07]
 
 # Metrics
-duration: 2min
+duration: 5min
 completed: 2026-03-22
 ---
 
