@@ -29,6 +29,7 @@ const Missions = lazy(() => import('./pages/Missions'))
 const Agents = lazy(() => import('./pages/Agents'))
 const Memory = lazy(() => import('./pages/Memory'))
 const CronJobs = lazy(() => import('./pages/CronJobs'))
+const OpenClaw = lazy(() => import('./pages/OpenClaw'))
 const Pipeline = lazy(() => import('./pages/Pipeline'))
 const KnowledgeBase = lazy(() => import('./pages/KnowledgeBase'))
 const Notes = lazy(() => import('./pages/notes/Notes'))
@@ -291,9 +292,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/homelab" element={<Suspense fallback={<GenericPageSkeleton />}><HomeLab /></Suspense>} />
             <Route path="/media" element={<Suspense fallback={<GenericPageSkeleton />}><MediaRadar /></Suspense>} />
             <Route path="/missions" element={<Suspense fallback={<GenericPageSkeleton />}><Missions /></Suspense>} />
-            <Route path="/agents" element={<Suspense fallback={<GenericPageSkeleton />}><Agents /></Suspense>} />
+            <Route path="/openclaw" element={<Suspense fallback={<GenericPageSkeleton />}><OpenClaw /></Suspense>} />
+            <Route path="/agents" element={<Navigate to="/openclaw" replace />} />
             <Route path="/memory" element={<Suspense fallback={<GenericPageSkeleton />}><Memory /></Suspense>} />
-            <Route path="/crons" element={<Suspense fallback={<GenericPageSkeleton />}><CronJobs /></Suspense>} />
+            <Route path="/crons" element={<Navigate to="/openclaw" replace />} />
             <Route path="/pipeline" element={<Suspense fallback={<GenericPageSkeleton />}><Pipeline /></Suspense>} />
             <Route path="/knowledge" element={<Suspense fallback={<GenericPageSkeleton />}><KnowledgeBase /></Suspense>} />
             <Route path="/notes" element={<Suspense fallback={<GenericPageSkeleton />}><Notes /></Suspense>} />
