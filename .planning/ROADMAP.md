@@ -184,7 +184,7 @@ Plans:
 ### Phase 12: OpenClaw Usage + Models + Controller Page
 **Goal**: Unified OpenClaw page with tabs for all management features plus read-only dashboards
 **Depends on**: Phases 10, 11
-**Requirements**: MH-08, SH-01
+**Requirements**: MH-08
 **Success Criteria** (what must be TRUE):
   1. OpenClawPage.tsx has tab navigation: Agents, Crons, Usage, Models, Tools
   2. Usage tab shows token counts, cost, and model usage with chart widgets
@@ -193,7 +193,7 @@ Plans:
   5. Page polls at 30s minimum, only when the page is active
 **Plans:** 2 plans
 Plans:
-- [ ] 12-01-PLAN.md -- Backend proxy routes (usage/models/tools/memory) + frontend types + hooks + query keys
+- [ ] 12-01-PLAN.md -- Backend proxy routes (usage/models/tools) + frontend types + hooks + query keys
 - [ ] 12-02-PLAN.md -- OpenClawPage tab shell + Usage/Models/Tools tab components + route/nav/module wiring
 
 ### Phase 13: Terminal PTY Backend
