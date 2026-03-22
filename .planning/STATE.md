@@ -36,7 +36,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ### Pending Todos
 
-None yet.
+- Project tracker module with kanban board — track all active projects (biometric auth, homelab, etc.) in a GitHub Projects-style widget + page, synced with vault `projects/` folder
 
 ### Blockers/Concerns
 
