@@ -1,5 +1,6 @@
 export interface Agent {
   id: string
+  name: string
   display_name: string
   emoji: string
   role: string
@@ -7,6 +8,23 @@ export interface Agent {
   current_task: string | null
   color: string | null
   model: string | null
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateAgentPayload {
+  display_name: string
+  emoji?: string
+  role?: string
+  model?: string
+}
+
+export type AgentAction = 'start' | 'stop' | 'restart'
+
+export interface AgentActionPayload {
+  id: string
+  action: AgentAction
 }
 
 export interface Process {
