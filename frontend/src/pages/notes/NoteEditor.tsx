@@ -25,6 +25,7 @@ import { tags } from '@lezer/highlight'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import type { VaultNote } from './types'
+import EditorToolbar, { toggleWrap, insertLink } from './EditorToolbar'
 
 // --- Image embed widget for ![[image.png]] syntax ---
 
@@ -322,6 +323,10 @@ export default memo(function NoteEditor({ note, onChange, onWikilinkClick }: Not
         highlightSelectionMatches(),
         placeholder('Start writing...'),
         keymap.of([
+          { key: 'Mod-b', run: (v) => { toggleWrap(v, '**'); return true } },
+          { key: 'Mod-i', run: (v) => { toggleWrap(v, '*'); return true } },
+          { key: 'Mod-k', run: (v) => { insertLink(v); return true } },
+          { key: 'Mod-Shift-s', run: (v) => { toggleWrap(v, '~~'); return true } },
           ...defaultKeymap,
           ...historyKeymap,
           ...searchKeymap,
@@ -356,14 +361,24 @@ export default memo(function NoteEditor({ note, onChange, onWikilinkClick }: Not
 
   return (
     <div
-      ref={containerRef}
       style={{
         flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
         overflow: 'hidden',
         background: 'var(--bg-base)',
-        userSelect: 'text',
-        WebkitUserSelect: 'text' as never,
       }}
-    />
+    >
+      <EditorToolbar viewRef={viewRef} />
+      <div
+        ref={containerRef}
+        style={{
+          flex: 1,
+          overflow: 'hidden',
+          userSelect: 'text',
+          WebkitUserSelect: 'text' as never,
+        }}
+      />
+    </div>
   )
 })
