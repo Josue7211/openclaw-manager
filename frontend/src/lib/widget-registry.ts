@@ -439,6 +439,38 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     maxSize: { w: 6, h: 2 },
     component: () => import('@/components/widgets/QuickCaptureWidget').then(m => ({ default: m.QuickCaptureWidget })),
   },
+  {
+    id: 'clock',
+    name: 'Clock',
+    description: 'Digital clock with date display',
+    icon: 'Clock',
+    category: 'productivity',
+    tier: 'builtin',
+    defaultSize: { w: 2, h: 1 },
+    minSize: { w: 1, h: 1 },
+    configSchema: {
+      fields: [
+        { key: 'format', label: 'Time format', type: 'select', default: '12h', options: [
+          { label: '12-hour', value: '12h' },
+          { label: '24-hour', value: '24h' },
+        ]},
+        { key: 'showSeconds', label: 'Show seconds', type: 'toggle', default: true },
+        { key: 'showDate', label: 'Show date', type: 'toggle', default: true },
+      ],
+    },
+    component: () => import('@/components/widgets/ClockWidget').then(m => ({ default: m.ClockWidget })),
+  },
+  {
+    id: 'system-info',
+    name: 'System',
+    description: 'Service connection status and health',
+    icon: 'Heartbeat',
+    category: 'monitoring',
+    tier: 'builtin',
+    defaultSize: { w: 2, h: 2 },
+    minSize: { w: 1, h: 2 },
+    component: () => import('@/components/widgets/SystemInfoWidget').then(m => ({ default: m.SystemInfoWidget })),
+  },
 ]
 
 // ---------------------------------------------------------------------------
