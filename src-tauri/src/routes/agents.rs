@@ -12,13 +12,7 @@ use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
 use crate::validation::validate_uuid;
 
-fn openclaw_api_url(state: &AppState) -> Option<String> {
-    state.secret("OPENCLAW_API_URL").filter(|s| !s.is_empty())
-}
-
-fn openclaw_api_key(state: &AppState) -> String {
-    state.secret_or_default("OPENCLAW_API_KEY")
-}
+use super::gateway::{openclaw_api_key, openclaw_api_url};
 
 // ── Constants ────────────────────────────────────────────────────────────────
 

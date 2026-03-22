@@ -54,6 +54,7 @@ pub fn router() -> Router<AppState> {
         .merge(deploy::router())
         .merge(email::router())
         .merge(export::router())
+        .merge(gateway::router())
         .merge(events::router())
         .merge(habits::router())
         .merge(homelab::router())
