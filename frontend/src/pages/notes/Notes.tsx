@@ -5,6 +5,7 @@ import { noteIdFromTitle } from '@/lib/vault'
 import { API_BASE, api } from '@/lib/api'
 import FileTree from './FileTree'
 import NoteEditor from './NoteEditor'
+import BacklinksPanel from './BacklinksPanel'
 import type { VaultNote } from './types'
 
 const GraphView = lazy(() => import('./GraphView'))
@@ -326,12 +327,19 @@ export default function NotesPage() {
               selected.type === 'attachment' ? (
                 <AttachmentPreview id={selected._id} />
               ) : (
-                <NoteEditor
-                  note={selected}
-                  onChange={handleContentChange}
-                  onWikilinkClick={handleWikilinkClick}
-                  allNoteTitles={allNoteTitles}
-                />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  <NoteEditor
+                    note={selected}
+                    onChange={handleContentChange}
+                    onWikilinkClick={handleWikilinkClick}
+                    allNoteTitles={allNoteTitles}
+                  />
+                  <BacklinksPanel
+                    currentNoteTitle={selected.title}
+                    allNotes={notes}
+                    onNavigate={(id) => { setSelectedId(id); setViewMode('editor') }}
+                  />
+                </div>
               )
             ) : (
               <EmptyState onCreateNote={() => handleCreate()} />
