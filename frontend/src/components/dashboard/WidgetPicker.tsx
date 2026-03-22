@@ -52,7 +52,8 @@ interface WidgetPickerProps {
   open: boolean
   onClose: () => void
   pageId: string
-  placedWidgetIds: string[]
+  /** @deprecated No longer used — duplicate widgets are allowed */
+  placedWidgetIds?: string[]
   /** Override: custom add widget handler instead of dashboard-store addWidgetToPage */
   onAddWidget?: (pageId: string, pluginId: string, layout: import('@/lib/dashboard-store').LayoutItem) => void
 }
@@ -61,12 +62,12 @@ export const WidgetPicker = React.memo(function WidgetPicker({
   open,
   onClose,
   pageId,
-  placedWidgetIds,
   onAddWidget,
 }: WidgetPickerProps) {
   const widgetAdder = onAddWidget ?? addWidgetToPage
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [appliedPresetId, setAppliedPresetId] = useState<string | null>(null)
   const trapRef = useFocusTrap(open)
 
   useEscapeKey(onClose, open)
@@ -82,11 +83,6 @@ export const WidgetPicker = React.memo(function WidgetPicker({
   const categorized = useMemo(() => getWidgetsByCategory(), [])
   const bundles = useMemo(() => getWidgetBundles(), [])
   const presets = useMemo(() => getWidgetPresets(), [])
-
-  const placedSet = useMemo(
-    () => new Set(placedWidgetIds),
-    [placedWidgetIds],
-  )
 
   // Filter by search and selected category
   const filteredCategories = useMemo(() => {
@@ -161,6 +157,8 @@ export const WidgetPicker = React.memo(function WidgetPicker({
           minH: def.minSize?.h,
         })
       }
+      setAppliedPresetId(preset.id)
+      setTimeout(() => setAppliedPresetId(null), 2000)
     },
     [pageId, widgetAdder],
   )
@@ -457,11 +455,12 @@ export const WidgetPicker = React.memo(function WidgetPicker({
                               fontWeight: 600,
                               cursor: 'pointer',
                               fontFamily: 'inherit',
-                              background: 'var(--accent)',
+                              background: appliedPresetId === preset.id ? 'var(--green-500)' : 'var(--accent)',
                               color: 'var(--text-on-color)',
+                              transition: 'background 150ms ease',
                             }}
                           >
-                            Apply
+                            {appliedPresetId === preset.id ? '\u2713 Applied' : 'Apply'}
                           </button>
                         </div>
                       )
@@ -499,7 +498,6 @@ export const WidgetPicker = React.memo(function WidgetPicker({
                         key={widget.id}
                         widget={widget}
                         onAdd={(size) => handleAddWidget(widget, size)}
-                        isAlreadyPlaced={placedSet.has(widget.id)}
                       />
                     ))}
                   </div>

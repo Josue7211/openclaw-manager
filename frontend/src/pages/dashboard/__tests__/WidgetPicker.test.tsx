@@ -230,10 +230,12 @@ describe('WidgetPicker', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
-  it('already-placed widgets show "Added" state', () => {
+  it('allows adding duplicate widgets (no "Added" disabled state)', () => {
     renderPicker({ placedWidgetIds: ['agent-status'] })
-    // The Agent Status card should show "Added" text
-    expect(screen.getByText('Added')).toBeInTheDocument()
+    // All widgets should still show "Add" buttons, never "Added"
+    const addButtons = screen.getAllByText('Add')
+    expect(addButtons.length).toBeGreaterThan(0)
+    expect(screen.queryByText('Added')).not.toBeInTheDocument()
   })
 
   it('renders category filter tabs', () => {
@@ -344,7 +346,6 @@ describe('WidgetPickerCard', () => {
       <WidgetPickerCard
         widget={widget}
         onAdd={vi.fn()}
-        isAlreadyPlaced={false}
       />,
     )
     expect(screen.getByText('Agent Status')).toBeInTheDocument()
@@ -358,7 +359,6 @@ describe('WidgetPickerCard', () => {
       <WidgetPickerCard
         widget={widget}
         onAdd={vi.fn()}
-        isAlreadyPlaced={false}
       />,
     )
     expect(screen.getByText('S')).toBeInTheDocument()
@@ -372,7 +372,6 @@ describe('WidgetPickerCard', () => {
       <WidgetPickerCard
         widget={widget}
         onAdd={vi.fn()}
-        isAlreadyPlaced={false}
       />,
     )
     // Agent Status defaultSize is {w:1, h:2} which maps to S preset
@@ -385,7 +384,6 @@ describe('WidgetPickerCard', () => {
       <WidgetPickerCard
         widget={widget}
         onAdd={vi.fn()}
-        isAlreadyPlaced={false}
       />,
     )
     const mPill = screen.getByText('M')
@@ -397,7 +395,7 @@ describe('WidgetPickerCard', () => {
   it('clicking Add calls onAdd with selected size', () => {
     const onAdd = vi.fn()
     render(
-      <WidgetPickerCard widget={widget} onAdd={onAdd} isAlreadyPlaced={false} />,
+      <WidgetPickerCard widget={widget} onAdd={onAdd} />,
     )
     // Default is S (1x2)
     fireEvent.click(screen.getByText('Add'))
@@ -407,33 +405,21 @@ describe('WidgetPickerCard', () => {
   it('clicking a different preset and then Add passes correct size', () => {
     const onAdd = vi.fn()
     render(
-      <WidgetPickerCard widget={widget} onAdd={onAdd} isAlreadyPlaced={false} />,
+      <WidgetPickerCard widget={widget} onAdd={onAdd} />,
     )
     fireEvent.click(screen.getByText('L'))
     fireEvent.click(screen.getByText('Add'))
     expect(onAdd).toHaveBeenCalledWith({ w: 2, h: 3 })
   })
 
-  it('shows "Added" with disabled button when isAlreadyPlaced', () => {
-    render(
-      <WidgetPickerCard
-        widget={widget}
-        onAdd={vi.fn()}
-        isAlreadyPlaced={true}
-      />,
-    )
-    expect(screen.getByText('Added')).toBeInTheDocument()
-    const btn = screen.getByText('Added').closest('button')
-    expect(btn).toBeDisabled()
-  })
-
-  it('does not call onAdd when isAlreadyPlaced', () => {
+  it('always shows Add button and allows adding', () => {
     const onAdd = vi.fn()
     render(
-      <WidgetPickerCard widget={widget} onAdd={onAdd} isAlreadyPlaced={true} />,
+      <WidgetPickerCard widget={widget} onAdd={onAdd} />,
     )
-    const btn = screen.getByText('Added').closest('button')!
+    const btn = screen.getByText('Add')
+    expect(btn.closest('button')).not.toBeDisabled()
     fireEvent.click(btn)
-    expect(onAdd).not.toHaveBeenCalled()
+    expect(onAdd).toHaveBeenCalledTimes(1)
   })
 })

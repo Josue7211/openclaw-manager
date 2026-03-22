@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Plus } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/Button'
 import {
@@ -269,8 +270,9 @@ export const DashboardTabs = React.memo(function DashboardTabs({
         </div>
       )}
 
-      {/* Delete confirmation dialog */}
-      {confirmDeleteId && confirmPage && (
+      {/* Delete confirmation dialog — portalled to document.body to escape
+           container-type: inline-size on <main> which traps position: fixed */}
+      {confirmDeleteId && confirmPage && createPortal(
         <div
           role="dialog"
           aria-modal="true"
@@ -312,7 +314,8 @@ export const DashboardTabs = React.memo(function DashboardTabs({
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

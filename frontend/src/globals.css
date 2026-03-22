@@ -1313,6 +1313,33 @@ input[type="checkbox"]:checked::before {
   .react-grid-item.react-draggable-dragging { transform: none; }
 }
 
+/* ── Widget entry animation ── */
+@keyframes widget-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.react-grid-item {
+  animation: widget-enter 200ms var(--ease-spring) both;
+}
+
+/* Don't animate during drag */
+.react-grid-item.react-draggable-dragging {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .react-grid-item {
+    animation: none;
+  }
+}
+
 /* ── Resize handles above widget content ── */
 .react-grid-item > .react-resizable-handle {
   z-index: 20;

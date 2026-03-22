@@ -9,7 +9,6 @@ import {
   WifiHigh,
   Terminal,
   Cube,
-  Check,
 } from '@phosphor-icons/react'
 import type { WidgetDefinition } from '@/lib/widget-registry'
 
@@ -62,13 +61,11 @@ function closestPresetIndex(defaultSize: { w: number; h: number }): number {
 interface WidgetPickerCardProps {
   widget: WidgetDefinition
   onAdd: (size: { w: number; h: number }) => void
-  isAlreadyPlaced: boolean
 }
 
 export const WidgetPickerCard = React.memo(function WidgetPickerCard({
   widget,
   onAdd,
-  isAlreadyPlaced,
 }: WidgetPickerCardProps) {
   const defaultIdx = useMemo(
     () => closestPresetIndex(widget.defaultSize),
@@ -79,10 +76,9 @@ export const WidgetPickerCard = React.memo(function WidgetPickerCard({
   const Icon = ICON_MAP[widget.icon] || Cube
 
   const handleAdd = useCallback(() => {
-    if (isAlreadyPlaced) return
     const preset = SIZE_PRESETS[selectedIdx]
     onAdd({ w: preset.w, h: preset.h })
-  }, [isAlreadyPlaced, selectedIdx, onAdd])
+  }, [selectedIdx, onAdd])
 
   return (
     <div
@@ -94,7 +90,6 @@ export const WidgetPickerCard = React.memo(function WidgetPickerCard({
         display: 'flex',
         flexDirection: 'column',
         gap: '10px',
-        opacity: isAlreadyPlaced ? 0.5 : 1,
         transition: 'border-color 150ms ease',
       }}
     >
@@ -178,7 +173,6 @@ export const WidgetPickerCard = React.memo(function WidgetPickerCard({
 
         <button
           onClick={handleAdd}
-          disabled={isAlreadyPlaced}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -188,22 +182,14 @@ export const WidgetPickerCard = React.memo(function WidgetPickerCard({
             border: 'none',
             fontSize: '12px',
             fontWeight: 600,
-            cursor: isAlreadyPlaced ? 'not-allowed' : 'pointer',
+            cursor: 'pointer',
             fontFamily: 'inherit',
-            background: isAlreadyPlaced ? 'var(--hover-bg)' : 'var(--accent)',
-            color: isAlreadyPlaced ? 'var(--text-muted)' : 'var(--text-on-color)',
-            opacity: isAlreadyPlaced ? 0.7 : 1,
+            background: 'var(--accent)',
+            color: 'var(--text-on-color)',
             transition: 'all 150ms ease',
           }}
         >
-          {isAlreadyPlaced ? (
-            <>
-              <Check size={12} weight="bold" />
-              Added
-            </>
-          ) : (
-            'Add'
-          )}
+          Add
         </button>
       </div>
     </div>
