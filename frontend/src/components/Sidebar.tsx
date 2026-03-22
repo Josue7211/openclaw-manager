@@ -5,6 +5,7 @@ import { CaretRight, CaretDown, Gear, Plus, Note, CheckSquare, Lightbulb, Flag, 
 import { useQueryClient } from '@tanstack/react-query'
 import GlobalSearch from './GlobalSearch'
 import { NotificationBell } from './NotificationCenter'
+import { StatusBar } from './StatusBar'
 import { ContextMenu, type ContextMenuState, type ContextMenuItem } from './ContextMenu'
 import { type NavItem, navItemsByHref } from '@/lib/nav-items'
 import { subscribeSidebarSettings, getSidebarHeaderVisible, getSidebarDefaultWidth, setSidebarDefaultWidth, getSidebarTitleLayout, getSidebarTitleText, getSidebarSearchVisible, getSidebarLogoVisible, getSidebarTitleSize } from '@/lib/sidebar-settings'
@@ -1748,6 +1749,9 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
           </span>
         </button>
       </div>
+
+      {/* ── Status bar (Discord-style, always visible at bottom) ────────── */}
+      <StatusBar collapsed={collapsed} />
 
       {/* ── Resize handle (right edge) — invisible until hover ─────────── */}
       <div
