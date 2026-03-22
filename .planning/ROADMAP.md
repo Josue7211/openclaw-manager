@@ -21,14 +21,14 @@
 
 **Group C: Theme Blend**
 - [x] **Phase 6: Theme Blend -- OKLCH Helpers** - Color interpolation utilities with unit tests *(completed 2026-03-22)*
-- [ ] **Phase 7: Theme Blend -- Interpolation Engine** - Working theme interpolation with WCAG contrast enforcement
-- [ ] **Phase 8: Theme Blend -- Slider UI + Persistence** - User-facing slider that blends dark/light themes in real-time
+- [x] **Phase 7: Theme Blend -- Interpolation Engine** - Working theme interpolation with WCAG contrast enforcement *(completed 2026-03-22)*
+- [x] **Phase 8: Theme Blend -- Slider UI + Persistence** - User-facing slider that blends dark/light themes in real-time *(completed 2026-03-22)*
 
 **Group D: OpenClaw Controller**
 - [x] **Phase 9: OpenClaw Gateway Proxy Helper** - Reusable proxy function with credential protection and error sanitization *(completed 2026-03-22)*
 - [x] **Phase 10: OpenClaw Agent Management** - Beautiful agents tab with right-panel settings editor (note-style) *(completed 2026-03-22)*
-- [ ] **Phase 11: OpenClaw Agent Calendar** - Cron schedules displayed as a calendar view under agents
-- [ ] **Phase 12: OpenClaw Usage + Models + Controller Page** - Usage dashboard, model listing, tool registry, unified page shell
+- [x] **Phase 11: OpenClaw Agent Calendar** - Cron schedules displayed as a calendar view under agents *(completed 2026-03-22)*
+- [x] **Phase 12: OpenClaw Usage + Models + Controller Page** - Usage dashboard, model listing, tool registry, unified page shell *(completed 2026-03-22)*
 
 **Group E: Terminal**
 - [ ] **Phase 13: Terminal PTY Backend** - portable-pty + WebSocket relay + process group cleanup
