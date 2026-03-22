@@ -161,7 +161,10 @@ Plans:
   4. User can start, stop, restart agents from the card or settings panel
   5. User can create new agents and delete existing ones (with confirmation)
   6. UI updates optimistically with rollback on error
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 10-01-PLAN.md -- Backend POST/DELETE/lifecycle endpoints + Agent type update
+- [ ] 10-02-PLAN.md -- useAgents hook + split-pane page layout + detail panel + confirmation dialog
 
 ### Phase 11: OpenClaw Agent Calendar
 **Goal**: Cron schedules displayed as a calendar view under the agents category
@@ -294,7 +297,7 @@ Plans:
 | 7. Theme Blend -- Interpolation Engine | v0.0.3 | 0/1 | Not started | - |
 | 8. Theme Blend -- Slider UI + Persistence | v0.0.3 | 0/1 | Not started | - |
 | 9. OpenClaw Gateway Proxy Helper | v0.0.3 | 0/1 | Not started | - |
-| 10. OpenClaw Agent CRUD | v0.0.3 | 0/? | Not started | - |
+| 10. OpenClaw Agent CRUD | v0.0.3 | 0/2 | Not started | - |
 | 11. OpenClaw Cron CRUD | v0.0.3 | 0/? | Not started | - |
 | 12. OpenClaw Usage + Models + Controller Page | v0.0.3 | 0/? | Not started | - |
 | 13. Terminal PTY Backend | v0.0.3 | 0/? | Not started | - |
