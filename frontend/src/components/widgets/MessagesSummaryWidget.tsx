@@ -19,11 +19,13 @@ function truncate(text: string | null, max: number): string {
   return text.length > max ? text.slice(0, max) + '...' : text
 }
 
-export const MessagesSummaryWidget = React.memo(function MessagesSummaryWidget({ size }: WidgetProps) {
+export const MessagesSummaryWidget = React.memo(function MessagesSummaryWidget({ size, config }: WidgetProps) {
   const { conversations, unreadCount, mounted } = useMessagesSummary()
   const navigate = useNavigate()
+  const maxConversations = Number(config.maxConversations ?? 5)
   const compact = size.h <= 2
-  const displayConvs = compact ? conversations.slice(0, 3) : conversations.slice(0, 5)
+  const limit = compact ? Math.min(maxConversations, 3) : maxConversations
+  const displayConvs = conversations.slice(0, limit)
 
   return (
     <div className="card" style={{ padding: '16px', height: '100%', display: 'flex', flexDirection: 'column' }}>

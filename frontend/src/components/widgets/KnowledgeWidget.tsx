@@ -4,9 +4,13 @@ import { useNavigate } from 'react-router-dom'
 import { useKnowledgeWidget } from '@/lib/hooks/dashboard'
 import type { WidgetProps } from '@/lib/widget-registry'
 
-export const KnowledgeWidget = React.memo(function KnowledgeWidget(_props: WidgetProps) {
+export const KnowledgeWidget = React.memo(function KnowledgeWidget({ config }: WidgetProps) {
   const { recentEntries, totalCount } = useKnowledgeWidget()
   const navigate = useNavigate()
+
+  const maxItems = Number(config.maxItems ?? 5)
+  const showTags = config.showTags !== undefined ? Boolean(config.showTags) : true
+  const displayEntries = recentEntries.slice(0, maxItems)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '16px' }}>
@@ -41,12 +45,12 @@ export const KnowledgeWidget = React.memo(function KnowledgeWidget(_props: Widge
 
       {/* Entry list */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px', overflowY: 'auto', minHeight: 0 }}>
-        {recentEntries.length === 0 ? (
+        {displayEntries.length === 0 ? (
           <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
             No knowledge entries yet
           </div>
         ) : (
-          recentEntries.map(entry => (
+          displayEntries.map(entry => (
             <div
               key={entry.id}
               className="hover-bg"
@@ -73,7 +77,7 @@ export const KnowledgeWidget = React.memo(function KnowledgeWidget(_props: Widge
                 <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
                   {new Date(entry.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                 </span>
-                {entry.tags.length > 0 && (
+                {showTags && entry.tags.length > 0 && (
                   <div style={{ display: 'flex', gap: '4px', overflow: 'hidden', flex: 1 }}>
                     {entry.tags.slice(0, 2).map(tag => (
                       <span

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { CalendarDots, ArrowRight } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { SkeletonRows } from '@/components/Skeleton'
@@ -6,16 +6,23 @@ import { useCalendarWidget } from '@/lib/hooks/dashboard/useCalendarWidget'
 import type { WidgetProps } from '@/lib/widget-registry'
 import type { CalendarEvent } from '@/lib/types'
 
-export const CalendarWidget = React.memo(function CalendarWidget(_props: WidgetProps) {
+export const CalendarWidget = React.memo(function CalendarWidget({ config }: WidgetProps) {
   const { todayEvents, upcomingEvents, mounted } = useCalendarWidget()
   const navigate = useNavigate()
+
+  const maxEvents = Number(config.maxEvents ?? 5)
+  const showAllDay = config.showAllDay !== undefined ? Boolean(config.showAllDay) : true
 
   const todayLabel = new Date().toLocaleDateString('en-US', {
     weekday: 'short', month: 'short', day: 'numeric',
   })
 
   const hasToday = todayEvents.length > 0
-  const displayEvents = hasToday ? todayEvents : upcomingEvents
+  const displayEvents = useMemo(() => {
+    let events = hasToday ? todayEvents : upcomingEvents
+    if (!showAllDay) events = events.filter((e: CalendarEvent) => !e.allDay)
+    return events.slice(0, maxEvents)
+  }, [hasToday, todayEvents, upcomingEvents, showAllDay, maxEvents])
 
   return (
     <div className="card" style={{ padding: '16px', height: '100%', display: 'flex', flexDirection: 'column' }}>

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { Bell, ArrowRight } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { SkeletonRows } from '@/components/Skeleton'
@@ -18,13 +18,27 @@ function priorityLabel(p?: number): string {
   return 'Low'
 }
 
-export const RemindersWidget = React.memo(function RemindersWidget(_props: WidgetProps) {
+export const RemindersWidget = React.memo(function RemindersWidget({ config }: WidgetProps) {
   const { reminders, todayReminders, pendingCount, toggleReminder, mounted } = useRemindersWidget()
   const navigate = useNavigate()
 
-  // Show today's due reminders first, then remaining pending ones
-  const pending = reminders.filter((r: Reminder) => !r.completed)
-  const displayReminders = todayReminders.length > 0 ? todayReminders : pending.slice(0, 5)
+  const maxItems = Number(config.maxItems ?? 5)
+  const filter = String(config.filter ?? 'today')
+
+  const displayReminders = useMemo(() => {
+    let items: Reminder[]
+    if (filter === 'today') {
+      items = todayReminders.length > 0
+        ? todayReminders
+        : reminders.filter((r: Reminder) => !r.completed)
+    } else if (filter === 'flagged') {
+      items = reminders.filter((r: Reminder) => !r.completed && r.priority === 1)
+    } else {
+      // 'pending'
+      items = reminders.filter((r: Reminder) => !r.completed)
+    }
+    return items.slice(0, maxItems)
+  }, [reminders, todayReminders, maxItems, filter])
 
   return (
     <div className="card" style={{ padding: '16px', height: '100%', display: 'flex', flexDirection: 'column' }}>

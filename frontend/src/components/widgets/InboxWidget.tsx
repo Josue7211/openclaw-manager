@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { Envelope, ArrowRight } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { SkeletonRows } from '@/components/Skeleton'
@@ -13,9 +13,18 @@ function relativeTime(isoStr: string): string {
   return `${Math.round(diff / 86_400_000)}d ago`
 }
 
-export const InboxWidget = React.memo(function InboxWidget(_props: WidgetProps) {
-  const { recentUnread, unreadCount, mounted } = useInboxWidget()
+export const InboxWidget = React.memo(function InboxWidget({ config }: WidgetProps) {
+  const { emails, recentUnread, unreadCount, mounted } = useInboxWidget()
   const navigate = useNavigate()
+
+  const maxEmails = Number(config.maxEmails ?? 3)
+  const showRead = Boolean(config.showRead ?? false)
+  const displayEmails = useMemo(() => {
+    const source = showRead ? emails : recentUnread
+    return source
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, maxEmails)
+  }, [emails, recentUnread, showRead, maxEmails])
 
   return (
     <div className="card" style={{ padding: '16px', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -44,12 +53,12 @@ export const InboxWidget = React.memo(function InboxWidget(_props: WidgetProps) 
         <SkeletonRows count={3} />
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', minHeight: 0 }}>
-          {recentUnread.length === 0 ? (
+          {displayEmails.length === 0 ? (
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic', padding: '8px 0' }}>
-              No unread emails
+              {showRead ? 'No emails' : 'No unread emails'}
             </div>
           ) : (
-            recentUnread.map(email => (
+            displayEmails.map(email => (
               <div
                 key={email.id}
                 className="hover-bg"

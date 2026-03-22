@@ -11,8 +11,10 @@ function formatTime(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-export const PomodoroWidget = React.memo(function PomodoroWidget(_props: WidgetProps) {
-  const { mode, secondsLeft, running, todayCount, toggle, reset } = usePomodoroWidget()
+export const PomodoroWidget = React.memo(function PomodoroWidget({ config }: WidgetProps) {
+  const workDuration = Number(config.workDuration ?? 25)
+  const shortBreak = Number(config.shortBreak ?? 5)
+  const { mode, secondsLeft, running, todayCount, toggle, reset } = usePomodoroWidget({ workDuration, shortBreak })
   const navigate = useNavigate()
 
   return (

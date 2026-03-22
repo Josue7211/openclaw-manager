@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { CheckSquare, ArrowRight } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { SkeletonRows } from '@/components/Skeleton'
@@ -6,13 +6,29 @@ import { useTodosWidget } from '@/lib/hooks/dashboard/useTodosWidget'
 import type { WidgetProps } from '@/lib/widget-registry'
 import type { Todo } from '@/lib/types'
 
-export const TodosWidget = React.memo(function TodosWidget({ size }: WidgetProps) {
-  const { focusTodos, pendingCount, addMutation, toggleMutation, mounted } = useTodosWidget()
+export const TodosWidget = React.memo(function TodosWidget({ size, config }: WidgetProps) {
+  const { todos, focusTodos, pendingCount, addMutation, toggleMutation, mounted } = useTodosWidget()
   const navigate = useNavigate()
   const [newText, setNewText] = useState('')
 
+  const maxItems = Number(config.maxItems ?? 5)
+  const showCompleted = Boolean(config.showCompleted ?? false)
+  const filter = String(config.filter ?? 'focus')
+
   const compact = size.w <= 3
-  const displayTodos = compact ? focusTodos.slice(0, 3) : focusTodos.slice(0, 5)
+  const displayTodos = useMemo(() => {
+    let items: Todo[]
+    if (filter === 'focus') {
+      items = focusTodos
+    } else if (filter === 'pending') {
+      items = todos.filter((t: Todo) => !t.done)
+    } else {
+      items = todos
+    }
+    if (!showCompleted) items = items.filter((t: Todo) => !t.done)
+    const limit = compact ? Math.min(maxItems, 3) : maxItems
+    return items.slice(0, limit)
+  }, [todos, focusTodos, maxItems, showCompleted, filter, compact])
 
   const handleAdd = () => {
     const text = newText.trim()

@@ -2,12 +2,24 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import type { Mode, SessionEntry } from '@/pages/pomodoro/types'
 import { DEFAULT_DURATIONS, STORAGE_KEY, loadSessions, saveSessions } from '@/pages/pomodoro/types'
 
-export function usePomodoroWidget() {
+interface PomodoroWidgetOptions {
+  workDuration?: number
+  shortBreak?: number
+}
+
+export function usePomodoroWidget(options?: PomodoroWidgetOptions) {
+  const durations: Record<Mode, number> = {
+    work: options?.workDuration ?? DEFAULT_DURATIONS.work,
+    short: options?.shortBreak ?? DEFAULT_DURATIONS.short,
+    long: DEFAULT_DURATIONS.long,
+  }
   const [mode, setMode] = useState<Mode>('work')
-  const [secondsLeft, setSecondsLeft] = useState(DEFAULT_DURATIONS.work * 60)
+  const [secondsLeft, setSecondsLeft] = useState(durations.work * 60)
   const [running, setRunning] = useState(false)
   const [sessionVersion, setSessionVersion] = useState(0)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const durationsRef = useRef(durations)
+  durationsRef.current = durations
 
   // Load today's completed work session count from localStorage
   const todayCount = useMemo(() => {
@@ -45,7 +57,7 @@ export function usePomodoroWidget() {
             id: crypto.randomUUID(),
             completedAt: new Date().toISOString(),
             type: mode,
-            duration: DEFAULT_DURATIONS[mode],
+            duration: durationsRef.current[mode],
           }
           const sessions = loadSessions()
           sessions.push(entry)
@@ -66,18 +78,19 @@ export function usePomodoroWidget() {
     }
   }, [running, mode])
 
-  // Update timer when mode changes (only if not running)
+  // Update timer when mode or durations change (only if not running)
   useEffect(() => {
     if (!running) {
-      setSecondsLeft(DEFAULT_DURATIONS[mode] * 60)
+      setSecondsLeft(durations[mode] * 60)
     }
-  }, [mode, running])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, running, durations.work, durations.short, durations.long])
 
   const toggle = useCallback(() => setRunning(r => !r), [])
 
   const reset = useCallback(() => {
     setRunning(false)
-    setSecondsLeft(DEFAULT_DURATIONS[mode] * 60)
+    setSecondsLeft(durationsRef.current[mode] * 60)
   }, [mode])
 
   return { mode, setMode, secondsLeft, running, todayCount, toggle, reset, mounted: true }

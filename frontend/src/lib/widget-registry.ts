@@ -177,6 +177,17 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     defaultSize: { w: 2, h: 2 },
     minSize: { w: 1, h: 2 },
     maxSize: { w: 4, h: 4 },
+    configSchema: {
+      fields: [
+        { key: 'maxItems', label: 'Max items', type: 'slider', default: 5, min: 1, max: 15 },
+        { key: 'showCompleted', label: 'Show completed', type: 'toggle', default: false },
+        { key: 'filter', label: 'Filter', type: 'select', default: 'focus', options: [
+          { label: 'Focus', value: 'focus' },
+          { label: 'All Pending', value: 'pending' },
+          { label: 'All', value: 'all' },
+        ]},
+      ],
+    },
     component: () => import('@/components/widgets/TodosWidget').then(m => ({ default: m.TodosWidget })),
   },
   {
@@ -189,6 +200,12 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     defaultSize: { w: 2, h: 2 },
     minSize: { w: 1, h: 2 },
     maxSize: { w: 4, h: 4 },
+    configSchema: {
+      fields: [
+        { key: 'maxEvents', label: 'Max events', type: 'slider', default: 5, min: 1, max: 15 },
+        { key: 'showAllDay', label: 'Show all-day events', type: 'toggle', default: true },
+      ],
+    },
     component: () => import('@/components/widgets/CalendarWidget').then(m => ({ default: m.CalendarWidget })),
   },
   {
@@ -201,6 +218,16 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     defaultSize: { w: 2, h: 2 },
     minSize: { w: 1, h: 2 },
     maxSize: { w: 4, h: 4 },
+    configSchema: {
+      fields: [
+        { key: 'maxItems', label: 'Max items', type: 'slider', default: 5, min: 1, max: 15 },
+        { key: 'filter', label: 'Filter', type: 'select', default: 'today', options: [
+          { label: 'Today', value: 'today' },
+          { label: 'All Pending', value: 'pending' },
+          { label: 'Flagged', value: 'flagged' },
+        ]},
+      ],
+    },
     component: () => import('@/components/widgets/RemindersWidget').then(m => ({ default: m.RemindersWidget })),
   },
   {
@@ -213,6 +240,12 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     defaultSize: { w: 2, h: 2 },
     minSize: { w: 1, h: 2 },
     maxSize: { w: 4, h: 4 },
+    configSchema: {
+      fields: [
+        { key: 'maxItems', label: 'Max entries', type: 'slider', default: 5, min: 1, max: 15 },
+        { key: 'showTags', label: 'Show tags', type: 'toggle', default: true },
+      ],
+    },
     component: () => import('@/components/widgets/KnowledgeWidget').then(m => ({ default: m.KnowledgeWidget })),
   },
   {
@@ -225,6 +258,12 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     defaultSize: { w: 1, h: 2 },
     minSize: { w: 1, h: 2 },
     maxSize: { w: 2, h: 3 },
+    configSchema: {
+      fields: [
+        { key: 'workDuration', label: 'Work (minutes)', type: 'slider', default: 25, min: 5, max: 60 },
+        { key: 'shortBreak', label: 'Short break (minutes)', type: 'slider', default: 5, min: 1, max: 15 },
+      ],
+    },
     component: () => import('@/components/widgets/PomodoroWidget').then(m => ({ default: m.PomodoroWidget })),
   },
   {
@@ -269,6 +308,12 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 2, h: 2 },
     minSize: { w: 1, h: 2 },
+    configSchema: {
+      fields: [
+        { key: 'maxEmails', label: 'Max emails', type: 'slider', default: 3, min: 1, max: 10 },
+        { key: 'showRead', label: 'Show read emails', type: 'toggle', default: false },
+      ],
+    },
     component: () => import('@/components/widgets/InboxWidget').then(m => ({ default: m.InboxWidget })),
   },
   {
@@ -280,6 +325,12 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 2, h: 3 },
     minSize: { w: 2, h: 2 },
+    configSchema: {
+      fields: [
+        { key: 'maxVMs', label: 'Max VMs', type: 'slider', default: 5, min: 1, max: 20 },
+        { key: 'showStopped', label: 'Show stopped VMs', type: 'toggle', default: true },
+      ],
+    },
     component: () => import('@/components/widgets/HomelabVMsWidget').then(m => ({ default: m.HomelabVMsWidget })),
   },
   {
@@ -302,6 +353,12 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 2, h: 2 },
     minSize: { w: 1, h: 2 },
+    configSchema: {
+      fields: [
+        { key: 'showRecent', label: 'Show recently added', type: 'toggle', default: true },
+        { key: 'maxRecent', label: 'Recent items', type: 'slider', default: 3, min: 1, max: 10 },
+      ],
+    },
     component: () => import('@/components/widgets/NowPlayingWidget').then(m => ({ default: m.NowPlayingWidget })),
   },
   {
@@ -324,6 +381,11 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 2, h: 3 },
     minSize: { w: 2, h: 2 },
+    configSchema: {
+      fields: [
+        { key: 'maxConversations', label: 'Max conversations', type: 'slider', default: 5, min: 1, max: 10 },
+      ],
+    },
     component: () => import('@/components/widgets/MessagesSummaryWidget').then(m => ({ default: m.MessagesSummaryWidget })),
   },
   {

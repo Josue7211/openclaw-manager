@@ -5,12 +5,17 @@ import { SkeletonRows } from '@/components/Skeleton'
 import { useHomelabWidget } from '@/lib/hooks/dashboard/useHomelabWidget'
 import type { WidgetProps } from '@/lib/widget-registry'
 
-export const HomelabVMsWidget = React.memo(function HomelabVMsWidget({ size }: WidgetProps) {
+export const HomelabVMsWidget = React.memo(function HomelabVMsWidget({ size, config }: WidgetProps) {
   const { vms, runningCount, totalCount, mounted } = useHomelabWidget()
   const navigate = useNavigate()
 
+  const maxVMs = Number(config.maxVMs ?? 5)
+  const showStopped = config.showStopped !== undefined ? Boolean(config.showStopped) : true
+
   const compact = size.h <= 2
-  const displayVMs = compact ? vms.slice(0, 3) : vms.slice(0, 6)
+  const filteredVMs = showStopped ? vms : vms.filter(vm => vm.status === 'running')
+  const limit = compact ? Math.min(maxVMs, 3) : maxVMs
+  const displayVMs = filteredVMs.slice(0, limit)
 
   return (
     <div className="card" style={{ padding: '16px', height: '100%', display: 'flex', flexDirection: 'column' }}>

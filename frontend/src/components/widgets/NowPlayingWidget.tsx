@@ -5,11 +5,13 @@ import { SkeletonRows } from '@/components/Skeleton'
 import { useMediaWidget } from '@/lib/hooks/dashboard/useMediaWidget'
 import type { WidgetProps } from '@/lib/widget-registry'
 
-export const NowPlayingWidget = React.memo(function NowPlayingWidget(_props: WidgetProps) {
+export const NowPlayingWidget = React.memo(function NowPlayingWidget({ config }: WidgetProps) {
   const { nowPlaying, recentlyAdded, mounted } = useMediaWidget()
   const navigate = useNavigate()
 
-  const displayRecent = recentlyAdded.slice(0, 3)
+  const showRecent = config.showRecent !== undefined ? Boolean(config.showRecent) : true
+  const maxRecent = Number(config.maxRecent ?? 3)
+  const displayRecent = showRecent ? recentlyAdded.slice(0, maxRecent) : []
 
   return (
     <div className="card" style={{ padding: '16px', height: '100%', display: 'flex', flexDirection: 'column' }}>
