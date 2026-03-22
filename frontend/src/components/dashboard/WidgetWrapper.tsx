@@ -15,6 +15,7 @@
  */
 
 import React, { Suspense, useState, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { X, GearSix } from '@phosphor-icons/react'
 import { getWidget } from '@/lib/widget-registry'
 import { WidgetConfigPanel } from './WidgetConfigPanel'
@@ -166,8 +167,8 @@ export const WidgetWrapper = React.memo(function WidgetWrapper({
         </PageErrorBoundary>
       </div>
 
-      {/* Config panel popover */}
-      {configOpen && (
+      {/* Config panel popover (portaled to body to escape grid transform context) */}
+      {configOpen && createPortal(
         <WidgetConfigPanel
           widgetId={widgetId}
           pluginId={pluginId}
@@ -175,7 +176,8 @@ export const WidgetWrapper = React.memo(function WidgetWrapper({
           config={config}
           anchorRef={gearRef as React.RefObject<HTMLElement>}
           onClose={() => setConfigOpen(false)}
-        />
+        />,
+        document.body,
       )}
     </div>
   )

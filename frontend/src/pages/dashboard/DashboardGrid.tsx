@@ -136,20 +136,18 @@ export const DashboardGrid = React.memo(function DashboardGrid({
           containerPadding={[0, 0]}
         >
           {widgetItems.map(item => (
-            <div
-              key={item.i}
-              className={editMode && wobbleEnabled ? 'widget-wobble' : ''}
-              {...longPressHandlers}
-            >
-              <WidgetWrapper
-                widgetId={item.i}
-                pluginId={String(page.widgetConfigs[item.i]?._pluginId ?? item.i)}
-                config={page.widgetConfigs[item.i] || {}}
-                isEditMode={editMode}
-                size={{ w: item.w, h: item.h }}
-                pageId={pageId}
-                onRemove={() => handleRemoveWidget(item.i)}
-              />
+            <div key={item.i} {...longPressHandlers}>
+              <div className={editMode && wobbleEnabled ? 'widget-wobble' : ''} style={{ width: '100%', height: '100%' }}>
+                <WidgetWrapper
+                  widgetId={item.i}
+                  pluginId={String(page.widgetConfigs[item.i]?._pluginId ?? item.i)}
+                  config={page.widgetConfigs[item.i] || {}}
+                  isEditMode={editMode}
+                  size={{ w: item.w, h: item.h }}
+                  pageId={pageId}
+                  onRemove={() => handleRemoveWidget(item.i)}
+                />
+              </div>
             </div>
           ))}
         </ResponsiveGridLayout>

@@ -62,12 +62,12 @@ export const WidgetConfigPanel = React.memo(function WidgetConfigPanel({
         onClose()
       }
     }
-    // Delay to avoid closing on the click that opened this panel
-    const timer = setTimeout(() => {
+    // requestAnimationFrame guarantees we skip the current event cycle
+    const raf = requestAnimationFrame(() => {
       document.addEventListener('mousedown', handler)
-    }, 0)
+    })
     return () => {
-      clearTimeout(timer)
+      cancelAnimationFrame(raf)
       document.removeEventListener('mousedown', handler)
     }
   }, [onClose])

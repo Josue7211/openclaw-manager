@@ -69,13 +69,21 @@ export default function Dashboard() {
     }
   }, [activePage])
 
-  // Collect placed widget IDs for the picker's "already added" check
+  // Collect placed widget plugin IDs for the picker's "already added" check.
+  // Must use _pluginId from widgetConfigs (not instance IDs) since instance IDs
+  // contain a UUID suffix (e.g. "agent-status-a1b2c3d4") that won't match registry IDs.
+  // Also gathers from ALL breakpoints, not just the first.
   const placedWidgetIds = useMemo(() => {
-    const breakpoints = Object.keys(activePage?.layouts || {})
-    if (breakpoints.length === 0) return []
-    const firstBp = breakpoints[0]
-    return (activePage?.layouts[firstBp] || []).map(item => item.i)
-  }, [activePage])
+    if (!activePage?.layouts) return []
+    const ids = new Set<string>()
+    for (const items of Object.values(activePage.layouts)) {
+      for (const item of items as Array<{ i: string }>) {
+        const pluginId = String(activePage.widgetConfigs[item.i]?._pluginId ?? item.i)
+        ids.add(pluginId)
+      }
+    }
+    return Array.from(ids)
+  }, [activePage?.layouts, activePage?.widgetConfigs])
 
   return (
     <DashboardDataContext.Provider value={dashboardData}>
