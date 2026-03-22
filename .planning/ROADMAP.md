@@ -297,7 +297,7 @@ Plans:
 | 7. Theme Blend -- Interpolation Engine | v0.0.3 | 0/1 | Not started | - |
 | 8. Theme Blend -- Slider UI + Persistence | v0.0.3 | 0/1 | Not started | - |
 | 9. OpenClaw Gateway Proxy Helper | v0.0.3 | 1/1 | Complete | 2026-03-22 |
-| 10. OpenClaw Agent CRUD | v0.0.3 | 2/2 | Complete | 2026-03-22 |
+| 10. OpenClaw Agent CRUD | v0.0.3 | 2/2 | Complete    | 2026-03-22 |
 | 11. OpenClaw Cron CRUD | v0.0.3 | 0/? | Not started | - |
 | 12. OpenClaw Usage + Models + Controller Page | v0.0.3 | 0/? | Not started | - |
 | 13. Terminal PTY Backend | v0.0.3 | 0/? | Not started | - |
