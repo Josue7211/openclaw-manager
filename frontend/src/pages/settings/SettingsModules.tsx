@@ -226,6 +226,9 @@ function BjornModulesSection() {
 
   const modules = (data?.modules || []).filter(m => !m.deletedAt)
 
+  // Hide the entire section when there are no AI-generated modules
+  if (!isLoading && modules.length === 0) return null
+
   return (
     <div style={{ marginTop: '24px' }}>
       <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -243,12 +246,6 @@ function BjornModulesSection() {
 
       {isLoading ? (
         <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '12px 0' }}>Loading modules...</div>
-      ) : modules.length === 0 ? (
-        <EmptyState
-          icon={Robot}
-          title="No Bjorn modules yet"
-          description="Use the Bjorn tab in Chat to create one."
-        />
       ) : (
         <div>
           {modules.map(mod => (

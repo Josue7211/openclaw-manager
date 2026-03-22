@@ -153,7 +153,7 @@ export default function TodosPage() {
   const focusIds = new Set(focusTodos.map(t => t.id))
 
   return (
-    <div style={{ maxWidth: '640px' }}>
+    <div style={{ maxWidth: '960px', width: '100%' }}>
       {/* Header */}
       <div style={{ marginBottom: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>

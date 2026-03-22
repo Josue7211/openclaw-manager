@@ -396,7 +396,7 @@ export default function LayoutShell() {
         )}
         {_isDemo && <DemoModeBanner />}
         <PageErrorBoundary key={pathname}>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', animation: 'pageEnter 0.15s ease-out both' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%', minWidth: 0, animation: 'pageEnter 0.15s ease-out both' }}>
             <Outlet />
           </div>
         </PageErrorBoundary>
