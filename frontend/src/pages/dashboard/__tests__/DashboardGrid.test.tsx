@@ -118,6 +118,8 @@ vi.mock('@/lib/dashboard-store', () => ({
   useDashboardStore: () => mockDashboardState,
   getDashboardState: () => mockDashboardState,
   updatePageLayouts: (...args: unknown[]) => mockUpdatePageLayouts(...args),
+  removeWidget: vi.fn(),
+  setEditMode: vi.fn(),
 }))
 
 // Suppress console noise

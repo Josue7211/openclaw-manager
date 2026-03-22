@@ -144,30 +144,17 @@ vi.mock('@/lib/dashboard-store', () => ({
   updatePageLayouts: vi.fn(),
 }))
 
-// Mock useDashboardData
+// Mock useDashboardData (simplified — widgets use kernel hooks directly)
 const mockDashboardData = {
   _demo: false,
-  mounted: true,
   backendError: null as string | null,
-  status: null,
-  heartbeat: null,
-  sessions: [],
-  subagents: null,
-  agentsData: null,
-  activeSubagents: [],
   subagentsError: false,
-  missions: [],
-  memory: [],
-  pendingIdeas: [],
   lastRefreshMs: Date.now(),
   panelIdea: null as null | { id: string },
   setPanelIdea: vi.fn(),
-  sortedAgents: [],
   fastTick: vi.fn(),
   slowTick: vi.fn(),
   handleIdeaAction: vi.fn(),
-  updateMissionStatus: vi.fn(),
-  deleteMission: vi.fn(),
 }
 
 vi.mock('../useDashboardData', () => ({
@@ -409,10 +396,9 @@ describe('Dashboard Integration', () => {
     })
   })
 
-  it('exports DashboardDataContext and useDashboardDataContext', async () => {
+  it('does not export DashboardDataContext (removed — widgets use kernel hooks)', async () => {
     const mod = await import('../../Dashboard')
-    expect(mod.DashboardDataContext).toBeDefined()
-    expect(mod.useDashboardDataContext).toBeDefined()
-    expect(typeof mod.useDashboardDataContext).toBe('function')
+    expect(mod.DashboardDataContext).toBeUndefined()
+    expect(mod.useDashboardDataContext).toBeUndefined()
   })
 })

@@ -1,9 +1,13 @@
 /**
- * useDashboardData — thin composition layer that delegates to extracted kernel hooks.
+ * useDashboardData — polling orchestration and dashboard-level state.
  *
- * Keeps the DashboardDataContext API shape identical so Dashboard.tsx and any
- * existing consumers continue to work. Individual widgets can also import hooks
- * directly from `@/lib/hooks/dashboard` for standalone use.
+ * Individual widgets fetch their own data via kernel hooks in
+ * `@/lib/hooks/dashboard`. This hook is responsible for:
+ *   - Cache-refresh polling (fast 10s, slow 30s) with visibility-aware pausing
+ *   - SSE-driven cache invalidation
+ *   - Research cron ↔ mission sync
+ *   - Backend error tracking
+ *   - Idea panel state (shared across Dashboard.tsx and IdeaDetailPanel)
  */
 
 import { useEffect, useCallback, useRef } from 'react'
@@ -15,13 +19,8 @@ import { isDemoMode } from '@/lib/demo-data'
 
 import {
   useAgentCacheSSE,
-  useAgentStatus,
-  useHeartbeat,
-  useSessions,
-  useSubagentData,
-  useAgentsData,
-  useMissions,
   useIdeas,
+  useSubagentData,
   useMemoryEntries,
 } from '@/lib/hooks/dashboard'
 
@@ -31,18 +30,10 @@ export function useDashboardData() {
   const _demo = isDemoMode()
   const queryClient = useQueryClient()
 
-  // ── Kernel hooks ──
-  const { status, mounted: statusMounted } = useAgentStatus()
-  const { heartbeat, mounted: heartbeatMounted } = useHeartbeat()
-  const { sessions, mounted: sessionsMounted } = useSessions()
-  const { subagents, activeSubagents, subagentsError } = useSubagentData()
-  const { agentsData, sortedAgents, mounted: agentsMounted } = useAgentsData()
-  const { missions, updateMissionStatus, deleteMission } = useMissions()
-  const { pendingIdeas, panelIdea, setPanelIdea, handleIdeaAction } = useIdeas()
-  const { memory, lastRefreshMs } = useMemoryEntries()
-
-  // Consider "mounted" when either demo mode or the cache has successfully loaded
-  const mounted = _demo || statusMounted || heartbeatMounted || sessionsMounted || agentsMounted
+  // ── Hooks that provide data consumed directly by Dashboard.tsx ──
+  const { subagentsError } = useSubagentData()
+  const { panelIdea, setPanelIdea, handleIdeaAction } = useIdeas()
+  const { lastRefreshMs } = useMemoryEntries()
 
   // ── SSE invalidation for cache ──
   useAgentCacheSSE()
@@ -154,25 +145,12 @@ export function useDashboardData() {
 
   return {
     _demo,
-    mounted,
     backendError: backendErrorRef.current,
-    status,
-    heartbeat,
-    sessions,
-    subagents,
-    agentsData,
-    activeSubagents,
     subagentsError,
-    missions,
-    memory,
-    pendingIdeas,
     lastRefreshMs,
     panelIdea, setPanelIdea,
-    sortedAgents,
     fastTick,
     slowTick,
     handleIdeaAction,
-    updateMissionStatus,
-    deleteMission,
   }
 }

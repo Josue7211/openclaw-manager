@@ -22,19 +22,11 @@ const RecycleBin = React.lazy(() =>
   import('@/components/dashboard/RecycleBin').then(m => ({ default: m.RecycleBin }))
 )
 
-// Re-export context from shared file (avoids circular imports when cards import it)
-export { DashboardDataContext, useDashboardDataContext } from './dashboard/dashboard-context'
-import { DashboardDataContext } from './dashboard/dashboard-context'
-
 // ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
 export default function Dashboard() {
-  const dashboardData = useDashboardData()
-  const dashState = useDashboardStore()
-  const [pickerOpen, setPickerOpen] = useState(false)
-
   const {
     _demo,
     backendError,
@@ -45,7 +37,9 @@ export default function Dashboard() {
     fastTick,
     slowTick,
     handleIdeaAction,
-  } = dashboardData
+  } = useDashboardData()
+  const dashState = useDashboardStore()
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const activePage = useMemo(
     () => dashState.pages.find(p => p.id === dashState.activePageId) || dashState.pages[0],
@@ -86,7 +80,6 @@ export default function Dashboard() {
   }, [activePage?.layouts, activePage?.widgetConfigs])
 
   return (
-    <DashboardDataContext.Provider value={dashboardData}>
       <div>
         {backendError && <BackendErrorBanner label={backendError} />}
 
@@ -168,6 +161,5 @@ export default function Dashboard() {
           />
         )}
       </div>
-    </DashboardDataContext.Provider>
   )
 }
