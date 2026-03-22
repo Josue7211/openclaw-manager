@@ -588,6 +588,47 @@ export const WIDGET_PRESETS: WidgetPreset[] = [
       { pluginId: 'inbox', layout: { x: 8, y: 0, w: 4, h: 3 } },
     ],
   },
+  {
+    id: 'daily-planning',
+    name: 'Daily Planning',
+    description: 'Morning dashboard with todos, calendar, clock, and quick capture',
+    icon: 'Sun',
+    widgets: [
+      { pluginId: 'clock', layout: { x: 0, y: 0, w: 3, h: 1 } },
+      { pluginId: 'quick-capture', layout: { x: 3, y: 0, w: 5, h: 1 } },
+      { pluginId: 'todos', layout: { x: 0, y: 1, w: 4, h: 3 } },
+      { pluginId: 'calendar', layout: { x: 4, y: 1, w: 4, h: 3 } },
+      { pluginId: 'reminders', layout: { x: 8, y: 1, w: 4, h: 3 } },
+      { pluginId: 'activity-feed', layout: { x: 8, y: 0, w: 4, h: 1 } },
+    ],
+  },
+  {
+    id: 'command-center',
+    name: 'Command Center',
+    description: 'Full overview with agents, missions, system health, and activity',
+    icon: 'Command',
+    widgets: [
+      { pluginId: 'system-info', layout: { x: 0, y: 0, w: 3, h: 2 } },
+      { pluginId: 'agents-summary', layout: { x: 3, y: 0, w: 3, h: 2 } },
+      { pluginId: 'missions', layout: { x: 6, y: 0, w: 3, h: 2 } },
+      { pluginId: 'activity-feed', layout: { x: 9, y: 0, w: 3, h: 4 } },
+      { pluginId: 'homelab-vms', layout: { x: 0, y: 2, w: 4, h: 3 } },
+      { pluginId: 'network-status', layout: { x: 4, y: 2, w: 4, h: 2 } },
+      { pluginId: 'pipeline-status', layout: { x: 4, y: 4, w: 4, h: 2 } },
+      { pluginId: 'heartbeat', layout: { x: 0, y: 5, w: 4, h: 2 } },
+    ],
+  },
+  {
+    id: 'communications',
+    name: 'Communications',
+    description: 'Messages, email, and chat in one view',
+    icon: 'ChatsCircle',
+    widgets: [
+      { pluginId: 'messages-summary', layout: { x: 0, y: 0, w: 4, h: 3 } },
+      { pluginId: 'inbox', layout: { x: 4, y: 0, w: 4, h: 3 } },
+      { pluginId: 'chat-summary', layout: { x: 8, y: 0, w: 4, h: 3 } },
+    ],
+  },
 ]
 
 export function getWidgetPresets(): WidgetPreset[] {
