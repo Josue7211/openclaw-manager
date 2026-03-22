@@ -1,5 +1,54 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Mock nav-items to avoid slow phosphor-icons re-import after vi.resetModules()
+const Stub = () => null
+vi.mock('../nav-items', () => ({
+  personalDashboardItems: [
+    { href: '/', label: 'Home', icon: Stub },
+    { href: '/chat', label: 'Chat', icon: Stub, moduleId: 'chat' },
+    { href: '/todos', label: 'Todos', icon: Stub, moduleId: 'todos' },
+    { href: '/calendar', label: 'Calendar', icon: Stub, moduleId: 'calendar' },
+    { href: '/reminders', label: 'Reminders', icon: Stub, moduleId: 'reminders' },
+    { href: '/messages', label: 'Messages', icon: Stub, moduleId: 'messages' },
+    { href: '/pomodoro', label: 'Pomodoro', icon: Stub, moduleId: 'pomodoro' },
+    { href: '/email', label: 'Email', icon: Stub, moduleId: 'email' },
+    { href: '/homelab', label: 'Home Lab', icon: Stub, moduleId: 'homelab' },
+    { href: '/media', label: 'Media Radar', icon: Stub, moduleId: 'media' },
+    { href: '/notes', label: 'Notes', icon: Stub, moduleId: 'notes' },
+  ],
+  agentDashboardItems: [
+    { href: '/dashboard', label: 'Dashboard', icon: Stub, moduleId: 'dashboard' },
+    { href: '/missions', label: 'Missions', icon: Stub, moduleId: 'missions' },
+    { href: '/agents', label: 'Agents', icon: Stub, moduleId: 'agents' },
+    { href: '/memory', label: 'Memory', icon: Stub, moduleId: 'memory' },
+    { href: '/crons', label: 'Cron Jobs', icon: Stub, moduleId: 'crons' },
+    { href: '/pipeline', label: 'Pipeline', icon: Stub, moduleId: 'pipeline' },
+    { href: '/knowledge', label: 'Knowledge', icon: Stub, moduleId: 'knowledge' },
+  ],
+  allNavItems: [
+    { href: '/', label: 'Home', icon: Stub },
+    { href: '/chat', label: 'Chat', icon: Stub, moduleId: 'chat' },
+    { href: '/todos', label: 'Todos', icon: Stub, moduleId: 'todos' },
+    { href: '/calendar', label: 'Calendar', icon: Stub, moduleId: 'calendar' },
+    { href: '/reminders', label: 'Reminders', icon: Stub, moduleId: 'reminders' },
+    { href: '/messages', label: 'Messages', icon: Stub, moduleId: 'messages' },
+    { href: '/pomodoro', label: 'Pomodoro', icon: Stub, moduleId: 'pomodoro' },
+    { href: '/email', label: 'Email', icon: Stub, moduleId: 'email' },
+    { href: '/homelab', label: 'Home Lab', icon: Stub, moduleId: 'homelab' },
+    { href: '/media', label: 'Media Radar', icon: Stub, moduleId: 'media' },
+    { href: '/notes', label: 'Notes', icon: Stub, moduleId: 'notes' },
+    { href: '/dashboard', label: 'Dashboard', icon: Stub, moduleId: 'dashboard' },
+    { href: '/missions', label: 'Missions', icon: Stub, moduleId: 'missions' },
+    { href: '/agents', label: 'Agents', icon: Stub, moduleId: 'agents' },
+    { href: '/memory', label: 'Memory', icon: Stub, moduleId: 'memory' },
+    { href: '/crons', label: 'Cron Jobs', icon: Stub, moduleId: 'crons' },
+    { href: '/pipeline', label: 'Pipeline', icon: Stub, moduleId: 'pipeline' },
+    { href: '/knowledge', label: 'Knowledge', icon: Stub, moduleId: 'knowledge' },
+    { href: '/settings', label: 'Settings', icon: Stub },
+  ],
+  navItemsByHref: new Map(),
+}))
+
 // Module keeps state in module-level variables — re-import for each test
 let getSidebarConfig: typeof import('../sidebar-config').getSidebarConfig
 let setSidebarConfig: typeof import('../sidebar-config').setSidebarConfig

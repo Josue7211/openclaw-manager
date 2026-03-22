@@ -1,14 +1,10 @@
 import React from 'react'
 import { Brain } from '@phosphor-icons/react'
 import { SkeletonRows } from '@/components/Skeleton'
-import type { MemoryEntry } from './types'
+import { useDashboardDataContext } from './dashboard-context'
 
-interface Props {
-  mounted: boolean
-  memory: MemoryEntry[]
-}
-
-export const MemoryCard = React.memo(function MemoryCard({ mounted, memory }: Props) {
+export const MemoryCard = React.memo(function MemoryCard() {
+  const { mounted, memory } = useDashboardDataContext()
   return (
     <div className="card" style={{ padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>

@@ -78,15 +78,14 @@ export function generateDefaultLayout(enabledModuleIds?: string[]): DefaultLayou
 
   const widgets = [...widgetIds]
 
-  // Generate layouts per breakpoint
+  // Generate layouts per breakpoint (must match DashboardGrid BREAKPOINTS: xl, lg, md, sm)
   const lg = generateLgLayout(widgetIds, widgetMap)
   const md = generateMdLayout(widgetIds, widgetMap)
   const sm = generateSmLayout(widgetIds, widgetMap)
-  const xs = generateXsLayout(widgetIds, widgetMap)
 
   return {
     widgets,
-    layouts: { lg, md, sm, xs },
+    layouts: { xl: lg, lg, md, sm },
   }
 }
 

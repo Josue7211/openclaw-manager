@@ -22,17 +22,9 @@ const RecycleBin = React.lazy(() =>
   import('@/components/dashboard/RecycleBin').then(m => ({ default: m.RecycleBin }))
 )
 
-// ---------------------------------------------------------------------------
-// Context -- shares useDashboardData return value with widget components
-// ---------------------------------------------------------------------------
-
-export const DashboardDataContext = React.createContext<ReturnType<typeof useDashboardData> | null>(null)
-
-export function useDashboardDataContext() {
-  const ctx = React.useContext(DashboardDataContext)
-  if (!ctx) throw new Error('useDashboardDataContext must be used within Dashboard')
-  return ctx
-}
+// Re-export context from shared file (avoids circular imports when cards import it)
+export { DashboardDataContext, useDashboardDataContext } from './dashboard/dashboard-context'
+import { DashboardDataContext } from './dashboard/dashboard-context'
 
 // ---------------------------------------------------------------------------
 // Dashboard

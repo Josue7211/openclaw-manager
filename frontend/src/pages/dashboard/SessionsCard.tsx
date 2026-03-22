@@ -3,14 +3,10 @@ import { ChatText, Timer } from '@phosphor-icons/react'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { timeAgo } from '@/lib/utils'
 import { SkeletonRows } from '@/components/Skeleton'
-import type { Session } from './types'
+import { useDashboardDataContext } from './dashboard-context'
 
-interface Props {
-  mounted: boolean
-  sessions: Session[]
-}
-
-export const SessionsCard = React.memo(function SessionsCard({ mounted, sessions }: Props) {
+export const SessionsCard = React.memo(function SessionsCard() {
+  const { mounted, sessions } = useDashboardDataContext()
   return (
     <div className="card" style={{ padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>

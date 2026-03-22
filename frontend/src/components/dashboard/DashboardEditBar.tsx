@@ -55,6 +55,7 @@ export const DashboardEditBar = React.memo(function DashboardEditBar({
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') {
         e.preventDefault()
+        e.stopPropagation()
         setEditMode(!editMode)
         return
       }
@@ -62,8 +63,8 @@ export const DashboardEditBar = React.memo(function DashboardEditBar({
         setEditMode(false)
       }
     }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
+    document.addEventListener('keydown', handleKeyDown, true)
+    return () => document.removeEventListener('keydown', handleKeyDown, true)
   }, [editMode])
 
   return (

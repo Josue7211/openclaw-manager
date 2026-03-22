@@ -2,17 +2,11 @@ import React from 'react'
 import { Target, Rocket } from '@phosphor-icons/react'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonRows } from '@/components/Skeleton'
-import type { Mission } from '@/lib/types'
 import { missionStatusStyle } from './types'
+import { useDashboardDataContext } from './dashboard-context'
 
-interface Props {
-  mounted: boolean
-  missions: Mission[]
-  updateMissionStatus: (id: string, currentStatus: string) => void
-  deleteMission: (id: string) => void
-}
-
-export const MissionsCard = React.memo(function MissionsCard({ mounted, missions, updateMissionStatus, deleteMission }: Props) {
+export const MissionsCard = React.memo(function MissionsCard() {
+  const { mounted, missions, updateMissionStatus, deleteMission } = useDashboardDataContext()
   return (
     <div className="card" style={{ padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>

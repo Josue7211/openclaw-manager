@@ -1,15 +1,10 @@
 import React from 'react'
 import { Lightbulb, CheckCircle, SkipForward, XCircle } from '@phosphor-icons/react'
-import type { Idea } from './types'
 import { pillStyle } from './types'
+import { useDashboardDataContext } from './dashboard-context'
 
-interface Props {
-  pendingIdeas: Idea[]
-  onIdeaAction: (id: string, status: 'approved' | 'deferred' | 'rejected') => void
-  onOpenDetail: (idea: Idea) => void
-}
-
-export const IdeaBriefingCard = React.memo(function IdeaBriefingCard({ pendingIdeas, onIdeaAction, onOpenDetail }: Props) {
+export const IdeaBriefingCard = React.memo(function IdeaBriefingCard() {
+  const { pendingIdeas, handleIdeaAction: onIdeaAction, setPanelIdea: onOpenDetail } = useDashboardDataContext()
   const topIdea = pendingIdeas[0] ?? null
   const pendingCount = pendingIdeas.length
 

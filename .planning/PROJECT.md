@@ -56,13 +56,27 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 - Real-time chat (non-iMessage) — defer to Matrix integration later
 - Video posts / media hosting — storage/bandwidth concerns, defer
 
+## Current Milestone: v0.0.2 — Widget-First Architecture
+
+**Goal:** Fix the dashboard widget system, then make everything a widget. The widget system is the core of the app — every module, every page, every category must be composable and customizable.
+
+**Target features:**
+- Fix all dashboard widget bugs (drag/resize, config panels, positioning, picker state)
+- Unify Personal + Agent Dashboard into one widget-grid system
+- Convert all modules into widgets (Messages, Todos, Calendar, Notes, etc.)
+- Category presets for complex modules (Notes/Obsidian = preset category)
+- OpenClaw agent end-to-end (Bjorn chat, module creation, SSH/API/CLI integration)
+- More themes and deeper customization
+- Live editing in production mode (not just dev)
+- Leverage SSH access, APIs, CLIs through Tailscale mesh for all integrations
+
 ## Context
 
 **v1.0 shipped 2026-03-21.** The app is a publishable desktop application with 11 completed phases, 92 requirements satisfied, and full cross-phase integration verified. The codebase is 74,399 LOC TypeScript/React + 25,362 LOC Rust with 2,177 frontend tests and 245 Rust tests passing.
 
-The differentiating feature — Bjorn AI module builder — is fully operational: users describe modules in natural language, see them previewed in a sandboxed iframe, approve to dashboard with hot-reload, and manage versions with rollback from Settings. 11 composable primitives provide the building blocks.
+**v1.0 post-ship testing (2026-03-22)** revealed critical integration gaps in the dashboard widget system: cards weren't wired to the data context, React.lazy default export mismatches, edit mode non-functional (drag/resize/config), positioning bugs. Core widgets now render with real data but the edit/customize layer is broken. The Personal page is a separate static layout not using the widget system at all.
 
-Next milestone focus areas: notes overhaul (wiki linking, WYSIWYG, search), new domain modules (finance, health, bookmarks), and cloud setup path for non-technical users.
+The user's vision: the widget system IS the app. Everything must be modular, customizable, and composable. Even complex modules like Notes (Obsidian integration) should be widget presets with customization.
 
 ## Constraints
 
@@ -85,5 +99,22 @@ Next milestone focus areas: notes overhaul (wiki linking, WYSIWYG, search), new 
 | Widget Registry as integration hub | Single pattern for built-in, primitive, and Bjorn widgets | ✓ Validated v1.0 |
 | Soft-delete for all user data | Recycle bin pattern, never hard delete | ✓ Validated v1.0 |
 
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd:transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd:complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
 ---
-*Last updated: 2026-03-21 after v1.0 milestone completion*
+*Last updated: 2026-03-22 after v0.0.2 milestone start*

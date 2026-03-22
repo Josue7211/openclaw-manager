@@ -173,6 +173,7 @@ const NavSection = React.memo(function NavSection({
   dragHref,
   overrideColors,
   categoryOverrideColor,
+  unreadCounts,
 }: {
   label: string
   items: NavItem[]

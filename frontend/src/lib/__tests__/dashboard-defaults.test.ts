@@ -39,12 +39,12 @@ describe('generateDefaultLayout', () => {
     expect(typeof result.layouts).toBe('object')
   })
 
-  it('layouts has lg/md/sm/xs keys', () => {
+  it('layouts has xl/lg/md/sm keys', () => {
     const result = generateDefaultLayout()
+    expect(result.layouts).toHaveProperty('xl')
     expect(result.layouts).toHaveProperty('lg')
     expect(result.layouts).toHaveProperty('md')
     expect(result.layouts).toHaveProperty('sm')
-    expect(result.layouts).toHaveProperty('xs')
   })
 
   it('all layout items have integer x, y, w, h values', () => {

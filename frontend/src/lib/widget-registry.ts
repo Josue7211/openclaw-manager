@@ -77,7 +77,7 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 1, h: 2 },
     minSize: { w: 1, h: 2 },
-    component: () => import('@/pages/dashboard/AgentStatusCard') as any,
+    component: () => import('@/pages/dashboard/AgentStatusCard').then(m => ({ default: m.AgentStatusCard })),
   },
   {
     id: 'heartbeat',
@@ -88,7 +88,7 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 1, h: 2 },
     minSize: { w: 1, h: 2 },
-    component: () => import('@/pages/dashboard/HeartbeatCard') as any,
+    component: () => import('@/pages/dashboard/HeartbeatCard').then(m => ({ default: m.HeartbeatCard })),
   },
   {
     id: 'agents',
@@ -99,7 +99,7 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 2, h: 3 },
     minSize: { w: 2, h: 2 },
-    component: () => import('@/pages/dashboard/AgentsCard') as any,
+    component: () => import('@/pages/dashboard/AgentsCard').then(m => ({ default: m.AgentsCard })),
   },
   {
     id: 'missions',
@@ -110,7 +110,7 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 2, h: 3 },
     minSize: { w: 2, h: 2 },
-    component: () => import('@/pages/dashboard/MissionsCard') as any,
+    component: () => import('@/pages/dashboard/MissionsCard').then(m => ({ default: m.MissionsCard })),
   },
   {
     id: 'memory',
@@ -121,7 +121,7 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 1, h: 2 },
     minSize: { w: 1, h: 2 },
-    component: () => import('@/pages/dashboard/MemoryCard') as any,
+    component: () => import('@/pages/dashboard/MemoryCard').then(m => ({ default: m.MemoryCard })),
   },
   {
     id: 'idea-briefing',
@@ -132,7 +132,7 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 2, h: 2 },
     minSize: { w: 1, h: 2 },
-    component: () => import('@/pages/dashboard/IdeaBriefingCard') as any,
+    component: () => import('@/pages/dashboard/IdeaBriefingCard').then(m => ({ default: m.IdeaBriefingCard })),
   },
   {
     id: 'network',
@@ -143,7 +143,7 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 1, h: 2 },
     minSize: { w: 1, h: 2 },
-    component: () => import('@/pages/dashboard/NetworkCard') as any,
+    component: () => import('@/pages/dashboard/NetworkCard').then(m => ({ default: m.NetworkCard })),
   },
   {
     id: 'sessions',
@@ -154,7 +154,7 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 1, h: 2 },
     minSize: { w: 1, h: 2 },
-    component: () => import('@/pages/dashboard/SessionsCard') as any,
+    component: () => import('@/pages/dashboard/SessionsCard').then(m => ({ default: m.SessionsCard })),
   },
 ]
 

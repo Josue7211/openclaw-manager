@@ -1,4 +1,4 @@
-const CURRENT_VERSION = 6
+const CURRENT_VERSION = 7
 
 export function runMigrations() {
   const stored = localStorage.getItem('app-version')
@@ -169,6 +169,14 @@ export function runMigrations() {
     } catch {
       // Non-fatal — migration failure is acceptable
     }
+  }
+
+  if (version < 7) {
+    // v6 -> v7: Reset corrupted dashboard state.
+    // Widget cards were migrated from prop-based to context-based data access
+    // and named exports were fixed in widget-registry. Old dashboard state
+    // may have broken layouts from crash-induced corruption.
+    localStorage.removeItem('dashboard-state')
   }
 
   localStorage.setItem('app-version', String(CURRENT_VERSION))

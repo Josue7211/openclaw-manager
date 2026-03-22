@@ -17,7 +17,7 @@ export function DashboardHeader({ isDemo, subagentsError, lastRefreshMs, onRefre
       animation: 'fadeInUp 0.5s var(--ease-spring) both', flexShrink: 0,
     }}>
       <div>
-        <PageHeader defaultTitle="Dashboard" defaultSubtitle="system overview \u00b7 realtime" />
+        <PageHeader defaultTitle="Dashboard" defaultSubtitle="system overview · realtime" />
         {isDemo && <DemoBadge />}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
