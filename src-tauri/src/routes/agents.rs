@@ -1,8 +1,9 @@
 use axum::{
     extract::State,
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
+use reqwest::Method;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tokio::process::Command;
@@ -12,7 +13,7 @@ use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
 use crate::validation::validate_uuid;
 
-use super::gateway::{openclaw_api_key, openclaw_api_url};
+use super::gateway::{gateway_forward, openclaw_api_key, openclaw_api_url};
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -26,7 +27,14 @@ const SUBAGENT_NAMES: &[&str] = &[
 /// Build the agents router (CRUD + active-coders + subagent detection).
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/agents", get(get_agents).patch(update_agent))
+        .route(
+            "/agents",
+            get(get_agents)
+                .post(create_agent)
+                .patch(update_agent)
+                .delete(delete_agent),
+        )
+        .route("/agents/action", post(agent_action))
         .route("/agents/active-coders", get(active_coders))
         .route("/subagents/active", get(subagents_active))
 }
@@ -75,6 +83,204 @@ async fn get_agents(
         .collect();
 
     Ok(Json(json!({ "agents": agents })))
+}
+
+// ── POST /agents ─────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct CreateAgentBody {
+    display_name: Option<String>,
+    emoji: Option<String>,
+    role: Option<String>,
+    model: Option<String>,
+}
+
+async fn create_agent(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+    Json(body): Json<CreateAgentBody>,
+) -> Result<Json<Value>, AppError> {
+    let display_name = body.display_name.as_deref().unwrap_or("New Agent").trim();
+    let display_name = if display_name.is_empty() {
+        "New Agent"
+    } else {
+        display_name
+    };
+
+    let id = crate::routes::util::random_uuid();
+
+    // Generate system name from display_name: lowercase, replace spaces with
+    // underscores, keep only alphanumeric + underscores, truncate to 32 chars.
+    let name: String = display_name
+        .to_lowercase()
+        .chars()
+        .map(|c| if c == ' ' { '_' } else { c })
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .take(32)
+        .collect();
+    let name = if name.is_empty() {
+        "agent".to_string()
+    } else {
+        name
+    };
+
+    let emoji = body.emoji.as_deref().unwrap_or("\u{1F916}");
+    let role = body.role.as_deref().unwrap_or("");
+    let model = body.model.as_deref().unwrap_or("");
+
+    // Next sort_order
+    let (next_sort,): (i64,) = sqlx::query_as(
+        "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM agents \
+         WHERE user_id = ? AND deleted_at IS NULL",
+    )
+    .bind(&session.user_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    let now = chrono::Utc::now().to_rfc3339();
+
+    sqlx::query(
+        "INSERT INTO agents (id, user_id, name, display_name, emoji, role, \
+         status, current_task, model, color, sort_order, created_at, updated_at) \
+         VALUES (?, ?, ?, ?, ?, ?, 'idle', '', ?, NULL, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(&session.user_id)
+    .bind(&name)
+    .bind(display_name)
+    .bind(emoji)
+    .bind(role)
+    .bind(model)
+    .bind(next_sort)
+    .bind(&now)
+    .bind(&now)
+    .execute(&state.db)
+    .await?;
+
+    let agent_val = json!({
+        "id": id,
+        "name": name,
+        "display_name": display_name,
+        "emoji": emoji,
+        "role": role,
+        "status": "idle",
+        "current_task": "",
+        "model": model,
+        "color": null,
+        "sort_order": next_sort,
+        "created_at": now,
+        "updated_at": now,
+    });
+
+    let payload = serde_json::to_string(&agent_val)
+        .map_err(|e| AppError::Internal(e.into()))?;
+    crate::sync::log_mutation(&state.db, "agents", &id, "INSERT", Some(&payload))
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?;
+
+    crate::audit::log_audit_or_warn(
+        &state.db,
+        &session.user_id,
+        "create",
+        "agents",
+        Some(&id),
+        None,
+    )
+    .await;
+
+    Ok(Json(json!({ "agent": agent_val })))
+}
+
+// ── DELETE /agents ───────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct DeleteAgentBody {
+    id: String,
+}
+
+async fn delete_agent(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+    Json(body): Json<DeleteAgentBody>,
+) -> Result<Json<Value>, AppError> {
+    // Do NOT use validate_uuid -- seed agents have short string IDs like 'koda'
+    if body.id.is_empty() || body.id.len() > 100 {
+        return Err(AppError::BadRequest("invalid agent id".into()));
+    }
+
+    tracing::warn!(
+        user_id = %session.user_id,
+        table = "agents",
+        item_id = %body.id,
+        "DLP: item deleted"
+    );
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let result = sqlx::query(
+        "UPDATE agents SET deleted_at = ?, updated_at = ? \
+         WHERE id = ? AND user_id = ? AND deleted_at IS NULL",
+    )
+    .bind(&now)
+    .bind(&now)
+    .bind(&body.id)
+    .bind(&session.user_id)
+    .execute(&state.db)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::BadRequest(
+            "agent not found or already deleted".into(),
+        ));
+    }
+
+    crate::sync::log_mutation(&state.db, "agents", &body.id, "DELETE", None)
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?;
+
+    crate::audit::log_audit_or_warn(
+        &state.db,
+        &session.user_id,
+        "delete",
+        "agents",
+        Some(&body.id),
+        None,
+    )
+    .await;
+
+    Ok(Json(json!({ "ok": true })))
+}
+
+// ── POST /agents/action ──────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct AgentActionBody {
+    id: String,
+    action: String,
+}
+
+async fn agent_action(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Json(body): Json<AgentActionBody>,
+) -> Result<Json<Value>, AppError> {
+    if body.id.is_empty() {
+        return Err(AppError::BadRequest("id required".into()));
+    }
+    if !["start", "stop", "restart"].contains(&body.action.as_str()) {
+        return Err(AppError::BadRequest(
+            "action must be start, stop, or restart".into(),
+        ));
+    }
+
+    let result = gateway_forward(
+        &state,
+        Method::POST,
+        &format!("/agents/{}/action", body.id),
+        Some(json!({ "action": body.action })),
+    )
+    .await?;
+
+    Ok(Json(result))
 }
 
 // ── PATCH /agents ────────────────────────────────────────────────────────────
@@ -446,4 +652,48 @@ async fn fetch_openclaw_sessions(http: &reqwest::Client) -> anyhow::Result<Vec<V
         .unwrap_or_default();
 
     Ok(sessions)
+}
+
+// ── Tests ────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn create_agent_body_deserializes_full() {
+        let json = r#"{"display_name": "TestBot", "emoji": "\uD83E\uDD16", "role": "coder", "model": "claude-sonnet-4-6"}"#;
+        let body: super::CreateAgentBody = serde_json::from_str(json).unwrap();
+        assert_eq!(body.display_name.as_deref(), Some("TestBot"));
+        assert_eq!(body.emoji.as_deref(), Some("\u{1F916}"));
+        assert_eq!(body.role.as_deref(), Some("coder"));
+    }
+
+    #[test]
+    fn create_agent_body_deserializes_minimal() {
+        let json = r#"{}"#;
+        let body: super::CreateAgentBody = serde_json::from_str(json).unwrap();
+        assert!(body.display_name.is_none());
+        assert!(body.emoji.is_none());
+    }
+
+    #[test]
+    fn delete_agent_body_deserializes_uuid() {
+        let json = r#"{"id": "550e8400-e29b-41d4-a716-446655440000"}"#;
+        let body: super::DeleteAgentBody = serde_json::from_str(json).unwrap();
+        assert_eq!(body.id, "550e8400-e29b-41d4-a716-446655440000");
+    }
+
+    #[test]
+    fn delete_agent_body_deserializes_short_id() {
+        let json = r#"{"id": "koda"}"#;
+        let body: super::DeleteAgentBody = serde_json::from_str(json).unwrap();
+        assert_eq!(body.id, "koda");
+    }
+
+    #[test]
+    fn action_body_deserializes() {
+        let json = r#"{"id": "koda", "action": "restart"}"#;
+        let body: super::AgentActionBody = serde_json::from_str(json).unwrap();
+        assert_eq!(body.id, "koda");
+        assert_eq!(body.action, "restart");
+    }
 }
