@@ -146,7 +146,9 @@ Plans:
   2. Error responses are sanitized -- no API keys, internal paths, or stack traces leak to frontend
   3. All path parameters validated with `validate_uuid()` before URL construction
   4. Returns "OpenClaw API not configured" when OPENCLAW_API_URL is not set
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 09-01-PLAN.md -- gateway_forward() proxy + error sanitization + health route + wiring
 
 ### Phase 10: OpenClaw Agent Management
 **Goal**: Beautiful agents tab with polished cards and a right-side settings panel (note-editor style)
@@ -291,7 +293,7 @@ Plans:
 | 6. Theme Blend -- OKLCH Helpers | v0.0.3 | 1/1 | Complete | 2026-03-22 |
 | 7. Theme Blend -- Interpolation Engine | v0.0.3 | 0/1 | Not started | - |
 | 8. Theme Blend -- Slider UI + Persistence | v0.0.3 | 0/1 | Not started | - |
-| 9. OpenClaw Gateway Proxy Helper | v0.0.3 | 0/? | Not started | - |
+| 9. OpenClaw Gateway Proxy Helper | v0.0.3 | 0/1 | Not started | - |
 | 10. OpenClaw Agent CRUD | v0.0.3 | 0/? | Not started | - |
 | 11. OpenClaw Cron CRUD | v0.0.3 | 0/? | Not started | - |
 | 12. OpenClaw Usage + Models + Controller Page | v0.0.3 | 0/? | Not started | - |
