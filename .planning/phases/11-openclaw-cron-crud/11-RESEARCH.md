@@ -1,52 +1,54 @@
-# Phase 11: OpenClaw Agent Calendar - Research
+# Phase 11: OpenClaw Agent Calendar (Cron CRUD) - Research
 
 **Researched:** 2026-03-22
-**Domain:** Cron schedule CRUD + calendar visualization (frontend-heavy, backend thin)
+**Domain:** Frontend cron calendar UI with CRUD + Rust backend cron proxy routes
 **Confidence:** HIGH
 
 ## Summary
 
-Phase 11 adds CRUD operations for OpenClaw cron jobs with a calendar-based visual schedule editor. The codebase already has significant existing infrastructure: a read-only `CronsPage` with `WeekGrid`, `FrequentBar`, and `JobList` components, a `GET /api/crons` backend route that reads from the `openclaw` CLI, typed `CronJob`/`CronSchedule` interfaces, and comprehensive unit tests. The existing calendar page (`pages/calendar/`) provides reusable patterns for `WeekView` and `MonthView` components.
+Phase 11 adds full CRUD capabilities to the existing cron calendar page. The current `CronJobs.tsx` page already has a polished read-only calendar: a week grid (`WeekGrid.tsx`) showing cron fire times plotted on a 7-day time grid, a frequent-jobs bar (`FrequentBar.tsx`) for sub-hourly intervals, and a job list (`JobList.tsx`). It fetches data from `GET /api/crons` which shells out to `openclaw cron list --json`. The page is fully functional for viewing but has zero mutation capability -- no create, edit, toggle, or delete.
 
-The backend currently reads cron data via `openclaw cron list --json` (CLI-based, read-only). For CRUD, the backend needs new routes that proxy through `gateway_forward()` to the OpenClaw API (same pattern as `agents.rs`). Cron jobs should be stored locally in SQLite (like agents) with sync mutations logged, plus optionally forwarded to the OpenClaw gateway for execution control.
+The backend currently fetches cron jobs via CLI binary invocation (`openclaw_cli.rs`). Phase 9 established the `gateway_forward()` proxy pattern in `gateway.rs` which is the standard way to forward CRUD operations to the OpenClaw API. The architecture research confirms the OpenClaw gateway exposes `POST /api/crons`, `PUT /api/crons/:id`, and `DELETE /api/crons/:id` endpoints. The approach is: create a new `crons.rs` route module that uses `gateway_forward()` for write operations while keeping the existing CLI-based `GET /crons` as the read path (it already works), then add a `useCrons()` hook on the frontend with optimistic mutations following the `useAgents()` pattern from Phase 10.
 
-**Primary recommendation:** Extend the existing `CronsPage` with CRUD capabilities following the `Agents` page pattern -- split-pane layout with job list on left and detail/edit panel on right, backed by a new `useCrons` hook mirroring `useAgents`, with a new `crons.rs` backend route for CRUD operations using SQLite storage + `gateway_forward()` for enable/disable/delete forwarding.
+The frontend needs: (1) click-to-edit on existing calendar entries and job list items to open an edit form, (2) a create button that opens a form with schedule picker, (3) a toggle switch on each job for enable/disable, and (4) a delete button with confirmation dialog. The existing `CronJob` type in `pages/crons/types.ts` already has all required fields (`id`, `name`, `description`, `schedule`, `state`, `enabled`). No new dependencies are needed.
+
+**Primary recommendation:** Add `routes/crons.rs` with POST/PATCH/DELETE handlers using `gateway_forward()`. Create a `useCrons()` hook with optimistic mutations. Add a `CronFormModal` component for create/edit. Add toggle switches and delete buttons to `JobList.tsx`. Make calendar event pills and job list items clickable to open the edit form.
 
 <phase_requirements>
-
 ## Phase Requirements
 
 | ID | Description | Research Support |
 |----|-------------|-----------------|
-| MH-07 | OpenClaw Cron CRUD - Full create/update/delete for cron jobs with human-readable schedule editor and enable/disable toggle | Existing `CronJob` type, `WeekGrid`/`JobList` components, `gateway_forward()` proxy, `useAgents` CRUD pattern all directly enable implementation |
-
+| MH-07 | Full create/update/delete for cron jobs with a human-readable schedule editor and enable/disable toggle | Backend cron proxy routes via `gateway_forward()` + frontend `useCrons()` hook with optimistic mutations + schedule picker UI + Toggle component for enable/disable + confirmation dialog for delete |
 </phase_requirements>
 
 ## Standard Stack
 
-### Core
+### Core (already in project -- zero new dependencies)
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
-| croner | 10.0.1 | Parse cron expressions + compute next fire times | Zero deps, 8KB gzip, works in browser, computes next occurrences for calendar rendering |
-| cronstrue | 2.53.0 | Human-readable cron descriptions | Zero deps, 5.7KB gzip, converts `0 9 * * 1-5` to "At 09:00 AM, Monday through Friday" |
+| React | 19.2 | UI framework | Already used everywhere |
+| @tanstack/react-query | 5.90 | Server state, mutations, cache | Used for all data fetching; `useMutation` for CRUD |
+| @phosphor-icons/react | 2.1 | Icon library | Used across all pages |
+| axum | existing | Rust HTTP framework | Backend already built on axum |
+| reqwest | existing | HTTP client for gateway proxy | Used by `gateway_forward()` |
 
-### Already In Codebase (no new deps needed)
-| Library | Purpose | Usage |
-|---------|---------|-------|
-| @tanstack/react-query 5.x | Data fetching + optimistic updates | `useQuery`, `useMutation` -- same as `useAgents` |
-| @phosphor-icons/react | Icons | `Clock`, `Play`, `Pause`, `Trash`, `Plus`, `CalendarDots` |
-| React 19 | UI framework | Components, hooks, portals for dialogs |
+### Supporting (already in project)
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| react-dom (createPortal) | 19.2 | Portal for modal/dialog rendering | Create/edit modal, delete confirmation |
+| serde / serde_json | existing | JSON serialization | Backend request/response bodies |
 
 ### Alternatives Considered
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| croner | cron-parser | cron-parser is more popular but has dependencies and requires Node 18+; croner is zero-dep and browser-native |
-| cronstrue | Manual formatting | cronstrue handles all edge cases in cron expression descriptions; hand-rolling is error-prone |
-| SQLite local storage | Gateway-only | SQLite gives offline-first capability matching the agents pattern; gateway-only fails when OpenClaw is unreachable |
+| Custom schedule picker | cronstrue (npm) for human-readable cron | Adding a new dep for cron-to-text is unnecessary -- the existing `humanSchedule()` in `types.ts` already handles this. The schedule picker should offer presets (every 5m, 30m, 1h, 6h, 12h, 24h) rather than raw crontab. |
+| Inline editing in job list | Modal form (like AgentDetailPanel) | A modal is more appropriate: cron jobs have multiple fields (name, description, schedule, command). Inline editing would be too cramped in the compact job list. |
+| Right-side panel (Notes pattern) | Modal dialog | Unlike agents which have many editable fields warranting a persistent side panel, cron jobs have just 3-4 fields. A modal is simpler, faster to build, and matches the existing `CreateAgentModal` precedent. |
 
 **Installation:**
 ```bash
-cd frontend && npm install croner cronstrue
+# No new packages needed -- everything is already in the project
 ```
 
 ## Architecture Patterns
@@ -56,400 +58,461 @@ cd frontend && npm install croner cronstrue
 frontend/src/
   pages/
     crons/
-      types.ts             # (EXISTS) CronJob, CronSchedule -- extend with CreateCronPayload
-      WeekGrid.tsx          # (EXISTS) Week calendar grid -- add onClick for event selection
-      FrequentBar.tsx       # (EXISTS) High-frequency job display
-      JobList.tsx           # (EXISTS) All jobs list -- add onClick + enabled toggle
-      CronDetailPanel.tsx   # (NEW) Right-side edit panel (mirrors AgentDetailPanel)
+      types.ts               # KEEP: CronJob, CronSchedule, helpers (already complete)
+      WeekGrid.tsx            # MODIFY: add onClick handler to event pills
+      FrequentBar.tsx         # MODIFY: add onClick handler to frequent job pills
+      JobList.tsx             # MODIFY: add toggle switch, edit/delete buttons, onClick
+      CronFormModal.tsx       # NEW: modal for create/edit with schedule picker
       __tests__/
-        types.test.ts       # (EXISTS) 404 lines of tests
+        types.test.ts         # KEEP existing tests
+        CronFormModal.test.ts # NEW: test schedule picker logic
   pages/
-    CronJobs.tsx            # (EXISTS) Refactor to split-pane layout
+    CronJobs.tsx              # MODIFY: add create button, wire up CRUD callbacks
   hooks/
-    useCrons.ts             # (NEW) CRUD hook mirroring useAgents
-  lib/
-    query-keys.ts           # (UPDATE) Add `crons` key
+    useCrons.ts               # NEW: CRUD mutations with optimistic updates
 
 src-tauri/src/
   routes/
-    crons.rs                # (NEW) CRUD routes with SQLite + gateway_forward
-    mod.rs                  # (UPDATE) Register crons router
-  migrations/
-    0010_cron_jobs.sql       # (NEW) SQLite table for cron jobs
+    crons.rs                  # NEW: POST/PATCH/DELETE handlers using gateway_forward()
+    mod.rs                    # MODIFY: add `pub mod crons;` and merge router
 ```
 
-### Pattern 1: CRUD Hook (mirrors useAgents)
-**What:** A `useCrons()` hook providing `{ crons, loading, createMutation, updateMutation, deleteMutation, toggleMutation }`
-**When to use:** All cron data access from any component
-**Example:**
-```typescript
-// Follows the exact pattern from hooks/useAgents.ts
-export function useCrons() {
-  const queryClient = useQueryClient()
-
-  const { data, isLoading } = useQuery<CronsResponse>({
-    queryKey: queryKeys.crons,
-    queryFn: () => api.get<CronsResponse>('/api/crons'),
-    enabled: !isDemoMode(),
-  })
-
-  const createMutation = useMutation({
-    mutationFn: async (payload: CreateCronPayload) => {
-      return api.post<{ job: CronJob }>('/api/crons', payload)
-    },
-    onMutate: async (payload) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.crons })
-      const prev = queryClient.getQueryData<CronsResponse>(queryKeys.crons)
-      // Optimistic add
-      queryClient.setQueryData<CronsResponse>(queryKeys.crons, (old) => ({
-        ...old,
-        jobs: [...(old?.jobs || []), { id: 'temp-' + Date.now(), ...payload, enabled: true }],
-      }))
-      return { prev }
-    },
-    onError: (_err, _payload, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(queryKeys.crons, ctx.prev)
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.crons }),
-  })
-
-  // ... update, delete, toggle mutations follow same pattern
-}
-```
-
-### Pattern 2: Split-Pane Layout (mirrors AgentsPage)
-**What:** Left panel with job list/calendar, right panel with detail editor, drag-resizable divider
-**When to use:** The CronJobs page refactored from single-column to split-pane
-**Example:**
-```typescript
-// Same pattern as pages/Agents.tsx
-<div style={{ position: 'absolute', inset: 0, margin: '-20px -28px', display: 'flex', overflow: 'hidden' }}>
-  {/* Left: Calendar + job list */}
-  <div style={{ width: listWidth, minWidth: listWidth, borderRight: '1px solid var(--border)', overflow: 'hidden' }}>
-    <WeekGrid ... onSelectJob={setSelectedId} />
-    <JobList ... onSelectJob={setSelectedId} />
-  </div>
-  {/* Resize handle */}
-  <div onMouseDown={handleResize} role="separator" aria-orientation="vertical" ... />
-  {/* Right: Detail panel or empty state */}
-  <div style={{ flex: 1, overflow: 'hidden' }}>
-    {selectedJob ? <CronDetailPanel job={selectedJob} ... /> : <EmptyState />}
-  </div>
-</div>
-```
-
-### Pattern 3: Backend CRUD via SQLite + Gateway Forward
-**What:** Store cron jobs in local SQLite (like agents) for offline resilience, forward lifecycle commands to OpenClaw gateway
-**When to use:** All cron CRUD routes
+### Pattern 1: Gateway-Proxied CRUD (from agents.rs + gateway.rs)
+**What:** Backend routes that forward write operations to the OpenClaw API via `gateway_forward()`, keeping all credential handling server-side.
+**When to use:** For all cron CRUD mutations (create, update, delete, toggle).
 **Example:**
 ```rust
-// Mirrors agents.rs exactly
+// Source: existing gateway_forward() pattern in agents.rs lines 275-283
+use super::gateway::gateway_forward;
+
 async fn create_cron(
     State(state): State<AppState>,
-    RequireAuth(session): RequireAuth,
-    Json(body): Json<CreateCronBody>,
+    RequireAuth(_session): RequireAuth,
+    Json(body): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
-    let id = crate::routes::util::random_uuid();
-    let now = chrono::Utc::now().to_rfc3339();
-
-    sqlx::query("INSERT INTO cron_jobs ...")
-        .bind(&id).bind(&session.user_id)
-        .execute(&state.db).await?;
-
-    crate::sync::log_mutation(&state.db, "cron_jobs", &id, "INSERT", Some(&payload)).await?;
-
-    // Optional: forward to OpenClaw gateway
-    if let Ok(_) = gateway_forward(&state, Method::POST, "/crons", Some(body_json)).await {
-        // synced
-    }
-
-    Ok(Json(json!({ "job": job_val })))
+    let result = gateway_forward(
+        &state,
+        Method::POST,
+        "/crons",
+        Some(body),
+    ).await?;
+    Ok(Json(result))
 }
 ```
 
-### Pattern 4: Cron Expression to Calendar Events
-**What:** Convert cron expressions to visual calendar events using croner's next-occurrence computation
-**When to use:** Rendering cron jobs on the WeekGrid/calendar
+### Pattern 2: Optimistic Mutations Hook (from useAgents.ts)
+**What:** A `useCrons()` hook that wraps React Query's `useMutation` with optimistic cache updates and rollback on error.
+**When to use:** For all frontend CRUD operations.
 **Example:**
 ```typescript
-import { Cron } from 'croner'
+// Source: useAgents.ts lines 29-62 pattern
+const toggleMutation = useMutation({
+  mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
+    return api.patch<{ job: CronJob }>('/api/crons/update', { id, enabled })
+  },
+  onMutate: async ({ id, enabled }) => {
+    await queryClient.cancelQueries({ queryKey: ['crons'] })
+    const prev = queryClient.getQueryData<CronsResponse>(['crons'])
+    queryClient.setQueryData<CronsResponse>(['crons'], (old) => ({
+      ...old,
+      jobs: (old?.jobs || []).map((j) =>
+        j.id === id ? { ...j, enabled } : j
+      ),
+    }))
+    return { prev }
+  },
+  onError: (_err, _vars, ctx) => {
+    if (ctx?.prev) queryClient.setQueryData(['crons'], ctx.prev)
+  },
+  onSettled: () => invalidateCrons(),
+})
+```
 
-function getCronFireTimesInWeek(expr: string, weekStart: Date): FireTime[] {
-  const fires: FireTime[] = []
-  const weekEnd = new Date(weekStart.getTime() + 7 * 86400000)
+### Pattern 3: Portal Confirmation Dialog (from AgentDetailPanel.tsx)
+**What:** A `createPortal`-based modal with focus trap and escape key handling for destructive actions.
+**When to use:** Before deleting a cron job.
+**Example:**
+```typescript
+// Source: AgentDetailPanel.tsx lines 283-319
+{confirmDeleteId && createPortal(
+  <div style={{ position: 'fixed', inset: 0, zIndex: 9999, ... }}
+    onClick={cancelDelete}>
+    <div ref={dialogRef} role="dialog" aria-modal="true"
+      aria-label="Confirm delete cron job" onClick={e => e.stopPropagation()}>
+      <h3>Delete Cron Job</h3>
+      <p>Are you sure you want to delete "{job.name}"?</p>
+      <Button variant="secondary" onClick={cancelDelete}>Cancel</Button>
+      <Button variant="danger" onClick={confirmDelete}>Delete</Button>
+    </div>
+  </div>,
+  document.body,
+)}
+```
 
-  try {
-    const cron = new Cron(expr)
-    let next = cron.nextRun(weekStart)
-    while (next && next < weekEnd) {
-      fires.push({
-        ms: next.getTime(),
-        dayIndex: next.getDay(),
-        top: next.getHours() * 60 + next.getMinutes(),
-      })
-      next = cron.nextRun(new Date(next.getTime() + 1000))
-    }
-  } catch { /* invalid expression */ }
+### Pattern 4: Toggle Switch (from settings/Toggle.tsx)
+**What:** An accessible toggle component with `role="switch"` and `aria-checked`.
+**When to use:** For enabling/disabling cron jobs inline in the job list.
+**Example:**
+```typescript
+// Source: settings/Toggle.tsx
+import Toggle from '@/pages/settings/Toggle'
 
-  return fires
-}
+<Toggle
+  on={job.enabled ?? true}
+  onToggle={(enabled) => toggleMutation.mutate({ id: job.id, enabled })}
+  label={`Toggle ${job.name}`}
+/>
 ```
 
 ### Anti-Patterns to Avoid
-- **Cron-only storage (no SQLite):** If OpenClaw is unreachable, the entire page would break. SQLite storage provides offline-first resilience matching the agents pattern.
-- **Inline onMouseEnter/onMouseLeave for hover:** Use CSS class `.hover-bg` per project conventions.
-- **Raw crontab input only:** Users need a human-readable schedule builder, not just a text field. Use cronstrue for display and provide preset schedule options.
-- **Custom cron parser:** Do not hand-roll cron expression parsing. Use croner -- it handles all edge cases (L, W, #, second fields, DST).
+- **Don't use window.confirm():** Use the portal-based dialog pattern for accessibility and theming consistency.
+- **Don't fetch via `openclaw` CLI for writes:** The CLI binary may not be installed. Use `gateway_forward()` for all mutations -- it has proper error handling, credential injection, and error sanitization.
+- **Don't add cron expression parsing library:** The existing `humanSchedule()` and schedule presets (dropdown) are sufficient. Users should pick from presets, not type raw crontab syntax (MH-07 says "schedule picked from a UI, not raw crontab syntax").
+- **Don't create a separate route at `/crons/new`:** Use a modal from the existing page. The crons page is already registered at `/crons` and adding sub-routes would be over-engineering for a form modal.
 
 ## Don't Hand-Roll
 
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
-| Cron expression parsing | Regex-based parser | `croner` (8KB, zero deps) | DST handling, L/W/# flags, second/year fields, timezone support |
-| Human-readable cron descriptions | String concatenation | `cronstrue` (5.7KB, zero deps) | 30+ edge cases in cron descriptions, i18n support |
-| Next fire time computation | Manual date arithmetic | `croner.nextRun()` | DST transitions, month-end handling, February leap year |
-| Confirmation dialogs | Custom modal from scratch | Existing pattern from `AgentDetailPanel` | Uses `useFocusTrap`, `useEscapeKey`, portal, ARIA attributes |
-| Optimistic mutation | Manual state management | React Query `onMutate` pattern | Snapshot/rollback proven in `useAgents` |
-| Calendar week grid | New grid implementation | Existing `WeekGrid.tsx` | Already handles overlap layout, time axis, current-time indicator |
+| Cron expression parsing | Custom parser for `0 0 * * *` | Schedule presets (every 5m, 30m, 1h, etc.) | MH-07 explicitly says "schedule picked from a UI, not raw crontab syntax". The `CronSchedule` type uses `kind: 'every'` with `everyMs` for interval jobs -- presets map directly to this. |
+| Focus trap in modal | Custom focus management | `useFocusTrap` from `lib/hooks/useFocusTrap` | Already battle-tested across modals and dialogs |
+| Escape key handling | Custom keydown listener | `useEscapeKey` from `lib/hooks/useEscapeKey` | Already used in all modals |
+| Toggle switch | Custom checkbox styling | `Toggle` from `pages/settings/Toggle.tsx` | Accessible (`role="switch"`, `aria-checked`), spring-animated, already proven |
+| Delete confirmation | `window.confirm()` | Portal dialog with `useFocusTrap` | Matches existing pattern from AgentDetailPanel, accessible |
+| API communication | Direct fetch to OpenClaw | `gateway_forward()` in `gateway.rs` | Handles credentials, error sanitization, path validation |
 
-**Key insight:** The existing codebase has ~80% of the UI components already built. The WeekGrid, FrequentBar, JobList, and calendar patterns are all in place. This phase is primarily about wiring CRUD operations and adding an edit panel, not building calendar UI from scratch.
+**Key insight:** Every UI primitive needed (Toggle, Button, modal dialog, focus trap, escape key, portal) already exists in the codebase. The backend proxy pattern (`gateway_forward()`) is also fully established. This phase is pure composition of existing patterns.
 
 ## Common Pitfalls
 
-### Pitfall 1: Cron Expression Rendering Gap
-**What goes wrong:** The existing `getFireTimesInWeek()` only handles `kind: 'every'` (interval-based) jobs. Jobs with `kind: 'cron'` (expression-based) currently return an empty array and show nothing on the calendar.
-**Why it happens:** The original implementation deferred cron expression parsing.
-**How to avoid:** Use `croner` to compute fire times for `kind: 'cron'` jobs, extending `getFireTimesInWeek()` with a cron-expression branch.
-**Warning signs:** Cron jobs appearing in the JobList but not on the WeekGrid.
+### Pitfall 1: CLI vs Gateway Read Path Mismatch
+**What goes wrong:** The `GET /api/crons` currently uses the `openclaw` CLI binary (`openclaw cron list --json`). If we also add a gateway-based GET, the two sources could return different data formats.
+**Why it happens:** The CLI and gateway API may serialize `CronJob` differently.
+**How to avoid:** Keep the existing CLI-based `GET /crons` as the read path (it works and the frontend already consumes its format). Only add gateway proxy routes for write operations (POST, PATCH, DELETE). After a mutation, invalidate the `['crons']` query to re-fetch via CLI.
+**Warning signs:** Different field names or missing fields after mutations.
 
-### Pitfall 2: Two Data Sources
-**What goes wrong:** The existing `GET /api/crons` reads from the `openclaw` CLI (`openclaw cron list --json`). If CRUD writes go only to SQLite, the read path would not see them. If CRUD writes go only to the gateway, local storage is out of sync.
-**Why it happens:** Dual storage (local SQLite + remote OpenClaw) creates consistency challenges.
-**How to avoid:** Primary source of truth is SQLite (for UI responsiveness). On create/update/delete, also fire-and-forget to the OpenClaw gateway (like `agents.rs` does for model sync). On read, merge CLI results with local SQLite data, or migrate fully to SQLite as primary with periodic sync.
-**Warning signs:** Jobs created in the UI not appearing after page refresh, or vice versa.
+### Pitfall 2: Optimistic Update Format Mismatch
+**What goes wrong:** The optimistic update adds/modifies a `CronJob` in the cache, but the shape doesn't match what the CLI returns on re-fetch, causing UI flicker.
+**Why it happens:** The gateway API returns the created/updated job in its format, while the CLI list returns a slightly different shape.
+**How to avoid:** Make optimistic updates match the `CronJob` interface exactly as defined in `types.ts`. On `onSettled`, always invalidate to get the authoritative list from the CLI.
+**Warning signs:** UI elements briefly disappear or change position after mutation settles.
 
-### Pitfall 3: Missing CLI Binary
-**What goes wrong:** The `openclaw` CLI may not be installed on the user's machine. The current `openclaw_cli.rs` handles this gracefully (returns empty array), but CRUD operations would fail silently.
-**Why it happens:** `openclaw_available()` checks once at startup and caches the result.
-**How to avoid:** CRUD routes should store in SQLite unconditionally (always works) and treat gateway forwarding as best-effort. UI should show connection status (same pattern as `openclawHealthy` in AgentsPage).
-**Warning signs:** Create/toggle operations appearing to work but not persisting.
+### Pitfall 3: Schedule Preset to everyMs Mapping
+**What goes wrong:** The schedule picker presets need to map to `CronSchedule` objects that the OpenClaw API understands.
+**Why it happens:** The `CronSchedule` type has two modes: `kind: 'every'` with `everyMs` (interval-based) and `kind: 'cron'` with `expr` (cron expression). The API needs to receive the correct format.
+**How to avoid:** For the schedule picker, use a `<select>` with predefined presets that map directly to `{ kind: 'every', everyMs: N }`. Include a "Custom (cron)" option for advanced users that allows typing a cron expression mapped to `{ kind: 'cron', expr: '...' }`.
+**Warning signs:** Jobs created with wrong schedule, or schedule not displaying correctly in the calendar.
 
-### Pitfall 4: Bundle Size Regression
-**What goes wrong:** Adding `croner` (8KB) + `cronstrue` (5.7KB) pushes a chunk over the 400KB CI budget.
-**Why it happens:** Both are small, but if they land in the main chunk rather than the lazy-loaded CronJobs chunk, they inflate the common bundle.
-**How to avoid:** Import these libraries only inside `pages/crons/` components (which are lazy-loaded via `React.lazy`). Never import from shared hooks or lib files.
-**Warning signs:** CI bundle check failing after adding dependencies.
+### Pitfall 4: Axum Route Registration -- Path Conflict with openclaw_cli.rs
+**What goes wrong:** New crons CRUD routes conflict with the existing `GET /crons` in `openclaw_cli.rs` because both register on the `/crons` path.
+**Why it happens:** `openclaw_cli.rs` already registers `GET /crons`. The new `crons.rs` module needs to register `POST /crons` on the same path, which is fine in Axum (different methods), but could cause confusion.
+**How to avoid:** Register POST/PATCH/DELETE in the new `crons.rs` on the `/crons` path (POST) and distinct sub-paths for update and delete (e.g., `/crons/update`, `/crons/delete`) since Axum path params (`/crons/{id}`) with dynamic segments may conflict with fixed segments. Alternatively, use request body for the ID (matching the `agents.rs` pattern where DELETE reads the ID from JSON body).
+**Warning signs:** Compilation succeeds but routes return 404 or method-not-allowed.
 
-### Pitfall 5: Week Start Inconsistency
-**What goes wrong:** The existing crons `WeekGrid` uses Sunday-start weeks (`getWeekStart` returns Sunday), while the calendar `WeekView` uses Monday-start weeks (`weekStart` returns Monday). Mixing these in a unified view creates confusion.
-**Why it happens:** Different developers authored these components independently.
-**How to avoid:** Decide on one convention (the crons page already uses Sunday-start, keep it). Do not mix calendar and crons week-start logic.
-**Warning signs:** Events appearing on the wrong day column.
+### Pitfall 5: Missing `mod.rs` Registration
+**What goes wrong:** Creating `crons.rs` but forgetting to add `pub mod crons;` to `mod.rs` and merge the router.
+**Why it happens:** Rust module system requires explicit declaration.
+**How to avoid:** Always update `mod.rs` with both the module declaration and router merge.
+**Warning signs:** Compilation error about unresolved module, or 404 on the new endpoints.
 
 ## Code Examples
 
-### Example 1: CronDetailPanel Structure (mirrors AgentDetailPanel)
-```typescript
-// Source: Derived from pages/agents/AgentDetailPanel.tsx pattern
-interface CronDetailPanelProps {
-  job: CronJob
-  onUpdate: (id: string, fields: Partial<CronJob>) => void
-  onDelete: (id: string) => void
-  onToggle: (id: string, enabled: boolean) => void
+Verified patterns from the existing codebase:
+
+### Backend: Cron CRUD Route Structure
+```rust
+// Source: agents.rs pattern + gateway.rs gateway_forward()
+// File: src-tauri/src/routes/crons.rs
+
+use axum::{
+    extract::State,
+    routing::{delete, patch, post},
+    Json, Router,
+};
+use reqwest::Method;
+use serde::Deserialize;
+use serde_json::{json, Value};
+
+use crate::error::AppError;
+use crate::server::{AppState, RequireAuth};
+use super::gateway::gateway_forward;
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route("/crons", post(create_cron))
+        .route("/crons/update", patch(update_cron))
+        .route("/crons/delete", delete(delete_cron))
 }
 
-export function CronDetailPanel({ job, onUpdate, onDelete, onToggle }: CronDetailPanelProps) {
-  const [name, setName] = useState(job.name)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+#[derive(Debug, Deserialize)]
+struct CreateCronBody {
+    name: String,
+    description: Option<String>,
+    schedule: Value,  // { kind, everyMs?, expr? }
+}
 
-  // Debounced update (600ms) -- same pattern as AgentDetailPanel
-  const nameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+async fn create_cron(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Json(body): Json<CreateCronBody>,
+) -> Result<Json<Value>, AppError> {
+    if body.name.trim().is_empty() {
+        return Err(AppError::BadRequest("name required".into()));
+    }
+    let payload = json!({
+        "name": body.name.trim(),
+        "description": body.description,
+        "schedule": body.schedule,
+    });
+    let result = gateway_forward(&state, Method::POST, "/crons", Some(payload)).await?;
+    Ok(Json(result))
+}
 
-  // ... form fields: name, description, schedule picker, enabled toggle
-  // ... delete button with confirmation dialog using useFocusTrap + useEscapeKey
+#[derive(Debug, Deserialize)]
+struct UpdateCronBody {
+    id: String,
+    #[serde(flatten)]
+    fields: Value,
+}
+
+async fn update_cron(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let id = body.get("id")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::BadRequest("id required".into()))?;
+    if id.is_empty() || id.len() > 100 {
+        return Err(AppError::BadRequest("invalid cron id".into()));
+    }
+    let result = gateway_forward(
+        &state, Method::PUT, &format!("/crons/{id}"), Some(body),
+    ).await?;
+    Ok(Json(result))
+}
+
+#[derive(Debug, Deserialize)]
+struct DeleteCronBody {
+    id: String,
+}
+
+async fn delete_cron(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Json(body): Json<DeleteCronBody>,
+) -> Result<Json<Value>, AppError> {
+    if body.id.is_empty() || body.id.len() > 100 {
+        return Err(AppError::BadRequest("invalid cron id".into()));
+    }
+    let result = gateway_forward(
+        &state, Method::DELETE, &format!("/crons/{}", body.id), None,
+    ).await?;
+    Ok(Json(result))
 }
 ```
 
-### Example 2: Schedule Picker Presets
+### Frontend: useCrons Hook
 ```typescript
-// Source: Original design based on MH-07 requirement
+// Source: useAgents.ts pattern
+// File: frontend/src/hooks/useCrons.ts
+
+import { useCallback } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { api } from '@/lib/api'
+import type { CronJob } from '@/pages/crons/types'
+
+interface CronsResponse { jobs: CronJob[] }
+
+export function useCrons() {
+  const queryClient = useQueryClient()
+  const { data, isLoading } = useQuery<CronsResponse>({
+    queryKey: ['crons'],
+    queryFn: () => api.get<CronsResponse>('/api/crons'),
+  })
+
+  const invalidateCrons = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['crons'] })
+  }, [queryClient])
+
+  const createMutation = useMutation({
+    mutationFn: async (payload: {
+      name: string;
+      schedule: CronJob['schedule'];
+      description?: string
+    }) => {
+      return api.post<{ job: CronJob }>('/api/crons', payload)
+    },
+    onSettled: () => invalidateCrons(),
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: async (fields: { id: string } & Partial<CronJob>) => {
+      return api.patch<{ job: CronJob }>('/api/crons/update', fields)
+    },
+    onMutate: async (fields) => {
+      await queryClient.cancelQueries({ queryKey: ['crons'] })
+      const prev = queryClient.getQueryData<CronsResponse>(['crons'])
+      queryClient.setQueryData<CronsResponse>(['crons'], (old) => ({
+        ...old,
+        jobs: (old?.jobs || []).map((j) =>
+          j.id === fields.id ? { ...j, ...fields } : j
+        ),
+      }))
+      return { prev }
+    },
+    onError: (_err, _fields, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(['crons'], ctx.prev)
+    },
+    onSettled: () => invalidateCrons(),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.del('/api/crons/delete', { id })
+    },
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['crons'] })
+      const prev = queryClient.getQueryData<CronsResponse>(['crons'])
+      queryClient.setQueryData<CronsResponse>(['crons'], (old) => ({
+        ...old,
+        jobs: (old?.jobs || []).filter((j) => j.id !== id),
+      }))
+      return { prev }
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(['crons'], ctx.prev)
+    },
+    onSettled: () => invalidateCrons(),
+  })
+
+  return {
+    jobs: data?.jobs ?? [],
+    loading: isLoading,
+    createMutation,
+    updateMutation,
+    deleteMutation,
+    invalidateCrons,
+  }
+}
+```
+
+### Frontend: Schedule Preset Picker
+```typescript
+// Schedule presets for the create/edit form
 const SCHEDULE_PRESETS = [
-  { label: 'Every hour',     schedule: { kind: 'every', everyMs: 3600000 } },
-  { label: 'Every 6 hours',  schedule: { kind: 'every', everyMs: 21600000 } },
+  { label: 'Every 5 minutes', schedule: { kind: 'every', everyMs: 300000 } },
+  { label: 'Every 15 minutes', schedule: { kind: 'every', everyMs: 900000 } },
+  { label: 'Every 30 minutes', schedule: { kind: 'every', everyMs: 1800000 } },
+  { label: 'Every hour', schedule: { kind: 'every', everyMs: 3600000 } },
+  { label: 'Every 2 hours', schedule: { kind: 'every', everyMs: 7200000 } },
+  { label: 'Every 6 hours', schedule: { kind: 'every', everyMs: 21600000 } },
   { label: 'Every 12 hours', schedule: { kind: 'every', everyMs: 43200000 } },
-  { label: 'Daily',          schedule: { kind: 'every', everyMs: 86400000 } },
-  { label: 'Every weekday at 9am', schedule: { kind: 'cron', expr: '0 9 * * 1-5' } },
-  { label: 'Weekly (Sunday)', schedule: { kind: 'cron', expr: '0 0 * * 0' } },
-  { label: 'Custom cron...',  schedule: null }, // Opens cron expression input
+  { label: 'Every day', schedule: { kind: 'every', everyMs: 86400000 } },
+  { label: 'Custom (cron expression)', schedule: null }, // shows text input
 ] as const
 ```
 
-### Example 3: Backend Route Registration
-```rust
-// Source: Derived from routes/mod.rs + routes/agents.rs patterns
-// In routes/crons.rs:
-pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/crons", get(get_crons).post(create_cron).patch(update_cron).delete(delete_cron))
-        .route("/crons/toggle", post(toggle_cron))
-}
-
-// In routes/mod.rs:
-pub mod crons;
-// ...
-.merge(crons::router())
+### Existing Cron Page Data Flow (for reference)
 ```
+CronJobs.tsx
+  └── useTauriQuery(['crons'], '/api/crons')
+        └── api.get('/api/crons')
+              └── Axum GET /crons handler (openclaw_cli.rs)
+                    └── `openclaw cron list --json` (CLI binary)
+                          └── Returns { jobs: CronJob[] }
 
-### Example 4: SQLite Migration
-```sql
--- 0010_cron_jobs.sql
-CREATE TABLE IF NOT EXISTS cron_jobs (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    name TEXT NOT NULL,
-    description TEXT,
-    schedule_kind TEXT NOT NULL DEFAULT 'every',
-    schedule_every_ms INTEGER,
-    schedule_expr TEXT,
-    enabled INTEGER NOT NULL DEFAULT 1,
-    next_run_at TEXT,
-    last_run_at TEXT,
-    last_run_status TEXT,
-    sort_order INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    deleted_at TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_cron_jobs_user ON cron_jobs(user_id);
-```
-
-### Example 5: Extending getFireTimesInWeek for Cron Expressions
-```typescript
-// Source: Extends existing pages/crons/types.ts getFireTimesInWeek
-import { Cron } from 'croner'
-
-export function getFireTimesInWeek(job: CronJob, weekStart: Date): FireTime[] {
-  const fires: FireTime[] = []
-  const weekStartMs = weekStart.getTime()
-  const weekEndMs = weekStartMs + 7 * 24 * 3600000
-  const s = job.schedule
-
-  if (s.kind === 'every' && s.everyMs) {
-    // ... existing interval logic (unchanged)
-  }
-
-  if (s.kind === 'cron' && s.expr) {
-    try {
-      const cron = new Cron(s.expr)
-      let next = cron.nextRun(weekStart)
-      while (next && next.getTime() < weekEndMs) {
-        const ms = next.getTime()
-        if (ms >= weekStartMs) {
-          fires.push({
-            ms,
-            dayIndex: next.getDay(),
-            top: next.getHours() * 60 + next.getMinutes(),
-          })
-        }
-        next = cron.nextRun(new Date(ms + 1000))
-      }
-    } catch {
-      // Invalid cron expression -- return empty
-    }
-  }
-
-  return fires
-}
+After mutation (new flow):
+  createMutation.mutate(payload)
+    └── api.post('/api/crons', payload)
+          └── Axum POST /crons handler (crons.rs)
+                └── gateway_forward(&state, POST, "/crons", body)
+                      └── OpenClaw gateway API POST /crons
+  onSettled → invalidateCrons()
+    └── refetches via GET /crons (CLI path, unchanged)
 ```
 
 ## State of the Art
 
 | Old Approach | Current Approach | When Changed | Impact |
 |--------------|------------------|--------------|--------|
-| CLI-only cron read (`openclaw cron list`) | SQLite CRUD + gateway sync | This phase | Enables offline-first CRUD, UI responsiveness |
-| Cron expressions only shown in JobList | Calendar visualization of fire times | This phase | Visual schedule management |
-| No cron expression parsing in frontend | croner for fire-time computation | This phase | WeekGrid shows cron-expression jobs |
+| CLI binary invocation for all OpenClaw ops | `gateway_forward()` HTTP proxy | Phase 9 (2026-03-22) | Write operations no longer need CLI binary installed |
+| Agent inline editing | Split-panel CRUD with optimistic mutations | Phase 10 (2026-03-22) | Established the mutation hook pattern (`useAgents()`) |
+| Read-only cron calendar | Will add CRUD after this phase | Phase 11 (this phase) | Users can manage cron jobs from the UI |
 
-**Existing infrastructure preserved:**
-- `WeekGrid.tsx` -- reused as-is with click handler added
-- `FrequentBar.tsx` -- reused as-is
-- `JobList.tsx` -- extended with toggle button and click handler
-- `types.ts` -- extended with `CreateCronPayload` and new interfaces
-- Unit tests in `__tests__/types.test.ts` -- extended, not rewritten
+**Deprecated/outdated:**
+- The `openclaw_cli.rs` approach of shelling out to CLI is legacy for writes. Reads still use it (works fine), but writes must use `gateway_forward()`.
 
 ## Open Questions
 
-1. **OpenClaw Gateway Cron API Endpoints**
-   - What we know: `openclaw cron list --json` exists for reading. The gateway proxy pattern is established.
-   - What's unclear: Exact POST/PATCH/DELETE endpoints on the OpenClaw API for cron management. The CLI uses `openclaw cron list` but CRUD may need different gateway paths.
-   - Recommendation: Store in SQLite as primary. Forward to gateway as best-effort. If OpenClaw gateway exposes `/crons` REST endpoints, use them; if not, the CLI fallback (`openclaw cron create/update/delete`) can be used from the backend.
+1. **OpenClaw API cron payload format**
+   - What we know: The frontend `CronJob` type has `{ id, name, description, schedule: { kind, everyMs?, expr? }, state, enabled }`. The CLI returns this format.
+   - What's unclear: The exact POST/PUT body format the OpenClaw gateway expects. It likely mirrors the CronJob type but we cannot verify without API docs.
+   - Recommendation: Send the same shape as `CronJob` (minus `state` which is server-computed). If the API rejects it, the `gateway_forward()` error sanitization will surface a clear error message for debugging.
 
-2. **Command Field**
-   - What we know: MH-07 says "edit its command and schedule." The existing `CronJob` type has `name`, `description`, `schedule` but no `command` field.
-   - What's unclear: What "command" means in the OpenClaw context -- is it an agent to invoke, a shell command, a task description?
-   - Recommendation: Add a `command` text field to the SQLite schema and UI. Let users enter free-form text that gets forwarded to OpenClaw. The UI label can be "Task / Command" to be generic.
+2. **Cron expression support in calendar view**
+   - What we know: `getFireTimesInWeek()` only handles `kind: 'every'` with `everyMs`. Jobs with `kind: 'cron'` and `expr` return an empty fire times array -- they show in the job list but not on the calendar grid.
+   - What's unclear: Whether we should parse cron expressions client-side to plot them on the calendar.
+   - Recommendation: Defer cron expression calendar plotting. It requires a cron parser library (like `cron-parser` npm) and adds scope. For Phase 11, cron-expression jobs appear in the job list only (which is already the behavior). Calendar grid plotting of cron expressions can be a future enhancement.
 
 ## Validation Architecture
 
 ### Test Framework
 | Property | Value |
 |----------|-------|
-| Framework | Vitest 4.x |
+| Framework | Vitest 4.1 (jsdom) |
 | Config file | `frontend/vitest.config.ts` |
-| Quick run command | `cd frontend && npx vitest run src/pages/crons/__tests__/` |
+| Quick run command | `cd frontend && npx vitest run src/pages/crons/__tests__/ src/hooks/__tests__/` |
 | Full suite command | `cd frontend && npx vitest run` |
 
 ### Phase Requirements -> Test Map
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|-------------|
-| MH-07-a | Calendar view shows cron schedules visually | unit | `cd frontend && npx vitest run src/pages/crons/__tests__/types.test.ts -x` | Partial (existing tests cover `getFireTimesInWeek` for `every` kind but not `cron` kind) |
-| MH-07-b | Create cron job from calendar UI | unit | `cd frontend && npx vitest run src/hooks/__tests__/useCrons.test.ts -x` | No -- Wave 0 |
-| MH-07-c | Toggle cron enabled/disabled | unit | `cd frontend && npx vitest run src/hooks/__tests__/useCrons.test.ts -x` | No -- Wave 0 |
-| MH-07-d | Edit cron command and schedule | unit | `cd frontend && npx vitest run src/pages/crons/__tests__/CronDetailPanel.test.tsx -x` | No -- Wave 0 |
-| MH-07-e | Delete cron with confirmation | unit | `cd frontend && npx vitest run src/pages/crons/__tests__/CronDetailPanel.test.tsx -x` | No -- Wave 0 |
-| MH-07-f | Backend CRUD routes | unit | `cd src-tauri && cargo test routes::crons -x` | No -- Wave 0 |
+| MH-07a | Schedule presets map to valid CronSchedule objects | unit | `cd frontend && npx vitest run src/pages/crons/__tests__/CronFormModal.test.ts -x` | Wave 0 |
+| MH-07b | useCrons hook provides CRUD mutations | unit | `cd frontend && npx vitest run src/hooks/__tests__/useCrons.test.ts -x` | Wave 0 |
+| MH-07c | CronJob type matches expected shape | unit | `cd frontend && npx vitest run src/pages/crons/__tests__/types.test.ts -x` | Exists |
+| MH-07d | Toggle enabled/disabled optimistic update | unit | `cd frontend && npx vitest run src/hooks/__tests__/useCrons.test.ts -x` | Wave 0 |
+| MH-07e | Backend cron CRUD route tests | unit | `cd /mnt/storage/projects/mission-control/src-tauri && cargo test routes::crons` | Wave 0 |
 
 ### Sampling Rate
-- **Per task commit:** `cd frontend && npx vitest run src/pages/crons/__tests__/`
+- **Per task commit:** `cd frontend && npx vitest run src/pages/crons/__tests__/ src/hooks/__tests__/`
 - **Per wave merge:** `cd frontend && npx vitest run`
 - **Phase gate:** Full suite green before `/gsd:verify-work`
 
 ### Wave 0 Gaps
-- [ ] `frontend/src/hooks/__tests__/useCrons.test.ts` -- covers MH-07-b, MH-07-c
-- [ ] `frontend/src/pages/crons/__tests__/CronDetailPanel.test.tsx` -- covers MH-07-d, MH-07-e
-- [ ] `frontend/src/pages/crons/__tests__/types.test.ts` -- extend existing to cover cron-expression fire times (croner integration)
-- [ ] `src-tauri/src/routes/crons.rs` tests -- backend CRUD unit tests (inline `#[cfg(test)]` module)
-- [ ] `npm install croner cronstrue` -- new dependencies
+- [ ] `frontend/src/pages/crons/__tests__/CronFormModal.test.ts` -- covers MH-07a (schedule presets)
+- [ ] `frontend/src/hooks/__tests__/useCrons.test.ts` -- covers MH-07b, MH-07d (CRUD hook)
+- [ ] `src-tauri/src/routes/crons.rs` -- backend module with tests (covers MH-07e)
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- Codebase files: `src-tauri/src/routes/agents.rs` -- CRUD pattern reference
-- Codebase files: `src-tauri/src/routes/gateway.rs` -- `gateway_forward()` proxy function
-- Codebase files: `src-tauri/src/routes/openclaw_cli.rs` -- existing `GET /crons` via CLI
-- Codebase files: `frontend/src/pages/crons/types.ts` -- existing CronJob types and helpers
-- Codebase files: `frontend/src/pages/crons/WeekGrid.tsx` -- existing calendar grid
-- Codebase files: `frontend/src/pages/CronJobs.tsx` -- existing crons page
-- Codebase files: `frontend/src/hooks/useAgents.ts` -- CRUD hook pattern
-- Codebase files: `frontend/src/pages/Agents.tsx` -- split-pane layout pattern
-- Codebase files: `frontend/src/pages/agents/AgentDetailPanel.tsx` -- detail panel pattern
-- Codebase files: `frontend/src/pages/calendar/shared.ts` -- CalendarEvent types and helpers
+- `frontend/src/pages/CronJobs.tsx` -- existing cron page (read-only calendar with week grid)
+- `frontend/src/pages/crons/types.ts` -- CronJob/CronSchedule types, helper functions
+- `frontend/src/pages/crons/WeekGrid.tsx` -- week calendar grid component
+- `frontend/src/pages/crons/JobList.tsx` -- job list component
+- `frontend/src/pages/crons/FrequentBar.tsx` -- frequent jobs bar
+- `frontend/src/hooks/useAgents.ts` -- optimistic mutation hook pattern (Phase 10)
+- `src-tauri/src/routes/gateway.rs` -- `gateway_forward()` proxy function (Phase 9)
+- `src-tauri/src/routes/agents.rs` -- agent CRUD + gateway usage pattern
+- `src-tauri/src/routes/openclaw_cli.rs` -- existing `GET /crons` via CLI
+- `frontend/src/pages/agents/AgentDetailPanel.tsx` -- confirmation dialog pattern
+- `frontend/src/pages/settings/Toggle.tsx` -- accessible toggle switch component
+- `frontend/src/pages/calendar/` -- CalDAV calendar (WeekView, MonthView, shared.ts)
+- `frontend/src/lib/query-keys.ts` -- centralized query keys (no `crons` key yet)
 
 ### Secondary (MEDIUM confidence)
-- [croner npm](https://www.npmjs.com/package/croner) -- v10.0.1, 8KB gzip, zero deps
-- [cronstrue npm](https://www.npmjs.com/package/cronstrue) -- v2.53.0, 5.7KB gzip, zero deps
-- [croner GitHub](https://github.com/Hexagon/croner) -- API reference, browser support confirmed
-
-### Tertiary (LOW confidence)
-- OpenClaw gateway cron CRUD endpoints -- not verified, assumed REST pattern based on agent endpoints
+- `.planning/research/ARCHITECTURE.md` -- OpenClaw gateway API endpoint listing
+- `.planning/research/STACK.md` -- cron CRUD approach recommendations
+- `.planning/ROADMAP.md` -- Phase 11 success criteria and dependencies
 
 ## Metadata
 
 **Confidence breakdown:**
-- Standard stack: HIGH -- croner and cronstrue are well-established, zero-dep libraries verified via npm and bundlephobia
-- Architecture: HIGH -- follows established patterns from Phase 10 (agents CRUD), all reference code read directly from codebase
-- Pitfalls: HIGH -- identified from direct codebase analysis (two data sources, missing CLI, week-start inconsistency)
-- Backend: MEDIUM -- SQLite schema follows agents pattern exactly, but OpenClaw gateway cron endpoints are unverified
+- Standard stack: HIGH - zero new dependencies, all patterns already established in codebase
+- Architecture: HIGH - directly reuses Phase 9 (gateway_forward) and Phase 10 (useAgents) patterns
+- Pitfalls: HIGH - documented from direct codebase analysis and existing anti-patterns
+- OpenClaw API format: MEDIUM - inferred from existing CronJob type and CLI output format, not verified against gateway API docs
 
 **Research date:** 2026-03-22
-**Valid until:** 2026-04-22 (stable domain, existing patterns)
+**Valid until:** 2026-04-22 (stable -- internal patterns, no external dependencies)
