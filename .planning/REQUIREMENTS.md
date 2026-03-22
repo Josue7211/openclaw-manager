@@ -139,7 +139,7 @@ View revision history for a note using CouchDB revisions. Diff view showing chan
 | MH-07 | Phase 11 | Pending |
 | MH-08 | Phase 12 | Pending |
 | MH-09 | Phase 6 | Complete |
-| MH-10 | Phase 7 | Pending |
+| MH-10 | Phase 7 | Complete |
 | MH-11 | Phase 8 | Pending |
 | MH-20 | Phase 5 | Complete |
 | MH-21 | Phase 13 | Pending |
