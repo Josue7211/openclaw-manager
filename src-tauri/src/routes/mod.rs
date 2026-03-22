@@ -15,6 +15,7 @@ pub mod deploy;
 pub mod dlp;
 pub mod email;
 pub mod export;
+pub mod gateway;
 pub mod events;
 pub mod habits;
 pub mod homelab;
