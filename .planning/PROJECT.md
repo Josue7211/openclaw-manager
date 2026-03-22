@@ -56,27 +56,29 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 - Real-time chat (non-iMessage) — defer to Matrix integration later
 - Video posts / media hosting — storage/bandwidth concerns, defer
 
-## Current Milestone: v0.0.2 — Widget-First Architecture
+## Current Milestone: v0.0.3 — Bug Fixes + OpenClaw Controller + Polish
 
-**Goal:** Fix the dashboard widget system, then make everything a widget. The widget system is the core of the app — every module, every page, every category must be composable and customizable.
+**Goal:** Fix all reported widget/layout bugs, add full OpenClaw gateway control (agent CRUD, cron management, usage tracking, terminal), upgrade the notes editor to Google Docs-level, add theme blend slider, and apply Apple-quality polish throughout.
 
 **Target features:**
-- Fix all dashboard widget bugs (drag/resize, config panels, positioning, picker state)
-- Unify Personal + Agent Dashboard into one widget-grid system
-- Convert all modules into widgets (Messages, Todos, Calendar, Notes, etc.)
-- Category presets for complex modules (Notes/Obsidian = preset category)
-- OpenClaw agent end-to-end (Bjorn chat, module creation, SSH/API/CLI integration)
-- More themes and deeper customization
-- Live editing in production mode (not just dev)
-- Leverage SSH access, APIs, CLIs through Tailscale mesh for all integrations
+- Fix all widget system bugs (resize, tab switch, layout, picker state, animations)
+- Fix page layout issues (pages not filling screen width, poor resize handling)
+- Full OpenClaw gateway control (agent management, cron CRUD, usage tracking, terminal, memory)
+- Google Docs-level notes editor (TipTap/WYSIWYG, tables, embeds, templates, version history)
+- Theme blend slider (continuous dark↔light interpolation)
+- Discord-like features (activity feeds, presence, channels)
+- Project tracker module with kanban board
+- Apple-quality micro-interactions and polish
 
 ## Context
 
-**v1.0 shipped 2026-03-21.** The app is a publishable desktop application with 11 completed phases, 92 requirements satisfied, and full cross-phase integration verified. The codebase is 74,399 LOC TypeScript/React + 25,362 LOC Rust with 2,177 frontend tests and 245 Rust tests passing.
+**v1.0 shipped 2026-03-21.** Publishable release with 11 phases, 92 requirements, full cross-platform support.
 
-**v1.0 post-ship testing (2026-03-22)** revealed critical integration gaps in the dashboard widget system: cards weren't wired to the data context, React.lazy default export mismatches, edit mode non-functional (drag/resize/config), positioning bugs. Core widgets now render with real data but the edit/customize layer is broken. The Personal page is a separate static layout not using the widget system at all.
+**v0.0.2 shipped 2026-03-22.** Widget-first architecture: 28 registered widgets, 23 kernel hooks, DashboardDataContext removed, Home page as widget grid, 7 dashboard presets, category tabs in Widget Picker, notes formatting toolbar + wikilink autocomplete + backlinks panel, Discord-style status bar, activity feed widget, quick capture widget, clock + system info widgets. All widgets fetch data independently via React Query with SSE invalidation.
 
-The user's vision: the widget system IS the app. Everything must be modular, customizable, and composable. Even complex modules like Notes (Obsidian integration) should be widget presets with customization.
+**Post-v0.0.2 testing revealed bugs:** widget resize still broken (z-index fix applied but needs verification), pages not filling screen width (fixed), widget picker UX issues (duplicate restriction removed, entry animations added, preset feedback added), tab switching loses widgets (memo deps fixed). OpenClaw gateway has full API surface (agents, crons, sessions, models, memory, tools, config, files, workspace, usage) but MC only uses chat + read-only agent/cron listing.
+
+The user's vision: the app should feel like Discord meets Google Docs — everything modular and customizable via the widget system, notes as rich as Google Docs leveraging Obsidian, full OpenClaw control center, Apple-quality polish throughout.
 
 ## Constraints
 
