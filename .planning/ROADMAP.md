@@ -167,7 +167,7 @@ Plans:
 - [x] 10-02-PLAN.md -- useAgents hook + split-pane page layout + detail panel + confirmation dialog
 
 ### Phase 11: OpenClaw Agent Calendar
-**Goal**: Cron schedules displayed as a calendar view under the agents category
+**Goal**: Cron CRUD with schedule presets, toggle, and delete -- wired into existing calendar page
 **Depends on**: Phase 9
 **Requirements**: MH-07
 **Success Criteria** (what must be TRUE):
@@ -176,7 +176,10 @@ Plans:
   3. User can toggle a cron job enabled/disabled
   4. User can click a calendar entry to edit its command and schedule
   5. User can delete a cron job (with confirmation)
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 11-01-PLAN.md -- Backend crons.rs CRUD routes + useCrons hook + query key
+- [ ] 11-02-PLAN.md -- CronFormModal + JobList enhancements + CronJobs page wiring + clickable calendar
 
 ### Phase 12: OpenClaw Usage + Models + Controller Page
 **Goal**: Unified OpenClaw page with tabs for all management features plus read-only dashboards
@@ -298,7 +301,7 @@ Plans:
 | 8. Theme Blend -- Slider UI + Persistence | v0.0.3 | 0/1 | Not started | - |
 | 9. OpenClaw Gateway Proxy Helper | v0.0.3 | 1/1 | Complete | 2026-03-22 |
 | 10. OpenClaw Agent CRUD | v0.0.3 | 2/2 | Complete    | 2026-03-22 |
-| 11. OpenClaw Cron CRUD | v0.0.3 | 0/? | Not started | - |
+| 11. OpenClaw Cron CRUD | v0.0.3 | 0/2 | Not started | - |
 | 12. OpenClaw Usage + Models + Controller Page | v0.0.3 | 0/? | Not started | - |
 | 13. Terminal PTY Backend | v0.0.3 | 0/? | Not started | - |
 | 14. Terminal Frontend (xterm.js) | v0.0.3 | 0/? | Not started | - |
