@@ -9,6 +9,7 @@ pub mod cache;
 pub mod calendar;
 pub mod captures;
 pub mod changelog;
+pub mod crons;
 pub mod chat;
 pub mod decisions;
 pub mod deploy;
@@ -64,6 +65,7 @@ pub fn router() -> Router<AppState> {
         .merge(cache::router())
         .merge(captures::router())
         .merge(changelog::router())
+        .merge(crons::router())
         .merge(decisions::router())
         .merge(dlp::router())
         .merge(ideas::router())
