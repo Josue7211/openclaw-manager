@@ -22,3 +22,7 @@ Each project should have: title, status, description, links to relevant vault no
 4. **Kernel hook** — `useProjects()` to fetch/manage project data
 5. **Project card** — Title, status pill, description preview, linked notes count, last activity date
 6. **Examples to track:** biometric auth project, homelab infrastructure, mission-control itself, any personal/work projects
+
+## User Notes (2026-03-22)
+
+Projects like biometric-auth that are in planning phase with lots of moving parts (hardware needed, software stack decisions, integration points) would benefit most from a **todo-list style** tracker inside Mission Control. Not just status cards — actual checklists per project with next steps, blockers, and hardware/parts to buy. Think of it as a personal project management tool where each project has its own checklist that you can tick off as you go. The Obsidian `Projects/` folder is now set up with notes for all current projects — this module should sync with those.

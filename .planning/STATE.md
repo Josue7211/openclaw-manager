@@ -36,13 +36,17 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ### Pending Todos
 
-- Project tracker module with kanban board — track all active projects (biometric auth, homelab, etc.) in a GitHub Projects-style widget + page, synced with vault `projects/` folder
+- Project tracker module with kanban board — track all active projects synced with vault `projects/` folder
+- Widget system bugs (9 bugs) — resize broken, "Added" state wrong, tab switch loses widgets, layout issues, no animations
+- Pages don't fill screen width + poor resize handling — Todos/Dashboard leave right half empty
+- Remove "No Bjorn modules" empty state from sidebar settings
+- Theme blend slider — continuous dark↔light interpolation instead of binary toggle
 
 ### Blockers/Concerns
 
-- react-grid-layout drag/resize not functioning in current integration — may need version update or alternative
-- Widget config panel positioning broken (transform context issue with react-grid-layout)
-- Personal page is entirely separate architecture from widget grid — unification is non-trivial
+- Widget resize completely non-functional — inner wobble wrapper div covers react-grid-layout resize handles (critical)
+- Widgets disappear when switching dashboard tabs — activePageId state reactivity issue (critical)
+- Pages don't use full viewport width — content constraining on wide screens
 
 ## Session Continuity
 
