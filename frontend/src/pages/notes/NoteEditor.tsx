@@ -9,7 +9,7 @@ import {
   WidgetType,
 } from '@codemirror/view'
 import type { DecorationSet, ViewUpdate } from '@codemirror/view'
-import { EditorState, RangeSetBuilder } from '@codemirror/state'
+import { EditorState, RangeSetBuilder, Compartment } from '@codemirror/state'
 import { API_BASE } from '@/lib/api'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
@@ -23,9 +23,10 @@ import {
 } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
-import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
+import { autocompletion, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import type { VaultNote } from './types'
 import EditorToolbar, { toggleWrap, insertLink } from './EditorToolbar'
+import { wikilinkCompletions } from './wikilinkCompletion'
 
 // --- Image embed widget for ![[image.png]] syntax ---
 
@@ -230,6 +231,30 @@ const mcTheme = EditorView.theme(
     '.cm-selectionMatch': {
       background: 'var(--accent-a12)',
     },
+    // Autocomplete tooltip
+    '.cm-tooltip.cm-tooltip-autocomplete': {
+      background: 'var(--bg-elevated)',
+      border: '1px solid var(--border)',
+      borderRadius: 'var(--radius-md)',
+      boxShadow: '0 8px 24px var(--overlay-heavy)',
+      overflow: 'hidden',
+    },
+    '.cm-tooltip.cm-tooltip-autocomplete > ul': {
+      fontFamily: 'inherit',
+      fontSize: '13px',
+      maxHeight: '200px',
+    },
+    '.cm-tooltip.cm-tooltip-autocomplete > ul > li': {
+      padding: '4px 10px',
+      color: 'var(--text-secondary)',
+    },
+    '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+      background: 'var(--accent-dim)',
+      color: 'var(--text-on-color)',
+    },
+    '.cm-completionIcon': {
+      display: 'none',
+    },
   },
   { dark: true },
 )
@@ -268,14 +293,16 @@ interface NoteEditorProps {
   note: VaultNote
   onChange: (content: string) => void
   onWikilinkClick: (link: string) => void
+  allNoteTitles?: string[]
 }
 
-export default memo(function NoteEditor({ note, onChange, onWikilinkClick }: NoteEditorProps) {
+export default memo(function NoteEditor({ note, onChange, onWikilinkClick, allNoteTitles = [] }: NoteEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
   const onWikilinkClickRef = useRef(onWikilinkClick)
   const noteIdRef = useRef(note._id)
+  const autocompleteCompartment = useRef(new Compartment())
 
   onChangeRef.current = onChange
   onWikilinkClickRef.current = onWikilinkClick
@@ -333,6 +360,12 @@ export default memo(function NoteEditor({ note, onChange, onWikilinkClick }: Not
           ...closeBracketsKeymap,
           indentWithTab,
         ]),
+        autocompleteCompartment.current.of(
+          autocompletion({
+            override: [wikilinkCompletions(allNoteTitles)],
+            activateOnTyping: true,
+          }),
+        ),
         updateListener,
         clickHandler,
         imageEmbedPlugin,
@@ -358,6 +391,20 @@ export default memo(function NoteEditor({ note, onChange, onWikilinkClick }: Not
       })
     }
   }, [note.content, note._id])
+
+  // Update wikilink autocomplete when available note titles change
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    view.dispatch({
+      effects: autocompleteCompartment.current.reconfigure(
+        autocompletion({
+          override: [wikilinkCompletions(allNoteTitles)],
+          activateOnTyping: true,
+        }),
+      ),
+    })
+  }, [allNoteTitles])
 
   return (
     <div

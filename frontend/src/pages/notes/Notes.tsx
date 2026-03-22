@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, lazy, Suspense } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo, lazy, Suspense } from 'react'
 import { Trash, ShareNetwork, PenNib, Cloud, CloudSlash, GitBranch } from '@phosphor-icons/react'
 import { useVault } from '@/hooks/notes/useVault'
 import { noteIdFromTitle } from '@/lib/vault'
@@ -23,6 +23,13 @@ export default function NotesPage() {
   const pendingContentRef = useRef<Map<string, string>>(new Map())
 
   const selected = notes.find((n) => n._id === selectedId) ?? null
+
+  const allNoteTitles = useMemo(
+    () => notes
+      .filter((n) => n.type === 'note')
+      .map((n) => n.title),
+    [notes],
+  )
 
   useEffect(() => {
     if (!selectedId && notes.length > 0) {
@@ -323,6 +330,7 @@ export default function NotesPage() {
                   note={selected}
                   onChange={handleContentChange}
                   onWikilinkClick={handleWikilinkClick}
+                  allNoteTitles={allNoteTitles}
                 />
               )
             ) : (
