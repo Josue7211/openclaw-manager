@@ -1468,14 +1468,10 @@ async fn oauth_callback(
     if let Some(code) = params.code {
         // Try PKCE exchange to establish a server-side session immediately
         let verifier = state.pending_oauth.read().await.as_ref().map(|f| f.verifier.clone());
-        let mut pkce_succeeded = false;
         if let Some(verifier) = verifier {
-            match GoTrueClient::from_state(&state) {
-                Err(e) => tracing::error!("[oauth-callback] GoTrueClient::from_state failed: {e} — check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY"),
-                Ok(gotrue) => {
+            if let Ok(gotrue) = GoTrueClient::from_state(&state) {
                 match gotrue.exchange_code_for_session(&code, &verifier).await {
                     Ok(auth) => {
-                        pkce_succeeded = true;
                         let now = epoch_secs();
                         let user_id =
                             auth.user["id"].as_str().unwrap_or("").to_string();
@@ -1583,31 +1579,18 @@ async fn oauth_callback(
                         tracing::warn!("[oauth-callback] PKCE exchange failed: {e}");
                     }
                 }
-                } // Ok(gotrue)
-            } // match GoTrueClient
-        } else {
-            tracing::warn!("[oauth-callback] no PKCE verifier stored — was the OAuth flow initiated from this server?");
+            }
         }
 
         // Still store code for legacy tauri-session polling
         set_pending_code(&code).await?;
 
-        if pkce_succeeded {
-            Ok(Html(callback_page(
-                "Signed In",
-                "Signed in!",
-                "You\u{2019}re all set! You can close this tab and return to OpenClaw Manager.",
-                false,
-            )))
-        } else {
-            tracing::error!("[oauth-callback] PKCE exchange failed — session NOT stored. Check SUPABASE_URL reachability and API key.");
-            Ok(Html(callback_page(
-                "Auth Error",
-                "Sign-in incomplete",
-                "GitHub authorized, but the app couldn\u{2019}t establish a session. Check that Supabase is reachable from this machine. See the app console for details.",
-                true,
-            )))
-        }
+        Ok(Html(callback_page(
+            "Signed In",
+            "Signed in!",
+            "You\u{2019}re all set! You can close this tab and return to OpenClaw Manager.",
+            false,
+        )))
     } else {
         Ok(Html(callback_page(
             "Error",
