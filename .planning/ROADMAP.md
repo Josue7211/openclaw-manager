@@ -253,7 +253,10 @@ Plans:
   4. User can spawn a new session with a task prompt and optional working directory
   5. User can pause, resume, or kill a running session
   6. Session list auto-updates via WebSocket (no polling)
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 16-01-PLAN.md -- Session types + query keys + module registration + useSessionOutput hook
+- [ ] 16-02-PLAN.md -- SessionsPage split-pane + SessionCard + SessionList + NewSessionForm + SessionOutputPanel + route registration
 
 ### Phase 17: Remote VM Viewer
 **Goal**: Embedded remote desktop viewer for watching the OpenClaw VM directly in the app
@@ -316,7 +319,7 @@ Plans:
 | 13. Terminal PTY Backend | v0.0.3 | 1/1 | Complete    | 2026-03-23 |
 | 14. Terminal Frontend (xterm.js) | v0.0.3 | 1/2 | Complete    | 2026-03-23 |
 | 15. Claude Code Session Backend | v0.0.3 | 0/1 | Complete    | 2026-03-23 |
-| 16. Session Monitor Frontend | v0.0.3 | 0/? | Not started | - |
+| 16. Session Monitor Frontend | v0.0.3 | 0/2 | Not started | - |
 | 17. Remote VM Viewer | v0.0.3 | 0/? | Not started | - |
 | 18. Widget Registry + Sidebar Integration | v0.0.3 | 0/? | Not started | - |
 | 19. Final Verification + Bundle Audit | v0.0.3 | 0/? | Not started | - |
