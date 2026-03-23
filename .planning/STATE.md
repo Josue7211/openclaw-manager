@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.0.3
 milestone_name: -- AI Ops Center + OpenClaw Controller + Polish
 status: unknown
-stopped_at: Completed 12-02-PLAN.md (verified and recovered from NFS corruption)
-last_updated: "2026-03-22T22:37:45.154Z"
+stopped_at: Completed 13-01-PLAN.md (terminal PTY backend)
+last_updated: "2026-03-23T00:30:00.000Z"
 progress:
   total_phases: 19
-  completed_phases: 8
-  total_plans: 11
-  completed_plans: 11
+  completed_phases: 9
+  total_plans: 13
+  completed_plans: 12
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 12 complete — unified OpenClaw page with 5 tabs shipped
+**Current focus:** Phase 14 — terminal-frontend-xterm-js
 
 ## Current Position
 
-Phase: 13
-Plan: Not started
+Phase: 13 (terminal-pty-backend) — COMPLETE
+Next: Phase 14 (terminal-frontend-xterm-js)
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Plan: Not started
 | Phase 11 P02 | 5min | 2 tasks | 5 files |
 | Phase 12 P01 | 4min | 2 tasks | 7 files |
 | Phase 12 P02 | 12min | 3 tasks | 9 files |
+| Phase 13 P01 | 15min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,9 @@ Recent decisions affecting current work:
 - [Phase 12]: Index signatures on TypeScript interfaces for forward-compatible unknown API shapes
 - [Phase 12]: Embedded sub-components (AgentList, WeekGrid) instead of importing full pages to avoid full-bleed layout conflicts
 - [Phase 12]: Replaced separate agents/crons module entries with single openclaw entry
+- [Phase 13]: Arc<Mutex<Option<PtyCleanup>>> for resize through master while keeping cleanup on Drop
+- [Phase 13]: OS threads for blocking PTY I/O bridged to async via tokio::sync::mpsc channels
+- [Phase 13]: Whitelist approach (env_clear + 22 safe vars) rather than blacklist for env sanitization
 
 ### Pending Todos
 
