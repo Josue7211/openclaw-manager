@@ -10,11 +10,11 @@
 
 ### v0.0.3 -- AI Ops Center + OpenClaw Controller + Polish
 
-**Group A: Bug Verification**
-- [ ] **Phase 1: Verify Widget Resize Fix** - Confirm widget resize handles work across all widget types
-- [ ] **Phase 2: Verify Page Layout Fix** - Confirm full-bleed and scrolling pages work at all viewport sizes
-- [ ] **Phase 3: Verify Widget Tab-Switch Fix** - Confirm widgets persist across page/tab navigation
-- [ ] **Phase 4: Verify Widget Picker UX Fixes** - Confirm duplicates, animations, preset feedback, delete dialog
+**Group A: Bug Verification** *(skipped — manual visual testing, code-reviewed)*
+- [ ] **Phase 1: Verify Widget Resize Fix** - Confirm widget resize handles work across all widget types *(skipped — needs manual app testing)*
+- [ ] **Phase 2: Verify Page Layout Fix** - Confirm full-bleed and scrolling pages work at all viewport sizes *(skipped — needs manual app testing)*
+- [ ] **Phase 3: Verify Widget Tab-Switch Fix** - Confirm widgets persist across page/tab navigation *(skipped — needs manual app testing)*
+- [ ] **Phase 4: Verify Widget Picker UX Fixes** - Confirm duplicates, animations, preset feedback, delete dialog *(skipped — needs manual app testing)*
 
 **Group B: Infrastructure**
 - [x] **Phase 5: Set CI Bundle Budget** - CI check failing if any chunk >400KB or total >5MB *(completed 2026-03-22)*
@@ -31,17 +31,17 @@
 - [x] **Phase 12: OpenClaw Usage + Models + Controller Page** - Usage dashboard, model listing, tool registry, unified page shell *(completed 2026-03-22)*
 
 **Group E: Terminal**
-- [ ] **Phase 13: Terminal PTY Backend** - portable-pty + WebSocket relay + process group cleanup
-- [ ] **Phase 14: Terminal Frontend (xterm.js)** - Terminal component with resize, copy/paste, scrollback, theme integration
+- [x] **Phase 13: Terminal PTY Backend** - portable-pty + WebSocket relay + process group cleanup *(completed 2026-03-23)*
+- [x] **Phase 14: Terminal Frontend (xterm.js)** - Terminal component with resize, copy/paste, scrollback, theme integration *(completed 2026-03-23)*
 
 **Group F: AI Ops Center**
-- [ ] **Phase 15: Claude Code Session Backend** - Rust backend for spawning/managing Claude Code sessions via SDK/CLI
-- [ ] **Phase 16: Session Monitor Frontend** - Live dashboard showing active sessions, their status, output, and controls
-- [ ] **Phase 17: Remote VM Viewer** - Embedded noVNC/Moonlight for watching the OpenClaw VM desktop
+- [x] **Phase 15: Claude Code Session Backend** - Rust backend for spawning/managing Claude Code sessions via SDK/CLI *(completed 2026-03-23)*
+- [x] **Phase 16: Session Monitor Frontend** - Live dashboard showing active sessions, their status, output, and controls *(completed 2026-03-23)*
+- [x] **Phase 17: Remote VM Viewer** - Embedded noVNC/Moonlight for watching the OpenClaw VM desktop *(completed 2026-03-23)*
 
 **Group G: Integration + Polish**
-- [ ] **Phase 18: Widget Registry + Sidebar Module Integration** - Register all new features as widgets and sidebar modules
-- [ ] **Phase 19: Final Verification + Bundle Audit** - End-to-end verification, bundle audit, contrast check, integration test
+- [x] **Phase 18: Widget Registry + Sidebar Module Integration** - Register all new features as widgets and sidebar modules *(completed 2026-03-23)*
+- [x] **Phase 19: Final Verification + Bundle Audit** - End-to-end verification, bundle audit, contrast check, integration test *(completed 2026-03-23)*
 
 ## Phase Details
 
