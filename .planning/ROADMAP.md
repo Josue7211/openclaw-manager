@@ -66,7 +66,11 @@
   11. Every page in the sidebar loads without errors
   12. koel.rs (music streaming route) committed if ready, or removed if not
   13. All navigation works — no 404s, no blank pages, no infinite loaders
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 19.1-01-PLAN.md -- UI cleanup: remove Chat Bjorn tab, fix Dashboard default layout, delete standalone Agents page
+- [ ] 19.1-02-PLAN.md -- Architecture correction: fix CLAUDE.md, replace noVNC with Moonlight status page, update modules
+- [ ] 19.1-03-PLAN.md -- Commit koel.rs, investigate ffir error, verify OpenClaw health check correctness
 
 ### Phase 1: Verify Widget Resize Fix
 **Goal**: Confirmed widget resize works across all widget types in dev and production
@@ -349,6 +353,7 @@ Plans:
 | 17. Remote VM Viewer | v0.0.3 | 1/2 | Complete    | 2026-03-23 |
 | 18. Widget Registry + Sidebar Integration | v0.0.3 | 0/? | Complete    | 2026-03-23 |
 | 19. Final Verification + Bundle Audit | v0.0.3 | 0/? | Not started | - |
+| 19.1. Post-Ship Bug Fixes | v0.0.3 | 0/3 | Not started | - |
 
 <details>
 <summary>Deferred from v0.0.3 to v0.0.4</summary>
