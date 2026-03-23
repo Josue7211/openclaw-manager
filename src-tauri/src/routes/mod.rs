@@ -9,6 +9,7 @@ pub mod cache;
 pub mod calendar;
 pub mod captures;
 pub mod changelog;
+pub mod claude_sessions;
 pub mod crons;
 pub mod chat;
 pub mod decisions;
@@ -88,6 +89,7 @@ pub fn router() -> Router<AppState> {
         .merge(status::router())
         .merge(todos::router())
         .merge(terminal::router())
+        .merge(claude_sessions::router())
         .merge(user_secrets::router())
         .merge(vault::router())
         .merge(wizard::router())
