@@ -10,8 +10,8 @@ import {
 import type { WidgetDefinition } from '../widget-registry'
 
 describe('BUILTIN_WIDGETS', () => {
-  it('has exactly 28 entries', () => {
-    expect(BUILTIN_WIDGETS).toHaveLength(28)
+  it('has exactly 30 entries', () => {
+    expect(BUILTIN_WIDGETS).toHaveLength(30)
   })
 
   it('contains all expected widget IDs', () => {
@@ -24,6 +24,7 @@ describe('BUILTIN_WIDGETS', () => {
     expect(ids).toContain('idea-briefing')
     expect(ids).toContain('network')
     expect(ids).toContain('sessions')
+    expect(ids).toContain('terminal')
   })
 
   it('each entry has all required fields', () => {
@@ -109,6 +110,25 @@ describe('getWidget', () => {
     expect(widget!.category).toBe('monitoring')
     expect(widget!.icon).toBe('Terminal')
   })
+
+  it('returns correct metadata for terminal', () => {
+    const widget = getWidget('terminal')
+    expect(widget).toBeDefined()
+    expect(widget!.id).toBe('terminal')
+    expect(widget!.category).toBe('monitoring')
+    expect(widget!.icon).toBe('Terminal')
+    expect(widget!.tier).toBe('builtin')
+    expect(widget!.defaultSize).toEqual({ w: 4, h: 5 })
+    expect(widget!.minSize).toEqual({ w: 2, h: 3 })
+    expect(widget!.maxSize).toEqual({ w: 12, h: 10 })
+    expect(widget!.configSchema).toBeDefined()
+    expect(widget!.configSchema!.fields).toHaveLength(1)
+    expect(widget!.configSchema!.fields[0].key).toBe('fontSize')
+    expect(widget!.configSchema!.fields[0].type).toBe('slider')
+    expect(widget!.configSchema!.fields[0].default).toBe(13)
+    expect(widget!.configSchema!.fields[0].min).toBe(10)
+    expect(widget!.configSchema!.fields[0].max).toBe(18)
+  })
 })
 
 describe('getWidgetsByCategory', () => {
@@ -181,7 +201,7 @@ describe('getWidgetBundles', () => {
     const bundles = getWidgetBundles()
     const mediaSuite = bundles.find(b => b.name === 'Media Suite')
     expect(mediaSuite).toBeDefined()
-    expect(mediaSuite!.widgetIds).toEqual(['now-playing', 'upcoming-media'])
+    expect(mediaSuite!.widgetIds).toEqual(['now-playing', 'music-now-playing', 'upcoming-media'])
   })
 })
 
@@ -250,7 +270,7 @@ describe('getWidgetPresets', () => {
     const presets = getWidgetPresets()
     const media = presets.find(p => p.id === 'media-center')
     expect(media).toBeDefined()
-    expect(media!.widgets).toHaveLength(3)
+    expect(media!.widgets).toHaveLength(4)
   })
 })
 

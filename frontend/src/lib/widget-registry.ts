@@ -489,6 +489,30 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     minSize: { w: 1, h: 2 },
     component: () => import('@/components/widgets/SystemInfoWidget').then(m => ({ default: m.SystemInfoWidget })),
   },
+  {
+    id: 'terminal',
+    name: 'Terminal',
+    description: 'Interactive terminal session',
+    icon: 'Terminal',
+    category: 'monitoring',
+    tier: 'builtin',
+    defaultSize: { w: 4, h: 5 },
+    minSize: { w: 2, h: 3 },
+    maxSize: { w: 12, h: 10 },
+    configSchema: {
+      fields: [
+        {
+          key: 'fontSize',
+          label: 'Font size',
+          type: 'slider',
+          default: 13,
+          min: 10,
+          max: 18,
+        },
+      ],
+    },
+    component: () => import('@/components/widgets/TerminalWidget').then(m => ({ default: m.TerminalWidget })),
+  },
 ]
 
 // ---------------------------------------------------------------------------
