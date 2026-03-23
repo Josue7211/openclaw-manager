@@ -23,6 +23,7 @@ vi.mock('../nav-items', () => ({
     { href: '/memory', label: 'Memory', icon: Stub, moduleId: 'memory' },
     { href: '/pipeline', label: 'Pipeline', icon: Stub, moduleId: 'pipeline' },
     { href: '/knowledge', label: 'Knowledge', icon: Stub, moduleId: 'knowledge' },
+    { href: '/sessions', label: 'Sessions', icon: Stub, moduleId: 'sessions' },
   ],
   allNavItems: [
     { href: '/', label: 'Home', icon: Stub },
@@ -42,6 +43,7 @@ vi.mock('../nav-items', () => ({
     { href: '/memory', label: 'Memory', icon: Stub, moduleId: 'memory' },
     { href: '/pipeline', label: 'Pipeline', icon: Stub, moduleId: 'pipeline' },
     { href: '/knowledge', label: 'Knowledge', icon: Stub, moduleId: 'knowledge' },
+    { href: '/sessions', label: 'Sessions', icon: Stub, moduleId: 'sessions' },
     { href: '/settings', label: 'Settings', icon: Stub },
   ],
   navItemsByHref: new Map([
@@ -62,6 +64,7 @@ vi.mock('../nav-items', () => ({
     ['/memory', { href: '/memory', label: 'Memory', icon: Stub, moduleId: 'memory' }],
     ['/pipeline', { href: '/pipeline', label: 'Pipeline', icon: Stub, moduleId: 'pipeline' }],
     ['/knowledge', { href: '/knowledge', label: 'Knowledge', icon: Stub, moduleId: 'knowledge' }],
+    ['/sessions', { href: '/sessions', label: 'Sessions', icon: Stub, moduleId: 'sessions' }],
     ['/settings', { href: '/settings', label: 'Settings', icon: Stub }],
   ]),
 }))
