@@ -609,7 +609,7 @@ async fn openclaw_chat_send(
         }
     };
 
-    let model_value = model.unwrap_or("default");
+    let model_value = model.unwrap_or("qwen");
     let mut messages = vec![json!({"role": "user", "content": message})];
     messages.insert(0, json!({"role": "system", "content": SYSTEM_PROMPT}));
 

@@ -24,8 +24,11 @@ export function useChatState() {
   const [systemMsg, setSystemMsg] = useState<string | null>(null)
   const [notConfigured, setNotConfigured] = useState(false)
   const [historyError, setHistoryError] = useState<string | null>(null)
-  const [model, setModelLocal] = useLocalStorageState('chat-model', '')
+  const [model, setModelLocal] = useLocalStorageState('chat-model', 'qwen')
   // System prompt is now server-side only (security: prevents prompt injection from frontend)
+
+  // Preferred model order: qwen (local/free) > haiku (cheap) — never default to sonnet
+  const PREFERRED_MODELS = ['qwen', 'haiku']
 
   // Fetch available models from OpenClaw
   const { data: modelsData } = useQuery<ModelsResponse>({
@@ -35,12 +38,47 @@ export function useChatState() {
     staleTime: 30_000,
   })
 
-  // Always sync model from the live session — reflects what the agent is actually running
+  // Pick the best available model from the preferred list, or fall back to first available.
+  // Only auto-switch when the current model isn't an exact match in the available list.
+  // If the user explicitly picked a model that IS available, respect that choice.
+  const modelSyncedRef = useRef(false)
   useEffect(() => {
-    if (modelsData?.currentModel) {
-      setModelLocal(modelsData.currentModel)
+    if (!modelsData?.models?.length) return
+
+    const availableIds = modelsData.models.map(m => m.id)
+    const isExactMatch = availableIds.includes(model)
+
+    // Current model is an exact match in the available list — keep it
+    if (isExactMatch) {
+      // On first sync, if server is running a different model, tell it to switch
+      if (!modelSyncedRef.current && modelsData.currentModel !== model) {
+        modelSyncedRef.current = true
+        api.post('/api/chat/model', { model }).catch(() => {})
+      }
+      return
     }
-  }, [modelsData?.currentModel, setModelLocal])
+
+    // Current model is not an exact match — resolve to the best available model.
+    // Check preferred models first (qwen, haiku), using substring match on IDs.
+    for (const pref of PREFERRED_MODELS) {
+      const match = availableIds.find(a => a.includes(pref))
+      if (match) {
+        setModelLocal(match)
+        modelSyncedRef.current = true
+        api.post('/api/chat/model', { model: match }).catch(() => {})
+        return
+      }
+    }
+
+    // None of the preferred models available — use whatever the server says, or first available
+    const fallback = modelsData.currentModel && availableIds.includes(modelsData.currentModel)
+      ? modelsData.currentModel
+      : availableIds[0]
+    if (fallback) {
+      setModelLocal(fallback)
+      modelSyncedRef.current = true
+    }
+  }, [modelsData, model, setModelLocal])
 
   // When user switches model, call the API to actually change it
   const setModel = useCallback((newModel: string) => {

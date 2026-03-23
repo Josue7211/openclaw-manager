@@ -17,7 +17,7 @@ export function useRemindersWidget() {
   const _demo = isDemoMode()
   const queryClient = useQueryClient()
 
-  const { data, isSuccess } = useQuery<{ reminders?: Reminder[] }>({
+  const { data, isSuccess, isError } = useQuery<{ reminders?: Reminder[] }>({
     queryKey: REMINDERS_KEY,
     queryFn: () => api.get<{ reminders?: Reminder[] }>('/api/reminders'),
     enabled: !_demo,
@@ -70,6 +70,7 @@ export function useRemindersWidget() {
     todayReminders,
     pendingCount,
     toggleReminder,
-    mounted: _demo || isSuccess,
+    mounted: _demo || isSuccess || isError,
+    isError,
   }
 }
