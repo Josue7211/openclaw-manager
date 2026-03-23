@@ -269,11 +269,8 @@ let _isDemoMode: boolean | null = null
 
 export function isDemoMode(): boolean {
   if (_isDemoMode !== null) return _isDemoMode
-  // Demo mode when:
-  // 1. No backend database configured (VITE_SUPABASE_URL absent), OR
-  // 2. Dev mode without Tauri backend (browser-only `npm run dev`)
-  const noSupabase = !import.meta.env.VITE_SUPABASE_URL
-  const devNoTauri = import.meta.env.DEV && !(window as Record<string, unknown>).__TAURI_INTERNALS__
-  _isDemoMode = noSupabase || devNoTauri
+  // Demo mode ONLY when no backend database is configured.
+  // User explicitly chooses demo via "Try Demo" button.
+  _isDemoMode = !import.meta.env.VITE_SUPABASE_URL
   return _isDemoMode
 }
