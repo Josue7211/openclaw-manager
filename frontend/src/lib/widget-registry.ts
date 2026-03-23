@@ -513,6 +513,28 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     },
     component: () => import('@/components/widgets/TerminalWidget').then(m => ({ default: m.TerminalWidget })),
   },
+  {
+    id: 'claude-sessions',
+    name: 'Claude Sessions',
+    description: 'Active Claude Code sessions overview',
+    icon: 'Robot',
+    category: 'ai',
+    tier: 'builtin',
+    defaultSize: { w: 3, h: 3 },
+    minSize: { w: 2, h: 2 },
+    component: () => import('@/components/widgets/ClaudeSessionsWidget').then(m => ({ default: m.ClaudeSessionsWidget })),
+  },
+  {
+    id: 'vnc-viewer',
+    name: 'Remote Viewer',
+    description: 'OpenClaw VM remote desktop preview',
+    icon: 'Monitor',
+    category: 'ai',
+    tier: 'builtin',
+    defaultSize: { w: 3, h: 3 },
+    minSize: { w: 2, h: 2 },
+    component: () => import('@/components/widgets/VncPreviewWidget').then(m => ({ default: m.VncPreviewWidget })),
+  },
 ]
 
 // ---------------------------------------------------------------------------
