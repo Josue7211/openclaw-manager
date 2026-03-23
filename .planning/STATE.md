@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.0.3
 milestone_name: -- AI Ops Center + OpenClaw Controller + Polish
 status: unknown
-stopped_at: Completed 15-01-PLAN.md
-last_updated: "2026-03-23T06:45:40.311Z"
+stopped_at: Completed 16-01-PLAN.md
+last_updated: "2026-03-23T07:04:43.468Z"
 progress:
   total_phases: 19
   completed_phases: 11
-  total_plans: 15
-  completed_plans: 15
+  total_plans: 17
+  completed_plans: 16
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 15 — claude-code-session-backend
+**Current focus:** Phase 16 — session-monitor-frontend
 
 ## Current Position
 
-Phase: 16
-Plan: Not started
+Phase: 16 (session-monitor-frontend) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Plan: Not started
 | Phase 14 P01 | 5min | 2 tasks | 8 files |
 | Phase 14 P02 | 6min | 1 task | 2 files |
 | Phase 15 P01 | 15min | 2 tasks | 2 files |
+| Phase 16 P01 | 2min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,9 @@ Recent decisions affecting current work:
 - [Phase 15]: Filter sessions by kind=claude-code OR agentId presence for flexible Claude Code detection
 - [Phase 15]: Bare Response return for WebSocket upgrade handler (not Result<Response, AppError>) -- matches terminal.rs
 - [Phase 15]: tokio::spawn for both WS relay directions with tokio::select! for clean shutdown
+- [Phase 16]: useSessionOutput adapts useTerminal pattern with disableStdin and no input forwarding
+- [Phase 16]: scrollback 5000 (vs 1000 in useTerminal) for longer session output history
+- [Phase 16]: No pre-flight capacity check -- session WebSocket guard handles rejection at upgrade time
 
 ### Pending Todos
 
@@ -109,6 +113,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-23T06:28:00.000Z
-Stopped at: Completed 15-01-PLAN.md
+Last session: 2026-03-23T07:02:19Z
+Stopped at: Completed 16-01-PLAN.md
 Resume file: None
