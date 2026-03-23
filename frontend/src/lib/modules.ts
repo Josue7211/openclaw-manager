@@ -25,6 +25,7 @@ export const APP_MODULES: AppModule[] = [
   { id: 'pipeline', name: 'Pipeline', description: 'Code review pipeline', icon: 'GitBranch', route: '/pipeline' },
   { id: 'knowledge', name: 'Knowledge', description: 'Documentation', icon: 'BookOpen', route: '/knowledge' },
   { id: 'notes', name: 'Notes', description: 'Personal notes', icon: 'FileText', route: '/notes' },
+  { id: 'sessions', name: 'Sessions', description: 'Claude Code session monitor', icon: 'Terminal', route: '/sessions', requiresConfig: ['OPENCLAW_API_URL'] },
 ]
 
 const STORAGE_KEY = 'enabled-modules'
