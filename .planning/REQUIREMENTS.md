@@ -148,7 +148,7 @@ View revision history for a note using CouchDB revisions. Diff view showing chan
 | MH-24 | Phase 19 | Pending |
 | MH-25 | Phase 15 | Complete |
 | MH-26 | Phase 16 | Complete |
-| MH-27 | Phase 17 | Pending |
+| MH-27 | Phase 17 | Complete |
 | SH-01 | Phase 12 | Pending |
 
 ## Success Criteria (Milestone-Level)

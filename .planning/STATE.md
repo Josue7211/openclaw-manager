@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.0.3
 milestone_name: -- AI Ops Center + OpenClaw Controller + Polish
-status: unknown
-stopped_at: Completed 17-01-PLAN.md
-last_updated: "2026-03-23T07:37:35.746Z"
+status: executing
+stopped_at: Completed 17-02-PLAN.md
+last_updated: "2026-03-23T07:50:00.421Z"
 progress:
   total_phases: 19
-  completed_phases: 12
+  completed_phases: 13
   total_plans: 19
-  completed_plans: 18
+  completed_plans: 19
 ---
 
 # Project State
@@ -55,6 +55,7 @@ Plan: 2 of 2
 | Phase 16 P01 | 2min | 2 tasks | 4 files |
 | Phase 16 P02 | 9min | 3 tasks | 8 files |
 | Phase 17 P01 | 5min | 2 tasks | 10 files |
+| Phase 17 P02 | 3min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,8 @@ Recent decisions affecting current work:
 - [Phase 17]: Max 2 concurrent VNC sessions via CAS guard -- heavyweight binary streams
 - [Phase 17]: 5-second TCP connect timeout for fail-fast VNC server unreachable detection
 - [Phase 17]: Direct noVNC RFB usage (not react-vnc wrapper) per research decision
+- [Phase 17]: Custom event (vnc-toolbar-show) for parent-to-child toolbar visibility
+- [Phase 17]: No page header for /remote -- VNC toolbar provides all controls, maximizing screen real estate
 
 ### Pending Todos
 
@@ -123,6 +126,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-23T07:43:30Z
-Stopped at: Completed 17-01-PLAN.md
+Last session: 2026-03-23T07:50:00.416Z
+Stopped at: Completed 17-02-PLAN.md
 Resume file: None
