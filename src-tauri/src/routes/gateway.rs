@@ -168,35 +168,58 @@ pub(crate) async fn gateway_forward(
 /// `GET /api/openclaw/health`
 ///
 /// Returns HTTP 200 always. The `ok` field indicates connectivity:
-/// - `{ "ok": false, "status": "not_configured" }` — no OPENCLAW_API_URL set
-/// - `{ "ok": true,  "status": "connected" }`      — upstream /health returned 2xx
-/// - `{ "ok": false, "status": "unreachable" }`     — upstream unreachable or non-2xx
+/// - `{ "ok": false, "status": "not_configured" }` — neither OPENCLAW_API_URL nor OPENCLAW_WS set
+/// - `{ "ok": true,  "status": "connected" }`      — gateway or workspace API reachable
+/// - `{ "ok": false, "status": "unreachable" }`     — both unreachable
+///
+/// Checks both the gateway (OPENCLAW_WS converted to HTTP) and workspace API (OPENCLAW_API_URL).
 async fn openclaw_health(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let base = match openclaw_api_url(&state) {
-        Some(b) => b,
-        None => {
-            return Ok(Json(
-                json!({"ok": false, "status": "not_configured"}),
-            ));
-        }
-    };
+    let api_url = openclaw_api_url(&state);
+    let ws_url = state.secret("OPENCLAW_WS").filter(|s| !s.is_empty());
 
-    let url = format!("{base}/health");
-    match state
-        .http
-        .get(&url)
-        .timeout(Duration::from_secs(5))
-        .send()
-        .await
-    {
-        Ok(r) if r.status().is_success() => {
-            Ok(Json(json!({"ok": true, "status": "connected"})))
-        }
-        _ => Ok(Json(json!({"ok": false, "status": "unreachable"}))),
+    if api_url.is_none() && ws_url.is_none() {
+        return Ok(Json(json!({"ok": false, "status": "not_configured"})));
     }
+
+    // Try gateway health first (ws:// → http://, wss:// → https://)
+    if let Some(ws) = &ws_url {
+        let http_url = ws
+            .replace("ws://", "http://")
+            .replace("wss://", "https://");
+        let url = format!("{http_url}/health");
+        if let Ok(r) = state
+            .http
+            .get(&url)
+            .timeout(Duration::from_secs(5))
+            .send()
+            .await
+        {
+            if r.status().is_success() {
+                return Ok(Json(json!({"ok": true, "status": "connected", "gateway": true})));
+            }
+        }
+    }
+
+    // Fallback: try workspace API health
+    if let Some(base) = &api_url {
+        let url = format!("{base}/health");
+        if let Ok(r) = state
+            .http
+            .get(&url)
+            .timeout(Duration::from_secs(5))
+            .send()
+            .await
+        {
+            if r.status().is_success() {
+                return Ok(Json(json!({"ok": true, "status": "connected", "gateway": false})));
+            }
+        }
+    }
+
+    Ok(Json(json!({"ok": false, "status": "unreachable"})))
 }
 
 // ── Router ──────────────────────────────────────────────────────────────────
