@@ -43,7 +43,23 @@
 - [x] **Phase 18: Widget Registry + Sidebar Module Integration** - Register all new features as widgets and sidebar modules *(completed 2026-03-23)*
 - [x] **Phase 19: Final Verification + Bundle Audit** - End-to-end verification, bundle audit, contrast check, integration test *(completed 2026-03-23)*
 
+**Group H: Post-Ship Bug Fixes**
+- [ ] **Phase 19.1: Post-Ship Bug Fixes** - Fix all broken pages found during manual testing
+
 ## Phase Details
+
+### Phase 19.1: Post-Ship Bug Fixes
+**Goal**: Fix all broken pages: ffir error, Bjorn tab, dashboard widgets, OpenClaw not-configured, agent list empty
+**Depends on**: Phase 19
+**Requirements**: Post-ship QA
+**Success Criteria** (what must be TRUE):
+  1. No "Executable not found: ffir" error toast on any page
+  2. Chat page has NO "Bjorn" tab — Chat IS Bjorn, one tab only
+  3. Dashboard shows all default widgets (not just one)
+  4. OpenClaw Agents tab shows all agents (not empty/loading forever)
+  5. OpenClaw Models/Usage/Tools tabs work when OPENCLAW_API_URL is configured (no false "not configured" message)
+  6. Every page in the sidebar loads without errors (verified with agent-browser)
+**Plans**: TBD
 
 ### Phase 1: Verify Widget Resize Fix
 **Goal**: Confirmed widget resize works across all widget types in dev and production
