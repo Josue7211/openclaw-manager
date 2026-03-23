@@ -37,6 +37,7 @@ pub mod reviews;
 pub mod search;
 pub mod stale;
 pub mod status;
+pub mod terminal;
 pub mod todos;
 pub mod user_secrets;
 pub mod util;
@@ -86,6 +87,7 @@ pub fn router() -> Router<AppState> {
         .merge(stale::router())
         .merge(status::router())
         .merge(todos::router())
+        .merge(terminal::router())
         .merge(user_secrets::router())
         .merge(vault::router())
         .merge(wizard::router())
