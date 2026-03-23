@@ -2,6 +2,9 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 
 interface VncToolbarProps {
   connected: boolean
+  isConnecting?: boolean
+  externalShow?: boolean
+  onVisibilityChange?: (visible: boolean) => void
   onDisconnect: () => void
   onReconnect: () => void
   onPasteClipboard: () => void
@@ -20,6 +23,9 @@ const QUALITY_OPTIONS = [
 
 export function VncToolbar({
   connected,
+  isConnecting,
+  externalShow,
+  onVisibilityChange,
   onDisconnect,
   onReconnect,
   onPasteClipboard,
@@ -47,16 +53,15 @@ export function VncToolbar({
 
   // Expose show/resetTimer for parent mouse handler
   useEffect(() => {
-    const handler = () => {
+    if (externalShow) {
       setVisible(true)
       resetHideTimer()
+      onVisibilityChange?.(false)
     }
-    window.addEventListener('vnc-toolbar-show', handler)
-    return () => window.removeEventListener('vnc-toolbar-show', handler)
-  }, [resetHideTimer])
+  }, [externalShow, resetHideTimer, onVisibilityChange])
 
   // Status dot color
-  const statusColor = connected ? 'var(--green-400)' : 'var(--red-500)'
+  const statusColor = connected ? 'var(--green-400)' : isConnecting ? 'var(--amber)' : 'var(--red-500)'
   const statusLabel = connected ? 'Connected' : 'Disconnected'
 
   return (

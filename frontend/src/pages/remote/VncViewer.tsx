@@ -42,11 +42,13 @@ export function VncViewer({ quality: initialQuality, compression: initialCompres
     }
   }, [])
 
+  const [toolbarVisible, setToolbarVisible] = useState(false)
+
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const relativeY = e.clientY - rect.top
     if (relativeY < 60) {
-      window.dispatchEvent(new Event('vnc-toolbar-show'))
+      setToolbarVisible(true)
     }
   }, [])
 
@@ -78,6 +80,9 @@ export function VncViewer({ quality: initialQuality, compression: initialCompres
       {/* Floating toolbar */}
       <VncToolbar
         connected={connected}
+        isConnecting={isConnecting}
+        externalShow={toolbarVisible}
+        onVisibilityChange={setToolbarVisible}
         onDisconnect={disconnect}
         onReconnect={reconnect}
         onPasteClipboard={handlePasteClipboard}
