@@ -34,6 +34,7 @@ const Pipeline = lazy(() => import('./pages/Pipeline'))
 const KnowledgeBase = lazy(() => import('./pages/KnowledgeBase'))
 const Notes = lazy(() => import('./pages/notes/Notes'))
 const Sessions = lazy(() => import('./pages/sessions/SessionsPage'))
+const RemoteViewer = lazy(() => import('./pages/remote/RemotePage'))
 const Ideas = lazy(() => import('./pages/Ideas'))
 const Capture = lazy(() => import('./pages/Capture'))
 const Settings = lazy(() => import('./pages/Settings'))
@@ -301,6 +302,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/knowledge" element={<Suspense fallback={<GenericPageSkeleton />}><KnowledgeBase /></Suspense>} />
             <Route path="/notes" element={<Suspense fallback={<GenericPageSkeleton />}><Notes /></Suspense>} />
             <Route path="/sessions" element={<Suspense fallback={<GenericPageSkeleton />}><Sessions /></Suspense>} />
+            <Route path="/remote" element={<Suspense fallback={<GenericPageSkeleton />}><RemoteViewer /></Suspense>} />
             <Route path="/ideas" element={<Suspense fallback={<GenericPageSkeleton />}><Ideas /></Suspense>} />
             <Route path="/capture" element={<Suspense fallback={<GenericPageSkeleton />}><Capture /></Suspense>} />
             <Route path="/settings" element={<Suspense fallback={<SettingsSkeleton />}><Settings /></Suspense>} />
