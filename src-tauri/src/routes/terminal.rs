@@ -410,11 +410,29 @@ async fn handle_terminal_ws(socket: WebSocket, _guard: PtyConnectionGuard) {
 }
 
 // ---------------------------------------------------------------------------
+// Status endpoint (pre-flight capacity check)
+// ---------------------------------------------------------------------------
+
+async fn terminal_status(
+    RequireAuth(_session): RequireAuth,
+) -> Json<serde_json::Value> {
+    let active = PTY_CONNECTIONS.load(Ordering::Acquire);
+    let available = MAX_PTY_CONNECTIONS.saturating_sub(active);
+    Json(json!({
+        "active": active,
+        "max": MAX_PTY_CONNECTIONS,
+        "available": available,
+    }))
+}
+
+// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/api/terminal/ws", get(ws_upgrade))
+    Router::new()
+        .route("/api/terminal/ws", get(ws_upgrade))
+        .route("/api/terminal/status", get(terminal_status))
 }
 
 // ---------------------------------------------------------------------------
@@ -525,6 +543,56 @@ mod tests {
             0,
             "counter should be 0 after dropping all guards"
         );
+    }
+
+    #[test]
+    fn test_terminal_status_response_shape() {
+        // Reset counter
+        PTY_CONNECTIONS.store(0, Ordering::SeqCst);
+
+        // At 0 connections: active=0, max=3, available=3
+        let active = PTY_CONNECTIONS.load(Ordering::Acquire);
+        let available = MAX_PTY_CONNECTIONS.saturating_sub(active);
+        let response = json!({
+            "active": active,
+            "max": MAX_PTY_CONNECTIONS,
+            "available": available,
+        });
+
+        assert_eq!(response["active"], 0);
+        assert_eq!(response["max"], 3);
+        assert_eq!(response["available"], 3);
+
+        // Simulate 2 connections
+        PTY_CONNECTIONS.store(2, Ordering::SeqCst);
+        let active = PTY_CONNECTIONS.load(Ordering::Acquire);
+        let available = MAX_PTY_CONNECTIONS.saturating_sub(active);
+        let response = json!({
+            "active": active,
+            "max": MAX_PTY_CONNECTIONS,
+            "available": available,
+        });
+
+        assert_eq!(response["active"], 2);
+        assert_eq!(response["max"], 3);
+        assert_eq!(response["available"], 1);
+
+        // Simulate full capacity
+        PTY_CONNECTIONS.store(3, Ordering::SeqCst);
+        let active = PTY_CONNECTIONS.load(Ordering::Acquire);
+        let available = MAX_PTY_CONNECTIONS.saturating_sub(active);
+        let response = json!({
+            "active": active,
+            "max": MAX_PTY_CONNECTIONS,
+            "available": available,
+        });
+
+        assert_eq!(response["active"], 3);
+        assert_eq!(response["max"], 3);
+        assert_eq!(response["available"], 0);
+
+        // Clean up
+        PTY_CONNECTIONS.store(0, Ordering::SeqCst);
     }
 
     #[test]
