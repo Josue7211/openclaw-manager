@@ -221,9 +221,10 @@ Plans:
   3. Copy/paste works (Ctrl+Shift+C/V, not Ctrl+C which is SIGINT)
   4. Scrollback buffer allows scrolling through previous output
   5. Terminal font uses the app's monospace CSS variable
-**Plans:** 1 plan
+**Plans:** 2 plans
 Plans:
 - [ ] 14-01-PLAN.md -- xterm.js packages + theme utility + useTerminal hook + TerminalWidget + widget registration
+- [ ] 14-02-PLAN.md -- Gap closure: terminal capacity pre-flight check + status endpoint
 
 ### Phase 15: Claude Code Session Backend
 **Goal**: Rust backend for monitoring and controlling Gunther (Claude Code) sessions running on the OpenClaw VM
@@ -311,7 +312,7 @@ Plans:
 | 11. OpenClaw Cron CRUD | v0.0.3 | 0/2 | Complete    | 2026-03-22 |
 | 12. OpenClaw Usage + Models + Controller Page | v0.0.3 | 1/2 | Complete    | 2026-03-22 |
 | 13. Terminal PTY Backend | v0.0.3 | 1/1 | Complete   | 2026-03-23 |
-| 14. Terminal Frontend (xterm.js) | v0.0.3 | 0/1 | Not started | - |
+| 14. Terminal Frontend (xterm.js) | v0.0.3 | 1/2 | In progress | - |
 | 15. Claude Code Session Backend | v0.0.3 | 0/? | Not started | - |
 | 16. Session Monitor Frontend | v0.0.3 | 0/? | Not started | - |
 | 17. Remote VM Viewer | v0.0.3 | 0/? | Not started | - |
