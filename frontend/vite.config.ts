@@ -19,6 +19,7 @@ export default defineConfig({
           if (id.includes('node_modules/lucide-react')) return 'icons'
           if (id.includes('node_modules/@phosphor-icons')) return 'phosphor-icons'
           if (id.includes('node_modules/@xterm')) return 'xterm'
+          if (id.includes('node_modules/@novnc')) return 'novnc'
         },
       },
     },
