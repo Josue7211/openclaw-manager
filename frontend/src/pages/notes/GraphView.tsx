@@ -53,6 +53,29 @@ function buildGraphData(notes: VaultNote[], selectedId: string | null): GraphDat
   return { nodes, links }
 }
 
+/** Resolve a CSS variable to its computed value for Canvas API use. */
+function cssVar(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+}
+
+/** Cache resolved CSS vars per paint cycle to avoid repeated getComputedStyle calls. */
+function resolveCanvasColors() {
+  return {
+    accentA30: cssVar('--accent-a30') || 'rgba(167, 139, 250, 0.3)',
+    accentA15: cssVar('--accent-a15') || 'rgba(167, 139, 250, 0.15)',
+    accentA40: cssVar('--accent-a40') || 'rgba(167, 139, 250, 0.4)',
+    accentDim: cssVar('--accent-dim') || 'rgba(167, 139, 250, 0.15)',
+    accent: cssVar('--accent') || '#a78bfa',
+    accentSolid: cssVar('--accent-solid') || '#7c3aed',
+    accentBright: cssVar('--accent-bright') || '#c4b5fd',
+    bgWhite12: cssVar('--bg-white-12') || 'rgba(255,255,255,0.12)',
+    bgWhite15: cssVar('--bg-white-15') || 'rgba(255,255,255,0.15)',
+    bgWhite60: cssVar('--bg-white-60') || 'rgba(255,255,255,0.6)',
+    overlayHeavy: cssVar('--overlay-heavy') || 'rgba(0,0,0,0.6)',
+    activeBg: cssVar('--active-bg') || 'rgba(255,255,255,0.06)',
+  }
+}
+
 export default memo(function GraphView({ notes, selectedId, onSelectNote }: GraphViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const graphRef = useRef<any>(null)
@@ -68,6 +91,7 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
 
   const nodeCanvasObject = useCallback(
     (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      const c = resolveCanvasColors()
       const isSelected = node.id === selectedId
       const isConnected = selectedId
         ? graphData.links.some(
@@ -87,10 +111,10 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
       if (isSelected || isConnected) {
         const gradient = ctx.createRadialGradient(x, y, 0, x, y, baseRadius * 4)
         if (isSelected) {
-          gradient.addColorStop(0, 'var(--accent-a30)')
+          gradient.addColorStop(0, c.accentA30)
           gradient.addColorStop(1, 'transparent')
         } else {
-          gradient.addColorStop(0, 'var(--accent-a15)')
+          gradient.addColorStop(0, c.accentA15)
           gradient.addColorStop(1, 'transparent')
         }
         ctx.beginPath()
@@ -104,20 +128,20 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
       ctx.arc(x, y, baseRadius, 0, Math.PI * 2)
 
       if (isSelected) {
-        ctx.fillStyle = 'var(--accent-dim)'
-        ctx.strokeStyle = 'var(--accent)'
+        ctx.fillStyle = c.accentDim
+        ctx.strokeStyle = c.accent
         ctx.lineWidth = 1.5
       } else if (isConnected) {
-        ctx.fillStyle = 'var(--accent-dim)'
-        ctx.strokeStyle = 'var(--accent-solid)'
+        ctx.fillStyle = c.accentDim
+        ctx.strokeStyle = c.accentSolid
         ctx.lineWidth = 1
       } else if (node.links === 0) {
-        ctx.fillStyle = 'var(--bg-white-12)'
-        ctx.strokeStyle = 'var(--bg-white-15)'
+        ctx.fillStyle = c.bgWhite12
+        ctx.strokeStyle = c.bgWhite15
         ctx.lineWidth = 0.5
       } else {
-        ctx.fillStyle = 'var(--accent-a40)'
-        ctx.strokeStyle = 'var(--accent-a40)'
+        ctx.fillStyle = c.accentA40
+        ctx.strokeStyle = c.accentA40
         ctx.lineWidth = 0.8
       }
 
@@ -135,14 +159,14 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
         const label = node.title.length > 24 ? node.title.slice(0, 22) + '…' : node.title
 
         // Text shadow for readability
-        ctx.fillStyle = 'var(--overlay-heavy)'
+        ctx.fillStyle = c.overlayHeavy
         ctx.fillText(label, x + 0.3, y + baseRadius + 3.3)
 
         ctx.fillStyle = isSelected
-          ? 'var(--accent-bright)'
+          ? c.accentBright
           : isConnected
-            ? 'var(--accent-bright)'
-            : 'var(--bg-white-60)'
+            ? c.accentBright
+            : c.bgWhite60
         ctx.fillText(label, x, y + baseRadius + 3)
       }
     },
@@ -151,12 +175,13 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
 
   const linkColor = useCallback(
     (link: any) => {
+      const c = resolveCanvasColors()
       const sourceId = link.source?.id ?? link.source
       const targetId = link.target?.id ?? link.target
       if (sourceId === selectedId || targetId === selectedId) {
-        return 'var(--accent-a40)'
+        return c.accentA40
       }
-      return 'var(--active-bg)'
+      return c.activeBg
     },
     [selectedId],
   )

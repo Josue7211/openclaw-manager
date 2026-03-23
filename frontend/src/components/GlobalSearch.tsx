@@ -214,7 +214,7 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
         <div
           id={LISTBOX_ID}
           role="listbox"
-          aria-label="MagnifyingGlass results"
+          aria-label="Search results"
           aria-live="polite"
           aria-busy={loading}
           style={{ overflowY: 'auto', flex: 1 }}
@@ -291,7 +291,7 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
     return (
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
         <button
-          aria-label="MagnifyingGlass"
+          aria-label="Search"
           className="hover-bg"
           data-tour="command-palette"
           onClick={() => {
@@ -343,7 +343,7 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
             <MagnifyingGlass size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
             {(() => {
               // Typewriter placeholder with blinking cursor
-              const fullText = 'MagnifyingGlass'
+              const fullText = 'Search'
               const charW = 8
               const textAvail = Math.max(0, (sidebarWidth || 200) - 58)
               const charsVisible = Math.min(fullText.length, Math.floor(textAvail / charW))
@@ -360,7 +360,7 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
                     onFocus={() => setFocused(true)}
                     onBlur={() => setFocused(false)}
                     placeholder=""
-                    aria-label="MagnifyingGlass"
+                    aria-label="Search"
                     role="combobox"
                     aria-expanded={open}
                     aria-controls={LISTBOX_ID}
@@ -424,8 +424,8 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
             value={query}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            placeholder="MagnifyingGlass..."
-            aria-label="MagnifyingGlass"
+            placeholder="Search..."
+            aria-label="Search"
             role="combobox"
             aria-expanded={open}
             aria-controls={LISTBOX_ID}

@@ -285,8 +285,8 @@ export default function FileTree({
           <input
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="MagnifyingGlass notes..."
-            aria-label="MagnifyingGlass notes"
+            placeholder="Search notes..."
+            aria-label="Search notes"
             style={{
               background: 'transparent',
               border: 'none',

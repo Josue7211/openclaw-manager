@@ -46,31 +46,65 @@
 **Group H: Post-Ship Bug Fixes**
 - [ ] **Phase 19.1: Post-Ship Bug Fixes** - Fix all broken pages found during manual testing
 
-**Group I: User Testing Round 2 — Critical Bugs**
-- [ ] **Phase 20: Fix Notes Page Crash** - Canvas gradient uses CSS var, resolve to actual color
-- [ ] **Phase 21: Fix OpenClaw Models/Usage/Tools Tabs** - Scrape gateway API, wire up all 3 tabs with real data
-- [ ] **Phase 22: Configure & Connect Sunshine Remote Desktop** - SSH to OpenClaw VM, verify Sunshine, set SUNSHINE_HOST, test streaming
-- [ ] **Phase 23: Fix Chat Default Model** - Default to qwen (local), fallback haiku, never sonnet
-- [ ] **Phase 24: Fix Search Placeholder & Homelab Banner** - "MagnifyingGlass" → "Search", remove false "not configured" banner
+**Group I: Critical Bug Fixes (verified by visual audit 2026-03-23)**
+- [ ] **Phase 20: Fix Notes Page Crash** - Canvas gradient uses CSS var(--accent-a30), resolve to actual hex color before addColorStop()
+- [ ] **Phase 21: Fix MagnifyingGlass Text Bug** - Search bar + Knowledge search show "MagnifyingGlass" text instead of icon/placeholder
+- [ ] **Phase 22: Fix Reminders Skeleton** - Reminders page and widget show skeleton bars forever despite data loading
+- [ ] **Phase 23: Fix Chat Default Model** - Default to qwen (local via LiteLLM), fallback haiku, never sonnet
+- [ ] **Phase 24: Fix Settings Loading Pages** - Connections and System Status stuck on "Loading..." spinner
 
-**Group J: User Testing Round 2 — Dashboard & Widget UX**
-- [ ] **Phase 25: Fix Reminders Widget** - Data loads but widget shows skeleton forever
-- [ ] **Phase 26: Widget Picker UX** - Show already-placed indicators, prevent blind duplicates
-- [ ] **Phase 27: Widget Smart Resize & Gap Elimination** - Auto-compact on add, resize handles on all edges, eliminate gaps
-- [ ] **Phase 28: Dashboard Edit Mode Polish** - Better drag feedback, compact on rearrange, visual grid
+**Group J: OpenClaw Gateway Connection (PRIORITY #1)**
+- [ ] **Phase 25: Configure OPENCLAW_API_URL** - Set gateway URL in Settings > Connections, verify health check returns "connected"
+- [ ] **Phase 26: Gateway WS Client Backend** - Rust tokio-tungstenite client connecting to gateway WS (port 18789), protocol handshake, reconnect
+- [ ] **Phase 27: Gateway WS Event Bus** - Forward gateway WS events to frontend via SSE (session updates, approvals, activity)
 
-**Group K: Notes Editor — Obsidian/Google Docs Parity**
-- [ ] **Phase 29: Notes Tables & Media** - Table support, image embeds, drag-drop images
-- [ ] **Phase 30: Notes Search & Navigation** - Full-text search within notes, tag system, improved backlinks
-- [ ] **Phase 31: Notes Templates & Slash Commands** - Note templates, / command palette, quick formatting
-- [ ] **Phase 32: Notes Advanced Editing** - Split view, keyboard shortcuts, export (PDF/MD), drag-reorder blocks
-- [ ] **Phase 33: Notes Graph View Fix** - Fix Canvas crash, interactive graph with zoom/pan/filter
+**Group K: OpenClaw Session Management (enhance existing Sessions page)**
+- [ ] **Phase 28: Wire Sessions to Gateway** - Sessions page currently shows "Loading..." — connect to gateway sessions.list, populate session list with real data
+- [ ] **Phase 29: Session History View** - Click session → show message history from sessions.history in chat-style UI (right panel)
+- [ ] **Phase 30: Session Live Output** - Stream real-time session output from gateway WS events into xterm.js panel
+- [ ] **Phase 31: Session Send & Controls** - Send messages into sessions (sessions.send), pause/resume/terminate buttons
+- [ ] **Phase 32: Subagent Spawn from UI** - "+" button in Sessions spawns subagent with task/model/label, tracks in list
 
-**Group L: OpenClaw Full Feature Coverage**
-- [ ] **Phase 34: OpenClaw Models Tab** - Fetch model list from LiteLLM, display cards with provider/cost/status
-- [ ] **Phase 35: OpenClaw Usage Tab** - Token usage tracking, cost breakdown, per-agent stats from gateway
-- [ ] **Phase 36: OpenClaw Tools Tab** - Tool registry from gateway, tool enable/disable, descriptions
-- [ ] **Phase 37: OpenClaw Skills/Marketplace** - Browse available skills, install/uninstall, skill configuration
+**Group L: OpenClaw Tabs — Wire to Real Gateway Data**
+- [ ] **Phase 33: Models Tab with All Providers** - Fetch from gateway (not just LiteLLM) — show Claude, OpenAI, Kimi, local models with cost/provider
+- [ ] **Phase 34: Usage Tab with Real Data** - Token counts, costs, per-model breakdown from gateway usage API
+- [ ] **Phase 35: Tools Tab with Real Data** - Tool catalog from gateway, show categories, enabled/disabled, descriptions
+
+**Group M: Approvals & Execution Governance**
+- [ ] **Phase 36: Approval Queue Backend** - Listen for exec.approval.requested events via WS, store pending, expose REST API
+- [ ] **Phase 37: Approval Queue UI** - Approve/reject panel, notification badge on sidebar, context display
+
+**Group N: Skills & Tool Invocation**
+- [ ] **Phase 38: Tool Catalog via WS** - Fetch tools.catalog, display with categories/descriptions/allow-deny per agent
+- [ ] **Phase 39: Tool Invocation UI** - Execute tools from UI via POST /tools/invoke (with dry-run toggle)
+- [ ] **Phase 40: Skills Tab on OpenClaw Page** - New tab showing installed skills per gateway, install/uninstall
+
+**Group O: Enhanced Usage & Monitoring**
+- [ ] **Phase 41: Usage Time Series Charts** - Daily token/cost breakdown charts, per-model sparklines
+- [ ] **Phase 42: Cost Alerts & Budgets** - Configurable daily/monthly budget limits, notification when exceeded
+- [ ] **Phase 43: Activity Feed** - Real-time SSE timeline of gateway events (session start/stop, cron runs, approvals, errors)
+- [ ] **Phase 44: OpenClaw KPI Dashboard Widget** - Active agents, sessions in progress, throughput, tokens/day, cost/day
+
+**Group P: Memory Search Enhancement (page exists, add vector search)**
+- [ ] **Phase 45: Memory Vector Search** - Add semantic search to existing Memory page via gateway memory_search API
+
+**Group Q: Agent Model Picker Enhancement**
+- [ ] **Phase 46: Multi-Provider Model Dropdown** - In agent detail panel + Settings > Agent, show all available models from gateway (Claude/OpenAI/Kimi/local)
+
+**Group R: Configure & Connect Sunshine Remote Desktop**
+- [ ] **Phase 47: Sunshine Setup** - SSH to OpenClaw VM, verify Sunshine running, set SUNSHINE_HOST, test Remote Desktop page
+
+**Group S: Dashboard & Widget UX**
+- [ ] **Phase 48: Widget Picker Already-Placed Indicators** - Show which widgets are already on dashboard
+- [ ] **Phase 49: Widget Smart Resize & Gap Elimination** - Auto-compact on add, resize handles on all edges
+- [ ] **Phase 50: Dashboard Edit Mode Polish** - Better drag feedback, compact on rearrange, visual grid
+
+**Group T: Notes Editor — Obsidian/Google Docs Parity**
+- [ ] **Phase 51: Notes Tables & Media** - Table support, image embeds, drag-drop images
+- [ ] **Phase 52: Notes Search & Navigation** - Full-text search within notes, tag system, improved backlinks
+- [ ] **Phase 53: Notes Templates & Slash Commands** - Note templates, / command palette, quick formatting
+- [ ] **Phase 54: Notes Advanced Editing** - Split view, keyboard shortcuts, export (PDF/MD), drag-reorder blocks
+- [ ] **Phase 55: Notes Graph View Fix** - Fix Canvas crash, interactive graph with zoom/pan/filter
 
 ## Phase Details
 

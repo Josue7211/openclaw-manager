@@ -549,7 +549,7 @@ export default function CommandPalette({
               setSelectedIdx(0)
             }}
             onKeyDown={handleKeyDown}
-            placeholder="MagnifyingGlass everything..."
+            placeholder="Search everything..."
             aria-label="Command palette search"
             role="combobox"
             aria-expanded={true}

@@ -221,8 +221,8 @@ export default function ConversationList({
                   color: 'var(--text-muted)', pointerEvents: 'none',
                 }} />
                 <input
-                  type="text" placeholder="MagnifyingGlass" value={searchQuery}
-                  aria-label="MagnifyingGlass conversations"
+                  type="text" placeholder="Search" value={searchQuery}
+                  aria-label="Search conversations"
                   onChange={e => setSearchQuery(e.target.value)}
                   tabIndex={searchOpacity === 0 ? -1 : 0}
                   style={{
