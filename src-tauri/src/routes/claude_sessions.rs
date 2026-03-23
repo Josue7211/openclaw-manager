@@ -1,18 +1,24 @@
 use axum::{
-    extract::{Path, State},
+    extract::{
+        ws::{Message, WebSocket},
+        Path, State, WebSocketUpgrade,
+    },
+    http::StatusCode,
+    response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
+use futures::{SinkExt, StreamExt};
 use reqwest::Method;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use tracing::info;
+use tracing::{error, info};
 
 use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
 
-use super::gateway::gateway_forward;
+use super::gateway::{gateway_forward, openclaw_api_key, openclaw_api_url};
 
 // ---------------------------------------------------------------------------
 // CAS connection guard (max 5 concurrent session WebSocket streams)
@@ -176,7 +182,184 @@ async fn session_ws_status(
 }
 
 // ---------------------------------------------------------------------------
-// Router (WebSocket route added in Task 2)
+// WebSocket upgrade handler
+// ---------------------------------------------------------------------------
+
+/// `GET /api/claude-sessions/:id/ws` -- upgrade to WebSocket and relay
+/// bidirectional frames to/from the upstream OpenClaw session stream.
+///
+/// Returns bare `Response` (not `Result<Json<Value>, AppError>`) because
+/// `WebSocketUpgrade::on_upgrade` returns `Response`. This is the same
+/// pattern as `ws_upgrade` in terminal.rs -- bare `Response` return works
+/// fine with merged routers (the gotcha is about `Result<Response, AppError>`).
+async fn ws_upgrade(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Path(id): Path<String>,
+    ws: WebSocketUpgrade,
+) -> Response {
+    // 1. Validate session ID
+    if id.is_empty() || id.len() > 100 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "invalid session id"})),
+        )
+            .into_response();
+    }
+
+    // 2. Try acquire CAS guard
+    let guard = match SessionWsGuard::try_new() {
+        Some(g) => g,
+        None => {
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(json!({"error": "too many session streams (max 5)"})),
+            )
+                .into_response();
+        }
+    };
+
+    // 3. Upgrade
+    ws.max_message_size(64 * 1024)
+        .on_upgrade(move |socket| handle_session_ws(socket, state, id, guard))
+}
+
+// ---------------------------------------------------------------------------
+// Bidirectional WebSocket relay (client <-> upstream OpenClaw)
+// ---------------------------------------------------------------------------
+
+/// Relay frames between the client WebSocket (Axum) and an upstream
+/// WebSocket on the OpenClaw VM (tokio-tungstenite).
+///
+/// Both sides are async -- no OS threads needed (unlike terminal.rs PTY).
+/// The `_guard` is held for the lifetime of this function; on any exit
+/// path the CAS counter decrements via Drop.
+async fn handle_session_ws(
+    client_socket: WebSocket,
+    state: AppState,
+    session_id: String,
+    _guard: SessionWsGuard,
+) {
+    info!("claude-sessions: WS stream connecting for session {session_id}");
+
+    // 1. Build upstream URL from OPENCLAW_API_URL
+    let base_url = match openclaw_api_url(&state) {
+        Some(url) => url,
+        None => {
+            error!("claude-sessions: OPENCLAW_API_URL not configured");
+            return;
+        }
+    };
+    let ws_url = base_url
+        .replace("http://", "ws://")
+        .replace("https://", "wss://");
+    let upstream_url = format!("{ws_url}/sessions/{session_id}/stream");
+
+    // 2. Build request with auth header
+    let api_key = openclaw_api_key(&state);
+    let request = match tokio_tungstenite::tungstenite::http::Request::builder()
+        .uri(&upstream_url)
+        .header("Authorization", format!("Bearer {api_key}"))
+        .header("Connection", "Upgrade")
+        .header("Upgrade", "websocket")
+        .header("Sec-WebSocket-Version", "13")
+        .header(
+            "Sec-WebSocket-Key",
+            tokio_tungstenite::tungstenite::handshake::client::generate_key(),
+        )
+        .body(())
+    {
+        Ok(r) => r,
+        Err(e) => {
+            error!("claude-sessions: failed to build upstream request: {e}");
+            return;
+        }
+    };
+
+    // 3. Connect to upstream WebSocket
+    let (upstream_ws, _response) = match tokio_tungstenite::connect_async(request).await {
+        Ok(conn) => conn,
+        Err(e) => {
+            error!("claude-sessions: upstream WS connect failed: {e}");
+            // Send error to client before closing
+            let (mut sender, _) = client_socket.split();
+            let _ = sender
+                .send(Message::Text(
+                    json!({"error": "Failed to connect to session stream"}).to_string(),
+                ))
+                .await;
+            return;
+        }
+    };
+
+    info!("claude-sessions: upstream WS connected for session {session_id}");
+
+    // 4. Split both sockets
+    let (mut client_tx, mut client_rx) = client_socket.split();
+    let (mut upstream_tx, mut upstream_rx) = upstream_ws.split();
+
+    // 5. Relay upstream -> client (session output to browser)
+    let up_to_client = tokio::spawn(async move {
+        use tokio_tungstenite::tungstenite::Message as TungsteniteMessage;
+        while let Some(msg) = upstream_rx.next().await {
+            match msg {
+                Ok(TungsteniteMessage::Text(text)) => {
+                    if client_tx.send(Message::Text(text)).await.is_err() {
+                        break;
+                    }
+                }
+                Ok(TungsteniteMessage::Binary(data)) => {
+                    if client_tx.send(Message::Binary(data)).await.is_err() {
+                        break;
+                    }
+                }
+                Ok(TungsteniteMessage::Close(_)) => break,
+                Err(_) => break,
+                _ => {} // Ping/Pong handled by tungstenite
+            }
+        }
+    });
+
+    // 6. Relay client -> upstream (commands from browser to session)
+    let client_to_up = tokio::spawn(async move {
+        use tokio_tungstenite::tungstenite::Message as TungsteniteMessage;
+        while let Some(Ok(msg)) = client_rx.next().await {
+            match msg {
+                Message::Text(text) => {
+                    if upstream_tx
+                        .send(TungsteniteMessage::Text(text))
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+                Message::Binary(data) => {
+                    if upstream_tx
+                        .send(TungsteniteMessage::Binary(data))
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+                Message::Close(_) => break,
+                _ => {}
+            }
+        }
+    });
+
+    // 7. Wait for either direction to finish, then cancel both
+    tokio::select! {
+        _ = up_to_client => {}
+        _ = client_to_up => {}
+    }
+
+    info!("claude-sessions: WS stream ended for session {session_id}");
+}
+
+// ---------------------------------------------------------------------------
+// Router
 // ---------------------------------------------------------------------------
 
 pub fn router() -> Router<AppState> {
@@ -188,6 +371,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/claude-sessions/status", get(session_ws_status))
         .route("/api/claude-sessions/:id", get(get_session))
         .route("/api/claude-sessions/:id/kill", post(kill_session))
+        .route("/api/claude-sessions/:id/ws", get(ws_upgrade))
 }
 
 // ---------------------------------------------------------------------------
