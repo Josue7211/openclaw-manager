@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.0.3
 milestone_name: -- AI Ops Center + OpenClaw Controller + Polish
-status: unknown
-stopped_at: Completed 14-02-PLAN.md
-last_updated: "2026-03-23T05:07:18.818Z"
+status: executing
+stopped_at: Completed 15-01-PLAN.md
+last_updated: "2026-03-23T06:28:00.000Z"
 progress:
   total_phases: 19
-  completed_phases: 10
-  total_plans: 14
-  completed_plans: 14
+  completed_phases: 11
+  total_plans: 15
+  completed_plans: 15
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 14 — terminal-frontend-xterm
+**Current focus:** Phase 15 — claude-code-session-backend
 
 ## Current Position
 
-Phase: 14
-Plan: Not started
+Phase: 15 (claude-code-session-backend) — COMPLETE
+Plan: 1 of 1 (done)
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Plan: Not started
 | Phase 13 P01 | 15min | 2 tasks | 4 files |
 | Phase 14 P01 | 5min | 2 tasks | 8 files |
 | Phase 14 P02 | 6min | 1 task | 2 files |
+| Phase 15 P01 | 15min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -89,6 +90,10 @@ Recent decisions affecting current work:
 - [Phase 14]: MutationObserver on data-theme for real-time theme sync
 - [Phase 14]: Click-to-focus instead of auto-focus to prevent focus stealing
 - [Phase 14]: Pre-flight HTTP check for terminal capacity -- browser WebSocket API cannot read HTTP bodies from rejected upgrades
+- [Phase 15]: Return 200 with { available: false } envelope instead of 503 to avoid Result<Response, AppError> router gotcha
+- [Phase 15]: Filter sessions by kind=claude-code OR agentId presence for flexible Claude Code detection
+- [Phase 15]: Bare Response return for WebSocket upgrade handler (not Result<Response, AppError>) -- matches terminal.rs
+- [Phase 15]: tokio::spawn for both WS relay directions with tokio::select! for clean shutdown
 
 ### Pending Todos
 
@@ -104,6 +109,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-23T05:01:41.616Z
-Stopped at: Completed 14-02-PLAN.md
+Last session: 2026-03-23T06:28:00.000Z
+Stopped at: Completed 15-01-PLAN.md
 Resume file: None
