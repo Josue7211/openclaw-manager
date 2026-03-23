@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.0.3
 milestone_name: -- AI Ops Center + OpenClaw Controller + Polish
 status: unknown
-stopped_at: Completed 16-02-PLAN.md
-last_updated: "2026-03-23T07:24:38.590Z"
+stopped_at: Completed 17-01-PLAN.md
+last_updated: "2026-03-23T07:37:35.746Z"
 progress:
   total_phases: 19
   completed_phases: 12
-  total_plans: 17
-  completed_plans: 17
+  total_plans: 19
+  completed_plans: 18
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 16 — session-monitor-frontend (COMPLETE)
+**Current focus:** Phase 17 — remote-vm-viewer
 
 ## Current Position
 
-Phase: 17
-Plan: Not started
+Phase: 17 (remote-vm-viewer) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Plan: Not started
 | Phase 15 P01 | 15min | 2 tasks | 2 files |
 | Phase 16 P01 | 2min | 2 tasks | 4 files |
 | Phase 16 P02 | 9min | 3 tasks | 8 files |
+| Phase 17 P01 | 5min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -103,6 +104,10 @@ Recent decisions affecting current work:
 - [Phase 16]: key={selectedId} on SessionOutputPanel forces clean terminal disposal and WebSocket reconnection
 - [Phase 16]: Inline kill confirmation (2-click with 3s timeout) instead of modal dialog for faster workflow
 - [Phase 16]: Live duration timer via setInterval(1000) for running sessions without pre-computed duration
+- [Phase 17]: Bare Response return for VNC WebSocket upgrade handler (matches terminal.rs/claude_sessions.rs)
+- [Phase 17]: Max 2 concurrent VNC sessions via CAS guard -- heavyweight binary streams
+- [Phase 17]: 5-second TCP connect timeout for fail-fast VNC server unreachable detection
+- [Phase 17]: Direct noVNC RFB usage (not react-vnc wrapper) per research decision
 
 ### Pending Todos
 
@@ -118,6 +123,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-23T07:15:20Z
-Stopped at: Completed 16-02-PLAN.md
+Last session: 2026-03-23T07:43:30Z
+Stopped at: Completed 17-01-PLAN.md
 Resume file: None
