@@ -46,6 +46,32 @@
 **Group H: Post-Ship Bug Fixes**
 - [ ] **Phase 19.1: Post-Ship Bug Fixes** - Fix all broken pages found during manual testing
 
+**Group I: User Testing Round 2 — Critical Bugs**
+- [ ] **Phase 20: Fix Notes Page Crash** - Canvas gradient uses CSS var, resolve to actual color
+- [ ] **Phase 21: Fix OpenClaw Models/Usage/Tools Tabs** - Scrape gateway API, wire up all 3 tabs with real data
+- [ ] **Phase 22: Configure & Connect Sunshine Remote Desktop** - SSH to OpenClaw VM, verify Sunshine, set SUNSHINE_HOST, test streaming
+- [ ] **Phase 23: Fix Chat Default Model** - Default to qwen (local), fallback haiku, never sonnet
+- [ ] **Phase 24: Fix Search Placeholder & Homelab Banner** - "MagnifyingGlass" → "Search", remove false "not configured" banner
+
+**Group J: User Testing Round 2 — Dashboard & Widget UX**
+- [ ] **Phase 25: Fix Reminders Widget** - Data loads but widget shows skeleton forever
+- [ ] **Phase 26: Widget Picker UX** - Show already-placed indicators, prevent blind duplicates
+- [ ] **Phase 27: Widget Smart Resize & Gap Elimination** - Auto-compact on add, resize handles on all edges, eliminate gaps
+- [ ] **Phase 28: Dashboard Edit Mode Polish** - Better drag feedback, compact on rearrange, visual grid
+
+**Group K: Notes Editor — Obsidian/Google Docs Parity**
+- [ ] **Phase 29: Notes Tables & Media** - Table support, image embeds, drag-drop images
+- [ ] **Phase 30: Notes Search & Navigation** - Full-text search within notes, tag system, improved backlinks
+- [ ] **Phase 31: Notes Templates & Slash Commands** - Note templates, / command palette, quick formatting
+- [ ] **Phase 32: Notes Advanced Editing** - Split view, keyboard shortcuts, export (PDF/MD), drag-reorder blocks
+- [ ] **Phase 33: Notes Graph View Fix** - Fix Canvas crash, interactive graph with zoom/pan/filter
+
+**Group L: OpenClaw Full Feature Coverage**
+- [ ] **Phase 34: OpenClaw Models Tab** - Fetch model list from LiteLLM, display cards with provider/cost/status
+- [ ] **Phase 35: OpenClaw Usage Tab** - Token usage tracking, cost breakdown, per-agent stats from gateway
+- [ ] **Phase 36: OpenClaw Tools Tab** - Tool registry from gateway, tool enable/disable, descriptions
+- [ ] **Phase 37: OpenClaw Skills/Marketplace** - Browse available skills, install/uninstall, skill configuration
+
 ## Phase Details
 
 ### Phase 19.1: Post-Ship Bug Fixes
