@@ -48,9 +48,12 @@ export default function Personal() {
     [homeState.pages, homeState.activePageId],
   )
 
-  // First-use: populate default layout if active page has no widgets
+  // First-use: populate default layout if active page has no/too-few widgets
   useEffect(() => {
-    if (activePage && Object.keys(activePage.layouts).length === 0) {
+    const uniqueWidgets = activePage
+      ? new Set(Object.values(activePage.layouts).flat().map((item: { i: string }) => item.i)).size
+      : 0
+    if (activePage && (Object.keys(activePage.layouts).length === 0 || uniqueWidgets < 3)) {
       const defaults = generateHomeDefaultLayout()
       const state = getHomeState()
       setHomeState({

@@ -48,10 +48,12 @@ export default function Dashboard() {
 
   // First-use: populate default layout if active page has no/too-few widgets
   useEffect(() => {
-    const widgetCount = activePage
-      ? Object.values(activePage.layouts).flat().length
+    // Count UNIQUE widget IDs (not total items across breakpoints).
+    // One widget in 4 breakpoints = 4 items but still only 1 unique widget.
+    const uniqueWidgets = activePage
+      ? new Set(Object.values(activePage.layouts).flat().map((item: { i: string }) => item.i)).size
       : 0
-    if (activePage && (Object.keys(activePage.layouts).length === 0 || widgetCount < 3)) {
+    if (activePage && (Object.keys(activePage.layouts).length === 0 || uniqueWidgets < 3)) {
       const defaults = generateDefaultLayout(getEnabledModules())
       const state = getDashboardState()
       const updated = {
