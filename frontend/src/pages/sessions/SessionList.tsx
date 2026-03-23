@@ -33,7 +33,7 @@ export function SessionList({ selectedId, onSelect }: SessionListProps) {
 
   const killMutation = useMutation({
     mutationFn: (id: string) =>
-      api.del(`/api/claude-sessions/${id}`),
+      api.post<{ ok: boolean }>(`/api/claude-sessions/${id}/kill`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.claudeSessions })
     },
