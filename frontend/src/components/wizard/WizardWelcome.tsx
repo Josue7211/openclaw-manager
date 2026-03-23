@@ -20,7 +20,7 @@ function useStaggerVisible(): boolean {
 // Component
 // ---------------------------------------------------------------------------
 
-export default function WizardWelcome() {
+export default function WizardWelcome({ onComplete }: { onComplete?: () => void }) {
   const visible = useStaggerVisible()
   const reduced = shouldReduceMotion()
   const noAnim = !shouldAnimate()
@@ -150,7 +150,7 @@ export default function WizardWelcome() {
       <div style={{ marginBottom: 'var(--space-4, 16px)', ...itemStyle(delays.tryDemo) }}>
         <Button
           variant="ghost"
-          onClick={() => activateDemoMode()}
+          onClick={() => { activateDemoMode(); completeWizard(); onComplete?.() }}
           aria-label="Enter demo mode with sample data"
           style={{ color: 'var(--text-secondary)' }}
         >
@@ -162,7 +162,7 @@ export default function WizardWelcome() {
       <div style={itemStyle(delays.skip)}>
         <button
           type="button"
-          onClick={() => completeWizard()}
+          onClick={() => { completeWizard(); onComplete?.() }}
           aria-label="Skip setup wizard and configure later in Settings"
           style={{
             background: 'none',

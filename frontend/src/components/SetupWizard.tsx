@@ -272,7 +272,7 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
       case 0:
         return (
           <Suspense fallback={null}>
-            <WizardWelcome />
+            <WizardWelcome onComplete={onComplete} />
           </Suspense>
         )
       case 1:

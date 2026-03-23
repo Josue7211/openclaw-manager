@@ -7,13 +7,15 @@ import { isDemoMode } from '@/lib/demo-data'
 type AuthState = 'loading' | 'authenticated' | 'unauthenticated' | 'mfa_required'
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<AuthState>(isDemoMode() ? 'authenticated' : 'loading')
+  // Dev mode without Tauri backend: skip auth entirely.
+  // __TAURI_INTERNALS__ is only present inside the Tauri webview.
+  const devNoBackend = import.meta.env.DEV && !(window as Record<string, unknown>).__TAURI_INTERNALS__
+  const [state, setState] = useState<AuthState>(isDemoMode() || devNoBackend ? 'authenticated' : 'loading')
   const location = useLocation()
   const syncInitRef = useRef(false)
 
   useEffect(() => {
-    // In demo mode, skip auth entirely
-    if (isDemoMode()) {
+    if (isDemoMode() || devNoBackend) {
       setState('authenticated')
       return
     }
