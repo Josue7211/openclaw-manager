@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.0.3
 milestone_name: -- AI Ops Center + OpenClaw Controller + Polish
-status: unknown
-stopped_at: Completed 13-01-PLAN.md (terminal PTY backend)
-last_updated: "2026-03-23T00:30:00.000Z"
+status: in_progress
+stopped_at: Completed 14-01-PLAN.md
+last_updated: "2026-03-23T01:45:38.580Z"
 progress:
   total_phases: 19
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 13
-  completed_plans: 12
+  completed_plans: 13
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 14 — terminal-frontend-xterm-js
+**Current focus:** Phase 14 — terminal-frontend-xterm
 
 ## Current Position
 
-Phase: 13 (terminal-pty-backend) — COMPLETE
-Next: Phase 14 (terminal-frontend-xterm-js)
+Phase: 14 (terminal-frontend-xterm) — COMPLETE
+Plan: 1 of 1 (done)
 
 ## Performance Metrics
 
@@ -49,6 +49,7 @@ Next: Phase 14 (terminal-frontend-xterm-js)
 | Phase 12 P01 | 4min | 2 tasks | 7 files |
 | Phase 12 P02 | 12min | 3 tasks | 9 files |
 | Phase 13 P01 | 15min | 2 tasks | 4 files |
+| Phase 14 P01 | 5min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,10 @@ Recent decisions affecting current work:
 - [Phase 13]: Arc<Mutex<Option<PtyCleanup>>> for resize through master while keeping cleanup on Drop
 - [Phase 13]: OS threads for blocking PTY I/O bridged to async via tokio::sync::mpsc channels
 - [Phase 13]: Whitelist approach (env_clear + 22 safe vars) rather than blacklist for env sanitization
+- [Phase 14]: xterm.js v6 with FitAddon + WebLinksAddon for terminal widget
+- [Phase 14]: Ctrl+Shift+C/V for copy/paste to avoid SIGINT conflict
+- [Phase 14]: MutationObserver on data-theme for real-time theme sync
+- [Phase 14]: Click-to-focus instead of auto-focus to prevent focus stealing
 
 ### Pending Todos
 
@@ -97,6 +102,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-22T22:35:00Z
-Stopped at: Completed 12-02-PLAN.md (verified and recovered from NFS corruption)
+Last session: 2026-03-23T01:44:41Z
+Stopped at: Completed 14-01-PLAN.md
 Resume file: None
