@@ -324,7 +324,7 @@ Plans:
 | 15. Claude Code Session Backend | v0.0.3 | 0/1 | Complete    | 2026-03-23 |
 | 16. Session Monitor Frontend | v0.0.3 | 0/2 | Complete    | 2026-03-23 |
 | 17. Remote VM Viewer | v0.0.3 | 1/2 | Complete    | 2026-03-23 |
-| 18. Widget Registry + Sidebar Integration | v0.0.3 | 0/? | Not started | - |
+| 18. Widget Registry + Sidebar Integration | v0.0.3 | 0/? | Complete    | 2026-03-23 |
 | 19. Final Verification + Bundle Audit | v0.0.3 | 0/? | Not started | - |
 
 <details>
