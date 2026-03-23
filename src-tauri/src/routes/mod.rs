@@ -42,6 +42,7 @@ pub mod terminal;
 pub mod todos;
 pub mod user_secrets;
 pub mod util;
+pub mod vnc;
 pub mod workflow_notes;
 pub mod vault;
 pub mod wizard;
@@ -92,6 +93,7 @@ pub fn router() -> Router<AppState> {
         .merge(claude_sessions::router())
         .merge(user_secrets::router())
         .merge(vault::router())
+        .merge(vnc::router())
         .merge(wizard::router())
         .merge(crate::audit::router())
         .nest("/workspace", workspace::router())
