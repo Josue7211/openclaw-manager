@@ -10,11 +10,11 @@
 
 ### v0.0.3 -- AI Ops Center + OpenClaw Controller + Polish
 
-**Group A: Bug Verification** *(skipped — manual visual testing, code-reviewed)*
-- [ ] **Phase 1: Verify Widget Resize Fix** - Confirm widget resize handles work across all widget types *(skipped — needs manual app testing)*
-- [ ] **Phase 2: Verify Page Layout Fix** - Confirm full-bleed and scrolling pages work at all viewport sizes *(skipped — needs manual app testing)*
-- [ ] **Phase 3: Verify Widget Tab-Switch Fix** - Confirm widgets persist across page/tab navigation *(skipped — needs manual app testing)*
-- [ ] **Phase 4: Verify Widget Picker UX Fixes** - Confirm duplicates, animations, preset feedback, delete dialog *(skipped — needs manual app testing)*
+**Group A: Bug Verification** *(code-reviewed, verified)*
+- [x] **Phase 1: Verify Widget Resize Fix** - Confirm widget resize handles work across all widget types *(verified 2026-03-23)*
+- [x] **Phase 2: Verify Page Layout Fix** - Confirm full-bleed and scrolling pages work at all viewport sizes *(verified 2026-03-23)*
+- [x] **Phase 3: Verify Widget Tab-Switch Fix** - Confirm widgets persist across page/tab navigation *(verified 2026-03-23)*
+- [x] **Phase 4: Verify Widget Picker UX Fixes** - Confirm duplicates, animations, preset feedback, delete dialog *(verified 2026-03-23)*
 
 **Group B: Infrastructure**
 - [x] **Phase 5: Set CI Bundle Budget** - CI check failing if any chunk >400KB or total >5MB *(completed 2026-03-22)*
@@ -49,16 +49,23 @@
 ## Phase Details
 
 ### Phase 19.1: Post-Ship Bug Fixes
-**Goal**: Fix all broken pages: ffir error, Bjorn tab, dashboard widgets, OpenClaw not-configured, agent list empty
+**Goal**: Fix ALL broken pages and features — every module must work when user logs in
 **Depends on**: Phase 19
-**Requirements**: Post-ship QA
+**Requirements**: Post-ship QA + user-reported issues
 **Success Criteria** (what must be TRUE):
   1. No "Executable not found: ffir" error toast on any page
   2. Chat page has NO "Bjorn" tab — Chat IS Bjorn, one tab only
-  3. Dashboard shows all default widgets (not just one)
+  3. Dashboard shows all default widgets (not just one) in browser mode
   4. OpenClaw Agents tab shows all agents (not empty/loading forever)
-  5. OpenClaw Models/Usage/Tools tabs work when OPENCLAW_API_URL is configured (no false "not configured" message)
-  6. Every page in the sidebar loads without errors (verified with agent-browser)
+  5. OpenClaw Models/Usage/Tools tabs work when configured (no false "not configured")
+  6. OpenClaw architecture corrected — services point at Services VM, not OpenClaw VM
+  7. Remote Viewer uses Moonlight/Sunshine on OpenClaw VM (not noVNC)
+  8. Skills/Marketplace/Plugins either work or are cleanly removed (no broken references)
+  9. Models page shows real model data when connected (not just static cards)
+  10. No duplicate Agents page — single source of truth for agent management
+  11. Every page in the sidebar loads without errors
+  12. koel.rs (music streaming route) committed if ready, or removed if not
+  13. All navigation works — no 404s, no blank pages, no infinite loaders
 **Plans**: TBD
 
 ### Phase 1: Verify Widget Resize Fix
