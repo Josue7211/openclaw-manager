@@ -37,12 +37,23 @@ const ALL_MODULE_IDS = APP_MODULES.map(m => m.id)
 const _listeners = new Set<() => void>()
 
 // Cached snapshot — useSyncExternalStore requires stable references
+// Auto-adds newly registered modules so existing users see them without
+// manually re-enabling via Settings.
 let _cached: string[] = (() => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored !== null) {
       const parsed = JSON.parse(stored)
-      if (Array.isArray(parsed)) return parsed
+      if (Array.isArray(parsed)) {
+        const storedSet = new Set(parsed)
+        const newModules = ALL_MODULE_IDS.filter(id => !storedSet.has(id))
+        if (newModules.length > 0) {
+          const merged = [...parsed, ...newModules]
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
+          return merged
+        }
+        return parsed
+      }
     }
   } catch { /* fall through */ }
   return ALL_MODULE_IDS
