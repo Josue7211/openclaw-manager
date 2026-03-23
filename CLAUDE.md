@@ -41,7 +41,7 @@ The system runs across multiple machines. The Tauri app must work on ANY machine
 │  │  └── Embedded Axum server (localhost:3000)             │  │
 │  │      ├── Proxies to BlueBubbles (macOS only)          │  │
 │  │      ├── Proxies to Mac Bridge (macOS only)           │  │
-│  │      ├── Proxies to OpenClaw VM                       │  │
+│  │      ├── Proxies to Services VM (OpenClaw, LiteLLM)    │  │
 │  │      ├── Proxies to CouchDB (Obsidian notes)          │  │
 │  │      └── Queries Supabase directly                    │  │
 │  └───────────────────────────────────────────────────────┘  │
@@ -52,17 +52,19 @@ The system runs across multiple machines. The Tauri app must work on ANY machine
 │ MACBOOK  │ │ OPENCLAW  │ │ SERVICES  │ │ PLEX VM         │
 │ (macOS)  │ │ VM (Linux)│ │ VM (Linux)│ │ (Linux)         │
 │          │ │           │ │           │ │                 │
-│ BlueBub. │ │ AI agents │ │ Supabase  │ │ Cloudflare      │
-│ iMessage │ │ OpenClaw  │ │ Postgres  │ │  Tunnel gateway │
-│ Mac      │ │ LiteLLM   │ │ CouchDB   │ │ Plex, Sonarr,  │
-│  Bridge  │ │           │ │ Vaultwrdn │ │  Radarr, etc.   │
+│ BlueBub. │ │ Moonlight │ │ Supabase  │ │ Cloudflare      │
+│ iMessage │ │ Sunshine  │ │ Postgres  │ │  Tunnel gateway │
+│ Mac      │ │ (remote   │ │ CouchDB   │ │ Plex, Sonarr,  │
+│  Bridge  │ │  desktop) │ │ Vaultwrdn │ │  Radarr, etc.   │
 │          │ │           │ │ Firecrawl │ │                 │
+│          │ │           │ │ LiteLLM   │ │                 │
+│          │ │           │ │ OpenClaw  │ │                 │
 └──────────┘ └───────────┘ └───────────┘ └─────────────────┘
 ```
 
 **Key implications:**
-- Mission log files (`/tmp/*.log`) exist on the OpenClaw VM, NOT on the user's machine
-- Mission events are ingested INTO Supabase FROM the OpenClaw VM
+- Mission log files (`/tmp/*.log`) exist on the Services VM, NOT on the user's machine
+- Mission events are ingested INTO Supabase FROM the Services VM
 - The Tauri app reads mission events FROM Supabase — it never reads log files directly
 - BlueBubbles runs on a Mac — Messages only work when that Mac is reachable via Tailscale
 - Supabase is self-hosted on a separate services VM
@@ -74,7 +76,7 @@ The system runs across multiple machines. The Tauri app must work on ANY machine
 - All VMs: UFW firewall active, SSH key-only (passphrase-protected), fail2ban, kernel hardening (sysctl), unattended-upgrades
 - Services-VM: Docker log rotation (`daemon.json`), container resource limits, PostgreSQL/Portainer/Vaultwarden/CouchDB bound to 127.0.0.1
 - Plex-VM: Cloudflare Tunnel gateway, Plex port 32400 open for remote streaming, WireGuard keys in `.env` (chmod 600)
-- OpenClaw-VM: RDP disabled, LiteLLM auth enabled, OpenClaw gateway firewalled to LAN
+- OpenClaw-VM: Sunshine host for Moonlight remote desktop streaming
 - SSH key `~/.ssh/mission-control` has a passphrase — non-interactive SSH from Bash tool will fail. Give commands to user instead.
 
 ## Tech Stack

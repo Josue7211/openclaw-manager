@@ -121,6 +121,7 @@ let mockDashState = {
       lg: [
         { i: 'agent-status', x: 0, y: 0, w: 4, h: 2 },
         { i: 'heartbeat', x: 4, y: 0, w: 4, h: 2 },
+        { i: 'network', x: 8, y: 0, w: 4, h: 2 },
       ],
     },
     widgetConfigs: {},
@@ -392,7 +393,7 @@ describe('Dashboard Integration', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByTestId('placed-count')).toHaveTextContent('2')
+      expect(screen.getByTestId('placed-count')).toHaveTextContent('3')
     })
   })
 

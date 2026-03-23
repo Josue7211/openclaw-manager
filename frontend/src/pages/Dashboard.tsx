@@ -46,9 +46,12 @@ export default function Dashboard() {
     [dashState.pages, dashState.activePageId],
   )
 
-  // First-use: populate default layout if active page has no widgets
+  // First-use: populate default layout if active page has no/too-few widgets
   useEffect(() => {
-    if (activePage && Object.keys(activePage.layouts).length === 0) {
+    const widgetCount = activePage
+      ? Object.values(activePage.layouts).flat().length
+      : 0
+    if (activePage && (Object.keys(activePage.layouts).length === 0 || widgetCount < 3)) {
       const defaults = generateDefaultLayout(getEnabledModules())
       const state = getDashboardState()
       const updated = {

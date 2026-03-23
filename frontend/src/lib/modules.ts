@@ -26,7 +26,7 @@ export const APP_MODULES: AppModule[] = [
   { id: 'knowledge', name: 'Knowledge', description: 'Documentation', icon: 'BookOpen', route: '/knowledge' },
   { id: 'notes', name: 'Notes', description: 'Personal notes', icon: 'FileText', route: '/notes' },
   { id: 'sessions', name: 'Sessions', description: 'Claude Code session monitor', icon: 'Terminal', route: '/sessions', requiresConfig: ['OPENCLAW_API_URL'] },
-  { id: 'remote-viewer', name: 'Remote Viewer', description: 'OpenClaw VM remote desktop', icon: 'Monitor', route: '/remote', requiresConfig: ['VNC_HOST'] },
+  { id: 'remote-viewer', name: 'Remote Viewer', description: 'OpenClaw VM remote desktop (Moonlight)', icon: 'Monitor', route: '/remote', requiresConfig: ['SUNSHINE_HOST'] },
 ]
 
 const STORAGE_KEY = 'enabled-modules'
