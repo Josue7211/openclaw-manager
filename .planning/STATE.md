@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.0.3
 milestone_name: -- AI Ops Center + OpenClaw Controller + Polish
 status: unknown
-stopped_at: Completed 16-01-PLAN.md
-last_updated: "2026-03-23T07:04:43.468Z"
+stopped_at: Completed 16-02-PLAN.md
+last_updated: "2026-03-23T07:15:20Z"
 progress:
   total_phases: 19
-  completed_phases: 11
+  completed_phases: 12
   total_plans: 17
-  completed_plans: 16
+  completed_plans: 17
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 16 — session-monitor-frontend
+**Current focus:** Phase 16 — session-monitor-frontend (COMPLETE)
 
 ## Current Position
 
-Phase: 16 (session-monitor-frontend) — EXECUTING
-Plan: 2 of 2
+Phase: 16 (session-monitor-frontend) — COMPLETE
+Plan: 2 of 2 (done)
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Plan: 2 of 2
 | Phase 14 P02 | 6min | 1 task | 2 files |
 | Phase 15 P01 | 15min | 2 tasks | 2 files |
 | Phase 16 P01 | 2min | 2 tasks | 4 files |
+| Phase 16 P02 | 9min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,10 @@ Recent decisions affecting current work:
 - [Phase 16]: useSessionOutput adapts useTerminal pattern with disableStdin and no input forwarding
 - [Phase 16]: scrollback 5000 (vs 1000 in useTerminal) for longer session output history
 - [Phase 16]: No pre-flight capacity check -- session WebSocket guard handles rejection at upgrade time
+- [Phase 16]: Full-bleed split-pane layout matches Notes.tsx pattern for session monitor page
+- [Phase 16]: key={selectedId} on SessionOutputPanel forces clean terminal disposal and WebSocket reconnection
+- [Phase 16]: Inline kill confirmation (2-click with 3s timeout) instead of modal dialog for faster workflow
+- [Phase 16]: Live duration timer via setInterval(1000) for running sessions without pre-computed duration
 
 ### Pending Todos
 
@@ -113,6 +118,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-23T07:02:19Z
-Stopped at: Completed 16-01-PLAN.md
+Last session: 2026-03-23T07:15:20Z
+Stopped at: Completed 16-02-PLAN.md
 Resume file: None
