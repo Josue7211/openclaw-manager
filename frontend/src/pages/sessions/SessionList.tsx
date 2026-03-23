@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
+import { isDemoMode } from '@/lib/demo-data'
 import { SessionCard } from './SessionCard'
 import { NewSessionForm } from './NewSessionForm'
 import type { SessionListResponse, CreateSessionPayload } from './types'
@@ -16,10 +17,12 @@ export function SessionList({ selectedId, onSelect }: SessionListProps) {
   const [showForm, setShowForm] = useState(false)
   const queryClient = useQueryClient()
 
+  const demo = isDemoMode()
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.claudeSessions,
     queryFn: () => api.get<SessionListResponse>('/api/claude-sessions'),
-    refetchInterval: 5000,
+    refetchInterval: demo ? false : 5000,
+    enabled: !demo,
   })
 
   const createMutation = useMutation({
@@ -96,8 +99,27 @@ export function SessionList({ selectedId, onSelect }: SessionListProps) {
         flexDirection: 'column',
         gap: '8px',
       }}>
+        {/* Demo mode banner */}
+        {demo && (
+          <div
+            style={{
+              padding: '10px 12px',
+              borderRadius: '10px',
+              background: 'var(--blue-a08)',
+              border: '1px solid var(--blue-a25)',
+              color: 'var(--text-secondary)',
+              fontSize: '12px',
+              lineHeight: 1.5,
+            }}
+          >
+            <span style={{ fontWeight: 600, color: 'var(--blue-solid)' }}>Sessions not configured</span>
+            <br />
+            Connect OpenClaw in Settings to manage Claude sessions.
+          </div>
+        )}
+
         {/* Unreachable banner */}
-        {!available && (
+        {!demo && !available && (
           <div
             role="alert"
             style={{

@@ -4,16 +4,18 @@ import { useTauriQuery } from '@/hooks/useTauriQuery'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { isDemoMode } from '@/lib/demo-data'
 
 import type { HomelabData } from './homelab/types'
 import { formatUptime, formatBytes, cpuColor } from './homelab/helpers'
 import { CpuBar, MemBar, StatusDot, card, label, sectionTitle } from './homelab/components'
 
 export default function HomelabPage() {
+  const demo = isDemoMode()
   const { data, isLoading: loading, error, refetch, dataUpdatedAt } = useTauriQuery<HomelabData>(
     ['homelab'],
     '/api/homelab',
-    { refetchInterval: 30000 },
+    { refetchInterval: demo ? false : 30000, enabled: !demo },
   )
 
   const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt) : null
@@ -51,13 +53,30 @@ export default function HomelabPage() {
         </div>
       </div>
 
-      {loading && (
+      {loading && !demo && (
         <div style={{ color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '13px' }}>
           Loading infrastructure data...
         </div>
       )}
 
-      {error && (
+      {demo && (
+        <div style={{
+          marginBottom: '20px', padding: '20px 24px',
+          background: 'var(--blue-a08)',
+          border: '1px solid var(--blue-a25)',
+          borderRadius: '12px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+            <Desktop size={18} style={{ color: 'var(--blue-solid)' }} />
+            <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--blue-solid)' }}>Homelab not configured</span>
+          </div>
+          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            Connect your Proxmox and OPNsense instances in Settings to monitor infrastructure health.
+          </p>
+        </div>
+      )}
+
+      {!demo && error && (
         <ErrorState resource="homelab" onRetry={() => refetch()} />
       )}
 

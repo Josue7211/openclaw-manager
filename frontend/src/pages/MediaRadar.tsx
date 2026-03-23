@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { FilmStrip, Television, Play, ArrowsClockwise, Calendar } from '@phosphor-icons/react'
 import { useTauriQuery } from '@/hooks/useTauriQuery'
 import { PageHeader } from '@/components/PageHeader'
+import { isDemoMode } from '@/lib/demo-data'
 
 interface NowPlaying {
   title: string
@@ -44,10 +45,11 @@ function formatAirDate(dateStr: string): string {
 }
 
 export default function MediaPage() {
+  const demo = isDemoMode()
   const { data, isLoading: loading, refetch, isFetching } = useTauriQuery<MediaData>(
     ['media'],
     '/api/media',
-    { refetchInterval: 30_000 },
+    { refetchInterval: demo ? false : 30_000, enabled: !demo },
   )
   const [refreshing, setRefreshing] = useState(false)
 
@@ -59,11 +61,36 @@ export default function MediaPage() {
 
   const isRefreshing = refreshing || (isFetching && !loading)
 
-  if (loading) {
+  if (loading && !demo) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-muted)', padding: '40px 0' }}>
         <div style={{ width: '16px', height: '16px', border: '2px solid var(--accent)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
         Loading media...
+      </div>
+    )
+  }
+
+  if (demo) {
+    return (
+      <div style={{ maxWidth: '720px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px' }}>
+          <FilmStrip size={20} style={{ color: 'var(--accent)' }} />
+          <PageHeader defaultTitle="Media Radar" defaultSubtitle="not configured" />
+        </div>
+        <div style={{
+          padding: '20px 24px',
+          background: 'var(--blue-a08)',
+          border: '1px solid var(--blue-a25)',
+          borderRadius: '12px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+            <FilmStrip size={16} style={{ color: 'var(--blue-solid)' }} />
+            <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--blue-solid)' }}>Media services not configured</span>
+          </div>
+          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            Connect Plex, Sonarr, and Radarr in Settings to track your media library.
+          </p>
+        </div>
       </div>
     )
   }
