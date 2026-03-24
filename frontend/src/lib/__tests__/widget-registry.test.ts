@@ -10,8 +10,8 @@ import {
 import type { WidgetDefinition } from '../widget-registry'
 
 describe('BUILTIN_WIDGETS', () => {
-  it('has exactly 28 entries', () => {
-    expect(BUILTIN_WIDGETS).toHaveLength(28)
+  it('has exactly 29 entries', () => {
+    expect(BUILTIN_WIDGETS).toHaveLength(29)
   })
 
   it('contains all expected widget IDs', () => {
@@ -181,7 +181,7 @@ describe('getWidgetBundles', () => {
     const bundles = getWidgetBundles()
     const mediaSuite = bundles.find(b => b.name === 'Media Suite')
     expect(mediaSuite).toBeDefined()
-    expect(mediaSuite!.widgetIds).toEqual(['now-playing', 'upcoming-media'])
+    expect(mediaSuite!.widgetIds).toEqual(['now-playing', 'music-now-playing', 'upcoming-media'])
   })
 })
 
@@ -250,7 +250,7 @@ describe('getWidgetPresets', () => {
     const presets = getWidgetPresets()
     const media = presets.find(p => p.id === 'media-center')
     expect(media).toBeDefined()
-    expect(media!.widgets).toHaveLength(3)
+    expect(media!.widgets).toHaveLength(4)
   })
 })
 
