@@ -425,6 +425,32 @@ async fn gateway_activity(
     })))
 }
 
+// ── Gateway memory search ────────────────────────────────────────────────
+
+/// `POST /api/gateway/memory/search`
+///
+/// Proxies `memory.search` through the persistent gateway WS connection.
+/// Accepts `{ query, limit? }` and returns semantic search results.
+async fn gateway_memory_search(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
+        AppError::BadRequest("OpenClaw Gateway not configured.".into())
+    })?;
+
+    let payload = gw
+        .request("memory.search", body)
+        .await
+        .map_err(|e| {
+            tracing::error!("[gateway] memory.search failed: {e}");
+            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
+        })?;
+
+    Ok(Json(json!({ "ok": true, "data": payload })))
+}
+
 // ── Router ──────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
@@ -437,6 +463,7 @@ pub fn router() -> Router<AppState> {
         .route("/gateway/sessions/:id/pause", post(gateway_session_pause))
         .route("/gateway/sessions/:id/resume", post(gateway_session_resume))
         .route("/gateway/activity", get(gateway_activity))
+        .route("/gateway/memory/search", post(gateway_memory_search))
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────

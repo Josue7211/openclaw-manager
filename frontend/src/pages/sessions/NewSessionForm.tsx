@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { ModelSelector } from '@/components/ModelSelector'
 import type { CreateSessionPayload } from './types'
 
 interface NewSessionFormProps {
@@ -102,23 +103,10 @@ export function NewSessionForm({ onSubmit, onCancel, isSubmitting, available }: 
         }}
       />
 
-      <input
-        type="text"
-        aria-label="Model"
-        placeholder="e.g. opus, sonnet"
+      <ModelSelector
         value={model}
-        onChange={(e) => setModel(e.target.value)}
-        style={{
-          background: 'var(--bg)',
-          border: '1px solid var(--border)',
-          borderRadius: '10px',
-          padding: '8px 12px',
-          color: 'var(--text-primary)',
-          fontSize: '13px',
-          fontFamily: 'inherit',
-          width: '100%',
-          boxSizing: 'border-box',
-        }}
+        onChange={setModel}
+        placeholder="e.g. opus, sonnet"
       />
 
       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>

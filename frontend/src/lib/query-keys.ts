@@ -45,4 +45,5 @@ export const queryKeys = {
   vncStatus: ['vnc', 'status'] as const,
   approvals: ['approvals'] as const,
   gatewayActivity: ['gateway-activity'] as const,
+  memorySearch: (q: string) => ['memory-search', q] as const,
 } as const
