@@ -340,4 +340,4 @@ function EditorToolbar({ viewRef }: EditorToolbarProps) {
 export default memo(EditorToolbar)
 
 // Export formatting functions so NoteEditor can wire keyboard shortcuts
-export { toggleWrap, insertLink, toggleLinePrefix }
+export { toggleWrap, insertLink }
