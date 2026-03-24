@@ -157,7 +157,9 @@ Plans:
   2. Event names in SSE match the actual gateway event names (agent, chat, presence, cron, etc.)
   3. Frontend event listeners receive events with correct payload shapes matching gateway protocol
   4. SSE connection stays alive and delivers events in real-time (< 1s latency from gateway event to frontend)
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 84-01-PLAN.md -- Gateway SSE endpoint + frontend useGatewaySSE hook + event bus wiring
 
 ### Phase 85: Agent Event Streaming
 **Goal**: Real-time agent status changes appear in the UI without polling
@@ -243,7 +245,7 @@ Plans:
 | 81. Usage Method Correction | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 | 82. Tools & Skills Method Verification | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
 | 83. Activity Events Method Correction | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
-| 84. SSE Event Bus Wiring | v0.0.5 | 0/? | Not started | - |
+| 84. SSE Event Bus Wiring | v0.0.5 | 0/1 | Not started | - |
 | 85. Agent Event Streaming | v0.0.5 | 0/? | Not started | - |
 | 86. Session Event Streaming | v0.0.5 | 0/? | Not started | - |
 | 87. Live Agents Tab | v0.0.5 | 0/? | Not started | - |
