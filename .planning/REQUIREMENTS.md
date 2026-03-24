@@ -29,7 +29,7 @@ Requirements for gateway protocol integration milestone. Each maps to roadmap ph
 
 - [ ] **EVT-01**: SSE event bus wired to actual gateway WebSocket events (not mock data)
 - [ ] **EVT-02**: Real-time agent status updates surfaced via SSE when gateway sends agent.* events
-- [ ] **EVT-03**: Session events (created, completed, error) surfaced via SSE
+- [x] **EVT-03**: Session events (created, completed, error) surfaced via SSE
 
 ### Live Data Verification
 
@@ -76,7 +76,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RPC-09 | Phase 83 | Complete |
 | EVT-01 | Phase 84 | Pending |
 | EVT-02 | Phase 85 | Pending |
-| EVT-03 | Phase 86 | Pending |
+| EVT-03 | Phase 86 | Complete |
 | LIVE-01 | Phase 87 | Pending |
 | LIVE-02 | Phase 88 | Pending |
 | LIVE-03 | Phase 89 | Pending |

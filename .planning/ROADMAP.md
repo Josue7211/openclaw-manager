@@ -183,7 +183,7 @@ Plans:
   3. Session completion/error events trigger notification if the user has notifications enabled
 **Plans**: 1 plan
 Plans:
-- [ ] 86-01-PLAN.md -- Wire useGatewaySSE into useGatewaySessions + SessionsPage with notifications
+- [x] 86-01-PLAN.md -- Wire useGatewaySSE into useGatewaySessions + SessionsPage with notifications
 
 ### Phase 87: Live Agents Tab
 **Goal**: The Agents tab is fully functional against the live gateway with real agent data
@@ -249,9 +249,9 @@ Plans:
 | 81. Usage Method Correction | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 | 82. Tools & Skills Method Verification | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
 | 83. Activity Events Method Correction | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
-| 84. SSE Event Bus Wiring | v0.0.5 | 0/1 | Not started | - |
+| 84. SSE Event Bus Wiring | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 | 85. Agent Event Streaming | v0.0.5 | 0/1 | Not started | - |
-| 86. Session Event Streaming | v0.0.5 | 0/1 | Not started | - |
+| 86. Session Event Streaming | v0.0.5 | 1/1 | Complete   | 2026-03-24 |
 | 87. Live Agents Tab | v0.0.5 | 0/? | Not started | - |
 | 88. Live Crons Tab | v0.0.5 | 0/? | Not started | - |
 | 89. Live Usage & Models Tabs | v0.0.5 | 0/? | Not started | - |
