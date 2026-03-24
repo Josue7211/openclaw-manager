@@ -33,9 +33,9 @@
 - [x] **Phase 68: Enable TypeScript Strict Flags** - Enable noUnusedLocals and noUnusedParameters, fix all violations (completed 2026-03-24)
 
 **Group Y: Test Coverage** *(after code is stable)*
-- [ ] **Phase 69: OpenClaw Hook Tests** - Unit tests for useAgents, useCrons, useOpenClawStatus, useOpenClawModels
-- [ ] **Phase 70: Terminal Hook Tests** - Unit tests for useTerminal, useSessionOutput
-- [ ] **Phase 71: Gateway Integration Tests** - Integration tests for gateway status and health check paths
+- [x] **Phase 69: OpenClaw Hook Tests** - Unit tests for useAgents, useCrons, useOpenClawStatus, useOpenClawModels (completed 2026-03-24)
+- [x] **Phase 70: Terminal Hook Tests** - Unit tests for useTerminal, useSessionOutput (completed 2026-03-24)
+- [x] **Phase 71: Gateway Integration Tests** - Integration tests for gateway status and health check paths (completed 2026-03-24)
 
 **Group Z: Final Verification** *(after everything else)*
 - [ ] **Phase 72: Sidebar Module Smoke Test** - Verify every sidebar module loads without errors after cleanup
@@ -305,7 +305,7 @@ Plans:
 | 67. Strip Unused Imports | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
 | 68. Enable TS Strict Flags | v0.0.4 | 0/? | Complete    | 2026-03-24 |
 | 69. OpenClaw Hook Tests | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
-| 70. Terminal Hook Tests | v0.0.4 | 0/1 | Planned    |  |
+| 70. Terminal Hook Tests | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
 | 71. Gateway Integration Tests | v0.0.4 | 1/1 | Complete    | 2026-03-24 |
 | 72. Sidebar Module Smoke Test | v0.0.4 | 0/? | Not started | - |
 | 73. Widget Render Smoke Test | v0.0.4 | 0/? | Not started | - |
