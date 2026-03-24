@@ -114,7 +114,8 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const data = await api.get<{ url: string }>(`/api/auth/oauth/${provider}`)
+      const redirectParam = !isTauriApp ? `?redirect_to=${encodeURIComponent(window.location.origin)}` : ''
+      const data = await api.get<{ url: string }>(`/api/auth/oauth/${provider}${redirectParam}`)
       if (data.url) {
         if (isTauriApp) {
           const opened = await openInBrowser(data.url)

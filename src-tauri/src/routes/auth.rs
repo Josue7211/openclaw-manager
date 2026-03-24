@@ -906,9 +906,15 @@ async fn change_password(
 // GET /auth/oauth/:provider
 // ---------------------------------------------------------------------------
 
+#[derive(Deserialize)]
+struct OAuthStartQuery {
+    redirect_to: Option<String>,
+}
+
 async fn start_oauth(
     State(state): State<AppState>,
     Path(provider): Path<String>,
+    Query(query): Query<OAuthStartQuery>,
 ) -> Result<Json<Value>, AppError> {
     // Validate provider
     if !["github", "google"].contains(&provider.as_str()) {
@@ -916,6 +922,11 @@ async fn start_oauth(
             "unsupported OAuth provider: {provider}"
         )));
     }
+
+    // Validate redirect_to — only allow localhost URLs to prevent open redirect
+    let validated_redirect = query.redirect_to.filter(|url| {
+        url.starts_with("http://localhost:") || url.starts_with("http://127.0.0.1:")
+    });
 
     // If an OAuth flow was initiated recently (< 120s), return the same URL
     // instead of generating a new PKCE pair. This prevents double-click or
@@ -956,6 +967,7 @@ async fn start_oauth(
         nonce: nonce.clone(),
         url: url.clone(),
         created_at: epoch_secs(),
+        redirect_to: validated_redirect,
     });
 
     tracing::info!(provider = %provider, "OAuth flow initiated");
@@ -1466,8 +1478,13 @@ async fn oauth_callback(
     }
 
     if let Some(code) = params.code {
-        // Try PKCE exchange to establish a server-side session immediately
-        let verifier = state.pending_oauth.read().await.as_ref().map(|f| f.verifier.clone());
+        // Extract redirect_to and verifier before the flow gets cleared
+        let (verifier, browser_redirect) = {
+            let guard = state.pending_oauth.read().await;
+            let verifier = guard.as_ref().map(|f| f.verifier.clone());
+            let redirect = guard.as_ref().and_then(|f| f.redirect_to.clone());
+            (verifier, redirect)
+        };
         if let Some(verifier) = verifier {
             if let Ok(gotrue) = GoTrueClient::from_state(&state) {
                 match gotrue.exchange_code_for_session(&code, &verifier).await {
@@ -1584,6 +1601,15 @@ async fn oauth_callback(
 
         // Still store code for legacy tauri-session polling
         set_pending_code(&code).await?;
+
+        // If a redirect_to URL was stored (browser-mode OAuth), redirect
+        // back to the frontend instead of showing the "close this tab" page.
+        if let Some(redirect_url) = browser_redirect {
+            return Ok(Html(format!(
+                r#"<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url={url}"></head><body>Redirecting...</body></html>"#,
+                url = redirect_url,
+            )));
+        }
 
         Ok(Html(callback_page(
             "Signed In",
