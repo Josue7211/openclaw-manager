@@ -1285,21 +1285,30 @@ input[type="checkbox"]:checked::before {
   pointer-events: none;
   opacity: 0;
   transition: opacity 200ms var(--ease-out);
-  background-image:
-    repeating-linear-gradient(90deg, var(--border) 0px, var(--border) 1px, transparent 1px, transparent),
-    repeating-linear-gradient(0deg, var(--border) 0px, var(--border) 1px, transparent 1px, transparent);
+  /* Dashed grid pattern via SVG for a polished edit-mode look */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='96'%3E%3Crect width='100' height='96' fill='none' stroke='%23888' stroke-width='0.5' stroke-dasharray='4 4'/%3E%3C/svg%3E");
   background-size: calc(100% / var(--grid-cols, 3)) 96px;
   z-index: var(--z-edit-overlay);
 }
-.dashboard-grid-lines.visible { opacity: 0.4; }
+.dashboard-grid-lines.visible { opacity: 0.35; }
 
 /* ── Drag placeholder styles ── */
 .react-grid-item.react-grid-placeholder {
   background: var(--accent-a12) !important;
-  border: 1px dashed var(--accent) !important;
+  border: 2px dashed var(--accent) !important;
   border-radius: var(--radius-lg) !important;
   opacity: 1 !important;
   transition: all 150ms var(--ease-out) !important;
+  animation: placeholder-pulse 1.2s ease-in-out infinite !important;
+}
+
+@keyframes placeholder-pulse {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .react-grid-item.react-grid-placeholder { animation: none !important; }
 }
 
 /* ── Widget drag lift ── */
@@ -1386,6 +1395,12 @@ input[type="checkbox"]:checked::before {
 .widget-card:hover .widget-gear-btn,
 .widget-card[data-editing="true"] .widget-gear-btn {
   opacity: 1;
+}
+
+/* ── Edit-mode widget outline — subtle dashed border to indicate draggable ── */
+.widget-card[data-editing="true"] {
+  outline: 1px dashed var(--border);
+  outline-offset: 2px;
 }
 
 .widget-title-header {

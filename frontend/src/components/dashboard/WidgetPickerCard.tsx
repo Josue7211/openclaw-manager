@@ -9,6 +9,7 @@ import {
   WifiHigh,
   Terminal,
   Cube,
+  CheckCircle,
 } from '@phosphor-icons/react'
 import type { WidgetDefinition } from '@/lib/widget-registry'
 
@@ -60,11 +61,14 @@ function closestPresetIndex(defaultSize: { w: number; h: number }): number {
 
 interface WidgetPickerCardProps {
   widget: WidgetDefinition
+  /** Whether this widget is already placed on the current dashboard page */
+  isPlaced?: boolean
   onAdd: (size: { w: number; h: number }) => void
 }
 
 export const WidgetPickerCard = React.memo(function WidgetPickerCard({
   widget,
+  isPlaced = false,
   onAdd,
 }: WidgetPickerCardProps) {
   const defaultIdx = useMemo(
@@ -90,9 +94,28 @@ export const WidgetPickerCard = React.memo(function WidgetPickerCard({
         display: 'flex',
         flexDirection: 'column',
         gap: '10px',
-        transition: 'border-color 150ms ease',
+        transition: 'border-color 150ms ease, opacity 150ms ease',
+        opacity: isPlaced ? 0.7 : 1,
+        position: 'relative',
       }}
     >
+      {/* Already-placed badge */}
+      {isPlaced && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            display: 'flex',
+            alignItems: 'center',
+            zIndex: 1,
+          }}
+          title="Already on dashboard"
+        >
+          <CheckCircle size={18} weight="fill" style={{ color: 'var(--green-500)' }} />
+        </div>
+      )}
+
       {/* Icon + Name + Description */}
       <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
         <div
@@ -130,6 +153,18 @@ export const WidgetPickerCard = React.memo(function WidgetPickerCard({
           >
             {widget.description}
           </div>
+          {isPlaced && (
+            <div
+              style={{
+                fontSize: '11px',
+                color: 'var(--green-500)',
+                fontWeight: 500,
+                marginTop: '2px',
+              }}
+            >
+              Already placed
+            </div>
+          )}
         </div>
       </div>
 

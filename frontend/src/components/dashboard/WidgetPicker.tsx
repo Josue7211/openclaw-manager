@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react'
-import { X, MagnifyingGlass, Package, Pulse, CheckSquare, BookOpen, Television, Layout } from '@phosphor-icons/react'
+import { X, MagnifyingGlass, Package, Pulse, CheckSquare, BookOpen, Television, Layout, CheckCircle } from '@phosphor-icons/react'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
 import {
@@ -52,7 +52,7 @@ interface WidgetPickerProps {
   open: boolean
   onClose: () => void
   pageId: string
-  /** @deprecated No longer used — duplicate widgets are allowed */
+  /** Widget plugin IDs already placed on the current page (for "already placed" indicators) */
   placedWidgetIds?: string[]
   /** Override: custom add widget handler instead of dashboard-store addWidgetToPage */
   onAddWidget?: (pageId: string, pluginId: string, layout: import('@/lib/dashboard-store').LayoutItem) => void
@@ -62,6 +62,7 @@ export const WidgetPicker = React.memo(function WidgetPicker({
   open,
   onClose,
   pageId,
+  placedWidgetIds = [],
   onAddWidget,
 }: WidgetPickerProps) {
   const widgetAdder = onAddWidget ?? addWidgetToPage
@@ -83,6 +84,7 @@ export const WidgetPicker = React.memo(function WidgetPicker({
   const categorized = useMemo(() => getWidgetsByCategory(), [])
   const bundles = useMemo(() => getWidgetBundles(), [])
   const presets = useMemo(() => getWidgetPresets(), [])
+  const placedSet = useMemo(() => new Set(placedWidgetIds), [placedWidgetIds])
 
   // Filter by search and selected category
   const filteredCategories = useMemo(() => {
@@ -497,6 +499,7 @@ export const WidgetPicker = React.memo(function WidgetPicker({
                       <WidgetPickerCard
                         key={widget.id}
                         widget={widget}
+                        isPlaced={placedSet.has(widget.id)}
                         onAdd={(size) => handleAddWidget(widget, size)}
                       />
                     ))}
