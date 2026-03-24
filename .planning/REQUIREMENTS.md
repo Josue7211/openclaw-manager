@@ -31,7 +31,7 @@ Requirements for stabilization milestone. Each maps to roadmap phases.
 
 ### Test Coverage
 
-- [ ] **TEST-01**: OpenClaw hooks (useAgents, useCrons, useOpenClawStatus, useOpenClawModels) have unit tests
+- [x] **TEST-01**: OpenClaw hooks (useAgents, useCrons, useOpenClawStatus, useOpenClawModels) have unit tests
 - [ ] **TEST-02**: Terminal hooks (useTerminal, useSessionOutput) have unit tests
 - [ ] **TEST-03**: Gateway status and health check paths have integration tests
 
@@ -80,7 +80,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DEAD-02 | Phase 66 | Pending |
 | DEAD-03 | Phase 67 | Complete |
 | DEAD-04 | Phase 68 | Pending |
-| TEST-01 | Phase 69 | Pending |
+| TEST-01 | Phase 69 | Complete |
 | TEST-02 | Phase 70 | Pending |
 | TEST-03 | Phase 71 | Pending |
 | VERIFY-01 | Phase 72 | Pending |

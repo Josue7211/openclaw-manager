@@ -304,7 +304,7 @@ Plans:
 | 66. Strip Unused npm Deps | v0.0.4 | 0/? | Complete    | 2026-03-24 |
 | 67. Strip Unused Imports | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
 | 68. Enable TS Strict Flags | v0.0.4 | 0/? | Complete    | 2026-03-24 |
-| 69. OpenClaw Hook Tests | v0.0.4 | 0/? | Not started | - |
+| 69. OpenClaw Hook Tests | v0.0.4 | 0/1 | Planned    |  |
 | 70. Terminal Hook Tests | v0.0.4 | 0/? | Not started | - |
 | 71. Gateway Integration Tests | v0.0.4 | 0/? | Not started | - |
 | 72. Sidebar Module Smoke Test | v0.0.4 | 0/? | Not started | - |

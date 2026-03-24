@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v0.0.4
 milestone_name: -- Stabilize & Strip
-status: Ready to plan
-stopped_at: Completed 67-01-PLAN.md
-last_updated: "2026-03-24T10:42:09.611Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 13-01-PLAN.md
+last_updated: "2026-03-24T10:55:32.693Z"
 progress:
   total_phases: 19
   completed_phases: 13
-  total_plans: 14
+  total_plans: 17
   completed_plans: 14
 ---
 
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 68 — Enable TypeScript Strict Flags
+**Current focus:** Phase 69 — OpenClaw Hook Tests
 
 ## Current Position
 
-Phase: 69
-Plan: Not started
+Phase: 69 (OpenClaw Hook Tests) — EXECUTING
+Plan: 1 of 1
 
 ## Performance Metrics
 
@@ -49,6 +49,8 @@ Plan: Not started
 | Phase 65 P01 | 9min | 2 tasks | 12 files |
 | Phase 65 P02 | 9min | 3 tasks | 19 files |
 | Phase 67 P01 | 18min | 2 tasks | 47 files |
+| Phase 69 P01 | 5min | 2 tasks | 5 files |
+| Phase 13 P01 | 5min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -70,6 +72,10 @@ Recent decisions affecting current work:
 - [Phase 63]: noVNC references already removed; only v8 dashboard-state migration needed
 - [Phase 65]: Delete unused functions (formatDate, getNote, renameNote, isImageFile, PrimitiveErrorFallback, useSecretsList, useSecret, useDeleteSecret, useEditablePageTitle, usePageSubtitle) rather than just de-exporting -- reduces bundle size
 - [Phase 67]: Underscore prefix convention for intentionally unused params (argsIgnorePattern/varsIgnorePattern in ESLint)
+- [Phase 69]: Created useGatewayStatus hook from plan spec since it was missing from codebase
+- [Phase 69]: Hook test pattern: createWrapper returns queryClient+wrapper for cache inspection
+- [Phase 13]: Whitelist env sanitization (env_clear + safe list) instead of blocklist for PTY sessions
+- [Phase 13]: OS threads for PTY I/O bridged to async via tokio::sync::mpsc -- portable-pty uses blocking Read/Write
 
 ### Pending Todos
 
@@ -83,6 +89,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-24T10:22:06.062Z
-Stopped at: Completed 67-01-PLAN.md
+Last session: 2026-03-24T10:55:32.691Z
+Stopped at: Completed 13-01-PLAN.md
 Resume file: None
