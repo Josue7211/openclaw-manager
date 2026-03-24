@@ -1,93 +1,76 @@
 # Requirements: OpenClaw Manager
 
 **Defined:** 2026-03-24
+**Milestone:** v0.0.6 — Sessions & Chat
 **Core Value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
 
-## v0.0.5 Requirements
+## v0.0.6 Requirements
 
-Requirements for gateway protocol integration milestone. Each maps to roadmap phases.
+Requirements for full session management and chat functionality. Each maps to roadmap phases.
 
-### Gateway Connection
+### Session Management
 
-- [x] **GW-01**: Connect handshake uses protocol v3 with role/scopes/client metadata (not empty JSON)
-- [x] **GW-02**: Device identity sent in handshake (device_id, platform, app_version)
-- [x] **GW-03**: Gateway WebSocket reconnects automatically with exponential backoff on disconnect
+- [ ] **SESS-01**: User can view a list of all sessions with label, agent name, message count, and last activity timestamp
+- [ ] **SESS-02**: User can create a new session by sending the first message (chat.send creates session implicitly)
+- [ ] **SESS-03**: User can rename a session by editing its label (sessions.patch)
+- [ ] **SESS-04**: User can delete a session (sessions.delete with confirmation)
+- [ ] **SESS-05**: User can compact a session to reduce token usage (sessions.compact)
+- [ ] **SESS-06**: Session list updates in real-time when new sessions are created or messages arrive (via SSE events)
 
-### RPC Method Corrections
+### Chat
 
-- [x] **RPC-01**: sessions.history -> chat.history (correct method name)
-- [x] **RPC-02**: sessions.create -> chat.send with proper message format
-- [ ] **RPC-03**: agents.list -> agents.list (verify params match protocol)
-- [ ] **RPC-04**: agents.create/update/delete -> verify CRUD method signatures
-- [ ] **RPC-05**: crons.list/create/update/delete -> verify CRUD method signatures
-- [x] **RPC-06**: models.list -> models.list (verify response shape)
-- [ ] **RPC-07**: usage.summary -> usage.get (correct method name and params)
-- [x] **RPC-08**: tools.list/skills.list -> verify method names and response shapes
-- [x] **RPC-09**: activity.recent -> logs.tail via WS RPC (completed Phase 83)
+- [ ] **CHAT-01**: User can view chat history for a selected session (chat.history with sessionKey)
+- [ ] **CHAT-02**: User can send a message to an agent and see the response stream in real-time (chat.send with deliver:true)
+- [ ] **CHAT-03**: User can abort an in-progress agent response (chat.abort)
+- [ ] **CHAT-04**: Chat messages display with proper formatting (markdown rendering, code blocks)
+- [ ] **CHAT-05**: User can see when an agent is "thinking" or generating a response (loading indicator)
+- [ ] **CHAT-06**: Chat input supports multiline text and submit via Enter/Shift+Enter
 
-### Event Bus
+### Model Selection
 
-- [ ] **EVT-01**: SSE event bus wired to actual gateway WebSocket events (not mock data)
-- [ ] **EVT-02**: Real-time agent status updates surfaced via SSE when gateway sends agent.* events
-- [x] **EVT-03**: Session events (created, completed, error) surfaced via SSE
+- [ ] **MODEL-01**: User can select which model/agent to use when starting a new session
+- [ ] **MODEL-02**: Available models are fetched from the gateway (models.list) and displayed in a picker
+- [ ] **MODEL-03**: Selected model is passed as parameter when creating a session via chat.send
 
-### Live Data Verification
+### Session Output Streaming
 
-- [x] **LIVE-01**: Agents tab shows real agents from gateway with correct CRUD operations
-- [x] **LIVE-02**: Crons tab shows real scheduled tasks with correct CRUD operations
-- [x] **LIVE-03**: Usage tab shows real token/cost data from gateway
-- [x] **LIVE-04**: Models tab shows real available models from gateway
-- [x] **LIVE-05**: Activity feed shows real events from gateway (not assumed shapes)
+- [ ] **STREAM-01**: Agent responses stream token-by-token to the frontend via SSE (not batch after completion)
+- [ ] **STREAM-02**: Streaming tokens appear with minimal latency (< 200ms from gateway event to UI render)
+- [ ] **STREAM-03**: If the gateway connection drops mid-stream, the partial response is preserved and a reconnect is attempted
 
-## Future Requirements
+## Future Requirements (deferred from v0.0.6)
 
-### Sessions & Chat (v0.0.6)
-
-- **CHAT-01**: Sessions CRUD with proper chat.send/history/abort methods
-- **CHAT-02**: Live streaming chat responses via WebSocket
-- **CHAT-03**: Model selection per session
+- Session search/filter by content or agent name
+- Session export (markdown, JSON)
+- Session branching (fork from a specific message)
+- Multi-agent sessions (multiple agents in one conversation)
+- Session sharing between users
 
 ## Out of Scope
 
-| Feature | Reason |
-|---------|--------|
-| New UI pages or widgets | Protocol integration only -- no new features |
-| Terminal or remote desktop changes | Working from v0.0.3, untouched |
-| Notes/calendar/messages changes | Working from v0.0.1, untouched |
-| Multi-user support | Single-user app |
+- Voice input/output — deferred to a future milestone (TTS/voice methods exist in protocol)
+- File attachments in chat — deferred (no gateway method for file upload in chat context)
+- Session templates/presets — deferred to Skills & Plugins milestone
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
-
 | Requirement | Phase | Status |
-|-------------|-------|--------|
-| GW-01 | Phase 75 | Complete |
-| GW-02 | Phase 75 | Complete |
-| GW-03 | Phase 76 | Complete |
-| RPC-01 | Phase 77 | Complete |
-| RPC-02 | Phase 77 | Complete |
-| RPC-03 | Phase 78 | Pending |
-| RPC-04 | Phase 78 | Pending |
-| RPC-05 | Phase 79 | Pending |
-| RPC-06 | Phase 80 | Complete |
-| RPC-07 | Phase 81 | Pending |
-| RPC-08 | Phase 82 | Complete |
-| RPC-09 | Phase 83 | Complete |
-| EVT-01 | Phase 84 | Pending |
-| EVT-02 | Phase 85 | Pending |
-| EVT-03 | Phase 86 | Complete |
-| LIVE-01 | Phase 87 | Complete |
-| LIVE-02 | Phase 88 | Complete |
-| LIVE-03 | Phase 89 | Complete |
-| LIVE-04 | Phase 89 | Complete |
-| LIVE-05 | Phase 90 | Complete |
-
-**Coverage:**
-- v0.0.5 requirements: 20 total
-- Mapped to phases: 20/20
-- Unmapped: 0
-
----
-*Requirements defined: 2026-03-24*
-*Last updated: 2026-03-24*
+|------------|-------|--------|
+| SESS-01 | — | Pending |
+| SESS-02 | — | Pending |
+| SESS-03 | — | Pending |
+| SESS-04 | — | Pending |
+| SESS-05 | — | Pending |
+| SESS-06 | — | Pending |
+| CHAT-01 | — | Pending |
+| CHAT-02 | — | Pending |
+| CHAT-03 | — | Pending |
+| CHAT-04 | — | Pending |
+| CHAT-05 | — | Pending |
+| CHAT-06 | — | Pending |
+| MODEL-01 | — | Pending |
+| MODEL-02 | — | Pending |
+| MODEL-03 | — | Pending |
+| STREAM-01 | — | Pending |
+| STREAM-02 | — | Pending |
+| STREAM-03 | — | Pending |
