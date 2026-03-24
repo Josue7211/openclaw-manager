@@ -199,10 +199,30 @@ async fn openclaw_health(
     }
 }
 
+// ── Gateway models ──────────────────────────────────────────────────────────
+
+/// `GET /api/gateway/models`
+///
+/// Proxies `models.list` to the OpenClaw gateway.
+/// Currently uses HTTP proxy via `gateway_forward`; will migrate to the
+/// persistent WS RPC connection (`models.list`) once `gateway_ws` lands.
+async fn gateway_models(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let result = gateway_forward(&state, Method::GET, "/models", None).await?;
+    Ok(Json(json!({
+        "ok": true,
+        "data": result,
+    })))
+}
+
 // ── Router ──────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/openclaw/health", get(openclaw_health))
+    Router::new()
+        .route("/openclaw/health", get(openclaw_health))
+        .route("/gateway/models", get(gateway_models))
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
