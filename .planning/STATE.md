@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.0.4
 milestone_name: -- Stabilize & Strip
 status: Phase complete — ready for verification
-stopped_at: Completed 13-01-PLAN.md
-last_updated: "2026-03-24T10:55:32.693Z"
+stopped_at: Completed 70-01-PLAN.md
+last_updated: "2026-03-24T11:01:58.075Z"
 progress:
   total_phases: 19
-  completed_phases: 13
+  completed_phases: 15
   total_plans: 17
-  completed_plans: 14
+  completed_plans: 16
 ---
 
 # Project State
@@ -19,11 +19,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 69 — OpenClaw Hook Tests
+**Current focus:** Phase 70 — Terminal Hook Tests
 
 ## Current Position
 
-Phase: 69 (OpenClaw Hook Tests) — EXECUTING
+Phase: 70 (Terminal Hook Tests) — EXECUTING
 Plan: 1 of 1
 
 ## Performance Metrics
@@ -51,6 +51,7 @@ Plan: 1 of 1
 | Phase 67 P01 | 18min | 2 tasks | 47 files |
 | Phase 69 P01 | 5min | 2 tasks | 5 files |
 | Phase 13 P01 | 5min | 2 tasks | 3 files |
+| Phase 70 P01 | 2min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,7 @@ Recent decisions affecting current work:
 - [Phase 69]: Hook test pattern: createWrapper returns queryClient+wrapper for cache inspection
 - [Phase 13]: Whitelist env sanitization (env_clear + safe list) instead of blocklist for PTY sessions
 - [Phase 13]: OS threads for PTY I/O bridged to async via tokio::sync::mpsc -- portable-pty uses blocking Read/Write
+- [Phase 70]: Self-contained mock classes per test file since vitest runs in isolation
 
 ### Pending Todos
 
@@ -89,6 +91,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-24T10:55:32.691Z
-Stopped at: Completed 13-01-PLAN.md
+Last session: 2026-03-24T11:01:58.073Z
+Stopped at: Completed 70-01-PLAN.md
 Resume file: None
