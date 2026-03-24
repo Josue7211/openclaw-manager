@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.0.5
 milestone_name: -- Gateway Protocol v3
-status: Ready to plan
-stopped_at: Completed 77-01-PLAN.md
-last_updated: "2026-03-24T12:44:49.811Z"
+status: executing
+stopped_at: Completed 83-01-PLAN.md
+last_updated: "2026-03-24T12:51:01Z"
 progress:
   total_phases: 16
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 9
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 76 — Reconnect with Backoff
+**Current focus:** Phase 83 — Activity Events Method Correction
 
 ## Current Position
 
-Phase: 77
-Plan: Not started
+Phase: 83
+Plan: Completed 83-01
 
 ## Performance Metrics
 
@@ -45,6 +45,7 @@ Plan: Not started
 | Phase 75 P01 | 7min | 2 tasks | 7 files |
 | Phase 76 P01 | 4min | 2 tasks | 5 files |
 | Phase 77 P01 | 6min | 2 tasks | 1 files |
+| Phase 83 P01 | 3min | 1 tasks | 1 files |
 
 ### Decisions
 
@@ -58,6 +59,7 @@ Recent decisions affecting current work:
 - [Phase 75]: Device ID format mc-{12hex} via rand::random -- no uuid crate needed
 - [Phase 76]: Used checked_shl for overflow-safe exponential backoff delay calculation
 - [Phase 77]: Used gateway_forward HTTP proxy pattern for chat RPC calls (consistent with agents/crons) since no WebSocket RPC client exists yet
+- [Phase 83]: Created gateway_activity handler with logs.tail WS RPC (activity.recent never existed in protocol v3)
 
 ### Pending Todos
 
@@ -71,6 +73,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-24T12:44:49.809Z
-Stopped at: Completed 77-01-PLAN.md
+Last session: 2026-03-24T12:51:01Z
+Stopped at: Completed 83-01-PLAN.md
 Resume file: None

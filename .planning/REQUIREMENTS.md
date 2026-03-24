@@ -23,7 +23,7 @@ Requirements for gateway protocol integration milestone. Each maps to roadmap ph
 - [ ] **RPC-06**: models.list -> models.list (verify response shape)
 - [ ] **RPC-07**: usage.summary -> usage.get (correct method name and params)
 - [ ] **RPC-08**: tools.list/skills.list -> verify method names and response shapes
-- [ ] **RPC-09**: activity.recent -> events.list or subscribe pattern (verify correct approach)
+- [x] **RPC-09**: activity.recent -> logs.tail via WS RPC (completed Phase 83)
 
 ### Event Bus
 
@@ -73,7 +73,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RPC-06 | Phase 80 | Pending |
 | RPC-07 | Phase 81 | Pending |
 | RPC-08 | Phase 82 | Pending |
-| RPC-09 | Phase 83 | Pending |
+| RPC-09 | Phase 83 | Complete |
 | EVT-01 | Phase 84 | Pending |
 | EVT-02 | Phase 85 | Pending |
 | EVT-03 | Phase 86 | Pending |
