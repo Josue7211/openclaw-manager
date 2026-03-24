@@ -6,7 +6,7 @@
  * COLOR_SCHEME (prefer-dark / prefer-light) tells us which end to use.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import {
   buildWallbashTheme,
   setWallbashColors,

@@ -7,7 +7,7 @@
  */
 
 import { useSyncExternalStore } from 'react'
-import type { DashboardState, DashboardPage, LayoutItem, RecycleBinItem } from './dashboard-store'
+import type { DashboardState, LayoutItem } from './dashboard-store'
 
 // Types imported for internal use (no re-export -- consumers import directly from dashboard-store)
 
@@ -113,7 +113,7 @@ export function setHomeEditMode(editing: boolean): void {
   _emit()
 }
 
-function setHomeWobbleEnabled(enabled: boolean): void {
+function _setHomeWobbleEnabled(enabled: boolean): void {
   _cached = { ..._cached, wobbleEnabled: enabled }
   _persist()
   _emit()
@@ -280,7 +280,7 @@ export function undoHome(): boolean {
   return true
 }
 
-function redoHome(): boolean {
+function _redoHome(): boolean {
   const next = _redoStack.pop()
   if (!next) return false
   _undoStack.push(structuredClone(_cached))
@@ -290,7 +290,7 @@ function redoHome(): boolean {
   return true
 }
 
-function resetHomeLayout(pageId: string): void {
+function _resetHomeLayout(pageId: string): void {
   _pushUndo()
   _cached = {
     ..._cached,

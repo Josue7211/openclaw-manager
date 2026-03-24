@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import { BUILT_IN_THEMES, getThemeById } from '../theme-definitions'
-import type { ThemeDefinition } from '../theme-definitions'
 
 const REQUIRED_TIER1_KEYS = [
   'bg-base', 'bg-panel', 'bg-card', 'bg-card-hover', 'bg-elevated', 'bg-card-solid',

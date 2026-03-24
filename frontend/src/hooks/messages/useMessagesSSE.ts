@@ -42,7 +42,7 @@ interface ToastData {
 }
 
 export function useMessagesSSE({
-  selectedGuidRef,
+  selectedGuidRef: _selectedGuidRef,
   mutedConvsRef,
   contactLookupRef,
   onNewMessage,

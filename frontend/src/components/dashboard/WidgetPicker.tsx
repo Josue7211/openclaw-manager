@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react'
-import { X, MagnifyingGlass, Package, Pulse, CheckSquare, BookOpen, Television, Layout, CheckCircle } from '@phosphor-icons/react'
+import { X, MagnifyingGlass, Package, Pulse, CheckSquare, BookOpen, Television, Layout } from '@phosphor-icons/react'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
 import {
