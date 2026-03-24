@@ -347,56 +347,6 @@ async fn gateway_session_send(
     Ok(Json(json!({"ok": true, "data": payload})))
 }
 
-// ── Gateway WS session pause ─────────────────────────────────────────────
-
-/// `POST /api/gateway/sessions/:id/pause`
-///
-/// Pauses a running session via `sessions.pause`.
-async fn gateway_session_pause(
-    State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
-    Path(session_id): Path<String>,
-) -> Result<Json<Value>, AppError> {
-    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
-        AppError::BadRequest("OpenClaw Gateway not configured.".into())
-    })?;
-
-    let payload = gw
-        .request("sessions.pause", json!({"session_id": session_id}))
-        .await
-        .map_err(|e| {
-            tracing::error!("[gateway] sessions.pause failed: {e}");
-            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
-        })?;
-
-    Ok(Json(json!({"ok": true, "data": payload})))
-}
-
-// ── Gateway WS session resume ────────────────────────────────────────────
-
-/// `POST /api/gateway/sessions/:id/resume`
-///
-/// Resumes a paused session via `sessions.resume`.
-async fn gateway_session_resume(
-    State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
-    Path(session_id): Path<String>,
-) -> Result<Json<Value>, AppError> {
-    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
-        AppError::BadRequest("OpenClaw Gateway not configured.".into())
-    })?;
-
-    let payload = gw
-        .request("sessions.resume", json!({"session_id": session_id}))
-        .await
-        .map_err(|e| {
-            tracing::error!("[gateway] sessions.resume failed: {e}");
-            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
-        })?;
-
-    Ok(Json(json!({"ok": true, "data": payload})))
-}
-
 // ── Gateway activity feed ────────────────────────────────────────────────
 
 /// `GET /api/gateway/activity`
@@ -460,8 +410,6 @@ pub fn router() -> Router<AppState> {
         .route("/gateway/sessions", get(gateway_sessions))
         .route("/gateway/sessions/:id/history", get(gateway_session_history))
         .route("/gateway/sessions/:id/send", post(gateway_session_send))
-        .route("/gateway/sessions/:id/pause", post(gateway_session_pause))
-        .route("/gateway/sessions/:id/resume", post(gateway_session_resume))
         .route("/gateway/activity", get(gateway_activity))
         .route("/gateway/memory/search", post(gateway_memory_search))
 }

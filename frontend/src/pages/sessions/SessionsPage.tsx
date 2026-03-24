@@ -20,14 +20,14 @@ export default function SessionsPage() {
   )
 
   const showControls = selectedSession != null &&
-    (selectedSession.status === 'running' || selectedSession.status === 'paused')
+    selectedSession.status === 'running'
 
   // Auto-set viewMode based on session status
   useEffect(() => {
     if (!selectedId) return
     const session = sessions.find((s) => s.id === selectedId)
     if (!session) return
-    if (session.status === 'running' || session.status === 'paused') {
+    if (session.status === 'running') {
       setViewMode('output')
     } else {
       setViewMode('history')
@@ -140,7 +140,6 @@ export default function SessionsPage() {
         {showControls && selectedSession && (
           <SessionControls
             sessionId={selectedSession.id}
-            sessionStatus={selectedSession.status}
             available={available}
           />
         )}

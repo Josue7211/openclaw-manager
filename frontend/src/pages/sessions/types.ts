@@ -1,4 +1,4 @@
-export type SessionStatus = 'running' | 'paused' | 'completed' | 'failed' | 'unknown'
+export type SessionStatus = 'running' | 'completed' | 'failed' | 'unknown'
 
 export interface ClaudeSession {
   id: string
@@ -66,7 +66,6 @@ export const GATEWAY_STATUS_LABELS: Record<GatewayConnectionStatus, string> = {
 // Status color mapping using CSS variables (not hardcoded colors)
 export const STATUS_COLORS: Record<string, string> = {
   running: 'var(--green-400)',
-  paused: 'var(--amber)',
   completed: 'var(--blue)',
   failed: 'var(--red-500)',
   unknown: 'var(--text-muted)',
@@ -75,7 +74,6 @@ export const STATUS_COLORS: Record<string, string> = {
 // Status display labels
 export const STATUS_LABELS: Record<string, string> = {
   running: 'Running',
-  paused: 'Paused',
   completed: 'Completed',
   failed: 'Failed',
   unknown: 'Unknown',

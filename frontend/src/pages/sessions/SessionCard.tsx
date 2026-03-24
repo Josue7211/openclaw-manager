@@ -62,7 +62,7 @@ export const SessionCard = React.memo(function SessionCard({
     }
   }, [confirmingKill, onKill, session.id])
 
-  const showKill = session.status === 'running' || session.status === 'paused'
+  const showKill = session.status === 'running'
   const statusColor = STATUS_COLORS[session.status] || STATUS_COLORS.unknown
   const statusLabel = STATUS_LABELS[session.status] || STATUS_LABELS.unknown
   const durationValue = session.duration ?? liveDuration

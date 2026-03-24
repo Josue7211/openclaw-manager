@@ -1,41 +1,20 @@
 import { useState, useCallback } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { PaperPlaneTilt, Pause, Play } from '@phosphor-icons/react'
+import { useMutation } from '@tanstack/react-query'
+import { PaperPlaneTilt } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
-import { queryKeys } from '@/lib/query-keys'
-import type { SessionStatus } from './types'
 
 interface SessionControlsProps {
   sessionId: string
-  sessionStatus: SessionStatus
   available: boolean
 }
 
-export function SessionControls({ sessionId, sessionStatus, available }: SessionControlsProps) {
+export function SessionControls({ sessionId, available }: SessionControlsProps) {
   const [message, setMessage] = useState('')
-  const queryClient = useQueryClient()
-
-  const invalidateSessions = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.claudeSessions })
-    queryClient.invalidateQueries({ queryKey: queryKeys.gatewaySessions })
-  }, [queryClient])
 
   const sendMutation = useMutation({
     mutationFn: (text: string) =>
       api.post<{ ok: boolean }>(`/api/gateway/sessions/${sessionId}/send`, { message: text }),
     onSuccess: () => setMessage(''),
-  })
-
-  const pauseMutation = useMutation({
-    mutationFn: () =>
-      api.post<{ ok: boolean }>(`/api/gateway/sessions/${sessionId}/pause`),
-    onSuccess: invalidateSessions,
-  })
-
-  const resumeMutation = useMutation({
-    mutationFn: () =>
-      api.post<{ ok: boolean }>(`/api/gateway/sessions/${sessionId}/resume`),
-    onSuccess: invalidateSessions,
   })
 
   const handleSend = useCallback(() => {
@@ -51,8 +30,6 @@ export function SessionControls({ sessionId, sessionStatus, available }: Session
     }
   }, [handleSend])
 
-  const isPaused = sessionStatus === 'paused'
-  const togglePending = pauseMutation.isPending || resumeMutation.isPending
   const sendDisabled = !message.trim() || sendMutation.isPending || !available
 
   return (
@@ -65,34 +42,6 @@ export function SessionControls({ sessionId, sessionStatus, available }: Session
       background: 'var(--bg-card)',
       flexShrink: 0,
     }}>
-      {/* Pause/Resume toggle */}
-      <button
-        type="button"
-        onClick={() => isPaused ? resumeMutation.mutate() : pauseMutation.mutate()}
-        disabled={!available || togglePending}
-        aria-label={isPaused ? 'Resume session' : 'Pause session'}
-        title={isPaused ? 'Resume session' : 'Pause session'}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: '34px',
-          height: '34px',
-          borderRadius: '8px',
-          border: '1px solid var(--border)',
-          background: 'transparent',
-          color: isPaused ? 'var(--green-400)' : 'var(--amber)',
-          cursor: available && !togglePending ? 'pointer' : 'not-allowed',
-          opacity: available && !togglePending ? 1 : 0.4,
-          transition: 'background 0.15s, color 0.15s',
-          fontFamily: 'inherit',
-          flexShrink: 0,
-        }}
-        className={available && !togglePending ? 'hover-bg' : undefined}
-      >
-        {isPaused ? <Play size={16} weight="fill" /> : <Pause size={16} weight="fill" />}
-      </button>
-
       {/* Message input */}
       <input
         type="text"
