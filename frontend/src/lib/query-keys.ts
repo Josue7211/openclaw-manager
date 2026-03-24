@@ -32,6 +32,7 @@ export const queryKeys = {
   },
   bjornModules: ['bjorn', 'modules'] as const,
   bjornVersions: (id: string) => ['bjorn', 'versions', id] as const,
+  gatewayActivity: ['gateway', 'activity'] as const,
   openclawUsage: ['openclaw', 'usage'] as const,
   openclawModels: ['openclaw', 'models'] as const,
   openclawTools: ['openclaw', 'tools'] as const,

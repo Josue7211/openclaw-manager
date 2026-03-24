@@ -199,36 +199,27 @@ async fn openclaw_health(
     }
 }
 
-// ── Skills routes (protocol v3: skills.status, skills.bins) ────────────────
+// ── Activity route ──────────────────────────────────────────────────────────
 
-/// `GET /api/gateway/skills/status`
+/// `GET /api/gateway/activity`
 ///
-/// Proxies `skills.status` through the gateway HTTP proxy.
-/// Returns installed skills and their current status.
-async fn gateway_skills_status(
+/// Fetches recent activity events from the OpenClaw gateway via `logs.tail`.
+/// Uses HTTP forward to `/logs?limit=50` on the gateway API.
+/// Response: `{ "ok": true, "data": <gateway payload> }`
+async fn gateway_activity(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let result = gateway_forward(&state, Method::GET, "/skills/status", None).await?;
-    Ok(Json(json!({
-        "ok": true,
-        "data": result,
-    })))
-}
+    let payload = gateway_forward(&state, Method::GET, "/logs", None).await.map_err(|e| {
+        tracing::error!("[gateway] logs.tail failed: {e:?}");
+        match e {
+            // Preserve BadRequest for user-visible errors (not configured, etc.)
+            AppError::BadRequest(_) => e,
+            _ => AppError::BadRequest("Gateway error: failed to fetch activity logs".into()),
+        }
+    })?;
 
-/// `GET /api/gateway/skills/bins`
-///
-/// Proxies `skills.bins` through the gateway HTTP proxy.
-/// Returns available skill binaries (tools) that can be installed.
-async fn gateway_skills_bins(
-    State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
-) -> Result<Json<Value>, AppError> {
-    let result = gateway_forward(&state, Method::GET, "/skills/bins", None).await?;
-    Ok(Json(json!({
-        "ok": true,
-        "data": result,
-    })))
+    Ok(Json(json!({ "ok": true, "data": payload })))
 }
 
 // ── Router ──────────────────────────────────────────────────────────────────
@@ -236,8 +227,7 @@ async fn gateway_skills_bins(
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/openclaw/health", get(openclaw_health))
-        .route("/gateway/skills/status", get(gateway_skills_status))
-        .route("/gateway/skills/bins", get(gateway_skills_bins))
+        .route("/gateway/activity", get(gateway_activity))
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
@@ -340,5 +330,15 @@ mod tests {
         assert!(
             validate_gateway_path("/agents/550e8400-e29b-41d4-a716-446655440000").is_ok()
         );
+    }
+
+    #[test]
+    fn validate_activity_path() {
+        assert!(validate_gateway_path("/gateway/activity").is_ok());
+    }
+
+    #[test]
+    fn validate_logs_path() {
+        assert!(validate_gateway_path("/logs").is_ok());
     }
 }

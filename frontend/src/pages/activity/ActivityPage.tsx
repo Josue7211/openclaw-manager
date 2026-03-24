@@ -1,13 +1,16 @@
-import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Play, Stop, Clock, Shield, Warning, Pulse } from '@phosphor-icons/react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef } from 'react'
+import { Pulse, Lightning, Robot, Timer, Warning, ArrowRight } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
+import { SkeletonRows } from '@/components/Skeleton'
+import { PageHeader } from '@/components/PageHeader'
+import { useRealtimeSSE } from '@/lib/hooks/useRealtimeSSE'
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// -- Types -------------------------------------------------------------------
 
-interface ActivityEvent {
-  id?: string
+export interface ActivityEvent {
+  id: string
   type: string
   description?: string
   message?: string
@@ -15,270 +18,175 @@ interface ActivityEvent {
   created_at?: string
   session_id?: string
   agent?: string
-  [key: string]: unknown
 }
 
 interface ActivityResponse {
   ok: boolean
-  data?: {
-    events?: ActivityEvent[]
-    [key: string]: unknown
-  } | ActivityEvent[]
+  data?: { events?: ActivityEvent[] } | ActivityEvent[]
 }
 
-// ── Icon mapping ─────────────────────────────────────────────────────────────
+// -- Helpers -----------------------------------------------------------------
 
-const EVENT_ICONS: Record<string, { icon: React.ElementType; color: string }> = {
-  'session.start': { icon: Play, color: 'var(--green-500)' },
-  'session.started': { icon: Play, color: 'var(--green-500)' },
-  'session.stop': { icon: Stop, color: 'var(--red-500)' },
-  'session.stopped': { icon: Stop, color: 'var(--red-500)' },
-  'session.complete': { icon: Stop, color: 'var(--text-muted)' },
-  'cron.run': { icon: Clock, color: 'var(--blue)' },
-  'cron.complete': { icon: Clock, color: 'var(--blue)' },
-  'approval': { icon: Shield, color: 'var(--amber)' },
-  'approval.granted': { icon: Shield, color: 'var(--green-500)' },
-  'approval.denied': { icon: Shield, color: 'var(--red-500)' },
-  'error': { icon: Warning, color: 'var(--red-500)' },
+/** Normalise the gateway response into an array of events. */
+function extractEvents(data: ActivityResponse | undefined): ActivityEvent[] {
+  if (!data?.data) return []
+  if (Array.isArray(data.data)) return data.data
+  if (Array.isArray(data.data.events)) return data.data.events
+  return []
 }
 
-function getEventIcon(type: string): { icon: React.ElementType; color: string } {
-  if (EVENT_ICONS[type]) return EVENT_ICONS[type]
-  if (type.startsWith('session')) return { icon: Play, color: 'var(--accent)' }
-  if (type.startsWith('cron')) return { icon: Clock, color: 'var(--blue)' }
-  if (type.startsWith('error')) return { icon: Warning, color: 'var(--red-500)' }
-  if (type.startsWith('approval')) return { icon: Shield, color: 'var(--amber)' }
-  return { icon: Pulse, color: 'var(--text-muted)' }
+/** Map event type to an icon component. */
+function iconForType(type: string) {
+  if (type.startsWith('session')) return ArrowRight
+  if (type.startsWith('agent')) return Robot
+  if (type.startsWith('cron')) return Timer
+  if (type === 'error') return Warning
+  return Lightning
 }
 
-// ── Relative time ────────────────────────────────────────────────────────────
+/** Map event type to a CSS variable colour. */
+function colorForType(type: string): string {
+  if (type.startsWith('session')) return 'var(--accent)'
+  if (type.startsWith('agent')) return 'var(--purple)'
+  if (type.startsWith('cron')) return 'var(--blue)'
+  if (type === 'error') return 'var(--red-500)'
+  return 'var(--text-muted)'
+}
 
+/** Relative time string from ISO timestamp. */
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
-  if (diff < 0) return 'just now'
-  if (diff < 60_000) return 'just now'
+  if (diff < 0 || diff < 60_000) return 'just now'
   if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`
   if (diff < 86_400_000) return `${Math.round(diff / 3_600_000)}h ago`
   return `${Math.round(diff / 86_400_000)}d ago`
 }
 
-// ── Main component ───────────────────────────────────────────────────────────
+// -- Component ---------------------------------------------------------------
 
 export default function ActivityPage() {
-  const { data, isLoading, error } = useQuery<ActivityResponse>({
+  const queryClient = useQueryClient()
+
+  const { data, isLoading, isError } = useQuery<ActivityResponse>({
     queryKey: queryKeys.gatewayActivity,
     queryFn: () => api.get<ActivityResponse>('/api/gateway/activity'),
-    refetchInterval: 5_000,
-    staleTime: 5_000,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
   })
 
-  const events = useMemo<ActivityEvent[]>(() => {
-    if (!data) return []
-    // Handle both { data: { events: [...] } } and { data: [...] }
-    if (Array.isArray(data.data)) return data.data
-    if (data.data && Array.isArray(data.data.events)) return data.data.events
-    return []
-  }, [data])
+  // SSE: invalidate activity query on any table change related to gateway data.
+  // We subscribe to the 'agents' table events since those map to gateway activity.
+  useRealtimeSSE(['agents'], {
+    queryKeys: { agents: queryKeys.gatewayActivity },
+  })
+
+  // Also poll-invalidate when the tab becomes visible (complements refetchOnWindowFocus)
+  const visibilityRef = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    const handler = () => {
+      if (document.visibilityState === 'visible') {
+        queryClient.invalidateQueries({ queryKey: queryKeys.gatewayActivity })
+      }
+    }
+    visibilityRef.current = handler
+    document.addEventListener('visibilitychange', handler)
+    return () => document.removeEventListener('visibilitychange', handler)
+  }, [queryClient])
+
+  const events = extractEvents(data)
 
   return (
-    <div style={{
-      position: 'absolute',
-      inset: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden',
-    }}>
-      {/* Header */}
-      <div style={{
-        padding: '20px 24px 16px',
-        borderBottom: '1px solid var(--hover-bg)',
-        flexShrink: 0,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Pulse size={20} weight="bold" style={{ color: 'var(--accent)' }} />
-          <h1 style={{
-            fontSize: '18px',
-            fontWeight: 700,
-            color: 'var(--text-primary)',
-            margin: 0,
+    <div style={{ padding: '20px 28px', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <PageHeader defaultTitle="Activity" defaultSubtitle="live feed of gateway events" />
+
+      <div style={{ flex: 1, overflowY: 'auto', marginTop: '16px' }}>
+        {isLoading ? (
+          <SkeletonRows count={6} />
+        ) : isError ? (
+          <div
+            role="alert"
+            style={{
+              padding: '24px', textAlign: 'center',
+              color: 'var(--text-muted)', fontSize: '13px',
+            }}
+          >
+            Unable to load activity
+          </div>
+        ) : events.length === 0 ? (
+          <div style={{
+            padding: '48px 24px', textAlign: 'center',
+            color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic',
           }}>
-            Activity
-          </h1>
-          {events.length > 0 && (
-            <span style={{
-              fontSize: '11px',
-              padding: '2px 8px',
-              borderRadius: '10px',
-              background: 'var(--accent)',
-              color: 'var(--text-on-accent)',
-              fontWeight: 600,
-            }}>
-              {events.length}
-            </span>
-          )}
-        </div>
-        <p style={{
-          fontSize: '12px',
-          color: 'var(--text-muted)',
-          margin: '4px 0 0',
-        }}>
-          Real-time event feed from the gateway
-        </p>
-      </div>
-
-      {/* Content */}
-      <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: '16px 24px',
-      }}>
-        {isLoading && events.length === 0 && (
-          <div style={{ padding: '40px 0', textAlign: 'center' }}>
-            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Loading...</span>
+            No recent activity
           </div>
-        )}
-
-        {error && !data && (
-          <div style={{ padding: '40px 0', textAlign: 'center' }}>
-            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-              Unable to load activity. Check gateway connection.
-            </span>
-          </div>
-        )}
-
-        {!isLoading && !error && events.length === 0 && (
-          <div style={{ padding: '60px 0', textAlign: 'center' }}>
-            <Pulse size={32} style={{ color: 'var(--text-muted)', marginBottom: '12px' }} />
-            <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: 0 }}>
-              No recent activity
-            </p>
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-              Events will appear here when agents run sessions, crons execute, or approvals are requested.
-            </p>
-          </div>
-        )}
-
-        {events.length > 0 && (
+        ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            {events.map((event, i) => (
-              <EventCard key={event.id ?? `event-${i}`} event={event} />
-            ))}
+            {events.map((event) => {
+              const Icon = iconForType(event.type)
+              const color = colorForType(event.type)
+              const ts = event.timestamp || event.created_at || ''
+              const label = event.description || event.message || event.type
+
+              return (
+                <div
+                  key={event.id}
+                  className="hover-bg"
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: '10px',
+                    padding: '8px 10px', borderRadius: '8px',
+                    transition: 'background 0.15s',
+                  }}
+                >
+                  {/* Icon */}
+                  <div style={{ flexShrink: 0, marginTop: '2px' }}>
+                    <Icon size={16} weight="bold" style={{ color }} />
+                  </div>
+
+                  {/* Content */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {/* Type pill */}
+                      <span style={{
+                        fontSize: '10px', fontWeight: 600, padding: '1px 6px',
+                        borderRadius: '6px', background: `color-mix(in srgb, ${color} 15%, transparent)`,
+                        color, whiteSpace: 'nowrap',
+                      }}>
+                        {event.type}
+                      </span>
+                      {/* Description */}
+                      <span style={{
+                        fontSize: '12px', color: 'var(--text-primary)', fontWeight: 500,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        flex: 1,
+                      }}>
+                        {label}
+                      </span>
+                      {/* Timestamp */}
+                      {ts && (
+                        <span style={{
+                          fontSize: '10px', color: 'var(--text-muted)',
+                          fontFamily: 'monospace', flexShrink: 0,
+                        }}>
+                          {relativeTime(ts)}
+                        </span>
+                      )}
+                    </div>
+                    {/* Extra metadata */}
+                    {(event.agent || event.session_id) && (
+                      <div style={{
+                        fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px',
+                        display: 'flex', gap: '8px',
+                      }}>
+                        {event.agent && <span>agent: {event.agent}</span>}
+                        {event.session_id && <span>session: {event.session_id}</span>}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
-      </div>
-    </div>
-  )
-}
-
-// ── Event Card ───────────────────────────────────────────────────────────────
-
-function EventCard({ event }: { event: ActivityEvent }) {
-  const { icon: Icon, color } = getEventIcon(event.type)
-  const timestamp = event.timestamp || event.created_at || ''
-  const description = event.description || event.message || event.type
-
-  return (
-    <div
-      className="hover-bg"
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '12px',
-        padding: '12px 14px',
-        borderRadius: '10px',
-        transition: 'background 0.15s',
-      }}
-    >
-      {/* Timeline dot + icon */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '32px',
-        height: '32px',
-        borderRadius: '8px',
-        background: 'var(--bg-white-03)',
-        border: '1px solid var(--hover-bg-bright)',
-        flexShrink: 0,
-      }}>
-        <Icon size={16} weight="bold" style={{ color }} />
-      </div>
-
-      {/* Content */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{
-            fontSize: '13px',
-            fontWeight: 500,
-            color: 'var(--text-primary)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            flex: 1,
-          }}>
-            {description}
-          </span>
-          {timestamp && (
-            <span style={{
-              fontSize: '11px',
-              color: 'var(--text-muted)',
-              fontFamily: 'monospace',
-              flexShrink: 0,
-            }}>
-              {relativeTime(timestamp)}
-            </span>
-          )}
-        </div>
-
-        {/* Context pills */}
-        <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
-          {/* Event type pill */}
-          <span style={{
-            fontSize: '10px',
-            padding: '1px 6px',
-            borderRadius: '4px',
-            background: 'var(--bg-white-03)',
-            color: 'var(--text-muted)',
-            fontWeight: 500,
-            border: '1px solid var(--hover-bg)',
-          }}>
-            {event.type}
-          </span>
-
-          {/* Agent pill */}
-          {event.agent && (
-            <span style={{
-              fontSize: '10px',
-              padding: '1px 6px',
-              borderRadius: '4px',
-              background: 'var(--bg-white-03)',
-              color: 'var(--text-muted)',
-              fontWeight: 500,
-              border: '1px solid var(--hover-bg)',
-            }}>
-              {String(event.agent)}
-            </span>
-          )}
-
-          {/* Session ID pill */}
-          {event.session_id && (
-            <span style={{
-              fontSize: '10px',
-              padding: '1px 6px',
-              borderRadius: '4px',
-              background: 'var(--bg-white-03)',
-              color: 'var(--text-muted)',
-              fontFamily: 'monospace',
-              border: '1px solid var(--hover-bg)',
-              maxWidth: '120px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}>
-              {String(event.session_id).slice(0, 8)}
-            </span>
-          )}
-        </div>
       </div>
     </div>
   )

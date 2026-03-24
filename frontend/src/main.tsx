@@ -41,6 +41,7 @@ const Settings = lazy(() => import('./pages/Settings'))
 const Search = lazy(() => import('./pages/Search'))
 const Login = lazy(() => import('./pages/Login'))
 const CustomPage = lazy(() => import('./pages/CustomPage'))
+const Activity = lazy(() => import('./pages/activity/ActivityPage'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 
 const queryClient = new QueryClient({
@@ -322,6 +323,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/ideas" element={<Suspense fallback={<GenericPageSkeleton />}><Ideas /></Suspense>} />
             <Route path="/capture" element={<Suspense fallback={<GenericPageSkeleton />}><Capture /></Suspense>} />
             <Route path="/settings" element={<Suspense fallback={<SettingsSkeleton />}><Settings /></Suspense>} />
+            <Route path="/activity" element={<Suspense fallback={<GenericPageSkeleton />}><Activity /></Suspense>} />
             <Route path="/search" element={<Suspense fallback={<GenericPageSkeleton />}><Search /></Suspense>} />
             <Route path="/custom/:id" element={<Suspense fallback={<GenericPageSkeleton />}><CustomPage /></Suspense>} />
             <Route path="*" element={<Suspense fallback={null}><NotFound /></Suspense>} />
