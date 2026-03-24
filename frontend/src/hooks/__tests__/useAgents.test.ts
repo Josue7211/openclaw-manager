@@ -16,6 +16,11 @@ vi.mock('@/lib/demo-data', () => ({
   isDemoMode: vi.fn(() => false),
 }))
 
+const mockUseGatewaySSE = vi.fn()
+vi.mock('@/lib/hooks/useGatewaySSE', () => ({
+  useGatewaySSE: (...args: unknown[]) => mockUseGatewaySSE(...args),
+}))
+
 import { useAgents } from '../useAgents'
 import type { Agent } from '@/pages/agents/types'
 import { queryKeys } from '@/lib/query-keys'
@@ -247,6 +252,48 @@ describe('useAgents', () => {
       const cached = queryClient.getQueryData<{ agents: Agent[] }>(queryKeys.agents)
       expect(cached?.agents).toHaveLength(1)
       expect(cached?.agents[0].id).toBe('a1')
+    })
+  })
+
+  describe('gateway SSE integration', () => {
+    it('calls useGatewaySSE with agent events and queryKeys', async () => {
+      const { api } = await import('@/lib/api')
+      vi.mocked(api.get).mockResolvedValue({ agents: [mockAgent] })
+
+      const { wrapper } = createWrapper()
+      renderHook(() => useAgents(), { wrapper })
+
+      await waitFor(() => {
+        expect(mockUseGatewaySSE).toHaveBeenCalled()
+      })
+
+      expect(mockUseGatewaySSE).toHaveBeenCalledWith(
+        expect.objectContaining({
+          events: ['agent'],
+          queryKeys: expect.objectContaining({
+            agent: queryKeys.agents,
+          }),
+        }),
+      )
+    })
+
+    it('does not call useGatewaySSE when in demo mode', async () => {
+      const { isDemoMode } = await import('@/lib/demo-data')
+      vi.mocked(isDemoMode).mockReturnValue(true)
+
+      mockUseGatewaySSE.mockClear()
+
+      const { wrapper } = createWrapper()
+      renderHook(() => useAgents(), { wrapper })
+
+      // Wait a tick for any side effects
+      await new Promise((r) => setTimeout(r, 50))
+
+      // useGatewaySSE should not be called in demo mode
+      expect(mockUseGatewaySSE).not.toHaveBeenCalled()
+
+      // Reset
+      vi.mocked(isDemoMode).mockReturnValue(false)
     })
   })
 
