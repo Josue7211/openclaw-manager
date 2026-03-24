@@ -77,7 +77,9 @@ Plans:
   2. Annotations on genuinely unused code are removed (and the dead code deleted or fixed)
   3. Annotations on code used via dynamic dispatch, FFI, or conditional compilation have a `// Justification:` comment
   4. `cargo clippy` passes with no new dead_code warnings after the audit
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
 
 ### Phase 59: Strip Unused Crate Dependencies
 **Goal**: Cargo.toml contains only crates that are actually imported and used in the Rust source
@@ -87,7 +89,9 @@ Plans:
   1. `cargo-machete` reports zero unused dependencies (excluding known false positives like `tauri-build`)
   2. `cargo build` and `cargo test` pass after dependency removal
   3. Any false positives are documented in a `[package.metadata.cargo-machete]` ignore list in Cargo.toml
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
 
 ### Phase 60: Strip Dead Route Modules
 **Goal**: Backend has no route modules that serve zero frontend or external consumers
@@ -98,7 +102,9 @@ Plans:
   2. Routes confirmed dead are removed from `routes/mod.rs` and their files deleted
   3. Routes with external consumers are documented with a `// Called by:` comment and kept
   4. `cargo build` passes and the app starts without route registration errors
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
 
 ### Phase 61: Strip Nonexistent Gateway Methods
 **Goal**: No backend routes call gateway methods that do not exist in the protocol
@@ -109,7 +115,9 @@ Plans:
   2. Any frontend UI that called pause/resume is updated to remove or disable those buttons
   3. No Rust code references nonexistent gateway RPC method names
   4. `cargo build` passes after removal
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
 
 ### Phase 62: Configure knip for Dead Code Detection
 **Goal**: knip v6 runs cleanly against the codebase with correct entry points so dynamic imports are not flagged as false positives
@@ -119,7 +127,9 @@ Plans:
   1. `knip.json` exists with entry points for `main.tsx`, all lazy-loaded route files, widget registry factory functions, and wizard steps
   2. Running `npx knip` produces a report with zero false positives on known-used widget components and lazy pages
   3. The knip report identifies genuinely unused exports, files, and dependencies ready for cleanup
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
 
 ### Phase 63: Strip noVNC Dependency
 **Goal**: The rejected noVNC feature is fully removed from the codebase
@@ -130,7 +140,9 @@ Plans:
   2. `VncPreviewWidget.tsx` is deleted
   3. Any widget registry entry referencing VncPreviewWidget is removed with a corresponding `lib/migrations.ts` entry for dashboard state cleanup
   4. No import or reference to noVNC or VncPreviewWidget exists anywhere in the codebase
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
 
 ### Phase 64: Strip TipTap/Project Tracker Stubs
 **Goal**: All deferred feature stubs are removed so they do not confuse developers or appear in search results
@@ -141,7 +153,9 @@ Plans:
   2. No TipTap import statements exist in any TypeScript file
   3. No Project Tracker component, route, type, or hook reference exists in the codebase
   4. Any sidebar module entries for deferred features are removed from `sidebar-config.ts` and `modules.ts`
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
 
 ### Phase 65: Strip Unused File Exports
 **Goal**: Every exported function, type, constant, and component in the frontend is imported by at least one consumer
@@ -151,7 +165,9 @@ Plans:
   1. `npx knip` reports zero unused exports (or all remaining are justified with `// knip:ignore` comments)
   2. Removed exports do not break any import chain (verified by `tsc --noEmit`)
   3. Each removal is a single-purpose commit for safe bisection
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
 
 ### Phase 66: Strip Unused npm Dependencies
 **Goal**: package.json contains only packages that are actually imported somewhere in the source
@@ -162,7 +178,9 @@ Plans:
   2. `npm install` succeeds after removal
   3. `npm run build` produces a working bundle
   4. No runtime "module not found" errors when navigating all pages
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
 
 ### Phase 67: Strip Unused Imports
 **Goal**: Every import statement in every TypeScript file is consumed within that file
@@ -172,7 +190,9 @@ Plans:
   1. ESLint with `eslint-plugin-unused-imports` reports zero unused import violations
   2. The autofix was applied in batches (not one giant commit) for safe bisection
   3. `tsc --noEmit` passes after all import cleanup
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
 
 ### Phase 68: Enable TypeScript Strict Flags
 **Goal**: TypeScript compiler catches unused locals and parameters as errors, preventing future dead code accumulation
@@ -182,7 +202,9 @@ Plans:
   1. `tsconfig.app.json` has `"noUnusedLocals": true` and `"noUnusedParameters": true`
   2. `tsc --noEmit` passes with zero violations
   3. The pre-commit hook (`scripts/pre-commit.sh`) catches any future violations before they are committed
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
 
 ### Phase 69: OpenClaw Hook Tests
 **Goal**: Core OpenClaw data-fetching hooks have test coverage to prevent regressions during future gateway integration work
@@ -194,7 +216,9 @@ Plans:
   3. `useOpenClawStatus` hook has tests covering: connected, disconnected, and error states
   4. `useOpenClawModels` hook has tests covering: model list fetch and empty provider handling
   5. All tests pass via `npx vitest run`
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
 
 ### Phase 70: Terminal Hook Tests
 **Goal**: Terminal and session output hooks have test coverage for WebSocket lifecycle edge cases
@@ -205,7 +229,9 @@ Plans:
   2. `useSessionOutput` hook has tests covering: stream start, data arrival, stream end, error handling
   3. WebSocket mock properly simulates the connect/message/close lifecycle
   4. All tests pass via `npx vitest run`
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
 
 ### Phase 71: Gateway Integration Tests
 **Goal**: Gateway connection health is verified by automated tests that catch regressions in the status/health endpoints
@@ -216,7 +242,9 @@ Plans:
   2. Integration test verifies `/api/openclaw/health` returns graceful error when gateway is unreachable
   3. Integration test verifies gateway WebSocket connection status is surfaced correctly via SSE
   4. All tests pass in CI (gateway may be mocked for CI environment)
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
 
 ### Phase 72: Sidebar Module Smoke Test
 **Goal**: Every module registered in the sidebar loads its page component without crashing after all dead code removal
@@ -226,7 +254,9 @@ Plans:
   1. Every enabled module in `modules.ts` resolves its lazy-loaded page component without import errors
   2. Clicking each sidebar item renders a page (not a blank screen, not an error boundary)
   3. No console errors related to missing components, hooks, or modules during navigation
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
 
 ### Phase 73: Widget Render Smoke Test
 **Goal**: Every widget in the registry renders its default state without crashing after cleanup
@@ -237,7 +267,9 @@ Plans:
   2. No widget throws a runtime error during initial render (checked via error boundary catches)
   3. Widget registry has no dangling references to deleted components
   4. Dashboard state migrations handle any removed widget types gracefully
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
 
 ### Phase 74: Full Route Audit
 **Goal**: Every route in the app resolves to a working page with no dead links, blank screens, or infinite loading states
@@ -248,7 +280,9 @@ Plans:
   2. No route produces a 404, blank page, or uncaught error
   3. No page is stuck in an infinite loading state (loading states resolve within 10 seconds or show appropriate error/empty state)
   4. Navigation between all routes works (forward, back, sidebar click, direct URL)
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
 
 ## Progress
 
