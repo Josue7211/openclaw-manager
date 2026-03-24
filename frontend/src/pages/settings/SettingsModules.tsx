@@ -280,7 +280,6 @@ export default function SettingsModules() {
   const [modEditValue, setModEditValue] = useState('')
   const [settingsCtxMenu, setSettingsCtxMenu] = useState<ContextMenuState | null>(null)
   const [editingTitle, setEditingTitle] = useState(false)
-  const [_titleDraft, setTitleDraft] = useState('')
 
   // Panel rects for collision detection + swap
   const [panelRects, setPanelRects] = useState<Record<string, PanelRect>>({})
@@ -614,7 +613,7 @@ export default function SettingsModules() {
         }}
         style={{ minHeight: '100%', padding: '12px 0' }}
       >
-      {sidebarConfig.categories.filter(c => c.name || c.items.length > 0).map((cat, catIdx, _filteredCats) => (
+      {sidebarConfig.categories.filter(c => c.name || c.items.length > 0).map((cat, catIdx) => (
         <React.Fragment key={cat.id}>
         {/* Inter-category drop zone — drop a module here to place it between categories */}
         {catIdx === 0 && modDragHref && !modDragHref.startsWith('category:') && !modDragHref.startsWith('restore-category:') && modDragFromCat !== cat.id && (

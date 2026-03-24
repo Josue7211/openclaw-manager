@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
 import {
   getKeybindings, subscribeKeybindings, updateKeybinding, resetKeybindings,
-  getModifierKey, getModifierList, addModifier, removeModifier, reorderModifiers,
+  getModifierList, addModifier, removeModifier, reorderModifiers,
   getBindingMod, keyToModifier, modLabel,
 } from '@/lib/keybindings'
 import { Button } from '@/components/ui/Button'
@@ -12,7 +12,6 @@ export default function SettingsKeybindings() {
   const [editingBindingId, setEditingBindingId] = useState<string | null>(null)
   const keybindHandlerRef = useRef<((e: KeyboardEvent) => void) | null>(null)
   const [detectingMod, setDetectingMod] = useState(false)
-  const _modKey = useSyncExternalStore(subscribeKeybindings, getModifierKey)
   const modList = useSyncExternalStore(subscribeKeybindings, getModifierList)
 
   useEffect(() => {

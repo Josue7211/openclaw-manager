@@ -15,7 +15,7 @@ import { BUILTIN_WIDGETS } from './widget-registry'
 // Types
 // ---------------------------------------------------------------------------
 
-interface LayoutItem {
+export interface LayoutItem {
   i: string   // widget ID
   x: number
   y: number
@@ -25,7 +25,7 @@ interface LayoutItem {
   minH?: number
 }
 
-interface DefaultLayoutResult {
+export interface DefaultLayoutResult {
   widgets: string[]
   layouts: Record<string, LayoutItem[]>
 }
@@ -181,13 +181,3 @@ function generateSmLayout(
   })
 }
 
-/**
- * Extra small: 4-column grid, everything stacked vertically (same as sm).
- */
-function _generateXsLayout(
-  widgetIds: string[],
-  widgetMap: Map<string, { minSize?: { w: number; h: number } }>
-): LayoutItem[] {
-  // Same as sm — full-width stacking
-  return generateSmLayout(widgetIds, widgetMap)
-}

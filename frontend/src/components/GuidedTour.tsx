@@ -8,7 +8,7 @@
  * The TourTooltip is a sibling of the backdrop (not nested) so it is not clipped.
  */
 
-import React, { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
   useTourState,

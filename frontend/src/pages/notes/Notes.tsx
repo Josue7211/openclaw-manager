@@ -6,8 +6,6 @@ import { api } from '@/lib/api'
 import FileTree from './FileTree'
 import NoteEditor from './NoteEditor'
 import BacklinksPanel from './BacklinksPanel'
-import type { NoteTemplate } from './templates'
-import { applyTemplate } from './templates'
 
 const GraphView = lazy(() => import('./GraphView'))
 
@@ -40,13 +38,8 @@ export default function NotesPage() {
   }, [notes, selectedId])
 
   const handleCreate = useCallback(
-    async (folder?: string, template?: NoteTemplate) => {
-      const title = template && template.id !== 'blank' ? template.label : 'Untitled'
-      const note = await createNote(title, folder)
-      if (template && template.id !== 'blank') {
-        const content = applyTemplate(template)
-        await updateNote({ ...note, content })
-      }
+    async (folder?: string) => {
+      const note = await createNote('Untitled', folder)
       setSelectedId(note._id)
       setViewMode('editor')
       setTimeout(() => {
@@ -54,7 +47,7 @@ export default function NotesPage() {
         titleRef.current?.select()
       }, 50)
     },
-    [createNote, updateNote],
+    [createNote],
   )
 
   const handleDelete = useCallback(async () => {

@@ -118,7 +118,6 @@ describe('WidgetWrapper', () => {
     const getWidgetMock = getWidget as unknown as ReturnType<typeof vi.fn>
     const originalImpl = getWidgetMock.getMockImplementation()!
 
-    let _resolveWidget: (value: { default: React.ComponentType<any> }) => void
     getWidgetMock.mockImplementation((id: string) => {
       if (id === 'slow-widget') {
         return {
@@ -129,8 +128,8 @@ describe('WidgetWrapper', () => {
           category: 'monitoring',
           tier: 'builtin',
           defaultSize: { w: 4, h: 2 },
-          component: () => new Promise<{ default: React.ComponentType<any> }>(resolve => {
-            _resolveWidget = resolve
+          component: () => new Promise<{ default: React.ComponentType<any> }>(() => {
+            // Never resolves — tests the Suspense fallback
           }),
         }
       }

@@ -1,14 +1,13 @@
 
 import { Gear, Bell, Palette, User, Desktop, Cpu, Lightning, CaretRight, ArrowLeft, Keyboard, SquaresFour, Plug, DownloadSimple, EyeSlash, FolderOpen, FileText, Heartbeat } from '@phosphor-icons/react'
-import { useState, useEffect, memo, useCallback, lazy, Suspense, Component } from 'react'
-import type { ReactNode, ErrorInfo } from 'react'
+import { useState, useEffect, memo, useCallback, lazy, Suspense } from 'react'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
-import { row, val, btnSecondary, sectionLabel } from './settings/shared'
+import { row, rowLast, val, btnSecondary, sectionLabel } from './settings/shared'
 
 // ── Lazy-loaded section components ──────────────────────────────────────────
 const SettingsUser = lazy(() => import('./settings/SettingsUser'))
@@ -142,64 +141,6 @@ function SectionFallback() {
   )
 }
 
-// ── Inline error boundary for lazy-loaded panels ────────────────────────────
-// Catches render errors from lazy-loaded settings panels and shows a recovery
-// message inside the settings detail pane instead of crashing the whole page.
-
-interface SectionErrorBoundaryProps { children: ReactNode }
-interface SectionErrorBoundaryState { error: Error | null }
-
-class SectionErrorBoundary extends Component<SectionErrorBoundaryProps, SectionErrorBoundaryState> {
-  state: SectionErrorBoundaryState = { error: null }
-
-  static getDerivedStateFromError(error: Error) {
-    return { error }
-  }
-
-  componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('[SettingsPanel]', error, info.componentStack)
-  }
-
-  render() {
-    if (this.state.error) {
-      return (
-        <div style={{ padding: '20px 0' }}>
-          <div style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: '24px',
-            textAlign: 'center',
-          }}>
-            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
-              Failed to load this panel
-            </div>
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 16px', lineHeight: 1.5 }}>
-              {this.state.error.message}
-            </p>
-            <button
-              onClick={() => this.setState({ error: null })}
-              style={{
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--border)',
-                borderRadius: '10px',
-                color: 'var(--text-primary)',
-                padding: '8px 20px',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              Try again
-            </button>
-          </div>
-        </div>
-      )
-    }
-    return this.props.children
-  }
-}
-
 export default function SettingsPage() {
   const [searchParams] = useSearchParams()
   const setupMfaRequired = searchParams.get('setup_mfa') === '1'
@@ -267,73 +208,57 @@ export default function SettingsPage() {
         return <AppSection />
       case 'user':
         return (
-          <SectionErrorBoundary>
-            <Suspense fallback={<SectionFallback />}>
-              <SettingsUser
-                userName={userName} setUserName={setUserName}
-                userAvatar={userAvatar} setUserAvatar={setUserAvatar}
-                userEmail={userEmail} hasPassword={hasPassword}
-                mfaEnabled={mfaEnabled} setMfaEnabled={setMfaEnabled}
-                setupMfaRequired={setupMfaRequired}
-              />
-            </Suspense>
-          </SectionErrorBoundary>
+          <Suspense fallback={<SectionFallback />}>
+            <SettingsUser
+              userName={userName} setUserName={setUserName}
+              userAvatar={userAvatar} setUserAvatar={setUserAvatar}
+              userEmail={userEmail} hasPassword={hasPassword}
+              mfaEnabled={mfaEnabled} setMfaEnabled={setMfaEnabled}
+              setupMfaRequired={setupMfaRequired}
+            />
+          </Suspense>
         )
       case 'connections':
         return (
-          <SectionErrorBoundary>
-            <Suspense fallback={<SectionFallback />}>
-              <SettingsConnections />
-            </Suspense>
-          </SectionErrorBoundary>
+          <Suspense fallback={<SectionFallback />}>
+            <SettingsConnections />
+          </Suspense>
         )
       case 'display':
         return (
-          <SectionErrorBoundary>
-            <Suspense fallback={<SectionFallback />}>
-              <SettingsDisplay />
-            </Suspense>
-          </SectionErrorBoundary>
+          <Suspense fallback={<SectionFallback />}>
+            <SettingsDisplay />
+          </Suspense>
         )
       case 'keybindings':
         return (
-          <SectionErrorBoundary>
-            <Suspense fallback={<SectionFallback />}>
-              <SettingsKeybindings />
-            </Suspense>
-          </SectionErrorBoundary>
+          <Suspense fallback={<SectionFallback />}>
+            <SettingsKeybindings />
+          </Suspense>
         )
       case 'modules':
         return (
-          <SectionErrorBoundary>
-            <Suspense fallback={<SectionFallback />}>
-              <SettingsModules />
-            </Suspense>
-          </SectionErrorBoundary>
+          <Suspense fallback={<SectionFallback />}>
+            <SettingsModules />
+          </Suspense>
         )
       case 'notifications':
         return (
-          <SectionErrorBoundary>
-            <Suspense fallback={<SectionFallback />}>
-              <SettingsNotifications />
-            </Suspense>
-          </SectionErrorBoundary>
+          <Suspense fallback={<SectionFallback />}>
+            <SettingsNotifications />
+          </Suspense>
         )
       case 'privacy':
         return (
-          <SectionErrorBoundary>
-            <Suspense fallback={<SectionFallback />}>
-              <SettingsPrivacy />
-            </Suspense>
-          </SectionErrorBoundary>
+          <Suspense fallback={<SectionFallback />}>
+            <SettingsPrivacy />
+          </Suspense>
         )
       case 'status':
         return (
-          <SectionErrorBoundary>
-            <Suspense fallback={<SectionFallback />}>
-              <SettingsStatus />
-            </Suspense>
-          </SectionErrorBoundary>
+          <Suspense fallback={<SectionFallback />}>
+            <SettingsStatus />
+          </Suspense>
         )
       default:
         return null

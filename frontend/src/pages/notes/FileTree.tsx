@@ -1,35 +1,12 @@
-import { useState, useMemo, useCallback, memo, useRef, useEffect, type ReactNode } from 'react'
-import { CaretRight, CaretDown, FileText, FolderOpen, Folder, Plus, MagnifyingGlass, Hash, Image, CaretUp } from '@phosphor-icons/react'
+import { useState, useMemo, useCallback, memo } from 'react'
+import { CaretRight, CaretDown, FileText, FolderOpen, Folder, Plus, MagnifyingGlass, Image } from '@phosphor-icons/react'
 import type { VaultNote, FolderNode } from './types'
-import type { NoteTemplate } from './templates'
-import { NOTE_TEMPLATES } from './templates'
-
-/** Highlight matching substring in a title with a subtle accent background. */
-function highlightText(text: string, query: string): ReactNode {
-  if (!query) return text
-  const idx = text.toLowerCase().indexOf(query.toLowerCase())
-  if (idx === -1) return text
-  return (
-    <>
-      {text.slice(0, idx)}
-      <mark style={{
-        background: 'var(--accent-a30)',
-        color: 'inherit',
-        borderRadius: 2,
-        padding: '0 1px',
-      }}>
-        {text.slice(idx, idx + query.length)}
-      </mark>
-      {text.slice(idx + query.length)}
-    </>
-  )
-}
 
 interface FileTreeProps {
   notes: VaultNote[]
   selectedId: string | null
   onSelect: (id: string) => void
-  onCreate: (folder?: string, template?: NoteTemplate) => void
+  onCreate: (folder?: string) => void
   searchQuery: string
   onSearchChange: (q: string) => void
 }
@@ -76,7 +53,6 @@ const FolderItem = memo(function FolderItem({
   expandedFolders,
   onToggle,
   onSelect,
-  searchHighlight,
 }: {
   node: FolderNode
   depth: number
@@ -84,7 +60,6 @@ const FolderItem = memo(function FolderItem({
   expandedFolders: Set<string>
   onToggle: (path: string) => void
   onSelect: (id: string) => void
-  searchHighlight?: string
 }) {
   const isExpanded = expandedFolders.has(node.path)
   const pl = 12 + depth * 14
@@ -143,7 +118,6 @@ const FolderItem = memo(function FolderItem({
               expandedFolders={expandedFolders}
               onToggle={onToggle}
               onSelect={onSelect}
-              searchHighlight={searchHighlight}
             />
           ))}
           {node.notes.map((note) => (
@@ -153,7 +127,6 @@ const FolderItem = memo(function FolderItem({
               depth={depth + 1}
               isSelected={selectedId === note._id}
               onSelect={onSelect}
-              searchHighlight={searchHighlight}
             />
           ))}
         </>
@@ -167,13 +140,11 @@ const NoteItem = memo(function NoteItem({
   depth,
   isSelected,
   onSelect,
-  searchHighlight,
 }: {
   note: VaultNote
   depth: number
   isSelected: boolean
   onSelect: (id: string) => void
-  searchHighlight?: string
 }) {
   const pl = 12 + depth * 14
   const hasTags = note.tags.length > 0
@@ -222,7 +193,7 @@ const NoteItem = memo(function NoteItem({
           flex: 1,
         }}
       >
-        {searchHighlight ? highlightText(note.title || 'Untitled', searchHighlight) : (note.title || 'Untitled')}
+        {note.title || 'Untitled'}
       </span>
       {ext && (
         <span style={{
@@ -252,124 +223,6 @@ const NoteItem = memo(function NoteItem({
   )
 })
 
-/** Template picker button that shows a dropdown above the button. */
-function NewNoteButton({ onCreate }: { onCreate: (folder?: string, template?: NoteTemplate) => void }) {
-  const [showPicker, setShowPicker] = useState(false)
-  const pickerRef = useRef<HTMLDivElement>(null)
-
-  // Close picker on outside click
-  useEffect(() => {
-    if (!showPicker) return
-    const handler = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-        setShowPicker(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [showPicker])
-
-  return (
-    <div ref={pickerRef} style={{ padding: '6px 10px 10px', flexShrink: 0, position: 'relative' }}>
-      {showPicker && (
-        <div style={{
-          position: 'absolute',
-          bottom: '100%',
-          left: 10,
-          right: 10,
-          marginBottom: 4,
-          background: 'var(--bg-elevated)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-md)',
-          boxShadow: '0 8px 24px var(--overlay-heavy)',
-          overflow: 'hidden',
-          zIndex: 20,
-        }}>
-          <div style={{
-            padding: '6px 10px 4px',
-            fontSize: 10,
-            fontWeight: 600,
-            color: 'var(--text-muted)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.04em',
-          }}>
-            Template
-          </div>
-          {NOTE_TEMPLATES.map((t) => (
-            <button
-              key={t.id}
-              className="hover-bg"
-              onClick={() => {
-                setShowPicker(false)
-                onCreate(undefined, t.id === 'blank' ? undefined : t)
-              }}
-              style={{
-                display: 'block',
-                width: '100%',
-                textAlign: 'left',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '6px 10px',
-                fontSize: 12,
-                color: 'var(--text-secondary)',
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div style={{ display: 'flex', gap: 2 }}>
-        <button
-          onClick={() => onCreate()}
-          className="hover-bg"
-          aria-label="New note"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            flex: 1,
-            padding: '6px 10px',
-            background: 'transparent',
-            border: 'none',
-            borderRadius: 'var(--radius-sm)',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            fontSize: 12,
-            transition: 'color var(--duration-fast)',
-          }}
-        >
-          <Plus size={13} />
-          New Note
-        </button>
-        <button
-          onClick={() => setShowPicker((v) => !v)}
-          className="hover-bg"
-          aria-label="Choose template"
-          title="Create from template"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 28,
-            height: 28,
-            background: 'transparent',
-            border: 'none',
-            borderRadius: 'var(--radius-sm)',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            flexShrink: 0,
-          }}
-        >
-          <CaretUp size={10} style={{ transform: showPicker ? 'rotate(180deg)' : undefined, transition: 'transform var(--duration-fast)' }} />
-        </button>
-      </div>
-    </div>
-  )
-}
-
 export default function FileTree({
   notes,
   selectedId,
@@ -379,42 +232,17 @@ export default function FileTree({
   onSearchChange,
 }: FileTreeProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['']))
-  const [activeTag, setActiveTag] = useState<string | null>(null)
-
-  // Collect all unique tags across notes
-  const allTags = useMemo(() => {
-    const tagCounts = new Map<string, number>()
-    for (const n of notes) {
-      for (const t of n.tags) {
-        tagCounts.set(t, (tagCounts.get(t) || 0) + 1)
-      }
-    }
-    return [...tagCounts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([tag]) => tag)
-  }, [notes])
 
   const filteredNotes = useMemo(() => {
-    let result = notes
-
-    // Filter by active tag first
-    if (activeTag) {
-      result = result.filter((n) => n.tags.includes(activeTag))
-    }
-
-    // Then by search query
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      result = result.filter(
-        (n) =>
-          n.title.toLowerCase().includes(q) ||
-          n.content.toLowerCase().includes(q) ||
-          n.tags.some((t) => t.toLowerCase().includes(q)),
-      )
-    }
-
-    return result
-  }, [notes, searchQuery, activeTag])
+    if (!searchQuery.trim()) return notes
+    const q = searchQuery.toLowerCase()
+    return notes.filter(
+      (n) =>
+        n.title.toLowerCase().includes(q) ||
+        n.content.toLowerCase().includes(q) ||
+        n.tags.some((t) => t.toLowerCase().includes(q)),
+    )
+  }, [notes, searchQuery])
 
   const tree = useMemo(() => buildTree(filteredNotes), [filteredNotes])
 
@@ -457,8 +285,8 @@ export default function FileTree({
           <input
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search notes..."
-            aria-label="Search notes"
+            placeholder="MagnifyingGlass notes..."
+            aria-label="MagnifyingGlass notes"
             style={{
               background: 'transparent',
               border: 'none',
@@ -471,44 +299,6 @@ export default function FileTree({
           />
         </div>
       </div>
-
-      {/* Tag pills */}
-      {allTags.length > 0 && (
-        <div style={{
-          padding: '0 10px 6px',
-          flexShrink: 0,
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 4,
-        }}>
-          {allTags.slice(0, 12).map((tag) => (
-            <button
-              key={tag}
-              onClick={() => setActiveTag(activeTag === tag ? null : tag)}
-              aria-label={`Filter by tag ${tag}`}
-              aria-pressed={activeTag === tag}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 3,
-                padding: '2px 8px',
-                fontSize: 10,
-                fontWeight: 500,
-                borderRadius: 10,
-                border: 'none',
-                cursor: 'pointer',
-                background: activeTag === tag ? 'var(--accent-dim)' : 'var(--bg-white-04)',
-                color: activeTag === tag ? 'var(--text-on-color)' : 'var(--text-muted)',
-                transition: 'all var(--duration-fast)',
-                lineHeight: '16px',
-              }}
-            >
-              <Hash size={8} style={{ opacity: 0.6 }} />
-              {tag}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Tree */}
       <div style={{
@@ -523,7 +313,6 @@ export default function FileTree({
           expandedFolders={expandedFolders}
           onToggle={toggleFolder}
           onSelect={onSelect}
-          searchHighlight={searchQuery.trim() || undefined}
         />
 
         {filteredNotes.length === 0 && (
@@ -541,8 +330,34 @@ export default function FileTree({
         )}
       </div>
 
-      {/* New note with template picker */}
-      <NewNoteButton onCreate={onCreate} />
+      {/* New note */}
+      <div style={{
+        padding: '6px 10px 10px',
+        flexShrink: 0,
+      }}>
+        <button
+          onClick={() => onCreate()}
+          className="hover-bg"
+          aria-label="New note"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            width: '100%',
+            padding: '6px 10px',
+            background: 'transparent',
+            border: 'none',
+            borderRadius: 'var(--radius-sm)',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            fontSize: 12,
+            transition: 'color var(--duration-fast)',
+          }}
+        >
+          <Plus size={13} />
+          New Note
+        </button>
+      </div>
     </div>
   )
 }
