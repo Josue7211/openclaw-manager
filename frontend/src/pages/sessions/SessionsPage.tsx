@@ -1,10 +1,29 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { Terminal, ClockCounterClockwise } from '@phosphor-icons/react'
+import { useGatewaySessions } from '@/hooks/sessions/useGatewaySessions'
 import { SessionList } from './SessionList'
 import { SessionOutputPanel } from './SessionOutputPanel'
+import { SessionHistoryPanel } from './SessionHistoryPanel'
+
+type ViewMode = 'output' | 'history'
 
 export default function SessionsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>('history')
   const [listWidth, setListWidth] = useState(320)
+  const { sessions } = useGatewaySessions()
+
+  // Auto-set viewMode based on session status
+  useEffect(() => {
+    if (!selectedId) return
+    const session = sessions.find((s) => s.id === selectedId)
+    if (!session) return
+    if (session.status === 'running' || session.status === 'paused') {
+      setViewMode('output')
+    } else {
+      setViewMode('history')
+    }
+  }, [selectedId, sessions])
 
   const handleResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -66,15 +85,81 @@ export default function SessionsPage() {
         aria-label="Resize session list"
       />
 
-      {/* Right panel: output viewer */}
+      {/* Right panel: tabbed view */}
       <div style={{
         flex: 1,
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
       }}>
-        <SessionOutputPanel sessionId={selectedId} key={selectedId} />
+        {/* Tab bar */}
+        {selectedId && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '2px',
+            padding: '0 12px',
+            height: '40px',
+            borderBottom: '1px solid var(--border)',
+            flexShrink: 0,
+          }}>
+            <TabButton
+              active={viewMode === 'history'}
+              onClick={() => setViewMode('history')}
+              icon={<ClockCounterClockwise size={14} />}
+              label="History"
+            />
+            <TabButton
+              active={viewMode === 'output'}
+              onClick={() => setViewMode('output')}
+              icon={<Terminal size={14} />}
+              label="Output"
+            />
+          </div>
+        )}
+
+        {/* Panel content */}
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {viewMode === 'output' ? (
+            <SessionOutputPanel sessionId={selectedId} key={`output-${selectedId}`} />
+          ) : (
+            <SessionHistoryPanel sessionId={selectedId} key={`history-${selectedId}`} />
+          )}
+        </div>
       </div>
     </div>
+  )
+}
+
+function TabButton({ active, onClick, icon, label }: {
+  active: boolean
+  onClick: () => void
+  icon: React.ReactNode
+  label: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        padding: '6px 12px',
+        borderRadius: '8px',
+        border: 'none',
+        background: active ? 'var(--active-bg)' : 'transparent',
+        color: active ? 'var(--text-primary)' : 'var(--text-muted)',
+        fontSize: '12px',
+        fontWeight: 600,
+        fontFamily: 'inherit',
+        cursor: 'pointer',
+        transition: 'background 0.15s, color 0.15s',
+      }}
+      className={!active ? 'hover-bg' : undefined}
+    >
+      {icon}
+      {label}
+    </button>
   )
 }

@@ -37,6 +37,18 @@ export interface GatewaySessionsResponse {
   sessions: ClaudeSession[]
 }
 
+export interface SessionHistoryMessage {
+  id: string
+  role: 'user' | 'assistant' | 'system' | 'tool'
+  content: string
+  timestamp: string | null
+  toolName?: string
+}
+
+export interface SessionHistoryResponse {
+  messages: SessionHistoryMessage[]
+}
+
 // Gateway status color mapping
 export const GATEWAY_STATUS_COLORS: Record<GatewayConnectionStatus, string> = {
   connected: 'var(--green-400)',

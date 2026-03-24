@@ -1,4 +1,4 @@
-use axum::{extract::State, routing::get, Json, Router};
+use axum::{extract::{Path, State}, routing::get, Json, Router};
 use reqwest::Method;
 use serde_json::{json, Value};
 use std::sync::OnceLock;
@@ -278,6 +278,37 @@ async fn gateway_sessions(
     })))
 }
 
+// ── Gateway WS session history ──────────────────────────────────────────────
+
+/// `GET /api/gateway/sessions/:id/history`
+///
+/// Proxies `sessions.history` through the persistent gateway WS connection.
+/// Returns the message history for a specific session.
+async fn gateway_session_history(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Path(session_id): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
+        AppError::BadRequest(
+            "OpenClaw Gateway not configured. Set OPENCLAW_WS in Settings > Connections.".into(),
+        )
+    })?;
+
+    let payload = gw
+        .request("sessions.history", json!({"session_id": session_id}))
+        .await
+        .map_err(|e| {
+            tracing::error!("[gateway] sessions.history failed: {e}");
+            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
+        })?;
+
+    Ok(Json(json!({
+        "ok": true,
+        "data": payload,
+    })))
+}
+
 // ── Router ──────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
@@ -285,6 +316,7 @@ pub fn router() -> Router<AppState> {
         .route("/openclaw/health", get(openclaw_health))
         .route("/gateway/status", get(gateway_status))
         .route("/gateway/sessions", get(gateway_sessions))
+        .route("/gateway/sessions/:id/history", get(gateway_session_history))
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
