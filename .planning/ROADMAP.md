@@ -47,7 +47,9 @@
   2. Device identity (device_id, platform, app_version) is sent in the handshake params
   3. Gateway responds with ok:true and the app transitions to connected state
   4. Settings > Connections shows gateway as "Connected (protocol v3)"
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 75-01-PLAN.md -- Protocol v3 handshake + error parsing + frontend display
 
 ### Phase 76: Reconnect with Backoff
 **Goal**: Gateway connection recovers automatically after network disruptions without user intervention
@@ -216,7 +218,7 @@
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 75. Protocol v3 Handshake | v0.0.5 | 0/? | Not started | - |
+| 75. Protocol v3 Handshake | v0.0.5 | 0/1 | Planned | - |
 | 76. Reconnect with Backoff | v0.0.5 | 0/? | Not started | - |
 | 77. Chat Method Corrections | v0.0.5 | 0/? | Not started | - |
 | 78. Agent Method Verification | v0.0.5 | 0/? | Not started | - |
