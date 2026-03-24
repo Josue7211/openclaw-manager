@@ -15,15 +15,15 @@ Requirements for gateway protocol integration milestone. Each maps to roadmap ph
 
 ### RPC Method Corrections
 
-- [ ] **RPC-01**: sessions.history → chat.history (correct method name)
-- [ ] **RPC-02**: sessions.create → chat.send with proper message format
-- [ ] **RPC-03**: agents.list → agents.list (verify params match protocol)
-- [ ] **RPC-04**: agents.create/update/delete → verify CRUD method signatures
-- [ ] **RPC-05**: crons.list/create/update/delete → verify CRUD method signatures
-- [ ] **RPC-06**: models.list → models.list (verify response shape)
-- [ ] **RPC-07**: usage.summary → usage.get (correct method name and params)
-- [ ] **RPC-08**: tools.list/skills.list → verify method names and response shapes
-- [ ] **RPC-09**: activity.recent → events.list or subscribe pattern (verify correct approach)
+- [ ] **RPC-01**: sessions.history -> chat.history (correct method name)
+- [ ] **RPC-02**: sessions.create -> chat.send with proper message format
+- [ ] **RPC-03**: agents.list -> agents.list (verify params match protocol)
+- [ ] **RPC-04**: agents.create/update/delete -> verify CRUD method signatures
+- [ ] **RPC-05**: crons.list/create/update/delete -> verify CRUD method signatures
+- [ ] **RPC-06**: models.list -> models.list (verify response shape)
+- [ ] **RPC-07**: usage.summary -> usage.get (correct method name and params)
+- [ ] **RPC-08**: tools.list/skills.list -> verify method names and response shapes
+- [ ] **RPC-09**: activity.recent -> events.list or subscribe pattern (verify correct approach)
 
 ### Event Bus
 
@@ -62,31 +62,31 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| GW-01 | TBD | Pending |
-| GW-02 | TBD | Pending |
-| GW-03 | TBD | Pending |
-| RPC-01 | TBD | Pending |
-| RPC-02 | TBD | Pending |
-| RPC-03 | TBD | Pending |
-| RPC-04 | TBD | Pending |
-| RPC-05 | TBD | Pending |
-| RPC-06 | TBD | Pending |
-| RPC-07 | TBD | Pending |
-| RPC-08 | TBD | Pending |
-| RPC-09 | TBD | Pending |
-| EVT-01 | TBD | Pending |
-| EVT-02 | TBD | Pending |
-| EVT-03 | TBD | Pending |
-| LIVE-01 | TBD | Pending |
-| LIVE-02 | TBD | Pending |
-| LIVE-03 | TBD | Pending |
-| LIVE-04 | TBD | Pending |
-| LIVE-05 | TBD | Pending |
+| GW-01 | Phase 75 | Pending |
+| GW-02 | Phase 75 | Pending |
+| GW-03 | Phase 76 | Pending |
+| RPC-01 | Phase 77 | Pending |
+| RPC-02 | Phase 77 | Pending |
+| RPC-03 | Phase 78 | Pending |
+| RPC-04 | Phase 78 | Pending |
+| RPC-05 | Phase 79 | Pending |
+| RPC-06 | Phase 80 | Pending |
+| RPC-07 | Phase 81 | Pending |
+| RPC-08 | Phase 82 | Pending |
+| RPC-09 | Phase 83 | Pending |
+| EVT-01 | Phase 84 | Pending |
+| EVT-02 | Phase 85 | Pending |
+| EVT-03 | Phase 86 | Pending |
+| LIVE-01 | Phase 87 | Pending |
+| LIVE-02 | Phase 88 | Pending |
+| LIVE-03 | Phase 89 | Pending |
+| LIVE-04 | Phase 89 | Pending |
+| LIVE-05 | Phase 90 | Pending |
 
 **Coverage:**
 - v0.0.5 requirements: 20 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 20
+- Mapped to phases: 20/20
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-24*

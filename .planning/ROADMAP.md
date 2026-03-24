@@ -6,10 +6,235 @@
 - v0.0.2 -- Widget-First Architecture (shipped 2026-03-22)
 - v0.0.3 -- AI Ops Center + OpenClaw Controller + Polish (shipped 2026-03-24)
 - v0.0.4 -- Stabilize & Strip (shipped 2026-03-24) -- [Full details](milestones/v0.0.4-ROADMAP.md)
+- v0.0.5 -- Gateway Protocol v3 (in progress)
 
 ## Phases
 
-### v0.0.4 -- Stabilize & Strip
+### v0.0.5 -- Gateway Protocol v3
+
+**Group AA: Gateway Handshake** *(foundation -- everything else depends on correct connection)*
+- [ ] **Phase 75: Protocol v3 Handshake** - Connect to gateway using protocol v3 with role, scopes, client metadata, and device identity
+- [ ] **Phase 76: Reconnect with Backoff** - Automatic WebSocket reconnection with exponential backoff on disconnect
+
+**Group AB: RPC Method Corrections** *(fix all wrong method names so backend calls real gateway methods)*
+- [ ] **Phase 77: Chat Method Corrections** - Fix sessions.history -> chat.history and sessions.create -> chat.send
+- [ ] **Phase 78: Agent Method Verification** - Verify agents.list params and agents CRUD method signatures match protocol
+- [ ] **Phase 79: Cron Method Verification** - Verify cron CRUD method signatures (cron.list/add/update/remove vs crons.*)
+- [ ] **Phase 80: Models Method Verification** - Verify models.list response shape matches protocol
+- [ ] **Phase 81: Usage Method Correction** - Fix usage.summary -> usage.status/usage.cost with correct params
+- [ ] **Phase 82: Tools & Skills Method Verification** - Verify tools.list and skills.list method names and response shapes
+- [ ] **Phase 83: Activity Events Method Correction** - Fix activity.recent to use events.list or event subscription pattern
+
+**Group AC: Event Bus Wiring** *(SSE event bus connected to real gateway WebSocket events)*
+- [ ] **Phase 84: SSE Event Bus Wiring** - Wire SSE event bus to actual gateway WebSocket events instead of mock data
+- [ ] **Phase 85: Agent Event Streaming** - Surface real-time agent.* events from gateway via SSE
+- [ ] **Phase 86: Session Event Streaming** - Surface session created/completed/error events via SSE
+
+**Group AD: Live Data Verification** *(verify every OpenClaw tab with real gateway data)*
+- [ ] **Phase 87: Live Agents Tab** - Verify agents tab shows real agents with working CRUD against live gateway
+- [ ] **Phase 88: Live Crons Tab** - Verify crons tab shows real scheduled tasks with working CRUD against live gateway
+- [ ] **Phase 89: Live Usage & Models Tabs** - Verify usage and models tabs show real data from gateway
+- [ ] **Phase 90: Live Activity Feed** - Verify activity feed shows real events from gateway
+
+## Phase Details
+
+### Phase 75: Protocol v3 Handshake
+**Goal**: App connects to the OpenClaw gateway using the real protocol v3 handshake with proper identity
+**Depends on**: Nothing (first phase -- foundation for all gateway work)
+**Requirements**: GW-01, GW-02
+**Success Criteria** (what must be TRUE):
+  1. Connect message includes minProtocol/maxProtocol 3, role "operator", scopes array, and client metadata object
+  2. Device identity (device_id, platform, app_version) is sent in the handshake params
+  3. Gateway responds with ok:true and the app transitions to connected state
+  4. Settings > Connections shows gateway as "Connected (protocol v3)"
+**Plans**: TBD
+
+### Phase 76: Reconnect with Backoff
+**Goal**: Gateway connection recovers automatically after network disruptions without user intervention
+**Depends on**: Phase 75
+**Requirements**: GW-03
+**Success Criteria** (what must be TRUE):
+  1. When gateway WebSocket disconnects, the app attempts reconnection automatically
+  2. Reconnect uses exponential backoff (e.g. 1s, 2s, 4s, 8s, max 30s)
+  3. After reconnection, the gateway status indicator returns to "Connected" without page refresh
+  4. Multiple rapid disconnects do not spawn duplicate WebSocket connections
+**Plans**: TBD
+
+### Phase 77: Chat Method Corrections
+**Goal**: Chat/session RPC calls use the correct gateway method names so messages actually reach agents
+**Depends on**: Phase 75
+**Requirements**: RPC-01, RPC-02
+**Success Criteria** (what must be TRUE):
+  1. Fetching session history calls `chat.history` (not `sessions.history`) with sessionKey param
+  2. Sending a message calls `chat.send` with { sessionKey, message, deliver, idempotencyKey } params
+  3. Both calls return successful responses from the live gateway (not 404 or method-not-found errors)
+**Plans**: TBD
+
+### Phase 78: Agent Method Verification
+**Goal**: Agent CRUD operations use verified protocol v3 method signatures
+**Depends on**: Phase 75
+**Requirements**: RPC-03, RPC-04
+**Success Criteria** (what must be TRUE):
+  1. `agents.list` call uses correct params and the response shape matches what the frontend expects
+  2. `agents.create`, `agents.update`, `agents.delete` use correct method names and param shapes per protocol
+  3. All four agent RPC calls succeed against the live gateway without method-not-found errors
+**Plans**: TBD
+
+### Phase 79: Cron Method Verification
+**Goal**: Cron CRUD operations use verified protocol v3 method names (cron.* not crons.*)
+**Depends on**: Phase 75
+**Requirements**: RPC-05
+**Success Criteria** (what must be TRUE):
+  1. Cron listing calls `cron.list` (not `crons.list`) and parses the response correctly
+  2. Cron create calls `cron.add` (not `crons.create`), update calls `cron.update`, delete calls `cron.remove`
+  3. All cron RPC calls succeed against the live gateway
+**Plans**: TBD
+
+### Phase 80: Models Method Verification
+**Goal**: Models listing uses verified method name and the frontend correctly renders the response shape
+**Depends on**: Phase 75
+**Requirements**: RPC-06
+**Success Criteria** (what must be TRUE):
+  1. `models.list` call succeeds against the live gateway
+  2. The response shape (model names, providers, capabilities) is correctly parsed by the frontend
+  3. Models tab renders real model data without "undefined" or missing fields
+**Plans**: TBD
+
+### Phase 81: Usage Method Correction
+**Goal**: Usage data is fetched with the correct method names so token/cost tracking shows real numbers
+**Depends on**: Phase 75
+**Requirements**: RPC-07
+**Success Criteria** (what must be TRUE):
+  1. Usage data calls `usage.status` and/or `usage.cost` (not `usage.summary`)
+  2. The response shape (token counts, cost breakdowns) is correctly parsed by the frontend
+  3. Usage tab shows non-zero real data from the live gateway
+**Plans**: TBD
+
+### Phase 82: Tools & Skills Method Verification
+**Goal**: Tools and skills listings use verified method names and response shapes
+**Depends on**: Phase 75
+**Requirements**: RPC-08
+**Success Criteria** (what must be TRUE):
+  1. Tools listing calls the correct gateway method and parses the response
+  2. Skills listing calls `skills.status` or `skills.bins` (verified correct method) and parses the response
+  3. Both tabs render real data from the live gateway without "undefined" or empty states when data exists
+**Plans**: TBD
+
+### Phase 83: Activity Events Method Correction
+**Goal**: Activity data uses the correct gateway method or subscription pattern instead of the nonexistent activity.recent
+**Depends on**: Phase 75
+**Requirements**: RPC-09
+**Success Criteria** (what must be TRUE):
+  1. The code no longer calls `activity.recent` (this method does not exist in the protocol)
+  2. Activity data is sourced from a real gateway method (events.list, logs.tail, or event subscription)
+  3. The activity data structure matches what the frontend activity feed component expects
+**Plans**: TBD
+
+### Phase 84: SSE Event Bus Wiring
+**Goal**: The SSE event bus delivers real gateway WebSocket events to the frontend instead of mock/assumed data
+**Depends on**: Phase 75, Phase 76
+**Requirements**: EVT-01
+**Success Criteria** (what must be TRUE):
+  1. Gateway WebSocket events (17 event types from protocol v3) are forwarded through the SSE event bus
+  2. Event names in SSE match the actual gateway event names (agent, chat, presence, cron, etc.)
+  3. Frontend event listeners receive events with correct payload shapes matching gateway protocol
+  4. SSE connection stays alive and delivers events in real-time (< 1s latency from gateway event to frontend)
+**Plans**: TBD
+
+### Phase 85: Agent Event Streaming
+**Goal**: Real-time agent status changes appear in the UI without polling
+**Depends on**: Phase 84
+**Requirements**: EVT-02
+**Success Criteria** (what must be TRUE):
+  1. When an agent starts/stops/errors on the gateway, the frontend receives the `agent` event via SSE
+  2. Agent status indicators update in real-time on the Agents tab
+  3. Agent status changes appear in the activity feed without page refresh
+**Plans**: TBD
+
+### Phase 86: Session Event Streaming
+**Goal**: Session lifecycle events (created, completed, error) appear in the UI in real-time
+**Depends on**: Phase 84
+**Requirements**: EVT-03
+**Success Criteria** (what must be TRUE):
+  1. When a session is created/completed/errors on the gateway, the frontend receives the `chat` event via SSE
+  2. Session status updates appear in the Sessions tab without polling
+  3. Session completion/error events trigger notification if the user has notifications enabled
+**Plans**: TBD
+
+### Phase 87: Live Agents Tab
+**Goal**: The Agents tab is fully functional against the live gateway with real agent data
+**Depends on**: Phase 78, Phase 85
+**Requirements**: LIVE-01
+**Success Criteria** (what must be TRUE):
+  1. Agents tab lists all agents from the live gateway (main, fast-agent, standard-agent, etc.)
+  2. Creating a new agent via the UI results in a real agent on the gateway
+  3. Editing an agent's config via the UI persists the change on the gateway
+  4. Deleting an agent via the UI removes it from the gateway
+  5. Agent status indicators reflect real-time state from gateway events
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 88: Live Crons Tab
+**Goal**: The Crons tab is fully functional against the live gateway with real scheduled task data
+**Depends on**: Phase 79, Phase 85
+**Requirements**: LIVE-02
+**Success Criteria** (what must be TRUE):
+  1. Crons tab lists all cron jobs from the live gateway
+  2. Creating a new cron job via the UI results in a real scheduled task on the gateway
+  3. Editing/toggling a cron job via the UI persists the change on the gateway
+  4. Deleting a cron job via the UI removes it from the gateway
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 89: Live Usage & Models Tabs
+**Goal**: Usage and Models tabs display real data from the live gateway
+**Depends on**: Phase 80, Phase 81
+**Requirements**: LIVE-03, LIVE-04
+**Success Criteria** (what must be TRUE):
+  1. Usage tab shows real token counts and cost data from the gateway
+  2. Usage charts render with actual historical data (not zeros or placeholders)
+  3. Models tab shows all available models from the gateway with correct provider labels
+  4. Model capabilities and context windows display correctly
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 90: Live Activity Feed
+**Goal**: The activity feed shows real events from the gateway, completing the live data verification
+**Depends on**: Phase 83, Phase 84, Phase 85, Phase 86
+**Requirements**: LIVE-05
+**Success Criteria** (what must be TRUE):
+  1. Activity feed widget displays real events sourced from the gateway
+  2. Events include agent actions, session completions, cron runs, and system events
+  3. New events appear in real-time via SSE without page refresh
+  4. Event timestamps and details match what the gateway reports
+**Plans**: TBD
+**UI hint**: yes
+
+## Progress
+
+**Execution Order:** Groups execute in order: AA -> AB -> AC -> AD. Phases within a group can run in parallel where dependencies allow.
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 75. Protocol v3 Handshake | v0.0.5 | 0/? | Not started | - |
+| 76. Reconnect with Backoff | v0.0.5 | 0/? | Not started | - |
+| 77. Chat Method Corrections | v0.0.5 | 0/? | Not started | - |
+| 78. Agent Method Verification | v0.0.5 | 0/? | Not started | - |
+| 79. Cron Method Verification | v0.0.5 | 0/? | Not started | - |
+| 80. Models Method Verification | v0.0.5 | 0/? | Not started | - |
+| 81. Usage Method Correction | v0.0.5 | 0/? | Not started | - |
+| 82. Tools & Skills Method Verification | v0.0.5 | 0/? | Not started | - |
+| 83. Activity Events Method Correction | v0.0.5 | 0/? | Not started | - |
+| 84. SSE Event Bus Wiring | v0.0.5 | 0/? | Not started | - |
+| 85. Agent Event Streaming | v0.0.5 | 0/? | Not started | - |
+| 86. Session Event Streaming | v0.0.5 | 0/? | Not started | - |
+| 87. Live Agents Tab | v0.0.5 | 0/? | Not started | - |
+| 88. Live Crons Tab | v0.0.5 | 0/? | Not started | - |
+| 89. Live Usage & Models Tabs | v0.0.5 | 0/? | Not started | - |
+| 90. Live Activity Feed | v0.0.5 | 0/? | Not started | - |
+
+<details>
+<summary>v0.0.4 -- Stabilize & Strip (19 phases) -- SHIPPED 2026-03-24</summary>
 
 **Group U: Dev Workflow Fixes** *(unblocks everything else)*
 - [x] **Phase 56: Browser Mode Auth Fix** - Fix browser mode auth to work without Tauri shell for development (completed 2026-03-24)
@@ -42,274 +267,7 @@
 - [x] **Phase 73: Widget Render Smoke Test** - Verify all 29 widgets render without crashes after cleanup (completed 2026-03-24)
 - [x] **Phase 74: Full Route Audit** - Verify no 404s, blank pages, or infinite loaders across all routes (completed 2026-03-24)
 
-## Phase Details
-
-### Phase 56: Browser Mode Auth Fix
-**Goal**: Developers can run the frontend in browser mode (npm run dev) and authenticate without needing the Tauri shell
-**Depends on**: Nothing (first phase -- unblocks dev workflow)
-**Requirements**: DEV-01
-**Success Criteria** (what must be TRUE):
-  1. Running `npm run dev` and opening localhost:5173 in a browser reaches the login page
-  2. Developer can log in via browser mode and access all pages without Tauri-specific APIs failing
-  3. No "window.__TAURI__" or similar errors in the browser console during normal usage
-**Plans**: 1 plan
-Plans:
-- [ ] 56-01-PLAN.md -- Fix AuthGuard bypass, OAuth callback redirect, and browser-mode auth tests
-
-### Phase 57: ffir Error Toast Fix
-**Goal**: Clean page loads with zero unexpected error toasts
-**Depends on**: Nothing (parallel with Phase 56)
-**Requirements**: DEV-02
-**Success Criteria** (what must be TRUE):
-  1. Loading any page in the app produces zero error toasts
-  2. The "ffir" binary reference is removed or conditionally guarded so it never fires in normal operation
-  3. The browser console shows no uncaught errors related to missing binaries on page load
-**Plans**: 1 plan
-Plans:
-- [ ] 57-01-PLAN.md -- Diagnose and fix ffir error toast, remove stale sidecar binaries, add regression test
-
-### Phase 58: Audit #[allow(dead_code)] Annotations
-**Goal**: Every suppressed dead code warning in Rust has an explicit justification or is removed
-**Depends on**: Phase 56 (dev workflow must be stable)
-**Requirements**: RUST-01
-**Success Criteria** (what must be TRUE):
-  1. Each of the 13 `#[allow(dead_code)]` annotations has been individually reviewed
-  2. Annotations on genuinely unused code are removed (and the dead code deleted or fixed)
-  3. Annotations on code used via dynamic dispatch, FFI, or conditional compilation have a `// Justification:` comment
-  4. `cargo clippy` passes with no new dead_code warnings after the audit
-**Plans**: 1 plan
-Plans:
-- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
-
-### Phase 59: Strip Unused Crate Dependencies
-**Goal**: Cargo.toml contains only crates that are actually imported and used in the Rust source
-**Depends on**: Phase 58 (dead code audit may remove code that was the only consumer of a crate)
-**Requirements**: RUST-02
-**Success Criteria** (what must be TRUE):
-  1. `cargo-machete` reports zero unused dependencies (excluding known false positives like `tauri-build`)
-  2. `cargo build` and `cargo test` pass after dependency removal
-  3. Any false positives are documented in a `[package.metadata.cargo-machete]` ignore list in Cargo.toml
-**Plans**: 1 plan
-Plans:
-- [ ] 59-01-PLAN.md -- Remove 3 unused crates (axum-extra, tokio-stream, tower), verify build and tests
-
-### Phase 60: Strip Dead Route Modules
-**Goal**: Backend has no route modules that serve zero frontend or external consumers
-**Depends on**: Phase 58 (dead code audit identifies candidates)
-**Requirements**: RUST-03
-**Success Criteria** (what must be TRUE):
-  1. Each candidate dead route (workspace.rs, decisions.rs, dlp.rs, habits.rs, deploy.rs) has been audited for frontend callers, external callers (CI pipelines, webhooks), and WebSocket consumers
-  2. Routes confirmed dead are removed from `routes/mod.rs` and their files deleted
-  3. Routes with external consumers are documented with a `// Called by:` comment and kept
-  4. `cargo build` passes and the app starts without route registration errors
-**Plans**: 1 plan
-Plans:
-- [ ] 60-01-PLAN.md -- Audit 5 candidate routes, delete 3 dead (decisions, dlp, habits), document 2 kept
-
-### Phase 61: Strip Nonexistent Gateway Methods
-**Goal**: No backend routes call gateway methods that do not exist in the protocol
-**Depends on**: Phase 58 (dead code audit context)
-**Requirements**: RUST-04
-**Success Criteria** (what must be TRUE):
-  1. `sessions.pause` and `sessions.resume` routes are removed (these methods do not exist in gateway protocol v3)
-  2. Any frontend UI that called pause/resume is updated to remove or disable those buttons
-  3. No Rust code references nonexistent gateway RPC method names
-  4. `cargo build` passes after removal
-**Plans**: 1 plan
-Plans:
-- [ ] 61-01-PLAN.md -- Strip sessions.pause/resume from gateway.rs and frontend session UI
-
-### Phase 62: Configure knip for Dead Code Detection
-**Goal**: knip v6 runs cleanly against the codebase with correct entry points so dynamic imports are not flagged as false positives
-**Depends on**: Phase 57 (dev workflow stable before tooling setup)
-**Requirements**: DEV-03
-**Success Criteria** (what must be TRUE):
-  1. `knip.json` exists with entry points for `main.tsx`, all lazy-loaded route files, widget registry factory functions, and wizard steps
-  2. Running `npx knip` produces a report with zero false positives on known-used widget components and lazy pages
-  3. The knip report identifies genuinely unused exports, files, and dependencies ready for cleanup
-**Plans**: 1 plan
-Plans:
-- [ ] 62-01-PLAN.md -- Configure knip with lazy-route entry points and widget registry
-
-### Phase 63: Strip noVNC Dependency
-**Goal**: The rejected noVNC feature is fully removed from the codebase
-**Depends on**: Phase 62 (knip confirms noVNC is dead)
-**Requirements**: DEAD-05
-**Success Criteria** (what must be TRUE):
-  1. `@novnc/novnc` is removed from package.json and node_modules
-  2. `VncPreviewWidget.tsx` is deleted
-  3. Any widget registry entry referencing VncPreviewWidget is removed with a corresponding `lib/migrations.ts` entry for dashboard state cleanup
-  4. No import or reference to noVNC or VncPreviewWidget exists anywhere in the codebase
-**Plans**: 1 plan
-Plans:
-- [ ] 63-01-PLAN.md -- Remove noVNC package, VncPreviewWidget, widget registry entry, add migration
-
-### Phase 64: Strip TipTap/Project Tracker Stubs
-**Goal**: All deferred feature stubs are removed so they do not confuse developers or appear in search results
-**Depends on**: Phase 62 (knip confirms these are dead)
-**Requirements**: DEAD-06
-**Success Criteria** (what must be TRUE):
-  1. No TipTap package references exist in package.json
-  2. No TipTap import statements exist in any TypeScript file
-  3. No Project Tracker component, route, type, or hook reference exists in the codebase
-  4. Any sidebar module entries for deferred features are removed from `sidebar-config.ts` and `modules.ts`
-**Plans**: 1 plan
-Plans:
-- [ ] 64-01-PLAN.md -- Verify TipTap/Project Tracker stubs already absent (no code changes needed)
-
-### Phase 65: Strip Unused File Exports
-**Goal**: Every exported function, type, constant, and component in the frontend is imported by at least one consumer
-**Depends on**: Phases 60, 61, 63, 64 (backend and known-dead stripping done first so knip results are accurate)
-**Requirements**: DEAD-01
-**Success Criteria** (what must be TRUE):
-  1. `npx knip` reports zero unused exports (or all remaining are justified with `// knip:ignore` comments)
-  2. Removed exports do not break any import chain (verified by `tsc --noEmit`)
-  3. Each removal is a single-purpose commit for safe bisection
-**Plans**: 2 plans
-Plans:
-- [x] 65-01-PLAN.md -- Remove unused exports from dashboard barrel, store, and engine files
-- [ ] 65-02-PLAN.md -- Remove unused exports from library utilities, components, and hooks
-
-### Phase 66: Strip Unused npm Dependencies
-**Goal**: package.json contains only packages that are actually imported somewhere in the source
-**Depends on**: Phase 65 (unused exports removed first -- some deps may only be consumed by dead exports)
-**Requirements**: DEAD-02
-**Success Criteria** (what must be TRUE):
-  1. `npx knip --include dependencies` reports zero unused dependencies
-  2. `npm install` succeeds after removal
-  3. `npm run build` produces a working bundle
-  4. No runtime "module not found" errors when navigating all pages
-**Plans**: 1 plan
-Plans:
-- [ ] 66-01-PLAN.md -- Remove @novnc/novnc and @types/novnc__novnc, clean knip ignoreDependencies
-
-### Phase 67: Strip Unused Imports
-**Goal**: Every import statement in every TypeScript file is consumed within that file
-**Depends on**: Phase 66 (dependency cleanup done first)
-**Requirements**: DEAD-03
-**Success Criteria** (what must be TRUE):
-  1. ESLint with `eslint-plugin-unused-imports` reports zero unused import violations
-  2. The autofix was applied in batches (not one giant commit) for safe bisection
-  3. `tsc --noEmit` passes after all import cleanup
-**Plans**: 1 plan
-Plans:
-- [ ] 67-01-PLAN.md -- Configure ESLint underscore patterns, strip 97 unused imports/vars across 61 files
-
-### Phase 68: Enable TypeScript Strict Flags
-**Goal**: TypeScript compiler catches unused locals and parameters as errors, preventing future dead code accumulation
-**Depends on**: Phase 67 (all existing unused imports cleaned first)
-**Requirements**: DEAD-04
-**Success Criteria** (what must be TRUE):
-  1. `tsconfig.app.json` has `"noUnusedLocals": true` and `"noUnusedParameters": true`
-  2. `tsc --noEmit` passes with zero violations
-  3. The pre-commit hook (`scripts/pre-commit.sh`) catches any future violations before they are committed
-**Plans**: 1 plan
-Plans:
-- [ ] 68-01-PLAN.md -- Enable strict unused flags, fix violations
-
-### Phase 69: OpenClaw Hook Tests
-**Goal**: Core OpenClaw data-fetching hooks have test coverage to prevent regressions during future gateway integration work
-**Depends on**: Phase 68 (codebase is clean and stable before writing tests)
-**Requirements**: TEST-01
-**Success Criteria** (what must be TRUE):
-  1. `useAgents` hook has tests covering: fetch success, fetch error, empty state, agent CRUD mutations
-  2. `useCrons` hook has tests covering: fetch success, fetch error, create/toggle/delete mutations
-  3. `useOpenClawStatus` hook has tests covering: connected, disconnected, and error states
-  4. `useOpenClawModels` hook has tests covering: model list fetch and empty provider handling
-  5. All tests pass via `npx vitest run`
-**Plans**: 1 plan
-Plans:
-- [ ] 69-01-PLAN.md -- Unit tests for OpenClaw hooks
-
-### Phase 70: Terminal Hook Tests
-**Goal**: Terminal and session output hooks have test coverage for WebSocket lifecycle edge cases
-**Depends on**: Phase 68 (codebase is clean and stable)
-**Requirements**: TEST-02
-**Success Criteria** (what must be TRUE):
-  1. `useTerminal` hook has tests covering: WebSocket connect, send input, receive output, resize, disconnect, reconnect
-  2. `useSessionOutput` hook has tests covering: stream start, data arrival, stream end, error handling
-  3. WebSocket mock properly simulates the connect/message/close lifecycle
-  4. All tests pass via `npx vitest run`
-**Plans**: 1 plan
-Plans:
-- [ ] 70-01-PLAN.md -- Unit tests for terminal hooks
-
-### Phase 71: Gateway Integration Tests
-**Goal**: Gateway connection health is verified by automated tests that catch regressions in the status/health endpoints
-**Depends on**: Phase 68 (codebase is clean and stable)
-**Requirements**: TEST-03
-**Success Criteria** (what must be TRUE):
-  1. Integration test verifies `/api/openclaw/health` returns correct status when gateway is reachable
-  2. Integration test verifies `/api/openclaw/health` returns graceful error when gateway is unreachable
-  3. Integration test verifies gateway WebSocket connection status is surfaced correctly via SSE
-  4. All tests pass in CI (gateway may be mocked for CI environment)
-**Plans**: 1 plan
-Plans:
-- [ ] 71-01-PLAN.md -- Tests for useGatewayStatus hook, GatewayStatusDot component, and OpenClaw health query
-
-### Phase 72: Sidebar Module Smoke Test
-**Goal**: Every module registered in the sidebar loads its page component without crashing after all dead code removal
-**Depends on**: Phases 68, 69, 70, 71 (all cleanup and tests complete)
-**Requirements**: VERIFY-01
-**Success Criteria** (what must be TRUE):
-  1. Every enabled module in `modules.ts` resolves its lazy-loaded page component without import errors
-  2. Clicking each sidebar item renders a page (not a blank screen, not an error boundary)
-  3. No console errors related to missing components, hooks, or modules during navigation
-**Plans**: 1 plan
-Plans:
-- [ ] 72-01-PLAN.md -- Smoke test all sidebar modules
-
-### Phase 73: Widget Render Smoke Test
-**Goal**: Every widget in the registry renders its default state without crashing after cleanup
-**Depends on**: Phase 72 (sidebar modules verified first)
-**Requirements**: VERIFY-02
-**Success Criteria** (what must be TRUE):
-  1. Every widget type in `widget-registry.ts` can be instantiated on a dashboard page
-  2. No widget throws a runtime error during initial render (checked via error boundary catches)
-  3. Widget registry has no dangling references to deleted components
-  4. Dashboard state migrations handle any removed widget types gracefully
-**Plans**: 1 plan
-Plans:
-- [ ] 73-01-PLAN.md -- Smoke test all widgets
-
-### Phase 74: Full Route Audit
-**Goal**: Every route in the app resolves to a working page with no dead links, blank screens, or infinite loading states
-**Depends on**: Phases 72, 73 (modules and widgets verified)
-**Requirements**: VERIFY-03
-**Success Criteria** (what must be TRUE):
-  1. Every route defined in the React Router config resolves to a rendered page
-  2. No route produces a 404, blank page, or uncaught error
-  3. No page is stuck in an infinite loading state (loading states resolve within 10 seconds or show appropriate error/empty state)
-  4. Navigation between all routes works (forward, back, sidebar click, direct URL)
-**Plans**: 1 plan
-Plans:
-- [ ] 74-01-PLAN.md -- Vitest route smoke test: render all 31 routes via MemoryRouter, assert no errors or blank pages
-
-## Progress
-
-**Execution Order:** Groups execute in order: U -> V -> W -> X -> Y -> Z. Phases within a group can run in parallel where dependencies allow.
-
-| Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
-| 56. Browser Mode Auth Fix | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
-| 57. ffir Error Toast Fix | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
-| 58. Audit #[allow(dead_code)] | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
-| 59. Strip Unused Crates | v0.0.4 | 0/? | Complete    | 2026-03-24 |
-| 60. Strip Dead Route Modules | v0.0.4 | 1/1 | Complete    | 2026-03-24 |
-| 61. Strip Nonexistent Gateway Methods | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
-| 62. Configure knip | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
-| 63. Strip noVNC | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
-| 64. Strip TipTap/Project Tracker | v0.0.4 | 0/? | Complete    | 2026-03-24 |
-| 65. Strip Unused Exports | v0.0.4 | 2/2 | Complete    | 2026-03-24 |
-| 66. Strip Unused npm Deps | v0.0.4 | 0/? | Complete    | 2026-03-24 |
-| 67. Strip Unused Imports | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
-| 68. Enable TS Strict Flags | v0.0.4 | 0/? | Complete    | 2026-03-24 |
-| 69. OpenClaw Hook Tests | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
-| 70. Terminal Hook Tests | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
-| 71. Gateway Integration Tests | v0.0.4 | 1/1 | Complete    | 2026-03-24 |
-| 72. Sidebar Module Smoke Test | v0.0.4 | 0/? | Complete    | 2026-03-24 |
-| 73. Widget Render Smoke Test | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
-| 74. Full Route Audit | v0.0.4 | 0/? | Complete    | 2026-03-24 |
+</details>
 
 <details>
 <summary>v0.0.3 -- AI Ops Center + OpenClaw Controller + Polish (55 phases) -- SHIPPED 2026-03-24</summary>

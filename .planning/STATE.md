@@ -6,7 +6,7 @@ status: Ready to plan
 stopped_at: null
 last_updated: "2026-03-24"
 progress:
-  total_phases: 0
+  total_phases: 16
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -19,14 +19,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Milestone v0.0.5 — Gateway Protocol v3
+**Current focus:** Phase 75 -- Protocol v3 Handshake
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-24 — Milestone v0.0.5 started
+Phase: 75 of 90 (Protocol v3 Handshake) -- 1 of 16 in milestone v0.0.5
+Plan: --
+Status: Ready to plan
+Last activity: 2026-03-24 -- Roadmap created for v0.0.5 (16 phases, 20 requirements)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -50,8 +50,9 @@ Progress: [░░░░░░░░░░] 0%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- Gateway integration deferred to v0.0.5 -- v0.0.4 only strips nonexistent methods (pause/resume), does not fix wrong method names
-- OpenClaw gateway protocol v3 reference: see memory/reference_openclaw_complete.md for all 88 methods, 17 events, handshake spec
+- Gateway integration deferred to v0.0.5 -- v0.0.4 only stripped nonexistent methods (pause/resume)
+- Protocol v3 reference: memory/reference_openclaw_complete.md has all 88 methods, 17 events, handshake spec
+- Phase structure: 4 groups (AA-AD) -- handshake first, then RPC fixes, then event bus, then live verification
 
 ### Pending Todos
 
@@ -60,11 +61,11 @@ Recent decisions affecting current work:
 ### Blockers/Concerns
 
 - 9 wrong RPC method names in gateway.rs need correction against actual protocol v3
-- WebSocket CAS guards need full lifecycle verification after method name changes
 - SSE event bus currently uses assumed event names, not actual gateway events
+- Live verification phases require gateway VM to be reachable during testing
 
 ## Session Continuity
 
 Last session: 2026-03-24
-Stopped at: Milestone v0.0.5 initialized
+Stopped at: Roadmap created for v0.0.5
 Resume file: None
