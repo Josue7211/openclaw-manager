@@ -21,7 +21,7 @@ pub mod events;
 pub mod habits;
 pub mod homelab;
 pub mod ideas;
-pub mod koel;
+// pub mod koel; // removed: file does not exist (stripped in prior phase)
 pub mod knowledge;
 pub mod media;
 pub mod memory;
@@ -71,7 +71,7 @@ pub fn router() -> Router<AppState> {
         .merge(decisions::router())
         .merge(dlp::router())
         .merge(ideas::router())
-        .merge(koel::router())
+        // .merge(koel::router()) // removed: module does not exist
         .merge(memory::router())
         .merge(search::router())
         .merge(workflow_notes::router())
