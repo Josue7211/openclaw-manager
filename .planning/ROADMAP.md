@@ -108,7 +108,9 @@ Plans:
   1. `models.list` call succeeds against the live gateway
   2. The response shape (model names, providers, capabilities) is correctly parsed by the frontend
   3. Models tab renders real model data without "undefined" or missing fields
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 80-01-PLAN.md -- Gateway WS models.list route (replace HTTP proxy)
 
 ### Phase 81: Usage Method Correction
 **Goal**: Usage data is fetched with the correct method names so token/cost tracking shows real numbers
@@ -118,7 +120,9 @@ Plans:
   1. Usage data calls `usage.status` and/or `usage.cost` (not `usage.summary`)
   2. The response shape (token counts, cost breakdowns) is correctly parsed by the frontend
   3. Usage tab shows non-zero real data from the live gateway
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 81-01-PLAN.md -- Gateway WS usage.status and usage.cost routes (replace HTTP proxy)
 
 ### Phase 82: Tools & Skills Method Verification
 **Goal**: Tools and skills listings use verified method names and response shapes
@@ -128,7 +132,9 @@ Plans:
   1. Tools listing calls the correct gateway method and parses the response
   2. Skills listing calls `skills.status` or `skills.bins` (verified correct method) and parses the response
   3. Both tabs render real data from the live gateway without "undefined" or empty states when data exists
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 82-01-PLAN.md -- Gateway WS skills.status and skills.bins routes (replace HTTP proxies)
 
 ### Phase 83: Activity Events Method Correction
 **Goal**: Activity data uses the correct gateway method or subscription pattern instead of the nonexistent activity.recent
@@ -138,7 +144,9 @@ Plans:
   1. The code no longer calls `activity.recent` (this method does not exist in the protocol)
   2. Activity data is sourced from a real gateway method (events.list, logs.tail, or event subscription)
   3. The activity data structure matches what the frontend activity feed component expects
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 83-01-PLAN.md -- Replace activity.recent with logs.tail in gateway_activity handler
 
 ### Phase 84: SSE Event Bus Wiring
 **Goal**: The SSE event bus delivers real gateway WebSocket events to the frontend instead of mock/assumed data
@@ -231,10 +239,10 @@ Plans:
 | 77. Chat Method Corrections | v0.0.5 | 0/1 | Not started | - |
 | 78. Agent Method Verification | v0.0.5 | 0/1 | Not started | - |
 | 79. Cron Method Verification | v0.0.5 | 0/1 | Not started | - |
-| 80. Models Method Verification | v0.0.5 | 0/? | Not started | - |
-| 81. Usage Method Correction | v0.0.5 | 0/? | Not started | - |
-| 82. Tools & Skills Method Verification | v0.0.5 | 0/? | Not started | - |
-| 83. Activity Events Method Correction | v0.0.5 | 0/? | Not started | - |
+| 80. Models Method Verification | v0.0.5 | 0/1 | Not started | - |
+| 81. Usage Method Correction | v0.0.5 | 0/1 | Not started | - |
+| 82. Tools & Skills Method Verification | v0.0.5 | 0/1 | Not started | - |
+| 83. Activity Events Method Correction | v0.0.5 | 0/1 | Not started | - |
 | 84. SSE Event Bus Wiring | v0.0.5 | 0/? | Not started | - |
 | 85. Agent Event Streaming | v0.0.5 | 0/? | Not started | - |
 | 86. Session Event Streaming | v0.0.5 | 0/? | Not started | - |
