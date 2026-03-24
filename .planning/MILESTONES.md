@@ -1,5 +1,33 @@
 # Milestones
 
+## v0.0.4 Stabilize & Strip (Shipped: 2026-03-24)
+
+**Phases completed:** 19 phases, 20 plans, 38 tasks
+
+**Key accomplishments:**
+
+- Browser-mode OAuth with redirect_to param, AuthGuard demo-mode network fallback, and 6 unit tests
+- Unhandledrejection guard added to main.tsx suppressing non-critical Tauri plugin/IPC errors (like 'Executable not found: ffir') from surfacing as WebKitGTK overlays, with 4-test regression suite
+- Audited 12 #[allow(dead_code)] annotations across 6 Rust files -- removed 1 incorrect suppression on health_check() and added justification comments to 11 legitimate ones
+- Removed 3 unused Rust crate dependencies (axum-extra, tokio-stream, tower) verified by cargo-machete with zero false positives
+- Deleted 3 dead backend route modules (decisions.rs, dlp.rs, habits.rs -- 607 lines) and documented 2 kept routes with Called-by provenance comments
+- Removed sessions.pause/resume gateway handlers and all frontend pause/resume UI -- these RPC methods do not exist in OpenClaw gateway protocol v3
+- Knip v6 installed and configured with 83 entry points, identifying 14 unused files, 57 unused exports, and 36 unused types for dead code removal
+- Dashboard state v8 migration to strip dead vnc-viewer widget from persisted layouts, completing noVNC removal
+- Verified TipTap and Project Tracker deferred feature stubs were never scaffolded -- all four DEAD-06 criteria already satisfied with zero code changes
+- Deleted entirely:
+- Removed @novnc/novnc and @types/novnc__novnc from package.json, cleaned novnc vite chunk, and trimmed knip ignoreDependencies to 3 entries
+- ESLint no-unused-vars rule enforced with underscore convention -- 97 violations eliminated across 47 TypeScript files
+- Enabled noUnusedLocals and noUnusedParameters in tsconfig.app.json after fixing 66 TS6133/TS6196 violations across 43 files
+- 29 unit tests across 4 files covering useAgents/useCrons CRUD with optimistic rollback, useGatewayStatus polling states, and useOpenClawModels fetch lifecycle
+- 23 unit tests for useTerminal and useSessionOutput hooks covering full WebSocket lifecycle, capacity gating, input forwarding, resize protocol, and read-only terminal mode
+- 16 integration tests covering useGatewayStatus hook (5 cases), OpenClaw health query (4 cases), and GatewayStatusDot component rendering (7 cases)
+- Vitest smoke test covering all 16 sidebar modules -- dynamic import + render verification with 34 passing tests
+- Smoke test for all 29 BUILTIN_WIDGETS verifying lazy component factories resolve and render without errors in jsdom
+- Vitest route audit with 52 tests covering all 27 routes, sync guard, redirect verification, catch-all, and lazy import resolution
+
+---
+
 ## v1.0 — OpenClaw Manager Publishable Release
 
 **Shipped:** 2026-03-21
@@ -20,6 +48,7 @@
 ### Requirements
 
 92/92 requirements satisfied (100%)
+
 - LAYOUT: 6/6 | POLISH: 16/16 | THEME: 8/8 | SYSMODE: 7/7
 - WIZARD: 8/8 | DASH: 11/11 | PAGE: 7/7 | PRIM: 14/14
 - BJORN: 12/12 | EXPORT: 3/3

@@ -38,13 +38,16 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 - ✓ Bjorn AI module builder — natural language → sandboxed preview → approve → dashboard with hot-reload — v1.0
 - ✓ Data export — Supabase JSON, SQLite backup, notes markdown from Settings — v1.0
 
+- ✓ Strip dead/unused code, components, routes, and imports — v0.0.4
+- ✓ Remove deferred feature stubs (TipTap, Project Tracker) — v0.0.4 (verified never scaffolded)
+- ✓ Harden test coverage for v0.0.3 features — v0.0.4 (68 new hook tests + 117 smoke tests)
+- ✓ TypeScript strict flags (noUnusedLocals/noUnusedParameters) — v0.0.4
+- ✓ Dev workflow fixes (browser mode auth, error toasts) — v0.0.4
+
 ### Active
 
-- [ ] Strip dead/unused code, components, routes, and imports
-- [ ] Fix OpenClaw gateway integration to use correct protocol methods
-- [ ] Remove deferred feature stubs (TipTap, Project Tracker)
+- [ ] Fix OpenClaw gateway integration to use correct protocol v3 methods
 - [ ] Verify and fix every page/widget with real data end-to-end
-- [ ] Harden test coverage for v0.0.3 features
 - [ ] Fix remaining UI bugs, broken loaders, and error states
 
 ### Out of Scope
@@ -54,17 +57,11 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 - Real-time chat (non-iMessage) — defer to Matrix integration later
 - Video posts / media hosting — storage/bandwidth concerns, defer
 
-## Current Milestone: v0.0.4 — Stabilize & Strip
+## Current Milestone: v0.0.5 — Gateway Protocol v3
 
-**Goal:** Harden everything shipped in v0.0.3, remove dead code and broken stubs, fix real gateway integration, ensure every page actually works end-to-end.
+**Goal:** Wire the OpenClaw controller pages to the actual gateway protocol v3 methods. Fix the 9 wrong RPC method names, implement proper handshake with device identity, wire SSE event bus to real gateway WebSocket events.
 
-**Target features:**
-- Strip dead/unused code, components, routes, and imports across the codebase
-- Fix OpenClaw gateway integration (pages use wrong API methods — wire to actual gateway protocol)
-- Remove deferred feature stubs (TipTap references, Project Tracker remnants)
-- Verify and fix every page/widget with real data (not just compilation)
-- Harden test coverage for rapidly-built v0.0.3 features
-- Fix any remaining UI bugs, broken loaders, and error states
+**Status:** Planning (run `/gsd:new-milestone` to start)
 
 ## Context
 
@@ -73,6 +70,8 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 **v0.0.2 shipped 2026-03-22.** Widget-first architecture: 28 registered widgets, 23 kernel hooks, DashboardDataContext removed, Home page as widget grid, 7 dashboard presets, category tabs in Widget Picker, notes formatting toolbar + wikilink autocomplete + backlinks panel, Discord-style status bar, activity feed widget, quick capture widget, clock + system info widgets.
 
 **v0.0.3 shipped 2026-03-24.** AI Ops Center: 55 phases across 10 groups — theme blend (OKLCH), OpenClaw controller (agents, crons, usage, models, tools, skills), terminal (PTY + xterm.js), session management (spawn, monitor, history, live output), remote VM viewer (noVNC), gateway WS connection, approvals queue, notes editor overhaul (tables, search, templates, shortcuts, graph view). Built rapidly — many pages use assumed API shapes, not verified against actual gateway protocol.
+
+**v0.0.4 shipped 2026-03-24.** Stabilize & Strip: 19 phases across 6 groups — dev workflow fixes (browser auth, error toasts), backend dead code audit (13 annotations, 3 unused crates, 3 dead routes, 2 nonexistent gateway methods), frontend tooling (knip), frontend dead code strip (82 exports, 97 imports, 2 packages, noVNC removal), TypeScript strict flags, test coverage (68 hook tests), final verification (117 smoke tests across modules/widgets/routes).
 
 The user's vision: the app should feel like Discord meets Google Docs — everything modular and customizable via the widget system, notes as rich as Google Docs leveraging Obsidian, full OpenClaw control center, Apple-quality polish throughout.
 
@@ -115,4 +114,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-24 after v0.0.4 milestone start*
+*Last updated: 2026-03-24 after v0.0.4 milestone completion*
