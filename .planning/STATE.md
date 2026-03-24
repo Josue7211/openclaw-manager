@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.0.3
 milestone_name: -- AI Ops Center + OpenClaw Controller + Polish
 status: unknown
-stopped_at: Completed 12-02-PLAN.md (verified and recovered from NFS corruption)
-last_updated: "2026-03-22T22:37:45.154Z"
+stopped_at: Completed 72-01-PLAN.md (sidebar module smoke test)
+last_updated: "2026-03-24T11:18:41Z"
 progress:
   total_phases: 19
   completed_phases: 8
@@ -48,6 +48,7 @@ Plan: Not started
 | Phase 11 P02 | 5min | 2 tasks | 5 files |
 | Phase 12 P01 | 4min | 2 tasks | 7 files |
 | Phase 12 P02 | 12min | 3 tasks | 9 files |
+| Phase 72 P01 | 9min | 1 task | 1 file |
 
 ## Accumulated Context
 
@@ -78,6 +79,8 @@ Recent decisions affecting current work:
 - [Phase 12]: Index signatures on TypeScript interfaces for forward-compatible unknown API shapes
 - [Phase 12]: Embedded sub-components (AgentList, WeekGrid) instead of importing full pages to avoid full-bleed layout conflicts
 - [Phase 12]: Replaced separate agents/crons module entries with single openclaw entry
+- [Phase 72]: Smoke test covers 16 modules (not 20 -- sessions/remote/approvals/activity not yet in APP_MODULES)
+- [Phase 72]: importOriginal pattern for demo-data and dashboard-store mocks preserves all exports
 
 ### Pending Todos
 
@@ -93,6 +96,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-22T22:35:00Z
-Stopped at: Completed 12-02-PLAN.md (verified and recovered from NFS corruption)
+Last session: 2026-03-24T11:18:41Z
+Stopped at: Completed 72-01-PLAN.md (sidebar module smoke test)
 Resume file: None
