@@ -1,5 +1,10 @@
-use axum::{extract::{Path, State}, routing::{get, post}, Json, Router};
+use axum::{
+    extract::{Path, State},
+    routing::{get, post},
+    Json, Router,
+};
 use reqwest::Method;
+use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::OnceLock;
 use std::time::Duration;
@@ -168,243 +173,113 @@ pub(crate) async fn gateway_forward(
 /// `GET /api/openclaw/health`
 ///
 /// Returns HTTP 200 always. The `ok` field indicates connectivity:
-/// - `{ "ok": false, "status": "not_configured" }` — neither OPENCLAW_API_URL nor OPENCLAW_WS set
-/// - `{ "ok": true,  "status": "connected" }`      — gateway or workspace API reachable
-/// - `{ "ok": false, "status": "unreachable" }`     — both unreachable
-///
-/// Checks both the gateway (OPENCLAW_WS converted to HTTP) and workspace API (OPENCLAW_API_URL).
+/// - `{ "ok": false, "status": "not_configured" }` — no OPENCLAW_API_URL set
+/// - `{ "ok": true,  "status": "connected" }`      — upstream /health returned 2xx
+/// - `{ "ok": false, "status": "unreachable" }`     — upstream unreachable or non-2xx
 async fn openclaw_health(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let api_url = openclaw_api_url(&state);
-    let ws_url = state.secret("OPENCLAW_WS").filter(|s| !s.is_empty());
-
-    if api_url.is_none() && ws_url.is_none() {
-        return Ok(Json(json!({"ok": false, "status": "not_configured"})));
-    }
-
-    // Try gateway health first (ws:// → http://, wss:// → https://)
-    if let Some(ws) = &ws_url {
-        let http_url = ws
-            .replace("ws://", "http://")
-            .replace("wss://", "https://");
-        let url = format!("{http_url}/health");
-        if let Ok(r) = state
-            .http
-            .get(&url)
-            .timeout(Duration::from_secs(5))
-            .send()
-            .await
-        {
-            if r.status().is_success() {
-                return Ok(Json(json!({"ok": true, "status": "connected", "gateway": true})));
-            }
+    let base = match openclaw_api_url(&state) {
+        Some(b) => b,
+        None => {
+            return Ok(Json(
+                json!({"ok": false, "status": "not_configured"}),
+            ));
         }
-    }
-
-    // Fallback: try workspace API health
-    if let Some(base) = &api_url {
-        let url = format!("{base}/health");
-        if let Ok(r) = state
-            .http
-            .get(&url)
-            .timeout(Duration::from_secs(5))
-            .send()
-            .await
-        {
-            if r.status().is_success() {
-                return Ok(Json(json!({"ok": true, "status": "connected", "gateway": false})));
-            }
-        }
-    }
-
-    Ok(Json(json!({"ok": false, "status": "unreachable"})))
-}
-
-// ── Gateway WS status ────────────────────────────────────────────────────
-
-/// `GET /api/gateway/status`
-///
-/// Returns the current WebSocket connection state:
-/// - `connected` — WS is up and handshake complete
-/// - `connecting` — actively trying to connect
-/// - `disconnected` — connection lost, will auto-reconnect
-/// - `not_configured` — OPENCLAW_WS not set
-async fn gateway_status(
-    State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
-) -> Result<Json<Value>, AppError> {
-    let (conn_state, protocol_version, reconnect_attempt) = match &state.gateway_ws {
-        Some(gw) => (
-            gw.connection_state().await,
-            gw.protocol_version().await,
-            gw.reconnect_attempt().await,
-        ),
-        None => (crate::gateway_ws::ConnectionState::NotConfigured, None, 0),
     };
-    let connected = conn_state == crate::gateway_ws::ConnectionState::Connected;
-    Ok(Json(json!({
-        "ok": connected,
-        "status": conn_state,
-        "connected": connected,
-        "protocol": protocol_version,
-        "reconnect_attempt": reconnect_attempt,
-    })))
-}
 
-// ── Gateway WS sessions ──────────────────────────────────────────────────
-
-/// `GET /api/gateway/sessions`
-///
-/// Proxies `sessions.list` through the persistent gateway WS connection.
-/// Returns the session list payload on success, or an error if the gateway
-/// is not connected or not configured.
-async fn gateway_sessions(
-    State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
-) -> Result<Json<Value>, AppError> {
-    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
-        AppError::BadRequest(
-            "OpenClaw Gateway not configured. Set OPENCLAW_WS in Settings > Connections.".into(),
-        )
-    })?;
-
-    let payload = gw
-        .request("sessions.list", json!({}))
+    let url = format!("{base}/health");
+    match state
+        .http
+        .get(&url)
+        .timeout(Duration::from_secs(5))
+        .send()
         .await
-        .map_err(|e| {
-            tracing::error!("[gateway] sessions.list failed: {e}");
-            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
-        })?;
-
-    Ok(Json(json!({
-        "ok": true,
-        "data": payload,
-    })))
+    {
+        Ok(r) if r.status().is_success() => {
+            Ok(Json(json!({"ok": true, "status": "connected"})))
+        }
+        _ => Ok(Json(json!({"ok": false, "status": "unreachable"}))),
+    }
 }
 
-// ── Gateway WS session history ──────────────────────────────────────────────
+// ── Session history (chat.history) ──────────────────────────────────────────
 
 /// `GET /api/gateway/sessions/:id/history`
 ///
-/// Proxies `sessions.history` through the persistent gateway WS connection.
-/// Returns the message history for a specific session.
+/// Fetches chat history for a session via the OpenClaw gateway `chat.history`
+/// RPC method. The `:id` path param is the session key.
 async fn gateway_session_history(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
     Path(session_id): Path<String>,
 ) -> Result<Json<Value>, AppError> {
-    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
-        AppError::BadRequest(
-            "OpenClaw Gateway not configured. Set OPENCLAW_WS in Settings > Connections.".into(),
-        )
-    })?;
+    if session_id.is_empty() || session_id.len() > 200 {
+        return Err(AppError::BadRequest("invalid session id".into()));
+    }
 
-    let payload = gw
-        .request("sessions.history", json!({"session_id": session_id}))
-        .await
-        .map_err(|e| {
-            tracing::error!("[gateway] sessions.history failed: {e}");
-            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
-        })?;
+    let result = gateway_forward(
+        &state,
+        Method::POST,
+        "/rpc/chat.history",
+        Some(json!({ "sessionKey": session_id })),
+    )
+    .await;
 
-    Ok(Json(json!({
-        "ok": true,
-        "data": payload,
-    })))
+    match result {
+        Ok(data) => Ok(Json(data)),
+        Err(e) => {
+            tracing::error!("[gateway] chat.history failed for session {session_id}: {e:?}");
+            Err(e)
+        }
+    }
 }
 
-// ── Gateway WS session send ──────────────────────────────────────────────
+// ── Session send (chat.send) ────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct SessionSendBody {
+    message: String,
+}
 
 /// `POST /api/gateway/sessions/:id/send`
 ///
-/// Sends a message to a running session via `sessions.send`.
+/// Sends a message to a session via the OpenClaw gateway `chat.send`
+/// RPC method. The `:id` path param is the session key.
 async fn gateway_session_send(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
     Path(session_id): Path<String>,
-    Json(body): Json<Value>,
+    Json(body): Json<SessionSendBody>,
 ) -> Result<Json<Value>, AppError> {
-    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
-        AppError::BadRequest("OpenClaw Gateway not configured.".into())
-    })?;
-
-    let message = body
-        .get("message")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-    if message.is_empty() {
-        return Err(AppError::BadRequest("Message is required".into()));
+    if session_id.is_empty() || session_id.len() > 200 {
+        return Err(AppError::BadRequest("invalid session id".into()));
+    }
+    if body.message.is_empty() {
+        return Err(AppError::BadRequest("message required".into()));
     }
 
-    let payload = gw
-        .request(
-            "sessions.send",
-            json!({"session_id": session_id, "message": message}),
-        )
-        .await
-        .map_err(|e| {
-            tracing::error!("[gateway] sessions.send failed: {e}");
-            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
-        })?;
+    let result = gateway_forward(
+        &state,
+        Method::POST,
+        "/rpc/chat.send",
+        Some(json!({
+            "sessionKey": session_id,
+            "message": body.message,
+            "deliver": true,
+            "idempotencyKey": super::util::random_uuid()
+        })),
+    )
+    .await;
 
-    Ok(Json(json!({"ok": true, "data": payload})))
-}
-
-// ── Gateway activity feed ────────────────────────────────────────────────
-
-/// `GET /api/gateway/activity`
-///
-/// Proxies `activity.recent` through the persistent gateway WS connection.
-/// Returns recent gateway events (session start/stop, cron runs, errors, etc.).
-async fn gateway_activity(
-    State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
-) -> Result<Json<Value>, AppError> {
-    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
-        AppError::BadRequest("OpenClaw Gateway not configured.".into())
-    })?;
-
-    let payload = gw
-        .request("activity.recent", json!({}))
-        .await
-        .map_err(|e| {
-            tracing::error!("[gateway] activity.recent failed: {e}");
-            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
-        })?;
-
-    Ok(Json(json!({
-        "ok": true,
-        "data": payload,
-    })))
-}
-
-// ── Gateway memory search ────────────────────────────────────────────────
-
-/// `POST /api/gateway/memory/search`
-///
-/// Proxies `memory.search` through the persistent gateway WS connection.
-/// Accepts `{ query, limit? }` and returns semantic search results.
-async fn gateway_memory_search(
-    State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
-    Json(body): Json<Value>,
-) -> Result<Json<Value>, AppError> {
-    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
-        AppError::BadRequest("OpenClaw Gateway not configured.".into())
-    })?;
-
-    let payload = gw
-        .request("memory.search", body)
-        .await
-        .map_err(|e| {
-            tracing::error!("[gateway] memory.search failed: {e}");
-            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
-        })?;
-
-    Ok(Json(json!({ "ok": true, "data": payload })))
+    match result {
+        Ok(data) => Ok(Json(data)),
+        Err(e) => {
+            tracing::error!("[gateway] chat.send failed for session {session_id}: {e:?}");
+            Err(e)
+        }
+    }
 }
 
 // ── Router ──────────────────────────────────────────────────────────────────
@@ -412,12 +287,14 @@ async fn gateway_memory_search(
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/openclaw/health", get(openclaw_health))
-        .route("/gateway/status", get(gateway_status))
-        .route("/gateway/sessions", get(gateway_sessions))
-        .route("/gateway/sessions/:id/history", get(gateway_session_history))
-        .route("/gateway/sessions/:id/send", post(gateway_session_send))
-        .route("/gateway/activity", get(gateway_activity))
-        .route("/gateway/memory/search", post(gateway_memory_search))
+        .route(
+            "/gateway/sessions/{id}/history",
+            get(gateway_session_history),
+        )
+        .route(
+            "/gateway/sessions/{id}/send",
+            post(gateway_session_send),
+        )
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
