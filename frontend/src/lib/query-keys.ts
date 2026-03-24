@@ -35,4 +35,6 @@ export const queryKeys = {
   openclawUsage: ['openclaw', 'usage'] as const,
   openclawModels: ['openclaw', 'models'] as const,
   openclawTools: ['openclaw', 'tools'] as const,
+  gatewayEvents: ['gateway', 'events'] as const,
+  gatewayStatus: ['gateway', 'status'] as const,
 } as const
