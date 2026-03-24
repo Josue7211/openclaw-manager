@@ -1,6 +1,9 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { Terminal, ClockCounterClockwise } from '@phosphor-icons/react'
 import { useGatewaySessions } from '@/hooks/sessions/useGatewaySessions'
+import { useGatewaySSE } from '@/lib/hooks/useGatewaySSE'
+import { addNotification } from '@/components/NotificationCenter'
+import { queryKeys } from '@/lib/query-keys'
 import { SessionList } from './SessionList'
 import { SessionOutputPanel } from './SessionOutputPanel'
 import { SessionHistoryPanel } from './SessionHistoryPanel'
@@ -13,6 +16,43 @@ export default function SessionsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('history')
   const [listWidth, setListWidth] = useState(320)
   const { sessions, available } = useGatewaySessions()
+
+  // Session lifecycle notifications via gateway SSE
+  const handleSessionEvent = useCallback((eventName: string, payload: unknown) => {
+    if (eventName !== 'chat') return
+    const data = payload as Record<string, unknown> | null
+    if (!data) return
+
+    // Detect session completion or error from the event payload.
+    // Gateway chat events include status/action fields -- handle defensively.
+    const status = (data.status as string) ?? (data.action as string) ?? ''
+    const sessionTask = (data.task as string) ?? (data.label as string) ?? 'Session'
+    const agentName = (data.agentName as string) ?? (data.agent as string) ?? ''
+
+    if (status === 'completed' || status === 'done') {
+      addNotification(
+        'system',
+        'Session Completed',
+        agentName ? `${agentName}: ${sessionTask}` : sessionTask,
+        '/sessions',
+      )
+    } else if (status === 'error' || status === 'failed') {
+      addNotification(
+        'alert',
+        'Session Error',
+        agentName ? `${agentName}: ${sessionTask}` : sessionTask,
+        '/sessions',
+      )
+    }
+  }, [])
+
+  useGatewaySSE({
+    events: ['chat'],
+    onEvent: handleSessionEvent,
+    queryKeys: {
+      chat: queryKeys.gatewayActivity,
+    },
+  })
 
   const selectedSession = useMemo(
     () => sessions.find((s) => s.id === selectedId) ?? null,
