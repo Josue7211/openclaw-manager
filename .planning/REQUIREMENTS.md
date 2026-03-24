@@ -13,7 +13,7 @@ Requirements for stabilization milestone. Each maps to roadmap phases.
 - [ ] **DEAD-02**: All unused npm dependencies detected by knip are removed from package.json
 - [ ] **DEAD-03**: All unused imports cleaned via eslint-plugin-unused-imports
 - [ ] **DEAD-04**: TypeScript strict flags `noUnusedLocals` and `noUnusedParameters` enabled and passing
-- [ ] **DEAD-05**: noVNC dependency (`@novnc/novnc`) and `VncPreviewWidget.tsx` removed
+- [x] **DEAD-05**: noVNC dependency (`@novnc/novnc`) and `VncPreviewWidget.tsx` removed
 - [ ] **DEAD-06**: All TipTap/Project Tracker stub references removed
 
 ### Dead Code -- Backend
@@ -74,7 +74,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RUST-03 | Phase 60 | Complete |
 | RUST-04 | Phase 61 | Complete |
 | DEV-03 | Phase 62 | Complete |
-| DEAD-05 | Phase 63 | Pending |
+| DEAD-05 | Phase 63 | Complete |
 | DEAD-06 | Phase 64 | Pending |
 | DEAD-01 | Phase 65 | Pending |
 | DEAD-02 | Phase 66 | Pending |

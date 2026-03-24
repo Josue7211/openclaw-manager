@@ -297,7 +297,7 @@ Plans:
 | 60. Strip Dead Route Modules | v0.0.4 | 1/1 | Complete    | 2026-03-24 |
 | 61. Strip Nonexistent Gateway Methods | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
 | 62. Configure knip | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
-| 63. Strip noVNC | v0.0.4 | 0/? | Not started | - |
+| 63. Strip noVNC | v0.0.4 | 0/1 | Planned    |  |
 | 64. Strip TipTap/Project Tracker | v0.0.4 | 0/? | Not started | - |
 | 65. Strip Unused Exports | v0.0.4 | 0/? | Not started | - |
 | 66. Strip Unused npm Deps | v0.0.4 | 0/? | Not started | - |
