@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { Play, Pause, ArrowCounterClockwise, Timer } from '@phosphor-icons/react'
+import { Play, Pause, ArrowCounterClockwise } from '@phosphor-icons/react'
 import type { WidgetProps, WidgetConfigSchema } from '@/lib/widget-registry'
 import { configNumber, configString, configBool } from './shared'
 

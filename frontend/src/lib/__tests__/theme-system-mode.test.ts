@@ -2,7 +2,7 @@
  * Tests for system mode UI behavior — single card on Linux, filtered presets elsewhere.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
   getActiveSystemTheme,
   isOsDark,

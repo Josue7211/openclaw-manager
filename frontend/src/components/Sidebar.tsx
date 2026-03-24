@@ -9,11 +9,11 @@ import { StatusBar } from './StatusBar'
 import { ContextMenu, type ContextMenuState, type ContextMenuItem } from './ContextMenu'
 import { type NavItem, navItemsByHref } from '@/lib/nav-items'
 import { subscribeSidebarSettings, getSidebarHeaderVisible, getSidebarDefaultWidth, setSidebarDefaultWidth, getSidebarTitleLayout, getSidebarTitleText, getSidebarSearchVisible, getSidebarLogoVisible, getSidebarTitleSize } from '@/lib/sidebar-settings'
-import { subscribeModules, getEnabledModules, setEnabledModules } from '@/lib/modules'
+import { subscribeModules, getEnabledModules } from '@/lib/modules'
 import {
   getSidebarConfig, setSidebarConfig, subscribeSidebarConfig,
   setCategoryCollapsed,
-  moveItem, renameItem, renameCategory, createCustomModule, deleteCustomModule, softDeleteItem,
+  moveItem, renameItem, renameCategory, createCustomModule, softDeleteItem,
 } from '@/lib/sidebar-config'
 import { useUnreadCounts, markRead } from '@/lib/unread-store'
 import { getDashboardState, subscribeDashboard, setActivePage } from '@/lib/dashboard-store'
@@ -151,7 +151,7 @@ const NavSection = React.memo(function NavSection({
   items,
   pathname,
   collapsed,
-  textOpacity,
+  textOpacity: _textOpacity,
   width,
   open,
   onToggle,
@@ -163,7 +163,7 @@ const NavSection = React.memo(function NavSection({
   onCategoryContextMenu,
   editingHref,
   editingValue,
-  onEditingChange,
+  onEditingChange: _onEditingChange,
   onEditingComplete,
   onEditingCancel,
   onDragStart: onItemDragStart,

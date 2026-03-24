@@ -13,7 +13,6 @@ let restoreWidget: typeof import('../dashboard-store').restoreWidget
 let undoDashboard: typeof import('../dashboard-store').undoDashboard
 let redoDashboard: typeof import('../dashboard-store').redoDashboard
 let updatePageLayouts: typeof import('../dashboard-store').updatePageLayouts
-let setDashboardState: typeof import('../dashboard-store').setDashboardState
 let addWidgetToPage: typeof import('../dashboard-store').addWidgetToPage
 let clearRecycleBin: typeof import('../dashboard-store').clearRecycleBin
 let setWobbleEnabled: typeof import('../dashboard-store').setWobbleEnabled
@@ -42,7 +41,6 @@ beforeEach(async () => {
   undoDashboard = mod.undoDashboard
   redoDashboard = mod.redoDashboard
   updatePageLayouts = mod.updatePageLayouts
-  setDashboardState = mod.setDashboardState
   addWidgetToPage = mod.addWidgetToPage
   clearRecycleBin = mod.clearRecycleBin
   setWobbleEnabled = mod.setWobbleEnabled

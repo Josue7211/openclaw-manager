@@ -6,10 +6,10 @@ import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { toggleBjornModule, deleteBjornModule, rollbackBjornModule, getBjornVersions } from '@/lib/bjorn-store'
 import type { BjornModule, BjornModuleVersion } from '@/lib/bjorn-types'
-import { APP_MODULES, getEnabledModules, setEnabledModules, subscribeModules } from '@/lib/modules'
+import { getEnabledModules, setEnabledModules, subscribeModules } from '@/lib/modules'
 import {
   getSidebarConfig, setSidebarConfig, resetSidebarConfig, subscribeSidebarConfig,
-  renameItem, renameCategory, moveItem, createCustomModule, deleteCustomModule,
+  renameItem, renameCategory, moveItem, createCustomModule,
   softDeleteItem, restoreItem, permanentlyDelete, emptyRecycleBin,
 } from '@/lib/sidebar-config'
 import { navItemsByHref } from '@/lib/nav-items'
@@ -22,7 +22,7 @@ import { row, btnSecondary, sectionLabel } from './shared'
 
 const GAP_BETWEEN_PANELS = 16 // must match GAP in ResizablePanel
 
-function InterCategoryDropZone({ index, active, onDragOver, onDragLeave, onDrop, modDragHref, setModDragHref, setModDragFromCat, setModDropCat, setModDropIdx }: {
+function InterCategoryDropZone({ index: _index, active, onDragOver, onDragLeave, onDrop, modDragHref, setModDragHref, setModDragFromCat, setModDropCat, setModDropIdx }: {
   index: number; active: boolean
   onDragOver: () => void; onDragLeave: () => void; onDrop: (href: string) => void
   modDragHref: string | null
@@ -280,7 +280,6 @@ export default function SettingsModules() {
   const [modEditValue, setModEditValue] = useState('')
   const [settingsCtxMenu, setSettingsCtxMenu] = useState<ContextMenuState | null>(null)
   const [editingTitle, setEditingTitle] = useState(false)
-  const [titleDraft, setTitleDraft] = useState('')
 
   // Panel rects for collision detection + swap
   const [panelRects, setPanelRects] = useState<Record<string, PanelRect>>({})
@@ -614,7 +613,7 @@ export default function SettingsModules() {
         }}
         style={{ minHeight: '100%', padding: '12px 0' }}
       >
-      {sidebarConfig.categories.filter(c => c.name || c.items.length > 0).map((cat, catIdx, filteredCats) => (
+      {sidebarConfig.categories.filter(c => c.name || c.items.length > 0).map((cat, catIdx) => (
         <React.Fragment key={cat.id}>
         {/* Inter-category drop zone — drop a module here to place it between categories */}
         {catIdx === 0 && modDragHref && !modDragHref.startsWith('category:') && !modDragHref.startsWith('restore-category:') && modDragFromCat !== cat.id && (

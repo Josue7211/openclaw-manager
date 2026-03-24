@@ -1,7 +1,7 @@
 /**
  * Tests for theme-scheduling.ts — sunrise/sunset calculation and schedule checker.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { approximateSunTimes, checkSchedule } from '../theme-scheduling'
 import type { ThemeSchedule } from '../theme-definitions'
 

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 import { ChatText, PaperPlaneTilt, ArrowLeft, NotePencil } from '@phosphor-icons/react'
 
 interface ComposePanelProps {

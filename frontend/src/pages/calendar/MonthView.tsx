@@ -1,7 +1,7 @@
 import { X, CalendarBlank } from '@phosphor-icons/react'
 import { EmptyState } from '@/components/ui/EmptyState'
 import {
-  CalendarEvent, calendarColor, toDateKey, parseLocalDate, formatTime,
+  CalendarEvent, calendarColor, parseLocalDate, formatTime,
   DAY_LABELS,
 } from './shared'
 

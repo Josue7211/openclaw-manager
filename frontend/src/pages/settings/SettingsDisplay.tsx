@@ -558,7 +558,7 @@ export default function SettingsDisplay() {
           gridTemplateColumns: '1fr 1fr',
           gap: '8px',
         }}>
-          {COLOR_ITEMS.map(({ key, label, description }) => {
+          {COLOR_ITEMS.map(({ key, label, description: _description }) => {
             const color = currentColors[key]
             const isExpanded = expandedPicker === key
             return (

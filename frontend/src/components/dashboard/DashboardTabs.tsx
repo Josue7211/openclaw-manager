@@ -34,8 +34,8 @@ interface ContextMenuState {
 export const DashboardTabs = React.memo(function DashboardTabs({
   pages,
   activePageId,
-  editMode,
-  dotIndicatorsEnabled,
+  editMode: _editMode,
+  dotIndicatorsEnabled: _dotIndicatorsEnabled,
 }: DashboardTabsProps) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
