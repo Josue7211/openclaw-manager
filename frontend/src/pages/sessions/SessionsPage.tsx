@@ -1,9 +1,10 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { Terminal, ClockCounterClockwise } from '@phosphor-icons/react'
 import { useGatewaySessions } from '@/hooks/sessions/useGatewaySessions'
 import { SessionList } from './SessionList'
 import { SessionOutputPanel } from './SessionOutputPanel'
 import { SessionHistoryPanel } from './SessionHistoryPanel'
+import { SessionControls } from './SessionControls'
 
 type ViewMode = 'output' | 'history'
 
@@ -11,7 +12,15 @@ export default function SessionsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('history')
   const [listWidth, setListWidth] = useState(320)
-  const { sessions } = useGatewaySessions()
+  const { sessions, available } = useGatewaySessions()
+
+  const selectedSession = useMemo(
+    () => sessions.find((s) => s.id === selectedId) ?? null,
+    [sessions, selectedId],
+  )
+
+  const showControls = selectedSession != null &&
+    (selectedSession.status === 'running' || selectedSession.status === 'paused')
 
   // Auto-set viewMode based on session status
   useEffect(() => {
@@ -126,6 +135,15 @@ export default function SessionsPage() {
             <SessionHistoryPanel sessionId={selectedId} key={`history-${selectedId}`} />
           )}
         </div>
+
+        {/* Session controls */}
+        {showControls && selectedSession && (
+          <SessionControls
+            sessionId={selectedSession.id}
+            sessionStatus={selectedSession.status}
+            available={available}
+          />
+        )}
       </div>
     </div>
   )

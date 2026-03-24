@@ -23,6 +23,7 @@ export interface CreateSessionPayload {
   task: string
   model?: string
   workingDir?: string
+  label?: string
 }
 
 // Gateway connection status types

@@ -1,4 +1,4 @@
-use axum::{extract::{Path, State}, routing::get, Json, Router};
+use axum::{extract::{Path, State}, routing::{get, post}, Json, Router};
 use reqwest::Method;
 use serde_json::{json, Value};
 use std::sync::OnceLock;
@@ -309,6 +309,94 @@ async fn gateway_session_history(
     })))
 }
 
+// ── Gateway WS session send ──────────────────────────────────────────────
+
+/// `POST /api/gateway/sessions/:id/send`
+///
+/// Sends a message to a running session via `sessions.send`.
+async fn gateway_session_send(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Path(session_id): Path<String>,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
+        AppError::BadRequest("OpenClaw Gateway not configured.".into())
+    })?;
+
+    let message = body
+        .get("message")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    if message.is_empty() {
+        return Err(AppError::BadRequest("Message is required".into()));
+    }
+
+    let payload = gw
+        .request(
+            "sessions.send",
+            json!({"session_id": session_id, "message": message}),
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("[gateway] sessions.send failed: {e}");
+            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
+        })?;
+
+    Ok(Json(json!({"ok": true, "data": payload})))
+}
+
+// ── Gateway WS session pause ─────────────────────────────────────────────
+
+/// `POST /api/gateway/sessions/:id/pause`
+///
+/// Pauses a running session via `sessions.pause`.
+async fn gateway_session_pause(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Path(session_id): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
+        AppError::BadRequest("OpenClaw Gateway not configured.".into())
+    })?;
+
+    let payload = gw
+        .request("sessions.pause", json!({"session_id": session_id}))
+        .await
+        .map_err(|e| {
+            tracing::error!("[gateway] sessions.pause failed: {e}");
+            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
+        })?;
+
+    Ok(Json(json!({"ok": true, "data": payload})))
+}
+
+// ── Gateway WS session resume ────────────────────────────────────────────
+
+/// `POST /api/gateway/sessions/:id/resume`
+///
+/// Resumes a paused session via `sessions.resume`.
+async fn gateway_session_resume(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Path(session_id): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
+        AppError::BadRequest("OpenClaw Gateway not configured.".into())
+    })?;
+
+    let payload = gw
+        .request("sessions.resume", json!({"session_id": session_id}))
+        .await
+        .map_err(|e| {
+            tracing::error!("[gateway] sessions.resume failed: {e}");
+            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
+        })?;
+
+    Ok(Json(json!({"ok": true, "data": payload})))
+}
+
 // ── Router ──────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
@@ -317,6 +405,9 @@ pub fn router() -> Router<AppState> {
         .route("/gateway/status", get(gateway_status))
         .route("/gateway/sessions", get(gateway_sessions))
         .route("/gateway/sessions/:id/history", get(gateway_session_history))
+        .route("/gateway/sessions/:id/send", post(gateway_session_send))
+        .route("/gateway/sessions/:id/pause", post(gateway_session_pause))
+        .route("/gateway/sessions/:id/resume", post(gateway_session_resume))
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────

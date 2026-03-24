@@ -10,6 +10,7 @@ interface NewSessionFormProps {
 
 export function NewSessionForm({ onSubmit, onCancel, isSubmitting, available }: NewSessionFormProps) {
   const [task, setTask] = useState('')
+  const [label, setLabel] = useState('')
   const [workingDir, setWorkingDir] = useState('')
   const [model, setModel] = useState('')
 
@@ -17,13 +18,15 @@ export function NewSessionForm({ onSubmit, onCancel, isSubmitting, available }: 
     e.preventDefault()
     if (!task.trim()) return
     const payload: CreateSessionPayload = { task: task.trim() }
+    if (label.trim()) payload.label = label.trim()
     if (workingDir.trim()) payload.workingDir = workingDir.trim()
     if (model.trim()) payload.model = model.trim()
     onSubmit(payload)
     setTask('')
+    setLabel('')
     setWorkingDir('')
     setModel('')
-  }, [task, workingDir, model, onSubmit])
+  }, [task, label, workingDir, model, onSubmit])
 
   const disabled = !task.trim() || isSubmitting || !available
 
@@ -56,6 +59,25 @@ export function NewSessionForm({ onSubmit, onCancel, isSubmitting, available }: 
           fontSize: '13px',
           fontFamily: 'inherit',
           resize: 'vertical',
+          width: '100%',
+          boxSizing: 'border-box',
+        }}
+      />
+
+      <input
+        type="text"
+        aria-label="Label"
+        placeholder="Label (e.g. code-review, test-runner)"
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        style={{
+          background: 'var(--bg)',
+          border: '1px solid var(--border)',
+          borderRadius: '10px',
+          padding: '8px 12px',
+          color: 'var(--text-primary)',
+          fontSize: '13px',
+          fontFamily: 'inherit',
           width: '100%',
           boxSizing: 'border-box',
         }}
