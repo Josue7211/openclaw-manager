@@ -1,24 +1,61 @@
 use axum::{
     extract::State,
-    routing::{delete, patch, post},
+    routing::{delete, get, patch, post},
     Json, Router,
 };
-use reqwest::Method;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
 
-use super::gateway::gateway_forward;
+use super::gateway::sanitize_error_body;
 
 // -- Router ------------------------------------------------------------------
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/crons", post(create_cron))
+        .route("/crons", get(list_crons).post(create_cron))
         .route("/crons/update", patch(update_cron))
         .route("/crons/delete", delete(delete_cron))
+}
+
+// -- GET /crons --------------------------------------------------------------
+
+/// `GET /api/crons`
+///
+/// Lists all cron jobs via gateway WS RPC `cron.list`.
+/// Response: `{ "jobs": [...] }`
+async fn list_crons(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
+        AppError::BadRequest(
+            "OpenClaw Gateway not configured. Set OPENCLAW_WS in Settings > Connections.".into(),
+        )
+    })?;
+
+    let payload = gw
+        .request("cron.list", json!({}))
+        .await
+        .map_err(|e| {
+            tracing::error!("[gateway] cron.list failed: {e}");
+            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
+        })?;
+
+    // Gateway returns the list directly; wrap in { jobs: [...] } for frontend compatibility
+    let jobs = if payload.is_array() {
+        payload
+    } else {
+        payload
+            .get("jobs")
+            .cloned()
+            .or_else(|| payload.get("data").cloned())
+            .unwrap_or_else(|| json!([]))
+    };
+
+    Ok(Json(json!({ "jobs": jobs })))
 }
 
 // -- POST /crons -------------------------------------------------------------
@@ -30,6 +67,9 @@ struct CreateCronBody {
     schedule: Value, // { kind, everyMs?, expr? }
 }
 
+/// `POST /api/crons`
+///
+/// Creates a cron job via gateway WS RPC `cron.add`.
 async fn create_cron(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
@@ -39,18 +79,34 @@ async fn create_cron(
         return Err(AppError::BadRequest("name required".into()));
     }
 
-    let payload = json!({
+    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
+        AppError::BadRequest(
+            "OpenClaw Gateway not configured. Set OPENCLAW_WS in Settings > Connections.".into(),
+        )
+    })?;
+
+    let params = json!({
         "name": body.name.trim(),
         "description": body.description,
         "schedule": body.schedule,
     });
 
-    let result = gateway_forward(&state, Method::POST, "/crons", Some(payload)).await?;
-    Ok(Json(result))
+    let payload = gw
+        .request("cron.add", params)
+        .await
+        .map_err(|e| {
+            tracing::error!("[gateway] cron.add failed: {e}");
+            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
+        })?;
+
+    Ok(Json(json!({ "ok": true, "job": payload })))
 }
 
 // -- PATCH /crons/update -----------------------------------------------------
 
+/// `PATCH /api/crons/update`
+///
+/// Updates a cron job via gateway WS RPC `cron.update`.
 async fn update_cron(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
@@ -65,9 +121,21 @@ async fn update_cron(
         return Err(AppError::BadRequest("invalid cron id".into()));
     }
 
-    let result =
-        gateway_forward(&state, Method::PUT, &format!("/crons/{id}"), Some(body)).await?;
-    Ok(Json(result))
+    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
+        AppError::BadRequest(
+            "OpenClaw Gateway not configured. Set OPENCLAW_WS in Settings > Connections.".into(),
+        )
+    })?;
+
+    let payload = gw
+        .request("cron.update", body)
+        .await
+        .map_err(|e| {
+            tracing::error!("[gateway] cron.update failed: {e}");
+            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
+        })?;
+
+    Ok(Json(json!({ "ok": true, "job": payload })))
 }
 
 // -- DELETE /crons/delete ----------------------------------------------------
@@ -77,6 +145,9 @@ struct DeleteCronBody {
     id: String,
 }
 
+/// `DELETE /api/crons/delete`
+///
+/// Removes a cron job via gateway WS RPC `cron.remove`.
 async fn delete_cron(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
@@ -86,9 +157,21 @@ async fn delete_cron(
         return Err(AppError::BadRequest("invalid cron id".into()));
     }
 
-    let result =
-        gateway_forward(&state, Method::DELETE, &format!("/crons/{}", body.id), None).await?;
-    Ok(Json(result))
+    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
+        AppError::BadRequest(
+            "OpenClaw Gateway not configured. Set OPENCLAW_WS in Settings > Connections.".into(),
+        )
+    })?;
+
+    let payload = gw
+        .request("cron.remove", json!({ "id": body.id }))
+        .await
+        .map_err(|e| {
+            tracing::error!("[gateway] cron.remove failed: {e}");
+            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
+        })?;
+
+    Ok(Json(json!({ "ok": true, "data": payload })))
 }
 
 // -- Tests -------------------------------------------------------------------
