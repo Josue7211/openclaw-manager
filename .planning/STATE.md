@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.0.5
 milestone_name: -- Gateway Protocol v3
 status: Ready to plan
-stopped_at: Completed 86-01-PLAN.md
-last_updated: "2026-03-24T15:59:47.715Z"
+stopped_at: Completed 88-01-PLAN.md
+last_updated: "2026-03-24T16:14:48.402Z"
 progress:
   total_phases: 16
-  completed_phases: 11
-  total_plans: 12
-  completed_plans: 11
+  completed_phases: 12
+  total_plans: 16
+  completed_plans: 12
 ---
 
 # Project State
@@ -47,6 +47,9 @@ Plan: Not started
 | Phase 77 P01 | 6min | 2 tasks | 1 files |
 | Phase 82 P01 | 2min | 1 tasks | 2 files |
 | Phase 86 P01 | 4min | 2 tasks | 4 files |
+| Phase 89 P01 | 3min | 2 tasks | 4 files |
+| Phase 87 P01 | 3min | 2 tasks | 2 files |
+| Phase 88 P01 | 4min | 2 tasks | 3 files |
 
 ### Decisions
 
@@ -64,6 +67,9 @@ Recent decisions affecting current work:
 - [Phase 82]: Used gateway_forward HTTP proxy for skills routes since gateway_ws WS client does not exist yet
 - [Phase 86]: Pass undefined options to useGatewaySSE in demo mode to satisfy React hook rules
 - [Phase 86]: Defensive payload parsing for gateway chat events with nullish fallbacks
+- [Phase 89]: Skipped nonexistent useBudgetAlerts mock; UsageTab only uses useOpenClawUsage
+- [Phase 87]: SSE wiring at page level via useTableRealtime -- correct separation from data hook
+- [Phase 88]: Followed useAgents pattern for useGatewaySSE wiring (empty options in demo mode for hooks consistency)
 
 ### Pending Todos
 
@@ -77,6 +83,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-24T15:57:58.389Z
-Stopped at: Completed 86-01-PLAN.md
+Last session: 2026-03-24T16:14:48.400Z
+Stopped at: Completed 88-01-PLAN.md
 Resume file: None

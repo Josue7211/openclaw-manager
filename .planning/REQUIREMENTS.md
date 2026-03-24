@@ -33,10 +33,10 @@ Requirements for gateway protocol integration milestone. Each maps to roadmap ph
 
 ### Live Data Verification
 
-- [ ] **LIVE-01**: Agents tab shows real agents from gateway with correct CRUD operations
-- [ ] **LIVE-02**: Crons tab shows real scheduled tasks with correct CRUD operations
-- [ ] **LIVE-03**: Usage tab shows real token/cost data from gateway
-- [ ] **LIVE-04**: Models tab shows real available models from gateway
+- [x] **LIVE-01**: Agents tab shows real agents from gateway with correct CRUD operations
+- [x] **LIVE-02**: Crons tab shows real scheduled tasks with correct CRUD operations
+- [x] **LIVE-03**: Usage tab shows real token/cost data from gateway
+- [x] **LIVE-04**: Models tab shows real available models from gateway
 - [ ] **LIVE-05**: Activity feed shows real events from gateway (not assumed shapes)
 
 ## Future Requirements
@@ -77,10 +77,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EVT-01 | Phase 84 | Pending |
 | EVT-02 | Phase 85 | Pending |
 | EVT-03 | Phase 86 | Complete |
-| LIVE-01 | Phase 87 | Pending |
-| LIVE-02 | Phase 88 | Pending |
-| LIVE-03 | Phase 89 | Pending |
-| LIVE-04 | Phase 89 | Pending |
+| LIVE-01 | Phase 87 | Complete |
+| LIVE-02 | Phase 88 | Complete |
+| LIVE-03 | Phase 89 | Complete |
+| LIVE-04 | Phase 89 | Complete |
 | LIVE-05 | Phase 90 | Pending |
 
 **Coverage:**

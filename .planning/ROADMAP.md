@@ -225,7 +225,7 @@ Plans:
   4. Model capabilities and context windows display correctly
 **Plans**: 1 plan
 Plans:
-- [ ] 89-01-PLAN.md -- Smoke test UsageTab and ModelsTab, verify response shape handling
+- [x] 89-01-PLAN.md -- Smoke test UsageTab and ModelsTab, verify response shape handling
 **UI hint**: yes
 
 ### Phase 90: Live Activity Feed
@@ -260,9 +260,9 @@ Plans:
 | 84. SSE Event Bus Wiring | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 | 85. Agent Event Streaming | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 | 86. Session Event Streaming | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
-| 87. Live Agents Tab | v0.0.5 | 0/1 | Not started | - |
-| 88. Live Crons Tab | v0.0.5 | 0/1 | Not started | - |
-| 89. Live Usage & Models Tabs | v0.0.5 | 0/1 | Not started | - |
+| 87. Live Agents Tab | v0.0.5 | 0/1 | Planned    |  |
+| 88. Live Crons Tab | v0.0.5 | 0/1 | Planned    |  |
+| 89. Live Usage & Models Tabs | v0.0.5 | 1/1 | Complete   | 2026-03-24 |
 | 90. Live Activity Feed | v0.0.5 | 0/1 | Not started | - |
 
 <details>
