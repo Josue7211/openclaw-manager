@@ -27,6 +27,7 @@ const CORE_FILES: &[&str] = &[
 // Router
 // ---------------------------------------------------------------------------
 
+// Called by: frontend/src/pages/Memory.tsx (list_files, read_file, write_file, delete_file)
 /// Build the `/workspace` sub-router (list, read, write, delete workspace files).
 pub fn router() -> Router<AppState> {
     Router::new()

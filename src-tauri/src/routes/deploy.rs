@@ -6,6 +6,7 @@ use crate::server::{AppState, RequireAuth};
 use crate::supabase::SupabaseClient;
 use crate::validation::sanitize_postgrest_value;
 
+// Called by: frontend/src/pages/agents/LiveProcesses.tsx (handleDeploy)
 /// Build the deploy router (transition awaiting_deploy agents to active).
 pub fn router() -> Router<AppState> {
     Router::new().route("/deploy", post(post_deploy))
