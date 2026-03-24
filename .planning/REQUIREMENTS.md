@@ -37,7 +37,7 @@ Requirements for gateway protocol integration milestone. Each maps to roadmap ph
 - [x] **LIVE-02**: Crons tab shows real scheduled tasks with correct CRUD operations
 - [x] **LIVE-03**: Usage tab shows real token/cost data from gateway
 - [x] **LIVE-04**: Models tab shows real available models from gateway
-- [ ] **LIVE-05**: Activity feed shows real events from gateway (not assumed shapes)
+- [x] **LIVE-05**: Activity feed shows real events from gateway (not assumed shapes)
 
 ## Future Requirements
 
@@ -81,7 +81,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LIVE-02 | Phase 88 | Complete |
 | LIVE-03 | Phase 89 | Complete |
 | LIVE-04 | Phase 89 | Complete |
-| LIVE-05 | Phase 90 | Pending |
+| LIVE-05 | Phase 90 | Complete |
 
 **Coverage:**
 - v0.0.5 requirements: 20 total
