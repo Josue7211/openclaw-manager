@@ -177,8 +177,8 @@ pub struct AppState {
     /// Pre-configured OpenClaw API service client. `None` when OPENCLAW_API_URL
     /// is not set (module disabled).
     pub openclaw: Option<ServiceClient>,
-    /// Persistent WebSocket client to the OpenClaw Gateway. `None` when
-    /// OPENCLAW_WS is not configured.
+    /// Gateway WebSocket client for receiving real-time events from the OpenClaw
+    /// gateway. `None` when OPENCLAW_API_URL is not configured.
     pub gateway_ws: Option<Arc<crate::gateway_ws::GatewayWsClient>>,
     // Supabase already has its own SupabaseClient in `crate::supabase`.
 
@@ -201,7 +201,6 @@ pub struct PendingOAuthFlow {
     pub nonce: String,
     pub url: String,
     pub created_at: i64,
-    pub redirect_to: Option<String>,
 }
 
 impl Drop for PendingOAuthFlow {
@@ -276,39 +275,6 @@ impl AppState {
             .execute(&self.db)
             .await;
     }
-}
-
-/// Load or generate a stable device identity for the gateway handshake.
-///
-/// On first run, generates a random 12-char hex ID prefixed with "mc-"
-/// and persists it in the `_device_identity` table. Subsequent runs reuse
-/// the same ID so the gateway sees a consistent device identifier.
-async fn load_or_create_device_id(db: &sqlx::SqlitePool) -> String {
-    // Try to load existing device_id
-    let row: Option<(String,)> = sqlx::query_as(
-        "SELECT value FROM _device_identity WHERE key = 'device_id'"
-    )
-    .fetch_optional(db)
-    .await
-    .unwrap_or(None);
-
-    if let Some((id,)) = row {
-        return id;
-    }
-
-    // Generate a new device_id: "mc-{12_hex_chars}"
-    let random_bytes: u64 = rand::random();
-    let device_id = format!("mc-{:012x}", random_bytes);
-
-    // Persist it
-    sqlx::query("INSERT OR IGNORE INTO _device_identity (key, value) VALUES ('device_id', ?)")
-        .bind(&device_id)
-        .execute(db)
-        .await
-        .ok();
-
-    tracing::info!("Generated new device_id: {device_id}");
-    device_id
 }
 
 /// Log runtime integrity and tamper-detection results into `security_events`.
@@ -592,22 +558,6 @@ pub async fn start(
 
     let db = crate::db::init().await?;
 
-    // Build gateway WS client if OPENCLAW_WS is configured.
-    // Needs db for device_id persistence, so must come after db init.
-    let gateway_ws = {
-        let ws_url = secrets.get("OPENCLAW_WS").cloned().filter(|s| !s.is_empty());
-        let ws_password = secrets.get("OPENCLAW_PASSWORD").cloned().unwrap_or_default();
-        match ws_url {
-            Some(url) => {
-                // Load or generate a stable device_id from SQLite
-                let device_id = load_or_create_device_id(&db).await;
-                tracing::info!("OpenClaw Gateway WS client configured (device_id={})", device_id);
-                Some(crate::gateway_ws::GatewayWsClient::new(url, ws_password, device_id))
-            }
-            None => None,
-        }
-    };
-
     // In debug mode, restore the previous session from SQLite so you don't
     // have to re-login every time cargo tauri dev restarts.
     #[cfg(debug_assertions)]
@@ -644,6 +594,9 @@ pub async fn start(
     #[cfg(not(debug_assertions))]
     let restored_session: Option<UserSession> = None;
 
+    // Create gateway WS client if OpenClaw is configured
+    let gateway_ws = openclaw.as_ref().map(|_| crate::gateway_ws::GatewayWsClient::new());
+
     let state = AppState {
         app: app_handle,
         db,
@@ -654,7 +607,7 @@ pub async fn start(
         secrets: Arc::new(std::sync::RwLock::new(secrets)),
         bb,
         openclaw,
-        gateway_ws: gateway_ws.clone(),
+        gateway_ws,
         session: Arc::new(RwLock::new(restored_session)),
         refresh_mutex: Arc::new(tokio::sync::Mutex::new(())),
         pending_oauth: Arc::new(RwLock::new(None)),
@@ -677,12 +630,6 @@ pub async fn start(
         );
         sync_engine.start();
         tracing::info!("Sync engine started (30s interval)");
-    }
-
-    // Start the persistent gateway WebSocket connection (if configured).
-    if let Some(ref gw) = gateway_ws {
-        gw.start();
-        tracing::info!("Gateway WS connection loop started");
     }
 
     // Start the background database cleanup job (runs on startup + every hour).

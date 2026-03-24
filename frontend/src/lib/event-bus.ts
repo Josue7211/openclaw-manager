@@ -16,12 +16,51 @@ type EventType =
   | 'pipeline-updated'
   | 'settings-changed'
   | 'connection-status'
+  // Gateway events (from OpenClaw WebSocket via SSE bridge)
+  | 'gateway-agent'
+  | 'gateway-chat'
+  | 'gateway-presence'
+  | 'gateway-cron'
+  | 'gateway-shutdown'
+  | 'gateway-health'
+  | 'gateway-talk-mode'
+  | 'gateway-node-pair-requested'
+  | 'gateway-node-pair-resolved'
+  | 'gateway-node-invoke-request'
+  | 'gateway-device-pair-requested'
+  | 'gateway-device-pair-resolved'
+  | 'gateway-voicewake-changed'
+  | 'gateway-approval-requested'
+  | 'gateway-approval-resolved'
 
 interface AppEvent {
   type: EventType
   data?: unknown
   source?: string // e.g. 'sse' | 'supabase' | 'local'
   timestamp: number
+}
+
+/**
+ * Maps gateway SSE event names to event-bus types.
+ * The backend filters out connect.challenge, tick, and heartbeat before they
+ * reach the frontend, so only these 14 user-facing events are mapped.
+ */
+export const GATEWAY_EVENT_MAP: Record<string, EventType> = {
+  'agent': 'gateway-agent',
+  'chat': 'gateway-chat',
+  'presence': 'gateway-presence',
+  'cron': 'gateway-cron',
+  'shutdown': 'gateway-shutdown',
+  'health': 'gateway-health',
+  'talk.mode': 'gateway-talk-mode',
+  'node.pair.requested': 'gateway-node-pair-requested',
+  'node.pair.resolved': 'gateway-node-pair-resolved',
+  'node.invoke.request': 'gateway-node-invoke-request',
+  'device.pair.requested': 'gateway-device-pair-requested',
+  'device.pair.resolved': 'gateway-device-pair-resolved',
+  'voicewake.changed': 'gateway-voicewake-changed',
+  'exec.approval.requested': 'gateway-approval-requested',
+  'exec.approval.resolved': 'gateway-approval-resolved',
 }
 
 type Handler = (event: AppEvent) => void
