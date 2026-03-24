@@ -24,6 +24,7 @@ import { useThemeState } from '@/lib/theme-store'
 import { getThemeById } from '@/lib/theme-definitions'
 import { getSidebarConfig } from '@/lib/sidebar-config'
 import { startScheduleTimer } from '@/lib/theme-scheduling'
+import { useApprovals } from '@/hooks/useApprovals'
 
 const _isDemo = isDemoMode()
 
@@ -61,6 +62,9 @@ export default function LayoutShell() {
   const bindings = useSyncExternalStore(subscribeKeybindings, getKeybindings)
   const titleText = useSyncExternalStore(subscribeSidebarSettings, getSidebarTitleText)
   const tourState = useTourState()
+
+  // Keep approval badge count synced globally (polls gateway every 3s)
+  useApprovals()
 
   // Sync sidebar width from settings store changes
   useEffect(() => {

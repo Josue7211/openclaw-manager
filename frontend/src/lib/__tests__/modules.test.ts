@@ -45,6 +45,7 @@ vi.mock('../nav-items', () => ({
     { href: '/knowledge', label: 'Knowledge', icon: Stub, moduleId: 'knowledge' },
     { href: '/sessions', label: 'Sessions', icon: Stub, moduleId: 'sessions' },
     { href: '/remote', label: 'Remote Viewer', icon: Stub, moduleId: 'remote-viewer' },
+    { href: '/approvals', label: 'Approvals', icon: Stub, moduleId: 'approvals' },
     { href: '/settings', label: 'Settings', icon: Stub },
   ],
   navItemsByHref: new Map([
@@ -67,6 +68,7 @@ vi.mock('../nav-items', () => ({
     ['/knowledge', { href: '/knowledge', label: 'Knowledge', icon: Stub, moduleId: 'knowledge' }],
     ['/sessions', { href: '/sessions', label: 'Sessions', icon: Stub, moduleId: 'sessions' }],
     ['/remote', { href: '/remote', label: 'Remote Viewer', icon: Stub, moduleId: 'remote-viewer' }],
+    ['/approvals', { href: '/approvals', label: 'Approvals', icon: Stub, moduleId: 'approvals' }],
     ['/settings', { href: '/settings', label: 'Settings', icon: Stub }],
   ]),
 }))

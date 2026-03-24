@@ -60,15 +60,15 @@
 
 **Group K: OpenClaw Session Management (enhance existing Sessions page)**
 - [x] **Phase 28: Wire Sessions to Gateway** - Sessions page currently shows "Loading..." — connect to gateway sessions.list, populate session list with real data *(committed 2026-03-23)*
-- [ ] **Phase 29: Session History View** - Click session → show message history from sessions.history in chat-style UI (right panel)
-- [ ] **Phase 30: Session Live Output** - Stream real-time session output from gateway WS events into xterm.js panel
-- [ ] **Phase 31: Session Send & Controls** - Send messages into sessions (sessions.send), pause/resume/terminate buttons
-- [ ] **Phase 32: Subagent Spawn from UI** - "+" button in Sessions spawns subagent with task/model/label, tracks in list
+- [x] **Phase 29: Session History View** - Click session → show message history from sessions.history in chat-style UI (right panel) *(committed 2026-03-24)*
+- [x] **Phase 30: Session Live Output** - Stream real-time session output from gateway WS events into xterm.js panel *(built in Phase 14/16)*
+- [x] **Phase 31: Session Send & Controls** - Send messages into sessions (sessions.send), pause/resume/terminate buttons *(committed 2026-03-24)*
+- [x] **Phase 32: Subagent Spawn from UI** - "+" button in Sessions spawns subagent with task/model/label, tracks in list *(committed 2026-03-24)*
 
 **Group L: OpenClaw Tabs — Wire to Real Gateway Data**
-- [ ] **Phase 33: Models Tab with All Providers** - Fetch from gateway (not just LiteLLM) — show Claude, OpenAI, Kimi, local models with cost/provider
-- [ ] **Phase 34: Usage Tab with Real Data** - Token counts, costs, per-model breakdown from gateway usage API
-- [ ] **Phase 35: Tools Tab with Real Data** - Tool catalog from gateway, show categories, enabled/disabled, descriptions
+- [x] **Phase 33: Models Tab with All Providers** - Fetch from gateway (not just LiteLLM) — show Claude, OpenAI, Kimi, local models with cost/provider *(built in Phase 12)*
+- [x] **Phase 34: Usage Tab with Real Data** - Token counts, costs, per-model breakdown from gateway usage API *(built in Phase 12)*
+- [x] **Phase 35: Tools Tab with Real Data** - Tool catalog from gateway, show categories, enabled/disabled, descriptions *(built in Phase 12)*
 
 **Group M: Approvals & Execution Governance**
 - [ ] **Phase 36: Approval Queue Backend** - Listen for exec.approval.requested events via WS, store pending, expose REST API

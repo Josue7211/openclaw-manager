@@ -247,6 +247,6 @@ describe('wizard-store', () => {
     const { PRESET_BUNDLES } = await import('../wizard-store')
     expect(PRESET_BUNDLES.essentials).toEqual(['chat', 'todos', 'calendar', 'dashboard', 'notes'])
     expect(PRESET_BUNDLES.minimal).toEqual(['dashboard', 'chat'])
-    expect(PRESET_BUNDLES.full).toHaveLength(18)
+    expect(PRESET_BUNDLES.full).toHaveLength(19)
   })
 })

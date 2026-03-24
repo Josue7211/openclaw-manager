@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 use crate::server::AppState;
 
 pub mod agents;
+pub mod approvals;
 pub mod bjorn;
 pub mod auth;
 pub mod cache;
@@ -53,6 +54,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/health", get(health))
         .merge(agents::router())
+        .merge(approvals::router())
         .merge(bjorn::router())
         .nest("/auth", auth::router())
         .merge(calendar::router())

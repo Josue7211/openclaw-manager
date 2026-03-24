@@ -42,4 +42,5 @@ export const queryKeys = {
   gatewaySessions: ['gateway', 'sessions'] as const,
   sessionHistory: (id: string) => ['session-history', id] as const,
   vncStatus: ['vnc', 'status'] as const,
+  approvals: ['approvals'] as const,
 } as const
