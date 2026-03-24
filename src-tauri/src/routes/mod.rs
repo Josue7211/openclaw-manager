@@ -17,6 +17,7 @@ pub mod dlp;
 pub mod email;
 pub mod export;
 pub mod gateway;
+pub mod gateway_events;
 pub mod events;
 pub mod habits;
 pub mod homelab;
@@ -58,6 +59,7 @@ pub fn router() -> Router<AppState> {
         .merge(email::router())
         .merge(export::router())
         .merge(gateway::router())
+        .merge(gateway_events::router())
         .merge(events::router())
         .merge(habits::router())
         .merge(homelab::router())

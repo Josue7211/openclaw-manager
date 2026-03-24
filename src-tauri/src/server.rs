@@ -177,6 +177,9 @@ pub struct AppState {
     /// Pre-configured OpenClaw API service client. `None` when OPENCLAW_API_URL
     /// is not set (module disabled).
     pub openclaw: Option<ServiceClient>,
+    /// Gateway WebSocket client for receiving real-time events from the OpenClaw
+    /// gateway. `None` when OPENCLAW_API_URL is not configured.
+    pub gateway_ws: Option<Arc<crate::gateway_ws::GatewayWsClient>>,
     // Supabase already has its own SupabaseClient in `crate::supabase`.
 
     /// Current user session (JWT tokens + derived encryption key).
@@ -591,6 +594,9 @@ pub async fn start(
     #[cfg(not(debug_assertions))]
     let restored_session: Option<UserSession> = None;
 
+    // Create gateway WS client if OpenClaw is configured
+    let gateway_ws = openclaw.as_ref().map(|_| crate::gateway_ws::GatewayWsClient::new());
+
     let state = AppState {
         app: app_handle,
         db,
@@ -601,6 +607,7 @@ pub async fn start(
         secrets: Arc::new(std::sync::RwLock::new(secrets)),
         bb,
         openclaw,
+        gateway_ws,
         session: Arc::new(RwLock::new(restored_session)),
         refresh_mutex: Arc::new(tokio::sync::Mutex::new(())),
         pending_oauth: Arc::new(RwLock::new(None)),
