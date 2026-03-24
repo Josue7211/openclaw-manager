@@ -1,37 +1,37 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode } from '@/lib/demo-data'
-import type { GatewayStatusResponse, GatewayConnectionStatus } from '@/pages/sessions/types'
 
-interface UseGatewayStatusReturn {
+export type GatewayConnectionStatus = 'connected' | 'disconnected' | 'not_configured'
+
+export interface GatewayStatusResponse {
+  connected: boolean
+  status: GatewayConnectionStatus
+}
+
+export interface UseGatewayStatusReturn {
   status: GatewayConnectionStatus
   connected: boolean
   isLoading: boolean
 }
 
 /**
- * Polls GET /api/gateway/status every 10s to track the OpenClaw Gateway
- * WebSocket connection state. Returns 'not_configured' in demo mode or
- * when the endpoint is unreachable.
+ * Polls the gateway status endpoint every 10s.
+ * In demo mode, short-circuits to not_configured without making API calls.
  */
 export function useGatewayStatus(): UseGatewayStatusReturn {
-  const demo = isDemoMode()
+  if (isDemoMode()) {
+    return { status: 'not_configured', connected: false, isLoading: false }
+  }
 
-  const { data, isLoading } = useQuery({
-    queryKey: queryKeys.gatewayStatus,
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const { data, isLoading } = useQuery<GatewayStatusResponse>({
+    queryKey: ['gateway', 'status'],
     queryFn: () => api.get<GatewayStatusResponse>('/api/gateway/status'),
     refetchInterval: 10_000,
     staleTime: 10_000,
-    enabled: !demo,
     retry: 1,
-    // On network error, treat as not_configured rather than throwing
-    meta: { suppressErrors: true },
   })
-
-  if (demo) {
-    return { status: 'not_configured', connected: false, isLoading: false }
-  }
 
   return {
     status: data?.status ?? 'not_configured',
