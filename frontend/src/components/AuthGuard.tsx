@@ -52,6 +52,12 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           initPreferencesSync()
         }
       } catch {
+        // Network error: backend unreachable. In demo mode, allow access.
+        // Otherwise, redirect to login page.
+        if (isDemoMode()) {
+          setState('authenticated')
+          return
+        }
         setState('unauthenticated')
       }
     }
