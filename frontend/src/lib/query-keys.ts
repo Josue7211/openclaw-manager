@@ -35,6 +35,7 @@ export const queryKeys = {
   openclawUsage: ['openclaw', 'usage'] as const,
   openclawModels: ['openclaw', 'models'] as const,
   openclawTools: ['openclaw', 'tools'] as const,
+  openclawSkills: ['openclaw', 'skills'] as const,
   claudeSessions: ['claude-sessions'] as const,
   claudeSessionDetail: (id: string) => ['claude-sessions', id] as const,
   claudeSessionStatus: ['claude-sessions', 'status'] as const,

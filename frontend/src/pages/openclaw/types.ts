@@ -47,3 +47,24 @@ export interface ToolsResponse {
   tools?: ToolInfo[]
   [key: string]: unknown
 }
+
+/** Tool invocation request */
+export interface ToolInvokeRequest {
+  tool: string
+  args?: Record<string, unknown>
+  dryRun?: boolean
+}
+
+/** Skill info from GET /api/openclaw/skills */
+export interface SkillInfo {
+  name: string
+  description?: string
+  version?: string
+  enabled: boolean
+  [key: string]: unknown
+}
+
+export interface SkillsResponse {
+  skills?: SkillInfo[]
+  [key: string]: unknown
+}

@@ -1,4 +1,4 @@
-use axum::{extract::State, routing::get, Json, Router};
+use axum::{extract::State, routing::{get, post}, Json, Router};
 use reqwest::Method;
 use serde_json::Value;
 
@@ -14,6 +14,8 @@ pub fn router() -> Router<AppState> {
         .route("/openclaw/usage", get(get_usage))
         .route("/openclaw/models", get(get_models))
         .route("/openclaw/tools", get(get_tools))
+        .route("/openclaw/tools/invoke", post(invoke_tool))
+        .route("/openclaw/skills", get(get_skills))
 }
 
 // ── GET /openclaw/usage ─────────────────────────────────────────────────────
@@ -46,6 +48,27 @@ async fn get_tools(
     Ok(Json(result))
 }
 
+// ── POST /openclaw/tools/invoke ────────────────────────────────────────────
+
+async fn invoke_tool(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let result = gateway_forward(&state, Method::POST, "/tools/invoke", Some(body)).await?;
+    Ok(Json(result))
+}
+
+// ── GET /openclaw/skills ──────────────────────────────────────────────────
+
+async fn get_skills(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let result = gateway_forward(&state, Method::GET, "/skills", None).await?;
+    Ok(Json(result))
+}
+
 // ── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -65,6 +88,16 @@ mod tests {
     #[test]
     fn validate_tools_path() {
         assert!(validate_gateway_path("/tools").is_ok());
+    }
+
+    #[test]
+    fn validate_tools_invoke_path() {
+        assert!(validate_gateway_path("/tools/invoke").is_ok());
+    }
+
+    #[test]
+    fn validate_skills_path() {
+        assert!(validate_gateway_path("/skills").is_ok());
     }
 
     #[test]

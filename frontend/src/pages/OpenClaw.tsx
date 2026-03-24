@@ -30,8 +30,9 @@ import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 const UsageTab = lazy(() => import('./openclaw/UsageTab'))
 const ModelsTab = lazy(() => import('./openclaw/ModelsTab'))
 const ToolsTab = lazy(() => import('./openclaw/ToolsTab'))
+const SkillsTab = lazy(() => import('./openclaw/SkillsTab'))
 
-type TabKey = 'agents' | 'crons' | 'usage' | 'models' | 'tools'
+type TabKey = 'agents' | 'crons' | 'usage' | 'models' | 'tools' | 'skills'
 
 const tabDefs: { key: TabKey; label: string }[] = [
   { key: 'agents', label: 'Agents' },
@@ -39,6 +40,7 @@ const tabDefs: { key: TabKey; label: string }[] = [
   { key: 'usage', label: 'Usage' },
   { key: 'models', label: 'Models' },
   { key: 'tools', label: 'Tools' },
+  { key: 'skills', label: 'Skills' },
 ]
 
 function SectionFallback() {
@@ -424,6 +426,11 @@ export default function OpenClawPage() {
         {tab === 'tools' && (
           <Suspense fallback={<SectionFallback />}>
             <ToolsTab healthy={healthy} />
+          </Suspense>
+        )}
+        {tab === 'skills' && (
+          <Suspense fallback={<SectionFallback />}>
+            <SkillsTab healthy={healthy} />
           </Suspense>
         )}
       </div>
