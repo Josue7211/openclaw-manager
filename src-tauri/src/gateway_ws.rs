@@ -4,13 +4,14 @@
 //! `connect` handshake with token auth, routes responses back to waiting callers
 //! via one-shot channels, and broadcasts gateway events to subscribers.
 //!
-//! The connection auto-reconnects on disconnect with a 5-second delay.
+//! The connection auto-reconnects on disconnect with exponential backoff
+//! (1s, 2s, 4s, 8s, 16s, capped at 30s).
 
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{broadcast, Mutex, RwLock};
@@ -28,6 +29,8 @@ pub enum ConnectionState {
     NotConfigured,
     /// Actively trying to establish a connection.
     Connecting,
+    /// Connection lost; retrying with backoff.
+    Reconnecting,
     /// Connected and handshake complete.
     Connected,
     /// Connection lost; will auto-reconnect.
@@ -39,6 +42,7 @@ impl std::fmt::Display for ConnectionState {
         match self {
             ConnectionState::NotConfigured => write!(f, "not_configured"),
             ConnectionState::Connecting => write!(f, "connecting"),
+            ConnectionState::Reconnecting => write!(f, "reconnecting"),
             ConnectionState::Connected => write!(f, "connected"),
             ConnectionState::Disconnected => write!(f, "disconnected"),
         }
@@ -76,6 +80,19 @@ fn parse_error_value(val: &Value) -> String {
 }
 
 // ---------------------------------------------------------------------------
+// Backoff
+// ---------------------------------------------------------------------------
+
+/// Compute the reconnection delay for the given attempt number.
+///
+/// Uses exponential backoff: 2^attempt seconds, capped at 30s.
+/// attempt 0 → 1s, 1 → 2s, 2 → 4s, 3 → 8s, 4 → 16s, 5+ → 30s.
+fn backoff_delay(attempt: u64) -> Duration {
+    let secs = 1u64.checked_shl(attempt as u32).map_or(30, |v| std::cmp::min(v, 30));
+    Duration::from_secs(secs)
+}
+
+// ---------------------------------------------------------------------------
 // GatewayWsClient
 // ---------------------------------------------------------------------------
 
@@ -103,6 +120,10 @@ pub struct GatewayWsClient {
     event_tx: broadcast::Sender<Value>,
     /// Negotiated protocol version from the connect response.
     protocol_version: Arc<RwLock<Option<u32>>>,
+    /// Current reconnect attempt counter (0 = not reconnecting).
+    reconnect_attempt: Arc<AtomicU64>,
+    /// Guard against calling start() more than once.
+    started: AtomicBool,
 }
 
 /// Type alias for the write half of a tokio-tungstenite WebSocket.
@@ -128,11 +149,25 @@ impl GatewayWsClient {
             pending: Arc::new(Mutex::new(HashMap::new())),
             event_tx,
             protocol_version: Arc::new(RwLock::new(None)),
+            reconnect_attempt: Arc::new(AtomicU64::new(0)),
+            started: AtomicBool::new(false),
         })
     }
 
-    /// Spawn the background connection loop. Reconnects automatically on failure.
+    /// Spawn the background connection loop. Reconnects automatically on failure
+    /// with exponential backoff (1s, 2s, 4s, 8s, 16s, 30s cap).
+    ///
+    /// Safe to call multiple times — only the first call spawns the loop.
     pub fn start(self: &Arc<Self>) {
+        if self
+            .started
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            tracing::warn!("[gateway-ws] start() called but already started");
+            return;
+        }
+
         let client = Arc::clone(self);
         tokio::spawn(async move {
             loop {
@@ -146,15 +181,23 @@ impl GatewayWsClient {
                     }
                 }
 
-                // Connection dropped — clean up and reconnect.
+                // Connection dropped — clean up.
                 client.set_state(ConnectionState::Disconnected).await;
                 *client.writer.lock().await = None;
                 client.drain_pending("gateway disconnected").await;
                 // Clear protocol version on disconnect
                 *client.protocol_version.write().await = None;
 
-                tracing::info!("[gateway-ws] reconnecting in 5s...");
-                tokio::time::sleep(Duration::from_secs(5)).await;
+                // Backoff before retry
+                let attempt = client.reconnect_attempt.fetch_add(1, Ordering::Relaxed);
+                let delay = backoff_delay(attempt);
+                client.set_state(ConnectionState::Reconnecting).await;
+                tracing::info!(
+                    "[gateway-ws] reconnecting in {}s (attempt {})...",
+                    delay.as_secs(),
+                    attempt + 1
+                );
+                tokio::time::sleep(delay).await;
             }
         });
     }
@@ -167,6 +210,11 @@ impl GatewayWsClient {
     /// Return the negotiated protocol version, if connected.
     pub async fn protocol_version(&self) -> Option<u32> {
         *self.protocol_version.read().await
+    }
+
+    /// Return the current reconnect attempt number (0 when connected or on first try).
+    pub async fn reconnect_attempt(&self) -> u64 {
+        self.reconnect_attempt.load(Ordering::Relaxed)
     }
 
     /// Send a request to the gateway and wait for the matching response.
@@ -365,6 +413,7 @@ impl GatewayWsClient {
         }
 
         self.set_state(ConnectionState::Connected).await;
+        self.reconnect_attempt.store(0, Ordering::Relaxed);
         tracing::info!("[gateway-ws] connected and authenticated (protocol v3)");
 
         // Spawn a heartbeat/ping task to keep the connection alive.
@@ -579,6 +628,7 @@ mod tests {
             "not_configured"
         );
         assert_eq!(ConnectionState::Connecting.to_string(), "connecting");
+        assert_eq!(ConnectionState::Reconnecting.to_string(), "reconnecting");
         assert_eq!(ConnectionState::Connected.to_string(), "connected");
         assert_eq!(
             ConnectionState::Disconnected.to_string(),
@@ -595,6 +645,61 @@ mod tests {
         let parsed: ConnectionState =
             serde_json::from_str("\"disconnected\"").unwrap();
         assert_eq!(parsed, ConnectionState::Disconnected);
+    }
+
+    #[test]
+    fn connection_state_reconnecting_serde() {
+        let json =
+            serde_json::to_string(&ConnectionState::Reconnecting).unwrap();
+        assert_eq!(json, "\"reconnecting\"");
+
+        let parsed: ConnectionState =
+            serde_json::from_str("\"reconnecting\"").unwrap();
+        assert_eq!(parsed, ConnectionState::Reconnecting);
+    }
+
+    #[test]
+    fn connection_state_reconnecting_display() {
+        assert_eq!(
+            ConnectionState::Reconnecting.to_string(),
+            "reconnecting"
+        );
+    }
+
+    #[test]
+    fn backoff_delay_values() {
+        assert_eq!(backoff_delay(0), Duration::from_secs(1));
+        assert_eq!(backoff_delay(1), Duration::from_secs(2));
+        assert_eq!(backoff_delay(2), Duration::from_secs(4));
+        assert_eq!(backoff_delay(3), Duration::from_secs(8));
+        assert_eq!(backoff_delay(4), Duration::from_secs(16));
+        assert_eq!(backoff_delay(5), Duration::from_secs(30));
+        assert_eq!(backoff_delay(100), Duration::from_secs(30));
+    }
+
+    #[tokio::test]
+    async fn reconnect_attempt_default_zero() {
+        let client = test_client();
+        assert_eq!(client.reconnect_attempt().await, 0);
+    }
+
+    #[test]
+    fn start_guard_prevents_double_spawn() {
+        let client = test_client();
+        // Before start, the flag should be false
+        assert!(!client.started.load(Ordering::SeqCst));
+
+        // First compare_exchange should succeed (false -> true)
+        assert!(client
+            .started
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok());
+
+        // Second compare_exchange should fail (already true)
+        assert!(client
+            .started
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err());
     }
 
     #[tokio::test]

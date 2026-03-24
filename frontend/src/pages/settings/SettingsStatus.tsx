@@ -220,20 +220,24 @@ export default memo(function SettingsStatus() {
     staleTime: 8_000,
   })
 
-  const { status: gwStatus, connected: gwConnected, protocol: gwProtocol } = useGatewayStatus()
+  const { status: gwStatus, connected: gwConnected, protocol: gwProtocol, reconnectAttempt } = useGatewayStatus()
 
   // Compute gateway display text
   const gwDisplayStatus = gwConnected
     ? `Connected${gwProtocol ? ` (protocol v${gwProtocol})` : ''}`
-    : gwStatus === 'not_configured'
-      ? 'Not configured'
-      : 'Disconnected'
+    : gwStatus === 'reconnecting'
+      ? `Reconnecting${reconnectAttempt > 0 ? ` (attempt ${reconnectAttempt})` : '...'}`
+      : gwStatus === 'not_configured'
+        ? 'Not configured'
+        : 'Disconnected'
 
   const gwDotColor = gwConnected
     ? 'var(--secondary-dim)'
-    : gwStatus === 'not_configured'
-      ? 'var(--text-muted)'
-      : 'var(--red-500)'
+    : gwStatus === 'reconnecting'
+      ? 'var(--amber)'
+      : gwStatus === 'not_configured'
+        ? 'var(--text-muted)'
+        : 'var(--red-500)'
 
   const queryCache = queryClient.getQueryCache()
   const allQueries = queryCache.getAll()

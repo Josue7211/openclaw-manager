@@ -2,12 +2,13 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { isDemoMode } from '@/lib/demo-data'
 
-export type GatewayConnectionStatus = 'connected' | 'disconnected' | 'not_configured'
+export type GatewayConnectionStatus = 'connected' | 'disconnected' | 'reconnecting' | 'not_configured'
 
 export interface GatewayStatusResponse {
   connected: boolean
   status: GatewayConnectionStatus
   protocol?: number | null
+  reconnect_attempt?: number | null
 }
 
 export interface UseGatewayStatusReturn {
@@ -15,6 +16,7 @@ export interface UseGatewayStatusReturn {
   connected: boolean
   isLoading: boolean
   protocol: number | null
+  reconnectAttempt: number
 }
 
 /**
@@ -23,7 +25,7 @@ export interface UseGatewayStatusReturn {
  */
 export function useGatewayStatus(): UseGatewayStatusReturn {
   if (isDemoMode()) {
-    return { status: 'not_configured', connected: false, isLoading: false, protocol: null }
+    return { status: 'not_configured', connected: false, isLoading: false, protocol: null, reconnectAttempt: 0 }
   }
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -40,5 +42,6 @@ export function useGatewayStatus(): UseGatewayStatusReturn {
     connected: data?.connected ?? false,
     isLoading,
     protocol: data?.protocol ?? null,
+    reconnectAttempt: data?.reconnect_attempt ?? 0,
   }
 }
