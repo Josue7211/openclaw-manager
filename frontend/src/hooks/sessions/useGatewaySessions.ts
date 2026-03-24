@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode } from '@/lib/demo-data'
+import { useGatewaySSE } from '@/lib/hooks/useGatewaySSE'
 import type { ClaudeSession, SessionListResponse, GatewaySessionsResponse } from '@/pages/sessions/types'
 
 type DataSource = 'gateway' | 'cli' | 'none'
@@ -23,6 +24,15 @@ interface UseGatewaySessionsReturn {
  */
 export function useGatewaySessions(): UseGatewaySessionsReturn {
   const demo = isDemoMode()
+
+  // Real-time session updates via gateway SSE
+  // Hook must be called unconditionally (React rules); pass undefined in demo mode
+  useGatewaySSE(demo ? undefined : {
+    events: ['chat'],
+    queryKeys: {
+      chat: queryKeys.gatewaySessions,
+    },
+  })
 
   // Primary: gateway sessions
   const gateway = useQuery({

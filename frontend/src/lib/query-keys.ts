@@ -37,4 +37,7 @@ export const queryKeys = {
   openclawTools: ['openclaw', 'tools'] as const,
   gatewayEvents: ['gateway', 'events'] as const,
   gatewayStatus: ['gateway', 'status'] as const,
+  gatewaySessions: ['gateway', 'sessions'] as const,
+  claudeSessions: ['claude-sessions'] as const,
+  gatewayActivity: ['gateway-activity'] as const,
 } as const
