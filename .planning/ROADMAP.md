@@ -64,7 +64,9 @@ Plans:
   1. Loading any page in the app produces zero error toasts
   2. The "ffir" binary reference is removed or conditionally guarded so it never fires in normal operation
   3. The browser console shows no uncaught errors related to missing binaries on page load
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 57-01-PLAN.md -- Diagnose and fix ffir error toast, remove stale sidecar binaries, add regression test
 
 ### Phase 58: Audit #[allow(dead_code)] Annotations
 **Goal**: Every suppressed dead code warning in Rust has an explicit justification or is removed
