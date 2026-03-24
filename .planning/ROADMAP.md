@@ -21,7 +21,7 @@
 - [ ] **Phase 78: Agent Method Verification** - Verify agents.list params and agents CRUD method signatures match protocol
 - [ ] **Phase 79: Cron Method Verification** - Verify cron CRUD method signatures (cron.list/add/update/remove vs crons.*)
 - [ ] **Phase 80: Models Method Verification** - Verify models.list response shape matches protocol
-- [ ] **Phase 81: Usage Method Correction** - Fix usage.summary -> usage.status/usage.cost with correct params
+- [x] **Phase 81: Usage Method Correction** - Fix usage.summary -> usage.status/usage.cost with correct params (completed 2026-03-24)
 - [ ] **Phase 82: Tools & Skills Method Verification** - Verify tools.list and skills.list method names and response shapes
 - [x] **Phase 83: Activity Events Method Correction** - Fix activity.recent to use logs.tail via WS RPC
 
@@ -122,7 +122,7 @@ Plans:
   3. Usage tab shows non-zero real data from the live gateway
 **Plans**: 1 plan
 Plans:
-- [ ] 81-01-PLAN.md -- Gateway WS usage.status and usage.cost routes (replace HTTP proxy)
+- [x] 81-01-PLAN.md -- Gateway WS usage.status and usage.cost routes (replace HTTP proxy)
 
 ### Phase 82: Tools & Skills Method Verification
 **Goal**: Tools and skills listings use verified method names and response shapes
