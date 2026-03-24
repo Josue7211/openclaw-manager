@@ -23,7 +23,7 @@
 - [ ] **Phase 80: Models Method Verification** - Verify models.list response shape matches protocol
 - [ ] **Phase 81: Usage Method Correction** - Fix usage.summary -> usage.status/usage.cost with correct params
 - [ ] **Phase 82: Tools & Skills Method Verification** - Verify tools.list and skills.list method names and response shapes
-- [ ] **Phase 83: Activity Events Method Correction** - Fix activity.recent to use events.list or event subscription pattern
+- [x] **Phase 83: Activity Events Method Correction** - Fix activity.recent to use logs.tail via WS RPC
 
 **Group AC: Event Bus Wiring** *(SSE event bus connected to real gateway WebSocket events)*
 - [ ] **Phase 84: SSE Event Bus Wiring** - Wire SSE event bus to actual gateway WebSocket events instead of mock data
@@ -146,7 +146,7 @@ Plans:
   3. The activity data structure matches what the frontend activity feed component expects
 **Plans**: 1 plan
 Plans:
-- [ ] 83-01-PLAN.md -- Replace activity.recent with logs.tail in gateway_activity handler
+- [x] 83-01-PLAN.md -- Replace activity.recent with logs.tail in gateway_activity handler
 
 ### Phase 84: SSE Event Bus Wiring
 **Goal**: The SSE event bus delivers real gateway WebSocket events to the frontend instead of mock/assumed data
