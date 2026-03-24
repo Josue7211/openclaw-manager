@@ -38,9 +38,9 @@
 - [x] **Phase 71: Gateway Integration Tests** - Integration tests for gateway status and health check paths (completed 2026-03-24)
 
 **Group Z: Final Verification** *(after everything else)*
-- [ ] **Phase 72: Sidebar Module Smoke Test** - Verify every sidebar module loads without errors after cleanup
-- [ ] **Phase 73: Widget Render Smoke Test** - Verify all 30+ widgets render without crashes after cleanup
-- [ ] **Phase 74: Full Route Audit** - Verify no 404s, blank pages, or infinite loaders across all routes
+- [x] **Phase 72: Sidebar Module Smoke Test** - Verify every sidebar module loads without errors after cleanup (completed 2026-03-24)
+- [x] **Phase 73: Widget Render Smoke Test** - Verify all 29 widgets render without crashes after cleanup (completed 2026-03-24)
+- [x] **Phase 74: Full Route Audit** - Verify no 404s, blank pages, or infinite loaders across all routes (completed 2026-03-24)
 
 ## Phase Details
 
@@ -307,9 +307,9 @@ Plans:
 | 69. OpenClaw Hook Tests | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
 | 70. Terminal Hook Tests | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
 | 71. Gateway Integration Tests | v0.0.4 | 1/1 | Complete    | 2026-03-24 |
-| 72. Sidebar Module Smoke Test | v0.0.4 | 0/? | Not started | - |
-| 73. Widget Render Smoke Test | v0.0.4 | 0/? | Not started | - |
-| 74. Full Route Audit | v0.0.4 | 0/? | Not started | - |
+| 72. Sidebar Module Smoke Test | v0.0.4 | 0/? | Complete    | 2026-03-24 |
+| 73. Widget Render Smoke Test | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
+| 74. Full Route Audit | v0.0.4 | 0/? | Complete    | 2026-03-24 |
 
 <details>
 <summary>v0.0.3 -- AI Ops Center + OpenClaw Controller + Polish (55 phases) -- SHIPPED 2026-03-24</summary>

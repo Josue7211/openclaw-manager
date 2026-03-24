@@ -38,7 +38,7 @@ Requirements for stabilization milestone. Each maps to roadmap phases.
 ### Verification
 
 - [ ] **VERIFY-01**: Every sidebar module loads without errors after dead code removal
-- [ ] **VERIFY-02**: All 30+ widgets render without crashes after cleanup
+- [x] **VERIFY-02**: All 30+ widgets render without crashes after cleanup
 - [ ] **VERIFY-03**: No 404s, blank pages, or infinite loaders across all routes
 
 ## Future Requirements
@@ -84,7 +84,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TEST-02 | Phase 70 | Complete |
 | TEST-03 | Phase 71 | Complete |
 | VERIFY-01 | Phase 72 | Pending |
-| VERIFY-02 | Phase 73 | Pending |
+| VERIFY-02 | Phase 73 | Complete |
 | VERIFY-03 | Phase 74 | Pending |
 
 **Coverage:**
