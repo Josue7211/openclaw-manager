@@ -77,6 +77,20 @@ if (window.__TAURI_INTERNALS__) {
   })
 }
 
+// Prevent Tauri plugin/IPC errors from surfacing as WebKitGTK error overlays.
+// All Tauri IPC calls below have explicit .catch() handlers; this catches
+// any errors that escape those handlers (e.g., plugin init failures,
+// missing optional binaries like the stale "ffir" sidecar reference).
+if (window.__TAURI_INTERNALS__) {
+  window.addEventListener('unhandledrejection', (event) => {
+    const msg = event.reason?.message || String(event.reason)
+    if (msg.includes('Executable') || msg.includes('not found') || msg.includes('plugin')) {
+      console.debug('[Tauri] Suppressed non-critical error:', msg)
+      event.preventDefault()
+    }
+  })
+}
+
 // Run migrations first — v5 migration converts old theme/accent keys to theme-state
 runMigrations()
 
