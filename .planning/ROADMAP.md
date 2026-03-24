@@ -165,9 +165,10 @@ Plans:
   1. `npx knip` reports zero unused exports (or all remaining are justified with `// knip:ignore` comments)
   2. Removed exports do not break any import chain (verified by `tsc --noEmit`)
   3. Each removal is a single-purpose commit for safe bisection
-**Plans**: 1 plan
+**Plans**: 2 plans
 Plans:
-- [ ] 65-01-PLAN.md -- Remove unused exports identified by knip
+- [ ] 65-01-PLAN.md -- Remove unused exports from dashboard barrel, store, and engine files
+- [ ] 65-02-PLAN.md -- Remove unused exports from library utilities, components, and hooks
 
 ### Phase 66: Strip Unused npm Dependencies
 **Goal**: package.json contains only packages that are actually imported somewhere in the source
@@ -299,7 +300,7 @@ Plans:
 | 62. Configure knip | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
 | 63. Strip noVNC | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
 | 64. Strip TipTap/Project Tracker | v0.0.4 | 0/? | Complete    | 2026-03-24 |
-| 65. Strip Unused Exports | v0.0.4 | 0/? | Not started | - |
+| 65. Strip Unused Exports | v0.0.4 | 0/2 | Not started | - |
 | 66. Strip Unused npm Deps | v0.0.4 | 0/? | Not started | - |
 | 67. Strip Unused Imports | v0.0.4 | 0/? | Not started | - |
 | 68. Enable TS Strict Flags | v0.0.4 | 0/? | Not started | - |
