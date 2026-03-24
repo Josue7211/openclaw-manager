@@ -13,7 +13,7 @@
 
 **Group U: Dev Workflow Fixes** *(unblocks everything else)*
 - [x] **Phase 56: Browser Mode Auth Fix** - Fix browser mode auth to work without Tauri shell for development (completed 2026-03-24)
-- [ ] **Phase 57: ffir Error Toast Fix** - Resolve persistent "ffir" binary reference error toast on every page load
+- [x] **Phase 57: ffir Error Toast Fix** - Resolve persistent "ffir" binary reference error toast on every page load (completed 2026-03-24)
 
 **Group V: Backend Dead Code Audit & Strip** *(Rust compiler assists, source of truth)*
 - [ ] **Phase 58: Audit #[allow(dead_code)] Annotations** - Audit all 13 annotations across 7 Rust files, remove or justify each
@@ -257,7 +257,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 56. Browser Mode Auth Fix | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
-| 57. ffir Error Toast Fix | v0.0.4 | 0/1 | Planned    |  |
+| 57. ffir Error Toast Fix | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
 | 58. Audit #[allow(dead_code)] | v0.0.4 | 0/? | Not started | - |
 | 59. Strip Unused Crates | v0.0.4 | 0/? | Not started | - |
 | 60. Strip Dead Route Modules | v0.0.4 | 0/? | Not started | - |
