@@ -193,7 +193,7 @@ Plans:
   3. `tsc --noEmit` passes after all import cleanup
 **Plans**: 1 plan
 Plans:
-- [ ] 67-01-PLAN.md -- Clean unused imports via eslint autofix
+- [ ] 67-01-PLAN.md -- Configure ESLint underscore patterns, strip 97 unused imports/vars across 61 files
 
 ### Phase 68: Enable TypeScript Strict Flags
 **Goal**: TypeScript compiler catches unused locals and parameters as errors, preventing future dead code accumulation
