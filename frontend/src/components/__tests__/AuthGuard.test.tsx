@@ -1,8 +1,12 @@
+/// <reference types="node" />
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = resolve(fileURLToPath(import.meta.url), '..')
 
 // Mock modules before importing the component
 vi.mock('@/lib/api', () => ({

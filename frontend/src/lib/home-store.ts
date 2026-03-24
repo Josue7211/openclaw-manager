@@ -113,7 +113,7 @@ export function setHomeEditMode(editing: boolean): void {
   _emit()
 }
 
-function _setHomeWobbleEnabled(enabled: boolean): void {
+export function _setHomeWobbleEnabled(enabled: boolean): void {
   _cached = { ..._cached, wobbleEnabled: enabled }
   _persist()
   _emit()
@@ -280,7 +280,7 @@ export function undoHome(): boolean {
   return true
 }
 
-function _redoHome(): boolean {
+export function _redoHome(): boolean {
   const next = _redoStack.pop()
   if (!next) return false
   _undoStack.push(structuredClone(_cached))
@@ -290,7 +290,7 @@ function _redoHome(): boolean {
   return true
 }
 
-function _resetHomeLayout(pageId: string): void {
+export function _resetHomeLayout(pageId: string): void {
   _pushUndo()
   _cached = {
     ..._cached,

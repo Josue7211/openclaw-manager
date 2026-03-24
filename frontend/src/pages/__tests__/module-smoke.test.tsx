@@ -5,7 +5,7 @@
  * Purpose: catch broken imports, missing dependencies, or render crashes
  * introduced by dead code removal in phases 58-68.
  */
-import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import React, { Suspense } from 'react'
 import { render, screen, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'

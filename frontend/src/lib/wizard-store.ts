@@ -21,11 +21,12 @@ export interface TestResult {
   error?: string
 }
 
-interface WizardState {
+export interface WizardState {
   currentStep: number // 0-9
   completedSteps: number[] // Array, not Set (JSON serialization)
   stepStatus: Record<number, 'idle' | 'testing' | 'success' | 'error' | 'skipped'>
   // Credential fields
+  tailscaleIp: string
   supabaseUrl: string
   supabaseAnonKey: string
   openclawUrl: string
@@ -88,6 +89,7 @@ function createDefaultState(): WizardState {
     currentStep: 0,
     completedSteps: [],
     stepStatus: {},
+    tailscaleIp: '',
     supabaseUrl: '',
     supabaseAnonKey: '',
     openclawUrl: '',

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import React from 'react'
 
 // Mock the useGatewayStatus hook to isolate component rendering from API calls
 vi.mock('@/hooks/sessions/useGatewayStatus', () => ({
@@ -8,6 +7,8 @@ vi.mock('@/hooks/sessions/useGatewayStatus', () => ({
     status: 'connected' as const,
     connected: true,
     isLoading: false,
+    protocol: null,
+    reconnectAttempt: 0,
   })),
 }))
 
@@ -24,6 +25,8 @@ describe('GatewayStatusDot', () => {
       status: 'connected',
       connected: true,
       isLoading: true,
+      protocol: null,
+      reconnectAttempt: 0,
     })
 
     const { container } = render(<GatewayStatusDot />)
@@ -35,6 +38,8 @@ describe('GatewayStatusDot', () => {
       status: 'connected',
       connected: true,
       isLoading: false,
+      protocol: null,
+      reconnectAttempt: 0,
     })
 
     render(<GatewayStatusDot />)
@@ -46,6 +51,8 @@ describe('GatewayStatusDot', () => {
       status: 'disconnected',
       connected: false,
       isLoading: false,
+      protocol: null,
+      reconnectAttempt: 0,
     })
 
     render(<GatewayStatusDot />)
@@ -57,6 +64,8 @@ describe('GatewayStatusDot', () => {
       status: 'not_configured',
       connected: false,
       isLoading: false,
+      protocol: null,
+      reconnectAttempt: 0,
     })
 
     render(<GatewayStatusDot />)
@@ -68,6 +77,8 @@ describe('GatewayStatusDot', () => {
       status: 'connected',
       connected: true,
       isLoading: false,
+      protocol: null,
+      reconnectAttempt: 0,
     })
 
     render(<GatewayStatusDot showLabel={true} />)
@@ -79,6 +90,8 @@ describe('GatewayStatusDot', () => {
       status: 'connected',
       connected: true,
       isLoading: false,
+      protocol: null,
+      reconnectAttempt: 0,
     })
 
     render(<GatewayStatusDot />)
@@ -92,6 +105,8 @@ describe('GatewayStatusDot', () => {
       status: 'connected',
       connected: true,
       isLoading: false,
+      protocol: null,
+      reconnectAttempt: 0,
     })
 
     const { container } = render(<GatewayStatusDot />)

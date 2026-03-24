@@ -40,5 +40,9 @@ export const queryKeys = {
   gatewayStatus: ['gateway', 'status'] as const,
   gatewaySessions: ['gateway', 'sessions'] as const,
   claudeSessions: ['claude-sessions'] as const,
-  gatewayActivity: ['gateway-activity'] as const,
+  sessionHistory: (id: string) => ['session-history', id] as const,
+  approvals: ['approvals'] as const,
+  vncStatus: ['vnc-status'] as const,
+  memorySearch: (q: string) => ['memory-search', q] as const,
+  openclawSkills: ['openclaw', 'skills'] as const,
 } as const

@@ -1,3 +1,4 @@
+import React from 'react'
 import { describe, it, expect } from 'vitest'
 import {
   BUILTIN_WIDGETS,
@@ -7,7 +8,7 @@ import {
   getWidgetPresets,
   registerWidget,
 } from '../widget-registry'
-import type { WidgetDefinition } from '../widget-registry'
+import type { WidgetDefinition, WidgetProps } from '../widget-registry'
 
 describe('BUILTIN_WIDGETS', () => {
   it('has exactly 29 entries', () => {
@@ -264,7 +265,7 @@ describe('registerWidget', () => {
       category: 'custom',
       tier: 'user',
       defaultSize: { w: 1, h: 1 },
-      component: () => Promise.resolve({ default: (() => null) as unknown as React.ComponentType }),
+      component: () => Promise.resolve({ default: (() => null) as unknown as React.ComponentType<WidgetProps> }),
     }
     registerWidget(customWidget)
     const result = getWidget('test-custom-widget')
@@ -282,7 +283,7 @@ describe('registerWidget', () => {
       category: 'primitives',
       tier: 'builtin',
       defaultSize: { w: 2, h: 2 },
-      component: () => Promise.resolve({ default: (() => null) as unknown as React.ComponentType }),
+      component: () => Promise.resolve({ default: (() => null) as unknown as React.ComponentType<WidgetProps> }),
     }
     registerWidget(primWidget)
     const result = getWidget('test-prim-widget')

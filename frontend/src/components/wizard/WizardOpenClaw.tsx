@@ -37,7 +37,7 @@ const labelStyle: React.CSSProperties = {
   marginBottom: 'var(--space-1)',
 }
 
-export const WizardOpenClaw = React.memo(function WizardOpenClaw() {
+const WizardOpenClaw = React.memo(function WizardOpenClaw() {
   const wizard = useWizardState()
   const [showKey, setShowKey] = useState(false)
 
@@ -137,3 +137,5 @@ export const WizardOpenClaw = React.memo(function WizardOpenClaw() {
     </div>
   )
 })
+
+export default WizardOpenClaw

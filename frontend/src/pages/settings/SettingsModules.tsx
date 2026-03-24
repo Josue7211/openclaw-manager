@@ -280,6 +280,7 @@ export default function SettingsModules() {
   const [modEditValue, setModEditValue] = useState('')
   const [settingsCtxMenu, setSettingsCtxMenu] = useState<ContextMenuState | null>(null)
   const [editingTitle, setEditingTitle] = useState(false)
+  const [, setTitleDraft] = useState('')
 
   // Panel rects for collision detection + swap
   const [panelRects, setPanelRects] = useState<Record<string, PanelRect>>({})

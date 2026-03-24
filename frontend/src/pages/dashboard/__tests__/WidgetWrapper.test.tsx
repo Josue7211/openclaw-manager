@@ -116,7 +116,7 @@ describe('WidgetWrapper', () => {
     // Create a widget that never resolves to test the Suspense fallback
     const { getWidget } = await import('@/lib/widget-registry')
     const getWidgetMock = getWidget as unknown as ReturnType<typeof vi.fn>
-    const originalImpl = getWidgetMock.getMockImplementation()!
+    const originalImpl = getWidgetMock.getMockImplementation()! as (id: string) => unknown
 
     getWidgetMock.mockImplementation((id: string) => {
       if (id === 'slow-widget') {

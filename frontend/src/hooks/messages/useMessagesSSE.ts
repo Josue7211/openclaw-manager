@@ -137,7 +137,7 @@ export function useMessagesSSE({
                     }
                     return { sender: senderName, text: preview, chatGuid: msgChats[0], count: 1 }
                   })
-                  toastTimeout.current = window.setTimeout(() => setToast(null), 4000)
+                  toastTimeout.current = setTimeout(() => setToast(null), 4000)
                 }
 
                 // System notification

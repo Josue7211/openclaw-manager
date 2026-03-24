@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
-import { Pulse, Lightning, Robot, Timer, Warning, ArrowRight } from '@phosphor-icons/react'
+import { Lightning, Robot, Timer, Warning, ArrowRight } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { SkeletonRows } from '@/components/Skeleton'

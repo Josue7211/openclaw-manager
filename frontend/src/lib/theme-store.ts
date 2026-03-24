@@ -43,7 +43,7 @@ let _state: ThemeState = loadInitialState()
 const _listeners = new Set<() => void>()
 
 /** Temporary storage for ripple animation click coordinates */
-let _lastClickEvent: { clientX: number; clientY: number } | undefined
+export let _lastClickEvent: { clientX: number; clientY: number } | undefined
 
 function persist() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(_state))

@@ -1,3 +1,4 @@
+/// <reference types="node" />
 /**
  * Route Audit Smoke Test
  *
@@ -19,6 +20,9 @@ import { MemoryRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // ============================================================
 // Mock all page components to return marker divs
@@ -75,8 +79,7 @@ vi.mock('@/components/Skeleton', () => ({
 
 // Tauri internals: force browser mode
 beforeAll(() => {
-  // @ts-expect-error -- Tauri global
-  window.__TAURI_INTERNALS__ = undefined
+  (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = undefined
 })
 
 // ============================================================

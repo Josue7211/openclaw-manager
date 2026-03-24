@@ -102,7 +102,15 @@ const mockPages = [
   },
 ]
 
-let mockDashboardState = {
+let mockDashboardState: {
+  pages: { id: string; name: string; sortOrder: number; layouts: Record<string, { i: string; x: number; y: number; w: number; h: number }[]>; widgetConfigs: Record<string, Record<string, unknown>> }[]
+  activePageId: string
+  editMode: boolean
+  wobbleEnabled: boolean
+  dotIndicatorsEnabled: boolean
+  recycleBin: unknown[]
+  lastModified: string
+} = {
   pages: mockPages,
   activePageId: 'page-1',
   editMode: false,
@@ -198,8 +206,8 @@ describe('DashboardGrid', () => {
         id: 'empty-page',
         name: 'Empty',
         sortOrder: 0,
-        layouts: {},
-        widgetConfigs: {},
+        layouts: {} as Record<string, { i: string; x: number; y: number; w: number; h: number }[]>,
+        widgetConfigs: {} as Record<string, Record<string, unknown>>,
       }],
       activePageId: 'empty-page',
     }

@@ -41,7 +41,6 @@ const Settings = lazy(() => import('./pages/Settings'))
 const Search = lazy(() => import('./pages/Search'))
 const Login = lazy(() => import('./pages/Login'))
 const CustomPage = lazy(() => import('./pages/CustomPage'))
-const Activity = lazy(() => import('./pages/activity/ActivityPage'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 
 const queryClient = new QueryClient({

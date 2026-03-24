@@ -51,11 +51,11 @@ const codeStyle: React.CSSProperties = {
   fontFamily: '"JetBrains Mono", monospace',
 }
 
-export const WizardTailscale = React.memo(function WizardTailscale() {
+const WizardTailscale = React.memo(function WizardTailscale() {
   const wizard = useWizardState()
   const [checking, setChecking] = useState(false)
   const [checkResult, setCheckResult] = useState<TailscaleCheck | null>(null)
-  const isTauri = typeof window !== 'undefined' && !!(window as Record<string, unknown>).__TAURI_INTERNALS__
+  const isTauri = typeof window !== 'undefined' && !!(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__
 
   const runCheck = useCallback(async () => {
     if (!isTauri) return
@@ -210,3 +210,5 @@ export const WizardTailscale = React.memo(function WizardTailscale() {
     </div>
   )
 })
+
+export default WizardTailscale

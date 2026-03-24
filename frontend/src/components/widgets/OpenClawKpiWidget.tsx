@@ -16,9 +16,10 @@ export const OpenClawKpiWidget = React.memo(function OpenClawKpiWidget(_props: W
   const loading = modelsLoading || sessionsLoading || usageLoading
 
   const modelCount = (models?.models ?? models?.data ?? []).length
-  const activeSessions = sessions.filter(s =>
-    s.status === 'active' || s.status === 'running' || s.status === 'connected'
-  ).length
+  const activeSessions = sessions.filter(s => {
+    const st = s.status as string
+    return st === 'active' || st === 'running' || st === 'connected'
+  }).length
   const totalTokens = usage?.total_tokens ?? 0
   const totalCost = usage?.total_cost ?? 0
 

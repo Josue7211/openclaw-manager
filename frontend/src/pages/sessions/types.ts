@@ -27,7 +27,7 @@ export interface CreateSessionPayload {
 }
 
 // Gateway connection status types
-export type GatewayConnectionStatus = 'connected' | 'disconnected' | 'not_configured'
+export type GatewayConnectionStatus = 'connected' | 'disconnected' | 'reconnecting' | 'not_configured'
 
 export interface GatewayStatusResponse {
   connected: boolean
@@ -54,12 +54,14 @@ export interface SessionHistoryResponse {
 export const GATEWAY_STATUS_COLORS: Record<GatewayConnectionStatus, string> = {
   connected: 'var(--green-400)',
   disconnected: 'var(--red-500)',
+  reconnecting: 'var(--amber)',
   not_configured: 'var(--text-muted)',
 }
 
 export const GATEWAY_STATUS_LABELS: Record<GatewayConnectionStatus, string> = {
   connected: 'Gateway connected',
   disconnected: 'Gateway disconnected',
+  reconnecting: 'Gateway reconnecting',
   not_configured: 'Gateway not configured',
 }
 

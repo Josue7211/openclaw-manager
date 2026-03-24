@@ -492,7 +492,7 @@ export function applyFontScale(scale: number | undefined): void {
 
 const isWebKitGTK =
   typeof window !== 'undefined' &&
-  !!(window as Record<string, unknown>).__TAURI_INTERNALS__ &&
+  !!(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ &&
   typeof navigator !== 'undefined' &&
   /Linux/.test(navigator.userAgent)
 

@@ -254,6 +254,7 @@ function Separator() {
 
 interface EditorToolbarProps {
   viewRef: React.RefObject<EditorView | null>
+  noteTitle?: string
 }
 
 function EditorToolbar({ viewRef }: EditorToolbarProps) {
