@@ -139,7 +139,7 @@ jobs:
           Copy-Item src-tauri/target/${{ matrix.platform.target }}/release/bundle/nsis/*.exe release-artifacts/ -ErrorAction SilentlyContinue
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a # v4.3.6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: release-${{ matrix.platform.target }}
           path: release-artifacts/*
