@@ -71,40 +71,40 @@
 - [x] **Phase 35: Tools Tab with Real Data** - Tool catalog from gateway, show categories, enabled/disabled, descriptions *(built in Phase 12)*
 
 **Group M: Approvals & Execution Governance**
-- [ ] **Phase 36: Approval Queue Backend** - Listen for exec.approval.requested events via WS, store pending, expose REST API
-- [ ] **Phase 37: Approval Queue UI** - Approve/reject panel, notification badge on sidebar, context display
+- [x] **Phase 36: Approval Queue Backend** - Listen for exec.approval.requested events via WS, store pending, expose REST API *(committed 2026-03-24)*
+- [x] **Phase 37: Approval Queue UI** - Approve/reject panel, notification badge on sidebar, context display *(committed 2026-03-24)*
 
 **Group N: Skills & Tool Invocation**
-- [ ] **Phase 38: Tool Catalog via WS** - Fetch tools.catalog, display with categories/descriptions/allow-deny per agent
-- [ ] **Phase 39: Tool Invocation UI** - Execute tools from UI via POST /tools/invoke (with dry-run toggle)
-- [ ] **Phase 40: Skills Tab on OpenClaw Page** - New tab showing installed skills per gateway, install/uninstall
+- [x] **Phase 38: Tool Catalog via WS** - Fetch tools.catalog, display with categories/descriptions/allow-deny per agent *(built in Phase 12)*
+- [x] **Phase 39: Tool Invocation UI** - Execute tools from UI via POST /tools/invoke (with dry-run toggle) *(committed 2026-03-24)*
+- [x] **Phase 40: Skills Tab on OpenClaw Page** - New tab showing installed skills per gateway, install/uninstall *(committed 2026-03-24)*
 
 **Group O: Enhanced Usage & Monitoring**
-- [ ] **Phase 41: Usage Time Series Charts** - Daily token/cost breakdown charts, per-model sparklines
-- [ ] **Phase 42: Cost Alerts & Budgets** - Configurable daily/monthly budget limits, notification when exceeded
-- [ ] **Phase 43: Activity Feed** - Real-time SSE timeline of gateway events (session start/stop, cron runs, approvals, errors)
-- [ ] **Phase 44: OpenClaw KPI Dashboard Widget** - Active agents, sessions in progress, throughput, tokens/day, cost/day
+- [x] **Phase 41: Usage Time Series Charts** - Daily token/cost breakdown charts, per-model sparklines *(committed 2026-03-24)*
+- [x] **Phase 42: Cost Alerts & Budgets** - Configurable daily/monthly budget limits, notification when exceeded *(committed 2026-03-24)*
+- [x] **Phase 43: Activity Feed** - Real-time SSE timeline of gateway events (session start/stop, cron runs, approvals, errors) *(committed 2026-03-24)*
+- [x] **Phase 44: OpenClaw KPI Dashboard Widget** - Active agents, sessions in progress, throughput, tokens/day, cost/day *(committed 2026-03-24)*
 
 **Group P: Memory Search Enhancement (page exists, add vector search)**
-- [ ] **Phase 45: Memory Vector Search** - Add semantic search to existing Memory page via gateway memory_search API
+- [x] **Phase 45: Memory Vector Search** - Add semantic search to existing Memory page via gateway memory_search API *(committed 2026-03-24)*
 
 **Group Q: Agent Model Picker Enhancement**
-- [ ] **Phase 46: Multi-Provider Model Dropdown** - In agent detail panel + Settings > Agent, show all available models from gateway (Claude/OpenAI/Kimi/local)
+- [x] **Phase 46: Multi-Provider Model Dropdown** - In agent detail panel + Settings > Agent, show all available models from gateway (Claude/OpenAI/Kimi/local) *(committed 2026-03-24)*
 
 **Group R: Configure & Connect Sunshine Remote Desktop**
-- [ ] **Phase 47: Sunshine Setup** - SSH to OpenClaw VM, verify Sunshine running, set SUNSHINE_HOST, test Remote Desktop page
+- [x] **Phase 47: Sunshine Setup** - SSH to OpenClaw VM, verify Sunshine running, set SUNSHINE_HOST, test Remote Desktop page *(committed 2026-03-24)*
 
 **Group S: Dashboard & Widget UX**
-- [ ] **Phase 48: Widget Picker Already-Placed Indicators** - Show which widgets are already on dashboard
-- [ ] **Phase 49: Widget Smart Resize & Gap Elimination** - Auto-compact on add, resize handles on all edges
-- [ ] **Phase 50: Dashboard Edit Mode Polish** - Better drag feedback, compact on rearrange, visual grid
+- [x] **Phase 48: Widget Picker Already-Placed Indicators** - Show which widgets are already on dashboard *(committed 2026-03-24)*
+- [x] **Phase 49: Widget Smart Resize & Gap Elimination** - Auto-compact on add, resize handles on all edges *(already implemented)*
+- [x] **Phase 50: Dashboard Edit Mode Polish** - Better drag feedback, compact on rearrange, visual grid *(committed 2026-03-24)*
 
 **Group T: Notes Editor — Obsidian/Google Docs Parity**
-- [ ] **Phase 51: Notes Tables & Media** - Table support, image embeds, drag-drop images
-- [ ] **Phase 52: Notes Search & Navigation** - Full-text search within notes, tag system, improved backlinks
-- [ ] **Phase 53: Notes Templates & Slash Commands** - Note templates, / command palette, quick formatting
-- [ ] **Phase 54: Notes Advanced Editing** - Split view, keyboard shortcuts, export (PDF/MD), drag-reorder blocks
-- [ ] **Phase 55: Notes Graph View Fix** - Fix Canvas crash, interactive graph with zoom/pan/filter
+- [x] **Phase 51: Notes Tables & Media** - Table support, image embeds, drag-drop images *(committed 2026-03-24)*
+- [x] **Phase 52: Notes Search & Navigation** - Full-text search within notes, tag system, improved backlinks *(committed 2026-03-24)*
+- [x] **Phase 53: Notes Templates & Slash Commands** - Note templates, / command palette, quick formatting *(committed 2026-03-24)*
+- [x] **Phase 54: Notes Advanced Editing** - Split view, keyboard shortcuts, export (PDF/MD), drag-reorder blocks *(committed 2026-03-24)*
+- [x] **Phase 55: Notes Graph View Fix** - Fix Canvas crash, interactive graph with zoom/pan/filter *(committed 2026-03-24)*
 
 ## Phase Details
 
