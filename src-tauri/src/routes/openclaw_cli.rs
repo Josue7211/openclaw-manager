@@ -7,12 +7,11 @@ use tokio::process::Command;
 use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
 
-/// Build the OpenClaw CLI router (sessions, subagents, cron jobs).
+/// Build the OpenClaw CLI router (sessions, subagents).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/sessions", get(get_sessions))
         .route("/subagents", get(get_subagents))
-        .route("/crons", get(get_crons))
 }
 
 // ---------------------------------------------------------------------------
@@ -137,15 +136,3 @@ async fn get_subagents(RequireAuth(_session): RequireAuth) -> Result<Json<Value>
     }
 }
 
-/// GET /crons
-async fn get_crons(RequireAuth(_session): RequireAuth) -> Result<Json<Value>, AppError> {
-    let timeout = Duration::from_secs(10);
-
-    match run_openclaw(&["cron", "list", "--json"], timeout).await {
-        Ok(stdout) => {
-            let jobs = parse_json_array(&stdout);
-            Ok(Json(json!({ "jobs": jobs })))
-        }
-        Err(_) => Ok(Json(json!({ "jobs": [] }))),
-    }
-}
