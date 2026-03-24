@@ -181,7 +181,7 @@ Plans:
   4. No runtime "module not found" errors when navigating all pages
 **Plans**: 1 plan
 Plans:
-- [ ] 66-01-PLAN.md -- Remove unused npm dependencies
+- [ ] 66-01-PLAN.md -- Remove @novnc/novnc and @types/novnc__novnc, clean knip ignoreDependencies
 
 ### Phase 67: Strip Unused Imports
 **Goal**: Every import statement in every TypeScript file is consumed within that file
