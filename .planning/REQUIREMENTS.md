@@ -1,7 +1,7 @@
 # Requirements: OpenClaw Manager
 
 **Defined:** 2026-03-24
-**Milestone:** v0.0.6 — Sessions & Chat
+**Milestone:** v0.0.6 -- Sessions & Chat
 **Core Value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
 
 ## v0.0.6 Requirements
@@ -48,29 +48,29 @@ Requirements for full session management and chat functionality. Each maps to ro
 
 ## Out of Scope
 
-- Voice input/output — deferred to a future milestone (TTS/voice methods exist in protocol)
-- File attachments in chat — deferred (no gateway method for file upload in chat context)
-- Session templates/presets — deferred to Skills & Plugins milestone
+- Voice input/output -- deferred to a future milestone (TTS/voice methods exist in protocol)
+- File attachments in chat -- deferred (no gateway method for file upload in chat context)
+- Session templates/presets -- deferred to Skills & Plugins milestone
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |------------|-------|--------|
-| SESS-01 | — | Pending |
-| SESS-02 | — | Pending |
-| SESS-03 | — | Pending |
-| SESS-04 | — | Pending |
-| SESS-05 | — | Pending |
-| SESS-06 | — | Pending |
-| CHAT-01 | — | Pending |
-| CHAT-02 | — | Pending |
-| CHAT-03 | — | Pending |
-| CHAT-04 | — | Pending |
-| CHAT-05 | — | Pending |
-| CHAT-06 | — | Pending |
-| MODEL-01 | — | Pending |
-| MODEL-02 | — | Pending |
-| MODEL-03 | — | Pending |
-| STREAM-01 | — | Pending |
-| STREAM-02 | — | Pending |
-| STREAM-03 | — | Pending |
+| SESS-01 | Phase 91 | Pending |
+| SESS-02 | Phase 93 | Pending |
+| SESS-03 | Phase 96 | Pending |
+| SESS-04 | Phase 96 | Pending |
+| SESS-05 | Phase 96 | Pending |
+| SESS-06 | Phase 98 | Pending |
+| CHAT-01 | Phase 92 | Pending |
+| CHAT-02 | Phase 93 | Pending |
+| CHAT-03 | Phase 97 | Pending |
+| CHAT-04 | Phase 92 | Pending |
+| CHAT-05 | Phase 94 | Pending |
+| CHAT-06 | Phase 94 | Pending |
+| MODEL-01 | Phase 95 | Pending |
+| MODEL-02 | Phase 95 | Pending |
+| MODEL-03 | Phase 95 | Pending |
+| STREAM-01 | Phase 93 | Pending |
+| STREAM-02 | Phase 94 | Pending |
+| STREAM-03 | Phase 97 | Pending |

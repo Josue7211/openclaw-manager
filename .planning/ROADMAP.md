@@ -7,10 +7,32 @@
 - v0.0.3 -- AI Ops Center + OpenClaw Controller + Polish (shipped 2026-03-24)
 - v0.0.4 -- Stabilize & Strip (shipped 2026-03-24) -- [Full details](milestones/v0.0.4-ROADMAP.md)
 - v0.0.5 -- Gateway Protocol v3 (shipped 2026-03-24) -- [Full details](milestones/v0.0.5-ROADMAP.md)
+- v0.0.6 -- Sessions & Chat (in progress)
 
 ## Phases
 
-### v0.0.5 -- Gateway Protocol v3
+### v0.0.6 -- Sessions & Chat
+
+**Group AE: Session Foundation** *(session list is the entry point for all chat work)*
+- [ ] **Phase 91: Session List** - Fetch and display all sessions via sessions.list with label, agent, message count, last activity
+- [ ] **Phase 92: Chat History Display** - Load and render chat history for a selected session with markdown formatting
+
+**Group AF: Chat Send & Streaming** *(send messages and stream agent responses token-by-token)*
+- [ ] **Phase 93: Chat Send with Token Streaming** - Send messages via chat.send with deliver:true and stream agent response tokens via SSE
+- [ ] **Phase 94: Streaming UX Polish** - Low-latency token rendering, typing/thinking indicator, multiline input with Enter/Shift+Enter
+
+**Group AG: Model Selection** *(pick which model/agent powers a new session)*
+- [ ] **Phase 95: Model Picker for New Sessions** - Fetch models via models.list, display picker, pass selection to chat.send for session creation
+
+**Group AH: Session CRUD** *(manage existing sessions -- rename, delete, compact)*
+- [ ] **Phase 96: Session Rename, Delete, Compact** - Patch session labels, delete with confirmation, compact to reduce token usage
+
+**Group AI: Resilience & Real-time** *(abort, reconnect, live updates)*
+- [ ] **Phase 97: Chat Abort & Stream Resilience** - Cancel in-progress responses via chat.abort, preserve partial responses on disconnect
+- [ ] **Phase 98: Real-time Session List Updates** - Session list updates live via SSE when sessions are created or messages arrive
+
+<details>
+<summary>v0.0.5 -- Gateway Protocol v3 (16 phases) -- SHIPPED 2026-03-24</summary>
 
 **Group AA: Gateway Handshake** *(foundation -- everything else depends on correct connection)*
 - [x] **Phase 75: Protocol v3 Handshake** - Connect to gateway using protocol v3 with role, scopes, client metadata, and device identity (completed 2026-03-24)
@@ -36,234 +58,7 @@
 - [x] **Phase 89: Live Usage & Models Tabs** - Verify usage and models tabs show real data from gateway
 - [x] **Phase 90: Live Activity Feed** - Verify activity feed shows real events from gateway
 
-## Phase Details
-
-### Phase 75: Protocol v3 Handshake
-**Goal**: App connects to the OpenClaw gateway using the real protocol v3 handshake with proper identity
-**Depends on**: Nothing (first phase -- foundation for all gateway work)
-**Requirements**: GW-01, GW-02
-**Success Criteria** (what must be TRUE):
-  1. Connect message includes minProtocol/maxProtocol 3, role "operator", scopes array, and client metadata object
-  2. Device identity (device_id, platform, app_version) is sent in the handshake params
-  3. Gateway responds with ok:true and the app transitions to connected state
-  4. Settings > Connections shows gateway as "Connected (protocol v3)"
-**Plans**: 1 plan
-Plans:
-- [x] 75-01-PLAN.md -- Protocol v3 handshake + error parsing + frontend display
-
-### Phase 76: Reconnect with Backoff
-**Goal**: Gateway connection recovers automatically after network disruptions without user intervention
-**Depends on**: Phase 75
-**Requirements**: GW-03
-**Success Criteria** (what must be TRUE):
-  1. When gateway WebSocket disconnects, the app attempts reconnection automatically
-  2. Reconnect uses exponential backoff (e.g. 1s, 2s, 4s, 8s, max 30s)
-  3. After reconnection, the gateway status indicator returns to "Connected" without page refresh
-  4. Multiple rapid disconnects do not spawn duplicate WebSocket connections
-**Plans**: 1 plan
-Plans:
-- [ ] 76-01-PLAN.md -- Exponential backoff reconnection + Reconnecting state + frontend status
-
-### Phase 77: Chat Method Corrections
-**Goal**: Chat/session RPC calls use the correct gateway method names so messages actually reach agents
-**Depends on**: Phase 75
-**Requirements**: RPC-01, RPC-02
-**Success Criteria** (what must be TRUE):
-  1. Fetching session history calls `chat.history` (not `sessions.history`) with sessionKey param
-  2. Sending a message calls `chat.send` with { sessionKey, message, deliver, idempotencyKey } params
-  3. Both calls return successful responses from the live gateway (not 404 or method-not-found errors)
-**Plans**: 1 plan
-Plans:
-- [ ] 77-01-PLAN.md -- Fix chat.history and chat.send RPC method names and params
-
-### Phase 78: Agent Method Verification
-**Goal**: Agent CRUD operations use verified protocol v3 method signatures
-**Depends on**: Phase 75
-**Requirements**: RPC-03, RPC-04
-**Success Criteria** (what must be TRUE):
-  1. `agents.list` call uses correct params and the response shape matches what the frontend expects
-  2. `agents.create`, `agents.update`, `agents.delete` use correct method names and param shapes per protocol
-  3. All four agent RPC calls succeed against the live gateway without method-not-found errors
-**Plans**: 1 plan
-Plans:
-- [ ] 78-01-PLAN.md -- Gateway agent CRUD proxy routes (agents.list/create/update/delete)
-
-### Phase 79: Cron Method Verification
-**Goal**: Cron CRUD operations use verified protocol v3 method names (cron.* not crons.*)
-**Depends on**: Phase 75
-**Requirements**: RPC-05
-**Success Criteria** (what must be TRUE):
-  1. Cron listing calls `cron.list` (not `crons.list`) and parses the response correctly
-  2. Cron create calls `cron.add` (not `crons.create`), update calls `cron.update`, delete calls `cron.remove`
-  3. All cron RPC calls succeed against the live gateway
-**Plans**: 1 plan
-Plans:
-- [ ] 79-01-PLAN.md -- Rewrite cron CRUD to use gateway WS RPC (cron.list/add/update/remove)
-
-### Phase 80: Models Method Verification
-**Goal**: Models listing uses verified method name and the frontend correctly renders the response shape
-**Depends on**: Phase 75
-**Requirements**: RPC-06
-**Success Criteria** (what must be TRUE):
-  1. `models.list` call succeeds against the live gateway
-  2. The response shape (model names, providers, capabilities) is correctly parsed by the frontend
-  3. Models tab renders real model data without "undefined" or missing fields
-**Plans**: 1 plan
-Plans:
-- [ ] 80-01-PLAN.md -- Gateway WS models.list route (replace HTTP proxy)
-
-### Phase 81: Usage Method Correction
-**Goal**: Usage data is fetched with the correct method names so token/cost tracking shows real numbers
-**Depends on**: Phase 75
-**Requirements**: RPC-07
-**Success Criteria** (what must be TRUE):
-  1. Usage data calls `usage.status` and/or `usage.cost` (not `usage.summary`)
-  2. The response shape (token counts, cost breakdowns) is correctly parsed by the frontend
-  3. Usage tab shows non-zero real data from the live gateway
-**Plans**: 1 plan
-Plans:
-- [x] 81-01-PLAN.md -- Gateway WS usage.status and usage.cost routes (replace HTTP proxy)
-
-### Phase 82: Tools & Skills Method Verification
-**Goal**: Tools and skills listings use verified method names and response shapes
-**Depends on**: Phase 75
-**Requirements**: RPC-08
-**Success Criteria** (what must be TRUE):
-  1. Tools listing calls the correct gateway method and parses the response
-  2. Skills listing calls `skills.status` or `skills.bins` (verified correct method) and parses the response
-  3. Both tabs render real data from the live gateway without "undefined" or empty states when data exists
-**Plans**: 1 plan
-Plans:
-- [x] 82-01-PLAN.md -- Gateway WS skills.status and skills.bins routes (replace HTTP proxies)
-
-### Phase 83: Activity Events Method Correction
-**Goal**: Activity data uses the correct gateway method or subscription pattern instead of the nonexistent activity.recent
-**Depends on**: Phase 75
-**Requirements**: RPC-09
-**Success Criteria** (what must be TRUE):
-  1. The code no longer calls `activity.recent` (this method does not exist in the protocol)
-  2. Activity data is sourced from a real gateway method (events.list, logs.tail, or event subscription)
-  3. The activity data structure matches what the frontend activity feed component expects
-**Plans**: 1 plan
-Plans:
-- [x] 83-01-PLAN.md -- Replace activity.recent with logs.tail in gateway_activity handler
-
-### Phase 84: SSE Event Bus Wiring
-**Goal**: The SSE event bus delivers real gateway WebSocket events to the frontend instead of mock/assumed data
-**Depends on**: Phase 75, Phase 76
-**Requirements**: EVT-01
-**Success Criteria** (what must be TRUE):
-  1. Gateway WebSocket events (17 event types from protocol v3) are forwarded through the SSE event bus
-  2. Event names in SSE match the actual gateway event names (agent, chat, presence, cron, etc.)
-  3. Frontend event listeners receive events with correct payload shapes matching gateway protocol
-  4. SSE connection stays alive and delivers events in real-time (< 1s latency from gateway event to frontend)
-**Plans**: 1 plan
-Plans:
-- [ ] 84-01-PLAN.md -- Gateway SSE endpoint + frontend useGatewaySSE hook + event bus wiring
-
-### Phase 85: Agent Event Streaming
-**Goal**: Real-time agent status changes appear in the UI without polling
-**Depends on**: Phase 84
-**Requirements**: EVT-02
-**Success Criteria** (what must be TRUE):
-  1. When an agent starts/stops/errors on the gateway, the frontend receives the `agent` event via SSE
-  2. Agent status indicators update in real-time on the Agents tab
-  3. Agent status changes appear in the activity feed without page refresh
-**Plans**: 1 plan
-Plans:
-- [ ] 85-01-PLAN.md -- Wire useGatewaySSE into useAgents + AgentsPage for real-time agent updates
-
-### Phase 86: Session Event Streaming
-**Goal**: Session lifecycle events (created, completed, error) appear in the UI in real-time
-**Depends on**: Phase 84
-**Requirements**: EVT-03
-**Success Criteria** (what must be TRUE):
-  1. When a session is created/completed/errors on the gateway, the frontend receives the `chat` event via SSE
-  2. Session status updates appear in the Sessions tab without polling
-  3. Session completion/error events trigger notification if the user has notifications enabled
-**Plans**: 1 plan
-Plans:
-- [x] 86-01-PLAN.md -- Wire useGatewaySSE into useGatewaySessions + SessionsPage with notifications
-
-### Phase 87: Live Agents Tab
-**Goal**: The Agents tab is fully functional against the live gateway with real agent data
-**Depends on**: Phase 78, Phase 85
-**Requirements**: LIVE-01
-**Success Criteria** (what must be TRUE):
-  1. Agents tab lists all agents from the live gateway (main, fast-agent, standard-agent, etc.)
-  2. Creating a new agent via the UI results in a real agent on the gateway
-  3. Editing an agent's config via the UI persists the change on the gateway
-  4. Deleting an agent via the UI removes it from the gateway
-  5. Agent status indicators reflect real-time state from gateway events
-**Plans**: 1 plan
-Plans:
-- [ ] 87-01-PLAN.md -- Verify agent response shape, smoke test AgentsPage, confirm SSE wiring
-**UI hint**: yes
-
-### Phase 88: Live Crons Tab
-**Goal**: The Crons tab is fully functional against the live gateway with real scheduled task data
-**Depends on**: Phase 79, Phase 85
-**Requirements**: LIVE-02
-**Success Criteria** (what must be TRUE):
-  1. Crons tab lists all cron jobs from the live gateway
-  2. Creating a new cron job via the UI results in a real scheduled task on the gateway
-  3. Editing/toggling a cron job via the UI persists the change on the gateway
-  4. Deleting a cron job via the UI removes it from the gateway
-**Plans**: 1 plan
-Plans:
-- [ ] 88-01-PLAN.md -- Wire SSE into useCrons, smoke test CronsPage, verify gateway response shape
-**UI hint**: yes
-
-### Phase 89: Live Usage & Models Tabs
-**Goal**: Usage and Models tabs display real data from the live gateway
-**Depends on**: Phase 80, Phase 81
-**Requirements**: LIVE-03, LIVE-04
-**Success Criteria** (what must be TRUE):
-  1. Usage tab shows real token counts and cost data from the gateway
-  2. Usage charts render with actual historical data (not zeros or placeholders)
-  3. Models tab shows all available models from the gateway with correct provider labels
-  4. Model capabilities and context windows display correctly
-**Plans**: 1 plan
-Plans:
-- [x] 89-01-PLAN.md -- Smoke test UsageTab and ModelsTab, verify response shape handling
-**UI hint**: yes
-
-### Phase 90: Live Activity Feed
-**Goal**: The activity feed shows real events from the gateway, completing the live data verification
-**Depends on**: Phase 83, Phase 84, Phase 85, Phase 86
-**Requirements**: LIVE-05
-**Success Criteria** (what must be TRUE):
-  1. Activity feed widget displays real events sourced from the gateway
-  2. Events include agent actions, session completions, cron runs, and system events
-  3. New events appear in real-time via SSE without page refresh
-  4. Event timestamps and details match what the gateway reports
-**Plans**: 1 plan
-Plans:
-- [ ] 90-01-PLAN.md -- Create missing gateway_activity handler, wire SSE into ActivityPage, smoke test
-**UI hint**: yes
-
-## Progress
-
-**Execution Order:** Groups execute in order: AA -> AB -> AC -> AD. Phases within a group can run in parallel where dependencies allow.
-
-| Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
-| 75. Protocol v3 Handshake | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
-| 76. Reconnect with Backoff | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
-| 77. Chat Method Corrections | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
-| 78. Agent Method Verification | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
-| 79. Cron Method Verification | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
-| 80. Models Method Verification | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
-| 81. Usage Method Correction | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
-| 82. Tools & Skills Method Verification | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
-| 83. Activity Events Method Correction | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
-| 84. SSE Event Bus Wiring | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
-| 85. Agent Event Streaming | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
-| 86. Session Event Streaming | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
-| 87. Live Agents Tab | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
-| 88. Live Crons Tab | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
-| 89. Live Usage & Models Tabs | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
-| 90. Live Activity Feed | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+</details>
 
 <details>
 <summary>v0.0.4 -- Stabilize & Strip (19 phases) -- SHIPPED 2026-03-24</summary>
@@ -364,6 +159,137 @@ Plans:
 **Total:** 7 phases, 15 requirements -- all complete
 
 </details>
+
+## Phase Details
+
+### Phase 91: Session List
+**Goal**: Users can browse all their sessions and see key metadata at a glance
+**Depends on**: Nothing (v0.0.5 gateway connection is prerequisite -- already shipped)
+**Requirements**: SESS-01
+**Success Criteria** (what must be TRUE):
+  1. Sessions page displays a list of all sessions fetched via sessions.list RPC
+  2. Each session row shows its label, agent name, message count, and last activity timestamp
+  3. Sessions are sorted by most recent activity (newest first)
+  4. Empty state is shown when no sessions exist, with a prompt to start a new chat
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 92: Chat History Display
+**Goal**: Users can select a session and read its full conversation with proper formatting
+**Depends on**: Phase 91
+**Requirements**: CHAT-01, CHAT-04
+**Success Criteria** (what must be TRUE):
+  1. Clicking a session in the list loads its message history via chat.history with sessionKey
+  2. Messages render with proper markdown formatting (bold, italic, lists, links)
+  3. Code blocks render with syntax highlighting and a copy button
+  4. User messages and agent messages are visually distinct (different alignment or color)
+  5. Scrolling loads older messages if the history exceeds the initial page (pagination via limit param)
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 93: Chat Send with Token Streaming
+**Goal**: Users can send a message and watch the agent's response appear token-by-token in real-time
+**Depends on**: Phase 92
+**Requirements**: CHAT-02, STREAM-01
+**Success Criteria** (what must be TRUE):
+  1. User types a message and submits it; the message appears immediately in the thread
+  2. chat.send is called with { sessionKey, message, deliver: true, idempotencyKey }
+  3. Agent response tokens stream in via SSE "chat" events and render incrementally (not batched)
+  4. When streaming completes, the full response is displayed as a single coherent message
+  5. Sending the first message in a new session implicitly creates the session (no separate create step)
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 94: Streaming UX Polish
+**Goal**: Chat input and streaming feel responsive and polished with clear feedback during agent thinking
+**Depends on**: Phase 93
+**Requirements**: STREAM-02, CHAT-05, CHAT-06
+**Success Criteria** (what must be TRUE):
+  1. Streaming tokens appear with less than 200ms latency from gateway event to UI render
+  2. A visible "thinking" or typing indicator shows while waiting for the first token after sending
+  3. Chat input supports multiline text entry (Shift+Enter for newline, Enter to send)
+  4. Send button is disabled while an agent response is in progress
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 95: Model Picker for New Sessions
+**Goal**: Users can choose which model or agent powers a new conversation before sending the first message
+**Depends on**: Phase 93
+**Requirements**: MODEL-01, MODEL-02, MODEL-03
+**Success Criteria** (what must be TRUE):
+  1. A model picker is visible when starting a new session (before the first message is sent)
+  2. Available models are fetched from the gateway via models.list and displayed with provider labels
+  3. The selected model is included as a parameter when chat.send creates the session
+  4. The picker defaults to a sensible model (e.g., the one used in the most recent session or the first in the list)
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 96: Session Rename, Delete, Compact
+**Goal**: Users can manage existing sessions -- rename for organization, delete unwanted ones, compact to save tokens
+**Depends on**: Phase 91
+**Requirements**: SESS-03, SESS-04, SESS-05
+**Success Criteria** (what must be TRUE):
+  1. User can double-click or use a menu to rename a session label (calls sessions.patch)
+  2. User can delete a session with a confirmation dialog (calls sessions.delete)
+  3. User can compact a session to reduce its token footprint (calls sessions.compact) with visual feedback
+  4. After rename/delete/compact, the session list reflects the change immediately without full refetch
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 97: Chat Abort & Stream Resilience
+**Goal**: Users can cancel in-progress responses, and partial responses survive connection drops
+**Depends on**: Phase 93
+**Requirements**: CHAT-03, STREAM-03
+**Success Criteria** (what must be TRUE):
+  1. A "Stop" button appears during active streaming that sends chat.abort to cancel the response
+  2. After abort, the partial response received so far is preserved and displayed in the thread
+  3. If the gateway connection drops mid-stream, tokens received so far are kept in the UI
+  4. After a mid-stream disconnect, the app attempts reconnection and the user can continue the conversation
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 98: Real-time Session List Updates
+**Goal**: The session list stays current without manual refresh as new sessions are created and messages arrive
+**Depends on**: Phase 91, Phase 93
+**Requirements**: SESS-06
+**Success Criteria** (what must be TRUE):
+  1. When a new session is created (by sending the first message), it appears in the session list without refresh
+  2. When a message arrives in any session, that session's last activity timestamp and message count update live
+  3. The currently selected session remains selected and stable when other sessions update
+  4. SSE "chat" events from the gateway trigger the session list updates (no polling)
+**Plans**: TBD
+**UI hint**: yes
+
+## Progress
+
+**Execution Order:** Groups execute in order: AE -> AF -> AG/AH (parallel) -> AI. Phases within a group can run in parallel where dependencies allow.
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 91. Session List | v0.0.6 | 0/0 | Not started | - |
+| 92. Chat History Display | v0.0.6 | 0/0 | Not started | - |
+| 93. Chat Send with Token Streaming | v0.0.6 | 0/0 | Not started | - |
+| 94. Streaming UX Polish | v0.0.6 | 0/0 | Not started | - |
+| 95. Model Picker for New Sessions | v0.0.6 | 0/0 | Not started | - |
+| 96. Session Rename, Delete, Compact | v0.0.6 | 0/0 | Not started | - |
+| 97. Chat Abort & Stream Resilience | v0.0.6 | 0/0 | Not started | - |
+| 98. Real-time Session List Updates | v0.0.6 | 0/0 | Not started | - |
+| 75. Protocol v3 Handshake | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
+| 76. Reconnect with Backoff | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+| 77. Chat Method Corrections | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+| 78. Agent Method Verification | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+| 79. Cron Method Verification | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+| 80. Models Method Verification | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+| 81. Usage Method Correction | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+| 82. Tools & Skills Method Verification | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
+| 83. Activity Events Method Correction | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+| 84. SSE Event Bus Wiring | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+| 85. Agent Event Streaming | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+| 86. Session Event Streaming | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
+| 87. Live Agents Tab | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+| 88. Live Crons Tab | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+| 89. Live Usage & Models Tabs | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
+| 90. Live Activity Feed | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 
 ---
 *Roadmap created: 2026-03-19*
