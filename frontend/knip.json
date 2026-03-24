@@ -1,7 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
-    "src/main.tsx",
     "src/lib/widget-registry.ts",
     "src/components/primitives/register.ts",
     "src/lib/bjorn-store.ts",
@@ -88,31 +87,12 @@
     "src/components/primitives/ImageGallery.tsx"
   ],
   "project": ["src/**/*.{ts,tsx}"],
-  "ignore": [
-    "src/**/__tests__/**",
-    "src/**/*.test.{ts,tsx}",
-    "src/**/*.spec.{ts,tsx}",
-    "src/vite-env.d.ts"
-  ],
   "ignoreDependencies": [
     "@tauri-apps/api",
     "@tauri-apps/plugin-dialog",
     "@tauri-apps/plugin-fs",
     "@tauri-apps/plugin-shell",
     "@types/dompurify",
-    "@types/canvas-confetti",
-    "@types/lz-string",
-    "@types/react",
-    "@types/react-dom",
-    "@types/node",
-    "@vitejs/plugin-react",
-    "@vitest/coverage-v8",
-    "eslint-plugin-react-hooks",
-    "eslint-plugin-react-refresh",
-    "globals",
-    "jsdom",
-    "prettier",
-    "typescript-eslint",
-    "typescript"
+    "@types/lz-string"
   ]
 }
