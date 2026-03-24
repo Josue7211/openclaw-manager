@@ -27,7 +27,7 @@ Requirements for stabilization milestone. Each maps to roadmap phases.
 
 - [x] **DEV-01**: Browser mode auth works without Tauri shell for development
 - [x] **DEV-02**: Persistent "ffir" error toast resolved -- no error toasts on clean page load
-- [ ] **DEV-03**: knip configured with entry points for lazy-loaded routes and widget registry
+- [x] **DEV-03**: knip configured with entry points for lazy-loaded routes and widget registry
 
 ### Test Coverage
 
@@ -73,7 +73,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RUST-02 | Phase 59 | Pending |
 | RUST-03 | Phase 60 | Complete |
 | RUST-04 | Phase 61 | Complete |
-| DEV-03 | Phase 62 | Pending |
+| DEV-03 | Phase 62 | Complete |
 | DEAD-05 | Phase 63 | Pending |
 | DEAD-06 | Phase 64 | Pending |
 | DEAD-01 | Phase 65 | Pending |
