@@ -235,15 +235,16 @@ async fn gateway_status(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let conn_state = match &state.gateway_ws {
-        Some(gw) => gw.connection_state().await,
-        None => crate::gateway_ws::ConnectionState::NotConfigured,
+    let (conn_state, protocol_version) = match &state.gateway_ws {
+        Some(gw) => (gw.connection_state().await, gw.protocol_version().await),
+        None => (crate::gateway_ws::ConnectionState::NotConfigured, None),
     };
     let connected = conn_state == crate::gateway_ws::ConnectionState::Connected;
     Ok(Json(json!({
         "ok": connected,
         "status": conn_state,
         "connected": connected,
+        "protocol": protocol_version,
     })))
 }
 
