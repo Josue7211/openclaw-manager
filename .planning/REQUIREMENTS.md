@@ -9,7 +9,7 @@ Requirements for stabilization milestone. Each maps to roadmap phases.
 
 ### Dead Code -- Frontend
 
-- [ ] **DEAD-01**: All unused file exports detected by knip are removed or justified
+- [x] **DEAD-01**: All unused file exports detected by knip are removed or justified
 - [ ] **DEAD-02**: All unused npm dependencies detected by knip are removed from package.json
 - [ ] **DEAD-03**: All unused imports cleaned via eslint-plugin-unused-imports
 - [ ] **DEAD-04**: TypeScript strict flags `noUnusedLocals` and `noUnusedParameters` enabled and passing
@@ -76,7 +76,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DEV-03 | Phase 62 | Complete |
 | DEAD-05 | Phase 63 | Complete |
 | DEAD-06 | Phase 64 | Pending |
-| DEAD-01 | Phase 65 | Pending |
+| DEAD-01 | Phase 65 | Complete |
 | DEAD-02 | Phase 66 | Pending |
 | DEAD-03 | Phase 67 | Pending |
 | DEAD-04 | Phase 68 | Pending |

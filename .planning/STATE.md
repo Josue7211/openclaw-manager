@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v0.0.4
 milestone_name: -- Stabilize & Strip
-status: Ready to plan
-stopped_at: Completed 63-01-PLAN.md
-last_updated: "2026-03-24T09:23:19.681Z"
+status: Ready to execute
+stopped_at: Completed 65-02-PLAN.md
+last_updated: "2026-03-24T09:42:44.970Z"
 progress:
   total_phases: 19
   completed_phases: 9
-  total_plans: 9
+  total_plans: 11
   completed_plans: 9
 ---
 
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 62 — Configure knip for Dead Code Detection
+**Current focus:** Phase 65 — Strip Unused File Exports
 
 ## Current Position
 
-Phase: 65
-Plan: Not started
+Phase: 65 (Strip Unused File Exports) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -46,6 +46,8 @@ Plan: Not started
 | Phase 61 P01 | 4min | 2 tasks | 5 files |
 | Phase 62-configure-knip P01 | 4min | 2 tasks | 2 files |
 | Phase 63 P01 | 2min | 2 tasks | 2 files |
+| Phase 65 P01 | 9min | 2 tasks | 12 files |
+| Phase 65 P02 | 9min | 3 tasks | 19 files |
 
 ## Accumulated Context
 
@@ -65,6 +67,7 @@ Recent decisions affecting current work:
 - [Phase 61]: Remove sessions.pause/resume entirely rather than stub -- protocol v3 has no such methods
 - [Phase 62-configure-knip]: Knip v6 configured with 83 entry points for all dynamic imports; 6 future-phase entries deferred
 - [Phase 63]: noVNC references already removed; only v8 dashboard-state migration needed
+- [Phase 65]: Delete unused functions (formatDate, getNote, renameNote, isImageFile, PrimitiveErrorFallback, useSecretsList, useSecret, useDeleteSecret, useEditablePageTitle, usePageSubtitle) rather than just de-exporting -- reduces bundle size
 
 ### Pending Todos
 
@@ -78,6 +81,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-24T09:22:11.722Z
-Stopped at: Completed 63-01-PLAN.md
+Last session: 2026-03-24T09:42:44.967Z
+Stopped at: Completed 65-02-PLAN.md
 Resume file: None
