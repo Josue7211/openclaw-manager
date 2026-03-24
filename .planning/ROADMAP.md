@@ -13,7 +13,7 @@
 ### v0.0.5 -- Gateway Protocol v3
 
 **Group AA: Gateway Handshake** *(foundation -- everything else depends on correct connection)*
-- [ ] **Phase 75: Protocol v3 Handshake** - Connect to gateway using protocol v3 with role, scopes, client metadata, and device identity
+- [x] **Phase 75: Protocol v3 Handshake** - Connect to gateway using protocol v3 with role, scopes, client metadata, and device identity (completed 2026-03-24)
 - [ ] **Phase 76: Reconnect with Backoff** - Automatic WebSocket reconnection with exponential backoff on disconnect
 
 **Group AB: RPC Method Corrections** *(fix all wrong method names so backend calls real gateway methods)*
@@ -218,7 +218,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 75. Protocol v3 Handshake | v0.0.5 | 0/1 | Planned    |  |
+| 75. Protocol v3 Handshake | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 | 76. Reconnect with Backoff | v0.0.5 | 0/? | Not started | - |
 | 77. Chat Method Corrections | v0.0.5 | 0/? | Not started | - |
 | 78. Agent Method Verification | v0.0.5 | 0/? | Not started | - |
