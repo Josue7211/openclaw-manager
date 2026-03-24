@@ -222,10 +222,67 @@ async fn openclaw_health(
     Ok(Json(json!({"ok": false, "status": "unreachable"})))
 }
 
+// ── Gateway WS status ────────────────────────────────────────────────────
+
+/// `GET /api/gateway/status`
+///
+/// Returns the current WebSocket connection state:
+/// - `connected` — WS is up and handshake complete
+/// - `connecting` — actively trying to connect
+/// - `disconnected` — connection lost, will auto-reconnect
+/// - `not_configured` — OPENCLAW_WS not set
+async fn gateway_status(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let conn_state = match &state.gateway_ws {
+        Some(gw) => gw.connection_state().await,
+        None => crate::gateway_ws::ConnectionState::NotConfigured,
+    };
+    Ok(Json(json!({
+        "ok": conn_state == crate::gateway_ws::ConnectionState::Connected,
+        "state": conn_state,
+    })))
+}
+
+// ── Gateway WS sessions ──────────────────────────────────────────────────
+
+/// `GET /api/gateway/sessions`
+///
+/// Proxies `sessions.list` through the persistent gateway WS connection.
+/// Returns the session list payload on success, or an error if the gateway
+/// is not connected or not configured.
+async fn gateway_sessions(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
+        AppError::BadRequest(
+            "OpenClaw Gateway not configured. Set OPENCLAW_WS in Settings > Connections.".into(),
+        )
+    })?;
+
+    let payload = gw
+        .request("sessions.list", json!({}))
+        .await
+        .map_err(|e| {
+            tracing::error!("[gateway] sessions.list failed: {e}");
+            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
+        })?;
+
+    Ok(Json(json!({
+        "ok": true,
+        "data": payload,
+    })))
+}
+
 // ── Router ──────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/openclaw/health", get(openclaw_health))
+    Router::new()
+        .route("/openclaw/health", get(openclaw_health))
+        .route("/gateway/status", get(gateway_status))
+        .route("/gateway/sessions", get(gateway_sessions))
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────

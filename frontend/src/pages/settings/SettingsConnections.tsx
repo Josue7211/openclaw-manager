@@ -1,12 +1,13 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { Warning } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
 import { isDemoMode } from '@/lib/demo-data'
 import { useSaveSecret } from '@/hooks/useUserSecrets'
-import OnboardingWelcome from '@/components/OnboardingWelcome'
 import { resetWizard as resetSetupWizard } from '@/lib/wizard-store'
 import { Button } from '@/components/ui/Button'
 import { row, rowLast, val, inputStyle, sectionLabel } from './shared'
+
+const OnboardingWelcome = lazy(() => import('@/components/OnboardingWelcome'))
 
 export default function SettingsConnections() {
   const [bbUrl, setBbUrl] = useState('')
@@ -42,7 +43,7 @@ export default function SettingsConnections() {
             invoke<string | null>('get_secret', { key: 'mc-bind.host' }).then(v => { keychainBindHost = v }),
             invoke<string | null>('get_secret', { key: 'mc-agent.key' }).then(v => { keychainAgentKey = v }),
           ])
-        )
+        ).catch(() => {})
       : Promise.resolve()
 
     const loadFromApi = Promise.all([
@@ -59,7 +60,7 @@ export default function SettingsConnections() {
       setOcUrl(ocSecrets?.url || keychainOc || activeConfig?.openclaw_url || '')
       if (keychainBindHost) setBindHost(keychainBindHost)
       if (keychainAgentKey) setAgentKey(keychainAgentKey)
-    })
+    }).catch(() => {})
 
     // Load expected hostnames from user preferences
     api.get<{ ok: boolean; data: Record<string, unknown> }>('/api/user-preferences').then(resp => {
@@ -337,7 +338,9 @@ export default function SettingsConnections() {
         )}
       </div>
       {showSetupWizard && (
-        <OnboardingWelcome forceOpen onClose={() => setShowSetupWizard(false)} />
+        <Suspense fallback={null}>
+          <OnboardingWelcome forceOpen onClose={() => setShowSetupWizard(false)} />
+        </Suspense>
       )}
     </div>
   )

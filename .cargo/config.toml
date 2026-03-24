@@ -1,0 +1,4 @@
+
+[build]
+target-dir = "/tmp/mc-target"
+

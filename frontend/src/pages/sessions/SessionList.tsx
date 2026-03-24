@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode } from '@/lib/demo-data'
+import { useGatewaySessions } from '@/hooks/sessions/useGatewaySessions'
+import { GatewayStatusDot } from '@/components/GatewayStatusDot'
 import { SessionCard } from './SessionCard'
 import { NewSessionForm } from './NewSessionForm'
-import type { SessionListResponse, CreateSessionPayload } from './types'
+import type { CreateSessionPayload } from './types'
 
 interface SessionListProps {
   selectedId: string | null
@@ -16,20 +18,16 @@ interface SessionListProps {
 export function SessionList({ selectedId, onSelect }: SessionListProps) {
   const [showForm, setShowForm] = useState(false)
   const queryClient = useQueryClient()
-
   const demo = isDemoMode()
-  const { data, isLoading } = useQuery({
-    queryKey: queryKeys.claudeSessions,
-    queryFn: () => api.get<SessionListResponse>('/api/claude-sessions'),
-    refetchInterval: demo ? false : 5000,
-    enabled: !demo,
-  })
+
+  const { sessions, available, isLoading, source } = useGatewaySessions()
 
   const createMutation = useMutation({
     mutationFn: (payload: CreateSessionPayload) =>
       api.post<{ id: string }>('/api/claude-sessions', payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.claudeSessions })
+      queryClient.invalidateQueries({ queryKey: queryKeys.gatewaySessions })
       setShowForm(false)
     },
   })
@@ -39,11 +37,9 @@ export function SessionList({ selectedId, onSelect }: SessionListProps) {
       api.post<{ ok: boolean }>(`/api/claude-sessions/${id}/kill`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.claudeSessions })
+      queryClient.invalidateQueries({ queryKey: queryKeys.gatewaySessions })
     },
   })
-
-  const sessions = data?.sessions ?? []
-  const available = data?.available !== false
 
   return (
     <div style={{
@@ -62,8 +58,26 @@ export function SessionList({ selectedId, onSelect }: SessionListProps) {
         borderBottom: '1px solid var(--border)',
         flexShrink: 0,
       }}>
-        <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
-          Sessions
+        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
+            Sessions
+          </span>
+          <GatewayStatusDot size={7} />
+          {source !== 'none' && (
+            <span style={{
+              fontSize: '9px',
+              fontWeight: 600,
+              fontFamily: 'monospace',
+              color: 'var(--text-muted)',
+              background: 'var(--hover-bg)',
+              border: '1px solid var(--border)',
+              borderRadius: '4px',
+              padding: '1px 5px',
+              textTransform: 'uppercase',
+            }}>
+              {source === 'gateway' ? 'ws' : 'cli'}
+            </span>
+          )}
         </span>
         <button
           type="button"

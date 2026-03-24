@@ -38,5 +38,7 @@ export const queryKeys = {
   claudeSessions: ['claude-sessions'] as const,
   claudeSessionDetail: (id: string) => ['claude-sessions', id] as const,
   claudeSessionStatus: ['claude-sessions', 'status'] as const,
+  gatewayStatus: ['gateway', 'status'] as const,
+  gatewaySessions: ['gateway', 'sessions'] as const,
   vncStatus: ['vnc', 'status'] as const,
 } as const

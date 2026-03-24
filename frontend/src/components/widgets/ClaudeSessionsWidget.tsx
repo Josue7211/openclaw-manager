@@ -1,23 +1,12 @@
 import React from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { api } from '@/lib/api'
-import { queryKeys } from '@/lib/query-keys'
-
-interface SessionListResponse {
-  sessions: Array<{ id: string; status: string; task?: string }>
-  available: boolean
-}
+import { useGatewaySessions } from '@/hooks/sessions/useGatewaySessions'
+import { GatewayStatusDot } from '@/components/GatewayStatusDot'
 
 export const ClaudeSessionsWidget = React.memo(function ClaudeSessionsWidget() {
   const navigate = useNavigate()
-  const { data } = useQuery({
-    queryKey: queryKeys.claudeSessions,
-    queryFn: () => api.get<SessionListResponse>('/api/claude-sessions'),
-    refetchInterval: 10_000,
-  })
+  const { sessions } = useGatewaySessions()
 
-  const sessions = data?.sessions ?? []
   const running = sessions.filter(s => s.status === 'running').length
 
   return (
@@ -40,8 +29,11 @@ export const ClaudeSessionsWidget = React.memo(function ClaudeSessionsWidget() {
       }}
       aria-label="Open Claude Sessions page"
     >
-      <span style={{ fontSize: 28, fontWeight: 700, color: running > 0 ? 'var(--green-400)' : 'var(--text-secondary)' }}>
-        {running}
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 28, fontWeight: 700, color: running > 0 ? 'var(--green-400)' : 'var(--text-secondary)' }}>
+          {running}
+        </span>
+        <GatewayStatusDot size={7} />
       </span>
       <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
         {running === 1 ? 'active session' : 'active sessions'}

@@ -25,6 +25,31 @@ export interface CreateSessionPayload {
   workingDir?: string
 }
 
+// Gateway connection status types
+export type GatewayConnectionStatus = 'connected' | 'disconnected' | 'not_configured'
+
+export interface GatewayStatusResponse {
+  connected: boolean
+  status: GatewayConnectionStatus
+}
+
+export interface GatewaySessionsResponse {
+  sessions: ClaudeSession[]
+}
+
+// Gateway status color mapping
+export const GATEWAY_STATUS_COLORS: Record<GatewayConnectionStatus, string> = {
+  connected: 'var(--green-400)',
+  disconnected: 'var(--red-500)',
+  not_configured: 'var(--text-muted)',
+}
+
+export const GATEWAY_STATUS_LABELS: Record<GatewayConnectionStatus, string> = {
+  connected: 'Gateway connected',
+  disconnected: 'Gateway disconnected',
+  not_configured: 'Gateway not configured',
+}
+
 // Status color mapping using CSS variables (not hardcoded colors)
 export const STATUS_COLORS: Record<string, string> = {
   running: 'var(--green-400)',

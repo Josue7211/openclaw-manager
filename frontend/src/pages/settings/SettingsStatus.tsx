@@ -205,14 +205,14 @@ function StatusLoadingSkeleton({ rows }: { rows: number }) {
 export default memo(function SettingsStatus() {
   const queryClient = useQueryClient()
 
-  const { data: health, isLoading: healthLoading, dataUpdatedAt: healthUpdatedAt } = useQuery<HealthData>({
+  const { data: health, isLoading: healthLoading, isError: healthError, dataUpdatedAt: healthUpdatedAt } = useQuery<HealthData>({
     queryKey: queryKeys.health,
     queryFn: () => api.get('/api/status/health'),
     refetchInterval: 10_000,
     staleTime: 8_000,
   })
 
-  const { data: tailscale, isLoading: tsLoading } = useQuery<TailscaleData>({
+  const { data: tailscale, isLoading: tsLoading, isError: tsError } = useQuery<TailscaleData>({
     queryKey: queryKeys.tailscalePeers,
     queryFn: () => api.get('/api/status/tailscale'),
     refetchInterval: 10_000,
@@ -265,6 +265,12 @@ export default memo(function SettingsStatus() {
           </div>
           {healthLoading ? (
             <StatusLoadingSkeleton rows={3} />
+          ) : healthError || !services ? (
+            <div style={{ padding: '12px 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+              {healthError
+                ? 'Unable to reach backend. Check that the Tauri app or dev server is running.'
+                : 'Service status not available from the health endpoint.'}
+            </div>
           ) : (
             serviceEntries.map((svc, i) => {
               const s = svc.data
@@ -310,6 +316,10 @@ export default memo(function SettingsStatus() {
           </div>
           {tsLoading ? (
             <StatusLoadingSkeleton rows={3} />
+          ) : tsError ? (
+            <div style={{ padding: '12px 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+              Unable to fetch Tailscale peers. The backend may not be authenticated or Tailscale may not be installed.
+            </div>
           ) : uniquePeers.length === 0 ? (
             <div style={{ padding: '8px 0' }}>
               <EmptyState icon={WifiHigh} title="No peers found" description="Tailscale may not be installed or running." />
@@ -346,6 +356,10 @@ export default memo(function SettingsStatus() {
           </div>
           {healthLoading ? (
             <StatusLoadingSkeleton rows={2} />
+          ) : healthError ? (
+            <div style={{ padding: '12px 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+              Not available &mdash; backend unreachable.
+            </div>
           ) : (
             <>
               <div style={statusRow}>
@@ -361,7 +375,7 @@ export default memo(function SettingsStatus() {
                   Database Size
                 </span>
                 <span style={statusVal}>
-                  {health ? formatBytes(health.sqlite_db_size_bytes) : '--'}
+                  {health?.sqlite_db_size_bytes != null ? formatBytes(health.sqlite_db_size_bytes) : '--'}
                 </span>
               </div>
             </>
@@ -376,6 +390,10 @@ export default memo(function SettingsStatus() {
           </div>
           {healthLoading ? (
             <StatusLoadingSkeleton rows={4} />
+          ) : healthError ? (
+            <div style={{ padding: '12px 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+              Not available &mdash; backend unreachable.
+            </div>
           ) : (
             <>
               <div style={statusRow}>
@@ -388,7 +406,7 @@ export default memo(function SettingsStatus() {
                   Uptime
                 </span>
                 <span style={statusVal}>
-                  {health ? formatUptime(health.uptime_seconds) : '--'}
+                  {health?.uptime_seconds != null ? formatUptime(health.uptime_seconds) : '--'}
                 </span>
               </div>
               <div style={statusRow}>

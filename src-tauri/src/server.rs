@@ -177,6 +177,9 @@ pub struct AppState {
     /// Pre-configured OpenClaw API service client. `None` when OPENCLAW_API_URL
     /// is not set (module disabled).
     pub openclaw: Option<ServiceClient>,
+    /// Persistent WebSocket client to the OpenClaw Gateway. `None` when
+    /// OPENCLAW_WS is not configured.
+    pub gateway_ws: Option<Arc<crate::gateway_ws::GatewayWsClient>>,
     // Supabase already has its own SupabaseClient in `crate::supabase`.
 
     /// Current user session (JWT tokens + derived encryption key).
@@ -553,6 +556,16 @@ pub async fn start(
         ServiceClient::new("OpenClaw", &url, 60)
     });
 
+    // Build gateway WS client if OPENCLAW_WS is configured
+    let gateway_ws = {
+        let ws_url = secrets.get("OPENCLAW_WS").cloned().filter(|s| !s.is_empty());
+        let ws_password = secrets.get("OPENCLAW_PASSWORD").cloned().unwrap_or_default();
+        ws_url.map(|url| {
+            tracing::info!("OpenClaw Gateway WS client configured");
+            crate::gateway_ws::GatewayWsClient::new(url, ws_password)
+        })
+    };
+
     let db = crate::db::init().await?;
 
     // In debug mode, restore the previous session from SQLite so you don't
@@ -601,6 +614,7 @@ pub async fn start(
         secrets: Arc::new(std::sync::RwLock::new(secrets)),
         bb,
         openclaw,
+        gateway_ws: gateway_ws.clone(),
         session: Arc::new(RwLock::new(restored_session)),
         refresh_mutex: Arc::new(tokio::sync::Mutex::new(())),
         pending_oauth: Arc::new(RwLock::new(None)),
@@ -623,6 +637,12 @@ pub async fn start(
         );
         sync_engine.start();
         tracing::info!("Sync engine started (30s interval)");
+    }
+
+    // Start the persistent gateway WebSocket connection (if configured).
+    if let Some(ref gw) = gateway_ws {
+        gw.start();
+        tracing::info!("Gateway WS connection loop started");
     }
 
     // Start the background database cleanup job (runs on startup + every hour).
