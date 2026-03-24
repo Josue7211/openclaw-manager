@@ -1,98 +1,78 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.0.3
-milestone_name: -- AI Ops Center + OpenClaw Controller + Polish
-status: unknown
-stopped_at: Completed 12-02-PLAN.md (verified and recovered from NFS corruption)
-last_updated: "2026-03-22T22:37:45.154Z"
+milestone: v0.0.5
+milestone_name: -- Gateway Protocol v3
+status: Phase complete — ready for verification
+stopped_at: Completed 79-01-PLAN.md
+last_updated: "2026-03-24T12:43:39.933Z"
 progress:
-  total_phases: 19
-  completed_phases: 8
-  total_plans: 11
-  completed_plans: 11
+  total_phases: 16
+  completed_phases: 2
+  total_plans: 9
+  completed_plans: 2
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-22)
+See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 12 complete — unified OpenClaw page with 5 tabs shipped
+**Current focus:** Phase 77 — Chat Method Corrections
 
 ## Current Position
 
-Phase: 13
-Plan: Not started
+Phase: 77 (Chat Method Corrections) — EXECUTING
+Plan: 1 of 1
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 7
-- Average duration: ~4min
-- Total execution time: ~0.38 hours
+- Total plans completed: 0
+- Average duration: --
+- Total execution time: 0 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 05 | 1/1 | -- | -- |
-| 06 | 1/1 | 2min | 2min |
-| 07 | 1/1 | 2min | 2min |
-| 08 | 1/1 | 3min | 3min |
-| 09 | 1/1 | 4min | 4min |
-| 10 | 2/2 | 12min | 6min |
-| Phase 11 P01 | 3min | 2 tasks | 4 files |
-| Phase 11 P02 | 5min | 2 tasks | 5 files |
-| Phase 12 P01 | 4min | 2 tasks | 7 files |
-| Phase 12 P02 | 12min | 3 tasks | 9 files |
+| - | - | - | - |
 
 ## Accumulated Context
+
+| Phase 75 P01 | 7min | 2 tasks | 7 files |
+| Phase 76 P01 | 4min | 2 tasks | 5 files |
+| Phase 78 P01 | 4min | 2 tasks | 2 files |
+| Phase 79 P01 | 4min | 2 tasks | 2 files |
 
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- Milestone restructured: 25 phases -> 19 phases (2026-03-22)
-- Deferred to v0.0.4: TipTap editor (6 phases), Project Tracker (3 phases)
-- Added: AI Ops Center group — Claude Code session management, session monitor, remote VM viewer
-- Theme blend, OpenClaw controller, Terminal phases kept as-is
-- Phase numbering: renumbered contiguously after cuts (old Phase 8 -> new Phase 6, etc.)
-- User vision: Mission Control as AI operations center — monitor Claude Code sessions, VNC into OpenClaw VM, Moonlight integration
-- OKLCH color utilities: pure math, zero deps, Bjorn Ottosson matrices, shortest-arc hue interpolation (Phase 6)
-- Theme blend engine: OKLCH-aware Tier 1 interpolation, WCAG AA text contrast enforcement, bp=0.5 data-theme switch (Phase 7)
-- Theme blend slider: setBlendPosition() with 0-1 clamping, system mode auto-reset, RAF-throttled UI in Settings > Display (Phase 8)
-- OpenClaw gateway: state.http (bare reqwest) over ServiceClient -- avoids 5xx retry on writes, forced JSON parsing (Phase 9)
-- OpenClaw gateway: 4xx=BadRequest (sanitized, user-visible), 5xx=Internal (hidden from client) (Phase 9)
-- [Phase 10]: Agent IDs use length check (1-100) instead of validate_uuid to support seed short IDs
-- [Phase 10]: Split-pane layout matches Notes.tsx pattern for consistent entity management UX
-- [Phase 10]: All agent editing in detail panel, cards read-only -- avoids dual editing states
-- [Phase 10]: Lifecycle buttons disabled (not hidden) when OpenClaw unhealthy -- user sees controls exist
-- [Phase 11]: Cron CRUD uses gateway_forward() for writes, CLI stays as read path
-- [Phase 11]: Cron ID validation uses length check (1-100) not validate_uuid -- IDs may be short strings
-- [Phase 11]: Schedule presets (8 intervals + custom cron) instead of raw crontab input for cron job creation
-- [Phase 12]: GET-only gateway proxy handlers -- no deserialization struct needed for read-only passthrough
-- [Phase 12]: Index signatures on TypeScript interfaces for forward-compatible unknown API shapes
-- [Phase 12]: Embedded sub-components (AgentList, WeekGrid) instead of importing full pages to avoid full-bleed layout conflicts
-- [Phase 12]: Replaced separate agents/crons module entries with single openclaw entry
+- Gateway integration deferred to v0.0.5 -- v0.0.4 only stripped nonexistent methods (pause/resume)
+- Protocol v3 reference: memory/reference_openclaw_complete.md has all 88 methods, 17 events, handshake spec
+- Phase structure: 4 groups (AA-AD) -- handshake first, then RPC fixes, then event bus, then live verification
+- [Phase 75]: Used auth.token for protocol v3 (not auth.type/auth.password)
+- [Phase 75]: Device ID format mc-{12hex} via rand::random -- no uuid crate needed
+- [Phase 76]: Used checked_shl for overflow-safe exponential backoff delay calculation
+- [Phase 78]: Used gateway_forward() HTTP proxy for agent CRUD instead of non-existent gateway_ws WS client
+- [Phase 79]: Cron CRUD switched from HTTP REST proxy + CLI exec to gateway WS RPC using protocol v3 method names
 
 ### Pending Todos
 
-- Resolve SSH passphrase key issue for terminal (Phase 13)
-- Research Claude Code SDK/CLI spawning for Phase 15
-- Research noVNC + Moonlight integration for Phase 17
+- None
 
 ### Blockers/Concerns
 
-- OpenClaw gateway API endpoints based on code analysis, not verified against actual gateway
-- SSH key `~/.ssh/mission-control` has a passphrase -- non-interactive SSH from PTY will fail
-- Claude Code SDK availability and session management API needs research
+- 9 wrong RPC method names in gateway.rs need correction against actual protocol v3
+- SSE event bus currently uses assumed event names, not actual gateway events
+- Live verification phases require gateway VM to be reachable during testing
 
 ## Session Continuity
 
-Last session: 2026-03-22T22:35:00Z
-Stopped at: Completed 12-02-PLAN.md (verified and recovered from NFS corruption)
+Last session: 2026-03-24T12:43:39.930Z
+Stopped at: Completed 79-01-PLAN.md
 Resume file: None

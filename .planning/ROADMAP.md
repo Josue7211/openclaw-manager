@@ -4,330 +4,335 @@
 
 - v1.0 -- Publishable release (shipped 2026-03-21) -- [Full details](milestones/v1.0-ROADMAP.md)
 - v0.0.2 -- Widget-First Architecture (shipped 2026-03-22)
-- v0.0.3 -- AI Ops Center + OpenClaw Controller + Polish
+- v0.0.3 -- AI Ops Center + OpenClaw Controller + Polish (shipped 2026-03-24)
+- v0.0.4 -- Stabilize & Strip (shipped 2026-03-24) -- [Full details](milestones/v0.0.4-ROADMAP.md)
+- v0.0.5 -- Gateway Protocol v3 (in progress)
 
 ## Phases
 
-### v0.0.3 -- AI Ops Center + OpenClaw Controller + Polish
+### v0.0.5 -- Gateway Protocol v3
 
-**Group A: Bug Verification**
-- [ ] **Phase 1: Verify Widget Resize Fix** - Confirm widget resize handles work across all widget types
-- [ ] **Phase 2: Verify Page Layout Fix** - Confirm full-bleed and scrolling pages work at all viewport sizes
-- [ ] **Phase 3: Verify Widget Tab-Switch Fix** - Confirm widgets persist across page/tab navigation
-- [ ] **Phase 4: Verify Widget Picker UX Fixes** - Confirm duplicates, animations, preset feedback, delete dialog
+**Group AA: Gateway Handshake** *(foundation -- everything else depends on correct connection)*
+- [x] **Phase 75: Protocol v3 Handshake** - Connect to gateway using protocol v3 with role, scopes, client metadata, and device identity (completed 2026-03-24)
+- [x] **Phase 76: Reconnect with Backoff** - Automatic WebSocket reconnection with exponential backoff on disconnect
+
+**Group AB: RPC Method Corrections** *(fix all wrong method names so backend calls real gateway methods)*
+- [ ] **Phase 77: Chat Method Corrections** - Fix sessions.history -> chat.history and sessions.create -> chat.send
+- [ ] **Phase 78: Agent Method Verification** - Verify agents.list params and agents CRUD method signatures match protocol
+- [ ] **Phase 79: Cron Method Verification** - Verify cron CRUD method signatures (cron.list/add/update/remove vs crons.*)
+- [ ] **Phase 80: Models Method Verification** - Verify models.list response shape matches protocol
+- [ ] **Phase 81: Usage Method Correction** - Fix usage.summary -> usage.status/usage.cost with correct params
+- [ ] **Phase 82: Tools & Skills Method Verification** - Verify tools.list and skills.list method names and response shapes
+- [ ] **Phase 83: Activity Events Method Correction** - Fix activity.recent to use events.list or event subscription pattern
+
+**Group AC: Event Bus Wiring** *(SSE event bus connected to real gateway WebSocket events)*
+- [ ] **Phase 84: SSE Event Bus Wiring** - Wire SSE event bus to actual gateway WebSocket events instead of mock data
+- [ ] **Phase 85: Agent Event Streaming** - Surface real-time agent.* events from gateway via SSE
+- [ ] **Phase 86: Session Event Streaming** - Surface session created/completed/error events via SSE
+
+**Group AD: Live Data Verification** *(verify every OpenClaw tab with real gateway data)*
+- [ ] **Phase 87: Live Agents Tab** - Verify agents tab shows real agents with working CRUD against live gateway
+- [ ] **Phase 88: Live Crons Tab** - Verify crons tab shows real scheduled tasks with working CRUD against live gateway
+- [ ] **Phase 89: Live Usage & Models Tabs** - Verify usage and models tabs show real data from gateway
+- [ ] **Phase 90: Live Activity Feed** - Verify activity feed shows real events from gateway
+
+## Phase Details
+
+### Phase 75: Protocol v3 Handshake
+**Goal**: App connects to the OpenClaw gateway using the real protocol v3 handshake with proper identity
+**Depends on**: Nothing (first phase -- foundation for all gateway work)
+**Requirements**: GW-01, GW-02
+**Success Criteria** (what must be TRUE):
+  1. Connect message includes minProtocol/maxProtocol 3, role "operator", scopes array, and client metadata object
+  2. Device identity (device_id, platform, app_version) is sent in the handshake params
+  3. Gateway responds with ok:true and the app transitions to connected state
+  4. Settings > Connections shows gateway as "Connected (protocol v3)"
+**Plans**: 1 plan
+Plans:
+- [x] 75-01-PLAN.md -- Protocol v3 handshake + error parsing + frontend display
+
+### Phase 76: Reconnect with Backoff
+**Goal**: Gateway connection recovers automatically after network disruptions without user intervention
+**Depends on**: Phase 75
+**Requirements**: GW-03
+**Success Criteria** (what must be TRUE):
+  1. When gateway WebSocket disconnects, the app attempts reconnection automatically
+  2. Reconnect uses exponential backoff (e.g. 1s, 2s, 4s, 8s, max 30s)
+  3. After reconnection, the gateway status indicator returns to "Connected" without page refresh
+  4. Multiple rapid disconnects do not spawn duplicate WebSocket connections
+**Plans**: 1 plan
+Plans:
+- [ ] 76-01-PLAN.md -- Exponential backoff reconnection + Reconnecting state + frontend status
+
+### Phase 77: Chat Method Corrections
+**Goal**: Chat/session RPC calls use the correct gateway method names so messages actually reach agents
+**Depends on**: Phase 75
+**Requirements**: RPC-01, RPC-02
+**Success Criteria** (what must be TRUE):
+  1. Fetching session history calls `chat.history` (not `sessions.history`) with sessionKey param
+  2. Sending a message calls `chat.send` with { sessionKey, message, deliver, idempotencyKey } params
+  3. Both calls return successful responses from the live gateway (not 404 or method-not-found errors)
+**Plans**: 1 plan
+Plans:
+- [ ] 77-01-PLAN.md -- Fix chat.history and chat.send RPC method names and params
+
+### Phase 78: Agent Method Verification
+**Goal**: Agent CRUD operations use verified protocol v3 method signatures
+**Depends on**: Phase 75
+**Requirements**: RPC-03, RPC-04
+**Success Criteria** (what must be TRUE):
+  1. `agents.list` call uses correct params and the response shape matches what the frontend expects
+  2. `agents.create`, `agents.update`, `agents.delete` use correct method names and param shapes per protocol
+  3. All four agent RPC calls succeed against the live gateway without method-not-found errors
+**Plans**: 1 plan
+Plans:
+- [ ] 78-01-PLAN.md -- Gateway agent CRUD proxy routes (agents.list/create/update/delete)
+
+### Phase 79: Cron Method Verification
+**Goal**: Cron CRUD operations use verified protocol v3 method names (cron.* not crons.*)
+**Depends on**: Phase 75
+**Requirements**: RPC-05
+**Success Criteria** (what must be TRUE):
+  1. Cron listing calls `cron.list` (not `crons.list`) and parses the response correctly
+  2. Cron create calls `cron.add` (not `crons.create`), update calls `cron.update`, delete calls `cron.remove`
+  3. All cron RPC calls succeed against the live gateway
+**Plans**: 1 plan
+Plans:
+- [ ] 79-01-PLAN.md -- Rewrite cron CRUD to use gateway WS RPC (cron.list/add/update/remove)
+
+### Phase 80: Models Method Verification
+**Goal**: Models listing uses verified method name and the frontend correctly renders the response shape
+**Depends on**: Phase 75
+**Requirements**: RPC-06
+**Success Criteria** (what must be TRUE):
+  1. `models.list` call succeeds against the live gateway
+  2. The response shape (model names, providers, capabilities) is correctly parsed by the frontend
+  3. Models tab renders real model data without "undefined" or missing fields
+**Plans**: 1 plan
+Plans:
+- [ ] 80-01-PLAN.md -- Gateway WS models.list route (replace HTTP proxy)
+
+### Phase 81: Usage Method Correction
+**Goal**: Usage data is fetched with the correct method names so token/cost tracking shows real numbers
+**Depends on**: Phase 75
+**Requirements**: RPC-07
+**Success Criteria** (what must be TRUE):
+  1. Usage data calls `usage.status` and/or `usage.cost` (not `usage.summary`)
+  2. The response shape (token counts, cost breakdowns) is correctly parsed by the frontend
+  3. Usage tab shows non-zero real data from the live gateway
+**Plans**: 1 plan
+Plans:
+- [ ] 81-01-PLAN.md -- Gateway WS usage.status and usage.cost routes (replace HTTP proxy)
+
+### Phase 82: Tools & Skills Method Verification
+**Goal**: Tools and skills listings use verified method names and response shapes
+**Depends on**: Phase 75
+**Requirements**: RPC-08
+**Success Criteria** (what must be TRUE):
+  1. Tools listing calls the correct gateway method and parses the response
+  2. Skills listing calls `skills.status` or `skills.bins` (verified correct method) and parses the response
+  3. Both tabs render real data from the live gateway without "undefined" or empty states when data exists
+**Plans**: 1 plan
+Plans:
+- [ ] 82-01-PLAN.md -- Gateway WS skills.status and skills.bins routes (replace HTTP proxies)
+
+### Phase 83: Activity Events Method Correction
+**Goal**: Activity data uses the correct gateway method or subscription pattern instead of the nonexistent activity.recent
+**Depends on**: Phase 75
+**Requirements**: RPC-09
+**Success Criteria** (what must be TRUE):
+  1. The code no longer calls `activity.recent` (this method does not exist in the protocol)
+  2. Activity data is sourced from a real gateway method (events.list, logs.tail, or event subscription)
+  3. The activity data structure matches what the frontend activity feed component expects
+**Plans**: 1 plan
+Plans:
+- [ ] 83-01-PLAN.md -- Replace activity.recent with logs.tail in gateway_activity handler
+
+### Phase 84: SSE Event Bus Wiring
+**Goal**: The SSE event bus delivers real gateway WebSocket events to the frontend instead of mock/assumed data
+**Depends on**: Phase 75, Phase 76
+**Requirements**: EVT-01
+**Success Criteria** (what must be TRUE):
+  1. Gateway WebSocket events (17 event types from protocol v3) are forwarded through the SSE event bus
+  2. Event names in SSE match the actual gateway event names (agent, chat, presence, cron, etc.)
+  3. Frontend event listeners receive events with correct payload shapes matching gateway protocol
+  4. SSE connection stays alive and delivers events in real-time (< 1s latency from gateway event to frontend)
+**Plans**: TBD
+
+### Phase 85: Agent Event Streaming
+**Goal**: Real-time agent status changes appear in the UI without polling
+**Depends on**: Phase 84
+**Requirements**: EVT-02
+**Success Criteria** (what must be TRUE):
+  1. When an agent starts/stops/errors on the gateway, the frontend receives the `agent` event via SSE
+  2. Agent status indicators update in real-time on the Agents tab
+  3. Agent status changes appear in the activity feed without page refresh
+**Plans**: TBD
+
+### Phase 86: Session Event Streaming
+**Goal**: Session lifecycle events (created, completed, error) appear in the UI in real-time
+**Depends on**: Phase 84
+**Requirements**: EVT-03
+**Success Criteria** (what must be TRUE):
+  1. When a session is created/completed/errors on the gateway, the frontend receives the `chat` event via SSE
+  2. Session status updates appear in the Sessions tab without polling
+  3. Session completion/error events trigger notification if the user has notifications enabled
+**Plans**: TBD
+
+### Phase 87: Live Agents Tab
+**Goal**: The Agents tab is fully functional against the live gateway with real agent data
+**Depends on**: Phase 78, Phase 85
+**Requirements**: LIVE-01
+**Success Criteria** (what must be TRUE):
+  1. Agents tab lists all agents from the live gateway (main, fast-agent, standard-agent, etc.)
+  2. Creating a new agent via the UI results in a real agent on the gateway
+  3. Editing an agent's config via the UI persists the change on the gateway
+  4. Deleting an agent via the UI removes it from the gateway
+  5. Agent status indicators reflect real-time state from gateway events
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 88: Live Crons Tab
+**Goal**: The Crons tab is fully functional against the live gateway with real scheduled task data
+**Depends on**: Phase 79, Phase 85
+**Requirements**: LIVE-02
+**Success Criteria** (what must be TRUE):
+  1. Crons tab lists all cron jobs from the live gateway
+  2. Creating a new cron job via the UI results in a real scheduled task on the gateway
+  3. Editing/toggling a cron job via the UI persists the change on the gateway
+  4. Deleting a cron job via the UI removes it from the gateway
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 89: Live Usage & Models Tabs
+**Goal**: Usage and Models tabs display real data from the live gateway
+**Depends on**: Phase 80, Phase 81
+**Requirements**: LIVE-03, LIVE-04
+**Success Criteria** (what must be TRUE):
+  1. Usage tab shows real token counts and cost data from the gateway
+  2. Usage charts render with actual historical data (not zeros or placeholders)
+  3. Models tab shows all available models from the gateway with correct provider labels
+  4. Model capabilities and context windows display correctly
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 90: Live Activity Feed
+**Goal**: The activity feed shows real events from the gateway, completing the live data verification
+**Depends on**: Phase 83, Phase 84, Phase 85, Phase 86
+**Requirements**: LIVE-05
+**Success Criteria** (what must be TRUE):
+  1. Activity feed widget displays real events sourced from the gateway
+  2. Events include agent actions, session completions, cron runs, and system events
+  3. New events appear in real-time via SSE without page refresh
+  4. Event timestamps and details match what the gateway reports
+**Plans**: TBD
+**UI hint**: yes
+
+## Progress
+
+**Execution Order:** Groups execute in order: AA -> AB -> AC -> AD. Phases within a group can run in parallel where dependencies allow.
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 75. Protocol v3 Handshake | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
+| 76. Reconnect with Backoff | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+| 77. Chat Method Corrections | v0.0.5 | 0/1 | Not started | - |
+| 78. Agent Method Verification | v0.0.5 | 0/1 | Planned    |  |
+| 79. Cron Method Verification | v0.0.5 | 0/1 | Planned    |  |
+| 80. Models Method Verification | v0.0.5 | 0/1 | Not started | - |
+| 81. Usage Method Correction | v0.0.5 | 0/1 | Not started | - |
+| 82. Tools & Skills Method Verification | v0.0.5 | 0/1 | Not started | - |
+| 83. Activity Events Method Correction | v0.0.5 | 0/1 | Not started | - |
+| 84. SSE Event Bus Wiring | v0.0.5 | 0/? | Not started | - |
+| 85. Agent Event Streaming | v0.0.5 | 0/? | Not started | - |
+| 86. Session Event Streaming | v0.0.5 | 0/? | Not started | - |
+| 87. Live Agents Tab | v0.0.5 | 0/? | Not started | - |
+| 88. Live Crons Tab | v0.0.5 | 0/? | Not started | - |
+| 89. Live Usage & Models Tabs | v0.0.5 | 0/? | Not started | - |
+| 90. Live Activity Feed | v0.0.5 | 0/? | Not started | - |
+
+<details>
+<summary>v0.0.4 -- Stabilize & Strip (19 phases) -- SHIPPED 2026-03-24</summary>
+
+**Group U: Dev Workflow Fixes** *(unblocks everything else)*
+- [x] **Phase 56: Browser Mode Auth Fix** - Fix browser mode auth to work without Tauri shell for development (completed 2026-03-24)
+- [x] **Phase 57: ffir Error Toast Fix** - Resolve persistent "ffir" binary reference error toast on every page load (completed 2026-03-24)
+
+**Group V: Backend Dead Code Audit & Strip** *(Rust compiler assists, source of truth)*
+- [x] **Phase 58: Audit #[allow(dead_code)] Annotations** - Audit all 13 annotations across 7 Rust files, remove or justify each (completed 2026-03-24)
+- [x] **Phase 59: Strip Unused Crate Dependencies** - Run cargo-machete and remove unused crates from Cargo.toml (completed 2026-03-24)
+- [x] **Phase 60: Strip Dead Route Modules** - Remove backend route modules with zero frontend consumers after audit (completed 2026-03-24)
+- [x] **Phase 61: Strip Nonexistent Gateway Methods** - Remove pause/resume routes that map to nothing in the gateway protocol (completed 2026-03-24)
+
+**Group W: Frontend Tooling Setup**
+- [x] **Phase 62: Configure knip for Dead Code Detection** - Set up knip v6 with entry points for lazy routes and widget registry (completed 2026-03-24)
+
+**Group X: Frontend Dead Code Strip** *(using knip results + manual audit)*
+- [x] **Phase 63: Strip noVNC Dependency** - Remove @novnc/novnc package and VncPreviewWidget.tsx (completed 2026-03-24)
+- [x] **Phase 64: Strip TipTap/Project Tracker Stubs** - Verified never scaffolded (completed 2026-03-24)
+- [x] **Phase 65: Strip Unused File Exports** - Remove all unused file exports detected by knip (completed 2026-03-24)
+- [x] **Phase 66: Strip Unused npm Dependencies** - Remove all unused npm dependencies detected by knip (completed 2026-03-24)
+- [x] **Phase 67: Strip Unused Imports** - Clean all unused imports via eslint-plugin-unused-imports (completed 2026-03-24)
+- [x] **Phase 68: Enable TypeScript Strict Flags** - Enable noUnusedLocals and noUnusedParameters, fix all violations (completed 2026-03-24)
+
+**Group Y: Test Coverage** *(after code is stable)*
+- [x] **Phase 69: OpenClaw Hook Tests** - Unit tests for useAgents, useCrons, useOpenClawStatus, useOpenClawModels (completed 2026-03-24)
+- [x] **Phase 70: Terminal Hook Tests** - Unit tests for useTerminal, useSessionOutput (completed 2026-03-24)
+- [x] **Phase 71: Gateway Integration Tests** - Integration tests for gateway status and health check paths (completed 2026-03-24)
+
+**Group Z: Final Verification** *(after everything else)*
+- [x] **Phase 72: Sidebar Module Smoke Test** - Verify every sidebar module loads without errors after cleanup (completed 2026-03-24)
+- [x] **Phase 73: Widget Render Smoke Test** - Verify all 29 widgets render without crashes after cleanup (completed 2026-03-24)
+- [x] **Phase 74: Full Route Audit** - Verify no 404s, blank pages, or infinite loaders across all routes (completed 2026-03-24)
+
+</details>
+
+<details>
+<summary>v0.0.3 -- AI Ops Center + OpenClaw Controller + Polish (55 phases) -- SHIPPED 2026-03-24</summary>
+
+**Group A: Bug Verification** *(code-reviewed, verified)*
+- [x] **Phase 1: Verify Widget Resize Fix** - Confirm widget resize handles work across all widget types *(verified 2026-03-23)*
+- [x] **Phase 2: Verify Page Layout Fix** - Confirm full-bleed and scrolling pages work at all viewport sizes *(verified 2026-03-23)*
+- [x] **Phase 3: Verify Widget Tab-Switch Fix** - Confirm widgets persist across page/tab navigation *(verified 2026-03-23)*
+- [x] **Phase 4: Verify Widget Picker UX Fixes** - Confirm duplicates, animations, preset feedback, delete dialog *(verified 2026-03-23)*
 
 **Group B: Infrastructure**
 - [x] **Phase 5: Set CI Bundle Budget** - CI check failing if any chunk >400KB or total >5MB *(completed 2026-03-22)*
 
 **Group C: Theme Blend**
-- [x] **Phase 6: Theme Blend -- OKLCH Helpers** - Color interpolation utilities with unit tests *(completed 2026-03-22)*
-- [x] **Phase 7: Theme Blend -- Interpolation Engine** - Working theme interpolation with WCAG contrast enforcement *(completed 2026-03-22)*
-- [x] **Phase 8: Theme Blend -- Slider UI + Persistence** - User-facing slider that blends dark/light themes in real-time *(completed 2026-03-22)*
+- [x] **Phase 6: Theme Blend -- OKLCH Helpers** *(completed 2026-03-22)*
+- [x] **Phase 7: Theme Blend -- Interpolation Engine** *(completed 2026-03-22)*
+- [x] **Phase 8: Theme Blend -- Slider UI + Persistence** *(completed 2026-03-22)*
 
 **Group D: OpenClaw Controller**
-- [x] **Phase 9: OpenClaw Gateway Proxy Helper** - Reusable proxy function with credential protection and error sanitization *(completed 2026-03-22)*
-- [x] **Phase 10: OpenClaw Agent Management** - Beautiful agents tab with right-panel settings editor (note-style) *(completed 2026-03-22)*
-- [x] **Phase 11: OpenClaw Agent Calendar** - Cron schedules displayed as a calendar view under agents *(completed 2026-03-22)*
-- [x] **Phase 12: OpenClaw Usage + Models + Controller Page** - Usage dashboard, model listing, tool registry, unified page shell *(completed 2026-03-22)*
+- [x] **Phase 9: OpenClaw Gateway Proxy Helper** *(completed 2026-03-22)*
+- [x] **Phase 10: OpenClaw Agent Management** *(completed 2026-03-22)*
+- [x] **Phase 11: OpenClaw Agent Calendar** *(completed 2026-03-22)*
+- [x] **Phase 12: OpenClaw Usage + Models + Controller Page** *(completed 2026-03-22)*
 
 **Group E: Terminal**
-- [ ] **Phase 13: Terminal PTY Backend** - portable-pty + WebSocket relay + process group cleanup
-- [ ] **Phase 14: Terminal Frontend (xterm.js)** - Terminal component with resize, copy/paste, scrollback, theme integration
+- [x] **Phase 13: Terminal PTY Backend** *(completed 2026-03-23)*
+- [x] **Phase 14: Terminal Frontend (xterm.js)** *(completed 2026-03-23)*
 
 **Group F: AI Ops Center**
-- [ ] **Phase 15: Claude Code Session Backend** - Rust backend for spawning/managing Claude Code sessions via SDK/CLI
-- [ ] **Phase 16: Session Monitor Frontend** - Live dashboard showing active sessions, their status, output, and controls
-- [ ] **Phase 17: Remote VM Viewer** - Embedded noVNC/Moonlight for watching the OpenClaw VM desktop
+- [x] **Phase 15: Claude Code Session Backend** *(completed 2026-03-23)*
+- [x] **Phase 16: Session Monitor Frontend** *(completed 2026-03-23)*
+- [x] **Phase 17: Remote VM Viewer** *(completed 2026-03-23)*
 
 **Group G: Integration + Polish**
-- [ ] **Phase 18: Widget Registry + Sidebar Module Integration** - Register all new features as widgets and sidebar modules
-- [ ] **Phase 19: Final Verification + Bundle Audit** - End-to-end verification, bundle audit, contrast check, integration test
+- [x] **Phase 18: Widget Registry + Sidebar Module Integration** *(completed 2026-03-23)*
+- [x] **Phase 19: Final Verification + Bundle Audit** *(completed 2026-03-23)*
 
-## Phase Details
+**Group H: Post-Ship Bug Fixes**
+- [x] **Phase 19.1: Post-Ship Bug Fixes** *(verified 2026-03-23)*
 
-### Phase 1: Verify Widget Resize Fix
-**Goal**: Confirmed widget resize works across all widget types in dev and production
-**Depends on**: Nothing (first phase)
-**Requirements**: MH-01
-**Success Criteria** (what must be TRUE):
-  1. User can drag any widget resize handle and the widget resizes smoothly
-  2. Resize handles are not occluded by other widgets (z-index correct)
-  3. Resize works in both development and production builds
-**Plans**: TBD
+**Group I: Critical Bug Fixes**
+- [x] **Phase 20-24** *(committed 2026-03-23)*
 
-### Phase 2: Verify Page Layout Fix
-**Goal**: Confirmed full-bleed and scrolling pages work correctly at all viewport sizes
-**Depends on**: Nothing (parallel with Phase 1)
-**Requirements**: MH-02
-**Success Criteria** (what must be TRUE):
-  1. Full-bleed pages (Messages, Settings) fill the entire main area with no gaps
-  2. Scrolling pages (Personal, Dashboard) scroll correctly with proper padding
-  3. Layout works at viewport widths from 800px to 3840px
-**Plans**: TBD
+**Group J-T: Gateway, Sessions, Tabs, Approvals, Skills, Monitoring, Memory, Models, Remote Desktop, Dashboard, Notes**
+- [x] **Phases 25-55** *(committed 2026-03-23 to 2026-03-24)*
 
-### Phase 3: Verify Widget Tab-Switch Fix
-**Goal**: Confirmed widgets persist across page/tab navigation without disappearing
-**Depends on**: Nothing (parallel with Phase 1)
-**Requirements**: MH-03
-**Success Criteria** (what must be TRUE):
-  1. User navigates away from Dashboard and back -- all widgets remain
-  2. Widget state (expanded/collapsed, scroll position) preserved across navigation
-  3. Works across all navigation methods (sidebar click, keyboard shortcut, back button)
-**Plans**: TBD
-
-### Phase 4: Verify Widget Picker UX Fixes
-**Goal**: Confirmed widget picker works as designed with all recent UX improvements
-**Depends on**: Nothing (parallel with Phase 1)
-**Requirements**: MH-04
-**Success Criteria** (what must be TRUE):
-  1. User can add the same widget type multiple times (duplicates allowed)
-  2. Widgets animate into place when added
-  3. Preset apply shows visual feedback (toast or highlight)
-  4. Delete widget shows confirmation dialog before removing
-**Plans**: TBD
-
-### Phase 5: Set CI Bundle Budget
-**Goal**: CI enforcement preventing bundle size regression before any new packages are added
-**Depends on**: Nothing (parallel with Group A)
-**Requirements**: MH-20
-**Success Criteria** (what must be TRUE):
-  1. CI pipeline includes a bundle size check step
-  2. Build fails if any single JS chunk exceeds 400KB uncompressed
-  3. Build fails if total JS bundle exceeds 5MB uncompressed
-**Plans:** 1 plan
-Plans:
-- [x] 05-01-PLAN.md -- Bundle size check script + CI/pre-commit integration
-
-### Phase 6: Theme Blend -- OKLCH Helpers
-**Goal**: Pure color interpolation utility functions ready for the theme blend engine
-**Depends on**: Nothing (parallel with other Group C phases)
-**Requirements**: MH-09
-**Success Criteria** (what must be TRUE):
-  1. `hexToOklch()` correctly converts hex colors to OKLCH
-  2. `oklchToHex()` correctly converts OKLCH back to hex
-  3. `interpolateHexOklch()` blends two hex colors in OKLCH space
-  4. Round-trip hex -> OKLCH -> hex produces the same color (within 1 unit tolerance)
-  5. Unit tests cover edge cases (black, white, pure colors, transparent)
-Plans:
-- [x] 06-01-PLAN.md -- OKLCH color utilities with TDD
-
-### Phase 7: Theme Blend -- Interpolation Engine
-**Goal**: Working theme interpolation with automatic text color switching and WCAG contrast enforcement
-**Depends on**: Phase 6
-**Requirements**: MH-10
-**Success Criteria** (what must be TRUE):
-  1. `interpolateThemes()` blends all Tier 1 CSS variables between dark and light theme values
-  2. Accent colors (Tier 2) are NOT blended -- they remain as the user chose
-  3. Text color switches from light to dark based on background OKLCH lightness (not slider position)
-  4. Every text/background pair meets WCAG AA contrast ratio (4.5:1) at every blend position
-**Plans:** 1 plan
-Plans:
-- [ ] 07-01-PLAN.md -- TDD interpolation engine with WCAG contrast enforcement + applyTheme wiring
-
-### Phase 8: Theme Blend -- Slider UI + Persistence
-**Goal**: User-facing slider that blends between dark and light themes in real-time
-**Depends on**: Phase 7
-**Requirements**: MH-11
-**Success Criteria** (what must be TRUE):
-  1. Slider appears in Settings > Display with 0% (dark) to 100% (light) range
-  2. Dragging the slider updates the theme in real-time (RAF-throttled)
-  3. Blend position persists across app restarts (localStorage + Supabase sync)
-  4. System theme mode interaction: switching to "System" resets the slider appropriately
-**Plans:** 1 plan
-Plans:
-- [ ] 08-01-PLAN.md -- setBlendPosition store function + Theme Blend slider UI in SettingsDisplay
-
-### Phase 9: OpenClaw Gateway Proxy Helper
-**Goal**: Security-critical proxy foundation that all OpenClaw CRUD routes build on
-**Depends on**: Nothing (parallel with other Group D phases)
-**Requirements**: MH-05
-**Success Criteria** (what must be TRUE):
-  1. `gateway_forward()` function proxies requests to OPENCLAW_API_URL with API key
-  2. Error responses are sanitized -- no API keys, internal paths, or stack traces leak to frontend
-  3. All path parameters validated with `validate_uuid()` before URL construction
-  4. Returns "OpenClaw API not configured" when OPENCLAW_API_URL is not set
-**Plans:** 1 plan
-Plans:
-- [x] 09-01-PLAN.md -- gateway_forward() proxy + error sanitization + health route + wiring
-
-### Phase 10: OpenClaw Agent Management
-**Goal**: Beautiful agents tab with polished cards and a right-side settings panel (note-editor style)
-**Depends on**: Phase 9
-**Requirements**: MH-06
-**Success Criteria** (what must be TRUE):
-  1. Agents tab shows agent cards in a polished grid/list layout
-  2. Clicking an agent's settings opens a right-side detail panel (like notes editor pattern)
-  3. Settings panel shows all agent configuration: name, model, role, status, memory
-  4. User can start, stop, restart agents from the card or settings panel
-  5. User can create new agents and delete existing ones (with confirmation)
-  6. UI updates optimistically with rollback on error
-**Plans:** 2 plans
-Plans:
-- [x] 10-01-PLAN.md -- Backend POST/DELETE/lifecycle endpoints + Agent type update
-- [x] 10-02-PLAN.md -- useAgents hook + split-pane page layout + detail panel + confirmation dialog
-
-### Phase 11: OpenClaw Agent Calendar
-**Goal**: Cron CRUD with schedule presets, toggle, and delete -- wired into existing calendar page
-**Depends on**: Phase 9
-**Requirements**: MH-07
-**Success Criteria** (what must be TRUE):
-  1. Calendar view shows cron job schedules visually (week/month view)
-  2. User can create a cron job with a schedule picked from the calendar UI
-  3. User can toggle a cron job enabled/disabled
-  4. User can click a calendar entry to edit its command and schedule
-  5. User can delete a cron job (with confirmation)
-**Plans:** 2 plans
-Plans:
-- [ ] 11-01-PLAN.md -- Backend crons.rs CRUD routes + useCrons hook + query key
-- [ ] 11-02-PLAN.md -- CronFormModal + JobList enhancements + CronJobs page wiring + clickable calendar
-
-### Phase 12: OpenClaw Usage + Models + Controller Page
-**Goal**: Unified OpenClaw page with tabs for all management features plus read-only dashboards
-**Depends on**: Phases 10, 11
-**Requirements**: MH-08
-**Success Criteria** (what must be TRUE):
-  1. OpenClawPage.tsx has tab navigation: Agents, Crons, Usage, Models, Tools
-  2. Usage tab shows token counts, cost, and model usage with chart widgets
-  3. Models tab lists available models with configuration details
-  4. Tools tab shows the tool registry
-  5. Page polls at 30s minimum, only when the page is active
-**Plans:** 2 plans
-Plans:
-- [x] 12-01-PLAN.md -- Backend proxy routes (usage/models/tools) + frontend types + hooks + query keys
-- [ ] 12-02-PLAN.md -- OpenClawPage tab shell + Usage/Models/Tools tab components + route/nav/module wiring
-
-### Phase 13: Terminal PTY Backend
-**Goal**: Secure PTY spawning with WebSocket relay and robust process lifecycle management
-**Depends on**: Nothing (can start after Group A)
-**Requirements**: MH-21
-**Research**: YES -- portable-pty API, PTY process group management cross-platform
-**Success Criteria** (what must be TRUE):
-  1. `/api/terminal/ws` WebSocket endpoint spawns a PTY with the user's default shell
-  2. Max 3 concurrent PTY sessions enforced via CAS guard
-  3. Opening and closing 100 terminals leaves zero orphaned processes (process group kill)
-  4. PTY environment is sanitized: no `MC_*`, `OPENCLAW_*`, `COUCHDB_*`, `SUPABASE_*` variables
-  5. Correct shell detected per platform (bash/zsh on Linux/macOS, PowerShell on Windows)
-**Plans:** 1 plan
-Plans:
-- [ ] 13-01-PLAN.md -- portable-pty dependency + terminal.rs (CAS guard, env sanitization, PTY relay, process group cleanup) + route registration
-
-### Phase 14: Terminal Frontend (xterm.js)
-**Goal**: Working terminal component integrated with the app's theme and widget system
-**Depends on**: Phase 13
-**Requirements**: MH-22
-**Success Criteria** (what must be TRUE):
-  1. Terminal renders in a widget with full ANSI color support
-  2. Terminal resizes correctly when widget is resized (fit addon + ResizeObserver)
-  3. Copy/paste works (Ctrl+Shift+C/V, not Ctrl+C which is SIGINT)
-  4. Scrollback buffer allows scrolling through previous output
-  5. Terminal font uses the app's monospace CSS variable
-**Plans**: TBD
-
-### Phase 15: Claude Code Session Backend
-**Goal**: Rust backend for monitoring and controlling Gunther (Claude Code) sessions running on the OpenClaw VM
-**Depends on**: Phase 9 (reuses OpenClaw gateway proxy)
-**Requirements**: MH-25
-**Research**: YES -- OpenClaw session management API, Gunther session lifecycle, output streaming
-**Success Criteria** (what must be TRUE):
-  1. `/api/claude-sessions` REST endpoints proxy to OpenClaw VM session management (list, get, create, kill)
-  2. `/api/claude-sessions/:id/ws` WebSocket endpoint streams live Gunther session output from OpenClaw VM
-  3. Session metadata surfaced: task description, status (running/paused/completed/failed), duration, model, working directory
-  4. Create endpoint can dispatch new tasks to Gunther via OpenClaw API
-  5. Kill endpoint gracefully terminates sessions on the remote VM
-  6. All requests proxied through gateway_forward() with credential protection
-**Plans**: TBD
-
-### Phase 16: Session Monitor Frontend
-**Goal**: Live dashboard showing all active Claude Code sessions with real-time status and output
-**Depends on**: Phase 15
-**Requirements**: MH-26
-**Success Criteria** (what must be TRUE):
-  1. Sessions page shows all active/recent Claude Code sessions in a list/grid
-  2. Each session card shows: task description, status (running/paused/completed/failed), duration, model
-  3. Clicking a session opens a live terminal-style output viewer (reuses xterm.js from Phase 14)
-  4. User can spawn a new session with a task prompt and optional working directory
-  5. User can pause, resume, or kill a running session
-  6. Session list auto-updates via WebSocket (no polling)
-**Plans**: TBD
-
-### Phase 17: Remote VM Viewer
-**Goal**: Embedded remote desktop viewer for watching the OpenClaw VM directly in the app
-**Depends on**: Nothing (parallel with Group F)
-**Requirements**: MH-27
-**Research**: YES -- noVNC WebSocket proxy, Moonlight/Sunshine protocol, Tailscale connectivity
-**Success Criteria** (what must be TRUE):
-  1. VNC viewer component renders the OpenClaw VM desktop in an app panel/widget
-  2. Connects via Tailscale IP to a VNC server (TigerVNC/x11vnc) on the VM
-  3. WebSocket proxy in Axum relays VNC traffic (no direct browser-to-VM connection)
-  4. Viewer supports: mouse input, keyboard input, clipboard sync, scaling
-  5. Connection status indicator shows connected/disconnected/reconnecting
-  6. Optional Moonlight/Sunshine integration for low-latency GPU-accelerated streaming
-**Plans**: TBD
-
-### Phase 18: Widget Registry + Sidebar Module Integration
-**Goal**: All new features accessible from sidebar navigation and widget picker
-**Depends on**: Phases 12, 14, 16, 17
-**Requirements**: MH-23
-**Success Criteria** (what must be TRUE):
-  1. Terminal widget appears in Widget Picker under a "Developer" category
-  2. Session Monitor widget appears in Widget Picker under "AI Ops"
-  3. VNC Viewer widget appears in Widget Picker under "AI Ops"
-  4. OpenClaw page accessible from sidebar with `requiresConfig` warning when unconfigured
-  5. Sessions page accessible from sidebar
-  6. All new widgets are lazy-loaded via React.lazy
-**Plans**: TBD
-
-### Phase 19: Final Verification + Bundle Audit
-**Goal**: Verified v0.0.3 release candidate with no regressions
-**Depends on**: All previous phases
-**Requirements**: MH-24
-**Success Criteria** (what must be TRUE):
-  1. All features work together without conflicts
-  2. Bundle stays under 5MB (CI budget passes)
-  3. Theme slider produces readable text at every position (automated WCAG check)
-  4. No regressions in existing tests (frontend + Rust + E2E)
-  5. Claude Code session management works end-to-end
-  6. VNC viewer connects and renders the VM desktop
-**Plans**: TBD
-
-## Progress
-
-**Execution Order:** Phases within a group can run in parallel. Groups execute in order: A -> B -> C -> D -> E -> F -> G.
-
-| Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
-| 1. Verify Widget Resize Fix | v0.0.3 | 0/? | Not started | - |
-| 2. Verify Page Layout Fix | v0.0.3 | 0/? | Not started | - |
-| 3. Verify Widget Tab-Switch Fix | v0.0.3 | 0/? | Not started | - |
-| 4. Verify Widget Picker UX Fixes | v0.0.3 | 0/? | Not started | - |
-| 5. Set CI Bundle Budget | v0.0.3 | 1/1 | Complete | 2026-03-22 |
-| 6. Theme Blend -- OKLCH Helpers | v0.0.3 | 1/1 | Complete | 2026-03-22 |
-| 7. Theme Blend -- Interpolation Engine | v0.0.3 | 0/1 | Not started | - |
-| 8. Theme Blend -- Slider UI + Persistence | v0.0.3 | 0/1 | Not started | - |
-| 9. OpenClaw Gateway Proxy Helper | v0.0.3 | 1/1 | Complete | 2026-03-22 |
-| 10. OpenClaw Agent CRUD | v0.0.3 | 2/2 | Complete    | 2026-03-22 |
-| 11. OpenClaw Cron CRUD | v0.0.3 | 0/2 | Complete    | 2026-03-22 |
-| 12. OpenClaw Usage + Models + Controller Page | v0.0.3 | 1/2 | Complete    | 2026-03-22 |
-| 13. Terminal PTY Backend | v0.0.3 | 0/1 | Not started | - |
-| 14. Terminal Frontend (xterm.js) | v0.0.3 | 0/? | Not started | - |
-| 15. Claude Code Session Backend | v0.0.3 | 0/? | Not started | - |
-| 16. Session Monitor Frontend | v0.0.3 | 0/? | Not started | - |
-| 17. Remote VM Viewer | v0.0.3 | 0/? | Not started | - |
-| 18. Widget Registry + Sidebar Integration | v0.0.3 | 0/? | Not started | - |
-| 19. Final Verification + Bundle Audit | v0.0.3 | 0/? | Not started | - |
-
-<details>
-<summary>Deferred from v0.0.3 to v0.0.4</summary>
-
-- Supabase Migration for Projects (was Phase 6)
-- Install TipTap Packages (was Phase 7)
-- Project Tracker Backend + API (was Phase 15)
-- Project Tracker Frontend + Kanban Board (was Phase 16)
-- TipTap Markdown Roundtrip Test Suite (was Phase 17)
-- TipTap Custom Extensions (Wikilinks + Image Embeds) (was Phase 18)
-- TipTap Editor Migration (was Phase 19)
-- TipTap Polish (Slash Commands + Floating Toolbar + Tables) (was Phase 20)
-- Remove CodeMirror Packages (was Phase 21)
+**Total:** 55 phases -- all complete
 
 </details>
 
@@ -346,25 +351,6 @@ Plans:
 
 </details>
 
-<details>
-<summary>v1.0 (Phases 1-8 + 3 decimal insertions) -- SHIPPED 2026-03-21</summary>
-
-- [x] Phase 1: Responsive Layout Shell + Visual Polish (5/5 plans)
-- [x] Phase 2: Theming System (7/7 plans)
-- [x] Phase 2.1: Theme Settings Page Polish + System Mode Fix (4/4 plans)
-- [x] Phase 2.2: Theme System Mode Fixes (2/2 plans)
-- [x] Phase 3: Setup Wizard + Onboarding (7/7 plans)
-- [x] Phase 4: Dashboard Grid + Widget System (6/6 plans)
-- [x] Phase 4.1: Wallbash GTK System Mode Integration Fix (2/2 plans)
-- [x] Phase 5: Page Experience (3/3 plans)
-- [x] Phase 6: Module Primitives Library (7/7 plans)
-- [x] Phase 7: Bjorn Module Builder (7/7 plans)
-- [x] Phase 8: Data Export (2/2 plans)
-
-**Total:** 11 phases, 52 plans, 92 requirements -- all complete
-
-</details>
-
 ---
 *Roadmap created: 2026-03-19*
-*Last updated: 2026-03-22*
+*Last updated: 2026-03-24*

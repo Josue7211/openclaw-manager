@@ -1,163 +1,93 @@
-# Requirements: v0.0.3 -- AI Ops Center + OpenClaw Controller + Polish
+# Requirements: OpenClaw Manager
 
-**Created:** 2026-03-22
-**Updated:** 2026-03-22
-**Source:** Research (SUMMARY.md, FEATURES.md, ARCHITECTURE.md, PITFALLS.md) + user vision session
+**Defined:** 2026-03-24
+**Core Value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
 
-## Must-Have (MH)
+## v0.0.5 Requirements
 
-### MH-01: Verify Widget Resize Fix
-The z-index fix for widget resize handles applied in v0.0.2 must be verified working across all widget types in both dev and production builds. Drag-resize must work on every registered widget.
-**Success:** User can drag any widget resize handle and the widget resizes smoothly without z-index occlusion.
+Requirements for gateway protocol integration milestone. Each maps to roadmap phases.
 
-### MH-02: Verify Page Layout Fix
-Pages filling screen width was fixed in v0.0.2. Verify full-bleed pages (Messages, Settings) and scrolling pages (Personal, Dashboard) work correctly at all viewport sizes.
-**Success:** Every page fills its available width; no horizontal gaps or overflow. Scrolling pages scroll correctly.
+### Gateway Connection
 
-### MH-03: Verify Widget Tab-Switch Fix
-Widget disappearance on tab/page switch was fixed via memo dependency corrections. Verify widgets persist across all navigation paths.
-**Success:** User navigates away from Dashboard and back; all widgets remain in place with correct state.
+- [x] **GW-01**: Connect handshake uses protocol v3 with role/scopes/client metadata (not empty JSON)
+- [x] **GW-02**: Device identity sent in handshake (device_id, platform, app_version)
+- [x] **GW-03**: Gateway WebSocket reconnects automatically with exponential backoff on disconnect
 
-### MH-04: Verify Widget Picker UX Fixes
-Widget picker changes (duplicates allowed, entry animations, preset feedback, delete confirmation dialog) must be verified end-to-end.
-**Success:** User can add duplicate widgets, sees animations on add, gets visual feedback on preset apply, and sees a confirmation dialog before deleting widgets.
+### RPC Method Corrections
 
-### MH-05: OpenClaw Gateway Proxy Helper
-Build the `gateway_forward()` helper in `gateway.rs` with credential protection, error sanitization, and input validation. All OpenClaw CRUD routes depend on this.
-**Success:** A single reusable function proxies requests to the OpenClaw gateway. Error responses never contain API keys, internal paths, or stack traces. All path parameters are validated.
+- [ ] **RPC-01**: sessions.history -> chat.history (correct method name)
+- [ ] **RPC-02**: sessions.create -> chat.send with proper message format
+- [x] **RPC-03**: agents.list -> agents.list (verify params match protocol)
+- [x] **RPC-04**: agents.create/update/delete -> verify CRUD method signatures
+- [x] **RPC-05**: crons.list/create/update/delete -> verify CRUD method signatures
+- [ ] **RPC-06**: models.list -> models.list (verify response shape)
+- [ ] **RPC-07**: usage.summary -> usage.get (correct method name and params)
+- [ ] **RPC-08**: tools.list/skills.list -> verify method names and response shapes
+- [ ] **RPC-09**: activity.recent -> events.list or subscribe pattern (verify correct approach)
 
-### MH-06: OpenClaw Agent CRUD
-Full create/update/delete for agents plus lifecycle controls (start, stop, restart). Proxied through the gateway helper.
-**Success:** User can create a new agent, edit its name/model/role, start/stop it, and delete it from the OpenClaw Controller page. Optimistic UI updates with rollback on error.
+### Event Bus
 
-### MH-07: OpenClaw Cron CRUD
-Full create/update/delete for cron jobs with a human-readable schedule editor and enable/disable toggle.
-**Success:** User can create a cron job with a schedule picked from a UI (not raw crontab syntax), toggle it on/off, edit its command, and delete it.
+- [ ] **EVT-01**: SSE event bus wired to actual gateway WebSocket events (not mock data)
+- [ ] **EVT-02**: Real-time agent status updates surfaced via SSE when gateway sends agent.* events
+- [ ] **EVT-03**: Session events (created, completed, error) surfaced via SSE
 
-### MH-08: OpenClaw Usage + Models + Controller Page
-Read-only usage dashboard (token counts, cost, model usage), model listing, tool registry, and the unified OpenClawPage.tsx shell with tab navigation.
-**Success:** User navigates to the OpenClaw page and sees tabs for Agents, Crons, Usage, Models, and Tools. Usage data displays with charts. Page only polls when active (30s minimum interval).
+### Live Data Verification
 
-### MH-09: Theme Blend OKLCH Helpers
-Add `hexToOklch()`, `oklchToHex()`, and `interpolateHexOklch()` utility functions to the theme system. Pure functions with unit tests.
-**Success:** Unit tests pass for color conversions. Round-trip hex -> OKLCH -> hex produces the same color (within rounding tolerance).
+- [ ] **LIVE-01**: Agents tab shows real agents from gateway with correct CRUD operations
+- [ ] **LIVE-02**: Crons tab shows real scheduled tasks with correct CRUD operations
+- [ ] **LIVE-03**: Usage tab shows real token/cost data from gateway
+- [ ] **LIVE-04**: Models tab shows real available models from gateway
+- [ ] **LIVE-05**: Activity feed shows real events from gateway (not assumed shapes)
 
-### MH-10: Theme Blend Interpolation Engine
-Add `interpolateThemes()` to theme-engine.ts. Text color switches based on background lightness (not slider position). WCAG AA contrast enforced at every position.
-**Success:** Programmatically setting blendPosition produces correctly interpolated CSS variables. Text remains readable (WCAG AA 4.5:1) at every slider position including mid-range.
+## Future Requirements
 
-### MH-11: Theme Blend Slider UI + Persistence
-Add slider to SettingsDisplay.tsx with real-time preview. Blend position persisted in ThemeState (localStorage + Supabase sync).
-**Success:** User drags a slider from dark to light and sees the theme blend in real-time. Position survives app restart. System theme mode interaction works correctly.
+### Sessions & Chat (v0.0.6)
 
-### MH-20: CI Bundle Budget
-Add a CI check that fails if any JS chunk exceeds 400KB or total bundle exceeds 5MB uncompressed.
-**Success:** CI pipeline includes a bundle size check. A PR that adds a 500KB chunk fails CI.
+- **CHAT-01**: Sessions CRUD with proper chat.send/history/abort methods
+- **CHAT-02**: Live streaming chat responses via WebSocket
+- **CHAT-03**: Model selection per session
 
-### MH-21: Terminal PTY Backend
-Build terminal.rs with portable-pty for local PTY spawning, WebSocket relay, CAS connection guard (max 3 sessions), process group cleanup.
-**Success:** `/api/terminal/ws` WebSocket endpoint spawns a PTY. Opening and closing 100 terminals leaves zero orphaned processes. Environment is sanitized (no `MC_*` or `OPENCLAW_*` vars in PTY).
+## Out of Scope
 
-### MH-22: Terminal Frontend (xterm.js)
-xterm.js component with WebSocket connection, fit addon for resize, theme integration, copy/paste, scrollback.
-**Success:** User opens a terminal widget and gets a working shell. Terminal resizes when the widget resizes. Copy/paste works (Ctrl+Shift+C/V). Colors match the current theme.
-
-### MH-23: Widget Registry + Sidebar Module Integration
-Register Terminal, Session Monitor, and VNC Viewer as widgets. Add OpenClaw, Sessions, and VM Viewer to sidebar modules. Wire Settings connections for OpenClaw.
-**Success:** Terminal, Session Monitor, and VNC widgets appear in Widget Picker. OpenClaw, Sessions pages are accessible from sidebar. OpenClaw module shows `requiresConfig` warning when API URL is not set.
-
-### MH-24: Final Verification + Bundle Audit
-End-to-end verification of all features together. Bundle size audit. Theme slider contrast check across all positions. Cross-feature integration test.
-**Success:** All features work together without conflicts. Bundle stays under 5MB. Theme slider produces readable text at every position. No regressions in existing features.
-
-### MH-25: Claude Code Session Backend
-Rust backend for monitoring and controlling Gunther (Claude Code) sessions on the OpenClaw VM. Proxies to OpenClaw's session management API via gateway_forward(). WebSocket relay for real-time session output streaming. Session lifecycle management (list, get, create, kill). Gunther is already part of the architecture — this surfaces existing sessions in the MC UI.
-**Success:** User can see all active Gunther sessions, dispatch new tasks, and stream live output. Sessions proxied through the OpenClaw gateway with credential protection.
-
-### MH-26: Session Monitor Frontend
-Live dashboard showing all active Claude Code sessions with real-time status. Each session shows: task description, status (running/paused/completed/failed), duration, model. Live terminal-style output viewer per session (reuses xterm.js). Session controls: spawn, pause, resume, kill.
-**Success:** User can see all active sessions, click into one to view its live output, spawn new sessions, and manage lifecycle from the UI. Auto-updates via WebSocket.
-
-### MH-27: Remote VM Viewer
-Embedded remote desktop viewer for watching the OpenClaw VM. noVNC WebSocket proxy in Axum relays VNC traffic. Supports mouse/keyboard input, clipboard sync, and scaling. Optional Moonlight/Sunshine integration for low-latency GPU-accelerated streaming.
-**Success:** User can view the OpenClaw VM desktop directly in the app without switching to a separate VNC client. Connects via Tailscale.
-
-## Should-Have (SH)
-
-### SH-01: Agent Memory Browser
-View, edit, and clear agent RAG memory context from the OpenClaw Controller page.
-**Success:** User selects an agent and sees its memory entries. User can add, edit, or clear memory entries.
-
-## Nice-to-Have (NH)
-
-### NH-01: Full-Text Note Search
-Search inside note content, not just titles. Backend endpoint over CouchDB content with relevance ranking.
-**Success:** User types a search query and sees notes ranked by content relevance, with matching snippets highlighted.
-
-### NH-02: Version History
-View revision history for a note using CouchDB revisions. Diff view showing changes between versions.
-**Success:** User opens a note's history and sees a list of revisions with timestamps. Selecting two revisions shows a diff.
-
-## Deferred to v0.0.4
-
-### Project Tracker (MH-12, MH-13, MH-14)
-- Supabase migration for projects, project_columns, project_items tables
-- Backend API for project CRUD (boards, columns, items, drag reorder)
-- Frontend kanban board with drag-and-drop and Realtime sync
-
-### TipTap Editor (SH-04, MH-15, MH-16, MH-17, MH-18, MH-19)
-- Install TipTap packages + Vite chunk config
-- Markdown roundtrip test suite (safety gate)
-- Custom extensions (wikilinks, image embeds)
-- Editor migration (CodeMirror -> TipTap)
-- Polish (slash commands, floating toolbar, tables)
-- Remove CodeMirror packages
-
-### Advanced Notes (SH-02, SH-03)
-- Note templates (meeting notes, daily journal, retro)
-- Extended slash commands (/callout, /embed, /image, /task-list)
-
-## Out of Scope (v0.0.3)
-
-- Real-time collaboration on notes (Yjs + Hocuspocus -- massive scope, defer to v0.0.4+)
-- Obsidian plugin compatibility (different paradigm)
-- Full SSH client / multi-gateway support (scope creep)
-- Agent code editor (security risk, remote file sync complexity)
-- Gantt charts, sprints, time tracking on kanban cards
-- Terminal multiplexer (tmux-like splits)
+| Feature | Reason |
+|---------|--------|
+| New UI pages or widgets | Protocol integration only -- no new features |
+| Terminal or remote desktop changes | Working from v0.0.3, untouched |
+| Notes/calendar/messages changes | Working from v0.0.1, untouched |
+| Multi-user support | Single-user app |
 
 ## Traceability
 
+Which phases cover which requirements. Updated during roadmap creation.
+
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MH-01 | Phase 1 | Pending |
-| MH-02 | Phase 2 | Pending |
-| MH-03 | Phase 3 | Pending |
-| MH-04 | Phase 4 | Pending |
-| MH-05 | Phase 9 | Complete |
-| MH-06 | Phase 10 | Complete |
-| MH-07 | Phase 11 | Complete |
-| MH-08 | Phase 12 | Complete |
-| MH-09 | Phase 6 | Complete |
-| MH-10 | Phase 7 | Complete |
-| MH-11 | Phase 8 | Complete |
-| MH-20 | Phase 5 | Complete |
-| MH-21 | Phase 13 | Pending |
-| MH-22 | Phase 14 | Pending |
-| MH-23 | Phase 18 | Pending |
-| MH-24 | Phase 19 | Pending |
-| MH-25 | Phase 15 | Pending |
-| MH-26 | Phase 16 | Pending |
-| MH-27 | Phase 17 | Pending |
-| SH-01 | Phase 12 | Pending |
+| GW-01 | Phase 75 | Complete |
+| GW-02 | Phase 75 | Complete |
+| GW-03 | Phase 76 | Complete |
+| RPC-01 | Phase 77 | Pending |
+| RPC-02 | Phase 77 | Pending |
+| RPC-03 | Phase 78 | Complete |
+| RPC-04 | Phase 78 | Complete |
+| RPC-05 | Phase 79 | Complete |
+| RPC-06 | Phase 80 | Pending |
+| RPC-07 | Phase 81 | Pending |
+| RPC-08 | Phase 82 | Pending |
+| RPC-09 | Phase 83 | Pending |
+| EVT-01 | Phase 84 | Pending |
+| EVT-02 | Phase 85 | Pending |
+| EVT-03 | Phase 86 | Pending |
+| LIVE-01 | Phase 87 | Pending |
+| LIVE-02 | Phase 88 | Pending |
+| LIVE-03 | Phase 89 | Pending |
+| LIVE-04 | Phase 89 | Pending |
+| LIVE-05 | Phase 90 | Pending |
 
-## Success Criteria (Milestone-Level)
+**Coverage:**
+- v0.0.5 requirements: 20 total
+- Mapped to phases: 20/20
+- Unmapped: 0
 
-1. All v0.0.2 bug fixes verified working in production builds
-2. Full OpenClaw gateway CRUD (agents, crons, usage) accessible from a dedicated controller page
-3. Theme blend slider produces readable themes at every position using OKLCH interpolation
-4. Embedded terminal widget with local PTY and secure process management
-5. Claude Code session management: spawn, monitor, and control AI coding sessions from the app
-6. Remote VM viewer: watch the OpenClaw VM desktop directly in the app
-7. Bundle stays under 5MB with CI enforcement
-8. All existing tests pass, no regressions
+---
+*Requirements defined: 2026-03-24*
+*Last updated: 2026-03-24*
