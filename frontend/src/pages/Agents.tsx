@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Robot } from '@phosphor-icons/react'
 import { useAgents } from '@/hooks/useAgents'
 import { useTableRealtime } from '@/lib/hooks/useRealtimeSSE'
+import { useGatewaySSE } from '@/lib/hooks/useGatewaySSE'
 import { queryKeys } from '@/lib/query-keys'
 import { api } from '@/lib/api'
 import { isDemoMode, DEMO_AGENTS } from '@/lib/demo-data'
@@ -30,6 +31,17 @@ export default function AgentsPage() {
 
   // Real-time subscription via SSE
   useTableRealtime('agents', { queryKey: queryKeys.agents })
+
+  // Gateway agent events invalidate the activity feed so it stays fresh
+  // when agents start/stop/error. The useAgents hook already handles
+  // queryKeys.agents invalidation from Task 1 -- this subscription
+  // separately keeps the gateway events feed (used by Phase 90) up to date.
+  useGatewaySSE(_demo ? {} : {
+    events: ['agent'],
+    queryKeys: {
+      agent: queryKeys.gatewayEvents,
+    },
+  })
 
   const selectedAgent = agents.find((a) => a.id === selectedId) ?? null
 

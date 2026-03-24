@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode } from '@/lib/demo-data'
+import { useGatewaySSE } from '@/lib/hooks/useGatewaySSE'
 import type { Agent, CreateAgentPayload, AgentActionPayload } from '@/pages/agents/types'
 
 interface AgentsResponse {
@@ -16,10 +17,24 @@ interface AgentsResponse {
 export function useAgents() {
   const queryClient = useQueryClient()
 
+  const _demo = isDemoMode()
+
   const { data, isLoading } = useQuery<AgentsResponse>({
     queryKey: queryKeys.agents,
     queryFn: () => api.get<AgentsResponse>('/api/agents'),
-    enabled: !isDemoMode(),
+    enabled: !_demo,
+  })
+
+  // Subscribe to gateway agent events for real-time cache invalidation.
+  // When the gateway broadcasts an agent event (started, stopped, config changed),
+  // React Query automatically refetches the agents list.
+  // In demo mode, pass empty events to make useGatewaySSE a no-op while
+  // keeping hook call order consistent.
+  useGatewaySSE(_demo ? {} : {
+    events: ['agent'],
+    queryKeys: {
+      agent: queryKeys.agents,
+    },
   })
 
   const invalidateAgents = useCallback(() => {
