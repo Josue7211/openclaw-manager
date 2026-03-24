@@ -18,6 +18,21 @@ use crate::validation::validate_uuid;
 // from OpenClaw VM), bjorn_event, ingest_events, sync_agents, activity_log.
 // Mission-event READS now come from local SQLite (offline-first via sync engine).
 
+/// Row type for mission queries (avoids clippy::type_complexity).
+type MissionRow = (
+    String, String, Option<String>, String, i64,
+    String, Option<String>, Option<i64>, Option<String>,
+    Option<String>, Option<String>, Option<String>, i64,
+    String, String,
+);
+
+/// Row type for mission event queries (avoids clippy::type_complexity).
+type MissionEventRow = (
+    String, String, String, i64, String,
+    String, Option<String>, Option<String>, Option<String>,
+    Option<String>, Option<f64>, String, String,
+);
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const VALID_STATUSES: &[&str] = &["pending", "active", "done", "failed", "awaiting_review"];
@@ -51,12 +66,7 @@ async fn get_missions(
     State(state): State<AppState>,
     RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let rows: Vec<(
-        String, String, Option<String>, String, i64,
-        String, Option<String>, Option<i64>, Option<String>,
-        Option<String>, Option<String>, Option<String>, i64,
-        String, String,
-    )> = sqlx::query_as(
+    let rows: Vec<MissionRow> = sqlx::query_as(
         "SELECT id, title, assignee, status, progress, \
          task_type, log_path, complexity, spawn_command, \
          routed_agent, review_status, review_notes, retry_count, \
@@ -225,7 +235,7 @@ async fn update_mission(
         query = query.bind(assignee);
     }
     if let Some(progress) = body.progress {
-        let clamped = progress.max(0.0).min(100.0) as i64;
+        let clamped = progress.clamp(0.0, 100.0) as i64;
         query = query.bind(clamped);
     }
     if let Some(ref log_path) = body.log_path {
@@ -235,12 +245,7 @@ async fn update_mission(
     query.execute(&state.db).await?;
 
     // Read back updated row for response and sync
-    let row: Option<(
-        String, String, Option<String>, String, i64,
-        String, Option<String>, Option<i64>, Option<String>,
-        Option<String>, Option<String>, Option<String>, i64,
-        String, String,
-    )> = sqlx::query_as(
+    let row: Option<MissionRow> = sqlx::query_as(
         "SELECT id, title, assignee, status, progress, \
          task_type, log_path, complexity, spawn_command, \
          routed_agent, review_status, review_notes, retry_count, \
@@ -326,7 +331,7 @@ async fn update_mission(
             .get("assignee")
             .and_then(|v| v.as_str())
             .unwrap_or("");
-        let clamped = body.progress.map(|p| p.max(0.0).min(100.0) as i64);
+        let clamped = body.progress.map(|p| p.clamp(0.0, 100.0) as i64);
 
         let mut desc = format!("Mission \"{title_text}\" status changed to {status}");
         if let Some(p) = clamped {
@@ -519,7 +524,7 @@ async fn get_mission_events(
                     "file_path": e.get("file_path"),
                     "seq": e.get("seq"),
                     "elapsed_seconds": e.get("elapsed_seconds"),
-                    "tool_input": tool_input.map(|s| redact(s)),
+                    "tool_input": tool_input.map(redact),
                     "model_name": e.get("model_name"),
                 })
             })
@@ -546,11 +551,7 @@ async fn get_mission_events(
         .ok_or_else(|| AppError::BadRequest("mission_id required".into()))?;
     validate_uuid(mission_id)?;
 
-    let rows: Vec<(
-        String, String, String, i64, String,
-        String, Option<String>, Option<String>, Option<String>,
-        Option<String>, Option<f64>, String, String,
-    )> = sqlx::query_as(
+    let rows: Vec<MissionEventRow> = sqlx::query_as(
         "SELECT id, user_id, mission_id, seq, event_type, \
          content, file_path, tool_input, tool_output, \
          model_name, elapsed_seconds, created_at, updated_at \
@@ -900,7 +901,7 @@ async fn ingest_log_file(
                 "file_path": e.get("file_path"),
                 "seq": e.get("seq"),
                 "elapsed_seconds": e.get("elapsed_seconds"),
-                "tool_input": tool_input.map(|s| redact(s)),
+                "tool_input": tool_input.map(redact),
                 "model_name": e.get("model_name"),
             })
         })

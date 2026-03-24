@@ -972,7 +972,7 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
     let path = req.uri().path();
 
     // Skip auth for exempt paths and resource paths (images, avatars, attachments)
-    if AUTH_EXEMPT_PATHS.iter().any(|exempt| path == *exempt)
+    if AUTH_EXEMPT_PATHS.contains(&path)
         || AUTH_EXEMPT_PREFIXES.iter().any(|prefix| path.starts_with(prefix))
     {
         return next.run(req).await;

@@ -214,6 +214,81 @@ vi.mock('@/lib/hooks/useRealtimeSSE', () => ({
   useRealtimeSSE: vi.fn(),
 }))
 
+// Gateway SSE hook (singleton EventSource — not available in jsdom)
+vi.mock('@/lib/hooks/useGatewaySSE', () => ({
+  useGatewaySSE: vi.fn(),
+}))
+
+// Gateway sessions hook (Sessions page)
+vi.mock('@/hooks/sessions/useGatewaySessions', () => ({
+  useGatewaySessions: vi.fn(() => ({
+    sessions: [],
+    available: false,
+    isLoading: false,
+    source: 'none',
+  })),
+}))
+
+// Session output hook (uses xterm — not available in jsdom)
+vi.mock('@/hooks/sessions/useSessionOutput', () => ({
+  useSessionOutput: vi.fn(() => ({
+    connected: false,
+    error: null,
+  })),
+}))
+
+// Session history hook
+vi.mock('@/hooks/sessions/useSessionHistory', () => ({
+  useSessionHistory: vi.fn(() => ({
+    messages: [],
+    isLoading: false,
+    error: null,
+  })),
+}))
+
+// Gateway status hook (used by GatewayStatusDot)
+vi.mock('@/hooks/sessions/useGatewayStatus', () => ({
+  useGatewayStatus: vi.fn(() => ({
+    status: 'disconnected',
+    isLoading: false,
+  })),
+}))
+
+// Approvals hook
+vi.mock('@/hooks/useApprovals', () => ({
+  useApprovals: vi.fn(() => ({
+    approvals: [],
+    pendingCount: 0,
+    isLoading: false,
+    approve: vi.fn(),
+    reject: vi.fn(),
+    isApproving: false,
+    isRejecting: false,
+  })),
+}))
+
+// Unread store (used by useApprovals)
+vi.mock('@/lib/unread-store', () => ({
+  setUnreadCount: vi.fn(),
+  getUnreadCount: vi.fn(() => 0),
+  subscribeUnreadCount: vi.fn(() => () => {}),
+}))
+
+// NotificationCenter (addNotification used by SessionsPage)
+vi.mock('@/components/NotificationCenter', () => ({
+  addNotification: vi.fn(),
+  default: () => null,
+}))
+
+// OpenClaw models hook (used by ModelSelector in sessions)
+vi.mock('@/hooks/useOpenClawModels', () => ({
+  useOpenClawModels: vi.fn(() => ({
+    models: [],
+    isLoading: false,
+    error: null,
+  })),
+}))
+
 // Dashboard store — use importOriginal to keep all exports, override stateful hooks
 vi.mock('@/lib/dashboard-store', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/dashboard-store')>()
@@ -318,6 +393,10 @@ const MODULE_PAGE_MAP: Record<string, () => Promise<{ default: React.ComponentTy
   '/pipeline': () => import('../Pipeline'),
   '/knowledge': () => import('../KnowledgeBase'),
   '/notes': () => import('../notes/Notes'),
+  '/sessions': () => import('../sessions/SessionsPage'),
+  '/remote': () => import('../remote/RemotePage'),
+  '/approvals': () => import('../approvals/ApprovalsPage'),
+  '/activity': () => import('../activity/ActivityPage'),
 }
 
 /* ─── Test wrapper ────────────────────────────────────────────────────── */

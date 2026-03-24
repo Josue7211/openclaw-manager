@@ -163,11 +163,9 @@ pub fn load_secrets() -> HashMap<String, String> {
     for path in &[".env.local", "../.env.local"] {
         if let Ok(iter) = dotenvy::from_filename_iter(path) {
             tracing::info!("Merging dev secrets from {}", path);
-            for item in iter {
-                if let Ok((key, value)) = item {
-                    if known.contains(key.as_str()) && !secrets.contains_key(&key) {
-                        secrets.insert(key, value);
-                    }
+            for (key, value) in iter.flatten() {
+                if known.contains(key.as_str()) && !secrets.contains_key(&key) {
+                    secrets.insert(key, value);
                 }
             }
             break;

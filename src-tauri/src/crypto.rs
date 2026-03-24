@@ -61,7 +61,7 @@ pub fn encrypt(plaintext: &[u8], key: &[u8]) -> anyhow::Result<(String, String)>
         .encrypt(nonce, plaintext)
         .map_err(|e| anyhow::anyhow!("encryption failed: {}", e))?;
 
-    Ok((STANDARD.encode(&ciphertext), STANDARD.encode(&nonce_bytes)))
+    Ok((STANDARD.encode(&ciphertext), STANDARD.encode(nonce_bytes)))
 }
 
 /// Decrypt `ciphertext_b64` with AES-256-GCM using the provided 32-byte `key`.

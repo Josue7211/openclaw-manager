@@ -8,6 +8,11 @@ vi.mock('@/lib/demo-data', () => ({
   isDemoMode: () => false,
 }))
 
+// Mock useGatewaySSE — EventSource is not available in the test environment
+vi.mock('@/lib/hooks/useGatewaySSE', () => ({
+  useGatewaySSE: vi.fn(),
+}))
+
 // Mock api module
 const mockGet = vi.fn()
 vi.mock('@/lib/api', () => ({
@@ -17,6 +22,9 @@ vi.mock('@/lib/api', () => ({
     patch: vi.fn(),
     del: vi.fn(),
   },
+  API_BASE: 'http://localhost:3000',
+  getApiKey: () => 'test-key',
+  setApiKey: vi.fn(),
 }))
 
 import { useAgents } from '../useAgents'

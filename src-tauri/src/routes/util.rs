@@ -1,4 +1,4 @@
-/// Shared utility functions used across multiple route modules.
+//! Shared utility functions used across multiple route modules.
 
 /// Percent-encode a string for use in a URL query parameter.
 pub fn percent_encode(input: &str) -> String {
@@ -34,15 +34,6 @@ pub fn random_uuid() -> String {
         hex::encode(&bytes[8..10]),
         hex::encode(&bytes[10..16]),
     )
-}
-
-/// Validate that a field is present and non-empty after trimming.
-///
-/// Returns the trimmed string slice on success, or an `AppError::BadRequest`
-/// naming the missing field.
-pub fn require_str<'a>(val: Option<&'a str>, field: &str) -> Result<&'a str, crate::error::AppError> {
-    let s = val.unwrap_or("").trim();
-    if s.is_empty() { Err(crate::error::AppError::BadRequest(format!("{field} required"))) } else { Ok(s) }
 }
 
 /// Decode a base64-encoded string to bytes. Supports standard base64 alphabet.
@@ -180,38 +171,6 @@ mod tests {
     fn base64_decode_invalid_chars() {
         let result = base64_decode("!!!!");
         assert_eq!(result, None);
-    }
-
-    // ---- require_str ----
-
-    #[test]
-    fn require_str_valid() {
-        let result = require_str(Some("hello"), "name");
-        assert_eq!(result.unwrap(), "hello");
-    }
-
-    #[test]
-    fn require_str_trims_whitespace() {
-        let result = require_str(Some("  hello  "), "name");
-        assert_eq!(result.unwrap(), "hello");
-    }
-
-    #[test]
-    fn require_str_none_returns_error() {
-        let result = require_str(None, "title");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn require_str_empty_returns_error() {
-        let result = require_str(Some(""), "title");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn require_str_whitespace_only_returns_error() {
-        let result = require_str(Some("   "), "title");
-        assert!(result.is_err());
     }
 
     // ---- percent_encode edge cases ----

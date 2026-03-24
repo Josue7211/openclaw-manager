@@ -48,6 +48,10 @@ vi.mock('@/pages/CronJobs', () => ({ default: () => <div data-testid="page-crons
 vi.mock('@/pages/Pipeline', () => ({ default: () => <div data-testid="page-pipeline">Pipeline</div> }))
 vi.mock('@/pages/KnowledgeBase', () => ({ default: () => <div data-testid="page-knowledge">KnowledgeBase</div> }))
 vi.mock('@/pages/notes/Notes', () => ({ default: () => <div data-testid="page-notes">Notes</div> }))
+vi.mock('@/pages/sessions/SessionsPage', () => ({ default: () => <div data-testid="page-sessions">Sessions</div> }))
+vi.mock('@/pages/remote/RemotePage', () => ({ default: () => <div data-testid="page-remote">Remote</div> }))
+vi.mock('@/pages/approvals/ApprovalsPage', () => ({ default: () => <div data-testid="page-approvals">Approvals</div> }))
+vi.mock('@/pages/activity/ActivityPage', () => ({ default: () => <div data-testid="page-activity">Activity</div> }))
 vi.mock('@/pages/Ideas', () => ({ default: () => <div data-testid="page-ideas">Ideas</div> }))
 vi.mock('@/pages/Capture', () => ({ default: () => <div data-testid="page-capture">Capture</div> }))
 vi.mock('@/pages/Settings', () => ({ default: () => <div data-testid="page-settings">Settings</div> }))
@@ -103,6 +107,10 @@ const Memory = lazy(() => import('@/pages/Memory'))
 const Pipeline = lazy(() => import('@/pages/Pipeline'))
 const KnowledgeBase = lazy(() => import('@/pages/KnowledgeBase'))
 const Notes = lazy(() => import('@/pages/notes/Notes'))
+const Sessions = lazy(() => import('@/pages/sessions/SessionsPage'))
+const RemoteViewer = lazy(() => import('@/pages/remote/RemotePage'))
+const Approvals = lazy(() => import('@/pages/approvals/ApprovalsPage'))
+const Activity = lazy(() => import('@/pages/activity/ActivityPage'))
 const Ideas = lazy(() => import('@/pages/Ideas'))
 const Capture = lazy(() => import('@/pages/Capture'))
 const Settings = lazy(() => import('@/pages/Settings'))
@@ -151,6 +159,10 @@ const ROUTES: RouteEntry[] = [
   { path: '/pipeline', type: 'page', testId: 'page-pipeline', guarded: true },
   { path: '/knowledge', type: 'page', testId: 'page-knowledge', guarded: true },
   { path: '/notes', type: 'page', testId: 'page-notes', guarded: true },
+  { path: '/sessions', type: 'page', testId: 'page-sessions', guarded: true },
+  { path: '/remote', type: 'page', testId: 'page-remote', guarded: true },
+  { path: '/approvals', type: 'page', testId: 'page-approvals', guarded: true },
+  { path: '/activity', type: 'page', testId: 'page-activity', guarded: true },
   { path: '/ideas', type: 'page', testId: 'page-ideas', guarded: true },
   { path: '/capture', type: 'page', testId: 'page-capture', guarded: true },
   { path: '/settings', type: 'page', testId: 'page-settings', guarded: true },
@@ -204,6 +216,10 @@ function renderRoute(routePath: string) {
               <Route path="/pipeline" element={<Suspense fallback={null}><Pipeline /></Suspense>} />
               <Route path="/knowledge" element={<Suspense fallback={null}><KnowledgeBase /></Suspense>} />
               <Route path="/notes" element={<Suspense fallback={null}><Notes /></Suspense>} />
+              <Route path="/sessions" element={<Suspense fallback={null}><Sessions /></Suspense>} />
+              <Route path="/remote" element={<Suspense fallback={null}><RemoteViewer /></Suspense>} />
+              <Route path="/approvals" element={<Suspense fallback={null}><Approvals /></Suspense>} />
+              <Route path="/activity" element={<Suspense fallback={null}><Activity /></Suspense>} />
               <Route path="/ideas" element={<Suspense fallback={null}><Ideas /></Suspense>} />
               <Route path="/capture" element={<Suspense fallback={null}><Capture /></Suspense>} />
               <Route path="/settings" element={<Suspense fallback={null}><Settings /></Suspense>} />
@@ -369,6 +385,10 @@ describe('Route Audit', () => {
       ['Pipeline', () => import('@/pages/Pipeline')],
       ['KnowledgeBase', () => import('@/pages/KnowledgeBase')],
       ['Notes', () => import('@/pages/notes/Notes')],
+      ['Sessions', () => import('@/pages/sessions/SessionsPage')],
+      ['RemoteViewer', () => import('@/pages/remote/RemotePage')],
+      ['Approvals', () => import('@/pages/approvals/ApprovalsPage')],
+      ['Activity', () => import('@/pages/activity/ActivityPage')],
       ['Ideas', () => import('@/pages/Ideas')],
       ['Capture', () => import('@/pages/Capture')],
       ['Settings', () => import('@/pages/Settings')],

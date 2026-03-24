@@ -206,18 +206,6 @@ async fn get_active_config(State(state): State<AppState>, RequireAuth(_session):
 // cache stats, and service connectivity — all in a single request so the
 // Status page only needs one fetch.
 
-/// Epoch timestamp recorded once at process start.
-static BOOT_EPOCH: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
-
-fn boot_epoch() -> u64 {
-    *BOOT_EPOCH.get_or_init(|| {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
-    })
-}
-
 async fn get_health(State(_state): State<AppState>) -> Result<Json<Value>, AppError> {
     Ok(Json(json!({
         "ok": true,

@@ -28,6 +28,40 @@ This is open source software that handles private data. **Zero private data may 
 
 When in doubt: **if it's personal data, it doesn't go in the repo. If it's a file, it doesn't get uploaded anywhere.**
 
+## Quality Gates — CRITICAL, NON-NEGOTIABLE
+
+**NOTHING is "complete" until it is TESTED and VERIFIED in a running application.** A commit existing is not verification. A SUMMARY.md existing is not verification. Code compiling is necessary but NOT sufficient. This is the #1 rule of this project.
+
+### Per-Phase Gates (ALL MUST PASS before advancing)
+
+1. **Compilation** — `CARGO_TARGET_DIR=/tmp/mc-target cargo check --manifest-path src-tauri/Cargo.toml` + `cd frontend && npx tsc --noEmit --project tsconfig.app.json` — ZERO errors. If either fails, STOP.
+2. **Full Test Suite** — `cd frontend && npx vitest run` + `CARGO_TARGET_DIR=/tmp/mc-target cargo test --manifest-path src-tauri/Cargo.toml` — ALL pass. If any fail, STOP.
+3. **Dead Code** — `cargo clippy` — no NEW warnings from this phase. Pre-existing allowed.
+4. **Live Browser Testing** — agent-browser (or Playwright fallback) navigates to every affected page and:
+   - Actually USES every feature (clicks buttons, submits forms, verifies data flows)
+   - Tests error states and empty states
+   - Checks browser console for 500s, 404s, JS errors
+   - Verifies layouts render correctly, no broken CSS
+5. **Connection Verification** — API calls return real data, SSE streams deliver events, WebSocket connects
+6. **Visual Verification** — No misaligned elements, no broken layouts, no missing icons
+
+### Per-Milestone Gates (before tagging)
+
+ALL per-phase gates PLUS:
+- agent-browser tests EVERY page in the app (not just touched pages)
+- Playwright E2E: `cd frontend && npm run test:e2e`
+- `npx knip` — no new dead code
+- Full regression smoke test across all features
+
+### Rules
+
+- **Autonomous mode = make decisions yourself. It does NOT mean skip quality gates.**
+- A phase with failing tests is NOT complete
+- A phase with console errors is NOT complete
+- A phase that hasn't been live-tested is NOT complete
+- NEVER advance to the next phase on a broken codebase
+- Quality is more important than speed. ALWAYS.
+
 ## Infrastructure — CRITICAL CONTEXT
 
 The system runs across multiple machines. The Tauri app must work on ANY machine.

@@ -322,7 +322,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/ideas" element={<Suspense fallback={<GenericPageSkeleton />}><Ideas /></Suspense>} />
             <Route path="/capture" element={<Suspense fallback={<GenericPageSkeleton />}><Capture /></Suspense>} />
             <Route path="/settings" element={<Suspense fallback={<SettingsSkeleton />}><Settings /></Suspense>} />
-            <Route path="/activity" element={<Suspense fallback={<GenericPageSkeleton />}><Activity /></Suspense>} />
             <Route path="/search" element={<Suspense fallback={<GenericPageSkeleton />}><Search /></Suspense>} />
             <Route path="/custom/:id" element={<Suspense fallback={<GenericPageSkeleton />}><CustomPage /></Suspense>} />
             <Route path="*" element={<Suspense fallback={null}><NotFound /></Suspense>} />

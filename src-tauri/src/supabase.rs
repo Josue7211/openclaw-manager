@@ -129,6 +129,7 @@ impl SupabaseClient {
     ///
     /// `query` is the raw PostgREST query string, e.g.
     /// `"select=*&id=eq.some-uuid&limit=1"`.
+    #[allow(dead_code)]
     pub async fn select(&self, table: &str, query: &str) -> anyhow::Result<Value> {
         let url = format!("{}?{}", self.rest_url(table), query);
         let resp = self
@@ -154,6 +155,7 @@ impl SupabaseClient {
     /// Convenience: select a single row. Returns the object (not an array).
     /// Adds `limit=1` and the PostgREST `Accept: application/vnd.pgrst.object+json`
     /// header so the response is a single JSON object (or 406 if zero rows).
+    #[allow(dead_code)]
     pub async fn select_single(&self, table: &str, query: &str) -> anyhow::Result<Value> {
         let sep = if query.is_empty() { "" } else { "&" };
         let url = format!("{}?{}{sep}limit=1", self.rest_url(table), query);
@@ -180,9 +182,10 @@ impl SupabaseClient {
     /// `POST /rest/v1/{table}` — insert one or more rows.
     ///
     /// Returns the inserted rows when using `Prefer: return=representation`.
+    #[allow(dead_code)]
     pub async fn insert(&self, table: &str, body: Value) -> anyhow::Result<Value> {
         let resp = self
-            .auth_headers(self.http.post(&self.rest_url(table)))
+            .auth_headers(self.http.post(self.rest_url(table)))
             .header("Content-Type", "application/json")
             .header("Prefer", "return=representation")
             .json(&body)
@@ -206,9 +209,10 @@ impl SupabaseClient {
     /// `POST /rest/v1/{table}` with `Prefer: resolution=merge-duplicates` — upsert rows.
     ///
     /// On conflict with the primary key, updates the existing row.
+    #[allow(dead_code)]
     pub async fn upsert(&self, table: &str, body: Value) -> anyhow::Result<Value> {
         let resp = self
-            .auth_headers(self.http.post(&self.rest_url(table)))
+            .auth_headers(self.http.post(self.rest_url(table)))
             .header("Content-Type", "application/json")
             .header("Prefer", "return=representation,resolution=merge-duplicates")
             .json(&body)
@@ -232,6 +236,7 @@ impl SupabaseClient {
     /// `PATCH /rest/v1/{table}?{query}` — update matching rows.
     ///
     /// Returns updated rows.
+    #[allow(dead_code)]
     pub async fn update(&self, table: &str, query: &str, body: Value) -> anyhow::Result<Value> {
         let url = format!("{}?{}", self.rest_url(table), query);
         let resp = self
@@ -257,6 +262,7 @@ impl SupabaseClient {
     }
 
     /// `DELETE /rest/v1/{table}?{query}` — delete matching rows.
+    #[allow(dead_code)]
     pub async fn delete(&self, table: &str, query: &str) -> anyhow::Result<()> {
         let url = format!("{}?{}", self.rest_url(table), query);
         let resp = self
@@ -329,7 +335,7 @@ impl SupabaseClient {
     /// Like `insert` but authenticates as the user identified by `jwt`.
     pub async fn insert_as_user(&self, table: &str, body: Value, jwt: &str) -> anyhow::Result<Value> {
         let resp = self
-            .auth_headers_as_user(self.http.post(&self.rest_url(table)), jwt)
+            .auth_headers_as_user(self.http.post(self.rest_url(table)), jwt)
             .header("Content-Type", "application/json")
             .header("Prefer", "return=representation")
             .json(&body)
@@ -353,7 +359,7 @@ impl SupabaseClient {
     /// Like `upsert` but authenticates as the user identified by `jwt`.
     pub async fn upsert_as_user(&self, table: &str, body: Value, jwt: &str) -> anyhow::Result<Value> {
         let resp = self
-            .auth_headers_as_user(self.http.post(&self.rest_url(table)), jwt)
+            .auth_headers_as_user(self.http.post(self.rest_url(table)), jwt)
             .header("Content-Type", "application/json")
             .header("Prefer", "return=representation,resolution=merge-duplicates")
             .json(&body)
@@ -423,7 +429,7 @@ impl SupabaseClient {
     #[allow(dead_code)] // reserved for future Postgres function calls (e.g. search_memory)
     pub async fn rpc(&self, function: &str, body: Value) -> anyhow::Result<Value> {
         let resp = self
-            .auth_headers(self.http.post(&self.rpc_url(function)))
+            .auth_headers(self.http.post(self.rpc_url(function)))
             .header("Content-Type", "application/json")
             .json(&body)
             .send()

@@ -89,6 +89,7 @@ const PTY_SAFE_ENV_VARS: &[&str] = &[
 /// Prefixes of environment variables that MUST NOT leak into the PTY.
 /// These correspond to secrets loaded by dotenvy from `.env.local`.
 /// Used by unit tests to verify the whitelist approach is sound.
+#[cfg(test)]
 const PTY_BLOCKED_PREFIXES: &[&str] = &[
     "MC_",
     "OPENCLAW_",
@@ -197,7 +198,7 @@ impl Drop for PtyCleanup {
         if let Some(pgid) = self.pgid {
             if pgid > 0 {
                 unsafe {
-                    libc::kill(-(pgid as i32), libc::SIGKILL);
+                    libc::kill(-pgid, libc::SIGKILL);
                 }
             }
         }

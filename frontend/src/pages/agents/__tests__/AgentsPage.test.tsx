@@ -54,6 +54,11 @@ vi.mock('@/lib/hooks/useRealtimeSSE', () => ({
   useRealtimeSSE: vi.fn(),
 }))
 
+// Mock useGatewaySSE (EventSource not available in test env)
+vi.mock('@/lib/hooks/useGatewaySSE', () => ({
+  useGatewaySSE: vi.fn(),
+}))
+
 // Mock demo-data
 vi.mock('@/lib/demo-data', () => ({
   isDemoMode: () => false,

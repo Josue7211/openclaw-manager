@@ -1,6 +1,6 @@
 use axum::{
     extract::State,
-    routing::{delete, get, patch, post},
+    routing::{delete, get, patch},
     Json, Router,
 };
 use reqwest::Method;

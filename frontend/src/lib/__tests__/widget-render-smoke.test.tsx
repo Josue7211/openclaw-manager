@@ -55,11 +55,15 @@ vi.mock('@/lib/error-reporter', () => ({
   reportError: vi.fn(),
 }))
 
-// Mock event-bus
-vi.mock('@/lib/event-bus', () => ({
-  emit: vi.fn(),
-  subscribe: vi.fn(() => vi.fn()),
-}))
+// Mock event-bus — use importOriginal to preserve GATEWAY_EVENT_MAP (used by useGatewaySSE)
+vi.mock('@/lib/event-bus', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/event-bus')>()
+  return {
+    ...actual,
+    emit: vi.fn(),
+    subscribe: vi.fn(() => vi.fn()),
+  }
+})
 
 // Mock demo-data -- use importOriginal to get all exports, just force demo mode off
 vi.mock('@/lib/demo-data', async (importOriginal) => {
@@ -74,6 +78,11 @@ vi.mock('@/lib/demo-data', async (importOriginal) => {
 vi.mock('@/lib/hooks/useRealtimeSSE', () => ({
   useRealtimeSSE: vi.fn(),
   useTableRealtime: vi.fn(),
+}))
+
+// Mock useTerminal — xterm's term.open() requires matchMedia which jsdom doesn't support
+vi.mock('@/hooks/useTerminal', () => ({
+  useTerminal: vi.fn(() => ({ connected: false, error: null })),
 }))
 
 // ---------------------------------------------------------------------------
@@ -139,7 +148,7 @@ describe('Widget Render Smoke Tests', () => {
   })
 
   it('has no references to deleted components', () => {
-    const deletedPatterns = ['VncPreview', 'ProjectTracker', 'TipTap', 'novnc']
+    const deletedPatterns = ['ProjectTracker', 'TipTap', 'novnc']
     for (const widget of BUILTIN_WIDGETS) {
       const componentStr = widget.component.toString()
       for (const pattern of deletedPatterns) {

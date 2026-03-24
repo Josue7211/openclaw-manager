@@ -78,7 +78,7 @@ async fn get_audit_log(
     RequireAuth(session): RequireAuth,
     Query(params): Query<AuditLogQuery>,
 ) -> Result<Json<Value>, AppError> {
-    let limit = params.limit.unwrap_or(200).min(500).max(1);
+    let limit = params.limit.unwrap_or(200).clamp(1, 500);
 
     // Build dynamic WHERE clause
     let mut conditions = vec!["user_id = ?".to_string()];
@@ -113,7 +113,7 @@ async fn get_audit_log(
         .map(|(id, user_id, action, resource_type, resource_id, details, created_at)| {
             // Parse details back to JSON object if possible, otherwise keep as string
             let details_val = serde_json::from_str::<Value>(&details)
-                .unwrap_or_else(|_| Value::String(details));
+                .unwrap_or(Value::String(details));
             json!({
                 "id": id,
                 "user_id": user_id,

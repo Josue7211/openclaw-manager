@@ -424,17 +424,15 @@ fn parse_opnsense_uptime(raw: &str) -> u64 {
 
     // Extract days: "N day(s)"
     for (i, segment) in raw.split_whitespace().enumerate() {
-        if segment.starts_with("day") {
-            if i > 0 {
-                if let Some(prev) = raw.split_whitespace().nth(i - 1) {
-                    days = prev.parse().unwrap_or(0);
-                }
+        if segment.starts_with("day") && i > 0 {
+            if let Some(prev) = raw.split_whitespace().nth(i - 1) {
+                days = prev.parse().unwrap_or(0);
             }
         }
     }
 
     // Extract HH:MM:SS
-    for part in raw.split(|c: char| c == ',' || c == ' ') {
+    for part in raw.split([',', ' ']) {
         let trimmed = part.trim();
         if trimmed.contains(':') {
             let time_parts: Vec<&str> = trimmed.split(':').collect();

@@ -427,7 +427,7 @@ async fn get_or_create_salt(
     rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut salt_bytes);
     let salt_b64 = base64::Engine::encode(
         &base64::engine::general_purpose::STANDARD,
-        &salt_bytes,
+        salt_bytes,
     );
 
     let body = serde_json::json!({
@@ -459,14 +459,14 @@ async fn login(
     Json(body): Json<LoginBody>,
 ) -> Result<Json<Value>, AppError> {
     let gotrue = GoTrueClient::from_state(&state)
-        .map_err(|e| AppError::Internal(e))?;
+        .map_err(AppError::Internal)?;
 
     let auth = match gotrue
         .sign_in_with_password(&body.email, &body.password)
         .await
     {
         Ok(auth) => auth,
-        Err(e) => {
+        Err(_e) => {
             log_security_event(
                 &state.db,
                 "login_failed",
@@ -721,12 +721,12 @@ async fn refresh(State(state): State<AppState>) -> Result<Json<Value>, AppError>
     }
 
     let gotrue = GoTrueClient::from_state(&state)
-        .map_err(|e| AppError::Internal(e))?;
+        .map_err(AppError::Internal)?;
 
     let auth = gotrue
         .refresh_token(&session.refresh_token)
         .await
-        .map_err(|e| AppError::Internal(e))?;
+        .map_err(AppError::Internal)?;
 
     let now = epoch_secs();
 
@@ -759,7 +759,7 @@ async fn change_password(
 ) -> Result<Json<Value>, AppError> {
 
     let gotrue = GoTrueClient::from_state(&state)
-        .map_err(|e| AppError::Internal(e))?;
+        .map_err(AppError::Internal)?;
 
     // Re-verify current password
     gotrue
@@ -773,7 +773,7 @@ async fn change_password(
     let old_key = &session.encryption_key;
     if !old_key.is_empty() {
         let sb_dryrun = SupabaseClient::from_state(&state)
-            .map_err(|e| AppError::Internal(e))?;
+            .map_err(AppError::Internal)?;
 
         let dryrun_secrets = sb_dryrun
             .select_as_user(
@@ -811,7 +811,7 @@ async fn change_password(
     gotrue
         .update_user(&session.access_token, json!({ "password": body.new_password }))
         .await
-        .map_err(|e| AppError::Internal(e))?;
+        .map_err(AppError::Internal)?;
 
     // Re-derive encryption key with new password (same salt — password changed, not salt)
     let salt = get_or_create_salt(&state, &session.access_token, &session.user_id)
@@ -824,7 +824,7 @@ async fn change_password(
     let old_key = &session.encryption_key;
     if !old_key.is_empty() {
         let sb = SupabaseClient::from_state(&state)
-            .map_err(|e| AppError::Internal(e))?;
+            .map_err(AppError::Internal)?;
 
         let secrets = sb
             .select_as_user(
@@ -897,7 +897,7 @@ async fn change_password(
     .await;
 
     tracing::info!(user_id = %session.user_id, "password changed, {} secrets re-encrypted",
-        session.encryption_key.is_empty().then(|| 0).unwrap_or(1));
+        if session.encryption_key.is_empty() { 0 } else { 1 });
 
     Ok(Json(json!({ "ok": true })))
 }
@@ -982,9 +982,9 @@ async fn start_oauth(
 async fn mfa_list_factors(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
     let session = state.session.read().await.clone()
         .ok_or(AppError::Unauthorized)?;
-    let gotrue = GoTrueClient::from_state(&state).map_err(|e| AppError::Internal(e))?;
+    let gotrue = GoTrueClient::from_state(&state).map_err(AppError::Internal)?;
     let factors = gotrue.mfa_list_factors(&session.access_token).await
-        .map_err(|e| AppError::Internal(e))?;
+        .map_err(AppError::Internal)?;
     let json_factors: Vec<Value> = factors.iter().map(|f| {
         json!({ "id": f.id, "type": f.factor_type, "status": f.status, "friendly_name": f.friendly_name })
     }).collect();
@@ -1005,12 +1005,12 @@ async fn mfa_enroll(State(state): State<AppState>) -> Result<Json<Value>, AppErr
         .ok_or(AppError::Unauthorized)?;
 
     let gotrue = GoTrueClient::from_state(&state)
-        .map_err(|e| AppError::Internal(e))?;
+        .map_err(AppError::Internal)?;
 
     let resp = gotrue
         .mfa_enroll_totp(&session.access_token, "OpenClaw Manager")
         .await
-        .map_err(|e| AppError::Internal(e))?;
+        .map_err(AppError::Internal)?;
 
     tracing::info!(user_id = %session.user_id, factor_id = %resp.id, "TOTP factor enrolled");
 
@@ -1036,12 +1036,12 @@ async fn mfa_enroll_webauthn(State(state): State<AppState>) -> Result<Json<Value
         .ok_or(AppError::Unauthorized)?;
 
     let gotrue = GoTrueClient::from_state(&state)
-        .map_err(|e| AppError::Internal(e))?;
+        .map_err(AppError::Internal)?;
 
     let result = gotrue
         .mfa_enroll(&session.access_token, "webauthn", "Hardware Key")
         .await
-        .map_err(|e| AppError::Internal(e))?;
+        .map_err(AppError::Internal)?;
 
     let factor_id = result["id"].as_str().unwrap_or("").to_string();
     tracing::info!(user_id = %session.user_id, factor_id = %factor_id, "WebAuthn factor enrolled — awaiting credential registration");
@@ -1075,12 +1075,12 @@ async fn mfa_challenge(
         .ok_or(AppError::Unauthorized)?;
 
     let gotrue = GoTrueClient::from_state(&state)
-        .map_err(|e| AppError::Internal(e))?;
+        .map_err(AppError::Internal)?;
 
     let result = gotrue
         .mfa_challenge(&session.access_token, &body.factor_id)
         .await
-        .map_err(|e| AppError::Internal(e))?;
+        .map_err(AppError::Internal)?;
 
     // Return the full GoTrue response (includes challenge id + WebAuthn options if applicable)
     Ok(Json(result))
@@ -1119,7 +1119,7 @@ async fn mfa_verify(
         .ok_or(AppError::Unauthorized)?;
 
     let gotrue = GoTrueClient::from_state(&state)
-        .map_err(|e| AppError::Internal(e))?;
+        .map_err(AppError::Internal)?;
 
     // Build the verify payload from the extra fields (challenge_id + code or credential)
     let verify_body = Value::Object(body.extra.clone());
@@ -1203,12 +1203,12 @@ async fn mfa_unenroll(
     }
 
     let gotrue = GoTrueClient::from_state(&state)
-        .map_err(|e| AppError::Internal(e))?;
+        .map_err(AppError::Internal)?;
 
     gotrue
         .mfa_unenroll(&session.access_token, &factor_id)
         .await
-        .map_err(|e| AppError::Internal(e))?;
+        .map_err(AppError::Internal)?;
 
     log_security_event(
         &state.db,

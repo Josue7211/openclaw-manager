@@ -15,6 +15,13 @@ use crate::validation::validate_uuid;
 
 use super::gateway::{gateway_forward, openclaw_api_key, openclaw_api_url};
 
+/// Row type for agent queries (avoids clippy::type_complexity).
+type AgentRow = (
+    String, String, Option<String>, Option<String>, Option<String>,
+    String, String, Option<String>, Option<String>, i64,
+    String, String,
+);
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 /// Friendly names assigned to detected subagent processes.
@@ -45,11 +52,7 @@ async fn get_agents(
     State(state): State<AppState>,
     RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let rows: Vec<(
-        String, String, Option<String>, Option<String>, Option<String>,
-        String, String, Option<String>, Option<String>, i64,
-        String, String,
-    )> = sqlx::query_as(
+    let rows: Vec<AgentRow> = sqlx::query_as(
         "SELECT id, name, display_name, emoji, role, \
          status, current_task, model, color, sort_order, \
          created_at, updated_at \
@@ -343,11 +346,7 @@ async fn update_agent(
     query.execute(&state.db).await?;
 
     // Read back the updated row
-    let row: Option<(
-        String, String, Option<String>, Option<String>, Option<String>,
-        String, String, Option<String>, Option<String>, i64,
-        String, String,
-    )> = sqlx::query_as(
+    let row: Option<AgentRow> = sqlx::query_as(
         "SELECT id, name, display_name, emoji, role, \
          status, current_task, model, color, sort_order, \
          created_at, updated_at \
@@ -488,31 +487,28 @@ async fn subagents_active(
     let mut tasks: Vec<ActiveTask> = Vec::new();
 
     // Detect running Claude processes with --dangerously flag
-    match detect_dangerously_claude_processes().await {
-        Ok(lines) => {
-            for (_i, line) in lines.iter().enumerate() {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                let pid = parts.get(1).unwrap_or(&"").to_string();
-                if pid.is_empty() {
-                    continue;
-                }
-
-                // Parse start time from ps STIME field (column 8)
-                let started_at = if let Some(stime) = parts.get(8) {
-                    parse_ps_stime(stime)
-                } else {
-                    chrono::Utc::now().to_rfc3339()
-                };
-
-                tasks.push(ActiveTask {
-                    id: pid,
-                    label: "Claude Code".into(),
-                    agent_id: "coding".into(),
-                    started_at,
-                });
+    if let Ok(lines) = detect_dangerously_claude_processes().await {
+        for line in lines.iter() {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            let pid = parts.get(1).unwrap_or(&"").to_string();
+            if pid.is_empty() {
+                continue;
             }
+
+            // Parse start time from ps STIME field (column 8)
+            let started_at = if let Some(stime) = parts.get(8) {
+                parse_ps_stime(stime)
+            } else {
+                chrono::Utc::now().to_rfc3339()
+            };
+
+            tasks.push(ActiveTask {
+                id: pid,
+                label: "Claude Code".into(),
+                agent_id: "coding".into(),
+                started_at,
+            });
         }
-        Err(_) => {}
     }
 
     // Supplement with OpenClaw sessions as fallback

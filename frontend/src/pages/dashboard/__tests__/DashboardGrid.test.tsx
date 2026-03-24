@@ -181,16 +181,18 @@ describe('DashboardGrid', () => {
 
   it('drag/resize disabled when editMode is false', () => {
     render(<DashboardGrid pageId="page-1" editMode={false} wobbleEnabled={false} />)
-    const container = screen.getByTestId('rgl-container')
-    expect(container.dataset.draggable).toBe('false')
-    expect(container.dataset.resizable).toBe('false')
+    const dragConfig = capturedGridProps.dragConfig as { enabled: boolean } | undefined
+    const resizeConfig = capturedGridProps.resizeConfig as { enabled: boolean } | undefined
+    expect(dragConfig?.enabled).toBe(false)
+    expect(resizeConfig?.enabled).toBe(false)
   })
 
   it('drag/resize enabled when editMode is true', () => {
     render(<DashboardGrid pageId="page-1" editMode={true} wobbleEnabled={false} />)
-    const container = screen.getByTestId('rgl-container')
-    expect(container.dataset.draggable).toBe('true')
-    expect(container.dataset.resizable).toBe('true')
+    const dragConfig = capturedGridProps.dragConfig as { enabled: boolean } | undefined
+    const resizeConfig = capturedGridProps.resizeConfig as { enabled: boolean } | undefined
+    expect(dragConfig?.enabled).toBe(true)
+    expect(resizeConfig?.enabled).toBe(true)
   })
 
   it('passes correct breakpoints and columns', () => {
@@ -269,9 +271,11 @@ describe('DashboardGrid', () => {
     expect(gridLines).not.toBeInTheDocument()
   })
 
-  it('uses compactType="vertical"', () => {
+  it('does not pass compactType (v2 uses compactor)', () => {
     render(<DashboardGrid pageId="page-1" editMode={false} wobbleEnabled={false} />)
-    expect(capturedGridProps.compactType).toBe('vertical')
+    // react-grid-layout v2 removed compactType in favor of compactor prop
+    // The default vertical compaction is used when compactor is not specified
+    expect(capturedGridProps.compactType).toBeUndefined()
   })
 
   it('uses rowHeight of 80', () => {

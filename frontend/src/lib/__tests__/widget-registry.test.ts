@@ -11,8 +11,8 @@ import {
 import type { WidgetDefinition, WidgetProps } from '../widget-registry'
 
 describe('BUILTIN_WIDGETS', () => {
-  it('has exactly 29 entries', () => {
-    expect(BUILTIN_WIDGETS).toHaveLength(29)
+  it('has exactly 33 entries', () => {
+    expect(BUILTIN_WIDGETS).toHaveLength(33)
   })
 
   it('contains all expected widget IDs', () => {

@@ -147,6 +147,7 @@ pub fn get_tailscale_peers() -> Result<Vec<TailscalePeer>, String> {
 /// Returns `Ok(true)` if the IP maps to the expected hostname (case-insensitive),
 /// `Ok(false)` if it maps to a different hostname, and `Err` if the IP is not
 /// found in the peer list or `tailscale status` fails.
+#[allow(dead_code)]
 pub fn verify_peer(ip: &str, expected_hostname: &str) -> Result<bool, String> {
     let peers = get_tailscale_peers()?;
     if let Some(peer) = peers.iter().find(|p| p.ip == ip) {
