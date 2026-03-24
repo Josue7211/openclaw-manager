@@ -294,6 +294,64 @@ async fn gateway_agents_delete(
     Ok(Json(json!({ "ok": true, "data": result })))
 }
 
+// ── Usage routes (usage.status / usage.cost via WS RPC) ─────────────────────
+
+/// `GET /api/gateway/usage/status`
+///
+/// Proxies `usage.status` through the persistent gateway WS connection.
+/// Returns token usage and quota data.
+async fn gateway_usage_status(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
+        AppError::BadRequest(
+            "OpenClaw Gateway not configured. Set OPENCLAW_WS in Settings > Connections.".into(),
+        )
+    })?;
+
+    let payload = gw
+        .request("usage.status", json!({}))
+        .await
+        .map_err(|e| {
+            tracing::error!("[gateway] usage.status failed: {e}");
+            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
+        })?;
+
+    Ok(Json(json!({
+        "ok": true,
+        "data": payload,
+    })))
+}
+
+/// `GET /api/gateway/usage/cost`
+///
+/// Proxies `usage.cost` through the persistent gateway WS connection.
+/// Returns cost breakdown data.
+async fn gateway_usage_cost(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
+        AppError::BadRequest(
+            "OpenClaw Gateway not configured. Set OPENCLAW_WS in Settings > Connections.".into(),
+        )
+    })?;
+
+    let payload = gw
+        .request("usage.cost", json!({}))
+        .await
+        .map_err(|e| {
+            tracing::error!("[gateway] usage.cost failed: {e}");
+            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
+        })?;
+
+    Ok(Json(json!({
+        "ok": true,
+        "data": payload,
+    })))
+}
+
 // ── Activity route (logs.tail via WS RPC) ──────────────────────────────────
 
 /// `GET /api/gateway/activity`
@@ -335,6 +393,8 @@ pub fn router() -> Router<AppState> {
             "/gateway/agents/:name",
             patch(gateway_agents_update).delete(gateway_agents_delete),
         )
+        .route("/gateway/usage/status", get(gateway_usage_status))
+        .route("/gateway/usage/cost", get(gateway_usage_cost))
         .route("/gateway/activity", get(gateway_activity))
 }
 

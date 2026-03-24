@@ -11,20 +11,9 @@ use super::gateway::gateway_forward;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/openclaw/usage", get(get_usage))
         .route("/openclaw/tools", get(get_tools))
         .route("/openclaw/tools/invoke", post(invoke_tool))
         .route("/openclaw/skills", get(get_skills))
-}
-
-// ── GET /openclaw/usage ─────────────────────────────────────────────────────
-
-async fn get_usage(
-    State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
-) -> Result<Json<Value>, AppError> {
-    let result = gateway_forward(&state, Method::GET, "/usage", None).await?;
-    Ok(Json(result))
 }
 
 // ── GET /openclaw/tools ─────────────────────────────────────────────────────
@@ -65,11 +54,6 @@ mod tests {
     use super::super::gateway::validate_gateway_path;
 
     #[test]
-    fn validate_usage_path() {
-        assert!(validate_gateway_path("/usage").is_ok());
-    }
-
-    #[test]
     fn validate_tools_path() {
         assert!(validate_gateway_path("/tools").is_ok());
     }
@@ -84,8 +68,4 @@ mod tests {
         assert!(validate_gateway_path("/skills").is_ok());
     }
 
-    #[test]
-    fn reject_usage_with_injection() {
-        assert!(validate_gateway_path("/usage?inject=true").is_err());
-    }
 }
