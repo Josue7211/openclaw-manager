@@ -181,7 +181,7 @@ enum TerminalCommand {
 
 struct PtyCleanup {
     child: Box<dyn portable_pty::Child + Send + Sync>,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Justification: held alive to keep PTY master fd open; dropping it closes the terminal session
     master: Box<dyn MasterPty + Send>,
     #[cfg(unix)]
     pgid: Option<i32>,
