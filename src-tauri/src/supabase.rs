@@ -95,7 +95,7 @@ impl SupabaseClient {
         format!("{}/rest/v1/{}", self.url, table)
     }
 
-    #[allow(dead_code)]
+    #[allow(dead_code)] // used only by rpc() which is itself reserved for future Postgres function calls
     fn rpc_url(&self, function: &str) -> String {
         format!("{}/rest/v1/rpc/{}", self.url, function)
     }
@@ -420,7 +420,7 @@ impl SupabaseClient {
     }
 
     /// `POST /rest/v1/rpc/{function}` — call a Postgres function.
-    #[allow(dead_code)]
+    #[allow(dead_code)] // reserved for future Postgres function calls (e.g. search_memory)
     pub async fn rpc(&self, function: &str, body: Value) -> anyhow::Result<Value> {
         let resp = self
             .auth_headers(self.http.post(&self.rpc_url(function)))
@@ -444,7 +444,6 @@ impl SupabaseClient {
     }
 
     /// Check whether the client can reach Supabase. Returns `true` on success.
-    #[allow(dead_code)]
     pub async fn health_check(&self) -> bool {
         let url = format!("{}/rest/v1/", self.url);
         match self

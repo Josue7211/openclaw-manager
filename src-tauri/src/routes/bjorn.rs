@@ -550,7 +550,7 @@ async fn rollback_module(
 struct BridgeBody {
     source: String,
     command: String,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // deserialized from JSON request but not yet read; needed when bridge proxy is implemented
     args: Option<Value>,
 }
 

@@ -104,7 +104,7 @@ struct PlexContainer<T> {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
+#[allow(dead_code)] // serde struct: player field deserialized from Plex API but not yet consumed
 struct PlexSession {
     title: Option<String>,
     #[serde(rename = "grandparentTitle")]
@@ -126,7 +126,7 @@ struct PlexUser {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
+#[allow(dead_code)] // serde struct: state field deserialized from Plex API but not yet consumed
 struct PlexPlayer {
     state: Option<String>,
 }
@@ -142,7 +142,7 @@ struct PlexLibraryItem {
 // ── Sonarr API types ────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
+#[allow(dead_code)] // serde struct: all fields used but lint fires on struct-level for Deserialize-only types
 struct SonarrEpisode {
     series: Option<SonarrSeries>,
     title: Option<String>,
@@ -155,7 +155,7 @@ struct SonarrEpisode {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
+#[allow(dead_code)] // serde struct: added field deserialized from Sonarr API but not yet consumed
 struct SonarrSeries {
     title: Option<String>,
     year: Option<i64>,
@@ -165,7 +165,7 @@ struct SonarrSeries {
 // ── Radarr API types ────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
+#[allow(dead_code)] // serde struct: date_added field deserialized from Radarr API but not yet consumed
 struct RadarrMovie {
     title: Option<String>,
     year: Option<i64>,
