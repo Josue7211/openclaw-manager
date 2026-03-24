@@ -5,7 +5,7 @@ import { useEffect, useState, useRef } from 'react'
 import { CheckSquare, Plus, Fire, ListChecks } from '@phosphor-icons/react'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useSearchParams } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { emit } from '@/lib/event-bus'
 import { queryKeys } from '@/lib/query-keys'
@@ -48,7 +48,6 @@ function DueDateBadge({ due_date }: { due_date: string | null | undefined }) {
 
 export default function TodosPage() {
   const _demo = isDemoMode()
-  const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const addInputRef = useRef<HTMLInputElement>(null)
   const { addMutation, toggleMutation, deleteMutation, invalidateTodos } = useTodos()

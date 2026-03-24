@@ -2,7 +2,6 @@ import { useMemo, useCallback, useRef, useState, memo } from 'react'
 import ForceGraph2D from 'react-force-graph-2d'
 import { MagnifyingGlass, Plus, Minus, Crosshair } from '@phosphor-icons/react'
 import type { VaultNote, GraphData } from './types'
-import { noteIdFromTitle } from '@/lib/vault'
 
 interface GraphViewProps {
   notes: VaultNote[]
@@ -10,7 +9,7 @@ interface GraphViewProps {
   onSelectNote: (id: string) => void
 }
 
-function buildGraphData(notes: VaultNote[], selectedId: string | null): GraphData {
+function buildGraphData(notes: VaultNote[], _selectedId: string | null): GraphData {
   const noteMap = new Map(notes.map((n) => [n._id, n]))
   const titleToId = new Map<string, string>()
 

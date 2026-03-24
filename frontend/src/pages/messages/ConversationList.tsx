@@ -1,4 +1,3 @@
-import { useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChatText, ArrowsClockwise, MagnifyingGlass, Check, NotePencil, BellSlash, PushPin } from '@phosphor-icons/react'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -8,7 +7,7 @@ import { cleanPayloadText } from '@/hooks/messages'
 import { MessagesConversationSkeleton } from '@/components/Skeleton'
 import { isDemoMode, DEMO_CONVERSATIONS } from '@/lib/demo-data'
 import { DemoBadge } from '@/components/DemoModeBanner'
-import type { Conversation, Message, ServiceFilter, ConvContextMenu } from './types'
+import type { Conversation, ServiceFilter, ConvContextMenu } from './types'
 import { timeAgo, isIMessage, isGroupChat } from './utils'
 
 const contactLabel = formatContactLabel

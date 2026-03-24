@@ -5,7 +5,7 @@ import { isDemoMode } from '@/lib/demo-data'
 import { isWebAuthnSupported, registerWebAuthnKey } from '@/lib/webauthn'
 import type { WebAuthnCreationOptions } from '@/lib/webauthn'
 import { Button } from '@/components/ui/Button'
-import { row, rowLast, val, inputStyle, sectionLabel } from './shared'
+import { row, val, inputStyle, sectionLabel } from './shared'
 
 interface WebAuthnFactor {
   id: string

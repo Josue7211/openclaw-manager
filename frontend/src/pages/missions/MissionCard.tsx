@@ -23,7 +23,7 @@ export const MissionCard = React.memo(function MissionCard({
   const done = mission.status === 'done'
   const canMarkDone = !done
   const barPct = done ? 100 : (mission.progress ?? 0)
-  const barColor = done
+  const _barColor = done
     ? 'var(--secondary)'
     : mission.status === 'active'
       ? 'var(--accent)'
