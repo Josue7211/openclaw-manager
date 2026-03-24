@@ -1,8 +1,4 @@
-use axum::{
-    extract::{Path, State},
-    routing::{get, patch},
-    Json, Router,
-};
+use axum::{extract::State, routing::get, Json, Router};
 use reqwest::Method;
 use serde_json::{json, Value};
 use std::sync::OnceLock;
@@ -203,180 +199,35 @@ async fn openclaw_health(
     }
 }
 
-// ── Gateway agent CRUD (protocol v3: agents.list/create/update/delete) ──────
+// ── Skills routes (protocol v3: skills.status, skills.bins) ────────────────
 
-/// `GET /api/gateway/agents` — proxy for `agents.list`
+/// `GET /api/gateway/skills/status`
 ///
-/// Fetches the list of agents from the OpenClaw gateway.
-/// Protocol v3: agents.list takes no params.
-async fn gateway_agents_list(
+/// Proxies `skills.status` through the gateway HTTP proxy.
+/// Returns installed skills and their current status.
+async fn gateway_skills_status(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let result = gateway_forward(&state, Method::GET, "/agents", None).await?;
-    Ok(Json(json!({ "ok": true, "data": result })))
-}
-
-/// `POST /api/gateway/agents` — proxy for `agents.create`
-///
-/// Creates a new agent on the OpenClaw gateway.
-/// Protocol v3: agents.create requires `name` (string) and optional `model`, plus other config.
-async fn gateway_agents_create(
-    State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
-    Json(body): Json<Value>,
-) -> Result<Json<Value>, AppError> {
-    // Validate that name exists and is a non-empty string
-    let name = body
-        .get("name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    if name.is_empty() {
-        return Err(AppError::BadRequest("name is required".into()));
-    }
-
-    let result = gateway_forward(&state, Method::POST, "/agents", Some(body)).await?;
-    Ok(Json(json!({ "ok": true, "data": result })))
-}
-
-/// `PATCH /api/gateway/agents/:name` — proxy for `agents.update`
-///
-/// Updates an existing agent on the OpenClaw gateway.
-/// Protocol v3: agents.update requires `name` plus fields to update.
-async fn gateway_agents_update(
-    State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
-    Path(name): Path<String>,
-    Json(body): Json<Value>,
-) -> Result<Json<Value>, AppError> {
-    if name.is_empty() || name.len() > 100 {
-        return Err(AppError::BadRequest("invalid agent name".into()));
-    }
-
-    // Merge name into body params for the gateway
-    let mut params = body;
-    if let Some(obj) = params.as_object_mut() {
-        obj.insert("name".to_string(), json!(name));
-    } else {
-        params = json!({ "name": name });
-    }
-
-    let result = gateway_forward(
-        &state,
-        Method::PATCH,
-        &format!("/agents/{name}"),
-        Some(params),
-    )
-    .await?;
-    Ok(Json(json!({ "ok": true, "data": result })))
-}
-
-/// `DELETE /api/gateway/agents/:name` — proxy for `agents.delete`
-///
-/// Deletes an agent from the OpenClaw gateway.
-/// Protocol v3: agents.delete requires `name`.
-async fn gateway_agents_delete(
-    State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
-    Path(name): Path<String>,
-) -> Result<Json<Value>, AppError> {
-    if name.is_empty() || name.len() > 100 {
-        return Err(AppError::BadRequest("invalid agent name".into()));
-    }
-
-    let result = gateway_forward(
-        &state,
-        Method::DELETE,
-        &format!("/agents/{name}"),
-        None,
-    )
-    .await?;
-    Ok(Json(json!({ "ok": true, "data": result })))
-}
-
-// ── Usage routes (usage.status / usage.cost via WS RPC) ─────────────────────
-
-/// `GET /api/gateway/usage/status`
-///
-/// Proxies `usage.status` through the persistent gateway WS connection.
-/// Returns token usage and quota data.
-async fn gateway_usage_status(
-    State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
-) -> Result<Json<Value>, AppError> {
-    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
-        AppError::BadRequest(
-            "OpenClaw Gateway not configured. Set OPENCLAW_WS in Settings > Connections.".into(),
-        )
-    })?;
-
-    let payload = gw
-        .request("usage.status", json!({}))
-        .await
-        .map_err(|e| {
-            tracing::error!("[gateway] usage.status failed: {e}");
-            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
-        })?;
-
+    let result = gateway_forward(&state, Method::GET, "/skills/status", None).await?;
     Ok(Json(json!({
         "ok": true,
-        "data": payload,
+        "data": result,
     })))
 }
 
-/// `GET /api/gateway/usage/cost`
+/// `GET /api/gateway/skills/bins`
 ///
-/// Proxies `usage.cost` through the persistent gateway WS connection.
-/// Returns cost breakdown data.
-async fn gateway_usage_cost(
+/// Proxies `skills.bins` through the gateway HTTP proxy.
+/// Returns available skill binaries (tools) that can be installed.
+async fn gateway_skills_bins(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
-        AppError::BadRequest(
-            "OpenClaw Gateway not configured. Set OPENCLAW_WS in Settings > Connections.".into(),
-        )
-    })?;
-
-    let payload = gw
-        .request("usage.cost", json!({}))
-        .await
-        .map_err(|e| {
-            tracing::error!("[gateway] usage.cost failed: {e}");
-            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
-        })?;
-
+    let result = gateway_forward(&state, Method::GET, "/skills/bins", None).await?;
     Ok(Json(json!({
         "ok": true,
-        "data": payload,
-    })))
-}
-
-// ── Activity route (logs.tail via WS RPC) ──────────────────────────────────
-
-/// `GET /api/gateway/activity`
-///
-/// Proxies `logs.tail` via gateway WebSocket RPC.
-/// Returns recent gateway events (session starts/stops, cron runs, errors).
-async fn gateway_activity(
-    State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
-) -> Result<Json<Value>, AppError> {
-    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
-        AppError::BadRequest("OpenClaw Gateway not configured.".into())
-    })?;
-
-    let payload = gw
-        .request("logs.tail", json!({}))
-        .await
-        .map_err(|e| {
-            tracing::error!("[gateway] logs.tail failed: {e}");
-            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
-        })?;
-
-    Ok(Json(json!({
-        "ok": true,
-        "data": payload,
+        "data": result,
     })))
 }
 
@@ -385,17 +236,8 @@ async fn gateway_activity(
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/openclaw/health", get(openclaw_health))
-        .route(
-            "/gateway/agents",
-            get(gateway_agents_list).post(gateway_agents_create),
-        )
-        .route(
-            "/gateway/agents/:name",
-            patch(gateway_agents_update).delete(gateway_agents_delete),
-        )
-        .route("/gateway/usage/status", get(gateway_usage_status))
-        .route("/gateway/usage/cost", get(gateway_usage_cost))
-        .route("/gateway/activity", get(gateway_activity))
+        .route("/gateway/skills/status", get(gateway_skills_status))
+        .route("/gateway/skills/bins", get(gateway_skills_bins))
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
