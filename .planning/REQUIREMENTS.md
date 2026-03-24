@@ -9,8 +9,8 @@ Requirements for gateway protocol integration milestone. Each maps to roadmap ph
 
 ### Gateway Connection
 
-- [ ] **GW-01**: Connect handshake uses protocol v3 with role/scopes/client metadata (not empty JSON)
-- [ ] **GW-02**: Device identity sent in handshake (device_id, platform, app_version)
+- [x] **GW-01**: Connect handshake uses protocol v3 with role/scopes/client metadata (not empty JSON)
+- [x] **GW-02**: Device identity sent in handshake (device_id, platform, app_version)
 - [ ] **GW-03**: Gateway WebSocket reconnects automatically with exponential backoff on disconnect
 
 ### RPC Method Corrections
@@ -62,8 +62,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| GW-01 | Phase 75 | Pending |
-| GW-02 | Phase 75 | Pending |
+| GW-01 | Phase 75 | Complete |
+| GW-02 | Phase 75 | Complete |
 | GW-03 | Phase 76 | Pending |
 | RPC-01 | Phase 77 | Pending |
 | RPC-02 | Phase 77 | Pending |
