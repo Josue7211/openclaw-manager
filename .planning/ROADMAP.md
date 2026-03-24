@@ -221,7 +221,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 75. Protocol v3 Handshake | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
-| 76. Reconnect with Backoff | v0.0.5 | 0/1 | Not started | - |
+| 76. Reconnect with Backoff | v0.0.5 | 0/1 | Planned    |  |
 | 77. Chat Method Corrections | v0.0.5 | 0/? | Not started | - |
 | 78. Agent Method Verification | v0.0.5 | 0/? | Not started | - |
 | 79. Cron Method Verification | v0.0.5 | 0/? | Not started | - |
