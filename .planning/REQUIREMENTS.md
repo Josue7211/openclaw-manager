@@ -25,7 +25,7 @@ Requirements for stabilization milestone. Each maps to roadmap phases.
 
 ### Dev Workflow
 
-- [ ] **DEV-01**: Browser mode auth works without Tauri shell for development
+- [x] **DEV-01**: Browser mode auth works without Tauri shell for development
 - [ ] **DEV-02**: Persistent "ffir" error toast resolved -- no error toasts on clean page load
 - [ ] **DEV-03**: knip configured with entry points for lazy-loaded routes and widget registry
 
@@ -67,7 +67,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DEV-01 | Phase 56 | Pending |
+| DEV-01 | Phase 56 | Complete |
 | DEV-02 | Phase 57 | Pending |
 | RUST-01 | Phase 58 | Pending |
 | RUST-02 | Phase 59 | Pending |
