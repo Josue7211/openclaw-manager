@@ -15,8 +15,8 @@ Requirements for gateway protocol integration milestone. Each maps to roadmap ph
 
 ### RPC Method Corrections
 
-- [ ] **RPC-01**: sessions.history -> chat.history (correct method name)
-- [ ] **RPC-02**: sessions.create -> chat.send with proper message format
+- [x] **RPC-01**: sessions.history -> chat.history (correct method name)
+- [x] **RPC-02**: sessions.create -> chat.send with proper message format
 - [ ] **RPC-03**: agents.list -> agents.list (verify params match protocol)
 - [ ] **RPC-04**: agents.create/update/delete -> verify CRUD method signatures
 - [ ] **RPC-05**: crons.list/create/update/delete -> verify CRUD method signatures
@@ -65,8 +65,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GW-01 | Phase 75 | Complete |
 | GW-02 | Phase 75 | Complete |
 | GW-03 | Phase 76 | Complete |
-| RPC-01 | Phase 77 | Pending |
-| RPC-02 | Phase 77 | Pending |
+| RPC-01 | Phase 77 | Complete |
+| RPC-02 | Phase 77 | Complete |
 | RPC-03 | Phase 78 | Pending |
 | RPC-04 | Phase 78 | Pending |
 | RPC-05 | Phase 79 | Pending |
