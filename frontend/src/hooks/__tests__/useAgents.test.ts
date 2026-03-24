@@ -277,7 +277,7 @@ describe('useAgents', () => {
       )
     })
 
-    it('does not call useGatewaySSE when in demo mode', async () => {
+    it('calls useGatewaySSE with empty options in demo mode (no-op)', async () => {
       const { isDemoMode } = await import('@/lib/demo-data')
       vi.mocked(isDemoMode).mockReturnValue(true)
 
@@ -289,8 +289,8 @@ describe('useAgents', () => {
       // Wait a tick for any side effects
       await new Promise((r) => setTimeout(r, 50))
 
-      // useGatewaySSE should not be called in demo mode
-      expect(mockUseGatewaySSE).not.toHaveBeenCalled()
+      // useGatewaySSE is always called (rules of hooks) but with empty options in demo mode
+      expect(mockUseGatewaySSE).toHaveBeenCalledWith({})
 
       // Reset
       vi.mocked(isDemoMode).mockReturnValue(false)
