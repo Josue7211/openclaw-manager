@@ -134,7 +134,7 @@ Plans:
   3. Both tabs render real data from the live gateway without "undefined" or empty states when data exists
 **Plans**: 1 plan
 Plans:
-- [ ] 82-01-PLAN.md -- Gateway WS skills.status and skills.bins routes (replace HTTP proxies)
+- [x] 82-01-PLAN.md -- Gateway WS skills.status and skills.bins routes (replace HTTP proxies)
 
 ### Phase 83: Activity Events Method Correction
 **Goal**: Activity data uses the correct gateway method or subscription pattern instead of the nonexistent activity.recent
@@ -241,7 +241,7 @@ Plans:
 | 79. Cron Method Verification | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 | 80. Models Method Verification | v0.0.5 | 0/1 | Planned    |  |
 | 81. Usage Method Correction | v0.0.5 | 0/1 | Not started | - |
-| 82. Tools & Skills Method Verification | v0.0.5 | 0/1 | Not started | - |
+| 82. Tools & Skills Method Verification | v0.0.5 | 1/1 | Complete   | 2026-03-24 |
 | 83. Activity Events Method Correction | v0.0.5 | 0/1 | Not started | - |
 | 84. SSE Event Bus Wiring | v0.0.5 | 0/? | Not started | - |
 | 85. Agent Event Streaming | v0.0.5 | 0/? | Not started | - |
