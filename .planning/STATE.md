@@ -1,98 +1,81 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.0.3
-milestone_name: -- AI Ops Center + OpenClaw Controller + Polish
-status: unknown
-stopped_at: Completed 12-02-PLAN.md (verified and recovered from NFS corruption)
-last_updated: "2026-03-22T22:37:45.154Z"
+milestone: v0.0.4
+milestone_name: -- Stabilize & Strip
+status: Executing Phase 60
+stopped_at: Completed 59-01-PLAN.md
+last_updated: "2026-03-24T08:46:06Z"
 progress:
   total_phases: 19
-  completed_phases: 8
-  total_plans: 11
-  completed_plans: 11
+  completed_phases: 4
+  total_plans: 5
+  completed_plans: 4
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-22)
+See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 12 complete — unified OpenClaw page with 5 tabs shipped
+**Current focus:** Phase 60 — Strip Dead Route Modules
 
 ## Current Position
 
-Phase: 13
+Phase: 60 (Strip Dead Route Modules)
 Plan: Not started
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 7
-- Average duration: ~4min
-- Total execution time: ~0.38 hours
+- Total plans completed: 4
+- Average duration: ~3.75min
+- Total execution time: ~0.25 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 05 | 1/1 | -- | -- |
-| 06 | 1/1 | 2min | 2min |
-| 07 | 1/1 | 2min | 2min |
-| 08 | 1/1 | 3min | 3min |
-| 09 | 1/1 | 4min | 4min |
-| 10 | 2/2 | 12min | 6min |
-| Phase 11 P01 | 3min | 2 tasks | 4 files |
-| Phase 11 P02 | 5min | 2 tasks | 5 files |
-| Phase 12 P01 | 4min | 2 tasks | 7 files |
-| Phase 12 P02 | 12min | 3 tasks | 9 files |
+| 56 | 1/1 | 4min | 4min |
+| 57 | 1/1 | 2min | 2min |
+| 58 | 1/1 | 3min | 3min |
+| 59 | 1/1 | 6min | 6min |
 
 ## Accumulated Context
+
+| Phase 56 P01 | 4min | 3 tasks | 5 files |
+| Phase 57 P01 | 2min | 2 tasks | 2 files |
+| Phase 58 P01 | 3min | 1 tasks | 6 files |
 
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- Milestone restructured: 25 phases -> 19 phases (2026-03-22)
-- Deferred to v0.0.4: TipTap editor (6 phases), Project Tracker (3 phases)
-- Added: AI Ops Center group — Claude Code session management, session monitor, remote VM viewer
-- Theme blend, OpenClaw controller, Terminal phases kept as-is
-- Phase numbering: renumbered contiguously after cuts (old Phase 8 -> new Phase 6, etc.)
-- User vision: Mission Control as AI operations center — monitor Claude Code sessions, VNC into OpenClaw VM, Moonlight integration
-- OKLCH color utilities: pure math, zero deps, Bjorn Ottosson matrices, shortest-arc hue interpolation (Phase 6)
-- Theme blend engine: OKLCH-aware Tier 1 interpolation, WCAG AA text contrast enforcement, bp=0.5 data-theme switch (Phase 7)
-- Theme blend slider: setBlendPosition() with 0-1 clamping, system mode auto-reset, RAF-throttled UI in Settings > Display (Phase 8)
-- OpenClaw gateway: state.http (bare reqwest) over ServiceClient -- avoids 5xx retry on writes, forced JSON parsing (Phase 9)
-- OpenClaw gateway: 4xx=BadRequest (sanitized, user-visible), 5xx=Internal (hidden from client) (Phase 9)
-- [Phase 10]: Agent IDs use length check (1-100) instead of validate_uuid to support seed short IDs
-- [Phase 10]: Split-pane layout matches Notes.tsx pattern for consistent entity management UX
-- [Phase 10]: All agent editing in detail panel, cards read-only -- avoids dual editing states
-- [Phase 10]: Lifecycle buttons disabled (not hidden) when OpenClaw unhealthy -- user sees controls exist
-- [Phase 11]: Cron CRUD uses gateway_forward() for writes, CLI stays as read path
-- [Phase 11]: Cron ID validation uses length check (1-100) not validate_uuid -- IDs may be short strings
-- [Phase 11]: Schedule presets (8 intervals + custom cron) instead of raw crontab input for cron job creation
-- [Phase 12]: GET-only gateway proxy handlers -- no deserialization struct needed for read-only passthrough
-- [Phase 12]: Index signatures on TypeScript interfaces for forward-compatible unknown API shapes
-- [Phase 12]: Embedded sub-components (AgentList, WeekGrid) instead of importing full pages to avoid full-bleed layout conflicts
-- [Phase 12]: Replaced separate agents/crons module entries with single openclaw entry
+- Gateway integration deferred to v0.0.5 -- v0.0.4 only strips nonexistent methods (pause/resume), does not fix wrong method names
+- Fix-before-strip ordering -- correct dev workflow before removing any code
+- Single-purpose commits mandatory -- bulk cleanup prevents regression bisection
+- [Phase 56]: Used meta http-equiv refresh for browser-mode OAuth redirect (returns Html not Response)
+- [Phase 56]: redirect_to validated as localhost-only to prevent open redirect
+- [Phase 57]: Stale sidecar binaries already gitignored -- no git removal needed, guard via unhandledrejection
+- [Phase 58]: health_check() #[allow(dead_code)] was incorrect -- removed; all other 11 annotations justified with inline comments
+- [Phase 59]: No cargo-machete ignore list needed -- zero false positives detected
+- [Phase 59]: Pre-existing clippy warnings (73) left untouched -- out of scope for crate stripping
 
 ### Pending Todos
 
-- Resolve SSH passphrase key issue for terminal (Phase 13)
-- Research Claude Code SDK/CLI spawning for Phase 15
-- Research noVNC + Moonlight integration for Phase 17
+- None
 
 ### Blockers/Concerns
 
-- OpenClaw gateway API endpoints based on code analysis, not verified against actual gateway
-- SSH key `~/.ssh/mission-control` has a passphrase -- non-interactive SSH from PTY will fail
-- Claude Code SDK availability and session management API needs research
+- Dynamic imports (widget registry, React.lazy, wizard steps) create false positives for static analysis tools -- knip needs careful entry point config
+- WebSocket CAS guards need full lifecycle verification after any route deletion
+- Dashboard state has persisted widget type strings -- removing registry entries needs migration entries
 
 ## Session Continuity
 
-Last session: 2026-03-22T22:35:00Z
-Stopped at: Completed 12-02-PLAN.md (verified and recovered from NFS corruption)
+Last session: 2026-03-24T08:46:06Z
+Stopped at: Completed 59-01-PLAN.md
 Resume file: None
