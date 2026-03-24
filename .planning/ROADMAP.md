@@ -169,7 +169,9 @@ Plans:
   1. When an agent starts/stops/errors on the gateway, the frontend receives the `agent` event via SSE
   2. Agent status indicators update in real-time on the Agents tab
   3. Agent status changes appear in the activity feed without page refresh
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 85-01-PLAN.md -- Wire useGatewaySSE into useAgents + AgentsPage for real-time agent updates
 
 ### Phase 86: Session Event Streaming
 **Goal**: Session lifecycle events (created, completed, error) appear in the UI in real-time
@@ -179,7 +181,9 @@ Plans:
   1. When a session is created/completed/errors on the gateway, the frontend receives the `chat` event via SSE
   2. Session status updates appear in the Sessions tab without polling
   3. Session completion/error events trigger notification if the user has notifications enabled
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 86-01-PLAN.md -- Wire useGatewaySSE into useGatewaySessions + SessionsPage with notifications
 
 ### Phase 87: Live Agents Tab
 **Goal**: The Agents tab is fully functional against the live gateway with real agent data
@@ -246,8 +250,8 @@ Plans:
 | 82. Tools & Skills Method Verification | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
 | 83. Activity Events Method Correction | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 | 84. SSE Event Bus Wiring | v0.0.5 | 0/1 | Not started | - |
-| 85. Agent Event Streaming | v0.0.5 | 0/? | Not started | - |
-| 86. Session Event Streaming | v0.0.5 | 0/? | Not started | - |
+| 85. Agent Event Streaming | v0.0.5 | 0/1 | Not started | - |
+| 86. Session Event Streaming | v0.0.5 | 0/1 | Not started | - |
 | 87. Live Agents Tab | v0.0.5 | 0/? | Not started | - |
 | 88. Live Crons Tab | v0.0.5 | 0/? | Not started | - |
 | 89. Live Usage & Models Tabs | v0.0.5 | 0/? | Not started | - |
