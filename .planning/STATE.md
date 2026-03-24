@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.0.5
-milestone_name: -- Gateway Protocol v3
-status: Milestone complete
-stopped_at: Completed 88-01-PLAN.md
-last_updated: "2026-03-24T16:26:23.408Z"
+milestone: v0.0.6
+milestone_name: Sessions & Chat
+status: Defining requirements
+stopped_at: null
+last_updated: "2026-03-24T19:30:00.000Z"
 progress:
-  total_phases: 16
-  completed_phases: 15
-  total_plans: 16
-  completed_plans: 15
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
@@ -19,12 +19,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 84 — SSE Event Bus Wiring
+**Current focus:** v0.0.6 — Sessions & Chat
 
 ## Current Position
 
-Phase: 90
-Plan: Not started
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-24 — Milestone v0.0.6 started
 
 ## Performance Metrics
 

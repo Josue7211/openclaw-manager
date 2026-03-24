@@ -65,7 +65,15 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 
 **Goal:** Full session management with proper chat.send/history/abort methods, live streaming responses, model selection per session.
 
-**Status:** Planning (run `/gsd:new-milestone` to start)
+**Target features:**
+- Sessions CRUD (list, create via chat.send, patch label, delete, compact)
+- Chat history retrieval (chat.history with sessionKey, paginated)
+- Chat send with live streaming (chat.send with deliver flag, SSE token stream)
+- Chat abort (cancel in-progress agent responses)
+- Model selection per session (models.list → picker in new session form)
+- Session output streaming (gateway events → SSE → frontend live token display)
+
+**Status:** In progress
 
 ## Context
 
