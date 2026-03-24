@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.0.4
 milestone_name: -- Stabilize & Strip
 status: Ready to plan
-stopped_at: Completed 67-01-PLAN.md
-last_updated: "2026-03-24T10:42:09.611Z"
+stopped_at: Completed 71-01-PLAN.md
+last_updated: "2026-03-24T10:51:37Z"
 progress:
   total_phases: 19
-  completed_phases: 13
-  total_plans: 14
-  completed_plans: 14
+  completed_phases: 16
+  total_plans: 17
+  completed_plans: 17
 ---
 
 # Project State
@@ -19,11 +19,10 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 68 — Enable TypeScript Strict Flags
-
+**Current focus:** Phase 71 complete — Gateway Integration Tests
 ## Current Position
 
-Phase: 69
+Phase: 72
 Plan: Not started
 
 ## Performance Metrics
@@ -49,6 +48,7 @@ Plan: Not started
 | Phase 65 P01 | 9min | 2 tasks | 12 files |
 | Phase 65 P02 | 9min | 3 tasks | 19 files |
 | Phase 67 P01 | 18min | 2 tasks | 47 files |
+| Phase 71 P01 | 3min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -70,6 +70,8 @@ Recent decisions affecting current work:
 - [Phase 63]: noVNC references already removed; only v8 dashboard-state migration needed
 - [Phase 65]: Delete unused functions (formatDate, getNote, renameNote, isImageFile, PrimitiveErrorFallback, useSecretsList, useSecret, useDeleteSecret, useEditablePageTitle, usePageSubtitle) rather than just de-exporting -- reduces bundle size
 - [Phase 67]: Underscore prefix convention for intentionally unused params (argsIgnorePattern/varsIgnorePattern in ESLint)
+- [Phase 71]: Mock useGatewayStatus hook directly in component tests to isolate rendering from API layer
+- [Phase 71]: Mirror inline useQuery pattern from OpenClaw.tsx for health query tests rather than extracting a shared hook
 
 ### Pending Todos
 
@@ -83,6 +85,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-24T10:22:06.062Z
-Stopped at: Completed 67-01-PLAN.md
+Last session: 2026-03-24T10:51:37Z
+Stopped at: Completed 71-01-PLAN.md
 Resume file: None
