@@ -306,7 +306,7 @@ Plans:
 | 68. Enable TS Strict Flags | v0.0.4 | 0/? | Complete    | 2026-03-24 |
 | 69. OpenClaw Hook Tests | v0.0.4 | 0/1 | Planned    |  |
 | 70. Terminal Hook Tests | v0.0.4 | 0/? | Not started | - |
-| 71. Gateway Integration Tests | v0.0.4 | 0/? | Not started | - |
+| 71. Gateway Integration Tests | v0.0.4 | 1/1 | Complete    | 2026-03-24 |
 | 72. Sidebar Module Smoke Test | v0.0.4 | 0/? | Not started | - |
 | 73. Widget Render Smoke Test | v0.0.4 | 0/? | Not started | - |
 | 74. Full Route Audit | v0.0.4 | 0/? | Not started | - |
