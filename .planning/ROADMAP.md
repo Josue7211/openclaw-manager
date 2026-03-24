@@ -155,7 +155,7 @@ Plans:
   4. Any sidebar module entries for deferred features are removed from `sidebar-config.ts` and `modules.ts`
 **Plans**: 1 plan
 Plans:
-- [ ] 64-01-PLAN.md -- Remove TipTap packages and Project Tracker stubs
+- [ ] 64-01-PLAN.md -- Verify TipTap/Project Tracker stubs already absent (no code changes needed)
 
 ### Phase 65: Strip Unused File Exports
 **Goal**: Every exported function, type, constant, and component in the frontend is imported by at least one consumer
