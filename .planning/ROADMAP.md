@@ -236,10 +236,10 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 75. Protocol v3 Handshake | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
 | 76. Reconnect with Backoff | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
-| 77. Chat Method Corrections | v0.0.5 | 0/1 | Planned    |  |
-| 78. Agent Method Verification | v0.0.5 | 0/1 | Not started | - |
-| 79. Cron Method Verification | v0.0.5 | 0/1 | Not started | - |
-| 80. Models Method Verification | v0.0.5 | 0/1 | Not started | - |
+| 77. Chat Method Corrections | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+| 78. Agent Method Verification | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+| 79. Cron Method Verification | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+| 80. Models Method Verification | v0.0.5 | 0/1 | Planned    |  |
 | 81. Usage Method Correction | v0.0.5 | 0/1 | Not started | - |
 | 82. Tools & Skills Method Verification | v0.0.5 | 0/1 | Not started | - |
 | 83. Activity Events Method Correction | v0.0.5 | 0/1 | Not started | - |

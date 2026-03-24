@@ -20,7 +20,7 @@ Requirements for gateway protocol integration milestone. Each maps to roadmap ph
 - [ ] **RPC-03**: agents.list -> agents.list (verify params match protocol)
 - [ ] **RPC-04**: agents.create/update/delete -> verify CRUD method signatures
 - [ ] **RPC-05**: crons.list/create/update/delete -> verify CRUD method signatures
-- [ ] **RPC-06**: models.list -> models.list (verify response shape)
+- [x] **RPC-06**: models.list -> models.list (verify response shape)
 - [ ] **RPC-07**: usage.summary -> usage.get (correct method name and params)
 - [ ] **RPC-08**: tools.list/skills.list -> verify method names and response shapes
 - [ ] **RPC-09**: activity.recent -> events.list or subscribe pattern (verify correct approach)
@@ -70,7 +70,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RPC-03 | Phase 78 | Pending |
 | RPC-04 | Phase 78 | Pending |
 | RPC-05 | Phase 79 | Pending |
-| RPC-06 | Phase 80 | Pending |
+| RPC-06 | Phase 80 | Complete |
 | RPC-07 | Phase 81 | Pending |
 | RPC-08 | Phase 82 | Pending |
 | RPC-09 | Phase 83 | Pending |

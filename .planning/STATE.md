@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.0.5
 milestone_name: -- Gateway Protocol v3
 status: Ready to plan
-stopped_at: Completed 77-01-PLAN.md
-last_updated: "2026-03-24T12:44:49.811Z"
+stopped_at: Completed 80-01-PLAN.md
+last_updated: "2026-03-24T12:53:14.429Z"
 progress:
   total_phases: 16
-  completed_phases: 2
+  completed_phases: 5
   total_plans: 9
-  completed_plans: 2
+  completed_plans: 5
 ---
 
 # Project State
@@ -23,7 +23,7 @@ See: .planning/PROJECT.md (updated 2026-03-24)
 
 ## Current Position
 
-Phase: 77
+Phase: 80
 Plan: Not started
 
 ## Performance Metrics
@@ -58,6 +58,7 @@ Recent decisions affecting current work:
 - [Phase 75]: Device ID format mc-{12hex} via rand::random -- no uuid crate needed
 - [Phase 76]: Used checked_shl for overflow-safe exponential backoff delay calculation
 - [Phase 77]: Used gateway_forward HTTP proxy pattern for chat RPC calls (consistent with agents/crons) since no WebSocket RPC client exists yet
+- [Phase 80]: Used gateway_forward HTTP proxy for models.list route since gateway_ws WS client not yet available
 
 ### Pending Todos
 
@@ -71,6 +72,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-24T12:44:49.809Z
-Stopped at: Completed 77-01-PLAN.md
+Last session: 2026-03-24T12:53:10.255Z
+Stopped at: Completed 80-01-PLAN.md
 Resume file: None
