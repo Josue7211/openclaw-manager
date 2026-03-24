@@ -82,7 +82,9 @@ Plans:
   1. `agents.list` call uses correct params and the response shape matches what the frontend expects
   2. `agents.create`, `agents.update`, `agents.delete` use correct method names and param shapes per protocol
   3. All four agent RPC calls succeed against the live gateway without method-not-found errors
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 78-01-PLAN.md -- Gateway agent CRUD proxy routes (agents.list/create/update/delete)
 
 ### Phase 79: Cron Method Verification
 **Goal**: Cron CRUD operations use verified protocol v3 method names (cron.* not crons.*)
@@ -92,7 +94,9 @@ Plans:
   1. Cron listing calls `cron.list` (not `crons.list`) and parses the response correctly
   2. Cron create calls `cron.add` (not `crons.create`), update calls `cron.update`, delete calls `cron.remove`
   3. All cron RPC calls succeed against the live gateway
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 79-01-PLAN.md -- Rewrite cron CRUD to use gateway WS RPC (cron.list/add/update/remove)
 
 ### Phase 80: Models Method Verification
 **Goal**: Models listing uses verified method name and the frontend correctly renders the response shape
@@ -223,8 +227,8 @@ Plans:
 | 75. Protocol v3 Handshake | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
 | 76. Reconnect with Backoff | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 | 77. Chat Method Corrections | v0.0.5 | 0/? | Not started | - |
-| 78. Agent Method Verification | v0.0.5 | 0/? | Not started | - |
-| 79. Cron Method Verification | v0.0.5 | 0/? | Not started | - |
+| 78. Agent Method Verification | v0.0.5 | 0/1 | Not started | - |
+| 79. Cron Method Verification | v0.0.5 | 0/1 | Not started | - |
 | 80. Models Method Verification | v0.0.5 | 0/? | Not started | - |
 | 81. Usage Method Correction | v0.0.5 | 0/? | Not started | - |
 | 82. Tools & Skills Method Verification | v0.0.5 | 0/? | Not started | - |
