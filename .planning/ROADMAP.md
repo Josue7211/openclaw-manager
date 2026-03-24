@@ -283,7 +283,7 @@ Plans:
   4. Navigation between all routes works (forward, back, sidebar click, direct URL)
 **Plans**: 1 plan
 Plans:
-- [ ] 74-01-PLAN.md -- Full route audit with agent-browser
+- [ ] 74-01-PLAN.md -- Vitest route smoke test: render all 31 routes via MemoryRouter, assert no errors or blank pages
 
 ## Progress
 
