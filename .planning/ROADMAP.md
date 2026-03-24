@@ -49,7 +49,7 @@
   4. Settings > Connections shows gateway as "Connected (protocol v3)"
 **Plans**: 1 plan
 Plans:
-- [ ] 75-01-PLAN.md -- Protocol v3 handshake + error parsing + frontend display
+- [x] 75-01-PLAN.md -- Protocol v3 handshake + error parsing + frontend display
 
 ### Phase 76: Reconnect with Backoff
 **Goal**: Gateway connection recovers automatically after network disruptions without user intervention
@@ -60,7 +60,9 @@ Plans:
   2. Reconnect uses exponential backoff (e.g. 1s, 2s, 4s, 8s, max 30s)
   3. After reconnection, the gateway status indicator returns to "Connected" without page refresh
   4. Multiple rapid disconnects do not spawn duplicate WebSocket connections
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 76-01-PLAN.md -- Exponential backoff reconnection + Reconnecting state + frontend status
 
 ### Phase 77: Chat Method Corrections
 **Goal**: Chat/session RPC calls use the correct gateway method names so messages actually reach agents
@@ -218,8 +220,8 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 75. Protocol v3 Handshake | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
-| 76. Reconnect with Backoff | v0.0.5 | 0/? | Not started | - |
+| 75. Protocol v3 Handshake | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
+| 76. Reconnect with Backoff | v0.0.5 | 0/1 | Not started | - |
 | 77. Chat Method Corrections | v0.0.5 | 0/? | Not started | - |
 | 78. Agent Method Verification | v0.0.5 | 0/? | Not started | - |
 | 79. Cron Method Verification | v0.0.5 | 0/? | Not started | - |
@@ -332,25 +334,6 @@ Plans:
 - [x] Phase 7: Remove DashboardDataContext + Cleanup (MH-10, MH-13)
 
 **Total:** 7 phases, 15 requirements -- all complete
-
-</details>
-
-<details>
-<summary>v1.0 (Phases 1-8 + 3 decimal insertions) -- SHIPPED 2026-03-21</summary>
-
-- [x] Phase 1: Responsive Layout Shell + Visual Polish (5/5 plans)
-- [x] Phase 2: Theming System (7/7 plans)
-- [x] Phase 2.1: Theme Settings Page Polish + System Mode Fix (4/4 plans)
-- [x] Phase 2.2: Theme System Mode Fixes (2/2 plans)
-- [x] Phase 3: Setup Wizard + Onboarding (7/7 plans)
-- [x] Phase 4: Dashboard Grid + Widget System (6/6 plans)
-- [x] Phase 4.1: Wallbash GTK System Mode Integration Fix (2/2 plans)
-- [x] Phase 5: Page Experience (3/3 plans)
-- [x] Phase 6: Module Primitives Library (7/7 plans)
-- [x] Phase 7: Bjorn Module Builder (7/7 plans)
-- [x] Phase 8: Data Export (2/2 plans)
-
-**Total:** 11 phases, 52 plans, 92 requirements -- all complete
 
 </details>
 
