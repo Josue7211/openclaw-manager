@@ -294,6 +294,34 @@ async fn gateway_agents_delete(
     Ok(Json(json!({ "ok": true, "data": result })))
 }
 
+// ── Activity route (logs.tail via WS RPC) ──────────────────────────────────
+
+/// `GET /api/gateway/activity`
+///
+/// Proxies `logs.tail` via gateway WebSocket RPC.
+/// Returns recent gateway events (session starts/stops, cron runs, errors).
+async fn gateway_activity(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
+        AppError::BadRequest("OpenClaw Gateway not configured.".into())
+    })?;
+
+    let payload = gw
+        .request("logs.tail", json!({}))
+        .await
+        .map_err(|e| {
+            tracing::error!("[gateway] logs.tail failed: {e}");
+            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
+        })?;
+
+    Ok(Json(json!({
+        "ok": true,
+        "data": payload,
+    })))
+}
+
 // ── Router ──────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
@@ -307,6 +335,7 @@ pub fn router() -> Router<AppState> {
             "/gateway/agents/:name",
             patch(gateway_agents_update).delete(gateway_agents_delete),
         )
+        .route("/gateway/activity", get(gateway_activity))
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
