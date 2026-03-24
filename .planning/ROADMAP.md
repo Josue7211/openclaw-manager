@@ -17,12 +17,12 @@
 - [x] **Phase 76: Reconnect with Backoff** - Automatic WebSocket reconnection with exponential backoff on disconnect
 
 **Group AB: RPC Method Corrections** *(fix all wrong method names so backend calls real gateway methods)*
-- [ ] **Phase 77: Chat Method Corrections** - Fix sessions.history -> chat.history and sessions.create -> chat.send
-- [ ] **Phase 78: Agent Method Verification** - Verify agents.list params and agents CRUD method signatures match protocol
-- [ ] **Phase 79: Cron Method Verification** - Verify cron CRUD method signatures (cron.list/add/update/remove vs crons.*)
-- [ ] **Phase 80: Models Method Verification** - Verify models.list response shape matches protocol
+- [x] **Phase 77: Chat Method Corrections** - Fix sessions.history -> chat.history and sessions.create -> chat.send
+- [x] **Phase 78: Agent Method Verification** - Verify agents.list params and agents CRUD method signatures match protocol
+- [x] **Phase 79: Cron Method Verification** - Verify cron CRUD method signatures (cron.list/add/update/remove vs crons.*)
+- [x] **Phase 80: Models Method Verification** - Verify models.list response shape matches protocol
 - [x] **Phase 81: Usage Method Correction** - Fix usage.summary -> usage.status/usage.cost with correct params (completed 2026-03-24)
-- [ ] **Phase 82: Tools & Skills Method Verification** - Verify tools.list and skills.list method names and response shapes
+- [x] **Phase 82: Tools & Skills Method Verification** - Verify tools.list and skills.list method names and response shapes
 - [x] **Phase 83: Activity Events Method Correction** - Fix activity.recent to use logs.tail via WS RPC
 
 **Group AC: Event Bus Wiring** *(SSE event bus connected to real gateway WebSocket events)*
@@ -239,10 +239,10 @@ Plans:
 | 77. Chat Method Corrections | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 | 78. Agent Method Verification | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 | 79. Cron Method Verification | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
-| 80. Models Method Verification | v0.0.5 | 0/1 | Planned    |  |
-| 81. Usage Method Correction | v0.0.5 | 0/1 | Not started | - |
-| 82. Tools & Skills Method Verification | v0.0.5 | 1/1 | Complete   | 2026-03-24 |
-| 83. Activity Events Method Correction | v0.0.5 | 0/1 | Not started | - |
+| 80. Models Method Verification | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+| 81. Usage Method Correction | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+| 82. Tools & Skills Method Verification | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
+| 83. Activity Events Method Correction | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 | 84. SSE Event Bus Wiring | v0.0.5 | 0/? | Not started | - |
 | 85. Agent Event Streaming | v0.0.5 | 0/? | Not started | - |
 | 86. Session Event Streaming | v0.0.5 | 0/? | Not started | - |
