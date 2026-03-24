@@ -72,7 +72,9 @@ Plans:
   1. Fetching session history calls `chat.history` (not `sessions.history`) with sessionKey param
   2. Sending a message calls `chat.send` with { sessionKey, message, deliver, idempotencyKey } params
   3. Both calls return successful responses from the live gateway (not 404 or method-not-found errors)
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 77-01-PLAN.md -- Fix chat.history and chat.send RPC method names and params
 
 ### Phase 78: Agent Method Verification
 **Goal**: Agent CRUD operations use verified protocol v3 method signatures
@@ -226,7 +228,7 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 75. Protocol v3 Handshake | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
 | 76. Reconnect with Backoff | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
-| 77. Chat Method Corrections | v0.0.5 | 0/? | Not started | - |
+| 77. Chat Method Corrections | v0.0.5 | 0/1 | Not started | - |
 | 78. Agent Method Verification | v0.0.5 | 0/1 | Not started | - |
 | 79. Cron Method Verification | v0.0.5 | 0/1 | Not started | - |
 | 80. Models Method Verification | v0.0.5 | 0/? | Not started | - |
