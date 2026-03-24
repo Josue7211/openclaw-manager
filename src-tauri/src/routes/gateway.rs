@@ -199,10 +199,45 @@ async fn openclaw_health(
     }
 }
 
+// ── Skills routes (protocol v3: skills.status, skills.bins) ────────────────
+
+/// `GET /api/gateway/skills/status`
+///
+/// Proxies `skills.status` through the gateway HTTP proxy.
+/// Returns installed skills and their current status.
+async fn gateway_skills_status(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let result = gateway_forward(&state, Method::GET, "/skills/status", None).await?;
+    Ok(Json(json!({
+        "ok": true,
+        "data": result,
+    })))
+}
+
+/// `GET /api/gateway/skills/bins`
+///
+/// Proxies `skills.bins` through the gateway HTTP proxy.
+/// Returns available skill binaries (tools) that can be installed.
+async fn gateway_skills_bins(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let result = gateway_forward(&state, Method::GET, "/skills/bins", None).await?;
+    Ok(Json(json!({
+        "ok": true,
+        "data": result,
+    })))
+}
+
 // ── Router ──────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/openclaw/health", get(openclaw_health))
+    Router::new()
+        .route("/openclaw/health", get(openclaw_health))
+        .route("/gateway/skills/status", get(gateway_skills_status))
+        .route("/gateway/skills/bins", get(gateway_skills_bins))
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
