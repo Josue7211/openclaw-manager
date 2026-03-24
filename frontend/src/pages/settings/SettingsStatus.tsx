@@ -1,10 +1,11 @@
 import { memo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Desktop, WifiHigh, Database, Info, ArrowsClockwise, Clock, HardDrive, Stack, Monitor } from '@phosphor-icons/react'
+import { Desktop, WifiHigh, Database, Info, ArrowsClockwise, Clock, HardDrive, Stack, Monitor, Plugs } from '@phosphor-icons/react'
 
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { useGatewayStatus } from '@/hooks/sessions/useGatewayStatus'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -219,6 +220,21 @@ export default memo(function SettingsStatus() {
     staleTime: 8_000,
   })
 
+  const { status: gwStatus, connected: gwConnected, protocol: gwProtocol } = useGatewayStatus()
+
+  // Compute gateway display text
+  const gwDisplayStatus = gwConnected
+    ? `Connected${gwProtocol ? ` (protocol v${gwProtocol})` : ''}`
+    : gwStatus === 'not_configured'
+      ? 'Not configured'
+      : 'Disconnected'
+
+  const gwDotColor = gwConnected
+    ? 'var(--secondary-dim)'
+    : gwStatus === 'not_configured'
+      ? 'var(--text-muted)'
+      : 'var(--red-500)'
+
   const queryCache = queryClient.getQueryCache()
   const allQueries = queryCache.getAll()
   const staleQueries = allQueries.filter(q => q.isStale())
@@ -306,6 +322,34 @@ export default memo(function SettingsStatus() {
               )
             })
           )}
+        </div>
+
+        {/* Gateway WebSocket */}
+        <div style={statusCard}>
+          <div style={statusSectionTitle}>
+            <Plugs size={14} />
+            Gateway WebSocket
+          </div>
+          <div style={statusRowLast}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{
+                display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%',
+                background: gwDotColor,
+                boxShadow: gwConnected
+                  ? `0 0 6px ${gwDotColor}60`
+                  : gwStatus === 'not_configured'
+                    ? 'none'
+                    : `0 0 6px var(--red-500-a25)`,
+              }} />
+              <span style={{ fontWeight: 500 }}>OpenClaw Gateway</span>
+            </div>
+            <span style={{
+              fontSize: '11px', fontWeight: 500,
+              color: gwDotColor,
+            }}>
+              {gwDisplayStatus}
+            </span>
+          </div>
         </div>
 
         {/* Tailscale Peers */}
