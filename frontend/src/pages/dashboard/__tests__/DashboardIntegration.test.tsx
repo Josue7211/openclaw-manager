@@ -173,7 +173,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
-  // Reset mutable state
+  // Reset mutable state — needs >= 3 unique widgets to avoid triggering
+  // first-use default layout (Dashboard.tsx checks uniqueWidgets < 3)
   mockDashState = {
     pages: [{
       id: 'home',
@@ -183,6 +184,7 @@ afterEach(() => {
         lg: [
           { i: 'agent-status', x: 0, y: 0, w: 4, h: 2 },
           { i: 'heartbeat', x: 4, y: 0, w: 4, h: 2 },
+          { i: 'network', x: 8, y: 0, w: 4, h: 2 },
         ],
       },
       widgetConfigs: {},

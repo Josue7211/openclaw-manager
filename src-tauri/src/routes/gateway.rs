@@ -239,9 +239,11 @@ async fn gateway_status(
         Some(gw) => gw.connection_state().await,
         None => crate::gateway_ws::ConnectionState::NotConfigured,
     };
+    let connected = conn_state == crate::gateway_ws::ConnectionState::Connected;
     Ok(Json(json!({
-        "ok": conn_state == crate::gateway_ws::ConnectionState::Connected,
-        "state": conn_state,
+        "ok": connected,
+        "status": conn_state,
+        "connected": connected,
     })))
 }
 

@@ -44,22 +44,22 @@
 - [x] **Phase 19: Final Verification + Bundle Audit** - End-to-end verification, bundle audit, contrast check, integration test *(completed 2026-03-23)*
 
 **Group H: Post-Ship Bug Fixes**
-- [ ] **Phase 19.1: Post-Ship Bug Fixes** - Fix all broken pages found during manual testing
+- [x] **Phase 19.1: Post-Ship Bug Fixes** - Fix all broken pages found during manual testing *(verified 2026-03-23)*
 
 **Group I: Critical Bug Fixes (verified by visual audit 2026-03-23)**
-- [ ] **Phase 20: Fix Notes Page Crash** - Canvas gradient uses CSS var(--accent-a30), resolve to actual hex color before addColorStop()
-- [ ] **Phase 21: Fix MagnifyingGlass Text Bug** - Search bar + Knowledge search show "MagnifyingGlass" text instead of icon/placeholder
-- [ ] **Phase 22: Fix Reminders Skeleton** - Reminders page and widget show skeleton bars forever despite data loading
-- [ ] **Phase 23: Fix Chat Default Model** - Default to qwen (local via LiteLLM), fallback haiku, never sonnet
-- [ ] **Phase 24: Fix Settings Loading Pages** - Connections and System Status stuck on "Loading..." spinner
+- [x] **Phase 20: Fix Notes Page Crash** - Canvas gradient uses CSS var(--accent-a30), resolve to actual hex color before addColorStop() *(committed 2026-03-23)*
+- [x] **Phase 21: Fix MagnifyingGlass Text Bug** - Search bar + Knowledge search show "MagnifyingGlass" text instead of icon/placeholder *(committed 2026-03-23)*
+- [x] **Phase 22: Fix Reminders Skeleton** - Reminders page and widget show skeleton bars forever despite data loading *(committed 2026-03-23)*
+- [x] **Phase 23: Fix Chat Default Model** - Default to qwen (local via LiteLLM), fallback haiku, never sonnet *(committed 2026-03-23)*
+- [x] **Phase 24: Fix Settings Loading Pages** - Connections and System Status stuck on "Loading..." spinner *(committed 2026-03-23)*
 
 **Group J: OpenClaw Gateway Connection (PRIORITY #1)**
-- [ ] **Phase 25: Configure OPENCLAW_API_URL** - Set gateway URL in Settings > Connections, verify health check returns "connected"
-- [ ] **Phase 26: Gateway WS Client Backend** - Rust tokio-tungstenite client connecting to gateway WS (port 18789), protocol handshake, reconnect
-- [ ] **Phase 27: Gateway WS Event Bus** - Forward gateway WS events to frontend via SSE (session updates, approvals, activity)
+- [x] **Phase 25: Configure OPENCLAW_API_URL** - Set gateway URL in Settings > Connections, verify health check returns "connected" *(committed 2026-03-23)*
+- [x] **Phase 26: Gateway WS Client Backend** - Rust tokio-tungstenite client connecting to gateway WS (port 18789), protocol handshake, reconnect *(committed 2026-03-23)*
+- [x] **Phase 27: Gateway WS Event Bus** - Forward gateway WS events to frontend via SSE (session updates, approvals, activity) *(committed 2026-03-23)*
 
 **Group K: OpenClaw Session Management (enhance existing Sessions page)**
-- [ ] **Phase 28: Wire Sessions to Gateway** - Sessions page currently shows "Loading..." — connect to gateway sessions.list, populate session list with real data
+- [x] **Phase 28: Wire Sessions to Gateway** - Sessions page currently shows "Loading..." — connect to gateway sessions.list, populate session list with real data *(committed 2026-03-23)*
 - [ ] **Phase 29: Session History View** - Click session → show message history from sessions.history in chat-style UI (right panel)
 - [ ] **Phase 30: Session Live Output** - Stream real-time session output from gateway WS events into xterm.js panel
 - [ ] **Phase 31: Session Send & Controls** - Send messages into sessions (sessions.send), pause/resume/terminate buttons

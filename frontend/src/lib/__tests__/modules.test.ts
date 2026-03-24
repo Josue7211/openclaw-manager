@@ -95,14 +95,20 @@ describe('getEnabledModules', () => {
     expect(enabled).toEqual(allIds)
   })
 
-  it('returns stored array from localStorage', async () => {
+  it('returns stored array merged with new modules from localStorage', async () => {
     // Must set localStorage BEFORE importing the module, since _cached
-    // is computed at module load time via the IIFE initializer
+    // is computed at module load time via the IIFE initializer.
+    // The auto-merge logic appends any APP_MODULE IDs not already in the
+    // stored array so existing users see newly added modules.
     const subset = ['chat', 'todos']
     localStorage.setItem('enabled-modules', JSON.stringify(subset))
     vi.resetModules()
     const mod = await import('../modules')
-    expect(mod.getEnabledModules()).toEqual(subset)
+    const result = mod.getEnabledModules()
+    // Stored IDs come first, then new modules are appended
+    expect(result[0]).toBe('chat')
+    expect(result[1]).toBe('todos')
+    expect(result.length).toBe(mod.APP_MODULES.length)
   })
 
   it('falls back to all modules on invalid JSON', () => {
