@@ -193,7 +193,7 @@ if [ "$build_exit" -eq 0 ]; then
   ms=$(elapsed_ms "$step_start")
 
   if [ "$budget_exit" -eq 0 ]; then
-    pass "$ms" "Bundle size budget (all chunks < 400KB, total < 5MB)"
+    pass "$ms" "Bundle size budget (all chunks < 450KB, total < 5MB)"
   else
     fail "$ms" "Bundle size budget"
     echo "$budget_output" | grep -E "FAIL|Total" | head -10 | while read -r line; do printf "      %s\n" "$line"; done

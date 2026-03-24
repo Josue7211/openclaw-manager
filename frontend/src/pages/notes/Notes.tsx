@@ -7,6 +7,8 @@ import FileTree from './FileTree'
 import NoteEditor from './NoteEditor'
 import BacklinksPanel from './BacklinksPanel'
 import type { VaultNote } from './types'
+import type { NoteTemplate } from './templates'
+import { NOTE_TEMPLATES, applyTemplate } from './templates'
 
 const GraphView = lazy(() => import('./GraphView'))
 
@@ -39,8 +41,13 @@ export default function NotesPage() {
   }, [notes, selectedId])
 
   const handleCreate = useCallback(
-    async (folder?: string) => {
-      const note = await createNote('Untitled', folder)
+    async (folder?: string, template?: NoteTemplate) => {
+      const title = template && template.id !== 'blank' ? template.label : 'Untitled'
+      const note = await createNote(title, folder)
+      if (template && template.id !== 'blank') {
+        const content = applyTemplate(template)
+        await updateNote({ ...note, content })
+      }
       setSelectedId(note._id)
       setViewMode('editor')
       setTimeout(() => {
@@ -48,7 +55,7 @@ export default function NotesPage() {
         titleRef.current?.select()
       }, 50)
     },
-    [createNote],
+    [createNote, updateNote],
   )
 
   const handleDelete = useCallback(async () => {

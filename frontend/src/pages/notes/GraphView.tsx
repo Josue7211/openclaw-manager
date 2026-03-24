@@ -1,5 +1,6 @@
-import { useMemo, useCallback, useRef, memo } from 'react'
+import { useMemo, useCallback, useRef, useState, memo } from 'react'
 import ForceGraph2D from 'react-force-graph-2d'
+import { MagnifyingGlass, Plus, Minus, Crosshair } from '@phosphor-icons/react'
 import type { VaultNote, GraphData } from './types'
 import { noteIdFromTitle } from '@/lib/vault'
 
@@ -79,8 +80,20 @@ function resolveCanvasColors() {
 export default memo(function GraphView({ notes, selectedId, onSelectNote }: GraphViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const graphRef = useRef<any>(null)
+  const [graphSearch, setGraphSearch] = useState('')
 
   const graphData = useMemo(() => buildGraphData(notes, selectedId), [notes, selectedId])
+
+  // Set of node IDs matching the graph search query
+  const highlightedIds = useMemo(() => {
+    if (!graphSearch.trim()) return new Set<string>()
+    const q = graphSearch.toLowerCase()
+    return new Set(
+      graphData.nodes
+        .filter((n) => n.title.toLowerCase().includes(q))
+        .map((n) => n.id),
+    )
+  }, [graphSearch, graphData.nodes])
 
   const handleNodeClick = useCallback(
     (node: any) => {
@@ -89,10 +102,30 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
     [onSelectNote],
   )
 
+  const handleZoomIn = useCallback(() => {
+    const fg = graphRef.current
+    if (!fg) return
+    const currentZoom = fg.zoom()
+    fg.zoom(Math.min(currentZoom * 1.5, 12), 300)
+  }, [])
+
+  const handleZoomOut = useCallback(() => {
+    const fg = graphRef.current
+    if (!fg) return
+    const currentZoom = fg.zoom()
+    fg.zoom(Math.max(currentZoom / 1.5, 0.3), 300)
+  }, [])
+
+  const handleZoomToFit = useCallback(() => {
+    const fg = graphRef.current
+    if (fg) fg.zoomToFit(400, 40)
+  }, [])
+
   const nodeCanvasObject = useCallback(
     (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const c = resolveCanvasColors()
       const isSelected = node.id === selectedId
+      const isSearchMatch = highlightedIds.has(node.id)
       const isConnected = selectedId
         ? graphData.links.some(
             (l: any) =>
@@ -107,10 +140,13 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
       const y = node.y ?? 0
       const baseRadius = Math.sqrt(node.val) * 2.5
 
-      // Glow for selected/connected nodes
-      if (isSelected || isConnected) {
+      // Glow for selected/connected/search-matched nodes
+      if (isSelected || isConnected || isSearchMatch) {
         const gradient = ctx.createRadialGradient(x, y, 0, x, y, baseRadius * 4)
         if (isSelected) {
+          gradient.addColorStop(0, c.accentA30)
+          gradient.addColorStop(1, 'transparent')
+        } else if (isSearchMatch) {
           gradient.addColorStop(0, c.accentA30)
           gradient.addColorStop(1, 'transparent')
         } else {
@@ -123,11 +159,18 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
         ctx.fill()
       }
 
+      // Dim non-matching nodes when search is active
+      const isDimmed = highlightedIds.size > 0 && !isSearchMatch && !isSelected && !isConnected
+
       // Node circle
       ctx.beginPath()
       ctx.arc(x, y, baseRadius, 0, Math.PI * 2)
 
       if (isSelected) {
+        ctx.fillStyle = c.accentDim
+        ctx.strokeStyle = c.accent
+        ctx.lineWidth = 1.5
+      } else if (isSearchMatch) {
         ctx.fillStyle = c.accentDim
         ctx.strokeStyle = c.accent
         ctx.lineWidth = 1.5
@@ -145,32 +188,40 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
         ctx.lineWidth = 0.8
       }
 
+      if (isDimmed) {
+        ctx.globalAlpha = 0.15
+      }
+
       ctx.fill()
       ctx.stroke()
 
-      // Label — only show if zoomed in enough or node is selected/connected
-      const showLabel = globalScale > 1.5 || isSelected || isConnected
+      // Label — show for zoomed-in, selected, connected, or search-matched nodes
+      const showLabel = globalScale > 1.5 || isSelected || isConnected || isSearchMatch
       if (showLabel) {
         const fontSize = Math.max(10 / globalScale, 3)
-        ctx.font = `${isSelected ? '600' : '400'} ${fontSize}px "Inter", -apple-system, sans-serif`
+        ctx.font = `${isSelected || isSearchMatch ? '600' : '400'} ${fontSize}px "Inter", -apple-system, sans-serif`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'top'
 
-        const label = node.title.length > 24 ? node.title.slice(0, 22) + '…' : node.title
+        const label = node.title.length > 30 ? node.title.slice(0, 28) + '...' : node.title
 
         // Text shadow for readability
         ctx.fillStyle = c.overlayHeavy
         ctx.fillText(label, x + 0.3, y + baseRadius + 3.3)
 
-        ctx.fillStyle = isSelected
+        ctx.fillStyle = isSelected || isSearchMatch
           ? c.accentBright
           : isConnected
             ? c.accentBright
             : c.bgWhite60
         ctx.fillText(label, x, y + baseRadius + 3)
       }
+
+      if (isDimmed) {
+        ctx.globalAlpha = 1
+      }
     },
-    [selectedId, graphData.links],
+    [selectedId, graphData.links, highlightedIds],
   )
 
   const linkColor = useCallback(
@@ -181,9 +232,18 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
       if (sourceId === selectedId || targetId === selectedId) {
         return c.accentA40
       }
+      // Dim links when search is active and neither endpoint matches
+      if (highlightedIds.size > 0) {
+        if (!highlightedIds.has(sourceId) && !highlightedIds.has(targetId)) {
+          return 'rgba(255,255,255,0.02)'
+        }
+        if (highlightedIds.has(sourceId) || highlightedIds.has(targetId)) {
+          return c.accentA40
+        }
+      }
       return c.activeBg
     },
-    [selectedId],
+    [selectedId, highlightedIds],
   )
 
   const linkWidth = useCallback(
@@ -191,9 +251,10 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
       const sourceId = link.source?.id ?? link.source
       const targetId = link.target?.id ?? link.target
       if (sourceId === selectedId || targetId === selectedId) return 1.5
+      if (highlightedIds.size > 0 && (highlightedIds.has(sourceId) || highlightedIds.has(targetId))) return 1.2
       return 0.4
     },
-    [selectedId],
+    [selectedId, highlightedIds],
   )
 
   if (notes.length === 0) {
@@ -262,6 +323,123 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
           background: 'radial-gradient(ellipse at center, transparent 50%, var(--overlay-light) 100%)',
         }}
       />
+
+      {/* Graph search input */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 12,
+          left: 12,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '5px 10px',
+          background: 'rgba(0, 0, 0, 0.5)',
+          backdropFilter: 'blur(8px)',
+          borderRadius: 'var(--radius-sm)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          zIndex: 10,
+        }}
+      >
+        <MagnifyingGlass size={12} style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.6 }} />
+        <input
+          value={graphSearch}
+          onChange={(e) => setGraphSearch(e.target.value)}
+          placeholder="Filter nodes..."
+          aria-label="Filter graph nodes"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--text-primary)',
+            fontSize: 12,
+            width: 120,
+            padding: 0,
+            fontFamily: 'inherit',
+          }}
+        />
+        {graphSearch && (
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.6, flexShrink: 0 }}>
+            {highlightedIds.size} found
+          </span>
+        )}
+      </div>
+
+      {/* Zoom controls */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 12,
+          right: 12,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+          zIndex: 10,
+        }}
+      >
+        <button
+          onClick={handleZoomIn}
+          className="hover-bg"
+          aria-label="Zoom in"
+          title="Zoom in"
+          style={{
+            width: 32,
+            height: 32,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: 'var(--radius-sm)',
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+          }}
+        >
+          <Plus size={14} />
+        </button>
+        <button
+          onClick={handleZoomOut}
+          className="hover-bg"
+          aria-label="Zoom out"
+          title="Zoom out"
+          style={{
+            width: 32,
+            height: 32,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: 'var(--radius-sm)',
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+          }}
+        >
+          <Minus size={14} />
+        </button>
+        <button
+          onClick={handleZoomToFit}
+          className="hover-bg"
+          aria-label="Zoom to fit"
+          title="Zoom to fit all nodes"
+          style={{
+            width: 32,
+            height: 32,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: 'var(--radius-sm)',
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+          }}
+        >
+          <Crosshair size={14} />
+        </button>
+      </div>
     </div>
   )
 })

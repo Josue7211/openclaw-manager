@@ -12,6 +12,9 @@ import {
   LinkSimple,
   Quotes,
   Minus,
+  Table,
+  ImageSquare,
+  Export,
 } from '@phosphor-icons/react'
 
 // ---------------------------------------------------------------------------
@@ -149,6 +152,58 @@ function insertCodeBlock(view: EditorView) {
   view.focus()
 }
 
+/** Insert a 3x3 markdown table template. */
+function insertTable(view: EditorView) {
+  const { state } = view
+  const { from } = state.selection.main
+  const line = state.doc.lineAt(from)
+  const atLineStart = from === line.from && line.text.trim() === ''
+  const table = [
+    '| Header | Header | Header |',
+    '| ------ | ------ | ------ |',
+    '|        |        |        |',
+    '|        |        |        |',
+    '|        |        |        |',
+  ].join('\n')
+  const prefix = atLineStart ? '' : '\n'
+  const insert = `${prefix}${table}\n`
+  // Place cursor at first cell content (the first Header word)
+  const cursorPos = from + prefix.length + 2
+  view.dispatch({
+    changes: { from, to: from, insert },
+    selection: { anchor: cursorPos, head: cursorPos + 6 },
+  })
+  view.focus()
+}
+
+/** Prompt for an image URL and insert markdown image syntax. */
+function insertImage(view: EditorView) {
+  const url = window.prompt('Image URL:')
+  if (!url) return
+  const { state } = view
+  const { from, to } = state.selection.main
+  const selectedText = state.doc.sliceString(from, to)
+  const alt = selectedText || 'image'
+  const insert = `![${alt}](${url})`
+  view.dispatch({
+    changes: { from, to, insert },
+  })
+  view.focus()
+}
+
+/** Export the current document as a .md file download. */
+function exportMarkdown(view: EditorView, title?: string) {
+  const content = view.state.doc.toString()
+  const filename = `${(title || 'note').replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')}.md`
+  const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 /** Insert a horizontal rule on a new line. */
 function insertHorizontalRule(view: EditorView) {
   const { state } = view
@@ -254,9 +309,10 @@ function Separator() {
 
 interface EditorToolbarProps {
   viewRef: React.RefObject<EditorView | null>
+  noteTitle?: string
 }
 
-function EditorToolbar({ viewRef }: EditorToolbarProps) {
+function EditorToolbar({ viewRef, noteTitle }: EditorToolbarProps) {
   const run = (fn: (v: EditorView) => void) => {
     const v = viewRef.current
     if (v) fn(v)
@@ -333,6 +389,19 @@ function EditorToolbar({ viewRef }: EditorToolbarProps) {
       <ToolbarButton label="Horizontal rule" title="Horizontal rule" onClick={() => run(insertHorizontalRule)}>
         <Minus size={ICON} />
       </ToolbarButton>
+      <ToolbarButton label="Insert table" title="Insert table" onClick={() => run(insertTable)}>
+        <Table size={ICON} />
+      </ToolbarButton>
+      <ToolbarButton label="Insert image" title="Insert image from URL" onClick={() => run(insertImage)}>
+        <ImageSquare size={ICON} />
+      </ToolbarButton>
+
+      <Separator />
+
+      {/* Export */}
+      <ToolbarButton label="Export as Markdown" title="Export as Markdown" onClick={() => run((v) => exportMarkdown(v, noteTitle))}>
+        <Export size={ICON} />
+      </ToolbarButton>
     </div>
   )
 }
@@ -340,4 +409,4 @@ function EditorToolbar({ viewRef }: EditorToolbarProps) {
 export default memo(EditorToolbar)
 
 // Export formatting functions so NoteEditor can wire keyboard shortcuts
-export { toggleWrap, insertLink, toggleLinePrefix }
+export { toggleWrap, insertLink, toggleLinePrefix, insertTable, exportMarkdown }
