@@ -1,4 +1,4 @@
-import { useRef, useCallback, lazy, Suspense } from 'react'
+import { useCallback, lazy, Suspense } from 'react'
 import { CaretDown, ChatCircle } from '@phosphor-icons/react'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { type LightboxData } from '@/components/Lightbox'

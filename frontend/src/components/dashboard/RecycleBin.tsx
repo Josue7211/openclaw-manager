@@ -1,7 +1,6 @@
 import React, { useState, useCallback } from 'react'
 import {
   TrashSimple,
-  ArrowCounterClockwise,
   Cube,
   Robot,
   Heartbeat,

@@ -9,7 +9,7 @@
 import React, { useEffect } from 'react'
 import confetti from 'canvas-confetti'
 import { CheckCircle, MinusCircle, XCircle } from '@phosphor-icons/react'
-import { useWizardState, STEP_NAMES } from '@/lib/wizard-store'
+import { useWizardState } from '@/lib/wizard-store'
 import { APP_MODULES } from '@/lib/modules'
 import { BUILT_IN_THEMES } from '@/lib/theme-definitions'
 import { shouldAnimate, shouldReduceMotion } from '@/lib/animation-intensity'

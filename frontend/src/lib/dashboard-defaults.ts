@@ -184,7 +184,7 @@ function generateSmLayout(
 /**
  * Extra small: 4-column grid, everything stacked vertically (same as sm).
  */
-function generateXsLayout(
+function _generateXsLayout(
   widgetIds: string[],
   widgetMap: Map<string, { minSize?: { w: number; h: number } }>
 ): LayoutItem[] {

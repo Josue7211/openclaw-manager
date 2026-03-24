@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { WidgetPicker } from '@/components/dashboard/WidgetPicker'
 import { WidgetPickerCard } from '@/components/dashboard/WidgetPickerCard'
 
@@ -113,7 +113,7 @@ vi.mock('@/lib/hooks/useFocusTrap', () => ({
 }))
 
 vi.mock('@/lib/hooks/useEscapeKey', () => ({
-  useEscapeKey: (cb: () => void, enabled?: boolean) => {
+  useEscapeKey: (_cb: () => void, _enabled?: boolean) => {
     // Simulate escape key handling in tests
   },
 }))

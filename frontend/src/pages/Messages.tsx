@@ -7,7 +7,6 @@ import { ErrorState } from '@/components/ui/ErrorState'
 
 import { useSearchParams } from 'react-router-dom'
 import { api } from '@/lib/api'
-import { formatContactLabel } from '@/lib/utils'
 
 import MessageMenu, { type MessageMenuState } from '@/components/messages/MessageMenu'
 import { MButton } from '@/components/messages/MessageMenu'
@@ -17,11 +16,11 @@ import { useConversationList, useMessageCompose, useMessagesSSE, cleanPayloadTex
 import { setRecentConversations } from '@/components/CommandPalette'
 import { usePageTitle } from '@/lib/hooks/usePageTitle'
 
-import { getReadOverrides, setReadOverride, clearReadOverride } from '@/hooks/messages/readOverrides'
+import { setReadOverride, clearReadOverride } from '@/hooks/messages/readOverrides'
 
 import { ConversationList, MessageThread, ComposePanel } from './messages/index'
 import type { Conversation, Message, ConvContextMenu } from './messages/types'
-import { formatTime, isIMessage } from './messages/utils'
+import { formatTime } from './messages/utils'
 
 /* ─── Main Page ─────────────────────────────────────────────────────────── */
 

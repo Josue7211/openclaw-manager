@@ -191,7 +191,7 @@ export const TourTooltip = React.memo(function TourTooltip({
   totalStops,
   onNext,
   onSkip,
-  onSkipSection,
+  onSkipSection: _onSkipSection,
 }: TourTooltipProps) {
   const [position, setPosition] = useState<Position | null>(null)
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null)

@@ -1,4 +1,3 @@
-import { useRef, useEffect } from 'react'
 import { formatHour } from '@/lib/utils'
 import {
   CalendarEvent, calendarColor, toDateKey, formatTime, addDays,

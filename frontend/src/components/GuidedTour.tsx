@@ -26,7 +26,6 @@ import { shouldReduceMotion } from '@/lib/animation-intensity'
 // ---------------------------------------------------------------------------
 
 const SPOTLIGHT_PADDING = 8 // px around target element
-const SPOTLIGHT_RADIUS = 8 // visual border-radius of cutout (via inset with round)
 
 // ---------------------------------------------------------------------------
 // Clip-path calculation

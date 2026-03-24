@@ -2,13 +2,12 @@ import { useState, useCallback, useRef, useEffect, useMemo, lazy, Suspense } fro
 import { Trash, ShareNetwork, PenNib, Cloud, CloudSlash, GitBranch } from '@phosphor-icons/react'
 import { useVault } from '@/hooks/notes/useVault'
 import { noteIdFromTitle } from '@/lib/vault'
-import { API_BASE, api } from '@/lib/api'
+import { api } from '@/lib/api'
 import FileTree from './FileTree'
 import NoteEditor from './NoteEditor'
 import BacklinksPanel from './BacklinksPanel'
-import type { VaultNote } from './types'
 import type { NoteTemplate } from './templates'
-import { NOTE_TEMPLATES, applyTemplate } from './templates'
+import { applyTemplate } from './templates'
 
 const GraphView = lazy(() => import('./GraphView'))
 

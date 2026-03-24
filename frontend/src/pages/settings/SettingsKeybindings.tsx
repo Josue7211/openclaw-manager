@@ -12,7 +12,7 @@ export default function SettingsKeybindings() {
   const [editingBindingId, setEditingBindingId] = useState<string | null>(null)
   const keybindHandlerRef = useRef<((e: KeyboardEvent) => void) | null>(null)
   const [detectingMod, setDetectingMod] = useState(false)
-  const modKey = useSyncExternalStore(subscribeKeybindings, getModifierKey)
+  const _modKey = useSyncExternalStore(subscribeKeybindings, getModifierKey)
   const modList = useSyncExternalStore(subscribeKeybindings, getModifierList)
 
   useEffect(() => {

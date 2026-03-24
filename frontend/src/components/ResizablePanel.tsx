@@ -80,7 +80,7 @@ function findSwapTarget(rect: PanelRect, siblings: (PanelRect & { id: string })[
 
 export function ResizablePanel({
   title, onTitleChange, storageKey, initialX, initialY, initialW, initialH,
-  minW = 150, minH = 100, children, style, siblings = [], onRectChange, onSwap, panelId, forceRect, swapTarget, onSwapHover,
+  minW = 150, minH = 100, children, style, siblings = [], onRectChange, onSwap, forceRect, swapTarget, onSwapHover,
   onDragOver: panelDragOver, onDrop: panelDrop,
 }: ResizablePanelProps) {
   const saved = loadSaved(storageKey, { x: initialX, y: initialY, w: initialW, h: initialH })

@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { Bell, X, Check, Checks, ChatText, Warning, Info, CaretDown, CaretRight } from '@phosphor-icons/react'
+import { Bell, X, Checks, ChatText, Warning, Info, CaretDown, CaretRight } from '@phosphor-icons/react'
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 
