@@ -7,12 +7,14 @@ export type GatewayConnectionStatus = 'connected' | 'disconnected' | 'not_config
 export interface GatewayStatusResponse {
   connected: boolean
   status: GatewayConnectionStatus
+  protocol?: number | null
 }
 
 export interface UseGatewayStatusReturn {
   status: GatewayConnectionStatus
   connected: boolean
   isLoading: boolean
+  protocol: number | null
 }
 
 /**
@@ -21,7 +23,7 @@ export interface UseGatewayStatusReturn {
  */
 export function useGatewayStatus(): UseGatewayStatusReturn {
   if (isDemoMode()) {
-    return { status: 'not_configured', connected: false, isLoading: false }
+    return { status: 'not_configured', connected: false, isLoading: false, protocol: null }
   }
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -37,5 +39,6 @@ export function useGatewayStatus(): UseGatewayStatusReturn {
     status: data?.status ?? 'not_configured',
     connected: data?.connected ?? false,
     isLoading,
+    protocol: data?.protocol ?? null,
   }
 }

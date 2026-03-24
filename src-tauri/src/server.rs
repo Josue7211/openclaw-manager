@@ -278,6 +278,39 @@ impl AppState {
     }
 }
 
+/// Load or generate a stable device identity for the gateway handshake.
+///
+/// On first run, generates a random 12-char hex ID prefixed with "mc-"
+/// and persists it in the `_device_identity` table. Subsequent runs reuse
+/// the same ID so the gateway sees a consistent device identifier.
+async fn load_or_create_device_id(db: &sqlx::SqlitePool) -> String {
+    // Try to load existing device_id
+    let row: Option<(String,)> = sqlx::query_as(
+        "SELECT value FROM _device_identity WHERE key = 'device_id'"
+    )
+    .fetch_optional(db)
+    .await
+    .unwrap_or(None);
+
+    if let Some((id,)) = row {
+        return id;
+    }
+
+    // Generate a new device_id: "mc-{12_hex_chars}"
+    let random_bytes: u64 = rand::random();
+    let device_id = format!("mc-{:012x}", random_bytes);
+
+    // Persist it
+    sqlx::query("INSERT OR IGNORE INTO _device_identity (key, value) VALUES ('device_id', ?)")
+        .bind(&device_id)
+        .execute(db)
+        .await
+        .ok();
+
+    tracing::info!("Generated new device_id: {device_id}");
+    device_id
+}
+
 /// Log runtime integrity and tamper-detection results into `security_events`.
 ///
 /// Called once after the DB pool is initialised. The checks themselves already
@@ -557,17 +590,23 @@ pub async fn start(
         ServiceClient::new("OpenClaw", &url, 60)
     });
 
-    // Build gateway WS client if OPENCLAW_WS is configured
+    let db = crate::db::init().await?;
+
+    // Build gateway WS client if OPENCLAW_WS is configured.
+    // Needs db for device_id persistence, so must come after db init.
     let gateway_ws = {
         let ws_url = secrets.get("OPENCLAW_WS").cloned().filter(|s| !s.is_empty());
         let ws_password = secrets.get("OPENCLAW_PASSWORD").cloned().unwrap_or_default();
-        ws_url.map(|url| {
-            tracing::info!("OpenClaw Gateway WS client configured");
-            crate::gateway_ws::GatewayWsClient::new(url, ws_password)
-        })
+        match ws_url {
+            Some(url) => {
+                // Load or generate a stable device_id from SQLite
+                let device_id = load_or_create_device_id(&db).await;
+                tracing::info!("OpenClaw Gateway WS client configured (device_id={})", device_id);
+                Some(crate::gateway_ws::GatewayWsClient::new(url, ws_password, device_id))
+            }
+            None => None,
+        }
     };
-
-    let db = crate::db::init().await?;
 
     // In debug mode, restore the previous session from SQLite so you don't
     // have to re-login every time cargo tauri dev restarts.

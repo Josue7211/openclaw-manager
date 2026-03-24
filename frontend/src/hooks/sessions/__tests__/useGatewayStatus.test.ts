@@ -43,6 +43,7 @@ describe('useGatewayStatus', () => {
     expect(result.current.status).toBe('not_configured')
     expect(result.current.connected).toBe(false)
     expect(result.current.isLoading).toBe(false)
+    expect(result.current.protocol).toBe(null)
 
     const { api } = await import('@/lib/api')
     expect(api.get).not.toHaveBeenCalled()
@@ -134,5 +135,50 @@ describe('useGatewayStatus', () => {
 
     expect(result.current.status).toBe('not_configured')
     expect(result.current.connected).toBe(false)
+  })
+
+  it('returns protocol version when API reports it', async () => {
+    const { isDemoMode } = await import('@/lib/demo-data')
+    vi.mocked(isDemoMode).mockReturnValue(false)
+
+    const { api } = await import('@/lib/api')
+    vi.mocked(api.get).mockResolvedValue({
+      connected: true,
+      status: 'connected',
+      protocol: 3,
+    })
+
+    const { result } = renderHook(() => useGatewayStatus(), {
+      wrapper: createWrapper(),
+    })
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(result.current.protocol).toBe(3)
+    expect(result.current.connected).toBe(true)
+  })
+
+  it('returns protocol null when API does not include it', async () => {
+    const { isDemoMode } = await import('@/lib/demo-data')
+    vi.mocked(isDemoMode).mockReturnValue(false)
+
+    const { api } = await import('@/lib/api')
+    vi.mocked(api.get).mockResolvedValue({
+      connected: true,
+      status: 'connected',
+    })
+
+    const { result } = renderHook(() => useGatewayStatus(), {
+      wrapper: createWrapper(),
+    })
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(result.current.protocol).toBe(null)
+    expect(result.current.connected).toBe(true)
   })
 })
