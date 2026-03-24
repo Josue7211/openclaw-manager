@@ -15,7 +15,7 @@ import { BUILTIN_WIDGETS } from './widget-registry'
 // Types
 // ---------------------------------------------------------------------------
 
-export interface LayoutItem {
+interface LayoutItem {
   i: string   // widget ID
   x: number
   y: number
@@ -25,7 +25,7 @@ export interface LayoutItem {
   minH?: number
 }
 
-export interface DefaultLayoutResult {
+interface DefaultLayoutResult {
   widgets: string[]
   layouts: Record<string, LayoutItem[]>
 }

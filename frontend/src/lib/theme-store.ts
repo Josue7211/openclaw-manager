@@ -68,16 +68,6 @@ export function subscribeTheme(fn: () => void) {
   return () => { _listeners.delete(fn) }
 }
 
-/** Get the click event stored for the last theme switch (for ripple animation) */
-export function getLastClickEvent() {
-  return _lastClickEvent
-}
-
-/** Clear the stored click event after the ripple animation consumes it */
-export function clearLastClickEvent() {
-  _lastClickEvent = undefined
-}
-
 // ---------------------------------------------------------------------------
 // Mutation API
 // ---------------------------------------------------------------------------
