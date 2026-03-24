@@ -257,7 +257,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 56. Browser Mode Auth Fix | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
-| 57. ffir Error Toast Fix | v0.0.4 | 0/? | Not started | - |
+| 57. ffir Error Toast Fix | v0.0.4 | 0/1 | Planned    |  |
 | 58. Audit #[allow(dead_code)] | v0.0.4 | 0/? | Not started | - |
 | 59. Strip Unused Crates | v0.0.4 | 0/? | Not started | - |
 | 60. Strip Dead Route Modules | v0.0.4 | 0/? | Not started | - |
