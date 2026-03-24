@@ -195,7 +195,9 @@ Plans:
   3. Editing an agent's config via the UI persists the change on the gateway
   4. Deleting an agent via the UI removes it from the gateway
   5. Agent status indicators reflect real-time state from gateway events
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 87-01-PLAN.md -- Verify agent response shape, smoke test AgentsPage, confirm SSE wiring
 **UI hint**: yes
 
 ### Phase 88: Live Crons Tab
@@ -207,7 +209,9 @@ Plans:
   2. Creating a new cron job via the UI results in a real scheduled task on the gateway
   3. Editing/toggling a cron job via the UI persists the change on the gateway
   4. Deleting a cron job via the UI removes it from the gateway
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 88-01-PLAN.md -- Wire SSE into useCrons, smoke test CronsPage, verify gateway response shape
 **UI hint**: yes
 
 ### Phase 89: Live Usage & Models Tabs
@@ -219,7 +223,9 @@ Plans:
   2. Usage charts render with actual historical data (not zeros or placeholders)
   3. Models tab shows all available models from the gateway with correct provider labels
   4. Model capabilities and context windows display correctly
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 89-01-PLAN.md -- Smoke test UsageTab and ModelsTab, verify response shape handling
 **UI hint**: yes
 
 ### Phase 90: Live Activity Feed
@@ -231,7 +237,9 @@ Plans:
   2. Events include agent actions, session completions, cron runs, and system events
   3. New events appear in real-time via SSE without page refresh
   4. Event timestamps and details match what the gateway reports
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 90-01-PLAN.md -- Create missing gateway_activity handler, wire SSE into ActivityPage, smoke test
 **UI hint**: yes
 
 ## Progress
@@ -252,10 +260,10 @@ Plans:
 | 84. SSE Event Bus Wiring | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 | 85. Agent Event Streaming | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 | 86. Session Event Streaming | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
-| 87. Live Agents Tab | v0.0.5 | 0/? | Not started | - |
-| 88. Live Crons Tab | v0.0.5 | 0/? | Not started | - |
-| 89. Live Usage & Models Tabs | v0.0.5 | 0/? | Not started | - |
-| 90. Live Activity Feed | v0.0.5 | 0/? | Not started | - |
+| 87. Live Agents Tab | v0.0.5 | 0/1 | Not started | - |
+| 88. Live Crons Tab | v0.0.5 | 0/1 | Not started | - |
+| 89. Live Usage & Models Tabs | v0.0.5 | 0/1 | Not started | - |
+| 90. Live Activity Feed | v0.0.5 | 0/1 | Not started | - |
 
 <details>
 <summary>v0.0.4 -- Stabilize & Strip (19 phases) -- SHIPPED 2026-03-24</summary>
