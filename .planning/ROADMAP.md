@@ -245,7 +245,7 @@ Plans:
   4. All tests pass in CI (gateway may be mocked for CI environment)
 **Plans**: 1 plan
 Plans:
-- [ ] 71-01-PLAN.md -- Integration tests for gateway health
+- [ ] 71-01-PLAN.md -- Tests for useGatewayStatus hook, GatewayStatusDot component, and OpenClaw health query
 
 ### Phase 72: Sidebar Module Smoke Test
 **Goal**: Every module registered in the sidebar loads its page component without crashing after all dead code removal
