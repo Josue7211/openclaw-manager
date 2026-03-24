@@ -117,7 +117,7 @@ Plans:
   4. `cargo build` passes after removal
 **Plans**: 1 plan
 Plans:
-- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
+- [ ] 61-01-PLAN.md -- Strip sessions.pause/resume from gateway.rs and frontend session UI
 
 ### Phase 62: Configure knip for Dead Code Detection
 **Goal**: knip v6 runs cleanly against the codebase with correct entry points so dynamic imports are not flagged as false positives
@@ -295,7 +295,7 @@ Plans:
 | 58. Audit #[allow(dead_code)] | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
 | 59. Strip Unused Crates | v0.0.4 | 0/? | Complete    | 2026-03-24 |
 | 60. Strip Dead Route Modules | v0.0.4 | 0/? | Not started | - |
-| 61. Strip Nonexistent Gateway Methods | v0.0.4 | 0/? | Not started | - |
+| 61. Strip Nonexistent Gateway Methods | v0.0.4 | 0/1 | Not started | - |
 | 62. Configure knip | v0.0.4 | 0/? | Not started | - |
 | 63. Strip noVNC | v0.0.4 | 0/? | Not started | - |
 | 64. Strip TipTap/Project Tracker | v0.0.4 | 0/? | Not started | - |
