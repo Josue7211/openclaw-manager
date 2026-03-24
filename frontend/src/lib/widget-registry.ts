@@ -535,6 +535,19 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     minSize: { w: 2, h: 2 },
     component: () => import('@/components/widgets/VncPreviewWidget').then(m => ({ default: m.VncPreviewWidget })),
   },
+  {
+    id: 'openclaw-kpi',
+    name: 'OpenClaw KPI',
+    description: 'Key metrics: agents, sessions, tokens, cost',
+    icon: 'Robot',
+    category: 'ai',
+    tier: 'builtin',
+    defaultSize: { w: 2, h: 2 },
+    minSize: { w: 2, h: 2 },
+    maxSize: { w: 3, h: 3 },
+    component: () => import('@/components/widgets/OpenClawKpiWidget').then(m => ({ default: m.OpenClawKpiWidget })),
+    metadata: { requiresService: 'openclaw' },
+  },
 ]
 
 // ---------------------------------------------------------------------------

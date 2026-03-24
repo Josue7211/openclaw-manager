@@ -44,4 +44,5 @@ export const queryKeys = {
   sessionHistory: (id: string) => ['session-history', id] as const,
   vncStatus: ['vnc', 'status'] as const,
   approvals: ['approvals'] as const,
+  gatewayActivity: ['gateway-activity'] as const,
 } as const

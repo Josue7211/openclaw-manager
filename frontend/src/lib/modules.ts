@@ -28,6 +28,7 @@ export const APP_MODULES: AppModule[] = [
   { id: 'sessions', name: 'Sessions', description: 'Claude Code session monitor', icon: 'Terminal', route: '/sessions', requiresConfig: ['OPENCLAW_API_URL'] },
   { id: 'remote-viewer', name: 'Remote Viewer', description: 'OpenClaw VM remote desktop (Moonlight)', icon: 'Monitor', route: '/remote', requiresConfig: ['SUNSHINE_HOST'] },
   { id: 'approvals', name: 'Approvals', description: 'Execution approval queue', icon: 'ShieldCheck', route: '/approvals', requiresConfig: ['OPENCLAW_WS'] },
+  { id: 'activity', name: 'Activity', description: 'Real-time event feed', icon: 'Pulse', route: '/activity', requiresConfig: ['OPENCLAW_WS'] },
 ]
 
 const STORAGE_KEY = 'enabled-modules'

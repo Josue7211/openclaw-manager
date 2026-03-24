@@ -397,6 +397,34 @@ async fn gateway_session_resume(
     Ok(Json(json!({"ok": true, "data": payload})))
 }
 
+// ── Gateway activity feed ────────────────────────────────────────────────
+
+/// `GET /api/gateway/activity`
+///
+/// Proxies `activity.recent` through the persistent gateway WS connection.
+/// Returns recent gateway events (session start/stop, cron runs, errors, etc.).
+async fn gateway_activity(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
+        AppError::BadRequest("OpenClaw Gateway not configured.".into())
+    })?;
+
+    let payload = gw
+        .request("activity.recent", json!({}))
+        .await
+        .map_err(|e| {
+            tracing::error!("[gateway] activity.recent failed: {e}");
+            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
+        })?;
+
+    Ok(Json(json!({
+        "ok": true,
+        "data": payload,
+    })))
+}
+
 // ── Router ──────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
@@ -408,6 +436,7 @@ pub fn router() -> Router<AppState> {
         .route("/gateway/sessions/:id/send", post(gateway_session_send))
         .route("/gateway/sessions/:id/pause", post(gateway_session_pause))
         .route("/gateway/sessions/:id/resume", post(gateway_session_resume))
+        .route("/gateway/activity", get(gateway_activity))
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────

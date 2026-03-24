@@ -1,4 +1,4 @@
-import { SquaresFour, Brain, ChatCircle, Gear, CalendarDots, Robot, Target, House, CheckSquare, Bell, Timer, Envelope, GitBranch, Desktop, FilmStrip, BookOpen, DeviceMobile, FileText, Terminal, Monitor, ShieldCheck } from '@phosphor-icons/react'
+import { SquaresFour, Brain, ChatCircle, Gear, CalendarDots, Robot, Target, House, CheckSquare, Bell, Timer, Envelope, GitBranch, Desktop, FilmStrip, BookOpen, DeviceMobile, FileText, Terminal, Monitor, ShieldCheck, Pulse } from '@phosphor-icons/react'
 
 export interface NavItem {
   href: string
@@ -31,6 +31,7 @@ export const agentDashboardItems: NavItem[] = [
   { href: '/sessions', label: 'Sessions', icon: Terminal, moduleId: 'sessions' },
   { href: '/remote', label: 'Remote Viewer', icon: Monitor, moduleId: 'remote-viewer' },
   { href: '/approvals', label: 'Approvals', icon: ShieldCheck, moduleId: 'approvals' },
+  { href: '/activity', label: 'Activity', icon: Pulse, moduleId: 'activity' },
 ]
 
 export const allNavItems: NavItem[] = [
