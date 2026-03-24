@@ -302,7 +302,7 @@ Plans:
 | 64. Strip TipTap/Project Tracker | v0.0.4 | 0/? | Complete    | 2026-03-24 |
 | 65. Strip Unused Exports | v0.0.4 | 2/2 | Complete    | 2026-03-24 |
 | 66. Strip Unused npm Deps | v0.0.4 | 0/? | Complete    | 2026-03-24 |
-| 67. Strip Unused Imports | v0.0.4 | 0/? | Not started | - |
+| 67. Strip Unused Imports | v0.0.4 | 0/1 | Planned    |  |
 | 68. Enable TS Strict Flags | v0.0.4 | 0/? | Not started | - |
 | 69. OpenClaw Hook Tests | v0.0.4 | 0/? | Not started | - |
 | 70. Terminal Hook Tests | v0.0.4 | 0/? | Not started | - |
