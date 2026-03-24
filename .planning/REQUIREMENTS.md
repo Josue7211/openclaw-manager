@@ -18,7 +18,7 @@ Requirements for stabilization milestone. Each maps to roadmap phases.
 
 ### Dead Code -- Backend
 
-- [ ] **RUST-01**: All 13 `#[allow(dead_code)]` annotations audited -- remove or justify each
+- [x] **RUST-01**: All 13 `#[allow(dead_code)]` annotations audited -- remove or justify each
 - [ ] **RUST-02**: Unused crate dependencies detected by cargo-machete are removed from Cargo.toml
 - [ ] **RUST-03**: Backend route modules with zero frontend consumers removed (workspace.rs, decisions.rs, dlp.rs, habits.rs, deploy.rs -- after audit)
 - [ ] **RUST-04**: Nonexistent gateway methods removed (pause/resume routes that map to nothing)
@@ -69,7 +69,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | DEV-01 | Phase 56 | Complete |
 | DEV-02 | Phase 57 | Complete |
-| RUST-01 | Phase 58 | Pending |
+| RUST-01 | Phase 58 | Complete |
 | RUST-02 | Phase 59 | Pending |
 | RUST-03 | Phase 60 | Pending |
 | RUST-04 | Phase 61 | Pending |
