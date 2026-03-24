@@ -40,14 +40,12 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 
 ### Active
 
-- [ ] Notes overhaul — wiki-style [[linking]] with backlinks and graph view
-- [ ] Notes overhaul — rich text WYSIWYG editing (toolbar, inline images, tables, code blocks)
-- [ ] Notes overhaul — full-text search, tags, folders, starred notes
-- [ ] Notes overhaul — collaboration (sharing, permissions, real-time co-editing)
-- [ ] Finance / budgeting module
-- [ ] Health / fitness module
-- [ ] Bookmarks / read-later module
-- [ ] Simplified setup for non-technical users (cloud setup path)
+- [ ] Strip dead/unused code, components, routes, and imports
+- [ ] Fix OpenClaw gateway integration to use correct protocol methods
+- [ ] Remove deferred feature stubs (TipTap, Project Tracker)
+- [ ] Verify and fix every page/widget with real data end-to-end
+- [ ] Harden test coverage for v0.0.3 features
+- [ ] Fix remaining UI bugs, broken loaders, and error states
 
 ### Out of Scope
 
@@ -56,26 +54,25 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 - Real-time chat (non-iMessage) — defer to Matrix integration later
 - Video posts / media hosting — storage/bandwidth concerns, defer
 
-## Current Milestone: v0.0.3 — AI Ops Center + OpenClaw Controller + Polish
+## Current Milestone: v0.0.4 — Stabilize & Strip
 
-**Goal:** Transform Mission Control into an AI operations center — spawn and monitor Claude Code sessions, view the OpenClaw VM remotely, manage agents and crons, add theme blend slider, embedded terminal, and fix widget bugs. TipTap editor and project tracker deferred to v0.0.4.
+**Goal:** Harden everything shipped in v0.0.3, remove dead code and broken stubs, fix real gateway integration, ensure every page actually works end-to-end.
 
 **Target features:**
-- Fix all widget system bugs (resize, tab switch, layout, picker state, animations)
-- Full OpenClaw gateway control (agent management, cron CRUD, usage tracking, terminal, memory)
-- Theme blend slider (continuous dark↔light interpolation)
-- Claude Code session management (spawn, monitor, control coding sessions from the app)
-- Session monitor dashboard (who's working, what they're doing, live output)
-- Remote VM viewer (noVNC/Moonlight for watching the OpenClaw VM desktop)
-- Embedded terminal widget (local PTY with xterm.js)
+- Strip dead/unused code, components, routes, and imports across the codebase
+- Fix OpenClaw gateway integration (pages use wrong API methods — wire to actual gateway protocol)
+- Remove deferred feature stubs (TipTap references, Project Tracker remnants)
+- Verify and fix every page/widget with real data (not just compilation)
+- Harden test coverage for rapidly-built v0.0.3 features
+- Fix any remaining UI bugs, broken loaders, and error states
 
 ## Context
 
 **v1.0 shipped 2026-03-21.** Publishable release with 11 phases, 92 requirements, full cross-platform support.
 
-**v0.0.2 shipped 2026-03-22.** Widget-first architecture: 28 registered widgets, 23 kernel hooks, DashboardDataContext removed, Home page as widget grid, 7 dashboard presets, category tabs in Widget Picker, notes formatting toolbar + wikilink autocomplete + backlinks panel, Discord-style status bar, activity feed widget, quick capture widget, clock + system info widgets. All widgets fetch data independently via React Query with SSE invalidation.
+**v0.0.2 shipped 2026-03-22.** Widget-first architecture: 28 registered widgets, 23 kernel hooks, DashboardDataContext removed, Home page as widget grid, 7 dashboard presets, category tabs in Widget Picker, notes formatting toolbar + wikilink autocomplete + backlinks panel, Discord-style status bar, activity feed widget, quick capture widget, clock + system info widgets.
 
-**Post-v0.0.2 testing revealed bugs:** widget resize still broken (z-index fix applied but needs verification), pages not filling screen width (fixed), widget picker UX issues (duplicate restriction removed, entry animations added, preset feedback added), tab switching loses widgets (memo deps fixed). OpenClaw gateway has full API surface (agents, crons, sessions, models, memory, tools, config, files, workspace, usage) but MC only uses chat + read-only agent/cron listing.
+**v0.0.3 shipped 2026-03-24.** AI Ops Center: 55 phases across 10 groups — theme blend (OKLCH), OpenClaw controller (agents, crons, usage, models, tools, skills), terminal (PTY + xterm.js), session management (spawn, monitor, history, live output), remote VM viewer (noVNC), gateway WS connection, approvals queue, notes editor overhaul (tables, search, templates, shortcuts, graph view). Built rapidly — many pages use assumed API shapes, not verified against actual gateway protocol.
 
 The user's vision: the app should feel like Discord meets Google Docs — everything modular and customizable via the widget system, notes as rich as Google Docs leveraging Obsidian, full OpenClaw control center, Apple-quality polish throughout.
 
@@ -118,4 +115,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-22 after v0.0.2 milestone start*
+*Last updated: 2026-03-24 after v0.0.4 milestone start*
