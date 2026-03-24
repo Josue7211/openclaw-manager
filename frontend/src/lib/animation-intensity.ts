@@ -10,13 +10,11 @@
  *   - Persist to localStorage, notify subscribers, apply to DOM
  */
 
-import { useSyncExternalStore } from 'react'
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type AnimationLevel = 'full' | 'reduced' | 'none'
+type AnimationLevel = 'full' | 'reduced' | 'none'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -81,14 +79,6 @@ export function getAnimationIntensity(): AnimationLevel {
 export function subscribeAnimationIntensity(fn: () => void): () => void {
   _listeners.add(fn)
   return () => { _listeners.delete(fn) }
-}
-
-// ---------------------------------------------------------------------------
-// React Hook
-// ---------------------------------------------------------------------------
-
-export function useAnimationIntensity(): AnimationLevel {
-  return useSyncExternalStore(subscribeAnimationIntensity, getAnimationIntensity)
 }
 
 // ---------------------------------------------------------------------------

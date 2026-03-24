@@ -1,23 +1,23 @@
 import { personalDashboardItems, agentDashboardItems } from './nav-items'
 
-export interface SidebarCategory {
+interface SidebarCategory {
   id: string
   name: string
   items: string[] // hrefs in display order
 }
 
-export interface CustomModule {
+interface CustomModule {
   id: string
   name: string
 }
 
-export interface DeletedItem {
+interface DeletedItem {
   href: string
   fromCatId: string
   deletedAt: number
 }
 
-export interface SidebarConfig {
+interface SidebarConfig {
   categories: SidebarCategory[]
   customNames: Record<string, string> // href -> custom display name
   customModules: CustomModule[]
@@ -213,11 +213,6 @@ export function resetSidebarConfig(): void {
 export function subscribeSidebarConfig(fn: () => void): () => void {
   _listeners.add(fn)
   return () => { _listeners.delete(fn) }
-}
-
-/** Get collapsed state for all categories. */
-export function getCollapsedCategories(): Record<string, boolean> {
-  return getSidebarConfig().collapsedCategories || {}
 }
 
 /**

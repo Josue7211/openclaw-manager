@@ -9,8 +9,7 @@
 import { useSyncExternalStore } from 'react'
 import type { DashboardState, DashboardPage, LayoutItem, RecycleBinItem } from './dashboard-store'
 
-// Re-export types for convenience
-export type { DashboardState, DashboardPage, LayoutItem, RecycleBinItem }
+// Types imported for internal use (no re-export -- consumers import directly from dashboard-store)
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -88,7 +87,7 @@ export function getHomeState(): DashboardState {
   return _cached
 }
 
-export function subscribeHome(cb: () => void): () => void {
+function subscribeHome(cb: () => void): () => void {
   _listeners.add(cb)
   return () => { _listeners.delete(cb) }
 }
@@ -114,7 +113,7 @@ export function setHomeEditMode(editing: boolean): void {
   _emit()
 }
 
-export function setHomeWobbleEnabled(enabled: boolean): void {
+function setHomeWobbleEnabled(enabled: boolean): void {
   _cached = { ..._cached, wobbleEnabled: enabled }
   _persist()
   _emit()
@@ -281,7 +280,7 @@ export function undoHome(): boolean {
   return true
 }
 
-export function redoHome(): boolean {
+function redoHome(): boolean {
   const next = _redoStack.pop()
   if (!next) return false
   _undoStack.push(structuredClone(_cached))
@@ -291,7 +290,7 @@ export function redoHome(): boolean {
   return true
 }
 
-export function resetHomeLayout(pageId: string): void {
+function resetHomeLayout(pageId: string): void {
   _pushUndo()
   _cached = {
     ..._cached,

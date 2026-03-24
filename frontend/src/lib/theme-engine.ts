@@ -216,7 +216,7 @@ const GTK_THEME_MAP: ReadonlyArray<[RegExp, string]> = [
  * Map a GTK theme name to a built-in preset ID.
  * Returns null if no match is found (caller should fall back to defaults).
  */
-export function mapGtkThemeToPreset(gtkThemeName: string): string | null {
+function mapGtkThemeToPreset(gtkThemeName: string): string | null {
   const trimmed = gtkThemeName.trim()
   if (!trimmed) return null
 
@@ -319,7 +319,7 @@ function detectOsDark(): boolean {
 // getActiveSystemTheme — UI helper for system mode rendering
 // ---------------------------------------------------------------------------
 
-export interface SystemThemeInfo {
+interface SystemThemeInfo {
   isLinux: boolean
   isSystemMode: boolean
   activeTheme: ThemeDefinition | null
@@ -737,7 +737,7 @@ function parseRgbaAlpha(rgba: string, newAlpha: number): string {
   return `rgba(${match[1]}, ${match[2]}, ${match[3]}, ${newAlpha})`
 }
 
-export function applyAdvancedOverrides(
+function applyAdvancedOverrides(
   overrides: UserThemeOverrides | undefined,
   def: ThemeDefinition,
   isLight: boolean,
