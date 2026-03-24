@@ -1,10 +1,9 @@
 use axum::{
     extract::{Path, State},
-    routing::{get, post},
+    routing::{get, patch},
     Json, Router,
 };
 use reqwest::Method;
-use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::OnceLock;
 use std::time::Duration;
@@ -204,82 +203,95 @@ async fn openclaw_health(
     }
 }
 
-// ── Session history (chat.history) ──────────────────────────────────────────
+// ── Gateway agent CRUD (protocol v3: agents.list/create/update/delete) ──────
 
-/// `GET /api/gateway/sessions/:id/history`
+/// `GET /api/gateway/agents` — proxy for `agents.list`
 ///
-/// Fetches chat history for a session via the OpenClaw gateway `chat.history`
-/// RPC method. The `:id` path param is the session key.
-async fn gateway_session_history(
+/// Fetches the list of agents from the OpenClaw gateway.
+/// Protocol v3: agents.list takes no params.
+async fn gateway_agents_list(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
-    Path(session_id): Path<String>,
 ) -> Result<Json<Value>, AppError> {
-    if session_id.is_empty() || session_id.len() > 200 {
-        return Err(AppError::BadRequest("invalid session id".into()));
+    let result = gateway_forward(&state, Method::GET, "/agents", None).await?;
+    Ok(Json(json!({ "ok": true, "data": result })))
+}
+
+/// `POST /api/gateway/agents` — proxy for `agents.create`
+///
+/// Creates a new agent on the OpenClaw gateway.
+/// Protocol v3: agents.create requires `name` (string) and optional `model`, plus other config.
+async fn gateway_agents_create(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    // Validate that name exists and is a non-empty string
+    let name = body
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if name.is_empty() {
+        return Err(AppError::BadRequest("name is required".into()));
+    }
+
+    let result = gateway_forward(&state, Method::POST, "/agents", Some(body)).await?;
+    Ok(Json(json!({ "ok": true, "data": result })))
+}
+
+/// `PATCH /api/gateway/agents/:name` — proxy for `agents.update`
+///
+/// Updates an existing agent on the OpenClaw gateway.
+/// Protocol v3: agents.update requires `name` plus fields to update.
+async fn gateway_agents_update(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Path(name): Path<String>,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    if name.is_empty() || name.len() > 100 {
+        return Err(AppError::BadRequest("invalid agent name".into()));
+    }
+
+    // Merge name into body params for the gateway
+    let mut params = body;
+    if let Some(obj) = params.as_object_mut() {
+        obj.insert("name".to_string(), json!(name));
+    } else {
+        params = json!({ "name": name });
     }
 
     let result = gateway_forward(
         &state,
-        Method::POST,
-        "/rpc/chat.history",
-        Some(json!({ "sessionKey": session_id })),
+        Method::PATCH,
+        &format!("/agents/{name}"),
+        Some(params),
     )
-    .await;
-
-    match result {
-        Ok(data) => Ok(Json(data)),
-        Err(e) => {
-            tracing::error!("[gateway] chat.history failed for session {session_id}: {e:?}");
-            Err(e)
-        }
-    }
+    .await?;
+    Ok(Json(json!({ "ok": true, "data": result })))
 }
 
-// ── Session send (chat.send) ────────────────────────────────────────────────
-
-#[derive(Debug, Deserialize)]
-struct SessionSendBody {
-    message: String,
-}
-
-/// `POST /api/gateway/sessions/:id/send`
+/// `DELETE /api/gateway/agents/:name` — proxy for `agents.delete`
 ///
-/// Sends a message to a session via the OpenClaw gateway `chat.send`
-/// RPC method. The `:id` path param is the session key.
-async fn gateway_session_send(
+/// Deletes an agent from the OpenClaw gateway.
+/// Protocol v3: agents.delete requires `name`.
+async fn gateway_agents_delete(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
-    Path(session_id): Path<String>,
-    Json(body): Json<SessionSendBody>,
+    Path(name): Path<String>,
 ) -> Result<Json<Value>, AppError> {
-    if session_id.is_empty() || session_id.len() > 200 {
-        return Err(AppError::BadRequest("invalid session id".into()));
-    }
-    if body.message.is_empty() {
-        return Err(AppError::BadRequest("message required".into()));
+    if name.is_empty() || name.len() > 100 {
+        return Err(AppError::BadRequest("invalid agent name".into()));
     }
 
     let result = gateway_forward(
         &state,
-        Method::POST,
-        "/rpc/chat.send",
-        Some(json!({
-            "sessionKey": session_id,
-            "message": body.message,
-            "deliver": true,
-            "idempotencyKey": super::util::random_uuid()
-        })),
+        Method::DELETE,
+        &format!("/agents/{name}"),
+        None,
     )
-    .await;
-
-    match result {
-        Ok(data) => Ok(Json(data)),
-        Err(e) => {
-            tracing::error!("[gateway] chat.send failed for session {session_id}: {e:?}");
-            Err(e)
-        }
-    }
+    .await?;
+    Ok(Json(json!({ "ok": true, "data": result })))
 }
 
 // ── Router ──────────────────────────────────────────────────────────────────
@@ -288,12 +300,12 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/openclaw/health", get(openclaw_health))
         .route(
-            "/gateway/sessions/{id}/history",
-            get(gateway_session_history),
+            "/gateway/agents",
+            get(gateway_agents_list).post(gateway_agents_create),
         )
         .route(
-            "/gateway/sessions/{id}/send",
-            post(gateway_session_send),
+            "/gateway/agents/:name",
+            patch(gateway_agents_update).delete(gateway_agents_delete),
         )
 }
 
