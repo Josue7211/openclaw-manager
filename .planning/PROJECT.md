@@ -59,9 +59,14 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 
 ## Current Milestone: v0.0.5 — Gateway Protocol v3
 
-**Goal:** Wire the OpenClaw controller pages to the actual gateway protocol v3 methods. Fix the 9 wrong RPC method names, implement proper handshake with device identity, wire SSE event bus to real gateway WebSocket events.
+**Goal:** Wire the OpenClaw controller pages to the actual gateway protocol v3 methods. Fix the 9 wrong RPC method names, implement proper handshake with device identity, wire SSE event bus to real gateway WebSocket events, verify all OpenClaw tabs with live data.
 
-**Status:** Planning (run `/gsd:new-milestone` to start)
+**Target features:**
+- Connect handshake uses protocol v3 with role/scopes/client metadata
+- All 9 wrong RPC method names corrected (sessions.history→chat.history, etc.)
+- SSE event bus wired to real gateway WS events
+- All OpenClaw tabs verified against live gateway with real data
+- Activity feed wired to real gateway events (not assumed activity.recent)
 
 ## Context
 
@@ -114,4 +119,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-24 after v0.0.4 milestone completion*
+*Last updated: 2026-03-24 after v0.0.5 milestone start*

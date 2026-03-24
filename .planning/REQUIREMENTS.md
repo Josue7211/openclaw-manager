@@ -3,63 +3,58 @@
 **Defined:** 2026-03-24
 **Core Value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
 
-## v0.0.4 Requirements
+## v0.0.5 Requirements
 
-Requirements for stabilization milestone. Each maps to roadmap phases.
+Requirements for gateway protocol integration milestone. Each maps to roadmap phases.
 
-### Dead Code -- Frontend
+### Gateway Connection
 
-- [x] **DEAD-01**: All unused file exports detected by knip are removed or justified
-- [x] **DEAD-02**: All unused npm dependencies detected by knip are removed from package.json
-- [x] **DEAD-03**: All unused imports cleaned via eslint-plugin-unused-imports
-- [x] **DEAD-04**: TypeScript strict flags `noUnusedLocals` and `noUnusedParameters` enabled and passing
-- [x] **DEAD-05**: noVNC dependency (`@novnc/novnc`) and `VncPreviewWidget.tsx` removed
-- [x] **DEAD-06**: All TipTap/Project Tracker stub references removed
+- [ ] **GW-01**: Connect handshake uses protocol v3 with role/scopes/client metadata (not empty JSON)
+- [ ] **GW-02**: Device identity sent in handshake (device_id, platform, app_version)
+- [ ] **GW-03**: Gateway WebSocket reconnects automatically with exponential backoff on disconnect
 
-### Dead Code -- Backend
+### RPC Method Corrections
 
-- [x] **RUST-01**: All 13 `#[allow(dead_code)]` annotations audited -- remove or justify each
-- [x] **RUST-02**: Unused crate dependencies detected by cargo-machete are removed from Cargo.toml
-- [x] **RUST-03**: Backend route modules with zero frontend consumers removed (workspace.rs, decisions.rs, dlp.rs, habits.rs, deploy.rs -- after audit)
-- [x] **RUST-04**: Nonexistent gateway methods removed (pause/resume routes that map to nothing)
+- [ ] **RPC-01**: sessions.history → chat.history (correct method name)
+- [ ] **RPC-02**: sessions.create → chat.send with proper message format
+- [ ] **RPC-03**: agents.list → agents.list (verify params match protocol)
+- [ ] **RPC-04**: agents.create/update/delete → verify CRUD method signatures
+- [ ] **RPC-05**: crons.list/create/update/delete → verify CRUD method signatures
+- [ ] **RPC-06**: models.list → models.list (verify response shape)
+- [ ] **RPC-07**: usage.summary → usage.get (correct method name and params)
+- [ ] **RPC-08**: tools.list/skills.list → verify method names and response shapes
+- [ ] **RPC-09**: activity.recent → events.list or subscribe pattern (verify correct approach)
 
-### Dev Workflow
+### Event Bus
 
-- [x] **DEV-01**: Browser mode auth works without Tauri shell for development
-- [x] **DEV-02**: Persistent "ffir" error toast resolved -- no error toasts on clean page load
-- [x] **DEV-03**: knip configured with entry points for lazy-loaded routes and widget registry
+- [ ] **EVT-01**: SSE event bus wired to actual gateway WebSocket events (not mock data)
+- [ ] **EVT-02**: Real-time agent status updates surfaced via SSE when gateway sends agent.* events
+- [ ] **EVT-03**: Session events (created, completed, error) surfaced via SSE
 
-### Test Coverage
+### Live Data Verification
 
-- [x] **TEST-01**: OpenClaw hooks (useAgents, useCrons, useOpenClawStatus, useOpenClawModels) have unit tests
-- [x] **TEST-02**: Terminal hooks (useTerminal, useSessionOutput) have unit tests
-- [x] **TEST-03**: Gateway status and health check paths have integration tests
-
-### Verification
-
-- [x] **VERIFY-01**: Every sidebar module loads without errors after dead code removal
-- [x] **VERIFY-02**: All 30+ widgets render without crashes after cleanup
-- [x] **VERIFY-03**: No 404s, blank pages, or infinite loaders across all routes
+- [ ] **LIVE-01**: Agents tab shows real agents from gateway with correct CRUD operations
+- [ ] **LIVE-02**: Crons tab shows real scheduled tasks with correct CRUD operations
+- [ ] **LIVE-03**: Usage tab shows real token/cost data from gateway
+- [ ] **LIVE-04**: Models tab shows real available models from gateway
+- [ ] **LIVE-05**: Activity feed shows real events from gateway (not assumed shapes)
 
 ## Future Requirements
 
-### Gateway Integration (v0.0.5)
+### Sessions & Chat (v0.0.6)
 
-- **GW-01**: Connect handshake uses protocol v3 with role/scopes/client metadata
-- **GW-02**: All 9 wrong RPC method names corrected (sessions.history->chat.history, etc.)
-- **GW-03**: SSE event bus wired to real gateway WS events
-- **GW-04**: All OpenClaw tabs verified against live gateway with real data
-- **GW-05**: Activity feed wired to real gateway events (not assumed activity.recent)
+- **CHAT-01**: Sessions CRUD with proper chat.send/history/abort methods
+- **CHAT-02**: Live streaming chat responses via WebSocket
+- **CHAT-03**: Model selection per session
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| New features / modules | Stabilization only -- no new functionality |
-| Gateway protocol fixes | Deferred to v0.0.5 as its own milestone |
-| TipTap editor migration | Deferred from v0.0.3, remains deferred |
-| Project Tracker | Deferred from v0.0.3, remains deferred |
-| Mobile app | Web-first desktop app |
+| New UI pages or widgets | Protocol integration only -- no new features |
+| Terminal or remote desktop changes | Working from v0.0.3, untouched |
+| Notes/calendar/messages changes | Working from v0.0.1, untouched |
+| Multi-user support | Single-user app |
 
 ## Traceability
 
@@ -67,32 +62,32 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DEV-01 | Phase 56 | Complete |
-| DEV-02 | Phase 57 | Complete |
-| RUST-01 | Phase 58 | Complete |
-| RUST-02 | Phase 59 | Complete |
-| RUST-03 | Phase 60 | Complete |
-| RUST-04 | Phase 61 | Complete |
-| DEV-03 | Phase 62 | Complete |
-| DEAD-05 | Phase 63 | Complete |
-| DEAD-06 | Phase 64 | Complete |
-| DEAD-01 | Phase 65 | Complete |
-| DEAD-02 | Phase 66 | Complete |
-| DEAD-03 | Phase 67 | Complete |
-| DEAD-04 | Phase 68 | Complete |
-| TEST-01 | Phase 69 | Complete |
-| TEST-02 | Phase 70 | Complete |
-| TEST-03 | Phase 71 | Complete |
-| VERIFY-01 | Phase 72 | Complete |
-| VERIFY-02 | Phase 73 | Complete |
-| VERIFY-03 | Phase 74 | Complete |
+| GW-01 | TBD | Pending |
+| GW-02 | TBD | Pending |
+| GW-03 | TBD | Pending |
+| RPC-01 | TBD | Pending |
+| RPC-02 | TBD | Pending |
+| RPC-03 | TBD | Pending |
+| RPC-04 | TBD | Pending |
+| RPC-05 | TBD | Pending |
+| RPC-06 | TBD | Pending |
+| RPC-07 | TBD | Pending |
+| RPC-08 | TBD | Pending |
+| RPC-09 | TBD | Pending |
+| EVT-01 | TBD | Pending |
+| EVT-02 | TBD | Pending |
+| EVT-03 | TBD | Pending |
+| LIVE-01 | TBD | Pending |
+| LIVE-02 | TBD | Pending |
+| LIVE-03 | TBD | Pending |
+| LIVE-04 | TBD | Pending |
+| LIVE-05 | TBD | Pending |
 
 **Coverage:**
-- v0.0.4 requirements: 19 total
-- Mapped to phases: 19
-- Unmapped: 0
-- Complete: 19/19
+- v0.0.5 requirements: 20 total
+- Mapped to phases: 0 (pending roadmap)
+- Unmapped: 20
 
 ---
 *Requirements defined: 2026-03-24*
-*Last updated: 2026-03-24 after milestone audit*
+*Last updated: 2026-03-24*
