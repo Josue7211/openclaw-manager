@@ -17,7 +17,7 @@
 
 **Group V: Backend Dead Code Audit & Strip** *(Rust compiler assists, source of truth)*
 - [x] **Phase 58: Audit #[allow(dead_code)] Annotations** - Audit all 13 annotations across 7 Rust files, remove or justify each (completed 2026-03-24)
-- [ ] **Phase 59: Strip Unused Crate Dependencies** - Run cargo-machete and remove unused crates from Cargo.toml
+- [x] **Phase 59: Strip Unused Crate Dependencies** - Run cargo-machete and remove unused crates from Cargo.toml (completed 2026-03-24)
 - [ ] **Phase 60: Strip Dead Route Modules** - Remove backend route modules with zero frontend consumers after audit
 - [ ] **Phase 61: Strip Nonexistent Gateway Methods** - Remove pause/resume routes that map to nothing in the gateway protocol
 
@@ -293,7 +293,7 @@ Plans:
 | 56. Browser Mode Auth Fix | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
 | 57. ffir Error Toast Fix | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
 | 58. Audit #[allow(dead_code)] | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
-| 59. Strip Unused Crates | v0.0.4 | 0/? | Not started | - |
+| 59. Strip Unused Crates | v0.0.4 | 0/? | Complete    | 2026-03-24 |
 | 60. Strip Dead Route Modules | v0.0.4 | 0/? | Not started | - |
 | 61. Strip Nonexistent Gateway Methods | v0.0.4 | 0/? | Not started | - |
 | 62. Configure knip | v0.0.4 | 0/? | Not started | - |
