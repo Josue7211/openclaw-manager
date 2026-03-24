@@ -1,110 +1,119 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import React from 'react'
+import { createElement } from 'react'
+import type { ModelsResponse } from '@/pages/openclaw/types'
+
+// ---------------------------------------------------------------------------
+// Mocks
+// ---------------------------------------------------------------------------
 
 vi.mock('@/lib/api', () => ({
-  api: {
-    get: vi.fn(),
-  },
+  api: { get: vi.fn() },
 }))
 
+import { api } from '@/lib/api'
 import { useOpenClawModels } from '../useOpenClawModels'
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 function createWrapper() {
-  const queryClient = new QueryClient({
+  const qc = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
-  return {
-    queryClient,
-    wrapper: function Wrapper({ children }: { children: React.ReactNode }) {
-      return React.createElement(QueryClientProvider, { client: queryClient }, children)
-    },
-  }
+  return ({ children }: { children: React.ReactNode }) =>
+    createElement(QueryClientProvider, { client: qc }, children)
 }
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
 
 describe('useOpenClawModels', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('returns model list on successful fetch', async () => {
-    const { api } = await import('@/lib/api')
-    const mockModels = {
+  it('returns models data on successful fetch', async () => {
+    const mockData: ModelsResponse = {
       models: [
+        { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', provider: 'anthropic', max_tokens: 200000 },
         { id: 'gpt-4', name: 'GPT-4', provider: 'openai' },
-        { id: 'claude-3', name: 'Claude 3', provider: 'anthropic' },
       ],
     }
-    vi.mocked(api.get).mockResolvedValue(mockModels)
+    ;(api.get as ReturnType<typeof vi.fn>).mockResolvedValue(mockData)
 
-    const { wrapper } = createWrapper()
-    const { result } = renderHook(() => useOpenClawModels(), { wrapper })
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
+    const { result } = renderHook(() => useOpenClawModels(), {
+      wrapper: createWrapper(),
     })
 
-    expect(result.current.models).toEqual(mockModels)
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.models).toEqual(mockData)
     expect(result.current.error).toBeNull()
     expect(api.get).toHaveBeenCalledWith('/api/openclaw/models')
   })
 
-  it('returns empty models array when provider has none', async () => {
-    const { api } = await import('@/lib/api')
-    vi.mocked(api.get).mockResolvedValue({ models: [] })
+  it('starts in loading state', () => {
+    ;(api.get as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}))
 
-    const { wrapper } = createWrapper()
-    const { result } = renderHook(() => useOpenClawModels(), { wrapper })
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
+    const { result } = renderHook(() => useOpenClawModels(), {
+      wrapper: createWrapper(),
     })
-
-    expect(result.current.models?.models).toEqual([])
-  })
-
-  it('starts in loading state', async () => {
-    const { api } = await import('@/lib/api')
-    // Never resolve to keep loading
-    vi.mocked(api.get).mockReturnValue(new Promise(() => {}))
-
-    const { wrapper } = createWrapper()
-    const { result } = renderHook(() => useOpenClawModels(), { wrapper })
 
     expect(result.current.loading).toBe(true)
     expect(result.current.models).toBeUndefined()
   })
 
   it('returns error on fetch failure', async () => {
-    const { api } = await import('@/lib/api')
-    vi.mocked(api.get).mockRejectedValue(new Error('Connection refused'))
+    ;(api.get as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network error'))
 
-    const { wrapper } = createWrapper()
-    const { result } = renderHook(() => useOpenClawModels(), { wrapper })
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
+    const { result } = renderHook(() => useOpenClawModels(), {
+      wrapper: createWrapper(),
     })
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
 
     expect(result.current.error).toBeInstanceOf(Error)
     expect(result.current.models).toBeUndefined()
   })
 
-  it('handles LiteLLM data key format', async () => {
-    const { api } = await import('@/lib/api')
-    const litellmResponse = {
-      data: [{ id: 'gpt-4', name: 'GPT-4' }],
+  it('preserves extra fields from gateway response', async () => {
+    const mockData: ModelsResponse = {
+      models: [{ id: 'test-model', provider: 'test' }],
+      extra_field: 'preserved-value',
     }
-    vi.mocked(api.get).mockResolvedValue(litellmResponse)
+    ;(api.get as ReturnType<typeof vi.fn>).mockResolvedValue(mockData)
 
-    const { wrapper } = createWrapper()
-    const { result } = renderHook(() => useOpenClawModels(), { wrapper })
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
+    const { result } = renderHook(() => useOpenClawModels(), {
+      wrapper: createWrapper(),
     })
 
-    expect(result.current.models?.data).toEqual([{ id: 'gpt-4', name: 'GPT-4' }])
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    // The [key: string]: unknown index signature allows extra fields
+    expect((result.current.models as Record<string, unknown>)?.extra_field).toBe('preserved-value')
+  })
+
+  it('handles LiteLLM data key response format', async () => {
+    const mockData: ModelsResponse = {
+      data: [
+        { id: 'litellm-model', name: 'LiteLLM Model', provider: 'litellm' },
+      ],
+    }
+    ;(api.get as ReturnType<typeof vi.fn>).mockResolvedValue(mockData)
+
+    const { result } = renderHook(() => useOpenClawModels(), {
+      wrapper: createWrapper(),
+    })
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    // Hook returns raw response; tab extracts models?.models ?? models?.data
+    expect(result.current.models?.data).toHaveLength(1)
+    expect(result.current.models?.data?.[0].id).toBe('litellm-model')
+    expect(result.current.models?.models).toBeUndefined()
   })
 })
