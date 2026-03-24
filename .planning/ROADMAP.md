@@ -19,7 +19,7 @@
 - [x] **Phase 58: Audit #[allow(dead_code)] Annotations** - Audit all 13 annotations across 7 Rust files, remove or justify each (completed 2026-03-24)
 - [x] **Phase 59: Strip Unused Crate Dependencies** - Run cargo-machete and remove unused crates from Cargo.toml (completed 2026-03-24)
 - [x] **Phase 60: Strip Dead Route Modules** - Remove backend route modules with zero frontend consumers after audit (completed 2026-03-24)
-- [ ] **Phase 61: Strip Nonexistent Gateway Methods** - Remove pause/resume routes that map to nothing in the gateway protocol
+- [x] **Phase 61: Strip Nonexistent Gateway Methods** - Remove pause/resume routes that map to nothing in the gateway protocol (completed 2026-03-24)
 
 **Group W: Frontend Tooling Setup**
 - [ ] **Phase 62: Configure knip for Dead Code Detection** - Set up knip v6 with entry points for lazy routes and widget registry
@@ -295,7 +295,7 @@ Plans:
 | 58. Audit #[allow(dead_code)] | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
 | 59. Strip Unused Crates | v0.0.4 | 0/? | Complete    | 2026-03-24 |
 | 60. Strip Dead Route Modules | v0.0.4 | 1/1 | Complete    | 2026-03-24 |
-| 61. Strip Nonexistent Gateway Methods | v0.0.4 | 0/1 | Planned    |  |
+| 61. Strip Nonexistent Gateway Methods | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
 | 62. Configure knip | v0.0.4 | 0/? | Not started | - |
 | 63. Strip noVNC | v0.0.4 | 0/? | Not started | - |
 | 64. Strip TipTap/Project Tracker | v0.0.4 | 0/? | Not started | - |
