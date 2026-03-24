@@ -52,7 +52,9 @@
   1. Running `npm run dev` and opening localhost:5173 in a browser reaches the login page
   2. Developer can log in via browser mode and access all pages without Tauri-specific APIs failing
   3. No "window.__TAURI__" or similar errors in the browser console during normal usage
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 56-01-PLAN.md -- Fix AuthGuard bypass, OAuth callback redirect, and browser-mode auth tests
 
 ### Phase 57: ffir Error Toast Fix
 **Goal**: Clean page loads with zero unexpected error toasts
@@ -252,7 +254,7 @@
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 56. Browser Mode Auth Fix | v0.0.4 | 0/? | Not started | - |
+| 56. Browser Mode Auth Fix | v0.0.4 | 0/1 | Planning complete | - |
 | 57. ffir Error Toast Fix | v0.0.4 | 0/? | Not started | - |
 | 58. Audit #[allow(dead_code)] | v0.0.4 | 0/? | Not started | - |
 | 59. Strip Unused Crates | v0.0.4 | 0/? | Not started | - |
