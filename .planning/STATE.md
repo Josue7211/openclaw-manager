@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v0.0.5
 milestone_name: -- Gateway Protocol v3
-status: Ready to plan
-stopped_at: Completed 76-01-PLAN.md
-last_updated: "2026-03-24T12:20:49.449Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 79-01-PLAN.md
+last_updated: "2026-03-24T12:43:39.933Z"
 progress:
   total_phases: 16
   completed_phases: 2
-  total_plans: 2
+  total_plans: 9
   completed_plans: 2
 ---
 
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 76 — Reconnect with Backoff
+**Current focus:** Phase 77 — Chat Method Corrections
 
 ## Current Position
 
-Phase: 77
-Plan: Not started
+Phase: 77 (Chat Method Corrections) — EXECUTING
+Plan: 1 of 1
 
 ## Performance Metrics
 
@@ -44,6 +44,8 @@ Plan: Not started
 
 | Phase 75 P01 | 7min | 2 tasks | 7 files |
 | Phase 76 P01 | 4min | 2 tasks | 5 files |
+| Phase 78 P01 | 4min | 2 tasks | 2 files |
+| Phase 79 P01 | 4min | 2 tasks | 2 files |
 
 ### Decisions
 
@@ -56,6 +58,8 @@ Recent decisions affecting current work:
 - [Phase 75]: Used auth.token for protocol v3 (not auth.type/auth.password)
 - [Phase 75]: Device ID format mc-{12hex} via rand::random -- no uuid crate needed
 - [Phase 76]: Used checked_shl for overflow-safe exponential backoff delay calculation
+- [Phase 78]: Used gateway_forward() HTTP proxy for agent CRUD instead of non-existent gateway_ws WS client
+- [Phase 79]: Cron CRUD switched from HTTP REST proxy + CLI exec to gateway WS RPC using protocol v3 method names
 
 ### Pending Todos
 
@@ -69,6 +73,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-24T12:20:01.126Z
-Stopped at: Completed 76-01-PLAN.md
+Last session: 2026-03-24T12:43:39.930Z
+Stopped at: Completed 79-01-PLAN.md
 Resume file: None
