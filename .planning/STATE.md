@@ -48,6 +48,7 @@ Plan: Not started
 | Phase 11 P02 | 5min | 2 tasks | 5 files |
 | Phase 12 P01 | 4min | 2 tasks | 7 files |
 | Phase 12 P02 | 12min | 3 tasks | 9 files |
+| Phase 90 P01 | 7min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,8 @@ Recent decisions affecting current work:
 - [Phase 12]: Index signatures on TypeScript interfaces for forward-compatible unknown API shapes
 - [Phase 12]: Embedded sub-components (AgentList, WeekGrid) instead of importing full pages to avoid full-bleed layout conflicts
 - [Phase 12]: Replaced separate agents/crons module entries with single openclaw entry
+- [Phase 90]: Used gateway_forward HTTP to /logs instead of WS RPC logs.tail (gateway_ws not on AppState)
+- [Phase 90]: Used useRealtimeSSE with agents table for SSE invalidation (no useGatewaySSE hook exists)
 
 ### Pending Todos
 
@@ -93,6 +96,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-22T22:35:00Z
-Stopped at: Completed 12-02-PLAN.md (verified and recovered from NFS corruption)
+Last session: 2026-03-24T16:23:42Z
+Stopped at: Completed 90-01-PLAN.md (live activity feed)
 Resume file: None
