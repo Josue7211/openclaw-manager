@@ -12,7 +12,7 @@
 ### v0.0.4 -- Stabilize & Strip
 
 **Group U: Dev Workflow Fixes** *(unblocks everything else)*
-- [ ] **Phase 56: Browser Mode Auth Fix** - Fix browser mode auth to work without Tauri shell for development
+- [x] **Phase 56: Browser Mode Auth Fix** - Fix browser mode auth to work without Tauri shell for development (completed 2026-03-24)
 - [ ] **Phase 57: ffir Error Toast Fix** - Resolve persistent "ffir" binary reference error toast on every page load
 
 **Group V: Backend Dead Code Audit & Strip** *(Rust compiler assists, source of truth)*
