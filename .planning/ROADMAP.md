@@ -31,10 +31,10 @@
 - [x] **Phase 86: Session Event Streaming** - Surface session created/completed/error events via SSE
 
 **Group AD: Live Data Verification** *(verify every OpenClaw tab with real gateway data)*
-- [ ] **Phase 87: Live Agents Tab** - Verify agents tab shows real agents with working CRUD against live gateway
-- [ ] **Phase 88: Live Crons Tab** - Verify crons tab shows real scheduled tasks with working CRUD against live gateway
-- [ ] **Phase 89: Live Usage & Models Tabs** - Verify usage and models tabs show real data from gateway
-- [ ] **Phase 90: Live Activity Feed** - Verify activity feed shows real events from gateway
+- [x] **Phase 87: Live Agents Tab** - Verify agents tab shows real agents with working CRUD against live gateway
+- [x] **Phase 88: Live Crons Tab** - Verify crons tab shows real scheduled tasks with working CRUD against live gateway
+- [x] **Phase 89: Live Usage & Models Tabs** - Verify usage and models tabs show real data from gateway
+- [x] **Phase 90: Live Activity Feed** - Verify activity feed shows real events from gateway
 
 ## Phase Details
 
@@ -263,7 +263,7 @@ Plans:
 | 87. Live Agents Tab | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 | 88. Live Crons Tab | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 | 89. Live Usage & Models Tabs | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
-| 90. Live Activity Feed | v0.0.5 | 0/1 | Planned    |  |
+| 90. Live Activity Feed | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 
 <details>
 <summary>v0.0.4 -- Stabilize & Strip (19 phases) -- SHIPPED 2026-03-24</summary>
