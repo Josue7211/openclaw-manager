@@ -595,7 +595,7 @@ async fn login(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
-#[allow(dead_code)]
+#[allow(dead_code)] // fields consumed by serde deserialization; body intentionally discarded (signup disabled)
 struct SignupBody {
     email: String,
     password: String,
