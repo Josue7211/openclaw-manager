@@ -114,7 +114,7 @@ export const DEMO_CALENDAR_EVENTS: CalendarEvent[] = [
 
 // ── Conversations (Messages) ─────────────────────────────────────────────────
 
-export interface DemoConversation {
+interface DemoConversation {
   guid: string
   chatId: string
   displayName: string | null
@@ -153,7 +153,7 @@ export const DEMO_CONVERSATIONS: DemoConversation[] = [
 
 // ── Chat (AI conversation) ───────────────────────────────────────────────────
 
-export interface DemoChatMessage {
+interface DemoChatMessage {
   id: string
   role: 'user' | 'assistant'
   text: string
@@ -189,7 +189,7 @@ export const DEMO_CHAT_MESSAGES: DemoChatMessage[] = [
 
 // ── Dashboard (Agent status, heartbeat, agents) ──────────────────────────────
 
-export interface DemoAgentStatus {
+interface DemoAgentStatus {
   name: string
   emoji: string
   model: string
@@ -209,7 +209,7 @@ export const DEMO_AGENT_STATUS: DemoAgentStatus = {
   ip: '100.x.x.x',
 }
 
-export interface DemoAgentInfo {
+interface DemoAgentInfo {
   id: string
   display_name: string
   emoji: string

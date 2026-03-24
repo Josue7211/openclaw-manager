@@ -36,16 +36,8 @@ function toMeta(note: VaultNote): NoteMeta {
 /** Internal LiveSync prefixes that should never appear as user notes. */
 const INTERNAL_PREFIXES = ['h:', '_design/', 'ps:', 'ix:', 'cc:', '.obsidian/', '.obsidian-livesync/', 'obsydian_livesync', '!:']
 
-/** Image extensions for detecting attachment types. */
-export const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp']
-
 function isInternalDoc(id: string): boolean {
   return INTERNAL_PREFIXES.some((p) => id.startsWith(p))
-}
-
-export function isImageFile(id: string): boolean {
-  const lower = id.toLowerCase()
-  return IMAGE_EXTENSIONS.some((ext) => lower.endsWith(ext))
 }
 
 function loadMetaCache(): Map<string, NoteMeta> {
@@ -189,20 +181,6 @@ export async function getAllNotes(): Promise<VaultNote[]> {
     .sort((a, b) => b.updated_at - a.updated_at)
 }
 
-export async function getNote(id: string): Promise<VaultNote | null> {
-  try {
-    const json = await api.get<any>(`/api/vault/notes/${encodeURIComponent(id)}`)
-    const doc = json?.data || json
-    const note = docToNote(doc)
-    notesCache.set(note._id, note)
-    metaCache.set(note._id, toMeta(note))
-    saveMetaCache(metaCache)
-    return note
-  } catch {
-    return notesCache.get(id) ?? null
-  }
-}
-
 export async function putNote(note: VaultNote): Promise<VaultNote> {
   const now = Date.now()
   const links = extractWikilinks(note.content)
@@ -270,30 +248,6 @@ export async function createNote(
   return putNote(note)
 }
 
-export async function renameNote(
-  oldId: string,
-  newTitle: string,
-): Promise<VaultNote | null> {
-  const old = notesCache.get(oldId)
-  if (!old) return null
-
-  const slug = slugify(newTitle) || crypto.randomUUID().slice(0, 8)
-  const newId = old.folder ? `${old.folder}/${slug}.md` : `${slug}.md`
-
-  if (newId === oldId) {
-    return putNote({ ...old, title: newTitle })
-  }
-
-  await deleteNote(oldId)
-  const newNote: VaultNote = {
-    ...old,
-    _id: newId,
-    _rev: undefined,
-    title: newTitle,
-  }
-  return putNote(newNote)
-}
-
 // --- Helpers ---
 
 function slugify(text: string): string {
@@ -305,7 +259,7 @@ function slugify(text: string): string {
     .slice(0, 80)
 }
 
-export function extractWikilinks(content: string): string[] {
+function extractWikilinks(content: string): string[] {
   const re = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g
   const links: string[] = []
   let m
@@ -315,7 +269,7 @@ export function extractWikilinks(content: string): string[] {
   return [...new Set(links)]
 }
 
-export function extractTags(content: string): string[] {
+function extractTags(content: string): string[] {
   const re = /(?:^|\s)#([a-zA-Z][\w/-]*)/g
   const tags: string[] = []
   let m

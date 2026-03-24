@@ -47,7 +47,7 @@ export interface WebAuthnRequestOptions {
 }
 
 /** Attestation response to send back to the server */
-export interface WebAuthnRegistrationResponse {
+interface WebAuthnRegistrationResponse {
   id: string
   rawId: string
   type: string
@@ -58,7 +58,7 @@ export interface WebAuthnRegistrationResponse {
 }
 
 /** Assertion response to send back to the server */
-export interface WebAuthnAuthenticationResponse {
+interface WebAuthnAuthenticationResponse {
   id: string
   rawId: string
   type: string

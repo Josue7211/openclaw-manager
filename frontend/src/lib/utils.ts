@@ -14,31 +14,6 @@ export function timeAgo(input: string | number | null): string {
   return `${Math.floor(h / 24)}d ago`
 }
 
-export function formatDate(input: string | number | Date, style: 'short' | 'long' | 'relative' = 'long'): string {
-  const d = input instanceof Date ? input : new Date(input)
-  if (isNaN(d.getTime())) return '—'
-
-  if (style === 'relative') {
-    const now = new Date()
-    const diffMs = now.getTime() - d.getTime()
-    const diffDays = Math.floor(diffMs / 86400000)
-
-    if (diffDays === 0) return 'Today'
-    if (diffDays === 1) return 'Yesterday'
-    if (diffDays < 7) return d.toLocaleDateString('en-US', { weekday: 'long' })
-    const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
-    if (d.getFullYear() !== now.getFullYear()) opts.year = 'numeric'
-    return d.toLocaleDateString('en-US', opts)
-  }
-
-  if (style === 'short') {
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
-  }
-
-  // 'long'
-  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
-}
-
 export function formatTime(iso: string | null): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })

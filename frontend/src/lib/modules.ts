@@ -1,4 +1,4 @@
-export interface AppModule {
+interface AppModule {
   id: string
   name: string
   description: string

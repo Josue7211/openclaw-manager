@@ -2,7 +2,7 @@ import React from 'react'
 
 /* ─── Constants ────────────────────────────────────────────────────────── */
 
-export const REACTION_EMOJI: Record<number, string> = {
+const REACTION_EMOJI: Record<number, string> = {
   2000: '❤️', 2001: '👍', 2002: '👎',
   2003: '😂', 2004: '‼️', 2005: '❓',
 }

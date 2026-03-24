@@ -1,4 +1,4 @@
-export interface AccentPreset {
+interface AccentPreset {
   id: string
   label: string
   color: string

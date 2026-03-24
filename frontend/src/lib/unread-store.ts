@@ -12,7 +12,7 @@ import { subscribe } from './event-bus'
 // Types
 // ---------------------------------------------------------------------------
 
-export interface UnreadCounts {
+interface UnreadCounts {
   [moduleHref: string]: number // e.g. '/messages': 3, '/missions': 1
 }
 

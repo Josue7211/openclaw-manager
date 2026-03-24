@@ -8,7 +8,7 @@
  * future features can react to cross-cutting events without tight coupling.
  */
 
-export type EventType =
+type EventType =
   | 'new-message'
   | 'message-read'
   | 'mission-updated'
@@ -17,7 +17,7 @@ export type EventType =
   | 'settings-changed'
   | 'connection-status'
 
-export interface AppEvent {
+interface AppEvent {
   type: EventType
   data?: unknown
   source?: string // e.g. 'sse' | 'supabase' | 'local'

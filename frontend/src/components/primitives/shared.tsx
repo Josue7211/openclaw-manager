@@ -6,8 +6,6 @@
  * from the Record<string, unknown> config bag without crashing on bad data.
  */
 
-import { WarningCircle } from '@phosphor-icons/react'
-
 // ---------------------------------------------------------------------------
 // Config extraction helpers
 // ---------------------------------------------------------------------------
@@ -74,37 +72,3 @@ export function resolveColor(key: string): string {
   return COLOR_MAP[key] ?? 'var(--accent)'
 }
 
-// ---------------------------------------------------------------------------
-// Error fallback
-// ---------------------------------------------------------------------------
-
-/**
- * Inline error display for primitives with malformed config.
- * Not an Error Boundary -- WidgetWrapper provides PageErrorBoundary for crashes.
- * This is for recoverable "bad config" situations where the primitive
- * wants to show a helpful message instead of rendering garbage.
- */
-export function PrimitiveErrorFallback({ message }: { message: string }) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '8px',
-        height: '100%',
-        padding: '16px',
-        textAlign: 'center',
-        color: 'var(--text-muted)',
-      }}
-    >
-      <WarningCircle
-        size={24}
-        weight="duotone"
-        style={{ color: 'var(--amber)' }}
-      />
-      <span style={{ fontSize: '12px', lineHeight: 1.4 }}>{message}</span>
-    </div>
-  )
-}
