@@ -1,32 +1,29 @@
 use axum::{extract::{Path, State}, routing::{get, post}, Json, Router};
+use reqwest::Method;
 use serde_json::{json, Value};
 
 use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
-use super::gateway::sanitize_error_body;
+use super::gateway::gateway_forward;
 
 // ── List pending approvals ─────────────────────────────────────────────────
 
 /// `GET /api/approvals`
 ///
-/// Lists pending execution approval requests via the gateway WS connection.
+/// Lists pending execution approval requests via the OpenClaw HTTP API.
 /// Returns `{ approvals: [...] }` on success.
 async fn list_approvals(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
-        AppError::BadRequest(
-            "OpenClaw Gateway not configured. Set OPENCLAW_WS in Settings > Connections.".into(),
-        )
-    })?;
-
-    let payload = gw
-        .request("exec.approvals.list", json!({}))
+    let payload = gateway_forward(&state, Method::GET, "/approvals", None)
         .await
         .map_err(|e| {
-            tracing::error!("[approvals] exec.approvals.list failed: {e}");
-            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
+            tracing::error!("[approvals] list failed: {e:?}");
+            match e {
+                AppError::BadRequest(_) => e,
+                _ => AppError::BadRequest("Gateway error: failed to fetch approvals".into()),
+            }
         })?;
 
     // Normalize: gateway may return { approvals: [...] } or a raw array
@@ -49,24 +46,26 @@ async fn list_approvals(
 
 /// `POST /api/approvals/:id/approve`
 ///
-/// Approves an execution request by forwarding the decision through the
-/// gateway WS connection.
+/// Approves an execution request by forwarding to the OpenClaw HTTP API.
 async fn approve_request(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
     Path(id): Path<String>,
 ) -> Result<Json<Value>, AppError> {
-    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
-        AppError::BadRequest("OpenClaw Gateway not configured.".into())
+    let payload = gateway_forward(
+        &state,
+        Method::POST,
+        &format!("/approvals/{id}/approve"),
+        Some(json!({"approval_id": id})),
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!("[approvals] approve({id}) failed: {e:?}");
+        match e {
+            AppError::BadRequest(_) => e,
+            _ => AppError::BadRequest("Gateway error: failed to approve request".into()),
+        }
     })?;
-
-    let payload = gw
-        .request("exec.approve", json!({"approval_id": id}))
-        .await
-        .map_err(|e| {
-            tracing::error!("[approvals] exec.approve({id}) failed: {e}");
-            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
-        })?;
 
     Ok(Json(json!({"ok": true, "data": payload})))
 }
@@ -82,23 +81,26 @@ async fn reject_request(
     Path(id): Path<String>,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
-    let gw = state.gateway_ws.as_ref().ok_or_else(|| {
-        AppError::BadRequest("OpenClaw Gateway not configured.".into())
-    })?;
-
     let reason = body
         .get("reason")
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
 
-    let payload = gw
-        .request("exec.reject", json!({"approval_id": id, "reason": reason}))
-        .await
-        .map_err(|e| {
-            tracing::error!("[approvals] exec.reject({id}) failed: {e}");
-            AppError::BadRequest(format!("Gateway error: {}", sanitize_error_body(&e)))
-        })?;
+    let payload = gateway_forward(
+        &state,
+        Method::POST,
+        &format!("/approvals/{id}/reject"),
+        Some(json!({"approval_id": id, "reason": reason})),
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!("[approvals] reject({id}) failed: {e:?}");
+        match e {
+            AppError::BadRequest(_) => e,
+            _ => AppError::BadRequest("Gateway error: failed to reject request".into()),
+        }
+    })?;
 
     Ok(Json(json!({"ok": true, "data": payload})))
 }

@@ -201,6 +201,7 @@ pub struct PendingOAuthFlow {
     pub nonce: String,
     pub url: String,
     pub created_at: i64,
+    pub redirect_to: Option<String>,
 }
 
 impl Drop for PendingOAuthFlow {
