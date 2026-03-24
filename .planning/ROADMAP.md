@@ -91,7 +91,7 @@ Plans:
   3. Any false positives are documented in a `[package.metadata.cargo-machete]` ignore list in Cargo.toml
 **Plans**: 1 plan
 Plans:
-- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
+- [ ] 59-01-PLAN.md -- Remove 3 unused crates (axum-extra, tokio-stream, tower), verify build and tests
 
 ### Phase 60: Strip Dead Route Modules
 **Goal**: Backend has no route modules that serve zero frontend or external consumers
