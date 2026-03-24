@@ -21,7 +21,7 @@ export interface TestResult {
   error?: string
 }
 
-export interface WizardState {
+interface WizardState {
   currentStep: number // 0-9
   completedSteps: number[] // Array, not Set (JSON serialization)
   stepStatus: Record<number, 'idle' | 'testing' | 'success' | 'error' | 'skipped'>
