@@ -1,353 +1,396 @@
-# Feature Research: v0.0.3 New Features
+# Feature Landscape: v0.0.4 Stabilization & Strip
 
-**Domain:** Rich text editing, AI agent management, theme interpolation, embedded terminals, project tracking
-**Researched:** 2026-03-22
-**Confidence:** MEDIUM-HIGH
+**Domain:** Codebase stabilization for a rapidly-built Tauri v2 + React 18 + Rust/Axum app
+**Researched:** 2026-03-24
+**Confidence:** HIGH (based on direct codebase analysis + verified gateway protocol docs)
 
-## Feature Landscape
+## Context
 
-This research covers the five major v0.0.3 feature areas identified in PROJECT.md. Each section maps table stakes, differentiators, and anti-features specific to that domain, with complexity estimates calibrated against the existing codebase.
-
----
-
-### 1. Rich Text Editor (Google Docs-Level Notes)
-
-**Current state:** CodeMirror 6 markdown editor with toolbar (bold/italic/strike/code/lists/links/blockquote/code blocks/headings), wikilink autocomplete, backlinks panel, graph view, image embeds via `![[file.png]]` syntax, CouchDB/Obsidian LiveSync storage.
-
-**Target:** WYSIWYG editing comparable to Google Docs -- true rich text where formatting is inline rather than markdown syntax visible.
-
-#### Table Stakes
-
-| Feature | Why Expected | Complexity | Depends On |
-|---------|--------------|------------|------------|
-| WYSIWYG block editing (headings, paragraphs, lists) | Users typing bold text expect to see bold, not `**text**` | HIGH | TipTap migration |
-| Inline formatting (bold, italic, strikethrough, code) | Same formatting the CodeMirror toolbar already does, but rendered inline | MEDIUM | TipTap migration |
-| Tables (insert, resize columns, add/remove rows) | Google Docs comparison demands tables | MEDIUM | TipTap `@tiptap/extension-table` |
-| Image embeds (drag-drop, paste, inline display) | Already works via `![[]]` syntax -- must not regress | MEDIUM | TipTap image extension + vault media proxy |
-| Code blocks with syntax highlighting | Already works in CodeMirror -- must not regress | LOW | TipTap `@tiptap/extension-code-block-lowlight` |
-| Slash commands (`/heading`, `/table`, `/code`) | Modern editors (Notion, Google Docs) train users to expect this | MEDIUM | TipTap suggestion API |
-| Markdown paste support | Users copy markdown from the web and expect it to render | LOW | TipTap markdown extension handles this natively |
-| Keyboard shortcuts (Cmd+B/I/K/Shift+S) | Already exist -- must not regress | LOW | TipTap keybindings map 1:1 |
-| Undo/redo | Already exists via CodeMirror history -- must not regress | FREE | TipTap includes built-in history |
-| Wikilink `[[note]]` support | Core Obsidian compatibility feature, already works | MEDIUM | Custom TipTap node extension |
-| Backlinks panel | Already built as BacklinksPanel.tsx -- must not regress | LOW | Parse content for `[[links]]` same as today |
-| CouchDB round-trip fidelity | Notes stored in CouchDB must not corrupt on save | HIGH | Markdown serialization must match Obsidian format |
-
-#### Differentiators
-
-| Feature | Value Proposition | Complexity | Depends On |
-|---------|-------------------|------------|------------|
-| Floating toolbar (select text to format) | Google Docs UX -- toolbar appears on selection | LOW | TipTap `BubbleMenu` built-in component |
-| Embeds (YouTube, tweets, iframes) | Rich content beyond plain text | MEDIUM | TipTap `@tiptap/extension-embed` or custom node |
-| Checklist items with completion state | Task lists within notes | LOW | TipTap `@tiptap/extension-task-list` |
-| Note templates (meeting notes, daily journal, retro) | Structured starting points accelerate note creation | LOW | JSON template definitions applied on create |
-| Version history (diff view) | See what changed, revert to previous | HIGH | CouchDB revisions + diff rendering |
-| Real-time collaboration (cursor presence) | The "Google Docs" experience -- see other users editing | VERY HIGH | Yjs + Hocuspocus server + CouchDB sync |
-| Drag-and-drop block reordering | Notion-style block manipulation | MEDIUM | TipTap drag handle extension |
-| Full-text search across all notes | Find content inside notes, not just titles | MEDIUM | Backend search endpoint over CouchDB content |
-
-#### Anti-Features
-
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| Real-time collaboration in v0.0.3 | "Google Docs-level" implies it | Requires Yjs + Hocuspocus server, new infrastructure, conflict resolution with CouchDB LiveSync, massive complexity | Defer to v0.0.4+; single-user WYSIWYG is already a huge upgrade |
-| Obsidian plugin compatibility | Users expect Obsidian features | TipTap uses ProseMirror JSON internally, not markdown -- plugin APIs are completely different | Maintain Obsidian-format markdown on disk via TipTap markdown serializer |
-| Full ProseMirror JSON storage | TipTap natively stores JSON | Breaks Obsidian LiveSync compatibility, notes become unreadable in Obsidian | Store as markdown in CouchDB, parse on load, serialize on save |
-| Dual-pane editor (source + preview) | Power users want raw markdown | Adds UI complexity, two editors to maintain | Single WYSIWYG editor with "View Source" toggle for edge cases |
-| WYSIWYG for Mermaid/LaTeX | Rich rendering of diagrams and math | Specialized renderers add complexity | Render in read mode only; plain text in edit mode |
-
-**Key migration decision:** TipTap replaces CodeMirror as the editor engine. TipTap is built on ProseMirror and provides WYSIWYG editing with a headless, extension-based architecture. The critical constraint is that notes must remain stored as **markdown in CouchDB** for Obsidian compatibility. TipTap's markdown extension handles bidirectional parse/serialize, but the wikilink `[[syntax]]` needs a custom TipTap node that serializes back to `[[link]]` in markdown. HIGH confidence this is achievable -- TipTap's extension API is designed for exactly this.
+v0.0.3 shipped 55 phases across 10 feature groups in ~2 days. The codebase grew from ~25K to ~74K lines (38K frontend + 35K backend). Many features were built against assumed API shapes, not verified against the actual OpenClaw gateway protocol. This research identifies every stabilization category, maps the specific issues found, and provides a prioritization framework for fix-vs-strip decisions.
 
 ---
 
-### 2. OpenClaw Agent Management (Full Controller)
+## Stabilization Categories
 
-**Current state:** Read-only agent listing (AgentCard.tsx with name/emoji/role/model editing), read-only cron listing (WeekGrid + JobList from `openclaw` CLI), read-only session listing. The OpenClaw gateway has a full API surface (agents, crons, sessions, models, memory, tools, config, files, workspace, usage) but MC only uses chat + basic reads.
+### Category 1: Broken Gateway Integration (CRITICAL)
 
-**Target:** Full CRUD control panel -- create/update/delete agents, manage crons, view usage metrics, manage memory, access terminal.
+**What:** Backend routes call OpenClaw gateway methods that do not exist in the protocol. The frontend works against these broken backend routes. Nothing crashes -- the gateway just returns errors that get swallowed or shown as generic failures.
 
-#### Table Stakes
+**Specific issues found in `src-tauri/src/routes/gateway.rs` and `approvals.rs`:**
 
-| Feature | Why Expected | Complexity | Depends On |
-|---------|--------------|------------|------------|
-| Agent CRUD (create, update, delete) | Can't manage agents if you can only view them | MEDIUM | OpenClaw API endpoints (already exist) |
-| Agent lifecycle controls (start, stop, restart, deploy) | Basic operational control | MEDIUM | OpenClaw API + status polling |
-| Cron CRUD (create, update, delete, toggle enable/disable) | Currently read-only -- need full management | MEDIUM | OpenClaw API endpoints |
-| Cron schedule editor (human-readable, not raw crontab) | Users shouldn't need to know cron syntax | MEDIUM | Cron expression builder UI component |
-| Agent status monitoring (active/idle/error with live updates) | Already partially works via StatusDot -- needs real-time | LOW | SSE or polling from OpenClaw API |
-| Usage metrics (token counts, cost, model usage per agent) | Operational cost visibility | MEDIUM | OpenClaw usage API endpoint |
-| Agent log viewer (recent output, errors) | Need to debug agent behavior | MEDIUM | OpenClaw API + scrollable log panel |
-| Model assignment (per-agent model selection) | Already exists in edit mode -- needs polish | LOW | Models endpoint already integrated |
+| Current (Wrong) | Correct (Protocol v3) | Impact |
+|------------------|-----------------------|--------|
+| `sessions.history` | `chat.history` | Session history never loads |
+| `sessions.send` | `chat.send` (params: sessionKey, message, deliver, idempotencyKey) | Cannot send messages to agents |
+| `sessions.pause` | Does not exist in protocol | Route always errors |
+| `sessions.resume` | Does not exist in protocol | Route always errors |
+| `activity.recent` | Does not exist in protocol | Activity feed always empty |
+| `exec.approvals.list` | `exec.approvals.get` | Approval queue never loads |
+| `exec.approve` | `exec.approval.resolve` (with action: "approve") | Cannot approve executions |
+| `exec.reject` | `exec.approval.resolve` (with action: "reject") | Cannot reject executions |
+| `memory.search` | Not in the 88 documented methods | Memory search always fails |
 
-#### Differentiators
+**Connect handshake is also wrong:**
+- Current: sends `{ auth: { type: "password", password: "..." } }`
+- Correct: sends `{ minProtocol: 3, maxProtocol: 3, role: "operator", scopes: [...], client: { id, version, platform, mode }, auth: { token: "..." } }`
 
-| Feature | Value Proposition | Complexity | Depends On |
-|---------|-------------------|------------|------------|
-| Agent memory browser (view/edit/clear RAG context) | Understand what the agent "remembers" | MEDIUM | OpenClaw memory API |
-| Agent tool permissions (enable/disable tools per agent) | Fine-grained control over agent capabilities | MEDIUM | OpenClaw tools API |
-| Agent activity timeline (visual history of actions) | See what an agent has been doing over time | MEDIUM | Mission events from Supabase |
-| Batch operations (restart all, update model globally) | Fleet management for multiple agents | LOW | UI pattern over existing per-agent APIs |
-| Agent templates (pre-configured role + model + tools) | Quick-create agents from proven configurations | LOW | Template definitions in localStorage/Supabase |
-| Cost dashboard (daily/weekly/monthly usage charts) | Budget visibility and trend analysis | MEDIUM | Aggregate usage data + chart widget |
-| Agent comparison (side-by-side metrics) | Evaluate which agent/model combo performs best | LOW | UI layout using existing data |
+**Complexity:** MEDIUM -- method names and param shapes need updating, not architectural changes.
+**Priority:** P0 -- this is the core value prop of the OpenClaw integration. Nothing works until these are fixed.
 
-#### Anti-Features
+### Category 2: Dead Routes & Feature Stubs (HIGH)
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| Agent code editor (edit agent source) | Power users want to modify agent behavior | Agent code lives on the OpenClaw VM -- editing through MC adds remote file sync complexity and security risk | Link to OpenClaw workspace files via "Open in editor" |
-| Live streaming agent output | Real-time terminal-style output | WebSocket infrastructure, massive data volume, UI complexity | Polling recent log lines every 5-10 seconds |
-| Multi-gateway support | Manage multiple OpenClaw instances | Architecture assumes single gateway -- multi-gateway adds routing complexity | Single gateway, configurable in Settings |
-| Agent marketplace | Share/download agent configurations | No infrastructure, premature | Local templates are sufficient |
+**What:** Backend routes that serve no functional purpose, or frontend pages that call endpoints returning errors.
+
+**Specific issues found:**
+
+| Route/Feature | Status | Action |
+|---------------|--------|--------|
+| `POST /api/gateway/sessions/:id/pause` | Calls nonexistent `sessions.pause` | Strip entirely |
+| `POST /api/gateway/sessions/:id/resume` | Calls nonexistent `sessions.resume` | Strip entirely |
+| `GET /api/gateway/activity` | Calls nonexistent `activity.recent` | Strip or rewire to real event stream |
+| `POST /api/gateway/memory/search` | Calls unverified `memory.search` | Verify against protocol, strip if nonexistent |
+| noVNC dependency (`@novnc/novnc`) | VNC was rejected; user wants Moonlight/Sunshine | Strip noVNC, keep Sunshine TCP ping |
+| `VncPreviewWidget.tsx` | References noVNC which was rejected | Strip or rename to SunshineWidget |
+| `ffir` binary reference | Causes persistent error toast on every page | Find and remove the reference |
+
+**Routes that exist but may have no frontend consumer (verify before stripping):**
+- `routes/dlp.rs` -- Data Loss Prevention
+- `routes/deploy.rs` -- Deployment management
+- `routes/workspace.rs` -- Workspace management
+- `routes/workflow_notes.rs` -- Workflow notes
+- `routes/stale.rs` -- Stale item tracking
+- `routes/reviews.rs` -- Code reviews
+- `routes/decisions.rs` -- Decision logging
+- `routes/changelog.rs` -- Changelog generation
+- `routes/cache.rs` -- Cache management
+
+**Complexity:** LOW per route, MEDIUM in aggregate (many files to audit).
+**Priority:** P1 -- dead code obscures real code and increases maintenance burden.
+
+### Category 3: API Shape Mismatches (HIGH)
+
+**What:** Frontend types and hooks assume API response shapes that don't match what the gateway actually returns.
+
+**Specific issues found:**
+
+| File | Assumption | Reality |
+|------|-----------|---------|
+| `pages/openclaw/types.ts` -- `UsageData` | Expects `total_tokens`, `prompt_tokens`, etc. | Real shape is from `usage.status` / `usage.cost` -- needs verification |
+| `pages/openclaw/types.ts` -- `ToolsResponse` | Expects `{ tools: ToolInfo[] }` | Gateway has no `/tools` HTTP endpoint -- tools are managed via skills/plugins |
+| `pages/openclaw/types.ts` -- `SkillsResponse` | Expects `{ skills: SkillInfo[] }` | Real method is `skills.status` / `skills.bins` via WS, not HTTP GET |
+| `hooks/useAgents.ts` | Calls `GET /api/agents` which reads from local SQLite | Real agents live on the gateway (`agents.list` WS method) -- dual source of truth |
+| `hooks/useOpenClawModels.ts` | Calls `GET /api/openclaw/models` via HTTP forward | Real method is `models.list` via WS -- HTTP forward might work if gateway has REST API |
+
+**Complexity:** MEDIUM -- requires testing each endpoint against the live gateway to determine actual response shapes.
+**Priority:** P0 -- these pages render incorrectly or show "not configured" falsely.
+
+### Category 4: Error Handling Gaps (MEDIUM)
+
+**What:** Rapid development often skips robust error handling. Common patterns to audit.
+
+**Areas to check:**
+
+| Area | What to Audit | Likely Issues |
+|------|---------------|---------------|
+| Gateway WS disconnect during request | Does pending request cleanup happen? | Yes -- `drain_pending` exists, but error messages may be generic |
+| Frontend error boundaries per page | Does each page have `PageErrorBoundary`? | Some v0.0.3 pages likely lack them |
+| Loading/empty/error state consistency | Do all pages use `SkeletonList`/`EmptyState`/`ErrorState`? | v0.0.3 pages use ad-hoc loading indicators |
+| Network offline handling | Does the offline queue handle gateway WS methods? | Offline queue is for REST, not WS |
+| Toast error deduplication | Same error repeated on polling interval? | v0.0.3 bug: "ffir" error repeats on every page |
+| Auth errors in browser mode | API calls without X-API-Key in dev mode | Known v0.0.3 bug -- browser mode lacks auth session |
+
+**Complexity:** LOW per fix, MEDIUM in aggregate.
+**Priority:** P2 -- user-facing quality issue, not a blocker.
+
+### Category 5: Test Coverage Gaps (MEDIUM)
+
+**What:** v0.0.3 features shipped with minimal test coverage for the new pages/hooks.
+
+**Current test inventory:**
+- 1039 frontend tests across 53 test files
+- 231 Rust tests
+- 21 E2E tests
+- 23 TODO/FIXME/HACK annotations across 8 files
+
+**Pages with NO test files (from v0.0.3):**
+
+| Page/Feature | Lines | Test Files |
+|--------------|-------|------------|
+| `pages/openclaw/` (ModelsTab, ToolsTab, SkillsTab, UsageTab, BudgetSection) | ~600 | 0 |
+| `pages/Agents.tsx` + agents/ subdirectory | ~500 | 1 (types only) |
+| `pages/CronJobs.tsx` + crons/ subdirectory | ~400 | 1 (types only) |
+| `pages/Status.tsx` | ~266 | 0 |
+| `hooks/useAgents.ts` | 120 | 0 |
+| `hooks/useOpenClaw*.ts` (4 hooks) | ~60 | 0 |
+| `hooks/useCrons.ts` | ~120 | 0 |
+| `hooks/useBudgetAlerts.ts` | ~50 | 0 |
+| `components/widgets/TerminalWidget.tsx` | ~100 | 0 |
+| `components/widgets/VncPreviewWidget.tsx` | ~80 | 0 |
+| `components/widgets/OpenClawKpiWidget.tsx` | ~100 | 0 |
+| `components/GatewayStatusDot.tsx` | ~60 | 0 |
+| `components/ModelSelector.tsx` | ~80 | 0 |
+| `gateway_ws.rs` (Rust) | ~450 | Minimal (compile test only) |
+| `routes/approvals.rs` (Rust) | 113 | 0 |
+| `routes/terminal.rs` (Rust) | ~200 | 0 |
+| `routes/vnc.rs` (Rust) | 53 | 1 (shape test only) |
+
+**Complexity:** LOW per test, HIGH in aggregate (~30 files need tests).
+**Priority:** P2 -- tests prevent regressions during the fix phase, so ideally added before P0/P1 work, but pragmatically added during or after.
+
+### Category 6: Accessibility Regressions (MEDIUM)
+
+**What:** Rapid v0.0.3 development likely introduced accessibility violations.
+
+**Areas to audit (based on CLAUDE.md rules):**
+
+| Pattern | Where to Check | Common Violation |
+|---------|----------------|------------------|
+| `<div onClick>` instead of `<button>` | All v0.0.3 pages (agents, crons, openclaw tabs, terminal) | Not keyboard-navigable |
+| Missing `aria-label` on icon buttons | Agent action buttons, cron controls, tab headers | Screen readers announce nothing |
+| Missing `role="dialog"` on panels | AgentDetailPanel, approval modals | Not announced as dialogs |
+| Missing focus trap on panels/modals | Any panel opened in v0.0.3 pages | Tab key escapes the panel |
+| Missing `aria-live` for dynamic content | Terminal output, gateway status, session list updates | Changes not announced |
+| Color contrast on status indicators | GatewayStatusDot, agent status badges | May fail WCAG AA |
+| Missing keyboard shortcuts for new features | Terminal page, approval queue | Undiscoverable actions |
+
+**Complexity:** LOW per fix (most are 1-2 line attribute additions).
+**Priority:** P2 -- non-negotiable per CLAUDE.md, but not a functional blocker. Should be done as part of each page fix, not as a separate pass.
+
+### Category 7: Unused Dependencies (LOW)
+
+**What:** npm packages or Cargo crates installed but no longer needed.
+
+**Suspicious dependencies in `package.json`:**
+
+| Package | Status | Notes |
+|---------|--------|-------|
+| `@novnc/novnc` | Likely dead | VNC was rejected in favor of Sunshine/Moonlight |
+| `@types/novnc__novnc` | Likely dead | Types for dead noVNC dependency |
+| `@xterm/xterm` + addons | Active | Terminal widget uses these -- verify |
+| `react-force-graph-2d` | Active | Notes graph view uses this |
+| `canvas-confetti` | Active | Confetti on milestone completion |
+
+**Complexity:** LOW -- `npm ls` / `depcheck` / `knip` can identify these automatically.
+**Priority:** P3 -- cleanup, no functional impact.
+
+### Category 8: Duplicate Widget Concerns (LOW)
+
+**What:** Some widgets may overlap in functionality.
+
+| Widget A | Widget B | Overlap? |
+|----------|----------|----------|
+| `NowPlayingWidget` | `MusicNowPlayingWidget` | Likely one is Plex, one is Koel -- verify |
+| `AgentsSummaryWidget` | `AgentsCard` (dashboard) | May show same data in different formats -- acceptable |
+| `PipelineStatusWidget` | `PipelineIdeasWidget` | Different data views of same system -- acceptable |
+
+**Complexity:** LOW.
+**Priority:** P3 -- cosmetic concern, not a blocker.
 
 ---
 
-### 3. Theme Blend Slider (Dark/Light Interpolation)
+## Table Stakes (Must Do)
 
-**Current state:** 24 built-in themes (13 dark, 8 light, 3 colorful/high-contrast), theme store with useSyncExternalStore, 5-color customization (accent, glow, secondary, tertiary, logo), glow opacity/border radius/panel opacity sliders, scheduling, custom CSS, import/export, GTK/Wallbash system mode integration. Themes switch discretely -- picking "Default Dark" vs "Default Light" is a binary toggle.
+Features the stabilization milestone MUST deliver. Missing = milestone is not complete.
 
-**Target:** A slider that continuously blends between dark and light variants of a theme, producing smooth intermediate states.
+| Feature | Why Required | Complexity | Depends On |
+|---------|-------------|------------|------------|
+| Fix gateway connect handshake to protocol v3 | Nothing works without correct auth | MEDIUM | gateway_ws.rs |
+| Fix all wrong gateway method names (9 methods) | Core OpenClaw pages broken | MEDIUM | gateway.rs, approvals.rs |
+| Remove `sessions.pause`/`sessions.resume` routes | Call nonexistent methods | LOW | gateway.rs |
+| Fix approvals to use `exec.approval.resolve` | Approval queue completely broken | LOW | approvals.rs |
+| Fix "ffir" executable error toast | Persistent error on every page | LOW | Find source, remove |
+| Verify and fix OpenClaw health/models/usage/tools/skills endpoints | Pages show "not configured" falsely | MEDIUM | Test against live gateway |
+| Fix browser mode auth (dev mode API calls) | Can't develop without browser mode | LOW | Known v0.0.3 bug |
+| Fix dashboard showing 1 widget in browser mode | Core UX broken in dev mode | LOW | Known v0.0.3 bug |
+| Remove noVNC dependency and VncPreviewWidget | Dead dependency, rejected feature | LOW | package.json, widget registry |
+| Remove or rename Bjorn tab duplication in Chat | UI confusion | LOW | Chat.tsx |
+| Add error boundaries to all v0.0.3 pages | Crash resilience | LOW | Per page |
 
-#### Table Stakes
+## Differentiators (Should Do)
 
-| Feature | Why Expected | Complexity | Depends On |
-|---------|--------------|------------|------------|
-| Blend slider (0% = full dark, 100% = full light) | Core feature request | MEDIUM | Color interpolation engine |
-| Perceptually uniform interpolation | Blending RGB looks wrong -- need oklab/oklch color space | MEDIUM | CSS `color-mix()` or JS oklab math |
-| Preserves accent/secondary/tertiary colors | User's chosen accent color must survive blending | LOW | Only interpolate Tier 1 (surface/text/border) vars |
-| Real-time preview as slider moves | User must see changes instantly | LOW | Apply CSS vars on `input` event |
-| Persistence | Slider position saved across restarts | LOW | Add `blendPosition` to ThemeState |
+Features that improve quality beyond minimum viable stabilization.
 
-#### Differentiators
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Add tests for all OpenClaw hooks/pages | Prevents regressions during fixes | MEDIUM | ~15 test files |
+| Add Rust tests for gateway_ws.rs | Core infrastructure, high blast radius | HIGH | Mock WS server needed |
+| Accessibility audit of all v0.0.3 pages | WCAG compliance per CLAUDE.md | LOW | Aria attributes, semantic HTML |
+| Consistent loading/empty/error states | Visual consistency across all pages | MEDIUM | Use shared EmptyState/ErrorState components |
+| Strip verified-dead backend routes | Reduce maintenance surface | LOW | After frontend consumer audit |
+| Consolidate OpenClaw data sources (gateway WS vs local SQLite) | Single source of truth for agents | MEDIUM | Architecture decision needed |
+| Run `knip` / `depcheck` for unused deps | Clean dependency tree | LOW | Automated |
 
-| Feature | Value Proposition | Complexity | Depends On |
-|---------|-------------------|------------|------------|
-| Per-page blend override | Different blend level for notes vs dashboard | LOW | Already have `pageOverrides` in ThemeState |
-| Time-of-day auto-blend | Gradually shift darker as evening approaches | MEDIUM | Blend position as function of time |
-| Blend-aware contrast checking | Warn when intermediate state has poor text contrast | MEDIUM | WCAG contrast ratio calculation |
+## Anti-Features (Must NOT Do)
 
-#### Anti-Features
+Features to explicitly NOT build during stabilization.
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| Arbitrary theme-to-theme blending | "Blend Dracula with Solarized" | Theme definitions have different semantic color meanings -- blending creates nonsensical results | Only blend between matched dark/light counterpart pairs |
-| Animated auto-blend transitions | Smooth animation when slider moves | CSS transitions on 50+ custom properties tank performance | Immediate application, no transitions |
-| Blend slider in widget form | "Theme widget on dashboard" | Niche use -- clutters widget picker | Accessible from Settings only, or as a title bar control |
-
-**Implementation approach:** Each theme pair (e.g., `default-dark` / `default-light`) shares the same semantic structure. The `COUNTERPART_MAP` already exists in `theme-definitions.ts`. The blend engine interpolates each CSS variable between the dark and light values using `oklab` color space for perceptually uniform results. Non-color variables (border-radius, opacity) interpolate linearly. The blend position (0-100) stores in `ThemeState.blendPosition`. Only Tier 1 variables (surfaces, text, borders) blend -- Tier 2 (accent colors) remain fixed per user choice.
-
----
-
-### 4. Embedded Terminal Widget
-
-**Current state:** No terminal integration exists. The project uses Tauri v2 with shell permissions scoped to HTTPS/HTTP URLs only. The OpenClaw VM runs remotely and is accessed via Tailscale.
-
-**Target:** An embedded terminal widget in the dashboard for interacting with OpenClaw or local shell.
-
-#### Table Stakes
-
-| Feature | Why Expected | Complexity | Depends On |
-|---------|--------------|------------|------------|
-| Terminal emulator rendering (cursor, colors, scrollback) | Basic terminal must look and behave like a terminal | MEDIUM | xterm.js integration |
-| OpenClaw VM shell access | Primary use case -- run commands on the agent VM | HIGH | SSH/PTY over Tailscale, security model |
-| Copy/paste support | Standard terminal interaction | LOW | xterm.js handles this |
-| ANSI color support | Commands output colored text | FREE | xterm.js handles ANSI natively |
-| Scrollback buffer | Scroll up to see previous output | LOW | xterm.js configuration |
-| Fit to container (responsive sizing) | Terminal must resize with widget | LOW | xterm.js `fit` addon |
-
-#### Differentiators
-
-| Feature | Value Proposition | Complexity | Depends On |
-|---------|-------------------|------------|------------|
-| Multiple terminal tabs | Switch between different sessions | MEDIUM | Tab state management |
-| Predefined command shortcuts | One-click "restart agent", "tail logs" | LOW | Button bar above terminal |
-| Session persistence across page navigation | Don't lose terminal state when switching pages | MEDIUM | Keep PTY connection alive in background |
-| Local terminal access | Shell on the user's own machine | MEDIUM | `tauri-plugin-pty` for local PTY |
-
-#### Anti-Features
-
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| Full SSH client | "Connect to any server" | Scope creep, credential management nightmare, security surface | Single preconfigured connection to OpenClaw VM |
-| File transfer (SCP/SFTP) | "Upload/download files" | Complex UI, security risk | Use existing vault/workspace file APIs |
-| Terminal multiplexer (tmux-like splits) | Power users want split panes | Massive complexity for a widget | Single terminal per widget instance; add multiple widgets for splits |
-| Browser-based terminal without Tauri | "Use in browser mode too" | PTY requires native process access -- impossible in pure browser | Terminal only available in Tauri desktop mode |
-
-**Implementation approach:** Use `xterm.js` for rendering and `tauri-plugin-pty` for local PTY spawning. For OpenClaw VM access, the Axum backend opens a WebSocket to proxy stdin/stdout between the frontend xterm.js instance and a remote PTY session via Tailscale. Security constraint: SSH key has a passphrase, so non-interactive SSH from Bash tool fails -- the terminal must handle interactive auth or use a pre-authenticated session. **This is the highest-risk feature** because it requires new Tauri plugin integration, WebSocket PTY proxying, and careful security sandboxing.
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| Add new pages or features | Stabilization means fixing, not building | Defer to v0.0.5+ |
+| Rewrite gateway_ws.rs from scratch | Fix method names and handshake, don't redesign | Targeted edits only |
+| Migrate away from CodeMirror to TipTap | v0.0.3 shipped notes with CodeMirror; migration is a separate milestone | Leave as-is |
+| Add new widgets | Widget system works; adding more creates more surface to stabilize | Defer to v0.0.5+ |
+| Refactor state management patterns | Working patterns shouldn't be touched during stabilization | Only fix what's broken |
+| Performance optimization | Premature during stabilization -- fix correctness first | Defer unless blocking |
+| Redesign page layouts | Visual changes create new bugs | Only fix broken layouts |
 
 ---
 
-### 5. Project Tracker / Kanban Board
-
-**Current state:** A `KanbanBoard` primitive widget already exists with HTML5 drag-and-drop, typed columns/cards, and basic card movement. The Pipeline page has ideas, notes, retros, ship log, and status views. Supabase has `ideas` and `missions` tables.
-
-**Target:** A proper project management tool with kanban board, task tracking, and workflow visualization.
-
-#### Table Stakes
-
-| Feature | Why Expected | Complexity | Depends On |
-|---------|--------------|------------|------------|
-| Persistent kanban columns and cards (CRUD) | Current KanbanBoard is config-driven only -- no persistence | MEDIUM | New Supabase table (`projects`, `project_tasks`) |
-| Drag-and-drop cards between columns | Already works in KanbanBoard primitive | LOW | Existing HTML5 DnD code |
-| Card detail view (description, assignee, due date, labels) | Clicking a card should open a detail panel | MEDIUM | Slide-over panel pattern (already used in Pipeline) |
-| Multiple boards/projects | Users have more than one project | LOW | Project selector + Supabase query filter |
-| Column customization (rename, reorder, add/delete) | Standard kanban feature | LOW | Column CRUD operations |
-| Card labels/tags with colors | Visual categorization | LOW | Tag chip component (already exists as TagChip) |
-| Due dates with overdue highlighting | Time-based tracking | LOW | Date picker + conditional styling |
-
-#### Differentiators
-
-| Feature | Value Proposition | Complexity | Depends On |
-|---------|-------------------|------------|------------|
-| Link cards to missions/ideas | Connect project tasks to existing OpenClaw missions | LOW | Foreign key to `missions`/`ideas` tables |
-| Agent assignment (assign task to AI agent) | Unique to this app -- assign work to Bjorn/agents | MEDIUM | Agent selection + mission dispatch |
-| Board templates (Software Dev, Content Pipeline, Personal) | Quick-start with pre-configured columns | LOW | Template definitions |
-| Swimlanes (group by assignee, priority, label) | Advanced organization | MEDIUM | Row grouping logic |
-| Board-level metrics (throughput, cycle time, WIP) | Productivity insights | MEDIUM | Date tracking on column transitions |
-| Calendar view of due dates | Alternate visualization | LOW | Reuse existing Calendar component |
-| Integration with todos | Sync board cards with todo list | MEDIUM | Bidirectional sync between tables |
-
-#### Anti-Features
-
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| Gantt charts | "Full project management" | Complex rendering, niche use case, massive implementation | Timeline view showing start/end dates is simpler |
-| Resource allocation / capacity planning | Enterprise PM feature | Irrelevant for personal/small-team use | Simple WIP limits per column |
-| Time tracking per card | "Track hours spent" | Scope creep into time-tracking app territory | Link to Pomodoro sessions if needed |
-| Sprints / iterations | Scrum methodology support | Over-engineering for personal project management | Simple deadline-based workflows |
-| Comments/discussions on cards | Collaboration feature | No multi-user infrastructure yet | Description field is sufficient for single user |
-
----
-
-## Feature Dependencies (Cross-Feature)
+## Feature Dependencies
 
 ```
-TipTap Migration (Notes Editor)
-    -- independent, no other features depend on it
-    -- but must complete before Version History (which needs content diffing)
+Fix gateway handshake (protocol v3)
+  -> Fix all gateway method names
+     -> Verify OpenClaw pages against real data
+        -> Fix API shape mismatches in frontend types
+        -> Add tests for corrected endpoints
 
-OpenClaw Controller
-    -- independent of other features
-    -- Terminal Widget enhances it (terminal connects to same VM)
-    -- Agent Assignment in Kanban depends on agent CRUD being complete
+Remove dead routes (pause/resume/activity)
+  -> (no dependencies, can proceed in parallel)
 
-Theme Blend Slider
-    -- independent, small scope
-    -- depends on existing COUNTERPART_MAP in theme-definitions.ts
-    -- no other features depend on it
+Fix browser mode auth
+  -> Fix dashboard widget rendering in browser mode
+     -> (enables dev workflow for all other fixes)
 
-Terminal Widget
-    -- depends on new Tauri plugin integration (tauri-plugin-pty)
-    -- enhanced by OpenClaw controller (predefined commands)
-    -- independent of other features
+Remove noVNC
+  -> Update widget registry
+  -> Remove VncPreviewWidget
+  -> Remove npm packages
 
-Project Tracker / Kanban
-    -- depends on new Supabase tables
-    -- enhanced by OpenClaw controller (agent assignment)
-    -- KanbanBoard primitive already exists as starting point
+Fix "ffir" error
+  -> (no dependencies, independent investigation)
 ```
 
-### Dependency Graph
+---
 
-```
-Theme Blend Slider (standalone, smallest scope)
+## Prioritization Framework: Fix vs Strip vs Defer
 
-Notes Editor (standalone, largest scope)
-    -- Version History (future, depends on notes)
+Use this decision tree for every item discovered during stabilization:
 
-OpenClaw Controller (standalone)
-    |
-    +--> Terminal Widget (enhances controller)
-    |
-    +--> Kanban Agent Assignment (enhances kanban)
+### Step 1: Does it call a nonexistent API method?
+- YES and is actively used by a page -> **FIX** (correct the method name/params)
+- YES and no page uses it -> **STRIP** (dead code)
 
-Kanban Board (standalone, new Supabase tables)
-    -- Agent Assignment (depends on OpenClaw controller)
-```
+### Step 2: Does it cause a user-visible error?
+- YES, on every page load (like "ffir") -> **FIX immediately** (P0)
+- YES, on specific page -> **FIX** (P1)
+- No visible error, just wrong data -> **FIX** (P1)
 
-## MVP Definition
+### Step 3: Is it dead code with no consumer?
+- Backend route with no frontend caller -> **STRIP**
+- Frontend component imported nowhere -> **STRIP**
+- npm package imported nowhere -> **STRIP**
+- Type definition used only by stripped code -> **STRIP**
 
-### Launch With (v0.0.3 Core)
+### Step 4: Does it work correctly but could be better?
+- Loading state is ad-hoc but functional -> **DEFER** (P3, nice-to-have)
+- Missing aria-label but button works -> **FIX during page touch** (P2, do when touching the file anyway)
+- No test but feature works -> **ADD test** (P2, do during or after fix)
 
-- [ ] **TipTap WYSIWYG editor** replacing CodeMirror -- WYSIWYG blocks, inline formatting, tables, slash commands, floating toolbar. Markdown round-trip to CouchDB. Wikilinks as custom TipTap node.
-- [ ] **OpenClaw agent CRUD** -- create, update, delete agents; lifecycle controls (start/stop/deploy); model assignment; usage metrics display.
-- [ ] **OpenClaw cron CRUD** -- create, update, delete cron jobs; schedule editor with human-readable UI; enable/disable toggle.
-- [ ] **Theme blend slider** -- continuous 0-100 dark/light interpolation using oklab color space; persisted in ThemeState.
-- [ ] **Kanban board persistence** -- new Supabase tables, CRUD for boards/columns/cards, drag-and-drop, card detail panel.
+### Step 5: Is it a design/architecture concern?
+- Dual source of truth (SQLite + gateway) -> **DEFER** with documentation (architectural decision for v0.0.5)
+- Inconsistent error handling patterns -> **DEFER** unless causing bugs
+- Could be refactored for clarity -> **DEFER** (don't touch working code)
 
-### Add After Validation (v0.0.3.x)
+---
 
-- [ ] **Terminal widget** -- xterm.js + tauri-plugin-pty; defer until core features stable due to high complexity and security risk
-- [ ] **Agent memory browser** -- view/edit/clear agent RAG context
-- [ ] **Note templates** -- pre-built starting points for common note types
-- [ ] **Kanban-to-mission linking** -- connect board cards to OpenClaw missions
-- [ ] **Full-text note search** -- search inside note content, not just titles
+## MVP Recommendation
 
-### Future Consideration (v0.0.4+)
+Prioritize in this order:
 
-- [ ] **Real-time collaboration** on notes -- Yjs + Hocuspocus, massive scope
-- [ ] **Version history** for notes -- CouchDB revision diffing
-- [ ] **Agent comparison dashboard** -- side-by-side metrics
-- [ ] **Terminal multi-session tabs** -- multiple connections
-- [ ] **Kanban swimlanes** -- advanced grouping
+1. **Fix gateway connect handshake** -- everything else depends on this
+2. **Fix browser mode auth** -- enables dev workflow for all subsequent fixes
+3. **Fix all wrong gateway method names** (9 methods) -- unblocks OpenClaw pages
+4. **Fix "ffir" error toast** -- most visible user-facing bug
+5. **Strip dead routes** (pause/resume/activity) -- quick wins, reduces noise
+6. **Remove noVNC and related code** -- dead dependency, rejected feature
+7. **Fix Bjorn tab duplication** -- quick UX fix
+8. **Verify OpenClaw pages against live gateway** -- validate fixes work end-to-end
+9. **Fix API shape mismatches** -- based on real response shapes from step 8
+10. **Add error boundaries to v0.0.3 pages** -- crash resilience
+11. **Accessibility audit** -- do during each page touch, not as separate pass
+12. **Add tests** -- add as you fix, not in a separate test-writing phase
 
-## Feature Prioritization Matrix
+**Defer:**
+- Dashboard widget rendering in browser mode (fix auth first, may resolve itself)
+- Unused dependency cleanup (run `knip` after stripping dead code)
+- State management consolidation (document the problem, fix in v0.0.5)
+- Performance work (not needed until correctness is achieved)
 
-| Feature | User Value | Implementation Cost | Risk | Priority |
-|---------|------------|---------------------|------|----------|
-| TipTap WYSIWYG editor | HIGH | HIGH | HIGH (CouchDB compat) | P1 |
-| OpenClaw agent CRUD | HIGH | MEDIUM | LOW (API exists) | P1 |
-| OpenClaw cron CRUD | HIGH | MEDIUM | LOW (API exists) | P1 |
-| Theme blend slider | MEDIUM | LOW | LOW (isolated change) | P1 |
-| Kanban board persistence | HIGH | MEDIUM | LOW (standard CRUD) | P1 |
-| Embedded terminal | MEDIUM | HIGH | HIGH (security, PTY) | P2 |
-| Agent memory browser | MEDIUM | MEDIUM | MEDIUM | P2 |
-| Note templates | MEDIUM | LOW | LOW | P2 |
-| Slash commands in editor | MEDIUM | MEDIUM | LOW | P2 |
-| Full-text note search | MEDIUM | MEDIUM | LOW | P2 |
-| Real-time collaboration | LOW (v0.0.3) | VERY HIGH | HIGH | P3 |
-| Version history | MEDIUM | HIGH | MEDIUM | P3 |
-| Kanban swimlanes | LOW | MEDIUM | LOW | P3 |
+---
 
-**Priority key:**
-- P1: Must have for v0.0.3 launch
-- P2: Should have, add during stabilization
-- P3: Future consideration
+## Audit Checklists
 
-## Competitor Feature Analysis
+### Per-Page Audit Checklist
 
-| Feature | Google Docs | Notion | Linear | Our Approach |
-|---------|------------|--------|--------|--------------|
-| WYSIWYG editing | Full rich text | Block-based | Markdown-first | TipTap WYSIWYG with markdown storage |
-| Tables | Full spreadsheet-like | Database tables | None | TipTap table extension (insert/edit, not spreadsheet) |
-| Slash commands | None (menu-based) | Core UX pattern | Yes | TipTap suggestion API |
-| Kanban board | None | Built-in database view | Core product | Dedicated kanban page + widget |
-| AI agent control | None | AI assist | None | Full CRUD + lifecycle (unique differentiator) |
-| Theme customization | None | Light/dark toggle | Light/dark toggle | 24 themes + blend slider + 5 accent colors |
-| Embedded terminal | None | None | None | xterm.js widget (unique differentiator) |
-| Collaboration | Real-time, core feature | Real-time | Real-time | Deferred -- single-user first |
-| Offline support | Limited | Limited | Full | Full offline-first via SQLite sync |
+For each page touched during stabilization:
+
+- [ ] Page loads without errors (no console errors, no error toasts)
+- [ ] Page shows real data from live services (not just compilation)
+- [ ] Loading state uses `SkeletonList` or `Skeleton` (not ad-hoc spinner)
+- [ ] Empty state uses `EmptyState` component (not inline text)
+- [ ] Error state uses `ErrorState` component (not inline text)
+- [ ] `PageErrorBoundary` wraps the page content
+- [ ] All buttons are `<button>`, not `<div onClick>`
+- [ ] Icon-only buttons have `aria-label`
+- [ ] Modals/panels have `role="dialog"`, `aria-modal="true"`, focus trap
+- [ ] No hardcoded colors (uses CSS variables)
+- [ ] Demo mode fallback works (`isDemoMode()` check)
+
+### Per-Route Audit Checklist (Rust)
+
+For each backend route touched:
+
+- [ ] Route uses correct gateway method name (verified against protocol v3)
+- [ ] Route uses correct parameter names (verified against protocol v3)
+- [ ] Route handles gateway WS not connected (returns descriptive error)
+- [ ] Route handles gateway WS timeout (30s timeout exists)
+- [ ] Error response sanitized (no internal IPs/paths leaked)
+- [ ] `RequireAuth` guard present on all data endpoints
+- [ ] Route has at least one unit test
+
+### Dead Code Identification Checklist
+
+- [ ] Run `cargo clippy --all-targets --all-features` -- check for unused imports/functions
+- [ ] Run `npx knip` or `npx depcheck` -- check for unused npm packages
+- [ ] Grep for components not imported anywhere
+- [ ] Check widget registry for widgets that reference dead dependencies
+- [ ] Check `routes/mod.rs` for routes not called by any frontend page
+
+---
+
+## Gateway Method Correction Reference
+
+Complete mapping of wrong -> correct methods, derived from the verified OpenClaw Gateway Protocol v3 (88 RPC methods, 17 events):
+
+| Category | Wrong Method | Correct Method | Correct Params |
+|----------|-------------|----------------|----------------|
+| Sessions | `sessions.history` | `chat.history` | `{ sessionKey, limit? }` |
+| Sessions | `sessions.send` | `chat.send` | `{ sessionKey, message, deliver, idempotencyKey }` |
+| Sessions | `sessions.pause` | *DOES NOT EXIST* | Strip route entirely |
+| Sessions | `sessions.resume` | *DOES NOT EXIST* | Strip route entirely |
+| Activity | `activity.recent` | *DOES NOT EXIST* | Strip or rewire to event subscription |
+| Memory | `memory.search` | *NOT IN 88 METHODS* | Verify or strip |
+| Approvals | `exec.approvals.list` | `exec.approvals.get` | `{}` |
+| Approvals | `exec.approve` | `exec.approval.resolve` | `{ id, action: "approve" }` |
+| Approvals | `exec.reject` | `exec.approval.resolve` | `{ id, action: "reject", reason? }` |
+
+Additionally, the connect handshake must be updated:
+- Add `minProtocol: 3`, `maxProtocol: 3`
+- Add `role: "operator"`
+- Add `scopes: ["operator.read", "operator.admin", "operator.approvals", "operator.pairing"]`
+- Add `client: { id: "openclaw-manager", version: "0.0.4", platform: "rust", mode: "ui" }`
+- Change auth from `{ type: "password", password }` to `{ token: password }`
+
+---
 
 ## Sources
 
-- [TipTap editor documentation](https://tiptap.dev/docs/editor/getting-started/overview)
-- [TipTap React installation](https://tiptap.dev/installation/react)
-- [TipTap collaboration docs](https://tiptap.dev/docs/collaboration/getting-started/install)
-- [TipTap markdown extension](https://tiptap.dev/docs/editor/markdown)
-- [TipTap markdown API](https://tiptap.dev/docs/editor/markdown/api/editor)
-- [Which rich text editor framework in 2025 (Liveblocks)](https://liveblocks.io/blog/which-rich-text-editor-framework-should-you-choose-in-2025)
-- [xterm.js official site](https://xtermjs.org/)
-- [tauri-plugin-pty on crates.io](https://crates.io/crates/tauri-plugin-pty)
-- [tauri-plugin-pty GitHub](https://github.com/Tnze/tauri-plugin-pty)
-- [Tauri shell plugin docs](https://v2.tauri.app/plugin/shell/)
-- [xterm.js security guide](https://xtermjs.org/docs/guides/security/)
-- [react-xtermjs (Qovery)](https://github.com/Qovery/react-xtermjs)
-- [dnd-kit kanban tutorial (LogRocket)](https://blog.logrocket.com/build-kanban-board-dnd-kit-react/)
-- [AI agent monitoring best practices (UptimeRobot)](https://uptimerobot.com/knowledge-hub/monitoring/ai-agent-monitoring-best-practices-tools-and-metrics/)
-- [CSS color-mix() and oklab](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/filter-function/brightness)
-- [CSS theme switching patterns (web.dev)](https://web.dev/patterns/theming/theme-switch)
-- Direct codebase analysis: NoteEditor.tsx, EditorToolbar.tsx, AgentCard.tsx, KanbanBoard.tsx, themes.ts, theme-definitions.ts, theme-store.ts, agents.rs, openclaw_cli.rs, vault.ts, widget-registry.ts
-
----
-*Feature research for: OpenClaw Manager v0.0.3*
-*Researched: 2026-03-22*
+- Direct codebase analysis of `/home/josue/Documents/projects/mission-control` (367 frontend source files, 65 Rust source files)
+- OpenClaw Gateway Protocol v3 reference (verified against live gateway, documented in memory `reference_openclaw_complete.md`)
+- v0.0.3 post-ship bugs (documented in memory `project_v003_postship_bugs.md`)
+- [Fix It, Flag It, or Forget It -- Technical Debt Triage Framework](https://stratechgist.com/p/fix-it-flag-it-or-forget-it-a-practical)
+- [Knip -- Dead file/dependency detection for JS/TS](https://knip.dev/)
+- [React dead code identification techniques](https://medium.com/@anjantalatatam/how-to-find-dead-code-in-a-react-application-%EF%B8%8F-dc401e4c75f6)
+- [Cargo Clippy dead code detection](https://doc.rust-lang.org/rust-by-example/attribute/unused.html)
+- [Secure Code Audit Checklist and Best Practices](https://www.codeant.ai/blogs/source-code-audit-checklist-best-practices-for-secure-code)
