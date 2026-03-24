@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode } from '@/lib/demo-data'
+import { useGatewaySSE } from '@/lib/hooks/useGatewaySSE'
 import type { CronJob, CronSchedule } from '@/pages/crons/types'
 
 interface CronsResponse {
@@ -16,10 +17,24 @@ interface CronsResponse {
 export function useCrons() {
   const queryClient = useQueryClient()
 
+  const _demo = isDemoMode()
+
   const { data, isLoading } = useQuery<CronsResponse>({
     queryKey: queryKeys.crons,
     queryFn: () => api.get<CronsResponse>('/api/crons'),
-    enabled: !isDemoMode(),
+    enabled: !_demo,
+  })
+
+  // Subscribe to gateway cron events for real-time cache invalidation.
+  // When the gateway broadcasts a cron event (job added, removed, or state changed),
+  // React Query automatically refetches the crons list.
+  // In demo mode, pass empty options to make useGatewaySSE a no-op while
+  // keeping hook call order consistent.
+  useGatewaySSE(_demo ? {} : {
+    events: ['cron'],
+    queryKeys: {
+      cron: queryKeys.crons,
+    },
   })
 
   const invalidateCrons = useCallback(() => {

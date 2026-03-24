@@ -16,6 +16,11 @@ vi.mock('@/lib/demo-data', () => ({
   isDemoMode: vi.fn(() => false),
 }))
 
+const mockUseGatewaySSE = vi.fn()
+vi.mock('@/lib/hooks/useGatewaySSE', () => ({
+  useGatewaySSE: (...args: unknown[]) => mockUseGatewaySSE(...args),
+}))
+
 import { useCrons } from '../useCrons'
 import type { CronJob } from '@/pages/crons/types'
 import { queryKeys } from '@/lib/query-keys'
@@ -205,6 +210,75 @@ describe('useCrons', () => {
       const cached = queryClient.getQueryData<{ jobs: CronJob[] }>(queryKeys.crons)
       expect(cached?.jobs).toHaveLength(1)
       expect(cached?.jobs[0].id).toBe('c1')
+    })
+  })
+
+  describe('gateway SSE integration', () => {
+    it('calls useGatewaySSE with cron events and queryKeys', async () => {
+      const { api } = await import('@/lib/api')
+      vi.mocked(api.get).mockResolvedValue({ jobs: [mockJob] })
+
+      const { wrapper } = createWrapper()
+      renderHook(() => useCrons(), { wrapper })
+
+      await waitFor(() => {
+        expect(mockUseGatewaySSE).toHaveBeenCalled()
+      })
+
+      expect(mockUseGatewaySSE).toHaveBeenCalledWith(
+        expect.objectContaining({
+          events: ['cron'],
+          queryKeys: expect.objectContaining({
+            cron: queryKeys.crons,
+          }),
+        }),
+      )
+    })
+
+    it('calls useGatewaySSE with empty options in demo mode (no-op)', async () => {
+      const { isDemoMode } = await import('@/lib/demo-data')
+      vi.mocked(isDemoMode).mockReturnValue(true)
+
+      mockUseGatewaySSE.mockClear()
+
+      const { wrapper } = createWrapper()
+      renderHook(() => useCrons(), { wrapper })
+
+      // Wait a tick for any side effects
+      await new Promise((r) => setTimeout(r, 50))
+
+      // useGatewaySSE is always called (rules of hooks) but with empty options in demo mode
+      expect(mockUseGatewaySSE).toHaveBeenCalledWith({})
+
+      // Reset
+      vi.mocked(isDemoMode).mockReturnValue(false)
+    })
+  })
+
+  describe('response shape with gateway state fields', () => {
+    it('handles cron.list response with state fields (nextRunAtMs, lastRunAtMs)', async () => {
+      const { api } = await import('@/lib/api')
+      const jobWithState: CronJob = {
+        id: 'c1',
+        name: 'backup',
+        schedule: { kind: 'every', everyMs: 86400000 },
+        state: { nextRunAtMs: 1711324800000, lastRunAtMs: 1711238400000, lastRunStatus: 'ok' },
+        createdAtMs: 1711152000000,
+        enabled: true,
+      }
+      vi.mocked(api.get).mockResolvedValue({ jobs: [jobWithState] })
+
+      const { wrapper } = createWrapper()
+      const { result } = renderHook(() => useCrons(), { wrapper })
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+      })
+
+      expect(result.current.jobs[0].state?.nextRunAtMs).toBe(1711324800000)
+      expect(result.current.jobs[0].state?.lastRunAtMs).toBe(1711238400000)
+      expect(result.current.jobs[0].state?.lastRunStatus).toBe('ok')
+      expect(result.current.jobs[0].createdAtMs).toBe(1711152000000)
     })
   })
 })
