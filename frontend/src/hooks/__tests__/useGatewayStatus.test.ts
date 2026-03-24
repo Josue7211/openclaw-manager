@@ -127,4 +127,38 @@ describe('useGatewayStatus', () => {
       expect(api.get).toHaveBeenCalledWith('/api/gateway/status')
     })
   })
+
+  it('returns reconnecting state with attempt count', async () => {
+    const { api } = await import('@/lib/api')
+    vi.mocked(api.get).mockResolvedValue({
+      connected: false,
+      status: 'reconnecting',
+      reconnect_attempt: 3,
+    })
+
+    const { wrapper } = createWrapper()
+    const { result } = renderHook(() => useGatewayStatus(), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(result.current.status).toBe('reconnecting')
+    expect(result.current.connected).toBe(false)
+    expect(result.current.reconnectAttempt).toBe(3)
+  })
+
+  it('reconnectAttempt defaults to 0 when not provided', async () => {
+    const { api } = await import('@/lib/api')
+    vi.mocked(api.get).mockResolvedValue({ connected: true, status: 'connected' })
+
+    const { wrapper } = createWrapper()
+    const { result } = renderHook(() => useGatewayStatus(), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(result.current.reconnectAttempt).toBe(0)
+  })
 })
