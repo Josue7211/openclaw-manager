@@ -44,9 +44,13 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 - ✓ TypeScript strict flags (noUnusedLocals/noUnusedParameters) — v0.0.4
 - ✓ Dev workflow fixes (browser mode auth, error toasts) — v0.0.4
 
+- ✓ Protocol v3 handshake with device identity and reconnect — v0.0.5
+- ✓ All 9 wrong RPC method names corrected — v0.0.5
+- ✓ SSE event bus wired to gateway WebSocket events — v0.0.5
+- ✓ Live data verification for agents, crons, usage, models, activity — v0.0.5
+
 ### Active
 
-- [ ] Fix OpenClaw gateway integration to use correct protocol v3 methods
 - [ ] Verify and fix every page/widget with real data end-to-end
 - [ ] Fix remaining UI bugs, broken loaders, and error states
 
@@ -57,16 +61,11 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 - Real-time chat (non-iMessage) — defer to Matrix integration later
 - Video posts / media hosting — storage/bandwidth concerns, defer
 
-## Current Milestone: v0.0.5 — Gateway Protocol v3
+## Current Milestone: v0.0.6 — Sessions & Chat
 
-**Goal:** Wire the OpenClaw controller pages to the actual gateway protocol v3 methods. Fix the 9 wrong RPC method names, implement proper handshake with device identity, wire SSE event bus to real gateway WebSocket events, verify all OpenClaw tabs with live data.
+**Goal:** Full session management with proper chat.send/history/abort methods, live streaming responses, model selection per session.
 
-**Target features:**
-- Connect handshake uses protocol v3 with role/scopes/client metadata
-- All 9 wrong RPC method names corrected (sessions.history→chat.history, etc.)
-- SSE event bus wired to real gateway WS events
-- All OpenClaw tabs verified against live gateway with real data
-- Activity feed wired to real gateway events (not assumed activity.recent)
+**Status:** Planning (run `/gsd:new-milestone` to start)
 
 ## Context
 
@@ -77,6 +76,8 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 **v0.0.3 shipped 2026-03-24.** AI Ops Center: 55 phases across 10 groups — theme blend (OKLCH), OpenClaw controller (agents, crons, usage, models, tools, skills), terminal (PTY + xterm.js), session management (spawn, monitor, history, live output), remote VM viewer (noVNC), gateway WS connection, approvals queue, notes editor overhaul (tables, search, templates, shortcuts, graph view). Built rapidly — many pages use assumed API shapes, not verified against actual gateway protocol.
 
 **v0.0.4 shipped 2026-03-24.** Stabilize & Strip: 19 phases across 6 groups — dev workflow fixes (browser auth, error toasts), backend dead code audit (13 annotations, 3 unused crates, 3 dead routes, 2 nonexistent gateway methods), frontend tooling (knip), frontend dead code strip (82 exports, 97 imports, 2 packages, noVNC removal), TypeScript strict flags, test coverage (68 hook tests), final verification (117 smoke tests across modules/widgets/routes).
+
+**v0.0.5 shipped 2026-03-24.** Gateway Protocol v3: 16 phases across 4 groups — protocol v3 handshake with device identity, exponential backoff reconnect, 9 RPC method corrections (chat, agents, crons, models, usage, tools/skills, activity), SSE event bus wiring (14 event types), agent + session event streaming, live data verification for all OpenClaw tabs (agents, crons, usage, models, activity feed).
 
 The user's vision: the app should feel like Discord meets Google Docs — everything modular and customizable via the widget system, notes as rich as Google Docs leveraging Obsidian, full OpenClaw control center, Apple-quality polish throughout.
 
@@ -119,4 +120,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-24 after v0.0.5 milestone start*
+*Last updated: 2026-03-24 after v0.0.5 milestone completion*
