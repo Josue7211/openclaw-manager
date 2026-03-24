@@ -1,5 +1,10 @@
-use axum::{extract::State, routing::get, Json, Router};
+use axum::{
+    extract::{Path, State},
+    routing::{get, post},
+    Json, Router,
+};
 use reqwest::Method;
+use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::OnceLock;
 use std::time::Duration;
@@ -199,10 +204,97 @@ async fn openclaw_health(
     }
 }
 
+// ── Session history (chat.history) ──────────────────────────────────────────
+
+/// `GET /api/gateway/sessions/:id/history`
+///
+/// Fetches chat history for a session via the OpenClaw gateway `chat.history`
+/// RPC method. The `:id` path param is the session key.
+async fn gateway_session_history(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Path(session_id): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    if session_id.is_empty() || session_id.len() > 200 {
+        return Err(AppError::BadRequest("invalid session id".into()));
+    }
+
+    let result = gateway_forward(
+        &state,
+        Method::POST,
+        "/rpc/chat.history",
+        Some(json!({ "sessionKey": session_id })),
+    )
+    .await;
+
+    match result {
+        Ok(data) => Ok(Json(data)),
+        Err(e) => {
+            tracing::error!("[gateway] chat.history failed for session {session_id}: {e:?}");
+            Err(e)
+        }
+    }
+}
+
+// ── Session send (chat.send) ────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct SessionSendBody {
+    message: String,
+}
+
+/// `POST /api/gateway/sessions/:id/send`
+///
+/// Sends a message to a session via the OpenClaw gateway `chat.send`
+/// RPC method. The `:id` path param is the session key.
+async fn gateway_session_send(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Path(session_id): Path<String>,
+    Json(body): Json<SessionSendBody>,
+) -> Result<Json<Value>, AppError> {
+    if session_id.is_empty() || session_id.len() > 200 {
+        return Err(AppError::BadRequest("invalid session id".into()));
+    }
+    if body.message.is_empty() {
+        return Err(AppError::BadRequest("message required".into()));
+    }
+
+    let result = gateway_forward(
+        &state,
+        Method::POST,
+        "/rpc/chat.send",
+        Some(json!({
+            "sessionKey": session_id,
+            "message": body.message,
+            "deliver": true,
+            "idempotencyKey": super::util::random_uuid()
+        })),
+    )
+    .await;
+
+    match result {
+        Ok(data) => Ok(Json(data)),
+        Err(e) => {
+            tracing::error!("[gateway] chat.send failed for session {session_id}: {e:?}");
+            Err(e)
+        }
+    }
+}
+
 // ── Router ──────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/openclaw/health", get(openclaw_health))
+    Router::new()
+        .route("/openclaw/health", get(openclaw_health))
+        .route(
+            "/gateway/sessions/{id}/history",
+            get(gateway_session_history),
+        )
+        .route(
+            "/gateway/sessions/{id}/send",
+            post(gateway_session_send),
+        )
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
