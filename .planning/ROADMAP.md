@@ -27,7 +27,7 @@
 
 **Group AC: Event Bus Wiring** *(SSE event bus connected to real gateway WebSocket events)*
 - [ ] **Phase 84: SSE Event Bus Wiring** - Wire SSE event bus to actual gateway WebSocket events instead of mock data
-- [ ] **Phase 85: Agent Event Streaming** - Surface real-time agent.* events from gateway via SSE
+- [x] **Phase 85: Agent Event Streaming** - Surface real-time agent.* events from gateway via SSE (completed 2026-03-24)
 - [ ] **Phase 86: Session Event Streaming** - Surface session created/completed/error events via SSE
 
 **Group AD: Live Data Verification** *(verify every OpenClaw tab with real gateway data)*

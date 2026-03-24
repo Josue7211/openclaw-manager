@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.0.5
 milestone_name: -- Gateway Protocol v3
-status: Executing Phase 84
-stopped_at: Completed 82-01-PLAN.md
-last_updated: "2026-03-24T13:09:53.647Z"
+status: Executing Phase 86
+stopped_at: Completed 85-01-PLAN.md
+last_updated: "2026-03-24T15:57:15Z"
 progress:
   total_phases: 16
-  completed_phases: 9
-  total_plans: 10
-  completed_plans: 9
+  completed_phases: 10
+  total_plans: 11
+  completed_plans: 10
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 84 — SSE Event Bus Wiring
+**Current focus:** Phase 86 — Session Event Streaming
 
 ## Current Position
 
-Phase: 84 (SSE Event Bus Wiring) — EXECUTING
-Plan: 1 of 1
+Phase: 86
+Plan: Not started
 
 ## Performance Metrics
 
@@ -46,6 +46,7 @@ Plan: 1 of 1
 | Phase 76 P01 | 4min | 2 tasks | 5 files |
 | Phase 77 P01 | 6min | 2 tasks | 1 files |
 | Phase 82 P01 | 2min | 1 tasks | 2 files |
+| Phase 85 P01 | 3min | 2 tasks | 3 files |
 
 ### Decisions
 
@@ -61,6 +62,8 @@ Recent decisions affecting current work:
 - [Phase 77]: Used gateway_forward HTTP proxy pattern for chat RPC calls (consistent with agents/crons) since no WebSocket RPC client exists yet
 - [Phase 80]: Used gateway_forward HTTP proxy for models.list route since gateway_ws WS client not yet available
 - [Phase 82]: Used gateway_forward HTTP proxy for skills routes since gateway_ws WS client does not exist yet
+- [Phase 85]: Used queryKeys.gatewayEvents (not plan's gatewayActivity) -- actual key name from Phase 84
+- [Phase 85]: Unconditional useGatewaySSE with empty options in demo mode for React rules-of-hooks compliance
 
 ### Pending Todos
 
@@ -74,6 +77,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-24T12:59:11.437Z
-Stopped at: Completed 82-01-PLAN.md
+Last session: 2026-03-24T15:57:15Z
+Stopped at: Completed 85-01-PLAN.md
 Resume file: None
