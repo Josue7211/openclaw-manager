@@ -104,7 +104,7 @@ Plans:
   4. `cargo build` passes and the app starts without route registration errors
 **Plans**: 1 plan
 Plans:
-- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
+- [ ] 60-01-PLAN.md -- Audit 5 candidate routes, delete 3 dead (decisions, dlp, habits), document 2 kept
 
 ### Phase 61: Strip Nonexistent Gateway Methods
 **Goal**: No backend routes call gateway methods that do not exist in the protocol
@@ -129,7 +129,7 @@ Plans:
   3. The knip report identifies genuinely unused exports, files, and dependencies ready for cleanup
 **Plans**: 1 plan
 Plans:
-- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
+- [ ] 62-01-PLAN.md -- Configure knip with lazy-route entry points and widget registry
 
 ### Phase 63: Strip noVNC Dependency
 **Goal**: The rejected noVNC feature is fully removed from the codebase
@@ -142,7 +142,7 @@ Plans:
   4. No import or reference to noVNC or VncPreviewWidget exists anywhere in the codebase
 **Plans**: 1 plan
 Plans:
-- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
+- [ ] 63-01-PLAN.md -- Remove noVNC package, VncPreviewWidget, widget registry entry, add migration
 
 ### Phase 64: Strip TipTap/Project Tracker Stubs
 **Goal**: All deferred feature stubs are removed so they do not confuse developers or appear in search results
@@ -155,7 +155,7 @@ Plans:
   4. Any sidebar module entries for deferred features are removed from `sidebar-config.ts` and `modules.ts`
 **Plans**: 1 plan
 Plans:
-- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
+- [ ] 64-01-PLAN.md -- Remove TipTap packages and Project Tracker stubs
 
 ### Phase 65: Strip Unused File Exports
 **Goal**: Every exported function, type, constant, and component in the frontend is imported by at least one consumer
@@ -167,7 +167,7 @@ Plans:
   3. Each removal is a single-purpose commit for safe bisection
 **Plans**: 1 plan
 Plans:
-- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
+- [ ] 65-01-PLAN.md -- Remove unused exports identified by knip
 
 ### Phase 66: Strip Unused npm Dependencies
 **Goal**: package.json contains only packages that are actually imported somewhere in the source
@@ -180,7 +180,7 @@ Plans:
   4. No runtime "module not found" errors when navigating all pages
 **Plans**: 1 plan
 Plans:
-- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
+- [ ] 66-01-PLAN.md -- Remove unused npm dependencies
 
 ### Phase 67: Strip Unused Imports
 **Goal**: Every import statement in every TypeScript file is consumed within that file
@@ -192,7 +192,7 @@ Plans:
   3. `tsc --noEmit` passes after all import cleanup
 **Plans**: 1 plan
 Plans:
-- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
+- [ ] 67-01-PLAN.md -- Clean unused imports via eslint autofix
 
 ### Phase 68: Enable TypeScript Strict Flags
 **Goal**: TypeScript compiler catches unused locals and parameters as errors, preventing future dead code accumulation
@@ -204,7 +204,7 @@ Plans:
   3. The pre-commit hook (`scripts/pre-commit.sh`) catches any future violations before they are committed
 **Plans**: 1 plan
 Plans:
-- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
+- [ ] 68-01-PLAN.md -- Enable strict unused flags, fix violations
 
 ### Phase 69: OpenClaw Hook Tests
 **Goal**: Core OpenClaw data-fetching hooks have test coverage to prevent regressions during future gateway integration work
@@ -218,7 +218,7 @@ Plans:
   5. All tests pass via `npx vitest run`
 **Plans**: 1 plan
 Plans:
-- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
+- [ ] 69-01-PLAN.md -- Unit tests for OpenClaw hooks
 
 ### Phase 70: Terminal Hook Tests
 **Goal**: Terminal and session output hooks have test coverage for WebSocket lifecycle edge cases
@@ -231,7 +231,7 @@ Plans:
   4. All tests pass via `npx vitest run`
 **Plans**: 1 plan
 Plans:
-- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
+- [ ] 70-01-PLAN.md -- Unit tests for terminal hooks
 
 ### Phase 71: Gateway Integration Tests
 **Goal**: Gateway connection health is verified by automated tests that catch regressions in the status/health endpoints
@@ -244,7 +244,7 @@ Plans:
   4. All tests pass in CI (gateway may be mocked for CI environment)
 **Plans**: 1 plan
 Plans:
-- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
+- [ ] 71-01-PLAN.md -- Integration tests for gateway health
 
 ### Phase 72: Sidebar Module Smoke Test
 **Goal**: Every module registered in the sidebar loads its page component without crashing after all dead code removal
@@ -256,7 +256,7 @@ Plans:
   3. No console errors related to missing components, hooks, or modules during navigation
 **Plans**: 1 plan
 Plans:
-- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
+- [ ] 72-01-PLAN.md -- Smoke test all sidebar modules
 
 ### Phase 73: Widget Render Smoke Test
 **Goal**: Every widget in the registry renders its default state without crashing after cleanup
@@ -269,7 +269,7 @@ Plans:
   4. Dashboard state migrations handle any removed widget types gracefully
 **Plans**: 1 plan
 Plans:
-- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
+- [ ] 73-01-PLAN.md -- Smoke test all widgets
 
 ### Phase 74: Full Route Audit
 **Goal**: Every route in the app resolves to a working page with no dead links, blank screens, or infinite loading states
@@ -282,7 +282,7 @@ Plans:
   4. Navigation between all routes works (forward, back, sidebar click, direct URL)
 **Plans**: 1 plan
 Plans:
-- [ ] 58-01-PLAN.md -- Audit all 13 annotations: remove 5, justify 8, remove unused struct fields
+- [ ] 74-01-PLAN.md -- Full route audit with agent-browser
 
 ## Progress
 
@@ -294,7 +294,7 @@ Plans:
 | 57. ffir Error Toast Fix | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
 | 58. Audit #[allow(dead_code)] | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
 | 59. Strip Unused Crates | v0.0.4 | 0/? | Complete    | 2026-03-24 |
-| 60. Strip Dead Route Modules | v0.0.4 | 0/? | Not started | - |
+| 60. Strip Dead Route Modules | v0.0.4 | 0/1 | Not started | - |
 | 61. Strip Nonexistent Gateway Methods | v0.0.4 | 0/1 | Not started | - |
 | 62. Configure knip | v0.0.4 | 0/? | Not started | - |
 | 63. Strip noVNC | v0.0.4 | 0/? | Not started | - |
