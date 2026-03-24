@@ -28,7 +28,7 @@
 - [x] **Phase 63: Strip noVNC Dependency** - Remove @novnc/novnc package and VncPreviewWidget.tsx (completed 2026-03-24)
 - [x] **Phase 64: Strip TipTap/Project Tracker Stubs** - Verified never scaffolded (completed 2026-03-24)
 - [x] **Phase 65: Strip Unused File Exports** - Remove all unused file exports detected by knip (completed 2026-03-24)
-- [ ] **Phase 66: Strip Unused npm Dependencies** - Remove all unused npm dependencies detected by knip
+- [x] **Phase 66: Strip Unused npm Dependencies** - Remove all unused npm dependencies detected by knip (completed 2026-03-24)
 - [ ] **Phase 67: Strip Unused Imports** - Clean all unused imports via eslint-plugin-unused-imports
 - [ ] **Phase 68: Enable TypeScript Strict Flags** - Enable noUnusedLocals and noUnusedParameters, fix all violations
 
@@ -301,7 +301,7 @@ Plans:
 | 63. Strip noVNC | v0.0.4 | 0/1 | Complete    | 2026-03-24 |
 | 64. Strip TipTap/Project Tracker | v0.0.4 | 0/? | Complete    | 2026-03-24 |
 | 65. Strip Unused Exports | v0.0.4 | 2/2 | Complete    | 2026-03-24 |
-| 66. Strip Unused npm Deps | v0.0.4 | 0/? | Not started | - |
+| 66. Strip Unused npm Deps | v0.0.4 | 0/? | Complete    | 2026-03-24 |
 | 67. Strip Unused Imports | v0.0.4 | 0/? | Not started | - |
 | 68. Enable TS Strict Flags | v0.0.4 | 0/? | Not started | - |
 | 69. OpenClaw Hook Tests | v0.0.4 | 0/? | Not started | - |
