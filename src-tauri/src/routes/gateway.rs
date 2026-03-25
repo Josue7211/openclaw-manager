@@ -199,10 +199,64 @@ async fn openclaw_health(
     }
 }
 
+// ── Activity route ──────────────────────────────────────────────────────────
+
+/// `GET /api/gateway/activity`
+///
+/// Returns the latest activity log entries from the OpenClaw gateway.
+async fn gateway_activity(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let payload = gateway_forward(&state, Method::GET, "/logs", None)
+        .await
+        .map_err(|e| {
+            tracing::error!("[gateway] logs.tail failed: {e:?}");
+            match e {
+                AppError::BadRequest(_) => e,
+                _ => AppError::BadRequest("Gateway error: failed to fetch activity logs".into()),
+            }
+        })?;
+    Ok(Json(json!({ "ok": true, "data": payload })))
+}
+
+// ── Sessions route ─────────────────────────────────────────────────────────
+
+/// `GET /api/gateway/sessions`
+///
+/// Proxies `sessions.list` through the OpenClaw API.
+/// Returns the full sessions list without filtering (unlike /api/claude-sessions
+/// which filters by kind). Wraps the payload in a standard ok envelope.
+async fn gateway_sessions(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let payload = gateway_forward(&state, Method::GET, "/sessions", None)
+        .await
+        .map_err(|e| {
+            tracing::error!("[gateway] sessions.list failed: {e:?}");
+            match e {
+                AppError::BadRequest(_) => e,
+                _ => AppError::BadRequest("Gateway error: failed to fetch sessions".into()),
+            }
+        })?;
+
+    // The gateway returns { sessions: [...] } — extract and re-wrap in standard ok envelope
+    let sessions = payload
+        .get("sessions")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!([]));
+
+    Ok(Json(json!({ "ok": true, "sessions": sessions })))
+}
+
 // ── Router ──────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/openclaw/health", get(openclaw_health))
+    Router::new()
+        .route("/openclaw/health", get(openclaw_health))
+        .route("/gateway/activity", get(gateway_activity))
+        .route("/gateway/sessions", get(gateway_sessions))
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
