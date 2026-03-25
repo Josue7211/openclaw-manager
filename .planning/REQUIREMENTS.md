@@ -20,7 +20,7 @@ Requirements for full session management and chat functionality. Each maps to ro
 ### Chat
 
 - [ ] **CHAT-01**: User can view chat history for a selected session (chat.history with sessionKey)
-- [ ] **CHAT-02**: User can send a message to an agent and see the response stream in real-time (chat.send with deliver:true)
+- [x] **CHAT-02**: User can send a message to an agent and see the response stream in real-time (chat.send with deliver:true)
 - [ ] **CHAT-03**: User can abort an in-progress agent response (chat.abort)
 - [ ] **CHAT-04**: Chat messages display with proper formatting (markdown rendering, code blocks)
 - [ ] **CHAT-05**: User can see when an agent is "thinking" or generating a response (loading indicator)
@@ -63,7 +63,7 @@ Requirements for full session management and chat functionality. Each maps to ro
 | SESS-05 | Phase 96 | Pending |
 | SESS-06 | Phase 98 | Pending |
 | CHAT-01 | Phase 92 | Pending |
-| CHAT-02 | Phase 93 | Pending |
+| CHAT-02 | Phase 93 | Complete |
 | CHAT-03 | Phase 97 | Pending |
 | CHAT-04 | Phase 92 | Pending |
 | CHAT-05 | Phase 94 | Pending |

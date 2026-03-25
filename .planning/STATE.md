@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.0.6
-milestone_name: -- Sessions & Chat
-status: Ready to plan
-stopped_at: Completed 91-01-PLAN.md (session list data layer)
-last_updated: "2026-03-25T01:36:05.481Z"
+milestone: v1.0
+milestone_name: milestone
+status: unknown
+stopped_at: Completed 93-01-PLAN.md (chat send route)
+last_updated: "2026-03-25T04:00:11.657Z"
 progress:
   total_phases: 8
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  completed_phases: 3
+  total_plans: 8
+  completed_plans: 7
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 12 complete — unified OpenClaw page with 5 tabs shipped
+**Current focus:** Phase 93 — chat-send-token-streaming
 
 ## Current Position
 
-Phase: 92
-Plan: Not started
+Phase: 93 (chat-send-token-streaming) — EXECUTING
+Plan: 1 of 2
 
 ## Performance Metrics
 
@@ -49,6 +49,7 @@ Plan: Not started
 | Phase 12 P01 | 4min | 2 tasks | 7 files |
 | Phase 12 P02 | 12min | 3 tasks | 9 files |
 | Phase 91 P01 | 7min | 2 tasks | 6 files |
+| Phase 93 P01 | 2 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,8 @@ Recent decisions affecting current work:
 - [Phase 91]: HTTP proxy (gateway_forward) over WS RPC for sessions.list — WS request() method not available in this codebase state
 - [Phase 91]: Gateway-only sessions hook — removed two-tier fallback (gateway + CLI), no source field in return type
 - [Phase 91]: ClaudeSession uses key/label/agentKey/messageCount/lastActivity — matches real OpenClaw protocol v3
+- [Phase 93]: Session key optional in chat.send: absent/null starts new session, present key must be non-empty and <=100 chars
+- [Phase 93]: 5xx gateway errors remapped to BadRequest with generic message — same pattern as all other gateway handlers
 
 ### Pending Todos
 
@@ -97,6 +100,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-25T01:09:29Z
-Stopped at: Completed 91-01-PLAN.md (session list data layer)
+Last session: 2026-03-25T04:00:11.656Z
+Stopped at: Completed 93-01-PLAN.md (chat send route)
 Resume file: None
