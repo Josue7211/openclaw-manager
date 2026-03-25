@@ -189,8 +189,8 @@ Plans:
   5. Scrolling loads older messages if the history exceeds the initial page (pagination via limit param)
 **Plans**: 2 plans
 Plans:
-- [ ] 91-01-PLAN.md — Backend route + types + hook + tests (data layer)
-- [ ] 91-02-PLAN.md — SessionCard, SessionList, SessionsPage UI rewrite
+- [ ] 92-01-PLAN.md — Backend route + types + hook + tests (data layer)
+- [ ] 92-02-PLAN.md — Syntax highlighting, copy button, skeleton shimmer, pagination UI
 **UI hint**: yes
 
 ### Phase 93: Chat Send with Token Streaming
@@ -203,10 +203,7 @@ Plans:
   3. Agent response tokens stream in via SSE "chat" events and render incrementally (not batched)
   4. When streaming completes, the full response is displayed as a single coherent message
   5. Sending the first message in a new session implicitly creates the session (no separate create step)
-**Plans**: 2 plans
-Plans:
-- [ ] 91-01-PLAN.md — Backend route + types + hook + tests (data layer)
-- [ ] 91-02-PLAN.md — SessionCard, SessionList, SessionsPage UI rewrite
+**Plans**: 0 plans
 **UI hint**: yes
 
 ### Phase 94: Streaming UX Polish
@@ -218,10 +215,7 @@ Plans:
   2. A visible "thinking" or typing indicator shows while waiting for the first token after sending
   3. Chat input supports multiline text entry (Shift+Enter for newline, Enter to send)
   4. Send button is disabled while an agent response is in progress
-**Plans**: 2 plans
-Plans:
-- [ ] 91-01-PLAN.md — Backend route + types + hook + tests (data layer)
-- [ ] 91-02-PLAN.md — SessionCard, SessionList, SessionsPage UI rewrite
+**Plans**: 0 plans
 **UI hint**: yes
 
 ### Phase 95: Model Picker for New Sessions
@@ -233,10 +227,7 @@ Plans:
   2. Available models are fetched from the gateway via models.list and displayed with provider labels
   3. The selected model is included as a parameter when chat.send creates the session
   4. The picker defaults to a sensible model (e.g., the one used in the most recent session or the first in the list)
-**Plans**: 2 plans
-Plans:
-- [ ] 91-01-PLAN.md — Backend route + types + hook + tests (data layer)
-- [ ] 91-02-PLAN.md — SessionCard, SessionList, SessionsPage UI rewrite
+**Plans**: 0 plans
 **UI hint**: yes
 
 ### Phase 96: Session Rename, Delete, Compact
@@ -248,10 +239,7 @@ Plans:
   2. User can delete a session with a confirmation dialog (calls sessions.delete)
   3. User can compact a session to reduce its token footprint (calls sessions.compact) with visual feedback
   4. After rename/delete/compact, the session list reflects the change immediately without full refetch
-**Plans**: 2 plans
-Plans:
-- [ ] 91-01-PLAN.md — Backend route + types + hook + tests (data layer)
-- [ ] 91-02-PLAN.md — SessionCard, SessionList, SessionsPage UI rewrite
+**Plans**: 0 plans
 **UI hint**: yes
 
 ### Phase 97: Chat Abort & Stream Resilience
@@ -263,10 +251,7 @@ Plans:
   2. After abort, the partial response received so far is preserved and displayed in the thread
   3. If the gateway connection drops mid-stream, tokens received so far are kept in the UI
   4. After a mid-stream disconnect, the app attempts reconnection and the user can continue the conversation
-**Plans**: 2 plans
-Plans:
-- [ ] 91-01-PLAN.md — Backend route + types + hook + tests (data layer)
-- [ ] 91-02-PLAN.md — SessionCard, SessionList, SessionsPage UI rewrite
+**Plans**: 0 plans
 **UI hint**: yes
 
 ### Phase 98: Real-time Session List Updates
@@ -278,10 +263,7 @@ Plans:
   2. When a message arrives in any session, that session's last activity timestamp and message count update live
   3. The currently selected session remains selected and stable when other sessions update
   4. SSE "chat" events from the gateway trigger the session list updates (no polling)
-**Plans**: 2 plans
-Plans:
-- [ ] 91-01-PLAN.md — Backend route + types + hook + tests (data layer)
-- [ ] 91-02-PLAN.md — SessionCard, SessionList, SessionsPage UI rewrite
+**Plans**: 0 plans
 **UI hint**: yes
 
 ## Progress
@@ -291,7 +273,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 91. Session List | v0.0.6 | 0/2 | Complete    | 2026-03-25 |
-| 92. Chat History Display | v0.0.6 | 0/0 | Not started | - |
+| 92. Chat History Display | v0.0.6 | 0/2 | In progress | - |
 | 93. Chat Send with Token Streaming | v0.0.6 | 0/0 | Not started | - |
 | 94. Streaming UX Polish | v0.0.6 | 0/0 | Not started | - |
 | 95. Model Picker for New Sessions | v0.0.6 | 0/0 | Not started | - |
@@ -317,4 +299,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-03-19*
-*Last updated: 2026-03-24*
+*Last updated: 2026-03-25*
