@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.0.3
 milestone_name: -- AI Ops Center + OpenClaw Controller + Polish
 status: unknown
-stopped_at: Completed 12-02-PLAN.md (verified and recovered from NFS corruption)
-last_updated: "2026-03-22T22:37:45.154Z"
+stopped_at: Completed 91-01-PLAN.md (session list data layer)
+last_updated: "2026-03-25T01:09:29Z"
 progress:
   total_phases: 19
   completed_phases: 8
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 12
+  completed_plans: 12
 ---
 
 # Project State
@@ -23,8 +23,8 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 
 ## Current Position
 
-Phase: 13
-Plan: Not started
+Phase: 91
+Plan: 01 complete — proceed to 91-02
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Plan: Not started
 | Phase 11 P02 | 5min | 2 tasks | 5 files |
 | Phase 12 P01 | 4min | 2 tasks | 7 files |
 | Phase 12 P02 | 12min | 3 tasks | 9 files |
+| Phase 91 P01 | 7min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,9 @@ Recent decisions affecting current work:
 - [Phase 12]: Index signatures on TypeScript interfaces for forward-compatible unknown API shapes
 - [Phase 12]: Embedded sub-components (AgentList, WeekGrid) instead of importing full pages to avoid full-bleed layout conflicts
 - [Phase 12]: Replaced separate agents/crons module entries with single openclaw entry
+- [Phase 91]: HTTP proxy (gateway_forward) over WS RPC for sessions.list — WS request() method not available in this codebase state
+- [Phase 91]: Gateway-only sessions hook — removed two-tier fallback (gateway + CLI), no source field in return type
+- [Phase 91]: ClaudeSession uses key/label/agentKey/messageCount/lastActivity — matches real OpenClaw protocol v3
 
 ### Pending Todos
 
@@ -93,6 +97,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-22T22:35:00Z
-Stopped at: Completed 12-02-PLAN.md (verified and recovered from NFS corruption)
+Last session: 2026-03-25T01:09:29Z
+Stopped at: Completed 91-01-PLAN.md (session list data layer)
 Resume file: None
