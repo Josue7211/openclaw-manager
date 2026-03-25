@@ -49,6 +49,8 @@ export interface SessionHistoryMessage {
 
 export interface SessionHistoryResponse {
   messages: SessionHistoryMessage[]
+  hasMore?: boolean
+  total?: number
 }
 
 // Gateway status color mapping
