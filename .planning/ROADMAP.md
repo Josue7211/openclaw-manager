@@ -290,7 +290,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 91. Session List | v0.0.6 | 0/2 | Planning complete | - |
+| 91. Session List | v0.0.6 | 0/2 | Complete    | 2026-03-25 |
 | 92. Chat History Display | v0.0.6 | 0/0 | Not started | - |
 | 93. Chat Send with Token Streaming | v0.0.6 | 0/0 | Not started | - |
 | 94. Streaming UX Polish | v0.0.6 | 0/0 | Not started | - |
