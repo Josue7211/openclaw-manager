@@ -1,45 +1,17 @@
-import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus } from '@phosphor-icons/react'
-import { api } from '@/lib/api'
-import { queryKeys } from '@/lib/query-keys'
+import { ChatTeardrop } from '@phosphor-icons/react'
 import { isDemoMode } from '@/lib/demo-data'
 import { useGatewaySessions } from '@/hooks/sessions/useGatewaySessions'
 import { GatewayStatusDot } from '@/components/GatewayStatusDot'
 import { SessionCard } from './SessionCard'
-import { NewSessionForm } from './NewSessionForm'
-import type { CreateSessionPayload } from './types'
 
 interface SessionListProps {
   selectedId: string | null
-  onSelect: (id: string) => void
+  onSelect: (key: string) => void
 }
 
 export function SessionList({ selectedId, onSelect }: SessionListProps) {
-  const [showForm, setShowForm] = useState(false)
-  const queryClient = useQueryClient()
   const demo = isDemoMode()
-
-  const { sessions, available, isLoading, source } = useGatewaySessions()
-
-  const createMutation = useMutation({
-    mutationFn: (payload: CreateSessionPayload) =>
-      api.post<{ id: string }>('/api/claude-sessions', payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.claudeSessions })
-      queryClient.invalidateQueries({ queryKey: queryKeys.gatewaySessions })
-      setShowForm(false)
-    },
-  })
-
-  const killMutation = useMutation({
-    mutationFn: (id: string) =>
-      api.post<{ ok: boolean }>(`/api/claude-sessions/${id}/kill`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.claudeSessions })
-      queryClient.invalidateQueries({ queryKey: queryKeys.gatewaySessions })
-    },
-  })
+  const { sessions, available, isLoading } = useGatewaySessions()
 
   return (
     <div style={{
@@ -53,55 +25,15 @@ export function SessionList({ selectedId, onSelect }: SessionListProps) {
         height: '48px',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
         padding: '0 16px',
         borderBottom: '1px solid var(--border)',
         flexShrink: 0,
+        gap: '8px',
       }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
-            Sessions
-          </span>
-          <GatewayStatusDot size={7} />
-          {source !== 'none' && (
-            <span style={{
-              fontSize: '9px',
-              fontWeight: 600,
-              fontFamily: 'monospace',
-              color: 'var(--text-muted)',
-              background: 'var(--hover-bg)',
-              border: '1px solid var(--border)',
-              borderRadius: '4px',
-              padding: '1px 5px',
-              textTransform: 'uppercase',
-            }}>
-              {source === 'gateway' ? 'ws' : 'cli'}
-            </span>
-          )}
+        <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
+          Sessions
         </span>
-        <button
-          type="button"
-          onClick={() => setShowForm((v) => !v)}
-          aria-label="New session"
-          title="New session"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '32px',
-            height: '32px',
-            borderRadius: '8px',
-            border: '1px solid var(--border)',
-            background: 'transparent',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            transition: 'background 0.15s',
-            fontFamily: 'inherit',
-          }}
-          className="hover-bg"
-        >
-          <Plus size={16} />
-        </button>
+        <GatewayStatusDot size={7} />
       </div>
 
       {/* Scrollable content */}
@@ -151,28 +83,27 @@ export function SessionList({ selectedId, onSelect }: SessionListProps) {
           </div>
         )}
 
-        {/* New session form */}
-        {showForm && (
-          <NewSessionForm
-            onSubmit={(payload) => createMutation.mutate(payload)}
-            onCancel={() => setShowForm(false)}
-            isSubmitting={createMutation.isPending}
-            available={available}
-          />
-        )}
-
-        {/* Loading state */}
+        {/* Loading state — skeleton cards */}
         {isLoading && (
-          <div style={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--text-muted)',
-            fontSize: '13px',
-          }}>
-            Loading...
-          </div>
+          <>
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                style={{
+                  background: 'var(--hover-bg)',
+                  borderRadius: '16px',
+                  padding: '14px 16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                }}
+              >
+                <div style={{ height: '14px', width: '60%', borderRadius: '4px', background: 'var(--border)', animation: 'shimmer 1.5s ease-in-out infinite' }} />
+                <div style={{ height: '12px', width: '40%', borderRadius: '4px', background: 'var(--border)', animation: 'shimmer 1.5s ease-in-out infinite', animationDelay: '0.15s' }} />
+                <div style={{ height: '12px', width: '50%', borderRadius: '4px', background: 'var(--border)', animation: 'shimmer 1.5s ease-in-out infinite', animationDelay: '0.3s' }} />
+              </div>
+            ))}
+          </>
         )}
 
         {/* Empty state */}
@@ -180,25 +111,30 @@ export function SessionList({ selectedId, onSelect }: SessionListProps) {
           <div style={{
             flex: 1,
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
+            gap: '12px',
+            padding: '24px',
             color: 'var(--text-muted)',
-            fontSize: '13px',
           }}>
-            No active sessions
+            <ChatTeardrop size={32} weight="thin" />
+            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
+              No sessions yet
+            </div>
+            <div style={{ fontSize: '12px', textAlign: 'center' }}>
+              Start a new chat to create your first session
+            </div>
           </div>
         )}
 
         {/* Session cards */}
         {sessions.map((session) => (
           <SessionCard
-            key={session.id}
+            key={session.key as string}
             session={session}
-            selected={session.id === selectedId}
-            onSelect={() => onSelect(session.id)}
-            onKill={(id) => killMutation.mutate(id)}
-            available={available}
-            isKilling={killMutation.isPending}
+            selected={session.key === selectedId}
+            onSelect={() => onSelect(session.key as string)}
           />
         ))}
       </div>
