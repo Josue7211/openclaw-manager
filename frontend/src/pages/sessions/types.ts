@@ -1,21 +1,26 @@
-export type SessionStatus = 'running' | 'completed' | 'failed' | 'unknown'
+// === New protocol-accurate types (Phase 91) ===
 
 export interface ClaudeSession {
-  id: string
-  task: string
-  status: SessionStatus
-  model: string | null
-  workingDir: string | null
-  startedAt: string | null
-  duration: number | null // seconds
-  kind: string
-  agentId?: string
-  [key: string]: unknown // forward-compatible per Phase 12 pattern
+  key: string            // session identifier (protocol uses 'key' not 'id')
+  label: string          // display name (may be empty — show "Untitled" as fallback)
+  agentKey: string       // agent handling this session
+  messageCount: number   // total messages
+  lastActivity: string   // ISO-8601 timestamp
+  [key: string]: unknown // forward-compatible
 }
+
+export interface GatewaySessionsResponse {
+  ok: boolean
+  sessions: ClaudeSession[]
+}
+
+// === Legacy types (kept until SessionCard rewrite in Phase 91-02) ===
+
+export type SessionStatus = 'running' | 'completed' | 'failed' | 'unknown'
 
 export interface SessionListResponse {
   sessions: ClaudeSession[]
-  available?: boolean // false when OpenClaw is unreachable
+  available?: boolean
   error?: string
 }
 
@@ -32,10 +37,6 @@ export type GatewayConnectionStatus = 'connected' | 'disconnected' | 'reconnecti
 export interface GatewayStatusResponse {
   connected: boolean
   status: GatewayConnectionStatus
-}
-
-export interface GatewaySessionsResponse {
-  sessions: ClaudeSession[]
 }
 
 export interface SessionHistoryMessage {
@@ -65,7 +66,7 @@ export const GATEWAY_STATUS_LABELS: Record<GatewayConnectionStatus, string> = {
   not_configured: 'Gateway not configured',
 }
 
-// Status color mapping using CSS variables (not hardcoded colors)
+// Status color mapping (legacy — used by SessionCard until rewrite)
 export const STATUS_COLORS: Record<string, string> = {
   running: 'var(--green-400)',
   completed: 'var(--blue)',
@@ -73,7 +74,6 @@ export const STATUS_COLORS: Record<string, string> = {
   unknown: 'var(--text-muted)',
 }
 
-// Status display labels
 export const STATUS_LABELS: Record<string, string> = {
   running: 'Running',
   completed: 'Completed',

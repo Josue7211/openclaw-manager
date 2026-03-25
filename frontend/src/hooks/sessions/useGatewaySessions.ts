@@ -3,30 +3,26 @@ import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode } from '@/lib/demo-data'
 import { useGatewaySSE } from '@/lib/hooks/useGatewaySSE'
-import type { ClaudeSession, SessionListResponse, GatewaySessionsResponse } from '@/pages/sessions/types'
-
-type DataSource = 'gateway' | 'cli' | 'none'
+import type { ClaudeSession, GatewaySessionsResponse } from '@/pages/sessions/types'
 
 interface UseGatewaySessionsReturn {
   sessions: ClaudeSession[]
   available: boolean
   isLoading: boolean
-  source: DataSource
 }
 
 /**
- * Fetches sessions with a two-tier strategy:
- * 1. Try GET /api/gateway/sessions (real-time gateway WS data)
- * 2. Fall back to GET /api/claude-sessions (CLI-based)
+ * Fetches all sessions from the OpenClaw gateway via GET /api/gateway/sessions.
+ * Sessions are sorted by lastActivity descending (newest first).
+ * Real-time updates arrive via SSE 'chat' events which invalidate the query.
  *
- * When both fail or return empty, the page shows "No active sessions"
- * instead of infinite loading.
+ * Returns empty array and available:false in demo mode without calling API.
  */
 export function useGatewaySessions(): UseGatewaySessionsReturn {
   const demo = isDemoMode()
 
-  // Real-time session updates via gateway SSE
-  // Hook must be called unconditionally (React rules); pass undefined in demo mode
+  // Real-time session updates via gateway SSE — must be called unconditionally (React rules)
+  // Pass undefined in demo mode to disable without violating hook ordering rules
   useGatewaySSE(demo ? undefined : {
     events: ['chat'],
     queryKeys: {
@@ -34,79 +30,26 @@ export function useGatewaySessions(): UseGatewaySessionsReturn {
     },
   })
 
-  // Primary: gateway sessions
-  const gateway = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: queryKeys.gatewaySessions,
-    queryFn: async () => {
-      const res = await api.get<GatewaySessionsResponse>('/api/gateway/sessions')
-      return res
-    },
+    queryFn: () => api.get<GatewaySessionsResponse>('/api/gateway/sessions'),
     refetchInterval: demo ? false : 5_000,
     staleTime: 5_000,
     enabled: !demo,
     retry: 0,
   })
 
-  // Fallback: existing CLI-based sessions
-  // Only enabled when gateway query has errored
-  const gatewayFailed = gateway.isError || (gateway.data && !Array.isArray(gateway.data?.sessions))
-  const fallback = useQuery({
-    queryKey: queryKeys.claudeSessions,
-    queryFn: () => api.get<SessionListResponse>('/api/claude-sessions'),
-    refetchInterval: demo ? false : 5_000,
-    enabled: !demo && !!gatewayFailed,
-    retry: 1,
-  })
-
   if (demo) {
-    return { sessions: [], available: false, isLoading: false, source: 'none' }
+    return { sessions: [], isLoading: false, available: false }
   }
 
-  // Gateway succeeded with data
-  if (gateway.data?.sessions && !gateway.isError) {
-    return {
-      sessions: gateway.data.sessions,
-      available: true,
-      isLoading: false,
-      source: 'gateway',
-    }
-  }
+  const sessions = (data?.sessions ?? []).slice().sort(
+    (a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime(),
+  )
 
-  // Gateway loading (first fetch)
-  if (gateway.isLoading) {
-    return {
-      sessions: [],
-      available: true,
-      isLoading: true,
-      source: 'none',
-    }
-  }
-
-  // Gateway failed, using fallback
-  if (fallback.data) {
-    return {
-      sessions: fallback.data.sessions ?? [],
-      available: fallback.data.available !== false,
-      isLoading: false,
-      source: 'cli',
-    }
-  }
-
-  // Fallback still loading
-  if (fallback.isLoading) {
-    return {
-      sessions: [],
-      available: true,
-      isLoading: true,
-      source: 'none',
-    }
-  }
-
-  // Both failed
   return {
-    sessions: [],
-    available: false,
-    isLoading: false,
-    source: 'none',
+    sessions,
+    isLoading,
+    available: !isError,
   }
 }

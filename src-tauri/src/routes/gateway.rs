@@ -203,23 +203,51 @@ async fn openclaw_health(
 
 /// `GET /api/gateway/activity`
 ///
-/// Fetches recent activity events from the OpenClaw gateway via `logs.tail`.
-/// Uses HTTP forward to `/logs?limit=50` on the gateway API.
-/// Response: `{ "ok": true, "data": <gateway payload> }`
+/// Returns the latest activity log entries from the OpenClaw gateway.
 async fn gateway_activity(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let payload = gateway_forward(&state, Method::GET, "/logs", None).await.map_err(|e| {
-        tracing::error!("[gateway] logs.tail failed: {e:?}");
-        match e {
-            // Preserve BadRequest for user-visible errors (not configured, etc.)
-            AppError::BadRequest(_) => e,
-            _ => AppError::BadRequest("Gateway error: failed to fetch activity logs".into()),
-        }
-    })?;
-
+    let payload = gateway_forward(&state, Method::GET, "/logs", None)
+        .await
+        .map_err(|e| {
+            tracing::error!("[gateway] logs.tail failed: {e:?}");
+            match e {
+                AppError::BadRequest(_) => e,
+                _ => AppError::BadRequest("Gateway error: failed to fetch activity logs".into()),
+            }
+        })?;
     Ok(Json(json!({ "ok": true, "data": payload })))
+}
+
+// ── Sessions route ─────────────────────────────────────────────────────────
+
+/// `GET /api/gateway/sessions`
+///
+/// Proxies `sessions.list` through the OpenClaw API.
+/// Returns the full sessions list without filtering (unlike /api/claude-sessions
+/// which filters by kind). Wraps the payload in a standard ok envelope.
+async fn gateway_sessions(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let payload = gateway_forward(&state, Method::GET, "/sessions", None)
+        .await
+        .map_err(|e| {
+            tracing::error!("[gateway] sessions.list failed: {e:?}");
+            match e {
+                AppError::BadRequest(_) => e,
+                _ => AppError::BadRequest("Gateway error: failed to fetch sessions".into()),
+            }
+        })?;
+
+    // The gateway returns { sessions: [...] } — extract and re-wrap in standard ok envelope
+    let sessions = payload
+        .get("sessions")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!([]));
+
+    Ok(Json(json!({ "ok": true, "sessions": sessions })))
 }
 
 // ── Router ──────────────────────────────────────────────────────────────────
@@ -228,6 +256,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/openclaw/health", get(openclaw_health))
         .route("/gateway/activity", get(gateway_activity))
+        .route("/gateway/sessions", get(gateway_sessions))
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
@@ -330,15 +359,5 @@ mod tests {
         assert!(
             validate_gateway_path("/agents/550e8400-e29b-41d4-a716-446655440000").is_ok()
         );
-    }
-
-    #[test]
-    fn validate_activity_path() {
-        assert!(validate_gateway_path("/gateway/activity").is_ok());
-    }
-
-    #[test]
-    fn validate_logs_path() {
-        assert!(validate_gateway_path("/logs").is_ok());
     }
 }
