@@ -239,7 +239,10 @@ Plans:
   2. User can delete a session with a confirmation dialog (calls sessions.delete)
   3. User can compact a session to reduce its token footprint (calls sessions.compact) with visual feedback
   4. After rename/delete/compact, the session list reflects the change immediately without full refetch
-**Plans**: 0 plans
+**Plans**: 2 plans
+Plans:
+- [ ] 96-01-PLAN.md — Backend: PATCH/DELETE/POST session routes in gateway.rs
+- [ ] 96-02-PLAN.md — Frontend: context menu, inline rename, delete dialog, compact UX
 **UI hint**: yes
 
 ### Phase 97: Chat Abort & Stream Resilience
@@ -277,7 +280,7 @@ Plans:
 | 93. Chat Send with Token Streaming | v0.0.6 | 0/0 | Not started | - |
 | 94. Streaming UX Polish | v0.0.6 | 0/0 | Not started | - |
 | 95. Model Picker for New Sessions | v0.0.6 | 0/0 | Not started | - |
-| 96. Session Rename, Delete, Compact | v0.0.6 | 0/0 | Not started | - |
+| 96. Session Rename, Delete, Compact | v0.0.6 | 0/2 | Not started | - |
 | 97. Chat Abort & Stream Resilience | v0.0.6 | 0/0 | Not started | - |
 | 98. Real-time Session List Updates | v0.0.6 | 0/0 | Not started | - |
 | 75. Protocol v3 Handshake | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
