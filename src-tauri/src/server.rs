@@ -139,6 +139,32 @@ where
         parts: &mut axum::http::request::Parts,
         _state: &S,
     ) -> Result<Self, Self::Rejection> {
+        // In debug mode, bypass auth with a fake dev session so browser
+        // testing works without OAuth login.
+        #[cfg(debug_assertions)]
+        {
+            if parts.extensions.get::<UserSession>().is_none() {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() as i64;
+                let dev_session = UserSession {
+                    access_token: "dev-token".to_string(),
+                    refresh_token: "dev-refresh".to_string(),
+                    user_id: "dev-user".to_string(),
+                    email: "dev@localhost".to_string(),
+                    expires_at: now + 86400,
+                    encryption_key: vec![0u8; 32],
+                    mfa_verified: true,
+                    factor_id: None,
+                    factor_type: None,
+                    available_mfa_methods: vec![],
+                    created_at: now,
+                };
+                return Ok(RequireAuth(dev_session));
+            }
+        }
+
         let session = parts
             .extensions
             .get::<UserSession>()
@@ -594,6 +620,30 @@ pub async fn start(
     };
     #[cfg(not(debug_assertions))]
     let restored_session: Option<UserSession> = None;
+
+    // In debug mode, if no restored session exists, create a fake dev session
+    // so browser testing works without OAuth login.
+    #[cfg(debug_assertions)]
+    let restored_session = restored_session.or_else(|| {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+        tracing::info!("no dev session found — creating fake dev session for browser testing");
+        Some(UserSession {
+            access_token: "dev-token".to_string(),
+            refresh_token: "dev-refresh".to_string(),
+            user_id: "dev-user".to_string(),
+            email: "dev@localhost".to_string(),
+            expires_at: now + 86400,
+            encryption_key: vec![0u8; 32],
+            mfa_verified: true,
+            factor_id: None,
+            factor_type: None,
+            available_mfa_methods: vec![],
+            created_at: now,
+        })
+    });
 
     // Create gateway WS client if OpenClaw is configured
     let gateway_ws = openclaw.as_ref().map(|_| crate::gateway_ws::GatewayWsClient::new());
