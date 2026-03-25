@@ -36,5 +36,12 @@ export const queryKeys = {
   openclawModels: ['openclaw', 'models'] as const,
   openclawTools: ['openclaw', 'tools'] as const,
   gatewaySessions: ['gateway', 'sessions'] as const,
+  gatewayEvents: ['gateway', 'events'] as const,
+  gatewayActivity: ['gateway', 'activity'] as const,
+  memorySearch: (q: string) => ['memory-search', q] as const,
+  approvals: ['approvals'] as const,
+  openclawSkills: ['openclaw', 'skills'] as const,
+  vncStatus: ['vnc', 'status'] as const,
+  sessionHistory: (key: string) => ['session-history', key] as const,
   claudeSessions: ['claude-sessions'] as const,
 } as const
