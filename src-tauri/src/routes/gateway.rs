@@ -1,5 +1,6 @@
-use axum::{extract::State, routing::get, Json, Router};
+use axum::{extract::Path, extract::State, routing::get, Json, Router};
 use reqwest::Method;
+use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::OnceLock;
 use std::time::Duration;
@@ -250,6 +251,77 @@ async fn gateway_sessions(
     Ok(Json(json!({ "ok": true, "sessions": sessions })))
 }
 
+// ── Session history route ──────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct HistoryQueryParams {
+    limit: Option<u32>,
+}
+
+/// `GET /api/gateway/sessions/:key/history`
+///
+/// Fetches the conversation history for a specific session from the OpenClaw gateway.
+/// Uses `state.http` directly (not `gateway_forward`) because the upstream URL
+/// requires query parameters which `validate_gateway_path` would reject.
+async fn gateway_session_history(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Path(key): Path<String>,
+    axum::extract::Query(params): axum::extract::Query<HistoryQueryParams>,
+) -> Result<Json<Value>, AppError> {
+    // Validate key: reject empty or >100 chars
+    if key.is_empty() || key.len() > 100 {
+        return Err(AppError::BadRequest("invalid session key".into()));
+    }
+
+    let encoded_key = crate::routes::util::percent_encode(&key);
+
+    let base = openclaw_api_url(&state).ok_or_else(|| {
+        AppError::BadRequest(
+            "OpenClaw API not configured. Set OPENCLAW_API_URL in Settings > Connections.".into(),
+        )
+    })?;
+
+    let api_key = openclaw_api_key(&state);
+    let limit = params.limit.unwrap_or(50).min(200);
+    let url = format!("{base}/chat/history/{encoded_key}?limit={limit}");
+
+    let mut req = state
+        .http
+        .get(&url)
+        .header("Content-Type", "application/json")
+        .timeout(Duration::from_secs(30));
+
+    if !api_key.is_empty() {
+        req = req.header("Authorization", format!("Bearer {api_key}"));
+    }
+
+    let res = req.send().await.map_err(|e| {
+        tracing::error!("[gateway] session history for {key} failed: {e}");
+        AppError::Internal(anyhow::anyhow!("Failed to reach OpenClaw API"))
+    })?;
+
+    let status = res.status();
+
+    if !status.is_success() {
+        let text = res.text().await.unwrap_or_default();
+        tracing::error!("[gateway] GET /chat/history/{key} -> {status}: {text}");
+        let safe_msg = sanitize_error_body(&text);
+
+        if status.is_client_error() {
+            return Err(AppError::BadRequest(format!("OpenClaw: {safe_msg}")));
+        }
+        return Err(AppError::Internal(anyhow::anyhow!("OpenClaw API error")));
+    }
+
+    let value: Value = res
+        .json()
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?;
+
+    Ok(Json(value))
+}
+
 // ── Router ──────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
@@ -257,6 +329,7 @@ pub fn router() -> Router<AppState> {
         .route("/openclaw/health", get(openclaw_health))
         .route("/gateway/activity", get(gateway_activity))
         .route("/gateway/sessions", get(gateway_sessions))
+        .route("/gateway/sessions/:key/history", get(gateway_session_history))
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────

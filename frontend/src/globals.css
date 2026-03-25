@@ -1135,6 +1135,65 @@ html:focus-within .traffic-lights button {
   color: inherit;
 }
 
+/* Code block wrapper -- positions header bar with lang label + copy button */
+.md-code-block {
+  position: relative;
+  margin: 8px 0;
+}
+.md-code-block pre {
+  margin: 0;
+  border-radius: 0 0 10px 10px;
+}
+.md-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px;
+  background: var(--bg-white-03);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  font-size: 11px;
+}
+.md-code-lang {
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  font-weight: 500;
+}
+.md-copy-btn {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s var(--ease-spring);
+}
+.md-code-block:hover .md-copy-btn {
+  opacity: 1;
+}
+.md-copy-btn:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+/* highlight.js token colors -- CSS vars for dark/light mode compatibility */
+.hljs-keyword, .hljs-selector-tag, .hljs-meta { color: var(--purple); }
+.hljs-string, .hljs-attr { color: var(--green-400); }
+.hljs-number, .hljs-literal { color: var(--amber); }
+.hljs-comment, .hljs-quote { color: var(--text-muted); font-style: italic; }
+.hljs-title, .hljs-name, .hljs-section { color: var(--accent-bright); }
+.hljs-type, .hljs-built_in, .hljs-class { color: var(--blue); }
+.hljs-variable, .hljs-template-variable { color: var(--text-primary); }
+.hljs-symbol, .hljs-bullet { color: var(--amber); }
+.hljs-addition { color: var(--green-400); }
+.hljs-deletion { color: var(--red-500); }
+.hljs-params { color: var(--text-secondary); }
+
 /* ── Utility classes — extracted from most repeated inline styles ── */
 .flex-row { display: flex; align-items: center; }
 .flex-between { display: flex; align-items: center; justify-content: space-between; }

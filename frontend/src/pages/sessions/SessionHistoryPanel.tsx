@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef, useEffect } from 'react'
+import { lazy, Suspense, useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react'
 import { Robot, User, Wrench, Info } from '@phosphor-icons/react'
 import { useSessionHistory } from '@/hooks/sessions/useSessionHistory'
 import type { SessionHistoryMessage } from './types'
@@ -28,30 +28,64 @@ export function SessionHistoryPanel({ sessionId }: SessionHistoryPanelProps) {
   return <SessionHistoryView sessionId={sessionId} />
 }
 
-function SessionHistoryView({ sessionId }: { sessionId: string }) {
-  const { messages, isLoading, error } = useSessionHistory(sessionId)
-  const scrollRef = useRef<HTMLDivElement>(null)
+function MessageSkeleton() {
+  const bars = [
+    { align: 'flex-end' as const, width: '45%', height: 48 },
+    { align: 'flex-start' as const, width: '70%', height: 80 },
+    { align: 'flex-end' as const, width: '35%', height: 44 },
+    { align: 'flex-start' as const, width: '60%', height: 64 },
+    { align: 'flex-end' as const, width: '40%', height: 48 },
+  ]
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 16 }}>
+      {bars.map((bar, i) => (
+        <div key={i} style={{
+          alignSelf: bar.align,
+          width: bar.width,
+          height: bar.height,
+          borderRadius: 12,
+          background: 'linear-gradient(90deg, var(--bg-elevated) 25%, var(--bg-card-hover) 50%, var(--bg-elevated) 75%)',
+          backgroundSize: '200% 100%',
+          animation: 'shimmer 1.5s ease-in-out infinite',
+        }} />
+      ))}
+    </div>
+  )
+}
 
-  // Auto-scroll to bottom when messages load
+function SessionHistoryView({ sessionId }: { sessionId: string }) {
+  const [limit, setLimit] = useState(50)
+  const { messages, hasMore, isLoading, error } = useSessionHistory(sessionId, limit)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const prevHeightRef = useRef(0)
+
+  const loadMore = useCallback(() => {
+    if (scrollRef.current) {
+      prevHeightRef.current = scrollRef.current.scrollHeight
+    }
+    setLimit(prev => prev + 50)
+  }, [])
+
+  // Auto-scroll to bottom on initial load only
   useEffect(() => {
-    if (scrollRef.current && messages.length > 0) {
+    if (scrollRef.current && messages.length > 0 && limit === 50) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [messages, limit])
+
+  // Preserve scroll position when loading older messages
+  useLayoutEffect(() => {
+    if (prevHeightRef.current > 0 && scrollRef.current) {
+      const delta = scrollRef.current.scrollHeight - prevHeightRef.current
+      if (delta > 0) {
+        scrollRef.current.scrollTop += delta
+      }
+      prevHeightRef.current = 0
     }
   }, [messages])
 
-  if (isLoading) {
-    return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-        color: 'var(--text-muted)',
-        fontSize: '13px',
-      }}>
-        Loading history...
-      </div>
-    )
+  if (isLoading && messages.length === 0) {
+    return <MessageSkeleton />
   }
 
   if (error) {
@@ -101,6 +135,28 @@ function SessionHistoryView({ sessionId }: { sessionId: string }) {
         gap: '12px',
       }}
     >
+      {hasMore && (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0 16px' }}>
+          <button
+            onClick={loadMore}
+            className="hover-bg"
+            style={{
+              fontSize: '12px',
+              fontWeight: 500,
+              padding: '6px 16px',
+              borderRadius: '8px',
+              border: '1px solid var(--border)',
+              background: 'var(--bg-elevated)',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              transition: 'all 0.15s var(--ease-spring)',
+            }}
+            aria-label="Load older messages"
+          >
+            Load older messages
+          </button>
+        </div>
+      )}
       {messages.map((msg) => (
         <MessageBubble key={msg.id} message={msg} />
       ))}
