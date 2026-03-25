@@ -14,7 +14,7 @@
 ### v0.0.6 -- Sessions & Chat
 
 **Group AE: Session Foundation** *(session list is the entry point for all chat work)*
-- [ ] **Phase 91: Session List** - Fetch and display all sessions via sessions.list with label, agent, message count, last activity
+- [x] **Phase 91: Session List** - Fetch and display all sessions via sessions.list with label, agent, message count, last activity (completed 2026-03-25)
 - [ ] **Phase 92: Chat History Display** - Load and render chat history for a selected session with markdown formatting
 
 **Group AF: Chat Send & Streaming** *(send messages and stream agent responses token-by-token)*
