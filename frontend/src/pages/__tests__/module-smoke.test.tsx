@@ -11,6 +11,7 @@ import { render, screen, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import ErrorBoundary from '@/components/ErrorBoundary'
+import { ToastProvider } from '@/components/ui/Toast'
 import { APP_MODULES } from '@/lib/modules'
 
 /* ─── Mocks ──────────────────────────────────────────────────────────────── */
@@ -407,13 +408,15 @@ function TestWrapper({ children, route }: { children: React.ReactNode; route: st
   })
   return (
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[route]}>
-        <ErrorBoundary>
-          <Suspense fallback={<div>Loading...</div>}>
-            {children}
-          </Suspense>
-        </ErrorBoundary>
-      </MemoryRouter>
+      <ToastProvider>
+        <MemoryRouter initialEntries={[route]}>
+          <ErrorBoundary>
+            <Suspense fallback={<div>Loading...</div>}>
+              {children}
+            </Suspense>
+          </ErrorBoundary>
+        </MemoryRouter>
+      </ToastProvider>
     </QueryClientProvider>
   )
 }

@@ -52,7 +52,13 @@ export default function SessionsPage() {
         flexDirection: 'column',
         overflow: 'hidden',
       }}>
-        <SessionList selectedId={selectedId} onSelect={setSelectedId} />
+        <SessionList
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          onDeleteSelected={(key) => {
+            if (selectedId === key) setSelectedId(null)
+          }}
+        />
       </div>
 
       {/* Resize handle */}
