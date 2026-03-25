@@ -25,7 +25,7 @@
 - [ ] **Phase 95: Model Picker for New Sessions** - Fetch models via models.list, display picker, pass selection to chat.send for session creation
 
 **Group AH: Session CRUD** *(manage existing sessions -- rename, delete, compact)*
-- [ ] **Phase 96: Session Rename, Delete, Compact** - Patch session labels, delete with confirmation, compact to reduce token usage
+- [x] **Phase 96: Session Rename, Delete, Compact** - Patch session labels, delete with confirmation, compact to reduce token usage (completed 2026-03-25)
 
 **Group AI: Resilience & Real-time** *(abort, reconnect, live updates)*
 - [ ] **Phase 97: Chat Abort & Stream Resilience** - Cancel in-progress responses via chat.abort, preserve partial responses on disconnect

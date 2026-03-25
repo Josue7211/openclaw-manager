@@ -1,4 +1,9 @@
-use axum::{extract::Path, extract::State, routing::get, Json, Router};
+use axum::{
+    extract::{Path, State},
+    routing::{delete, get, patch, post},
+    Json, Router,
+};
+
 use reqwest::Method;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -269,7 +274,6 @@ async fn gateway_session_history(
     Path(key): Path<String>,
     axum::extract::Query(params): axum::extract::Query<HistoryQueryParams>,
 ) -> Result<Json<Value>, AppError> {
-    // Validate key: reject empty or >100 chars
     if key.is_empty() || key.len() > 100 {
         return Err(AppError::BadRequest("invalid session key".into()));
     }
@@ -322,6 +326,106 @@ async fn gateway_session_history(
     Ok(Json(value))
 }
 
+// ── Session mutation routes ────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct PatchSessionBody {
+    label: Option<String>,
+}
+
+/// `PATCH /api/gateway/sessions/:key`
+///
+/// Rename a session by updating its label via the OpenClaw gateway.
+async fn patch_session(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Path(key): Path<String>,
+    Json(body): Json<PatchSessionBody>,
+) -> Result<Json<Value>, AppError> {
+    if key.is_empty() || key.len() > 100 {
+        return Err(AppError::BadRequest("invalid session key".into()));
+    }
+
+    let label = body.label.as_deref().unwrap_or("").trim().to_string();
+
+    let payload = gateway_forward(
+        &state,
+        Method::PATCH,
+        &format!("/sessions/{key}"),
+        Some(json!({ "label": label })),
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!("[gateway] session patch failed: {e:?}");
+        match e {
+            AppError::BadRequest(_) => e,
+            _ => AppError::BadRequest("Gateway error: failed to rename session".into()),
+        }
+    })?;
+
+    Ok(Json(json!({ "ok": true, "data": payload })))
+}
+
+/// `DELETE /api/gateway/sessions/:key`
+///
+/// Delete a session via the OpenClaw gateway.
+async fn delete_session(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Path(key): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    if key.is_empty() || key.len() > 100 {
+        return Err(AppError::BadRequest("invalid session key".into()));
+    }
+
+    let payload = gateway_forward(
+        &state,
+        Method::DELETE,
+        &format!("/sessions/{key}"),
+        None,
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!("[gateway] session delete failed: {e:?}");
+        match e {
+            AppError::BadRequest(_) => e,
+            _ => AppError::BadRequest("Gateway error: failed to delete session".into()),
+        }
+    })?;
+
+    Ok(Json(json!({ "ok": true, "data": payload })))
+}
+
+/// `POST /api/gateway/sessions/:key/compact`
+///
+/// Compact a session to reduce token usage via the OpenClaw gateway.
+async fn compact_session(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Path(key): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    if key.is_empty() || key.len() > 100 {
+        return Err(AppError::BadRequest("invalid session key".into()));
+    }
+
+    let payload = gateway_forward(
+        &state,
+        Method::POST,
+        &format!("/sessions/{key}/compact"),
+        None,
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!("[gateway] session compact failed: {e:?}");
+        match e {
+            AppError::BadRequest(_) => e,
+            _ => AppError::BadRequest("Gateway error: failed to compact session".into()),
+        }
+    })?;
+
+    Ok(Json(json!({ "ok": true, "data": payload })))
+}
+
 // ── Router ──────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
@@ -330,6 +434,11 @@ pub fn router() -> Router<AppState> {
         .route("/gateway/activity", get(gateway_activity))
         .route("/gateway/sessions", get(gateway_sessions))
         .route("/gateway/sessions/:key/history", get(gateway_session_history))
+        .route(
+            "/gateway/sessions/:key",
+            patch(patch_session).delete(delete_session),
+        )
+        .route("/gateway/sessions/:key/compact", post(compact_session))
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
@@ -432,5 +541,11 @@ mod tests {
         assert!(
             validate_gateway_path("/agents/550e8400-e29b-41d4-a716-446655440000").is_ok()
         );
+    }
+
+    #[test]
+    fn validate_path_accepts_session_key_paths() {
+        assert!(validate_gateway_path("/sessions/sess-123").is_ok());
+        assert!(validate_gateway_path("/sessions/sess-123/compact").is_ok());
     }
 }

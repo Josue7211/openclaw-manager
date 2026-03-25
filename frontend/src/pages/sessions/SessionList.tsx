@@ -1,17 +1,36 @@
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { ChatTeardrop } from '@phosphor-icons/react'
 import { isDemoMode } from '@/lib/demo-data'
 import { useGatewaySessions } from '@/hooks/sessions/useGatewaySessions'
+import { useSessionMutations } from '@/hooks/sessions/useSessionMutations'
 import { GatewayStatusDot } from '@/components/GatewayStatusDot'
 import { SessionCard } from './SessionCard'
 
 interface SessionListProps {
   selectedId: string | null
   onSelect: (key: string) => void
+  onDeleteSelected: (key: string) => void
 }
 
-export function SessionList({ selectedId, onSelect }: SessionListProps) {
+export function SessionList({ selectedId, onSelect, onDeleteSelected }: SessionListProps) {
   const demo = isDemoMode()
   const { sessions, available, isLoading } = useGatewaySessions()
+  const { renameMutation, deleteMutation, compactMutation } = useSessionMutations()
+  const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null)
+
+  const sessionToDelete = confirmDeleteKey
+    ? sessions.find((s) => s.key === confirmDeleteKey)
+    : null
+  const deleteLabel = (sessionToDelete?.label as string) || 'Untitled'
+
+  const handleConfirmDelete = () => {
+    if (confirmDeleteKey) {
+      deleteMutation.mutate(confirmDeleteKey)
+      onDeleteSelected(confirmDeleteKey)
+      setConfirmDeleteKey(null)
+    }
+  }
 
   return (
     <div style={{
@@ -135,9 +154,141 @@ export function SessionList({ selectedId, onSelect }: SessionListProps) {
             session={session}
             selected={session.key === selectedId}
             onSelect={() => onSelect(session.key as string)}
+            onRename={(key, label) => renameMutation.mutate({ key, label })}
+            onDelete={(key) => setConfirmDeleteKey(key)}
+            onCompact={(key) => compactMutation.mutate(key)}
+            isCompacting={
+              compactMutation.isPending &&
+              compactMutation.variables === (session.key as string)
+            }
           />
         ))}
       </div>
+
+      {/* Delete confirmation dialog */}
+      {confirmDeleteKey && (
+        <DeleteConfirmDialog
+          label={deleteLabel}
+          onCancel={() => setConfirmDeleteKey(null)}
+          onConfirm={handleConfirmDelete}
+        />
+      )}
     </div>
+  )
+}
+
+function DeleteConfirmDialog({
+  label,
+  onCancel,
+  onConfirm,
+}: {
+  label: string
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [onCancel])
+
+  useEffect(() => {
+    dialogRef.current?.focus()
+  }, [])
+
+  return createPortal(
+    <div
+      onClick={onCancel}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        background: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Confirm delete session"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 380,
+          background: 'var(--bg-elevated)',
+          border: '1px solid var(--border)',
+          borderRadius: '12px',
+          padding: '24px',
+          boxShadow: '0 16px 48px rgba(0,0,0,0.4)',
+          outline: 'none',
+        }}
+      >
+        <h3 style={{
+          margin: '0 0 12px 0',
+          fontSize: '16px',
+          fontWeight: 700,
+          color: 'var(--text-primary)',
+        }}>
+          Delete Session
+        </h3>
+        <p style={{
+          margin: '0 0 20px 0',
+          fontSize: '13px',
+          color: 'var(--text-secondary)',
+          lineHeight: 1.5,
+        }}>
+          Are you sure you want to delete <strong>{label}</strong>? This cannot be undone.
+        </p>
+        <div style={{
+          display: 'flex',
+          gap: '8px',
+          justifyContent: 'flex-end',
+        }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              padding: '8px 16px',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              background: 'transparent',
+              color: 'var(--text-primary)',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+            className="hover-bg"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            style={{
+              padding: '8px 16px',
+              border: 'none',
+              borderRadius: '8px',
+              background: 'var(--red-500)',
+              color: 'white',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
