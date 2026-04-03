@@ -145,6 +145,7 @@ cp .env.example .env.local   # Edit with your values
 | `OPENCLAW_WS` | OpenClaw WebSocket URL (AI chat streaming) |
 | `OPENCLAW_API_URL` | OpenClaw HTTP API URL |
 | `OPENCLAW_API_KEY` | OpenClaw API key |
+| `AGENTSHELL_URL` | AgentShell adapter URL (launch/approval bridge) |
 
 OpenClaw powers AI Chat, Agents, Crons, Missions, and the full Dashboard. The app works without it as a productivity hub, but these are the features that make it special.
 

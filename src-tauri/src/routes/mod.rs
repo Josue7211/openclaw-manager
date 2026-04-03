@@ -1,24 +1,25 @@
-use axum::{Router, routing::get, Json};
-use serde_json::{json, Value};
 use crate::server::AppState;
+use axum::{routing::get, Json, Router};
+use serde_json::{json, Value};
 
+pub mod agent_shell;
 pub mod agents;
 pub mod approvals;
-pub mod bjorn;
 pub mod auth;
+pub mod bjorn;
 pub mod cache;
 pub mod calendar;
 pub mod captures;
 pub mod changelog;
+pub mod chat;
 pub mod claude_sessions;
 pub mod crons;
-pub mod chat;
 pub mod deploy;
 pub mod email;
+pub mod events;
 pub mod export;
 pub mod gateway;
 pub mod gateway_events;
-pub mod events;
 pub mod homelab;
 pub mod ideas;
 // pub mod koel; // removed: file does not exist (stripped in prior phase)
@@ -41,10 +42,10 @@ pub mod terminal;
 pub mod todos;
 pub mod user_secrets;
 pub mod util;
-pub mod vnc;
-pub mod workflow_notes;
 pub mod vault;
+pub mod vnc;
 pub mod wizard;
+pub mod workflow_notes;
 pub mod workspace;
 
 /// Build the top-level API router, nesting all sub-module routes.
@@ -52,6 +53,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/health", get(health))
         .merge(agents::router())
+        .merge(agent_shell::router())
         .merge(approvals::router())
         .merge(bjorn::router())
         .nest("/auth", auth::router())

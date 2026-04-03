@@ -1,4 +1,4 @@
-use axum::{Router, routing::get, Json, extract::State};
+use axum::{extract::State, routing::get, Json, Router};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -123,7 +123,10 @@ pub fn router() -> Router<AppState> {
 
 // ── GET /api/status ──────────────────────────────────────────────────────────
 
-async fn get_status(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Result<Json<Value>, AppError> {
+async fn get_status(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
     let base = openclaw_dir(&state);
     let identity_path = Path::new(&base).join("workspace").join("IDENTITY.md");
 
@@ -193,10 +196,14 @@ fn local_ip() -> String {
 // Connections page show the real active config even when the OS keychain has
 // no user-saved values (e.g. when URLs came from .env.local).
 
-async fn get_active_config(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Json<Value> {
+async fn get_active_config(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Json<Value> {
     Json(json!({
         "bluebubbles_url": state.secret("BLUEBUBBLES_HOST").unwrap_or_default(),
         "openclaw_url": state.secret("OPENCLAW_API_URL").unwrap_or_default(),
+        "agentshell_url": state.secret("AGENTSHELL_URL").unwrap_or_default(),
     }))
 }
 
@@ -218,7 +225,10 @@ async fn get_health(State(_state): State<AppState>) -> Result<Json<Value>, AppEr
 // Lightweight check for whether Supabase is reachable. Used by the frontend
 // to show online/offline sync status.
 
-async fn supabase_health(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Json<Value> {
+async fn supabase_health(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Json<Value> {
     let url = state.secret_or_default("SUPABASE_URL");
     let key = state.secret_or_default("SUPABASE_SERVICE_ROLE_KEY");
     let reachable = crate::sync::is_supabase_reachable(&url, &key).await;
@@ -246,7 +256,7 @@ async fn get_tailscale_peers(RequireAuth(_session): RequireAuth) -> Result<Json<
 
 // ── GET /api/status/connections ───────────────────────────────────────────────
 //
-// Tests connectivity to BlueBubbles, OpenClaw, and Supabase, returning latency
+// Tests connectivity to BlueBubbles, OpenClaw, AgentShell, and Supabase, returning latency
 // or error info for each. Also verifies Tailscale peer identity when services
 // are accessed via Tailscale IPs.
 
@@ -260,37 +270,35 @@ async fn get_connections(
     let bb_password = state.secret("BLUEBUBBLES_PASSWORD").unwrap_or_default();
     let openclaw_url = state.secret("OPENCLAW_API_URL").unwrap_or_default();
     let openclaw_key = state.secret("OPENCLAW_API_KEY").unwrap_or_default();
+    let agentshell_url = state.secret("AGENTSHELL_URL").unwrap_or_default();
     let supabase_url = state.secret_or_default("SUPABASE_URL");
     let supabase_key = state.secret_or_default("SUPABASE_SERVICE_ROLE_KEY");
 
     // Load expected hostnames from user preferences (stored in Supabase)
-    let (bb_expected_host, oc_expected_host) = load_expected_hostnames(&state, &session.access_token).await;
+    let (bb_expected_host, oc_expected_host, sh_expected_host) =
+        load_expected_hostnames(&state, &session.access_token).await;
 
     // Test all three services concurrently
-    let (bb_result, oc_result, sb_result) = tokio::join!(
+    let (bb_result, oc_result, sh_result, sb_result) = tokio::join!(
         test_bluebubbles(http, &bb_host, &bb_password),
         test_openclaw(http, &openclaw_url, &openclaw_key),
+        test_agentshell(http, &agentshell_url),
         test_supabase(http, &supabase_url, &supabase_key),
     );
 
     // Run Tailscale peer verification on a blocking thread (calls CLI)
     let bb_url = bb_host.clone();
     let oc_url = openclaw_url.clone();
+    let sh_url = agentshell_url.clone();
     let bb_exp = bb_expected_host.clone();
     let oc_exp = oc_expected_host.clone();
+    let sh_exp = sh_expected_host.clone();
     let peer_results = tokio::task::spawn_blocking(move || {
         let peers = crate::tailscale::get_tailscale_peers().unwrap_or_default();
-        let bb_peer = crate::tailscale::verify_service_peer(
-            &bb_url,
-            bb_exp.as_deref(),
-            &peers,
-        );
-        let oc_peer = crate::tailscale::verify_service_peer(
-            &oc_url,
-            oc_exp.as_deref(),
-            &peers,
-        );
-        (bb_peer, oc_peer)
+        let bb_peer = crate::tailscale::verify_service_peer(&bb_url, bb_exp.as_deref(), &peers);
+        let oc_peer = crate::tailscale::verify_service_peer(&oc_url, oc_exp.as_deref(), &peers);
+        let sh_peer = crate::tailscale::verify_service_peer(&sh_url, sh_exp.as_deref(), &peers);
+        (bb_peer, oc_peer, sh_peer)
     })
     .await
     .unwrap_or_else(|_| {
@@ -298,7 +306,7 @@ async fn get_connections(
             peer_hostname: None,
             peer_verified: None,
         };
-        (empty.clone(), empty)
+        (empty.clone(), empty.clone(), empty)
     });
 
     // Merge connectivity results with peer verification
@@ -318,24 +326,39 @@ async fn get_connections(
         oc_json["peer_verified"] = json!(verified);
     }
 
+    let mut sh_json = sh_result;
+    if let Some(hostname) = &peer_results.2.peer_hostname {
+        sh_json["peer_hostname"] = json!(hostname);
+    }
+    if let Some(verified) = peer_results.2.peer_verified {
+        sh_json["peer_verified"] = json!(verified);
+    }
+
     Ok(Json(json!({
         "bluebubbles": bb_json,
         "openclaw": oc_json,
+        "agentshell": sh_json,
         "supabase": sb_result,
     })))
 }
 
 /// Load expected Tailscale hostnames from user preferences in Supabase.
-async fn load_expected_hostnames(state: &AppState, jwt: &str) -> (Option<String>, Option<String>) {
+async fn load_expected_hostnames(
+    state: &AppState,
+    jwt: &str,
+) -> (Option<String>, Option<String>, Option<String>) {
     let sb = match crate::supabase::SupabaseClient::from_state(state) {
         Ok(sb) => sb,
-        Err(_) => return (None, None),
+        Err(_) => return (None, None, None),
     };
 
     let query = "select=preferences&user_id=eq.default";
-    let prefs = match sb.select_single_as_user("user_preferences", query, jwt).await {
+    let prefs = match sb
+        .select_single_as_user("user_preferences", query, jwt)
+        .await
+    {
         Ok(row) => row.get("preferences").cloned().unwrap_or(json!({})),
-        Err(_) => return (None, None),
+        Err(_) => return (None, None, None),
     };
 
     let bb = prefs
@@ -348,15 +371,24 @@ async fn load_expected_hostnames(state: &AppState, jwt: &str) -> (Option<String>
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty())
         .map(String::from);
+    let sh = prefs
+        .get("agentshell.expected-host")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(String::from);
 
-    (bb, oc)
+    (bb, oc, sh)
 }
 
 async fn test_bluebubbles(http: &reqwest::Client, host: &str, password: &str) -> Value {
     if host.is_empty() {
         return json!({ "status": "not_configured" });
     }
-    let url = format!("{}/api/v1/ping?password={}", host.trim_end_matches('/'), password);
+    let url = format!(
+        "{}/api/v1/ping?password={}",
+        host.trim_end_matches('/'),
+        password
+    );
     ping_service(http, &url).await
 }
 
@@ -381,6 +413,14 @@ async fn test_openclaw(http: &reqwest::Client, base_url: &str, api_key: &str) ->
             json!({ "status": "unreachable", "error": connection_error_message(&e) })
         }
     }
+}
+
+async fn test_agentshell(http: &reqwest::Client, base_url: &str) -> Value {
+    if base_url.is_empty() {
+        return json!({ "status": "not_configured" });
+    }
+    let url = format!("{}/healthz", base_url.trim_end_matches('/'));
+    ping_service(http, &url).await
 }
 
 async fn test_supabase(http: &reqwest::Client, url: &str, service_key: &str) -> Value {
@@ -409,7 +449,12 @@ async fn test_supabase(http: &reqwest::Client, url: &str, service_key: &str) -> 
 /// Ping a URL with GET and return a status JSON object.
 async fn ping_service(http: &reqwest::Client, url: &str) -> Value {
     let start = std::time::Instant::now();
-    match http.get(url).timeout(std::time::Duration::from_secs(5)).send().await {
+    match http
+        .get(url)
+        .timeout(std::time::Duration::from_secs(5))
+        .send()
+        .await
+    {
         Ok(resp) if resp.status().is_success() => {
             json!({ "status": "ok", "latency_ms": start.elapsed().as_millis() as u64 })
         }
@@ -448,19 +493,19 @@ fn parse_heartbeat_tasks(content: &str) -> Vec<String> {
         .collect()
 }
 
-async fn heartbeat(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Result<Json<Value>, AppError> {
+async fn heartbeat(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
     let base = openclaw_dir(&state);
     let heartbeat_path = Path::new(&base).join("workspace").join("HEARTBEAT.md");
 
     if heartbeat_path.exists() {
         let last_check = match tokio::fs::metadata(&heartbeat_path).await {
-            Ok(meta) => meta
-                .modified()
-                .ok()
-                .map(|t| {
-                    let dt: chrono::DateTime<chrono::Utc> = t.into();
-                    dt.to_rfc3339()
-                }),
+            Ok(meta) => meta.modified().ok().map(|t| {
+                let dt: chrono::DateTime<chrono::Utc> = t.into();
+                dt.to_rfc3339()
+            }),
             Err(_) => None,
         };
 
@@ -489,10 +534,7 @@ async fn heartbeat(State(state): State<AppState>, RequireAuth(_session): Require
         if let Ok(resp) = req.send().await {
             if resp.status().is_success() {
                 if let Ok(data) = resp.json::<Value>().await {
-                    let content = data
-                        .get("content")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("");
+                    let content = data.get("content").and_then(|v| v.as_str()).unwrap_or("");
                     return Ok(Json(json!({
                         "lastCheck": chrono::Utc::now().to_rfc3339(),
                         "status": "ok",
@@ -529,7 +571,10 @@ async fn get_feature_flags(
     let modules: Vec<String> = match crate::supabase::SupabaseClient::from_state(&state) {
         Ok(sb) => {
             let query = format!("select=preferences&user_id=eq.{}", session.user_id);
-            match sb.select_single_as_user("user_preferences", &query, jwt).await {
+            match sb
+                .select_single_as_user("user_preferences", &query, jwt)
+                .await
+            {
                 Ok(row) => row
                     .get("preferences")
                     .and_then(|p| p.get("enabled-modules"))
@@ -574,7 +619,10 @@ struct ProcessEntry {
     started_at: Option<String>,
 }
 
-async fn get_processes(State(_state): State<AppState>, RequireAuth(_session): RequireAuth) -> Result<Json<Value>, AppError> {
+async fn get_processes(
+    State(_state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
     // Run: ps aux | grep -E 'claude|haiku|sonnet|opus' | grep -v grep | grep -v 'next-server'
     let ps_output = Command::new("bash")
         .arg("-c")
@@ -679,10 +727,7 @@ async fn get_processes(State(_state): State<AppState>, RequireAuth(_session): Re
     let ncpus = get_ncpus().await;
 
     // Gather log matches and top stats concurrently
-    let (pid_log_map, top_map) = tokio::join!(
-        match_pids_to_logs(&pids),
-        get_top_cpu_mem(&pids),
-    );
+    let (pid_log_map, top_map) = tokio::join!(match_pids_to_logs(&pids), get_top_cpu_mem(&pids),);
 
     let processes: Vec<ProcessEntry> = lines
         .iter()

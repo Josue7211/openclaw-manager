@@ -51,7 +51,9 @@ async fn get_secret(
     Path(service): Path<String>,
 ) -> Result<Json<Value>, AppError> {
     if session.encryption_key.is_empty() {
-        return Err(AppError::BadRequest("Encryption key not available. Log in with email/password to manage secrets.".into()));
+        return Err(AppError::BadRequest(
+            "Encryption key not available. Log in with email/password to manage secrets.".into(),
+        ));
     }
 
     let service = service.trim();
@@ -110,7 +112,9 @@ async fn put_secret(
     Json(body): Json<PutSecretBody>,
 ) -> Result<Json<Value>, AppError> {
     if session.encryption_key.is_empty() {
-        return Err(AppError::BadRequest("Encryption key not available. Log in with email/password to manage secrets.".into()));
+        return Err(AppError::BadRequest(
+            "Encryption key not available. Log in with email/password to manage secrets.".into(),
+        ));
     }
 
     let service = service.trim();
@@ -143,8 +147,14 @@ async fn put_secret(
     // Audit trail (never log the credential values — just the service name)
     let details = serde_json::to_string(&json!({ "service": service })).unwrap_or_default();
     crate::audit::log_audit_or_warn(
-        &state.db, &session.user_id, "update", "secrets", Some(service), Some(&details),
-    ).await;
+        &state.db,
+        &session.user_id,
+        "update",
+        "secrets",
+        Some(service),
+        Some(&details),
+    )
+    .await;
 
     Ok(success_json(json!({ "ok": true })))
 }
@@ -159,7 +169,9 @@ async fn delete_secret(
     Path(service): Path<String>,
 ) -> Result<Json<Value>, AppError> {
     if session.encryption_key.is_empty() {
-        return Err(AppError::BadRequest("Encryption key not available. Log in with email/password to manage secrets.".into()));
+        return Err(AppError::BadRequest(
+            "Encryption key not available. Log in with email/password to manage secrets.".into(),
+        ));
     }
 
     let service = service.trim();
@@ -177,8 +189,14 @@ async fn delete_secret(
     // Audit trail
     let details = serde_json::to_string(&json!({ "service": service })).unwrap_or_default();
     crate::audit::log_audit_or_warn(
-        &state.db, &session.user_id, "delete", "secrets", Some(service), Some(&details),
-    ).await;
+        &state.db,
+        &session.user_id,
+        "delete",
+        "secrets",
+        Some(service),
+        Some(&details),
+    )
+    .await;
 
     Ok(success_json(json!({ "ok": true })))
 }
@@ -203,11 +221,7 @@ async fn migrate_secrets(
 
     // Fetch existing secrets to avoid overwriting
     let existing = sb
-        .select_as_user(
-            "user_secrets",
-            "select=service",
-            &session.access_token,
-        )
+        .select_as_user("user_secrets", "select=service", &session.access_token)
         .await
         .unwrap_or(json!([]));
     let existing_services: std::collections::HashSet<String> = existing
@@ -225,6 +239,7 @@ async fn migrate_secrets(
         ("OPENCLAW_API_KEY", "openclaw", "api_key"),
         ("OPENCLAW_WS", "openclaw", "ws"),
         ("OPENCLAW_PASSWORD", "openclaw", "password"),
+        ("AGENTSHELL_URL", "agentshell", "url"),
         ("PROXMOX_HOST", "proxmox", "host"),
         ("PROXMOX_TOKEN_ID", "proxmox", "token_id"),
         ("PROXMOX_TOKEN_SECRET", "proxmox", "token_secret"),

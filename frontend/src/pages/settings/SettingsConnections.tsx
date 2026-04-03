@@ -12,8 +12,10 @@ const OnboardingWelcome = lazy(() => import('@/components/OnboardingWelcome'))
 export default function SettingsConnections() {
   const [bbUrl, setBbUrl] = useState('')
   const [ocUrl, setOcUrl] = useState('')
+  const [asUrl, setAsUrl] = useState('')
   const [bbExpectedHost, setBbExpectedHost] = useState('')
   const [ocExpectedHost, setOcExpectedHost] = useState('')
+  const [asExpectedHost, setAsExpectedHost] = useState('')
   const [bindHost, setBindHost] = useState('')
   const [agentKey, setAgentKey] = useState('')
   const [connSaving, setConnSaving] = useState(false)
@@ -31,6 +33,7 @@ export default function SettingsConnections() {
   useEffect(() => {
     let keychainBb: string | null = null
     let keychainOc: string | null = null
+    let keychainAs: string | null = null
 
     let keychainBindHost: string | null = null
     let keychainAgentKey: string | null = null
@@ -40,6 +43,7 @@ export default function SettingsConnections() {
           Promise.all([
             invoke<string | null>('get_secret', { key: 'bluebubbles.host' }).then(v => { keychainBb = v }),
             invoke<string | null>('get_secret', { key: 'openclaw.api-url' }).then(v => { keychainOc = v }),
+            invoke<string | null>('get_secret', { key: 'agentshell.url' }).then(v => { keychainAs = v }),
             invoke<string | null>('get_secret', { key: 'mc-bind.host' }).then(v => { keychainBindHost = v }),
             invoke<string | null>('get_secret', { key: 'mc-agent.key' }).then(v => { keychainAgentKey = v }),
           ])
@@ -49,15 +53,17 @@ export default function SettingsConnections() {
     const loadFromApi = Promise.all([
       api.get<Record<string, string>>('/api/secrets/bluebubbles').catch(() => null),
       api.get<Record<string, string>>('/api/secrets/openclaw').catch(() => null),
+      api.get<Record<string, string>>('/api/secrets/agentshell').catch(() => null),
     ])
 
-    const loadActiveConfig = api.get<{ bluebubbles_url?: string; openclaw_url?: string }>('/api/status/active-config').catch(() => null)
+    const loadActiveConfig = api.get<{ bluebubbles_url?: string; openclaw_url?: string; agentshell_url?: string }>('/api/status/active-config').catch(() => null)
 
     Promise.all([loadKeychain, loadFromApi, loadActiveConfig]).then(([, apiSecrets, activeConfig]) => {
-      const [bbSecrets, ocSecrets] = apiSecrets ?? [null, null]
+      const [bbSecrets, ocSecrets, asSecrets] = apiSecrets ?? [null, null, null]
       // Priority: API secrets (Supabase) > OS keychain > active config (env)
       setBbUrl(bbSecrets?.url || keychainBb || activeConfig?.bluebubbles_url || '')
       setOcUrl(ocSecrets?.url || keychainOc || activeConfig?.openclaw_url || '')
+      setAsUrl(asSecrets?.url || keychainAs || activeConfig?.agentshell_url || '')
       if (keychainBindHost) setBindHost(keychainBindHost)
       if (keychainAgentKey) setAgentKey(keychainAgentKey)
     }).catch(() => {})
@@ -67,6 +73,7 @@ export default function SettingsConnections() {
       const prefs = resp?.data ?? resp
       if (prefs?.['bluebubbles.expected-host']) setBbExpectedHost(String(prefs['bluebubbles.expected-host']))
       if (prefs?.['openclaw.expected-host']) setOcExpectedHost(String(prefs['openclaw.expected-host']))
+      if (prefs?.['agentshell.expected-host']) setAsExpectedHost(String(prefs['agentshell.expected-host']))
     }).catch(() => {})
   }, [])
 
@@ -84,6 +91,10 @@ export default function SettingsConnections() {
           service: 'openclaw',
           credentials: { url: ocUrl },
         }),
+        saveSecretMutation.mutateAsync({
+          service: 'agentshell',
+          credentials: { url: asUrl },
+        }),
       ])
 
       // Also save to OS keychain as local cache/fallback (for startup before login)
@@ -92,6 +103,7 @@ export default function SettingsConnections() {
         await Promise.all([
           invoke('set_secret', { key: 'bluebubbles.host', value: bbUrl }),
           invoke('set_secret', { key: 'openclaw.api-url', value: ocUrl }),
+          invoke('set_secret', { key: 'agentshell.url', value: asUrl }),
           bindHost ? invoke('set_secret', { key: 'mc-bind.host', value: bindHost }) : Promise.resolve(),
           agentKey ? invoke('set_secret', { key: 'mc-agent.key', value: agentKey }) : Promise.resolve(),
         ]).catch(() => {
@@ -104,6 +116,7 @@ export default function SettingsConnections() {
         preferences: {
           'bluebubbles.expected-host': bbExpectedHost,
           'openclaw.expected-host': ocExpectedHost,
+          'agentshell.expected-host': asExpectedHost,
         }
       }).catch(() => {})
 
@@ -113,7 +126,7 @@ export default function SettingsConnections() {
     } finally {
       setConnSaving(false)
     }
-  }, [bbUrl, ocUrl, bbExpectedHost, ocExpectedHost, bindHost, agentKey, saveSecretMutation])
+  }, [bbUrl, ocUrl, asUrl, bbExpectedHost, ocExpectedHost, asExpectedHost, bindHost, agentKey, saveSecretMutation])
 
   const testConnections = useCallback(async () => {
     setConnTesting(true)
@@ -211,6 +224,33 @@ export default function SettingsConnections() {
             />
           </div>
           {connResults?.openclaw && statusLabel(connResults.openclaw)}
+        </div>
+      </div>
+
+      <div style={row}>
+        <div style={{ flex: 1 }}>
+          <span>AgentShell</span>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>OpenClaw adapter shell URL</div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+          <input
+            style={inputStyle}
+            value={asUrl}
+            onChange={e => setAsUrl(e.target.value)}
+            placeholder="http://100.x.x.x:8077"
+            aria-label="AgentShell URL"
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Expected host:</span>
+            <input
+              style={hostInputStyle}
+              value={asExpectedHost}
+              onChange={e => setAsExpectedHost(e.target.value)}
+              placeholder="e.g. mission-control"
+              aria-label="AgentShell expected Tailscale hostname"
+            />
+          </div>
+          {connResults?.agentshell && statusLabel(connResults.agentshell)}
         </div>
       </div>
 

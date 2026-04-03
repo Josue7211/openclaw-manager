@@ -32,7 +32,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           return
         }
 
-        // Hard gate: MFA must be verified before ANY access
         if (res.mfa_required && !res.mfa_verified) {
           setState('mfa_required')
           return
@@ -49,12 +48,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           initPreferencesSync()
         }
       } catch {
-        // Network error: backend unreachable. In demo mode, allow access.
-        // Otherwise, redirect to login page.
-        if (isDemoMode()) {
-          setState('authenticated')
-          return
-        }
         setState('unauthenticated')
       }
     }
@@ -86,7 +79,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />
   }
   if (state === 'mfa_required') {
-    // Redirect to login with MFA flag — login page handles MFA verification
+    // Login handles MFA verification after redirect.
     return <Navigate to={`/login?mfa=verify&next=${encodeURIComponent(location.pathname)}`} replace />
   }
   return <>{children}</>
