@@ -91,6 +91,13 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 - One branch per workstream: MemD, AgentShell, agent secrets, and final integration/verification
 - Each branch should land with its own tests and reviewable diff
 
+**Post-v0.0.7 refactor queue:**
+- `refactor/jobhunter-module-split`
+- `refactor/sidebar-module-split`
+- `refactor/settings-modules-split`
+- `feature/jobs-route-split`
+- Keep these branches separate from the v0.0.7 feature branches so PRs stay narrow.
+
 ## Context
 
 **v1.0 shipped 2026-03-21.** Publishable release with 11 phases, 92 requirements, full cross-platform support.

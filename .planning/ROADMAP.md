@@ -45,6 +45,19 @@
 3. Agent secrets lifecycle and UI
 4. Cross-system verification and release hardening
 
+**Next refactor queue**
+These are separate refactor branches that should stay out of the MemD / AgentShell / secrets feature branches.
+
+- `refactor/jobhunter-module-split` - split the large JobHunter page into route, state, and renderer pieces
+- `refactor/sidebar-module-split` - split sidebar composition, navigation, and settings wiring
+- `refactor/settings-modules-split` - finish extracting SettingsModules into smaller feature sections
+- `feature/jobs-route-split` - trim backend job route surface and related service wiring
+
+**Merge rule**
+- One branch, one PR, one concern.
+- Merge the v0.0.7 feature branches before starting the refactor queue.
+- Keep each follow-up branch reviewable on its own instead of stacking unrelated UI and backend cleanup into one diff.
+
 **Group AJ: MemD Foundation** *(the AI brain; durable memory, context retrieval, and compaction)*
 - MemD contract draft: [milestones/v0.0.7-MEMD-CONTRACT.md](milestones/v0.0.7-MEMD-CONTRACT.md)
 - [ ] **Phase 99: MemD Contract Definition** - Define persistence, retrieval, retention, and sync boundaries before implementation starts
