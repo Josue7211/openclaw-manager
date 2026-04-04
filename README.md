@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="frontend/public/logo-128.png" alt="OpenClaw Manager" width="96" />
+  <img src="frontend/public/logo-128.png" alt="ClawControl" width="96" />
 </p>
 
-<h1 align="center">OpenClaw Manager</h1>
+<h1 align="center">ClawControl</h1>
 
 <p align="center">
   A self-hosted personal command center — messages, AI chat, task management, homelab monitoring, and agent orchestration in one desktop app.
@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/Josue7211/openclaw-manager/releases"><img src="https://img.shields.io/github/v/release/Josue7211/openclaw-manager?include_prereleases&label=Download&color=7c3aed" alt="Download" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="Apache 2.0 License" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPLv3-blue.svg" alt="AGPLv3 License" /></a>
   <img src="https://img.shields.io/badge/Tauri-v2-24C8D8?logo=tauri&logoColor=white" alt="Tauri v2" />
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey" alt="Platform" />
 </p>
@@ -21,9 +21,9 @@
 
 ## What is this?
 
-OpenClaw Manager is a **modular desktop app** that brings all your personal infrastructure into one interface. Think Discord meets iOS Settings — but self-hosted, private, and fully under your control.
+ClawControl is a **modular desktop control plane** for OpenClaw and your other personal infrastructure. Think Discord meets iOS Settings — but self-hosted, private, and fully under your control.
 
-Every module is optional. Enable only what you have — but [OpenClaw](https://github.com/Josue7211/openclaw) is the heart of the app. Without it you still get a solid productivity hub (todos, calendar, email, notes, pomodoro), but you miss out on AI chat, autonomous agents, cron jobs, missions, and the full dashboard.
+OpenClaw is the centerpiece. It already has a built-in gateway, and ClawControl is the wrapper/consumer that controls that gateway safely day to day while layering additional safe features on top when the gateway does not already cover them. AgentShell is another optional safety wrapper. Every module is optional, but the OpenClaw-powered experience is what turns the app into ClawControl instead of a generic productivity shell.
 
 | Module | What it does | Requires |
 |--------|-------------|----------|
@@ -99,7 +99,7 @@ Or build from source (see below).
 
 ```bash
 git clone https://github.com/Josue7211/openclaw-manager.git
-cd mission-control
+cd clawcontrol
 
 # Install frontend dependencies
 cd frontend && npm install && cd ..
@@ -147,7 +147,7 @@ cp .env.example .env.local   # Edit with your values
 | `OPENCLAW_API_KEY` | OpenClaw API key |
 | `AGENTSHELL_URL` | AgentShell adapter URL (launch/approval bridge) |
 
-OpenClaw powers AI Chat, Agents, Crons, Missions, and the full Dashboard. The app works without it as a productivity hub, but these are the features that make it special.
+OpenClaw powers AI Chat, Agents, Crons, Missions, and the OpenClaw control plane experience. ClawControl can add extra safe wrappers and UX around that gateway, but without OpenClaw the app loses the centerpiece that makes ClawControl ClawControl.
 
 ### Optional (per module)
 
@@ -171,7 +171,7 @@ Sensitive credentials are stored in the **OS keychain** at runtime (macOS Keycha
 
 ## Security
 
-OpenClaw Manager handles private data (messages, credentials, notes). Security is non-negotiable:
+ClawControl handles private data (messages, credentials, notes). Security is non-negotiable:
 
 - **No telemetry, no analytics, no phone-home** — fully self-hosted and offline-capable
 - **3-layer auth**: API key (constant-time) → Tailscale ACLs (WireGuard) → Cloudflare Access (OAuth)
@@ -236,14 +236,22 @@ mission-control/
 ## Contributing
 
 1. Fork the repo
-2. Create a branch (`git checkout -b feature/my-feature`)
-3. Run `./scripts/pre-commit.sh` before committing
-4. Open a PR
+2. Branch from the current default branch (`main` preferred, `master` during transition)
+3. Create a focused topic branch such as `fix/widget-edit-mode` or `feat/messages-search`
+4. Run `./scripts/pre-commit.sh` before committing
+5. Open a PR against the protected default branch
 
 All PRs run through CI: type-check, 1039 frontend tests, 231 Rust tests, security audit, production build.
+
+Recommended maintainer setup:
+
+- Protect `main`
+- Require PR review and green CI before merge
+- Keep release work on tags, not long-lived release branches
+- Use one branch per fix/feature so bugfixes like dashboard widget/edit-mode work can ship independently
 
 ---
 
 ## License
 
-[Apache 2.0](LICENSE) — Josue Aparcedo
+[AGPLv3](LICENSE) — Josue Aparcedo
