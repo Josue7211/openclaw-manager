@@ -9,6 +9,29 @@ import { row, rowLast, val, inputStyle, sectionLabel } from './shared'
 
 const OnboardingWelcome = lazy(() => import('@/components/OnboardingWelcome'))
 
+type SecretSummary = {
+  service: string
+  updatedAt?: string | null
+  fieldCount: number
+  fields: Array<{
+    key: string
+    present: boolean
+    preview: {
+      kind: string
+      masked: string | null
+      length?: number
+      count?: number
+    }
+  }>
+}
+
+function unwrapSummary(
+  value: SecretSummary | { ok: boolean; data: SecretSummary } | null
+): SecretSummary | null {
+  if (!value) return null
+  return 'data' in value ? value.data : value
+}
+
 export default function SettingsConnections() {
   const [bbUrl, setBbUrl] = useState('')
   const [ocUrl, setOcUrl] = useState('')
@@ -22,6 +45,7 @@ export default function SettingsConnections() {
   const [connSaveStatus, setConnSaveStatus] = useState<string | null>(null)
   const [connTesting, setConnTesting] = useState(false)
   const [connResults, setConnResults] = useState<Record<string, { status: string; latency_ms?: number; error?: string; peer_hostname?: string; peer_verified?: boolean }> | null>(null)
+  const [secretSummaries, setSecretSummaries] = useState<Record<string, SecretSummary | null>>({})
   const [showSetupWizard, setShowSetupWizard] = useState(false)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
 
@@ -50,20 +74,26 @@ export default function SettingsConnections() {
         ).catch(() => {})
       : Promise.resolve()
 
-    const loadFromApi = Promise.all([
-      api.get<Record<string, string>>('/api/secrets/bluebubbles').catch(() => null),
-      api.get<Record<string, string>>('/api/secrets/openclaw').catch(() => null),
-      api.get<Record<string, string>>('/api/secrets/agentshell').catch(() => null),
+    const loadSummaries = Promise.all([
+      api.get<{ ok: boolean; data: SecretSummary }>('/api/secrets/bluebubbles/summary').catch(() => null),
+      api.get<{ ok: boolean; data: SecretSummary }>('/api/secrets/openclaw/summary').catch(() => null),
+      api.get<{ ok: boolean; data: SecretSummary }>('/api/secrets/agentshell/summary').catch(() => null),
     ])
 
     const loadActiveConfig = api.get<{ bluebubbles_url?: string; openclaw_url?: string; agentshell_url?: string }>('/api/status/active-config').catch(() => null)
 
-    Promise.all([loadKeychain, loadFromApi, loadActiveConfig]).then(([, apiSecrets, activeConfig]) => {
-      const [bbSecrets, ocSecrets, asSecrets] = apiSecrets ?? [null, null, null]
-      // Priority: API secrets (Supabase) > OS keychain > active config (env)
-      setBbUrl(bbSecrets?.url || keychainBb || activeConfig?.bluebubbles_url || '')
-      setOcUrl(ocSecrets?.url || keychainOc || activeConfig?.openclaw_url || '')
-      setAsUrl(asSecrets?.url || keychainAs || activeConfig?.agentshell_url || '')
+    Promise.all([loadKeychain, loadSummaries, loadActiveConfig]).then(([, apiSummaries, activeConfig]) => {
+      const [bbSummary, ocSummary, asSummary] = apiSummaries ?? [null, null, null]
+      setSecretSummaries({
+        bluebubbles: unwrapSummary(bbSummary),
+        openclaw: unwrapSummary(ocSummary),
+        agentshell: unwrapSummary(asSummary),
+      })
+      // Priority for editable fields: OS keychain > active config.
+      // Do not prefill editable inputs from decrypted API secret values.
+      setBbUrl(keychainBb || activeConfig?.bluebubbles_url || '')
+      setOcUrl(keychainOc || activeConfig?.openclaw_url || '')
+      setAsUrl(keychainAs || activeConfig?.agentshell_url || '')
       if (keychainBindHost) setBindHost(keychainBindHost)
       if (keychainAgentKey) setAgentKey(keychainAgentKey)
     }).catch(() => {})
@@ -163,6 +193,16 @@ export default function SettingsConnections() {
   }
   const hostInputStyle: React.CSSProperties = { ...inputStyle, width: '140px', fontSize: '11px' }
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '(not set)'
+  const summaryLabel = (service: 'bluebubbles' | 'openclaw' | 'agentshell') => {
+    const summary = secretSummaries[service]
+    if (!summary) return null
+    const fieldNames = summary.fields.map(field => field.key).join(', ')
+    return (
+      <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+        Saved fields: {fieldNames || `${summary.fieldCount} fields`}
+      </span>
+    )
+  }
 
   return (
     <div>
@@ -196,6 +236,7 @@ export default function SettingsConnections() {
               aria-label="BlueBubbles expected Tailscale hostname"
             />
           </div>
+          {summaryLabel('bluebubbles')}
           {connResults?.bluebubbles && statusLabel(connResults.bluebubbles)}
         </div>
       </div>
@@ -223,6 +264,7 @@ export default function SettingsConnections() {
               aria-label="OpenClaw expected Tailscale hostname"
             />
           </div>
+          {summaryLabel('openclaw')}
           {connResults?.openclaw && statusLabel(connResults.openclaw)}
         </div>
       </div>
@@ -250,6 +292,7 @@ export default function SettingsConnections() {
               aria-label="AgentShell expected Tailscale hostname"
             />
           </div>
+          {summaryLabel('agentshell')}
           {connResults?.agentshell && statusLabel(connResults.agentshell)}
         </div>
       </div>

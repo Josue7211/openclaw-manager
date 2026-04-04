@@ -1,10 +1,21 @@
-## What changed
+## Summary
 
-<!-- Brief description -->
+- 
 
-## Checklist
+## Branch / Phase
 
-- [ ] Tested locally
-- [ ] No hardcoded paths or credentials
-- [ ] New env vars documented in `.env.example`
-- [ ] TypeScript compiles (`npx tsc --noEmit`)
+- Branch:
+- Roadmap phase:
+
+## Verification
+
+- [ ] Production build passes
+- [ ] Targeted tests pass
+- [ ] Typecheck passes
+- [ ] I did not bundle unrelated work
+
+## Review Notes
+
+- What changed:
+- What to review closely:
+- Any follow-up branches:

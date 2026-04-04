@@ -1,0 +1,15 @@
+# Default ownership
+* @Josue7211
+
+# Frontend
+/frontend/ @Josue7211
+
+# Backend / Tauri
+/src-tauri/ @Josue7211
+
+# Planning and docs
+/.planning/ @Josue7211
+/docs/ @Josue7211
+
+# GitHub automation
+/.github/ @Josue7211
