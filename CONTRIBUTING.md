@@ -82,4 +82,4 @@ See [CLAUDE.md](CLAUDE.md) for the full style guide. Key points:
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).
+By contributing, you agree that your contributions will be licensed under the [GNU Affero General Public License v3](LICENSE).
