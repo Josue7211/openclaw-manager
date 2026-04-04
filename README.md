@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/Josue7211/openclaw-manager/releases"><img src="https://img.shields.io/github/v/release/Josue7211/openclaw-manager?include_prereleases&label=Download&color=7c3aed" alt="Download" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="Apache 2.0 License" /></a>
   <img src="https://img.shields.io/badge/Tauri-v2-24C8D8?logo=tauri&logoColor=white" alt="Tauri v2" />
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey" alt="Platform" />
 </p>
@@ -246,4 +246,4 @@ All PRs run through CI: type-check, 1039 frontend tests, 231 Rust tests, securit
 
 ## License
 
-[MIT](LICENSE) — Josue Aparcedo
+[Apache 2.0](LICENSE) — Josue Aparcedo
