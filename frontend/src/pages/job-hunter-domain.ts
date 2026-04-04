@@ -566,6 +566,8 @@ export function applyModeLabel(mode: ApplyMode): string {
       return 'Manual search'
     case 'review':
       return 'Ping me'
+    default:
+      return 'Ping me'
   }
 }
 
@@ -577,6 +579,8 @@ export function applyModeStyle(mode: ApplyMode): CSSProperties {
       return badgeStyle('applied')
     case 'review':
       return badgeStyle('interviewing')
+    default:
+      return badgeStyle('interviewing')
   }
 }
 
@@ -587,6 +591,8 @@ export function applyModeRank(mode: ApplyMode): number {
     case 'manual':
       return 1
     case 'review':
+      return 2
+    default:
       return 2
   }
 }
