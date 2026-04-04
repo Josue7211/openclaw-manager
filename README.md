@@ -5,245 +5,205 @@
 <h1 align="center">OpenClaw Manager</h1>
 
 <p align="center">
-  A self-hosted personal command center — messages, AI chat, task management, homelab monitoring, and agent orchestration in one desktop app.
+  A self-hosted Tauri desktop app for personal infrastructure, AI workflows, messaging, and operations.
 </p>
 
 <p align="center">
-  <a href="https://github.com/Josue7211/openclaw-manager/releases"><img src="https://img.shields.io/github/v/release/Josue7211/openclaw-manager?include_prereleases&label=Download&color=7c3aed" alt="Download" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPLv3-blue.svg" alt="AGPLv3 License" /></a>
   <img src="https://img.shields.io/badge/Tauri-v2-24C8D8?logo=tauri&logoColor=white" alt="Tauri v2" />
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey" alt="Platform" />
 </p>
 
-<!-- TODO: Add screenshot once UI is finalized -->
+## Status
 
----
+This repository is under active product and architecture work.
 
-## What is this?
+- `main` is the rollout branch for the current clean release line.
+- Riskier feature work is kept in topic branches until it is safe to merge.
+- Dashboard widget and edit-mode fixes are intentionally isolated from the rollout branch until they are re-verified.
 
-OpenClaw Manager is a **modular desktop app** that brings all your personal infrastructure into one interface. Think Discord meets iOS Settings — but self-hosted, private, and fully under your control.
+If you want the current roadmap and branch queue, start with [`.planning/ROADMAP.md`](.planning/ROADMAP.md) and [`.planning/PROJECT.md`](.planning/PROJECT.md).
 
-Every module is optional. Enable only what you have — but [OpenClaw](https://github.com/Josue7211/openclaw) is the heart of the app. Without it you still get a solid productivity hub (todos, calendar, email, notes, pomodoro), but you miss out on AI chat, autonomous agents, cron jobs, missions, and the full dashboard.
+## What This App Is
 
-| Module | What it does | Requires |
-|--------|-------------|----------|
-| **Messages** | iMessage (read, send, search, reactions, attachments) | Mac + [BlueBubbles](https://bluebubbles.app) |
-| **AI Chat** | Streaming AI chat with model switching | [OpenClaw](https://github.com/Josue7211/openclaw) or any LLM gateway |
-| **Todos** | Task management with projects and labels | Supabase |
-| **Calendar** | CalDAV sync (iCloud, Nextcloud, etc.) | CalDAV server |
-| **Email** | IMAP client with folder navigation | IMAP server |
-| **Reminders** | Apple Reminders sync | Mac + [Mac Bridge](https://github.com/Josue7211/mac-bridge) |
-| **Notes** | Obsidian-compatible markdown notes | CouchDB + [LiveSync](https://github.com/vrtmrz/obsidian-livesync) |
-| **Pomodoro** | Focus timer with activity heatmap | Local only |
-| **Home Lab** | VM/container status, firewall monitoring | Proxmox + OPNsense |
-| **Media Radar** | Track movies/TV shows | Plex + Sonarr + Radarr |
-| **Dashboard** | Agent status, missions, pipelines | OpenClaw + Supabase |
-| **Agents** | AI agent management and monitoring | OpenClaw |
-| **Crons** | Scheduled jobs and recurring tasks | OpenClaw |
-| **Missions** | Autonomous agent task tracking and replay | OpenClaw + Supabase |
-| **Pipeline** | CI/CD pipeline management and ship log | Supabase |
-| **Knowledge** | Shared reference documents | Supabase |
-| **Personal** | Morning brief, daily review, habits | Supabase |
+OpenClaw Manager is a modular desktop control plane. It combines:
 
-**App-wide features:** Command palette (`Ctrl+K`), global search, configurable keyboard shortcuts, native notifications with per-conversation mute, dark/light theming, custom sidebar layout, offline-first with sync.
+- AI chat and agent operations
+- dashboard views for missions, pipelines, and system state
+- personal productivity modules like tasks, notes, and calendar
+- homelab and service integrations
+- local-first desktop delivery through Tauri
 
----
+OpenClaw is the main backend capability layer. AgentShell, agent secrets, and MemD are the next core architecture lanes on the roadmap.
+
+## Core Modules
+
+| Module | Purpose | Typical dependency |
+|---|---|---|
+| Messages | BlueBubbles-backed messaging | BlueBubbles |
+| AI Chat | Chat UI and model access | OpenClaw or compatible gateway |
+| Dashboard | Widgets, missions, pipelines, activity | OpenClaw + Supabase |
+| Agents | Agent execution and monitoring | OpenClaw |
+| Crons | Scheduled agent and job workflows | OpenClaw |
+| Missions | Long-running task tracking | OpenClaw + Supabase |
+| Todos / Notes / Calendar / Email | Personal command-center modules | Service-specific integrations |
+| Home Lab | Proxmox / OPNsense visibility | Proxmox, OPNsense |
+| Media Radar | Media stack status | Plex, Sonarr, Radarr |
 
 ## Architecture
 
 <p align="center">
-  <img src="docs/overview-simple.png" alt="Overview — what the app does" />
+  <img src="docs/overview-simple.png" alt="Overview diagram" />
 </p>
 
 <p align="center">
-  <img src="docs/architecture.png" alt="Technical architecture diagram" />
+  <img src="docs/architecture.png" alt="Architecture diagram" />
 </p>
 
-> Open the `.excalidraw` files in `docs/` with [excalidraw.com](https://excalidraw.com) for editable versions.
+The app runs as a Tauri v2 desktop shell with:
 
-The app runs as a **Tauri v2 desktop application** with an embedded Axum HTTP server on `localhost:3000`. The React frontend never talks to remote services directly — everything is proxied through Axum. Secrets are stored in the OS keychain, never in environment files or source code.
+- a React + Vite frontend in [`frontend/`](frontend/)
+- an Axum backend in [`src-tauri/`](src-tauri/)
+- local desktop secret storage through the OS keychain
+- local persistence plus Supabase-backed sync/integration paths
 
-**Key design decisions:**
-- **Offline-first**: Local SQLite database syncs to Supabase every 30 seconds
-- **Multi-device**: Run on Linux + macOS simultaneously, data syncs via Supabase
-- **Zero telemetry**: No analytics, no phone-home, fully self-hosted
-- **Defense in depth**: API key auth + Tailscale ACLs + Cloudflare Access + MFA + RLS on all tables
+The frontend talks to the local Axum API. Remote services are reached through the backend, not directly from the browser layer.
 
----
+## Repository Layout
 
-## Download
-
-Grab the latest release for your platform:
-
-| Platform | Download |
-|----------|----------|
-| **Linux** (.deb) | [Releases page](https://github.com/Josue7211/openclaw-manager/releases) |
-| **Linux** (.rpm) | [Releases page](https://github.com/Josue7211/openclaw-manager/releases) |
-| **macOS** (.dmg) — Intel + Apple Silicon | [Releases page](https://github.com/Josue7211/openclaw-manager/releases) |
-| **Windows** (.msi) | [Releases page](https://github.com/Josue7211/openclaw-manager/releases) |
-
-Or build from source (see below).
-
----
+```text
+clawcontrol/
+├── frontend/                # React + Vite + TypeScript app
+├── src-tauri/               # Tauri v2 shell + Axum backend
+├── supabase/                # DB and sync-related assets
+├── docs/                    # Architecture, setup, and security docs
+├── scripts/                 # Checks, helpers, QA scripts
+├── .github/                 # CI, release, PR, and issue templates
+└── .planning/               # Roadmap, milestone, and architecture planning
+```
 
 ## Quick Start
 
-### From release binary
-
-1. Download and install for your platform
-2. Launch the app
-3. The onboarding wizard guides you through connecting services
-4. No services configured? The app runs in **demo mode** with sample data
-
-### From source
+### Clone
 
 ```bash
-git clone https://github.com/Josue7211/openclaw-manager.git
-cd mission-control
-
-# Install frontend dependencies
-cd frontend && npm install && cd ..
-
-# Run in development mode (Tauri + Vite hot-reload)
-cargo tauri dev
-
-# Or production build
-cargo tauri build
+git clone https://github.com/Josue7211/clawcontrol.git
+cd clawcontrol
 ```
 
-### Prerequisites
+### Install
 
-| Requirement | Notes |
-|---|---|
-| **Node.js 20+** | [nodejs.org](https://nodejs.org) |
-| **Rust stable** | [rustup.rs](https://rustup.rs) |
-| **Tauri v2 system deps** | [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) |
-| **Supabase** | Self-hosted (Docker) or [Supabase Cloud](https://supabase.com) |
+```bash
+npm install
+cd frontend && npm install && cd ..
+```
 
----
+### Development
+
+```bash
+npm run tauri:dev
+```
+
+### Production Build
+
+```bash
+npm run tauri:build
+```
+
+## Requirements
+
+- Node.js 20+
+- Rust stable
+- Tauri v2 system dependencies for your platform
+- Optional: Supabase and external services for full module coverage
+
+Tauri prerequisites:
+
+- https://v2.tauri.app/start/prerequisites/
 
 ## Configuration
 
-All service URLs and secrets are configured through **Settings > Connections** in the app. For development, you can also use a `.env.local` file:
+Most connections can be configured from the app under `Settings > Connections`.
 
-```bash
-cp .env.example .env.local   # Edit with your values
-```
+For development, copy the example env file if present and set only what you need. Sensitive values should stay in the OS keychain whenever possible.
 
-### Required (for full functionality)
+### Common variables
 
-| Variable | Description |
+| Variable | Purpose |
 |---|---|
-| `SUPABASE_URL` | Your Supabase project URL |
-| `SUPABASE_ANON_KEY` | Supabase anonymous key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) |
-
-### Recommended (unlocks AI features)
-
-| Variable | Description |
-|---|---|
-| `OPENCLAW_WS` | OpenClaw WebSocket URL (AI chat streaming) |
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_ANON_KEY` | Supabase anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-side Supabase key |
+| `OPENCLAW_WS` | OpenClaw WebSocket URL |
 | `OPENCLAW_API_URL` | OpenClaw HTTP API URL |
 | `OPENCLAW_API_KEY` | OpenClaw API key |
-| `AGENTSHELL_URL` | AgentShell adapter URL (launch/approval bridge) |
+| `AGENTSHELL_URL` | AgentShell adapter URL |
+| `MC_BIND_HOST` | Bind host for exposing the local API |
+| `MC_AGENT_KEY` | Stable API key for external agents |
 
-OpenClaw powers AI Chat, Agents, Crons, Missions, and the full Dashboard. The app works without it as a productivity hub, but these are the features that make it special.
-
-### Optional (per module)
-
-| Variable | Module |
-|---|---|
-| `BLUEBUBBLES_HOST` / `BLUEBUBBLES_PASSWORD` | Messages |
-| `MAC_BRIDGE_HOST` / `MAC_BRIDGE_API_KEY` | Reminders / Contacts |
-| `COUCHDB_URL` / `COUCHDB_USER` / `COUCHDB_PASSWORD` / `COUCHDB_DATABASE` | Notes |
-| `CALDAV_URL` / `CALDAV_USERNAME` / `CALDAV_PASSWORD` | Calendar |
-| `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_USER` / `EMAIL_PASSWORD` | Email |
-| `PROXMOX_HOST` / `PROXMOX_TOKEN_ID` / `PROXMOX_TOKEN_SECRET` | Home Lab |
-| `OPNSENSE_HOST` / `OPNSENSE_KEY` / `OPNSENSE_SECRET` | Home Lab |
-| `PLEX_URL` / `PLEX_TOKEN` | Media Radar |
-| `SONARR_URL` / `SONARR_API_KEY` / `RADARR_URL` / `RADARR_API_KEY` | Media Radar |
-| `MC_BIND_HOST` | Set to `0.0.0.0` to expose API over Tailscale |
-| `MC_AGENT_KEY` | Stable API key for external agents (e.g. Bjorn) |
-
-Sensitive credentials are stored in the **OS keychain** at runtime (macOS Keychain, Linux Secret Service, Windows Credential Manager). The `.env.local` file is a development fallback only and is gitignored.
-
----
+Additional service variables are documented in the settings UI and service-specific docs under [`docs/`](docs/).
 
 ## Security
 
-OpenClaw Manager handles private data (messages, credentials, notes). Security is non-negotiable:
+This app handles private data and service credentials. Current security posture:
 
-- **No telemetry, no analytics, no phone-home** — fully self-hosted and offline-capable
-- **3-layer auth**: API key (constant-time) → Tailscale ACLs (WireGuard) → Cloudflare Access (OAuth)
-- **MFA hard gate** on all data endpoints — no data access without TOTP verification
-- **AES-256-GCM** encryption for user secrets, **Argon2id** key derivation
-- **RLS + FORCE** on all 28 Supabase tables — row-level user isolation
-- **CSP** blocks `unsafe-eval`, `object-src`, `frame-ancestors`
-- **Core dumps disabled**, debugger detection, binary integrity checks at startup
-- **Secrets zeroized** on drop — tokens cleared from memory when session ends
-- **24-hour hard session expiry** regardless of token refresh
-- **Append-only audit logs** for security-sensitive operations
+- secrets are stored in the OS keychain, not committed env files
+- the frontend uses the local backend as the trust boundary
+- the repo includes security docs, CI, issue templates, and PR templates for open-source maintenance
+- agent secrets work is being hardened as an explicit architecture lane
 
-See [docs/SECURITY.md](docs/SECURITY.md) for the full security model, threat analysis, and contributor rules.
+See [docs/SECURITY.md](docs/SECURITY.md) for the security notes currently tracked in-repo.
 
----
-
-## Testing
+## Commands
 
 ```bash
-# Frontend (1039 tests)
-cd frontend && npx vitest run
+# Frontend build
+cd frontend && npm run build
 
-# Rust (231 tests)
-cd src-tauri && cargo test
+# Frontend tests
+cd frontend && npm run test
 
-# Type check
+# Frontend type check
 cd frontend && npx tsc --noEmit
 
-# Pre-commit (runs everything: secrets scan, a11y, types, tests, build)
+# Rust check
+cd src-tauri && cargo check
+
+# Rust tests
+cd src-tauri && cargo test
+
+# Full local gate
 ./scripts/pre-commit.sh
 ```
 
----
-
-## Project Structure
-
-```
-mission-control/
-├── frontend/                # React + Vite + TypeScript
-│   └── src/
-│       ├── components/      # Sidebar, CommandPalette, Lightbox, etc.
-│       ├── pages/           # Route pages (all lazy-loaded)
-│       ├── hooks/           # Custom React hooks
-│       └── lib/             # API client, types, keybindings, utilities
-├── src-tauri/               # Tauri v2 + Rust backend
-│   └── src/
-│       ├── main.rs          # Entry, system tray, integrity checks
-│       ├── server.rs        # Axum server, auth middleware, rate limiting
-│       ├── routes/          # HTTP handlers per module
-│       ├── crypto.rs        # AES-256-GCM + Argon2id
-│       ├── secrets.rs       # OS keychain integration
-│       ├── sync.rs          # Offline-first SQLite ↔ Supabase sync
-│       └── audit.rs         # Append-only security audit log
-├── supabase/                # Database migrations (28 tables, RLS)
-├── docs/                    # Architecture diagrams, security docs
-├── scripts/                 # Pre-commit, e2e tests, utilities
-└── .github/workflows/       # CI (lint, test, build) + Release (all platforms)
-```
-
----
-
 ## Contributing
 
-1. Fork the repo
-2. Create a branch (`git checkout -b feature/my-feature`)
-3. Run `./scripts/pre-commit.sh` before committing
-4. Open a PR
+Start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
-All PRs run through CI: type-check, 1039 frontend tests, 231 Rust tests, security audit, production build.
+Current workflow expectations:
 
----
+1. Branch from the current stable line.
+2. Keep one concern per branch and per PR.
+3. Run `./scripts/pre-commit.sh` before opening a PR.
+4. Use the PR template in [`.github/pull_request_template.md`](.github/pull_request_template.md).
+5. Do not mix roadmap/planning churn with unrelated product fixes unless the change is intentionally docs-only.
+
+## Roadmap
+
+Current roadmap work includes:
+
+- stable rollout branch management
+- dashboard/widget edit-mode stabilization in isolated branches
+- MemD as the durable memory layer
+- AgentShell contract hardening
+- agent secrets hardening
+- final integration and production verification
+
+See:
+
+- [`.planning/ROADMAP.md`](.planning/ROADMAP.md)
+- [`.planning/PROJECT.md`](.planning/PROJECT.md)
 
 ## License
 
-[AGPLv3](LICENSE) — Josue Aparcedo
+[AGPLv3](LICENSE)
