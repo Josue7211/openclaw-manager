@@ -238,6 +238,18 @@ mission-control/
 1. Fork the repo
 2. Create a branch (`git checkout -b feature/my-feature`)
 3. Run `./scripts/pre-commit.sh` before committing
+4. Open a PR against `master` using the repository PR template
+5. Keep the PR scoped to one concern and include verification results
+
+For the full contributor and maintainer workflow, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Open Source Readiness
+
+- Topic branches only: `fix/...`, `feat/...`, `docs/...`, `refactor/...`, `chore/...`
+- One workstream per PR
+- PR template and issue templates are required for inbound contributions
+- CODEOWNERS is in place for review routing
+- Sensitive security reports should go through GitHub Security Advisories, not public issues
 4. Open a PR
 
 All PRs run through CI: type-check, 1039 frontend tests, 231 Rust tests, security audit, production build.
