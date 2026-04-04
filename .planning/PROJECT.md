@@ -51,6 +51,7 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 
 ### Active
 
+- [ ] Establish the branch-split / PR workflow as the first v0.0.7 workstream so every follow-up lands as a reviewable topic branch
 - [ ] Verify and fix every page/widget with real data end-to-end
 - [ ] Fix remaining UI bugs, broken loaders, and error states
 - [ ] Split AgentShell, agent secrets, and MemD into separate branches with one PR per workstream
@@ -79,16 +80,17 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 
 ## Next Milestone: v0.0.7 — AgentShell, Agent Secrets, and MemD
 
-**Goal:** Split the next platform work into clean branches so MemD can become the AI brain, while AgentShell hardening and scoped agent secrets stay as explicit capability and safety layers around it.
+**Goal:** Split the next platform work into clean branches so the repo is open-source ready, MemD can become the AI brain, and AgentShell hardening plus scoped agent secrets stay as explicit capability and safety layers around it.
 
 **Target features:**
 - MemD as the durable-memory / context brain for assistant workflows
 - AgentShell typed adapter contract, launch flow, and safety hardening
 - Scoped agent secrets with audit, rotation, masking, and UI
 - End-to-end verification and production build hardening across all three surfaces
+- Repo-level PR workflow, branch split discipline, and autonomous execution runbook
 
 **Branch plan:**
-- One branch per workstream: MemD, AgentShell, agent secrets, and final integration/verification
+- One branch per workstream: repo/PR ops, MemD, AgentShell, agent secrets, and final integration/verification
 - Each branch should land with its own tests and reviewable diff
 
 ## Context

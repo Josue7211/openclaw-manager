@@ -11,11 +11,11 @@
     "nyquist_validation": true,
     "ui_phase": true,
     "ui_safety_gate": true,
-    "_auto_chain_active": false
+    "_auto_chain_active": true
   },
   "git": {
-    "branching_strategy": "none",
-    "quick_branch_template": null
+    "branching_strategy": "topic-branches",
+    "quick_branch_template": "feature/%s"
   },
   "hooks": {
     "context_warnings": true,
