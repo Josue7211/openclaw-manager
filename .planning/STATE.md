@@ -91,6 +91,7 @@ Recent decisions affecting current work:
 - Resolve SSH passphrase key issue for terminal (Phase 13)
 - Research Claude Code SDK/CLI spawning for Phase 15
 - Research noVNC + Moonlight integration for Phase 17
+- Bitwarden/browser login workflow for Job Hunter screenshots and manual review
 
 ### Blockers/Concerns
 
