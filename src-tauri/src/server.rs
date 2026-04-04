@@ -1,18 +1,18 @@
-use axum::Router;
 use axum::body::Body;
 use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderValue, Request, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
+use axum::Router;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Duration;
-use subtle::ConstantTimeEq;
-use zeroize::Zeroize;
 use std::sync::OnceLock;
+use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
+use subtle::ConstantTimeEq;
 use tokio::sync::RwLock;
 use tower_http::timeout::TimeoutLayer;
+use zeroize::Zeroize;
 
 /// MC_API_KEY stored once at startup so the auth middleware can read it
 /// without touching process environment variables.
@@ -21,10 +21,10 @@ pub static MC_API_KEY: OnceLock<String> = OnceLock::new();
 /// MC_AGENT_KEY — optional stable key for external agents (e.g. Bjorn on OpenClaw VM).
 /// Unlike MC_API_KEY which rotates every launch, this is user-configured and persistent.
 pub static MC_AGENT_KEY: OnceLock<String> = OnceLock::new();
-use tokio::net::TcpListener;
-use tower_http::cors::{CorsLayer, Any, AllowOrigin};
 use crate::routes;
 use crate::service_client::ServiceClient;
+use tokio::net::TcpListener;
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
 // ---------------------------------------------------------------------------
 // User session (JWT passthrough)
@@ -102,7 +102,7 @@ pub async fn save_dev_session(db: &sqlx::SqlitePool, session: &UserSession) {
             .unwrap_or_default()
             .as_secs() as i64;
         let _ = sqlx::query(
-            "INSERT OR REPLACE INTO _dev_session (id, data, created_at) VALUES (1, ?, ?)"
+            "INSERT OR REPLACE INTO _dev_session (id, data, created_at) VALUES (1, ?, ?)",
         )
         .bind(&data)
         .bind(now)
@@ -169,15 +169,11 @@ where
             .extensions
             .get::<UserSession>()
             .cloned()
-            .ok_or_else(|| {
-                (StatusCode::UNAUTHORIZED, "Authentication required").into_response()
-            })?;
+            .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Authentication required").into_response())?;
 
         // Hard gate: MFA must be verified before ANY data access
         if !session.mfa_verified {
-            return Err(
-                (StatusCode::FORBIDDEN, "MFA verification required").into_response()
-            );
+            return Err((StatusCode::FORBIDDEN, "MFA verification required").into_response());
         }
 
         Ok(RequireAuth(session))
@@ -207,7 +203,6 @@ pub struct AppState {
     /// gateway. `None` when OPENCLAW_API_URL is not configured.
     pub gateway_ws: Option<Arc<crate::gateway_ws::GatewayWsClient>>,
     // Supabase already has its own SupabaseClient in `crate::supabase`.
-
     /// Current user session (JWT tokens + derived encryption key).
     /// `None` until the user logs in. Auto-refreshed by `inject_session`.
     pub session: Arc<RwLock<Option<UserSession>>>,
@@ -266,15 +261,13 @@ impl AppState {
     /// Read a cached API response from local SQLite, scoped by `user_id`.
     /// Returns `Some(json_string)` if a row exists for `(user_id, key)`.
     pub async fn cache_get(&self, user_id: &str, key: &str) -> Option<String> {
-        sqlx::query_scalar::<_, String>(
-            "SELECT data FROM api_cache WHERE user_id = ? AND key = ?",
-        )
-        .bind(user_id)
-        .bind(key)
-        .fetch_optional(&self.db)
-        .await
-        .ok()
-        .flatten()
+        sqlx::query_scalar::<_, String>("SELECT data FROM api_cache WHERE user_id = ? AND key = ?")
+            .bind(user_id)
+            .bind(key)
+            .fetch_optional(&self.db)
+            .await
+            .ok()
+            .flatten()
     }
 
     /// Write (upsert) a cached API response into local SQLite, scoped by `user_id`.
@@ -325,7 +318,7 @@ async fn log_integrity_events(db: &sqlx::SqlitePool) {
     // 1. Binary integrity check (SHA-256)
     if let Ok(exe_path) = std::env::current_exe() {
         if let Ok(bytes) = std::fs::read(&exe_path) {
-            use sha2::{Sha256, Digest};
+            use sha2::{Digest, Sha256};
             let hash = hex::encode(Sha256::digest(&bytes));
             insert(
                 db,
@@ -402,7 +395,9 @@ async fn verify_supabase_dns(supabase_url: &str) -> bool {
         return true;
     }
 
-    let port = parsed.port().unwrap_or(if parsed.scheme() == "https" { 443 } else { 80 });
+    let port = parsed
+        .port()
+        .unwrap_or(if parsed.scheme() == "https" { 443 } else { 80 });
     match tokio::net::lookup_host(format!("{host}:{port}")).await {
         Ok(addrs) => {
             let ips: Vec<String> = addrs.map(|a| a.ip().to_string()).collect();
@@ -439,7 +434,7 @@ fn log_tls_status(service: &str, url: &str) {
                     || host == "localhost"
                     || host == "::1"
                     || host.starts_with("100.") // Tailscale CGNAT — WireGuard-encrypted
-                    || host.starts_with("10.");  // LAN — acceptable for self-hosted
+                    || host.starts_with("10."); // LAN — acceptable for self-hosted
                 if is_local {
                     tracing::info!(
                         service = %service,
@@ -489,7 +484,8 @@ fn warn_if_insecure_url(service: &str, url: &str) {
                 && !host.starts_with("100.") // Tailscale CGNAT
                 && !host.starts_with("10.")  // Private LAN
                 && !host.starts_with("192.168.") // Private LAN
-                && !is_rfc1918_172(host)     // Private LAN (172.16.0.0/12)
+                && !is_rfc1918_172(host)
+            // Private LAN (172.16.0.0/12)
             {
                 tracing::warn!(
                     service = %service,
@@ -591,9 +587,11 @@ pub async fn start(
     let restored_session = {
         sqlx::query("CREATE TABLE IF NOT EXISTS _dev_session (id INTEGER PRIMARY KEY, data TEXT NOT NULL, created_at INTEGER NOT NULL)")
             .execute(&db).await.ok();
-        let row: Option<(String, i64)> = sqlx::query_as(
-            "SELECT data, created_at FROM _dev_session WHERE id = 1"
-        ).fetch_optional(&db).await.unwrap_or(None);
+        let row: Option<(String, i64)> =
+            sqlx::query_as("SELECT data, created_at FROM _dev_session WHERE id = 1")
+                .fetch_optional(&db)
+                .await
+                .unwrap_or(None);
         match row {
             Some((data, created_at)) => {
                 let now = std::time::SystemTime::now()
@@ -611,7 +609,10 @@ pub async fn start(
                     }
                 } else {
                     tracing::info!("dev session expired (>24h) — login required");
-                    sqlx::query("DELETE FROM _dev_session").execute(&db).await.ok();
+                    sqlx::query("DELETE FROM _dev_session")
+                        .execute(&db)
+                        .await
+                        .ok();
                     None
                 }
             }
@@ -646,7 +647,9 @@ pub async fn start(
     });
 
     // Create gateway WS client if OpenClaw is configured
-    let gateway_ws = openclaw.as_ref().map(|_| crate::gateway_ws::GatewayWsClient::new());
+    let gateway_ws = openclaw
+        .as_ref()
+        .map(|_| crate::gateway_ws::GatewayWsClient::new());
 
     let state = AppState {
         app: app_handle,
@@ -701,11 +704,15 @@ pub async fn start(
     // Resolve bind address before state is moved into the router.
     // Default: 127.0.0.1 (localhost only). Set MC_BIND_HOST to "0.0.0.0"
     // or a specific Tailscale IP to expose the API to the tailnet.
-    let bind_host = state.secret("MC_BIND_HOST")
+    let bind_host = state
+        .secret("MC_BIND_HOST")
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "127.0.0.1".to_string());
     let bind_ip: std::net::IpAddr = bind_host.parse().unwrap_or_else(|_| {
-        tracing::warn!("Invalid MC_BIND_HOST '{}', falling back to 127.0.0.1", bind_host);
+        tracing::warn!(
+            "Invalid MC_BIND_HOST '{}', falling back to 127.0.0.1",
+            bind_host
+        );
         std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)
     });
 
@@ -725,21 +732,29 @@ pub async fn start(
         .layer(DefaultBodyLimit::max(10 * 1024 * 1024)) // 10 MB
         .layer(middleware::from_fn(no_store_api_responses))
         .layer(middleware::from_fn(rate_limit))
-        .layer(middleware::from_fn_with_state(state.clone(), inject_session))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            inject_session,
+        ))
         .layer(middleware::from_fn(request_logger))
         .layer(middleware::from_fn(api_key_auth))
-        .layer(CorsLayer::new()
-            .allow_origin(AllowOrigin::predicate(|origin: &HeaderValue, _| {
-                if let Ok(s) = origin.to_str() {
-                    s.starts_with("http://localhost:") || s.starts_with("http://127.0.0.1:")
-                        || s == "http://localhost" || s == "http://127.0.0.1"
-                        || s.starts_with("tauri://") || s.starts_with("https://tauri.localhost")
-                } else {
-                    false
-                }
-            }))
-            .allow_methods(Any)
-            .allow_headers(Any))
+        .layer(
+            CorsLayer::new()
+                .allow_origin(AllowOrigin::predicate(|origin: &HeaderValue, _| {
+                    if let Ok(s) = origin.to_str() {
+                        s.starts_with("http://localhost:")
+                            || s.starts_with("http://127.0.0.1:")
+                            || s == "http://localhost"
+                            || s == "http://127.0.0.1"
+                            || s.starts_with("tauri://")
+                            || s.starts_with("https://tauri.localhost")
+                    } else {
+                        false
+                    }
+                }))
+                .allow_methods(Any)
+                .allow_headers(Any),
+        )
         // Outermost layer: reject requests that take >30s to produce a response.
         // Mitigates slowloris-style attacks. SSE and WebSocket routes are unaffected
         // because they send the initial HTTP response (200/101) immediately — the
@@ -790,7 +805,11 @@ async fn inject_session(
                 "session expired (24h) — forcing re-login"
             );
             *state.session.write().await = None;
-            return (StatusCode::UNAUTHORIZED, "Session expired — please log in again").into_response();
+            return (
+                StatusCode::UNAUTHORIZED,
+                "Session expired — please log in again",
+            )
+                .into_response();
         }
 
         if sess.expires_at - now < 60 {
@@ -848,30 +867,27 @@ async fn no_store_api_responses(req: Request<Body>, next: Next) -> Response {
         axum::http::header::CACHE_CONTROL,
         "no-store, no-cache, must-revalidate".parse().unwrap(),
     );
-    response.headers_mut().insert(
-        axum::http::header::PRAGMA,
-        "no-cache".parse().unwrap(),
-    );
-    response.headers_mut().insert(
-        "x-content-type-options",
-        "nosniff".parse().unwrap(),
-    );
-    response.headers_mut().insert(
-        "referrer-policy",
-        "no-referrer".parse().unwrap(),
-    );
-    response.headers_mut().insert(
-        "x-frame-options",
-        "DENY".parse().unwrap(),
-    );
+    response
+        .headers_mut()
+        .insert(axum::http::header::PRAGMA, "no-cache".parse().unwrap());
+    response
+        .headers_mut()
+        .insert("x-content-type-options", "nosniff".parse().unwrap());
+    response
+        .headers_mut()
+        .insert("referrer-policy", "no-referrer".parse().unwrap());
+    response
+        .headers_mut()
+        .insert("x-frame-options", "DENY".parse().unwrap());
     response.headers_mut().insert(
         "permissions-policy",
-        "camera=(), microphone=(), geolocation=(), payment=()".parse().unwrap(),
+        "camera=(), microphone=(), geolocation=(), payment=()"
+            .parse()
+            .unwrap(),
     );
-    response.headers_mut().insert(
-        "cross-origin-opener-policy",
-        "same-origin".parse().unwrap(),
-    );
+    response
+        .headers_mut()
+        .insert("cross-origin-opener-policy", "same-origin".parse().unwrap());
     response
 }
 
@@ -899,16 +915,12 @@ async fn request_logger(req: Request<Body>, next: Next) -> Response {
 /// Paths exempt from API key authentication.
 /// All `/api/auth/*` routes are exempt because auth endpoints handle their
 /// own authentication internally (session checks, password verification, etc.).
-const AUTH_EXEMPT_PATHS: &[&str] = &[
-    "/api/health",
-];
+const AUTH_EXEMPT_PATHS: &[&str] = &["/api/health"];
 
 /// Path prefixes exempt from API key authentication.
 /// Note: "/api/wizard/" endpoints are NOT exempt -- they require X-API-Key
 /// but not RequireAuth (no user session needed during setup wizard).
-const AUTH_EXEMPT_PREFIXES: &[&str] = &[
-    "/api/auth/",
-];
+const AUTH_EXEMPT_PREFIXES: &[&str] = &["/api/auth/"];
 
 // ---------------------------------------------------------------------------
 // Per-user rate limiting
@@ -976,7 +988,13 @@ async fn rate_limit(req: Request<Body>, next: Next) -> Response {
         .extensions()
         .get::<UserSession>()
         .map(|s| format!("user:{}", s.user_id))
-        .unwrap_or_else(|| format!("ip:{}:{}", req.uri().path(), req.uri().host().unwrap_or("unknown")));
+        .unwrap_or_else(|| {
+            format!(
+                "ip:{}:{}",
+                req.uri().path(),
+                req.uri().host().unwrap_or("unknown")
+            )
+        });
 
     // Choose category and limit
     // Session polling is frequent (every 2s during OAuth) — never rate-limit it
@@ -1023,7 +1041,9 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
 
     // Skip auth for exempt paths and resource paths (images, avatars, attachments)
     if AUTH_EXEMPT_PATHS.contains(&path)
-        || AUTH_EXEMPT_PREFIXES.iter().any(|prefix| path.starts_with(prefix))
+        || AUTH_EXEMPT_PREFIXES
+            .iter()
+            .any(|prefix| path.starts_with(prefix))
     {
         return next.run(req).await;
     }
@@ -1045,7 +1065,11 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
         Some(k) if !k.is_empty() => k.as_str(),
         _ => {
             // No API key configured — reject all requests (keychain unavailable)
-            return (StatusCode::SERVICE_UNAVAILABLE, "Service unavailable: API key not configured").into_response();
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "Service unavailable: API key not configured",
+            )
+                .into_response();
         }
     };
 
@@ -1064,7 +1088,13 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
 
     // WebSocket connections can't send custom headers — check query parameter
     // e.g. ws://127.0.0.1:3000/api/chat/ws?apiKey=...
-    if req.headers().get("upgrade").and_then(|v| v.to_str().ok()).map(|v| v.eq_ignore_ascii_case("websocket")).unwrap_or(false) {
+    if req
+        .headers()
+        .get("upgrade")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.eq_ignore_ascii_case("websocket"))
+        .unwrap_or(false)
+    {
         if let Some(query) = req.uri().query() {
             for pair in query.split('&') {
                 if let Some(val) = pair.strip_prefix("apiKey=") {
@@ -1073,7 +1103,9 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
                     }
                     // Also check stable agent key for WebSocket connections
                     if let Some(agent_key) = MC_AGENT_KEY.get() {
-                        if !agent_key.is_empty() && val.as_bytes().ct_eq(agent_key.as_bytes()).into() {
+                        if !agent_key.is_empty()
+                            && val.as_bytes().ct_eq(agent_key.as_bytes()).into()
+                        {
                             return next.run(req).await;
                         }
                     }
@@ -1091,7 +1123,11 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
         }
     }
 
-    (StatusCode::UNAUTHORIZED, "Unauthorized: invalid or missing API key").into_response()
+    (
+        StatusCode::UNAUTHORIZED,
+        "Unauthorized: invalid or missing API key",
+    )
+        .into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -1135,7 +1171,10 @@ async fn db_cleanup(db: &sqlx::SqlitePool) {
         .await;
     match res {
         Ok(r) if r.rows_affected() > 0 => {
-            tracing::info!("cleanup: purged {} stale api_cache entries", r.rows_affected());
+            tracing::info!(
+                "cleanup: purged {} stale api_cache entries",
+                r.rows_affected()
+            );
         }
         Err(e) => tracing::warn!("cleanup: api_cache purge failed: {e}"),
         _ => {}
@@ -1149,21 +1188,26 @@ async fn db_cleanup(db: &sqlx::SqlitePool) {
     .await;
     match res {
         Ok(r) if r.rows_affected() > 0 => {
-            tracing::info!("cleanup: purged {} old _sync_log entries", r.rows_affected());
+            tracing::info!(
+                "cleanup: purged {} old _sync_log entries",
+                r.rows_affected()
+            );
         }
         Err(e) => tracing::warn!("cleanup: _sync_log purge failed: {e}"),
         _ => {}
     }
 
     // 3. Purge old _conflict_log entries older than 30 days
-    let res = sqlx::query(
-        "DELETE FROM _conflict_log WHERE created_at < unixepoch() - (30 * 86400)",
-    )
-    .execute(db)
-    .await;
+    let res =
+        sqlx::query("DELETE FROM _conflict_log WHERE created_at < unixepoch() - (30 * 86400)")
+            .execute(db)
+            .await;
     match res {
         Ok(r) if r.rows_affected() > 0 => {
-            tracing::info!("cleanup: purged {} old _conflict_log entries", r.rows_affected());
+            tracing::info!(
+                "cleanup: purged {} old _conflict_log entries",
+                r.rows_affected()
+            );
         }
         Err(e) => tracing::warn!("cleanup: _conflict_log purge failed: {e}"),
         _ => {}
@@ -1201,21 +1245,40 @@ async fn db_cleanup(db: &sqlx::SqlitePool) {
     .await;
     match res {
         Ok(r) if r.rows_affected() > 0 => {
-            tracing::info!("cleanup: hard-deleted {} soft-deleted cache entries", r.rows_affected());
+            tracing::info!(
+                "cleanup: hard-deleted {} soft-deleted cache entries",
+                r.rows_affected()
+            );
         }
         Err(e) => tracing::warn!("cleanup: cache soft-delete purge failed: {e}"),
         _ => {}
     }
 
     // 6. Purge old security_events (>90 days)
-    let _ = sqlx::query("DELETE FROM security_events WHERE created_at < datetime('now', '-90 days')")
-        .execute(db)
-        .await;
+    let _ =
+        sqlx::query("DELETE FROM security_events WHERE created_at < datetime('now', '-90 days')")
+            .execute(db)
+            .await;
 
     // 7. Purge old audit_log entries (>90 days)
     let _ = sqlx::query("DELETE FROM audit_log WHERE created_at < datetime('now', '-90 days')")
         .execute(db)
         .await;
+
+    // 8. Purge old MemD audit events (>180 days)
+    let res = sqlx::query("DELETE FROM memd_audit WHERE created_at < datetime('now', '-180 days')")
+        .execute(db)
+        .await;
+    match res {
+        Ok(r) if r.rows_affected() > 0 => {
+            tracing::info!(
+                "cleanup: purged {} old memd_audit entries",
+                r.rows_affected()
+            );
+        }
+        Err(e) => tracing::warn!("cleanup: memd_audit purge failed: {e}"),
+        _ => {}
+    }
 }
 
 #[cfg(test)]
@@ -1357,8 +1420,14 @@ mod tests {
     #[tokio::test]
     async fn verify_connection_security_with_urls() {
         let mut secrets = std::collections::HashMap::new();
-        secrets.insert("SUPABASE_URL".to_string(), "http://localhost:8000".to_string());
-        secrets.insert("BLUEBUBBLES_HOST".to_string(), "http://100.64.0.3:1234".to_string());
+        secrets.insert(
+            "SUPABASE_URL".to_string(),
+            "http://localhost:8000".to_string(),
+        );
+        secrets.insert(
+            "BLUEBUBBLES_HOST".to_string(),
+            "http://100.64.0.3:1234".to_string(),
+        );
         verify_connection_security(&secrets).await;
     }
 

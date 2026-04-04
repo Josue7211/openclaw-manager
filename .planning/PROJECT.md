@@ -53,6 +53,8 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 
 - [ ] Verify and fix every page/widget with real data end-to-end
 - [ ] Fix remaining UI bugs, broken loaders, and error states
+- [ ] Split AgentShell, agent secrets, and MemD into separate branches with one PR per workstream
+- [ ] Define MemD explicitly before implementation so the durable-memory layer stays scoped and reviewable
 
 ### Out of Scope
 
@@ -74,6 +76,20 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 - Session output streaming (gateway events → SSE → frontend live token display)
 
 **Status:** In progress
+
+## Next Milestone: v0.0.7 — AgentShell, Agent Secrets, and MemD
+
+**Goal:** Split the next platform work into clean branches so MemD can become the AI brain, while AgentShell hardening and scoped agent secrets stay as explicit capability and safety layers around it.
+
+**Target features:**
+- MemD as the durable-memory / context brain for assistant workflows
+- AgentShell typed adapter contract, launch flow, and safety hardening
+- Scoped agent secrets with audit, rotation, masking, and UI
+- End-to-end verification and production build hardening across all three surfaces
+
+**Branch plan:**
+- One branch per workstream: MemD, AgentShell, agent secrets, and final integration/verification
+- Each branch should land with its own tests and reviewable diff
 
 ## Context
 
@@ -128,4 +144,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-24 after v0.0.5 milestone completion*
+*Last updated: 2026-04-04 after roadmap refresh*

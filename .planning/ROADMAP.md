@@ -8,6 +8,7 @@
 - v0.0.4 -- Stabilize & Strip (shipped 2026-03-24) -- [Full details](milestones/v0.0.4-ROADMAP.md)
 - v0.0.5 -- Gateway Protocol v3 (shipped 2026-03-24) -- [Full details](milestones/v0.0.5-ROADMAP.md)
 - v0.0.6 -- Sessions & Chat (in progress)
+- v0.0.7 -- AgentShell, Agent Secrets, and MemD (planned) -- [Full details](milestones/v0.0.7-ROADMAP.md) -- [Requirements](milestones/v0.0.7-REQUIREMENTS.md)
 
 ## Phases
 
@@ -30,6 +31,39 @@
 **Group AI: Resilience & Real-time** *(abort, reconnect, live updates)*
 - [ ] **Phase 97: Chat Abort & Stream Resilience** - Cancel in-progress responses via chat.abort, preserve partial responses on disconnect
 - [ ] **Phase 98: Real-time Session List Updates** - Session list updates live via SSE when sessions are created or messages arrive
+
+### v0.0.7 -- AgentShell, Agent Secrets, and MemD
+
+**Branch plan** *(one branch per workstream; keep PRs small and reviewable)*
+- `feature/memd-brain` - durable memory contract, storage, retrieval, compaction
+- `feature/agentshell-contract` - AgentShell adapter contract, safety validation, approval bridge
+- `feature/agent-secrets` - scoped secret lifecycle, masking, audit, rotation, UI
+- `feature/agent-platform-integration` - end-to-end verification and production build hardening
+**PR order:**
+1. MemD brain contract and storage
+2. AgentShell adapter contract
+3. Agent secrets lifecycle and UI
+4. Cross-system verification and release hardening
+
+**Group AJ: MemD Foundation** *(the AI brain; durable memory, context retrieval, and compaction)*
+- MemD contract draft: [milestones/v0.0.7-MEMD-CONTRACT.md](milestones/v0.0.7-MEMD-CONTRACT.md)
+- [ ] **Phase 99: MemD Contract Definition** - Define persistence, retrieval, retention, and sync boundaries before implementation starts
+- [ ] **Phase 100: MemD Storage & APIs** - Implement the backend surface and frontend consumers for memory access
+- [ ] **Phase 101: MemD UX & Compaction** - Add review, prune, and compaction flows with guard rails for stale context
+
+**Group AK: AgentShell Contract** *(typed adapter, explicit approvals, no secret authority)*
+- [ ] **Phase 102: Typed AgentShell Request Contract** - Validate request payloads, normalize response envelopes, and reject unknown fields before proxying
+- [ ] **Phase 103: AgentShell Launch & Approval Bridge** - Wire the adapter to a safe launch/approval flow with explicit consent and clear user feedback
+- [ ] **Phase 104: AgentShell Safety Hardening** - Enforce allowlists, redaction, timeout handling, and regression tests for the proxy layer
+
+**Group AL: Agent Secrets** *(scoped credentials, auditability, and controlled rotation)*
+- [ ] **Phase 105: Secret Scope Model** - Bind secrets to an agent/service scope instead of a global bucket so access is explicit
+- [ ] **Phase 106: Secret Lifecycle & Audit** - Add rotate/revoke flows, masked logs, and auditable access records
+- [ ] **Phase 107: Secret Management UI** - Expose create/update/delete and permission-aware summaries in Settings
+
+**Group AM: Cross-System Verification** *(ship only after the three surfaces work together)*
+- [ ] **Phase 108: End-to-End Integration** - Verify AgentShell, secrets, and MemD behave correctly in one production build
+- [ ] **Phase 109: Branch & PR Readiness** - Split remaining follow-ups into clean branches, document release order, and run final verification
 
 <details>
 <summary>v0.0.5 -- Gateway Protocol v3 (16 phases) -- SHIPPED 2026-03-24</summary>
@@ -277,7 +311,7 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 91. Session List | v0.0.6 | 0/2 | Complete    | 2026-03-25 |
 | 92. Chat History Display | v0.0.6 | 0/2 | In progress | - |
-| 93. Chat Send with Token Streaming | 1/2 | In Progress|  | - |
+| 93. Chat Send with Token Streaming | v0.0.6 | 1/2 | In Progress | - |
 | 94. Streaming UX Polish | v0.0.6 | 0/0 | Not started | - |
 | 95. Model Picker for New Sessions | v0.0.6 | 0/0 | Not started | - |
 | 96. Session Rename, Delete, Compact | v0.0.6 | 0/2 | Not started | - |
@@ -299,7 +333,18 @@ Plans:
 | 88. Live Crons Tab | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 | 89. Live Usage & Models Tabs | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
 | 90. Live Activity Feed | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+| 99. MemD Contract Definition | v0.0.7 | 0/0 | Not started | - |
+| 100. MemD Storage & APIs | v0.0.7 | 0/0 | Not started | - |
+| 101. MemD UX & Compaction | v0.0.7 | 0/0 | Not started | - |
+| 102. Typed AgentShell Request Contract | v0.0.7 | 0/0 | Not started | - |
+| 103. AgentShell Launch & Approval Bridge | v0.0.7 | 0/0 | Not started | - |
+| 104. AgentShell Safety Hardening | v0.0.7 | 0/0 | Not started | - |
+| 105. Secret Scope Model | v0.0.7 | 0/0 | Not started | - |
+| 106. Secret Lifecycle & Audit | v0.0.7 | 0/0 | Not started | - |
+| 107. Secret Management UI | v0.0.7 | 0/0 | Not started | - |
+| 108. End-to-End Integration | v0.0.7 | 0/0 | Not started | - |
+| 109. Branch & PR Readiness | v0.0.7 | 0/0 | Not started | - |
 
 ---
 *Roadmap created: 2026-03-19*
-*Last updated: 2026-03-25*
+*Last updated: 2026-04-04*

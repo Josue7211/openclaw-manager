@@ -33,7 +33,7 @@ interface SearchResult {
 export default function MemoryPage() {
   const queryClient = useQueryClient()
   const { data: treeData, isLoading: treeLoading } = useQuery<FileTree>({
-    queryKey: ['workspace-files'],
+    queryKey: queryKeys.workspaceFiles,
     queryFn: async () => {
       const d = await api.get<{ coreFiles?: FileItem[]; memoryFiles?: FileItem[] }>('/api/workspace/files')
       return { coreFiles: d.coreFiles || [], memoryFiles: d.memoryFiles || [] }
@@ -132,7 +132,7 @@ export default function MemoryPage() {
       setContent('')
       setEditContent('')
       setMode('view')
-      queryClient.invalidateQueries({ queryKey: ['workspace-files'] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.workspaceFiles })
     },
   })
 

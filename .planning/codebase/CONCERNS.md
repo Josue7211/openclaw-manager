@@ -6,6 +6,7 @@
 
 - `frontend/src/pages/settings/SettingsConnections.tsx` still has some duplicated service metadata relative to `frontend/src/lib/service-registry.ts`.
 - `src-tauri/src/routes/messages.rs` is still a large module and remains the highest-maintenance route file.
+- MemD needs a crisp contract before implementation or the app will accumulate an unversioned "brain cache" with unclear retention and privacy rules.
 - `src-tauri/src/routes/agent_shell.rs` is currently a proxy layer; it still needs typed request validation before it becomes a stable app contract.
 - `src-tauri/src/server.rs` still carries a lot of auth/session responsibility, so auth regressions there affect the whole app.
 
@@ -13,6 +14,7 @@
 
 - Origin and local-host auth assumptions in `src-tauri/src/server.rs` deserve continued review.
 - Secrets must stay out of process environment and browser globals.
+- MemD memory contents must not leak into logs, browser state, or broad session-scoped secrets.
 - CSP and shell allowlists should remain tight because the app loads rich content and remote integrations.
 - AgentShell must never become a second secret authority.
 
@@ -32,5 +34,6 @@
 
 - The core service registry is now centralized.
 - The backend gateway pattern is consistent.
+- MemD can become the main orchestration surface if its contract stays explicit and auditable.
 - AgentShell is isolated as an adapter instead of being embedded into the product runtime.
 - The repo still has strong local-first and secret-minimization boundaries.

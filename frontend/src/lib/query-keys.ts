@@ -15,7 +15,10 @@ export const queryKeys = {
   search: (q: string) => ['search', q] as const,
   capture: ['capture'] as const,
   knowledge: ['knowledge'] as const,
-  memory: ['workspace-files'] as const,
+  // MemD memory entries (new memory system).
+  memory: ['memd', 'entries'] as const,
+  // Workspace file tree (file-browser UI).
+  workspaceFiles: ['workspace-files'] as const,
   ideas: (status?: string) => ['ideas', status] as const,
   missionEvents: (id: string) => ['mission-events', id] as const,
   chatHistory: ['chat', 'history'] as const,

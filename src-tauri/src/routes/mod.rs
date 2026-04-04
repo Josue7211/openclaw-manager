@@ -3,6 +3,7 @@ use axum::{routing::get, Json, Router};
 use serde_json::{json, Value};
 
 pub mod agent_shell;
+pub mod agent_shell_support;
 pub mod agents;
 pub mod approvals;
 pub mod auth;
@@ -22,9 +23,11 @@ pub mod gateway;
 pub mod gateway_events;
 pub mod homelab;
 pub mod ideas;
+pub mod jobs;
 // pub mod koel; // removed: file does not exist (stripped in prior phase)
 pub mod knowledge;
 pub mod media;
+pub mod memd;
 pub mod memory;
 pub mod messages;
 pub mod missions;
@@ -74,7 +77,9 @@ pub fn router() -> Router<AppState> {
         .merge(changelog::router())
         .merge(crons::router())
         .merge(ideas::router())
+        .merge(jobs::router())
         // .merge(koel::router()) // removed: module does not exist
+        .nest("/memd", memd::router())
         .merge(memory::router())
         .merge(search::router())
         .merge(workflow_notes::router())
