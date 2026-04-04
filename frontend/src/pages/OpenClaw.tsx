@@ -4,6 +4,7 @@ import { Robot, CaretLeft, CaretRight, Plus } from '@phosphor-icons/react'
 import { createPortal } from 'react-dom'
 import { api } from '@/lib/api'
 import { PageHeader } from '@/components/PageHeader'
+import { GatewayStatusDot } from '@/components/GatewayStatusDot'
 import { Button } from '@/components/ui/Button'
 import { SkeletonList } from '@/components/Skeleton'
 // Agent sub-components
@@ -29,8 +30,9 @@ import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 const UsageTab = lazy(() => import('./openclaw/UsageTab'))
 const ModelsTab = lazy(() => import('./openclaw/ModelsTab'))
 const ToolsTab = lazy(() => import('./openclaw/ToolsTab'))
+const SkillsTab = lazy(() => import('./openclaw/SkillsTab'))
 
-type TabKey = 'agents' | 'crons' | 'usage' | 'models' | 'tools'
+type TabKey = 'agents' | 'crons' | 'usage' | 'models' | 'tools' | 'skills'
 
 const tabDefs: { key: TabKey; label: string }[] = [
   { key: 'agents', label: 'Agents' },
@@ -38,6 +40,7 @@ const tabDefs: { key: TabKey; label: string }[] = [
   { key: 'usage', label: 'Usage' },
   { key: 'models', label: 'Models' },
   { key: 'tools', label: 'Tools' },
+  { key: 'skills', label: 'Skills' },
 ]
 
 function SectionFallback() {
@@ -375,7 +378,10 @@ export default function OpenClawPage() {
         flexShrink: 0,
         borderBottom: '1px solid var(--border)',
       }}>
-        <PageHeader defaultTitle="OpenClaw" defaultSubtitle="agent management, usage & tools" />
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <PageHeader defaultTitle="OpenClaw" defaultSubtitle="agent management, usage & tools" />
+          <GatewayStatusDot showLabel size={8} />
+        </div>
         <div style={{
           display: 'flex', gap: '2px', marginTop: '12px',
           background: 'var(--bg-white-03)', borderRadius: '10px',
@@ -420,6 +426,11 @@ export default function OpenClawPage() {
         {tab === 'tools' && (
           <Suspense fallback={<SectionFallback />}>
             <ToolsTab healthy={healthy} />
+          </Suspense>
+        )}
+        {tab === 'skills' && (
+          <Suspense fallback={<SectionFallback />}>
+            <SkillsTab healthy={healthy} />
           </Suspense>
         )}
       </div>

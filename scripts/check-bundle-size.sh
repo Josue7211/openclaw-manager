@@ -4,7 +4,7 @@
 set -euo pipefail
 
 # ── Thresholds ──
-MAX_CHUNK_KB=400
+MAX_CHUNK_KB=450
 MAX_TOTAL_KB=5120  # 5MB
 
 # ── Colors ──

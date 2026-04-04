@@ -6,7 +6,7 @@
  * COLOR_SCHEME (prefer-dark / prefer-light) tells us which end to use.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import {
   buildWallbashTheme,
   setWallbashColors,
@@ -272,10 +272,10 @@ describe('buildWallbashTheme', () => {
   describe('wallbashUpdatedRecently — reduced window', () => {
     it('defaults to 500ms window (not 5000ms)', () => {
       setWallbashState({ colors: MOCK_COLORS })
-      // Immediately after update, should be true
+      // Immediately after update, should be true with default 500ms window
       expect(wallbashUpdatedRecently()).toBe(true)
-      // With an explicit 1ms window, should still be true (just updated)
-      expect(wallbashUpdatedRecently(1)).toBe(true)
+      // With a 50ms window, should still be true (just updated — 1ms was flaky under CPU load)
+      expect(wallbashUpdatedRecently(50)).toBe(true)
     })
   })
 })

@@ -12,10 +12,12 @@ const PURIFY_CONFIG: Config = {
     'span', 'div', 'img',
     'table', 'thead', 'tbody', 'tr', 'th', 'td',
     'hr', 'del', 's', 'sub', 'sup',
+    'button',
   ],
   ALLOWED_ATTR: [
     'href', 'target', 'rel', 'src', 'alt', 'title',
     'class', 'id', 'width', 'height', 'colspan', 'rowspan',
+    'aria-label',
   ],
   ALLOW_DATA_ATTR: false,
   ADD_ATTR: ['target'],

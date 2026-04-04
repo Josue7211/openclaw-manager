@@ -26,13 +26,15 @@ const Email = lazy(() => import('./pages/Email'))
 const HomeLab = lazy(() => import('./pages/HomeLab'))
 const MediaRadar = lazy(() => import('./pages/MediaRadar'))
 const Missions = lazy(() => import('./pages/Missions'))
-const Agents = lazy(() => import('./pages/Agents'))
 const Memory = lazy(() => import('./pages/Memory'))
-const CronJobs = lazy(() => import('./pages/CronJobs'))
 const OpenClaw = lazy(() => import('./pages/OpenClaw'))
 const Pipeline = lazy(() => import('./pages/Pipeline'))
 const KnowledgeBase = lazy(() => import('./pages/KnowledgeBase'))
 const Notes = lazy(() => import('./pages/notes/Notes'))
+const Sessions = lazy(() => import('./pages/sessions/SessionsPage'))
+const RemoteViewer = lazy(() => import('./pages/remote/RemotePage'))
+const Approvals = lazy(() => import('./pages/approvals/ApprovalsPage'))
+const Activity = lazy(() => import('./pages/activity/ActivityPage'))
 const Ideas = lazy(() => import('./pages/Ideas'))
 const Capture = lazy(() => import('./pages/Capture'))
 const Settings = lazy(() => import('./pages/Settings'))
@@ -70,6 +72,20 @@ if (window.__TAURI_INTERNALS__) {
 if (window.__TAURI_INTERNALS__) {
   import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
     getCurrentWindow().setDecorations(false)
+  })
+}
+
+// Prevent Tauri plugin/IPC errors from surfacing as WebKitGTK error overlays.
+// All Tauri IPC calls below have explicit .catch() handlers; this catches
+// any errors that escape those handlers (e.g., plugin init failures,
+// missing optional binaries like the stale "ffir" sidecar reference).
+if (window.__TAURI_INTERNALS__) {
+  window.addEventListener('unhandledrejection', (event) => {
+    const msg = event.reason?.message || String(event.reason)
+    if (msg.includes('Executable') || msg.includes('not found') || msg.includes('plugin')) {
+      console.debug('[Tauri] Suppressed non-critical error:', msg)
+      event.preventDefault()
+    }
   })
 }
 
@@ -299,6 +315,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/pipeline" element={<Suspense fallback={<GenericPageSkeleton />}><Pipeline /></Suspense>} />
             <Route path="/knowledge" element={<Suspense fallback={<GenericPageSkeleton />}><KnowledgeBase /></Suspense>} />
             <Route path="/notes" element={<Suspense fallback={<GenericPageSkeleton />}><Notes /></Suspense>} />
+            <Route path="/sessions" element={<Suspense fallback={<GenericPageSkeleton />}><Sessions /></Suspense>} />
+            <Route path="/remote" element={<Suspense fallback={<GenericPageSkeleton />}><RemoteViewer /></Suspense>} />
+            <Route path="/approvals" element={<Suspense fallback={<GenericPageSkeleton />}><Approvals /></Suspense>} />
+            <Route path="/activity" element={<Suspense fallback={<GenericPageSkeleton />}><Activity /></Suspense>} />
             <Route path="/ideas" element={<Suspense fallback={<GenericPageSkeleton />}><Ideas /></Suspense>} />
             <Route path="/capture" element={<Suspense fallback={<GenericPageSkeleton />}><Capture /></Suspense>} />
             <Route path="/settings" element={<Suspense fallback={<SettingsSkeleton />}><Settings /></Suspense>} />

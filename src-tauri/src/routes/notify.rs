@@ -36,7 +36,7 @@ fn is_private_or_loopback(ip: &IpAddr) -> bool {
             // Unique local fc00::/7
             || (v6.segments()[0] & 0xfe00) == 0xfc00
             // IPv4-mapped ::ffff:0:0/96 — check the embedded v4 address
-            || v6.to_ipv4_mapped().map_or(false, |v4| is_private_or_loopback(&IpAddr::V4(v4)))
+            || v6.to_ipv4_mapped().is_some_and(|v4| is_private_or_loopback(&IpAddr::V4(v4)))
         }
     }
 }

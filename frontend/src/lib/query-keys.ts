@@ -15,7 +15,10 @@ export const queryKeys = {
   search: (q: string) => ['search', q] as const,
   capture: ['capture'] as const,
   knowledge: ['knowledge'] as const,
-  memory: ['workspace-files'] as const,
+  // MemD memory entries (new memory system).
+  memory: ['memd', 'entries'] as const,
+  // Workspace file tree (file-browser UI).
+  workspaceFiles: ['workspace-files'] as const,
   ideas: (status?: string) => ['ideas', status] as const,
   missionEvents: (id: string) => ['mission-events', id] as const,
   chatHistory: ['chat', 'history'] as const,
@@ -35,4 +38,13 @@ export const queryKeys = {
   openclawUsage: ['openclaw', 'usage'] as const,
   openclawModels: ['openclaw', 'models'] as const,
   openclawTools: ['openclaw', 'tools'] as const,
+  gatewaySessions: ['gateway', 'sessions'] as const,
+  sessionHistory: (key: string) => ['session-history', key] as const,
+  claudeSessions: ['claude-sessions'] as const,
+  gatewayEvents: ['gateway', 'events'] as const,
+  gatewayActivity: ['gateway', 'activity'] as const,
+  memorySearch: (q: string) => ['memory-search', q] as const,
+  approvals: ['approvals'] as const,
+  openclawSkills: ['openclaw', 'skills'] as const,
+  vncStatus: ['vnc', 'status'] as const,
 } as const

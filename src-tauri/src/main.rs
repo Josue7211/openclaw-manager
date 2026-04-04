@@ -6,6 +6,7 @@ pub mod crypto;
 mod fonts;
 mod db;
 mod error;
+pub mod gateway_ws;
 pub mod gotrue;
 mod logging;
 mod redact;

@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.0.3
-milestone_name: -- AI Ops Center + OpenClaw Controller + Polish
+milestone: v1.0
+milestone_name: milestone
 status: unknown
-stopped_at: Completed 12-02-PLAN.md (verified and recovered from NFS corruption)
-last_updated: "2026-03-22T22:37:45.154Z"
+stopped_at: Completed 93-01-PLAN.md (chat send route)
+last_updated: "2026-03-25T04:00:11.657Z"
 progress:
-  total_phases: 19
-  completed_phases: 8
-  total_plans: 11
-  completed_plans: 11
+  total_phases: 8
+  completed_phases: 3
+  total_plans: 8
+  completed_plans: 7
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
-**Current focus:** Phase 12 complete — unified OpenClaw page with 5 tabs shipped
+**Current focus:** Phase 93 — chat-send-token-streaming
 
 ## Current Position
 
-Phase: 13
-Plan: Not started
+Phase: 93 (chat-send-token-streaming) — EXECUTING
+Plan: 1 of 2
 
 ## Performance Metrics
 
@@ -48,6 +48,8 @@ Plan: Not started
 | Phase 11 P02 | 5min | 2 tasks | 5 files |
 | Phase 12 P01 | 4min | 2 tasks | 7 files |
 | Phase 12 P02 | 12min | 3 tasks | 9 files |
+| Phase 91 P01 | 7min | 2 tasks | 6 files |
+| Phase 93 P01 | 2 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -78,12 +80,18 @@ Recent decisions affecting current work:
 - [Phase 12]: Index signatures on TypeScript interfaces for forward-compatible unknown API shapes
 - [Phase 12]: Embedded sub-components (AgentList, WeekGrid) instead of importing full pages to avoid full-bleed layout conflicts
 - [Phase 12]: Replaced separate agents/crons module entries with single openclaw entry
+- [Phase 91]: HTTP proxy (gateway_forward) over WS RPC for sessions.list — WS request() method not available in this codebase state
+- [Phase 91]: Gateway-only sessions hook — removed two-tier fallback (gateway + CLI), no source field in return type
+- [Phase 91]: ClaudeSession uses key/label/agentKey/messageCount/lastActivity — matches real OpenClaw protocol v3
+- [Phase 93]: Session key optional in chat.send: absent/null starts new session, present key must be non-empty and <=100 chars
+- [Phase 93]: 5xx gateway errors remapped to BadRequest with generic message — same pattern as all other gateway handlers
 
 ### Pending Todos
 
 - Resolve SSH passphrase key issue for terminal (Phase 13)
 - Research Claude Code SDK/CLI spawning for Phase 15
 - Research noVNC + Moonlight integration for Phase 17
+- Bitwarden/browser login workflow for Job Hunter screenshots and manual review
 
 ### Blockers/Concerns
 
@@ -93,6 +101,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-22T22:35:00Z
-Stopped at: Completed 12-02-PLAN.md (verified and recovered from NFS corruption)
+Last session: 2026-03-25T04:00:11.656Z
+Stopped at: Completed 93-01-PLAN.md (chat send route)
 Resume file: None

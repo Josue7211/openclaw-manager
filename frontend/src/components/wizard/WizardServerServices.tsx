@@ -53,7 +53,7 @@ const cardStyle: React.CSSProperties = {
 // Main component
 // ---------------------------------------------------------------------------
 
-export const WizardServerServices = React.memo(function WizardServerServices() {
+const WizardServerServices = React.memo(function WizardServerServices() {
   const wizard = useWizardState()
   const [showPassword, setShowPassword] = useState(false)
   const [testPassed, setTestPassed] = useState(false)
@@ -165,3 +165,5 @@ export const WizardServerServices = React.memo(function WizardServerServices() {
     </div>
   )
 })
+
+export default WizardServerServices

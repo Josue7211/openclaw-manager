@@ -38,16 +38,24 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 - ✓ Bjorn AI module builder — natural language → sandboxed preview → approve → dashboard with hot-reload — v1.0
 - ✓ Data export — Supabase JSON, SQLite backup, notes markdown from Settings — v1.0
 
+- ✓ Strip dead/unused code, components, routes, and imports — v0.0.4
+- ✓ Remove deferred feature stubs (TipTap, Project Tracker) — v0.0.4 (verified never scaffolded)
+- ✓ Harden test coverage for v0.0.3 features — v0.0.4 (68 new hook tests + 117 smoke tests)
+- ✓ TypeScript strict flags (noUnusedLocals/noUnusedParameters) — v0.0.4
+- ✓ Dev workflow fixes (browser mode auth, error toasts) — v0.0.4
+
+- ✓ Protocol v3 handshake with device identity and reconnect — v0.0.5
+- ✓ All 9 wrong RPC method names corrected — v0.0.5
+- ✓ SSE event bus wired to gateway WebSocket events — v0.0.5
+- ✓ Live data verification for agents, crons, usage, models, activity — v0.0.5
+
 ### Active
 
-- [ ] Notes overhaul — wiki-style [[linking]] with backlinks and graph view
-- [ ] Notes overhaul — rich text WYSIWYG editing (toolbar, inline images, tables, code blocks)
-- [ ] Notes overhaul — full-text search, tags, folders, starred notes
-- [ ] Notes overhaul — collaboration (sharing, permissions, real-time co-editing)
-- [ ] Finance / budgeting module
-- [ ] Health / fitness module
-- [ ] Bookmarks / read-later module
-- [ ] Simplified setup for non-technical users (cloud setup path)
+- [ ] Establish the branch-split / PR workflow as the first v0.0.7 workstream so every follow-up lands as a reviewable topic branch
+- [ ] Verify and fix every page/widget with real data end-to-end
+- [ ] Fix remaining UI bugs, broken loaders, and error states
+- [ ] Split AgentShell, agent secrets, and MemD into separate branches with one PR per workstream
+- [ ] Define MemD explicitly before implementation so the durable-memory layer stays scoped and reviewable
 
 ### Out of Scope
 
@@ -56,26 +64,46 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 - Real-time chat (non-iMessage) — defer to Matrix integration later
 - Video posts / media hosting — storage/bandwidth concerns, defer
 
-## Current Milestone: v0.0.3 — AI Ops Center + OpenClaw Controller + Polish
+## Current Milestone: v0.0.6 — Sessions & Chat
 
-**Goal:** Transform Mission Control into an AI operations center — spawn and monitor Claude Code sessions, view the OpenClaw VM remotely, manage agents and crons, add theme blend slider, embedded terminal, and fix widget bugs. TipTap editor and project tracker deferred to v0.0.4.
+**Goal:** Full session management with proper chat.send/history/abort methods, live streaming responses, model selection per session.
 
 **Target features:**
-- Fix all widget system bugs (resize, tab switch, layout, picker state, animations)
-- Full OpenClaw gateway control (agent management, cron CRUD, usage tracking, terminal, memory)
-- Theme blend slider (continuous dark↔light interpolation)
-- Claude Code session management (spawn, monitor, control coding sessions from the app)
-- Session monitor dashboard (who's working, what they're doing, live output)
-- Remote VM viewer (noVNC/Moonlight for watching the OpenClaw VM desktop)
-- Embedded terminal widget (local PTY with xterm.js)
+- Sessions CRUD (list, create via chat.send, patch label, delete, compact)
+- Chat history retrieval (chat.history with sessionKey, paginated)
+- Chat send with live streaming (chat.send with deliver flag, SSE token stream)
+- Chat abort (cancel in-progress agent responses)
+- Model selection per session (models.list → picker in new session form)
+- Session output streaming (gateway events → SSE → frontend live token display)
+
+**Status:** In progress
+
+## Next Milestone: v0.0.7 — AgentShell, Agent Secrets, and MemD
+
+**Goal:** Split the next platform work into clean branches so the repo is open-source ready, MemD can become the AI brain, and AgentShell hardening plus scoped agent secrets stay as explicit capability and safety layers around it.
+
+**Target features:**
+- MemD as the durable-memory / context brain for assistant workflows
+- AgentShell typed adapter contract, launch flow, and safety hardening
+- Scoped agent secrets with audit, rotation, masking, and UI
+- End-to-end verification and production build hardening across all three surfaces
+- Repo-level PR workflow, branch split discipline, and autonomous execution runbook
+
+**Branch plan:**
+- One branch per workstream: repo/PR ops, MemD, AgentShell, agent secrets, and final integration/verification
+- Each branch should land with its own tests and reviewable diff
 
 ## Context
 
 **v1.0 shipped 2026-03-21.** Publishable release with 11 phases, 92 requirements, full cross-platform support.
 
-**v0.0.2 shipped 2026-03-22.** Widget-first architecture: 28 registered widgets, 23 kernel hooks, DashboardDataContext removed, Home page as widget grid, 7 dashboard presets, category tabs in Widget Picker, notes formatting toolbar + wikilink autocomplete + backlinks panel, Discord-style status bar, activity feed widget, quick capture widget, clock + system info widgets. All widgets fetch data independently via React Query with SSE invalidation.
+**v0.0.2 shipped 2026-03-22.** Widget-first architecture: 28 registered widgets, 23 kernel hooks, DashboardDataContext removed, Home page as widget grid, 7 dashboard presets, category tabs in Widget Picker, notes formatting toolbar + wikilink autocomplete + backlinks panel, Discord-style status bar, activity feed widget, quick capture widget, clock + system info widgets.
 
-**Post-v0.0.2 testing revealed bugs:** widget resize still broken (z-index fix applied but needs verification), pages not filling screen width (fixed), widget picker UX issues (duplicate restriction removed, entry animations added, preset feedback added), tab switching loses widgets (memo deps fixed). OpenClaw gateway has full API surface (agents, crons, sessions, models, memory, tools, config, files, workspace, usage) but MC only uses chat + read-only agent/cron listing.
+**v0.0.3 shipped 2026-03-24.** AI Ops Center: 55 phases across 10 groups — theme blend (OKLCH), OpenClaw controller (agents, crons, usage, models, tools, skills), terminal (PTY + xterm.js), session management (spawn, monitor, history, live output), remote VM viewer (noVNC), gateway WS connection, approvals queue, notes editor overhaul (tables, search, templates, shortcuts, graph view). Built rapidly — many pages use assumed API shapes, not verified against actual gateway protocol.
+
+**v0.0.4 shipped 2026-03-24.** Stabilize & Strip: 19 phases across 6 groups — dev workflow fixes (browser auth, error toasts), backend dead code audit (13 annotations, 3 unused crates, 3 dead routes, 2 nonexistent gateway methods), frontend tooling (knip), frontend dead code strip (82 exports, 97 imports, 2 packages, noVNC removal), TypeScript strict flags, test coverage (68 hook tests), final verification (117 smoke tests across modules/widgets/routes).
+
+**v0.0.5 shipped 2026-03-24.** Gateway Protocol v3: 16 phases across 4 groups — protocol v3 handshake with device identity, exponential backoff reconnect, 9 RPC method corrections (chat, agents, crons, models, usage, tools/skills, activity), SSE event bus wiring (14 event types), agent + session event streaming, live data verification for all OpenClaw tabs (agents, crons, usage, models, activity feed).
 
 The user's vision: the app should feel like Discord meets Google Docs — everything modular and customizable via the widget system, notes as rich as Google Docs leveraging Obsidian, full OpenClaw control center, Apple-quality polish throughout.
 
@@ -118,4 +146,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-22 after v0.0.2 milestone start*
+*Last updated: 2026-04-04 after roadmap refresh*

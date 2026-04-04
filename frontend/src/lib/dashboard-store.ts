@@ -159,7 +159,7 @@ export function setWobbleEnabled(enabled: boolean): void {
   _emit()
 }
 
-export function setDotIndicatorsEnabled(enabled: boolean): void {
+export function _setDotIndicatorsEnabled(enabled: boolean): void {
   _cached = { ..._cached, dotIndicatorsEnabled: enabled }
   _persist()
   _emit()
@@ -236,7 +236,7 @@ export function renamePage(pageId: string, name: string): void {
   _emit()
 }
 
-export function reorderPages(pageIds: string[]): void {
+export function _reorderPages(pageIds: string[]): void {
   _pushUndo()
   const pageMap = new Map(_cached.pages.map(p => [p.id, p]))
   const reordered = pageIds
@@ -432,7 +432,7 @@ export function redoDashboard(): boolean {
   return true
 }
 
-export function resetPageLayout(pageId: string): void {
+export function _resetPageLayout(pageId: string): void {
   _pushUndo()
   _cached = {
     ..._cached,
@@ -444,7 +444,7 @@ export function resetPageLayout(pageId: string): void {
   _emit()
 }
 
-export function resetAllLayouts(): void {
+export function _resetAllLayouts(): void {
   _pushUndo()
   _cached = {
     ..._cached,

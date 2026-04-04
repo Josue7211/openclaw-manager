@@ -8,6 +8,7 @@ import { ErrorState } from '@/components/ui/ErrorState'
 import { useTauriQuery } from '@/hooks/useTauriQuery'
 import { useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { isDemoMode } from '@/lib/demo-data'
 import { PageHeader } from '@/components/PageHeader'
 
 interface Reminder {
@@ -70,15 +71,25 @@ interface RemindersResponse {
   error?: string
 }
 
+const DEMO_REMINDERS: Reminder[] = [
+  { id: 'demo-r1', title: 'Review pull request', completed: false, priority: 1, notes: null, list: 'Work', dueDate: new Date().toISOString().slice(0, 10) },
+  { id: 'demo-r2', title: 'Buy groceries', completed: false, priority: 9, notes: null, list: 'Personal', dueDate: new Date().toISOString().slice(0, 10) },
+  { id: 'demo-r3', title: 'Deploy staging build', completed: false, priority: 5, notes: 'Run integration tests first', list: 'Work', dueDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10) },
+  { id: 'demo-r4', title: 'Update documentation', completed: true, priority: 9, notes: null, list: 'Work', dueDate: null },
+]
+
 export default function RemindersPage() {
-  const { data: remindersData, isLoading: loading, refetch, dataUpdatedAt } = useTauriQuery<RemindersResponse>(
+  const demo = isDemoMode()
+  const { data: remindersData, isLoading: loading, isError: queryError, refetch, dataUpdatedAt } = useTauriQuery<RemindersResponse>(
     ['reminders'],
     '/api/reminders',
+    { enabled: !demo },
   )
 
-  const reminders = remindersData?.reminders ?? []
-  const missingCreds = remindersData?.error === 'missing_credentials'
-  const errorMsg = remindersData?.error && remindersData.error !== 'missing_credentials' ? remindersData.error : null
+  const reminders = demo ? DEMO_REMINDERS : (remindersData?.reminders ?? [])
+  const missingCreds = !demo && remindersData?.error === 'missing_credentials'
+  const errorMsg = !demo && remindersData?.error && remindersData.error !== 'missing_credentials' ? remindersData.error : null
+  const unreachable = !demo && queryError && !remindersData
 
   const [filter, setFilter] = useState<FilterTab>('all')
   const [secondsAgo, setSecondsAgo] = useState(0)
@@ -228,13 +239,35 @@ export default function RemindersPage() {
         ))}
       </div>
 
-      {/* Error */}
+      {/* Error — body-level error from backend */}
       {errorMsg && (
         <ErrorState resource="reminders" onRetry={() => refetch()} />
       )}
 
+      {/* Error — query failed (backend/Mac Bridge unreachable) */}
+      {unreachable && (
+        <div className="card" style={{ padding: '32px', textAlign: 'center' }}>
+          <WarningCircle size={32} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
+          <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>Mac Bridge not reachable</h2>
+          <p style={{ margin: '0 0 16px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            Reminders require the Mac Bridge service running on your Mac.
+            Check that the service is running and the connection is configured in Settings.
+          </p>
+          <button
+            onClick={() => refetch()}
+            style={{
+              background: 'var(--accent)', color: 'var(--text-on-accent)', border: 'none',
+              borderRadius: '8px', padding: '8px 16px', fontSize: '13px', fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Loading */}
-      {loading && (
+      {loading && !unreachable && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} style={{
@@ -247,7 +280,7 @@ export default function RemindersPage() {
       )}
 
       {/* Content */}
-      {!loading && !errorMsg && (
+      {!loading && !errorMsg && !unreachable && (
         <>
           {filtered.length === 0 ? (
             <EmptyState

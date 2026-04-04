@@ -6,6 +6,13 @@ use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
 use crate::validation::validate_uuid;
 
+/// Row type for idea queries (avoids clippy::type_complexity).
+type IdeaRow = (
+    String, String, Option<String>, Option<String>, Option<String>,
+    Option<String>, Option<String>, String, Option<String>, Option<String>,
+    String, String,
+);
+
 /// Build the ideas router (CRUD with auto-mission creation on approval).
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -24,11 +31,7 @@ async fn get_ideas(
     RequireAuth(session): RequireAuth,
     Query(params): Query<IdeasQuery>,
 ) -> Result<Json<Value>, AppError> {
-    let rows: Vec<(
-        String, String, Option<String>, Option<String>, Option<String>,
-        Option<String>, Option<String>, String, Option<String>, Option<String>,
-        String, String,
-    )> = if let Some(ref status) = params.status {
+    let rows: Vec<IdeaRow> = if let Some(ref status) = params.status {
         sqlx::query_as(
             "SELECT id, title, description, why, effort, \
              impact, category, status, priority, mission_id, \
@@ -247,11 +250,7 @@ async fn patch_idea(
     query.execute(&state.db).await?;
 
     // Read back updated row
-    let updated: Option<(
-        String, String, Option<String>, Option<String>, Option<String>,
-        Option<String>, Option<String>, String, Option<String>, Option<String>,
-        String, String,
-    )> = sqlx::query_as(
+    let updated: Option<IdeaRow> = sqlx::query_as(
         "SELECT id, title, description, why, effort, \
          impact, category, status, priority, mission_id, \
          created_at, updated_at \

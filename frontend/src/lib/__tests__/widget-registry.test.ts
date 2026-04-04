@@ -1,3 +1,4 @@
+import React from 'react'
 import { describe, it, expect } from 'vitest'
 import {
   BUILTIN_WIDGETS,
@@ -7,11 +8,11 @@ import {
   getWidgetPresets,
   registerWidget,
 } from '../widget-registry'
-import type { WidgetDefinition } from '../widget-registry'
+import type { WidgetDefinition, WidgetProps } from '../widget-registry'
 
 describe('BUILTIN_WIDGETS', () => {
-  it('has exactly 28 entries', () => {
-    expect(BUILTIN_WIDGETS).toHaveLength(28)
+  it('has exactly 33 entries', () => {
+    expect(BUILTIN_WIDGETS).toHaveLength(33)
   })
 
   it('contains all expected widget IDs', () => {
@@ -181,7 +182,7 @@ describe('getWidgetBundles', () => {
     const bundles = getWidgetBundles()
     const mediaSuite = bundles.find(b => b.name === 'Media Suite')
     expect(mediaSuite).toBeDefined()
-    expect(mediaSuite!.widgetIds).toEqual(['now-playing', 'upcoming-media'])
+    expect(mediaSuite!.widgetIds).toEqual(['now-playing', 'music-now-playing', 'upcoming-media'])
   })
 })
 
@@ -250,7 +251,7 @@ describe('getWidgetPresets', () => {
     const presets = getWidgetPresets()
     const media = presets.find(p => p.id === 'media-center')
     expect(media).toBeDefined()
-    expect(media!.widgets).toHaveLength(3)
+    expect(media!.widgets).toHaveLength(4)
   })
 })
 
@@ -264,7 +265,7 @@ describe('registerWidget', () => {
       category: 'custom',
       tier: 'user',
       defaultSize: { w: 1, h: 1 },
-      component: () => Promise.resolve({ default: (() => null) as unknown as React.ComponentType }),
+      component: () => Promise.resolve({ default: (() => null) as unknown as React.ComponentType<WidgetProps> }),
     }
     registerWidget(customWidget)
     const result = getWidget('test-custom-widget')
@@ -282,7 +283,7 @@ describe('registerWidget', () => {
       category: 'primitives',
       tier: 'builtin',
       defaultSize: { w: 2, h: 2 },
-      component: () => Promise.resolve({ default: (() => null) as unknown as React.ComponentType }),
+      component: () => Promise.resolve({ default: (() => null) as unknown as React.ComponentType<WidgetProps> }),
     }
     registerWidget(primWidget)
     const result = getWidget('test-prim-widget')

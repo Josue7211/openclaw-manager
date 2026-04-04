@@ -25,7 +25,7 @@ import PageErrorBoundary from '@/components/PageErrorBoundary'
 // Types
 // ---------------------------------------------------------------------------
 
-export interface WidgetWrapperProps {
+interface WidgetWrapperProps {
   widgetId: string       // Instance ID on the grid
   pluginId: string       // Widget type ID from registry
   config: Record<string, unknown>

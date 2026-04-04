@@ -8,7 +8,7 @@
  * See: RESEARCH.md Pitfall #4 — Google Fonts API key exposure prevention.
  */
 
-export interface GoogleFont {
+interface GoogleFont {
   family: string
   category: 'sans-serif' | 'serif' | 'monospace' | 'display' | 'handwriting'
 }
@@ -155,9 +155,3 @@ export function loadGoogleFont(family: string): void {
   document.head.appendChild(link)
 }
 
-/**
- * Check whether a Google Font has already been loaded (link element injected).
- */
-export function isGoogleFontLoaded(family: string): boolean {
-  return _loadedFonts.has(family)
-}

@@ -85,13 +85,13 @@ export function JobList({ jobs, loading, onEditJob, onToggleJob, onDeleteJob }: 
                 </span>
 
                 {/* Toggle */}
-                <div onClick={e => e.stopPropagation()} style={{ flexShrink: 0 }}>
+                <span role="presentation" onClick={e => e.stopPropagation()} style={{ flexShrink: 0 }}>
                   <Toggle
                     on={enabled}
                     onToggle={(val) => onToggleJob?.(job.id, val)}
                     label={'Toggle ' + job.name}
                   />
-                </div>
+                </span>
 
                 {/* Action buttons */}
                 <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>

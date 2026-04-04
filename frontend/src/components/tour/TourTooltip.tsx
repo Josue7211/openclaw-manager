@@ -60,6 +60,7 @@ function calculatePosition(
 
   const vw = window.innerWidth
   const vh = window.innerHeight
+  const rect = targetRect! // non-null after the guard above
 
   function tryPlacement(p: 'top' | 'bottom' | 'left' | 'right'): Position | null {
     let top = 0
@@ -67,20 +68,20 @@ function calculatePosition(
 
     switch (p) {
       case 'bottom':
-        top = targetRect.bottom + TOOLTIP_GAP
-        left = targetRect.left + targetRect.width / 2 - tooltipRect.width / 2
+        top = rect.bottom + TOOLTIP_GAP
+        left = rect.left + rect.width / 2 - tooltipRect.width / 2
         break
       case 'top':
-        top = targetRect.top - tooltipRect.height - TOOLTIP_GAP
-        left = targetRect.left + targetRect.width / 2 - tooltipRect.width / 2
+        top = rect.top - tooltipRect.height - TOOLTIP_GAP
+        left = rect.left + rect.width / 2 - tooltipRect.width / 2
         break
       case 'right':
-        top = targetRect.top + targetRect.height / 2 - tooltipRect.height / 2
-        left = targetRect.right + TOOLTIP_GAP
+        top = rect.top + rect.height / 2 - tooltipRect.height / 2
+        left = rect.right + TOOLTIP_GAP
         break
       case 'left':
-        top = targetRect.top + targetRect.height / 2 - tooltipRect.height / 2
-        left = targetRect.left - tooltipRect.width - TOOLTIP_GAP
+        top = rect.top + rect.height / 2 - tooltipRect.height / 2
+        left = rect.left - tooltipRect.width - TOOLTIP_GAP
         break
     }
 
@@ -92,8 +93,8 @@ function calculatePosition(
     const tooltipRight = left + tooltipRect.width
     const tooltipBottom = top + tooltipRect.height
 
-    const overlapsX = left < targetRect.right && tooltipRight > targetRect.left
-    const overlapsY = top < targetRect.bottom && tooltipBottom > targetRect.top
+    const overlapsX = left < rect.right && tooltipRight > rect.left
+    const overlapsY = top < rect.bottom && tooltipBottom > rect.top
 
     if (overlapsX && overlapsY) return null
 
@@ -191,7 +192,7 @@ export const TourTooltip = React.memo(function TourTooltip({
   totalStops,
   onNext,
   onSkip,
-  onSkipSection,
+  onSkipSection: _onSkipSection,
 }: TourTooltipProps) {
   const [position, setPosition] = useState<Position | null>(null)
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null)

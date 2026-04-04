@@ -498,8 +498,7 @@ fn process_messages_with_reactions(raw_messages: &[Value]) -> Vec<Value> {
             .unwrap_or(&Value::Null);
         let reaction_type = normalize_reaction_type(assoc_type);
 
-        if !assoc_guid.is_empty() && reaction_type.is_some() {
-            let reaction_type = reaction_type.unwrap();
+        if let Some(reaction_type) = reaction_type.filter(|_| !assoc_guid.is_empty()) {
             let parent_guid = strip_reaction_prefix(assoc_guid);
             let is_from_me = msg
                 .get("isFromMe")
@@ -1016,8 +1015,7 @@ async fn fetch_and_build_conversations(
                 // Named group chats or groups with at least one known contact are never junk
                 false
             } else {
-                (is_group && all_participants_unknown)
-                    || (is_short_code && all_participants_unknown)
+                (is_short_code || is_group) && all_participants_unknown
                     || is_unknown_email
             };
 
@@ -1154,8 +1152,7 @@ async fn get_messages(
             .as_deref()
             .and_then(|s| s.parse::<i64>().ok())
             .unwrap_or(25)
-            .max(1)
-            .min(500);
+            .clamp(1, 500);
 
         let mut query_body = json!({
             "chatGuid": chat_guid,
@@ -1245,8 +1242,7 @@ async fn get_messages(
             .as_deref()
             .and_then(|s| s.parse::<usize>().ok())
             .unwrap_or(25)
-            .max(1)
-            .min(500);
+            .clamp(1, 500);
 
         let conv_offset = params
             .offset

@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
-import { row, rowLast, val, inputStyle, btnStyle, btnSecondary, sectionLabel } from './settings/shared'
+import { row, rowLast, val, btnSecondary, sectionLabel } from './settings/shared'
 
 // ── Lazy-loaded section components ──────────────────────────────────────────
 const SettingsUser = lazy(() => import('./settings/SettingsUser'))
@@ -18,11 +18,6 @@ const SettingsModules = lazy(() => import('./settings/SettingsModules'))
 const SettingsNotifications = lazy(() => import('./settings/SettingsNotifications'))
 const SettingsPrivacy = lazy(() => import('./settings/SettingsPrivacy'))
 const SettingsStatus = lazy(() => import('./settings/SettingsStatus'))
-
-interface Pref {
-  key: string
-  value: string
-}
 
 type SettingsSection = 'agent' | 'gateway' | 'app' | 'user' | 'connections' | 'display' | 'keybindings' | 'modules' | 'notifications' | 'privacy' | 'status'
 

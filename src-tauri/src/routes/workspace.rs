@@ -27,6 +27,7 @@ const CORE_FILES: &[&str] = &[
 // Router
 // ---------------------------------------------------------------------------
 
+// Called by: frontend/src/pages/Memory.tsx (list_files, read_file, write_file, delete_file)
 /// Build the `/workspace` sub-router (list, read, write, delete workspace files).
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -101,7 +102,7 @@ fn safe_path(user_path: &str) -> Option<PathBuf> {
     // Lexical prefix check (before following symlinks)
     let ws_prefix = format!("{}{}", ws.display(), std::path::MAIN_SEPARATOR);
     let resolved_str = resolved.to_string_lossy().to_string();
-    if resolved_str != ws.to_string_lossy().to_string() && !resolved_str.starts_with(&ws_prefix) {
+    if resolved_str != *ws.to_string_lossy() && !resolved_str.starts_with(&ws_prefix) {
         return None;
     }
 
@@ -389,7 +390,7 @@ async fn delete_file(
     }
 
     // Prevent deleting core workspace files
-    let basename = file_path.split('/').last().unwrap_or("");
+    let basename = file_path.split('/').next_back().unwrap_or("");
     if CORE_FILES.contains(&basename) && !file_path.starts_with("memory/") {
         return Err(AppError::BadRequest(
             "Cannot delete core workspace files".into(),

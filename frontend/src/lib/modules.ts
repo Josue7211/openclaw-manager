@@ -1,4 +1,4 @@
-export interface AppModule {
+interface AppModule {
   id: string
   name: string
   description: string
@@ -25,6 +25,10 @@ export const APP_MODULES: AppModule[] = [
   { id: 'pipeline', name: 'Pipeline', description: 'Code review pipeline', icon: 'GitBranch', route: '/pipeline' },
   { id: 'knowledge', name: 'Knowledge', description: 'Documentation', icon: 'BookOpen', route: '/knowledge' },
   { id: 'notes', name: 'Notes', description: 'Personal notes', icon: 'FileText', route: '/notes' },
+  { id: 'sessions', name: 'Sessions', description: 'Claude Code session monitor', icon: 'Terminal', route: '/sessions', requiresConfig: ['OPENCLAW_API_URL'] },
+  { id: 'remote-viewer', name: 'Remote Viewer', description: 'OpenClaw VM remote desktop (Moonlight)', icon: 'Monitor', route: '/remote', requiresConfig: ['SUNSHINE_HOST'] },
+  { id: 'approvals', name: 'Approvals', description: 'Execution approval queue', icon: 'ShieldCheck', route: '/approvals', requiresConfig: ['OPENCLAW_WS'] },
+  { id: 'activity', name: 'Activity', description: 'Real-time event feed', icon: 'Pulse', route: '/activity', requiresConfig: ['OPENCLAW_WS'] },
 ]
 
 const STORAGE_KEY = 'enabled-modules'
@@ -35,12 +39,23 @@ const ALL_MODULE_IDS = APP_MODULES.map(m => m.id)
 const _listeners = new Set<() => void>()
 
 // Cached snapshot — useSyncExternalStore requires stable references
+// Auto-adds newly registered modules so existing users see them without
+// manually re-enabling via Settings.
 let _cached: string[] = (() => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored !== null) {
       const parsed = JSON.parse(stored)
-      if (Array.isArray(parsed)) return parsed
+      if (Array.isArray(parsed)) {
+        const storedSet = new Set(parsed)
+        const newModules = ALL_MODULE_IDS.filter(id => !storedSet.has(id))
+        if (newModules.length > 0) {
+          const merged = [...parsed, ...newModules]
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
+          return merged
+        }
+        return parsed
+      }
     }
   } catch { /* fall through */ }
   return ALL_MODULE_IDS

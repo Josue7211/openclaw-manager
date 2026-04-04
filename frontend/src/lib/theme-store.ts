@@ -43,7 +43,7 @@ let _state: ThemeState = loadInitialState()
 const _listeners = new Set<() => void>()
 
 /** Temporary storage for ripple animation click coordinates */
-let _lastClickEvent: { clientX: number; clientY: number } | undefined
+export let _lastClickEvent: { clientX: number; clientY: number } | undefined
 
 function persist() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(_state))
@@ -66,16 +66,6 @@ export function getThemeState(): ThemeState {
 export function subscribeTheme(fn: () => void) {
   _listeners.add(fn)
   return () => { _listeners.delete(fn) }
-}
-
-/** Get the click event stored for the last theme switch (for ripple animation) */
-export function getLastClickEvent() {
-  return _lastClickEvent
-}
-
-/** Clear the stored click event after the ripple animation consumes it */
-export function clearLastClickEvent() {
-  _lastClickEvent = undefined
 }
 
 // ---------------------------------------------------------------------------

@@ -117,10 +117,10 @@ export default function SearchPage() {
       `}</style>
 
       <h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '24px' }}>
-        MagnifyingGlass
+        Search
       </h1>
 
-      {/* MagnifyingGlass bar */}
+      {/* Search bar */}
       <div style={{ position: 'relative', marginBottom: '24px' }}>
         <MagnifyingGlass size={16} style={{
           position: 'absolute',
@@ -134,8 +134,8 @@ export default function SearchPage() {
           ref={inputRef}
           value={query}
           onChange={handleChange}
-          placeholder="MagnifyingGlass todos, missions, calendar, email..."
-          aria-label="MagnifyingGlass"
+          placeholder="Search todos, missions, calendar, email..."
+          aria-label="Search"
           style={{
             width: '100%',
             padding: '12px 14px 12px 40px',
@@ -173,7 +173,7 @@ export default function SearchPage() {
       {!query && !loading && (
         <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '64px', fontSize: '14px' }}>
           <MagnifyingGlass size={32} style={{ margin: '0 auto 16px', display: 'block', opacity: 0.3 }} />
-          MagnifyingGlass across your todos, missions, calendar, and email
+          Search across your todos, missions, calendar, and email
         </div>
       )}
 

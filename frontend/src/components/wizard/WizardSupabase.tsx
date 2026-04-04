@@ -37,7 +37,7 @@ const labelStyle: React.CSSProperties = {
   marginBottom: 'var(--space-1)',
 }
 
-export const WizardSupabase = React.memo(function WizardSupabase() {
+const WizardSupabase = React.memo(function WizardSupabase() {
   const wizard = useWizardState()
   const [showKey, setShowKey] = useState(false)
 
@@ -137,3 +137,5 @@ export const WizardSupabase = React.memo(function WizardSupabase() {
     </div>
   )
 })
+
+export default WizardSupabase

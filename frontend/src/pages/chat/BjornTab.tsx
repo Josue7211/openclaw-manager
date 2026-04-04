@@ -8,7 +8,7 @@
  */
 
 import { useState, useMemo, useRef, useCallback, useEffect, lazy, Suspense } from 'react'
-import { PaperPlaneTilt, Robot, ChatCircle } from '@phosphor-icons/react'
+import { PaperPlaneTilt, Robot } from '@phosphor-icons/react'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 import { api } from '@/lib/api'
 import { saveBjornModule } from '@/lib/bjorn-store'

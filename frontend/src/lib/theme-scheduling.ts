@@ -142,7 +142,7 @@ export function startScheduleTimer(): () => void {
 /**
  * Stop the schedule timer interval.
  */
-export function stopScheduleTimer(): void {
+function stopScheduleTimer(): void {
   if (_intervalId !== null) {
     clearInterval(_intervalId)
     _intervalId = null

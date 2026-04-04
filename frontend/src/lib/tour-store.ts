@@ -153,11 +153,11 @@ function notify(): void {
 // Read API
 // ---------------------------------------------------------------------------
 
-export function getTourState(): TourState {
+function getTourState(): TourState {
   return _state
 }
 
-export function subscribeTour(fn: () => void): () => void {
+function subscribeTour(fn: () => void): () => void {
   _listeners.add(fn)
   return () => { _listeners.delete(fn) }
 }
@@ -173,10 +173,6 @@ export function useTourState(): TourState {
 // ---------------------------------------------------------------------------
 // Derived getters
 // ---------------------------------------------------------------------------
-
-export function isTourActive(): boolean {
-  return _state.active
-}
 
 export function getCurrentStop(): TourStop | null {
   if (!_state.active) return null
@@ -199,11 +195,6 @@ function getSections(): string[] {
 // ---------------------------------------------------------------------------
 // Mutation API
 // ---------------------------------------------------------------------------
-
-export function startTour(): void {
-  _state = { ...createDefaultState(), active: true, currentStopIndex: 0 }
-  persist()
-}
 
 export function nextStop(): void {
   if (!_state.active) return
@@ -269,7 +260,7 @@ export function skipTour(): void {
   notify()
 }
 
-export function endTour(): void {
+function endTour(): void {
   _state = createDefaultState()
   localStorage.removeItem(STORAGE_KEY)
   notify()

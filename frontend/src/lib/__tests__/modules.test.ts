@@ -23,6 +23,10 @@ vi.mock('../nav-items', () => ({
     { href: '/memory', label: 'Memory', icon: Stub, moduleId: 'memory' },
     { href: '/pipeline', label: 'Pipeline', icon: Stub, moduleId: 'pipeline' },
     { href: '/knowledge', label: 'Knowledge', icon: Stub, moduleId: 'knowledge' },
+    { href: '/sessions', label: 'Sessions', icon: Stub, moduleId: 'sessions' },
+    { href: '/remote', label: 'Remote Viewer', icon: Stub, moduleId: 'remote-viewer' },
+    { href: '/approvals', label: 'Approvals', icon: Stub, moduleId: 'approvals' },
+    { href: '/activity', label: 'Activity', icon: Stub, moduleId: 'activity' },
   ],
   allNavItems: [
     { href: '/', label: 'Home', icon: Stub },
@@ -42,6 +46,10 @@ vi.mock('../nav-items', () => ({
     { href: '/memory', label: 'Memory', icon: Stub, moduleId: 'memory' },
     { href: '/pipeline', label: 'Pipeline', icon: Stub, moduleId: 'pipeline' },
     { href: '/knowledge', label: 'Knowledge', icon: Stub, moduleId: 'knowledge' },
+    { href: '/sessions', label: 'Sessions', icon: Stub, moduleId: 'sessions' },
+    { href: '/remote', label: 'Remote Viewer', icon: Stub, moduleId: 'remote-viewer' },
+    { href: '/approvals', label: 'Approvals', icon: Stub, moduleId: 'approvals' },
+    { href: '/activity', label: 'Activity', icon: Stub, moduleId: 'activity' },
     { href: '/settings', label: 'Settings', icon: Stub },
   ],
   navItemsByHref: new Map([
@@ -62,6 +70,10 @@ vi.mock('../nav-items', () => ({
     ['/memory', { href: '/memory', label: 'Memory', icon: Stub, moduleId: 'memory' }],
     ['/pipeline', { href: '/pipeline', label: 'Pipeline', icon: Stub, moduleId: 'pipeline' }],
     ['/knowledge', { href: '/knowledge', label: 'Knowledge', icon: Stub, moduleId: 'knowledge' }],
+    ['/sessions', { href: '/sessions', label: 'Sessions', icon: Stub, moduleId: 'sessions' }],
+    ['/remote', { href: '/remote', label: 'Remote Viewer', icon: Stub, moduleId: 'remote-viewer' }],
+    ['/approvals', { href: '/approvals', label: 'Approvals', icon: Stub, moduleId: 'approvals' }],
+    ['/activity', { href: '/activity', label: 'Activity', icon: Stub, moduleId: 'activity' }],
     ['/settings', { href: '/settings', label: 'Settings', icon: Stub }],
   ]),
 }))
@@ -90,14 +102,20 @@ describe('getEnabledModules', () => {
     expect(enabled).toEqual(allIds)
   })
 
-  it('returns stored array from localStorage', async () => {
+  it('returns stored array merged with new modules from localStorage', async () => {
     // Must set localStorage BEFORE importing the module, since _cached
-    // is computed at module load time via the IIFE initializer
+    // is computed at module load time via the IIFE initializer.
+    // The auto-merge logic appends any APP_MODULE IDs not already in the
+    // stored array so existing users see newly added modules.
     const subset = ['chat', 'todos']
     localStorage.setItem('enabled-modules', JSON.stringify(subset))
     vi.resetModules()
     const mod = await import('../modules')
-    expect(mod.getEnabledModules()).toEqual(subset)
+    const result = mod.getEnabledModules()
+    // Stored IDs come first, then new modules are appended
+    expect(result[0]).toBe('chat')
+    expect(result[1]).toBe('todos')
+    expect(result.length).toBe(mod.APP_MODULES.length)
   })
 
   it('falls back to all modules on invalid JSON', () => {

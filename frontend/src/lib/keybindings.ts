@@ -4,9 +4,9 @@ const STORAGE_KEY = 'keybindings'
 const MOD_KEY_STORAGE = 'modifier-key'
 const MOD_LIST_STORAGE = 'modifier-list'
 
-export type ModifierKey = string
+type ModifierKey = string
 
-export interface Keybinding {
+interface Keybinding {
   id: string
   label: string
   key: string           // the key character (lowercase)

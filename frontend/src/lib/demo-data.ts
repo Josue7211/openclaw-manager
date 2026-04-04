@@ -114,7 +114,7 @@ export const DEMO_CALENDAR_EVENTS: CalendarEvent[] = [
 
 // ── Conversations (Messages) ─────────────────────────────────────────────────
 
-export interface DemoConversation {
+interface DemoConversation {
   guid: string
   chatId: string
   displayName: string | null
@@ -153,7 +153,7 @@ export const DEMO_CONVERSATIONS: DemoConversation[] = [
 
 // ── Chat (AI conversation) ───────────────────────────────────────────────────
 
-export interface DemoChatMessage {
+interface DemoChatMessage {
   id: string
   role: 'user' | 'assistant'
   text: string
@@ -189,7 +189,7 @@ export const DEMO_CHAT_MESSAGES: DemoChatMessage[] = [
 
 // ── Dashboard (Agent status, heartbeat, agents) ──────────────────────────────
 
-export interface DemoAgentStatus {
+interface DemoAgentStatus {
   name: string
   emoji: string
   model: string
@@ -209,7 +209,7 @@ export const DEMO_AGENT_STATUS: DemoAgentStatus = {
   ip: '100.x.x.x',
 }
 
-export interface DemoAgentInfo {
+interface DemoAgentInfo {
   id: string
   display_name: string
   emoji: string
@@ -269,8 +269,8 @@ let _isDemoMode: boolean | null = null
 
 export function isDemoMode(): boolean {
   if (_isDemoMode !== null) return _isDemoMode
-  // Demo mode when no backend database is configured.
-  // VITE_SUPABASE_URL indicates the backend has a database to connect to.
+  // Demo mode ONLY when no backend database is configured.
+  // User explicitly chooses demo via "Try Demo" button.
   _isDemoMode = !import.meta.env.VITE_SUPABASE_URL
   return _isDemoMode
 }

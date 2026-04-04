@@ -205,7 +205,7 @@ pub(super) fn exec_path() -> String {
 /// Strips infrastructure secrets — only passes through ANTHROPIC_API_KEY and MC_API_KEY.
 /// System vars (HOME, USER, etc.) are read from `std::env::var` (they are not secrets).
 /// Actual secrets come from the AppState HashMap.
-#[allow(dead_code)]
+#[allow(dead_code)] // preferred over clean_env_from_env once spawn_agent_process gets &AppState (see TODO below)
 pub(super) fn clean_env(state: &crate::server::AppState, model: &str) -> Vec<(String, String)> {
     let mut env = Vec::new();
 

@@ -2,7 +2,6 @@ import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { GearSix } from '@phosphor-icons/react'
 import { getWidget } from '@/lib/widget-registry'
 import { updateWidgetConfig } from '@/lib/dashboard-store'
-import type { WidgetConfigSchema } from '@/lib/widget-registry'
 
 // ---------------------------------------------------------------------------
 // WidgetConfigPanel

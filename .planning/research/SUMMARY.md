@@ -1,358 +1,181 @@
-# Research Summary: v0.0.3 -- Bug Fixes + OpenClaw Controller + Polish
+# Project Research Summary
 
-**Generated:** 2026-03-22
-**Milestone:** v0.0.3
-**Research files synthesized:** STACK.md, FEATURES.md, ARCHITECTURE.md, PITFALLS.md
-
----
+**Project:** OpenClaw Manager (mission-control) — v0.0.4 Stabilize & Strip
+**Domain:** Post-rapid-development codebase stabilization (Tauri v2 + React 18 + Rust/Axum)
+**Researched:** 2026-03-24
+**Confidence:** HIGH
 
 ## Executive Summary
 
-OpenClaw Manager v0.0.3 introduces five major feature areas into an established Tauri v2 + Axum + React desktop app: a WYSIWYG notes editor (TipTap replacing CodeMirror), full OpenClaw gateway CRUD (agents, crons, usage, memory), a theme blend slider (continuous dark/light interpolation), an embedded terminal widget (xterm.js + portable-pty), and a project tracker with kanban board (Supabase-backed). All five features map cleanly onto existing architectural patterns -- frontend React Query, Axum proxy routes, CouchDB/Supabase storage -- requiring no new paradigms. The biggest scope item is the TipTap editor migration, which carries the highest risk due to markdown round-trip fidelity with CouchDB/Obsidian LiveSync format. The remaining features are standard CRUD, CSS interpolation, and WebSocket proxying, all of which have proven patterns already in the codebase.
+v0.0.4 is a stabilization milestone, not a feature milestone. The codebase grew from ~25K to ~74K lines in ~2 days (v0.0.3, 55 phases) and is now carrying critical correctness debt: the OpenClaw gateway integration uses wrong RPC method names in 9 places and sends an incorrect connect handshake, which means the core OpenClaw value proposition (sessions, approvals, usage, models, tools, skills) is entirely non-functional despite being visually present in the UI. The recommended approach is a strict "fix first, strip second" sequence — correcting broken integrations before removing any dead code, because wrong-but-structurally-correct code is far more valuable than no code.
 
-The recommended approach is to tackle bug fixes first (they are already partially addressed but need verification), then build independent features in parallel (theme blend, OpenClaw gateway routes, project tracker schema), followed by the high-complexity features (TipTap editor, terminal widget) where focused attention reduces risk. The critical risk across all features is bundle size -- adding TipTap (~22 packages) and xterm.js (~3 packages) while removing CodeMirror (~11 packages) requires careful lazy-loading and chunking to stay under a 5MB budget. The second critical risk is TipTap silently stripping Obsidian-specific markdown constructs (callouts, wikilinks, image embeds) during the parse/serialize cycle, which would permanently corrupt notes. This must be addressed with a roundtrip test suite before any user content flows through TipTap.
+The tooling story is clear and well-documented. Knip v6 (released 2026-03-24) + eslint-plugin-unused-imports covers the TypeScript dead code surface, cargo clippy + cargo-machete covers the Rust surface, and TypeScript `noUnusedLocals`/`noUnusedParameters` flags are free wins that just need to be enabled. The codebase has 473 frontend files and 72 Rust files across 47 registered route modules, 21 app modules, and 30+ widgets — the audit surface is large but well-defined and the tools can automate most of it.
 
-Key mitigations: store markdown as canonical format (never TipTap JSON in CouchDB), build custom TipTap nodes for wikilinks and image embeds before migrating the editor, use OKLCH color space for theme blending to avoid contrast failures at mid-range positions, sanitize all OpenClaw gateway error responses to prevent credential leaks, and implement PTY process group cleanup to prevent zombie shells.
-
----
+The primary risks are not technical, they are process risks. The codebase has three layers of dynamic imports that defeat static analysis (widget registry, React.lazy pages, wizard steps), four `useSyncExternalStore` state chains that break silently when their contract is violated, and WebSocket CAS guards that cause permanent connection refusal if their RAII lifecycle is mishandled. Every significant pitfall in this milestone is a "compiles fine, breaks at runtime" pattern. Small batch commits with per-deletion verification are mandatory, not optional.
 
 ## Key Findings
 
-### From STACK.md
+### Recommended Stack
 
-| Technology | Purpose | Rationale |
-|-----------|---------|-----------|
-| TipTap v3.20.x (React) | WYSIWYG notes editor | Official `@tiptap/markdown` for bidirectional CouchDB round-trip; replaces CodeMirror 6 |
-| @xterm/xterm v6 | Terminal emulator | De facto standard; 30% smaller than v5; powers VS Code terminal |
-| portable-pty 0.9 (Rust) | PTY spawning | From wezterm project; cross-platform; avoids tightly-coupled tauri-plugin-pty |
-| CSS color-mix(in oklch) | Theme interpolation | Native browser API; perceptually uniform blending; no JS color library needed |
-| lowlight v3 | Syntax highlighting | Decoupled engine for TipTap code blocks; controls which languages load |
+The tooling stack for dead code detection is fully decided and battle-tested. Knip v6 is the clear winner for TypeScript project-wide analysis — ts-prune (the prior art) is deprecated and its author recommends Knip. The eslint-plugin-unused-imports fills the specific gap Knip explicitly does not cover (per-file import cleanup). On the Rust side, cargo-machete is preferred over cargo-udeps because it requires no nightly compiler and runs in under 1 second — acceptable tradeoff for its regex-based false positive risk, which is mitigated by a short ignore list in `Cargo.toml`.
 
-- **22 new TipTap packages** replace 11 CodeMirror packages. Net +15 packages but most TipTap extensions are <5KB wrappers.
-- **No new state library needed** -- useSyncExternalStore pattern is sufficient for theme blend and terminal state.
-- **tauri-plugin-pty rejected** -- 137 weekly downloads, tight Tauri coupling. Direct portable-pty via Axum WebSocket is safer.
-- **No new frontend data-fetching patterns** -- all OpenClaw CRUD goes through existing api.ts + React Query mutations.
+**Core technologies:**
+- **knip v6**: Project-wide TypeScript dead code detection — best-in-class, 2-4x faster than v5 via oxc-parser, auto-detects Vite/Vitest, has `--fix` for automated export/dep removal
+- **eslint-plugin-unused-imports v4**: Per-file import cleanup with autofix — fills the gap knip intentionally leaves (intra-file unused imports)
+- **TypeScript `noUnusedLocals` + `noUnusedParameters`**: Zero-cost wins — already in tsconfig.app.json, just flip to `true`; caught by existing pre-commit `tsc --noEmit` check
+- **cargo clippy + `dead_code` lint**: Built-in Rust dead code detection — 13 existing `#[allow(dead_code)]` annotations across 7 files are the primary audit targets
+- **cargo-machete v0.9**: Fast Rust unused dependency detection — stable toolchain, <1s runtime; known `tauri-build` false positive requires one-line ignore in `Cargo.toml`
 
-### From FEATURES.md
+**Critical version requirements:** Knip v6 drops Node 18 support (project uses Node 20+, no issue). ESLint plugin v4 requires ESLint 9 flat config (project already uses it).
 
-**Must-have (P1 for v0.0.3):**
-- WYSIWYG editor with inline formatting, tables, slash commands, floating toolbar, markdown round-trip
-- OpenClaw agent CRUD (create/update/delete, lifecycle start/stop, model assignment)
-- OpenClaw cron CRUD (create/update/delete, schedule editor, enable/disable toggle)
-- Theme blend slider (0-100% dark/light, OKLCH interpolation, persisted)
-- Kanban board persistence (Supabase tables, CRUD, drag-and-drop, card detail panel)
+### Expected Features
 
-**Should-have (P2, add during stabilization):**
-- Terminal widget (xterm.js + PTY, high complexity/security risk -- defer until core stable)
-- Agent memory browser (view/edit/clear RAG context)
-- Note templates (meeting notes, daily journal, retro)
-- Full-text note search across content
+The stabilization has 8 defined work categories with clear prioritization. Categories 1 and 2 (broken gateway integration and dead routes) are P0/P1 blockers. Categories 3-6 (API shape mismatches, error handling, test coverage, accessibility) are P2 quality work. Categories 7-8 (unused deps, duplicate widgets) are P3 cleanup.
 
-**Defer to v0.0.4+:**
-- Real-time collaboration on notes (Yjs + Hocuspocus -- massive scope)
-- Version history for notes (CouchDB revision diffing)
-- Kanban swimlanes, agent comparison dashboard
+**Must have (table stakes):**
+- Fix gateway connect handshake to protocol v3 (wrong auth format blocks all WS RPC) — everything downstream depends on this
+- Fix 9 wrong gateway method names (`sessions.history` -> `chat.history`, `sessions.send` -> `chat.send`, `exec.approve` -> `exec.approval.resolve`, etc.) — core OpenClaw pages are silently broken
+- Fix "ffir" binary reference causing persistent error toast on every page load
+- Remove `sessions.pause`/`sessions.resume` routes that call methods which do not exist in the protocol
+- Fix browser mode auth (dev workflow is blocked without this)
+- Remove noVNC dependency and VncPreviewWidget (rejected feature, dead dependency)
+- Add PageErrorBoundary to all v0.0.3 pages that lack it
 
-**Anti-features (explicitly reject):**
-- Obsidian plugin compatibility (different paradigm)
-- Storing TipTap JSON in CouchDB (breaks LiveSync)
-- Full SSH client / multi-gateway support (scope creep)
-- Real-time collaboration in v0.0.3 (infrastructure not ready)
+**Should have (differentiators):**
+- Verify all OpenClaw pages against live gateway responses (usage, models, tools, skills)
+- Fix API shape mismatches in frontend TypeScript types once real response shapes are confirmed
+- Add tests for OpenClaw hooks/pages (currently 0 test files for ~600 lines of page code)
+- Accessibility audit of all v0.0.3 pages (aria-label, role="dialog", focus traps)
+- Consistent loading/empty/error states across all v0.0.3 pages using shared components
+- Audit and strip verified-dead backend routes (`workspace.rs`, `decisions.rs`, `workflow_notes.rs` candidates)
 
-### From ARCHITECTURE.md
+**Defer (v0.0.5+):**
+- Dual source of truth consolidation (agents live in both SQLite and gateway) — architectural decision, document and defer
+- Performance optimization — correctness first
+- New pages or features — stabilization scope is fix and strip only
+- State management pattern refactoring — do not touch working code
 
-**All five features follow established patterns:**
-- Frontend: React Query fetches through api.ts to localhost:3000
-- Backend: Axum proxy routes with RequireAuth, credentials from AppState.secret()
-- Storage: Supabase for structured data, CouchDB for document content
-- Real-time: Supabase Realtime for project items, WebSocket for terminal
+### Architecture Approach
+
+The recommended audit order is backend-first. The Rust compiler serves as a free first-pass auditor, gateway protocol correctness is a backend-only problem, and fixing backend routes may change response shapes that cascade to frontend — auditing backend first stabilizes the API contract before touching frontend consumers. The audit proceeds in 5 phases: backend route inventory, gateway integration fix, frontend dead code detection, frontend-backend binding cross-reference, and integration verification.
 
 **Major components:**
-| Component | Pattern | Key Files |
-|-----------|---------|-----------|
-| NoteEditor rewrite | TipTap useEditor + markdown extension | NoteEditor.tsx, EditorToolbar.tsx (both rewritten) |
-| OpenClaw gateway proxy | Generic proxy module (like memory.rs) | New gateway.rs with gateway_forward() helper |
-| Terminal relay | WebSocket upgrade (like chat.rs) + PTY | New terminal.rs with CAS connection guard |
-| Theme blend | JS interpolation in theme-engine.ts | Modified theme-engine.ts, theme-store.ts, themes.ts |
-| Project tracker | Supabase CRUD (like todos.rs) | New projects.rs + 3 new tables + RLS |
+1. **Gateway WS channel** (`gateway_ws.rs`, `routes/gateway.rs`) — correct WS RPC infrastructure, needs method name fixes only; do not remove or rewrite
+2. **OpenClaw data routes** (`routes/openclaw_data.rs`) — currently uses HTTP channel for WS-only methods (`usage.status`, `models.list`, etc.); needs full rewrite to WS RPC
+3. **Frontend OpenClaw hooks** (`hooks/useOpenClaw*.ts`, `hooks/sessions/*`) — architecturally sound React Query patterns; only endpoint paths and response shapes need correction
+4. **Widget registry** (`widget-registry.ts`) — 30+ dynamic imports; all static analysis must treat this file as a secondary entry point alongside `main.tsx`
+5. **Dead route candidates** — 9 route modules with low-confidence frontend consumers that need explicit external-caller audit before any deletion
 
-**Critical architectural decisions:**
-1. Markdown is canonical -- TipTap JSON is ephemeral (in-memory only)
-2. Gateway proxy sanitizes all upstream errors before forwarding
-3. PTY runs as app user (not root), max 3 concurrent sessions
-4. Theme interpolation happens in JS (not CSS), using OKLCH color space
-5. Three separate Supabase tables for projects/columns/items (not a single-table anti-pattern)
+**Key patterns to follow:**
+- Fix-before-strip ordering: correct integrations before removing code
+- Small batch deletions: one logical deletion per commit, verify app after each
+- Dynamic import awareness: check widget registry, `main.tsx` lazy(), `LayoutShell.tsx` before flagging anything as unused
+- External caller audit: backend routes may be called by CI pipelines, Supabase Realtime, or WebSocket clients — grep only catches frontend HTTP callers
 
-### From PITFALLS.md
+### Critical Pitfalls
 
-**Top 5 pitfalls in priority order:**
+1. **Over-deleting dynamic imports** — Knip and grep cannot see widget registry factory functions or `React.lazy()` as consumers. The 30+ widget components and 29 lazy-loaded pages all have zero static importers. Before removing any file under `components/widgets/` or `pages/`, manually check `widget-registry.ts`, `main.tsx`, `LayoutShell.tsx`, and `SetupWizard.tsx`.
 
-1. **TipTap markdown roundtrip silently drops content** -- ProseMirror strips anything without a schema node. Obsidian callouts, frontmatter YAML, and custom syntax vanish permanently. Prevention: build roundtrip test suite as the FIRST task, implement passthrough node for unrecognized blocks.
+2. **Removing wrong-but-structural OpenClaw code** — The OpenClaw pages (agents, sessions, tools, models, skills, usage, approvals) have correct Axum route structure, correct React Query patterns, correct error handling, and correct accessibility. Only the method names and response shapes are wrong. Removing them destroys all the surrounding correct infrastructure. Sequence must be: fix integration, THEN strip if genuinely dead.
 
-2. **Dual-format content corruption during migration** -- CodeMirror and TipTap normalize markdown differently. Prevention: one editor at a time (no toggle), freeze storage format as raw markdown, test against notes with chunk history.
+3. **Breaking widget registry integrity** — Dashboard state is persisted as JSON with widget `type` strings referencing registry keys. Removing a registry entry without a `lib/migrations.ts` migration entry creates dangling references that crash `WidgetWrapper` silently at runtime. Every removed widget type requires a corresponding dashboard state migration.
 
-3. **PTY zombie processes and resource leaks** -- Terminal sessions spawn real OS processes that become zombies on unclean teardown. Prevention: kill process GROUP (not just PID), track sessions in AppState, implement PTY reaper, cap concurrent sessions.
+4. **Silent behavioral regressions from bulk commits** — The codebase has invisible dependency patterns: 49 React Query keys (string-matched cache invalidation), event-bus emitter/subscriber pairs, 15+ localStorage key strings, and 4 `useSyncExternalStore` chains. A large cleanup commit that passes all tests can still silently break sidebar badges, theme propagation, keyboard shortcuts, and notification sounds. One logical deletion per commit is a mandatory rule.
 
-4. **OpenClaw API proxy leaks credentials** -- New CRUD routes multiply opportunities for credential exposure in error messages. Prevention: single gateway_forward() helper with error sanitization, validate all path parameters with validate_uuid().
-
-5. **Theme blend produces illegible text** -- Mid-range slider positions create backgrounds where neither dark nor light text colors have sufficient WCAG contrast. Prevention: text color must be a function of background lightness (not the slider), enforce minimum contrast ratios.
-
-**Additional critical pitfall:** Bundle size blow-up. Adding TipTap + xterm.js without removing CodeMirror or lazy-loading pushes the bundle past 5MB. Prevention: lazy-load both editors, remove CodeMirror after migration, set CI bundle budget.
-
----
+5. **WebSocket CAS guard lifecycle** — Three WebSocket endpoints use RAII connection guards (chat, sessions, terminal). If the guard is dropped before the WebSocket handler completes, the atomic counter never decrements. After N connections, the endpoint permanently refuses new connections until app restart. Verification must test the full connect -> use -> disconnect -> reconnect cycle for each WS endpoint.
 
 ## Implications for Roadmap
 
-### Suggested Phase Structure
+Based on research, the milestone has a natural 5-phase structure driven by the dependency chain: integration correctness must precede dead code detection, which must precede cross-layer binding verification, which must precede integration testing.
 
-The following 25 phases are ordered by dependency, risk, and independence. Phases within the same group can run in parallel. Each phase does exactly one thing.
+### Phase 1: Gateway Integration Fix
+**Rationale:** Everything else in the milestone depends on gateway correctness. The connect handshake, 9 wrong method names, and `openclaw_data.rs` HTTP-vs-WS mismatch must be fixed before any page can be verified as working or broken. This is the root cause of multiple "this page doesn't work" reports.
+**Delivers:** Correct WS RPC integration for sessions, approvals, usage, models, tools, skills, activity
+**Addresses:** Category 1 (broken gateway integration) and part of Category 3 (API shape mismatches)
+**Avoids:** Pitfall 5 (removing wrong-but-functional code before fixing it)
 
----
+### Phase 2: Browser Mode & Dev Workflow Fixes
+**Rationale:** Fixes browser mode auth and dashboard widget rendering in browser mode. Unblocks the development workflow for all subsequent verification phases — if dev mode is broken, per-page verification is painful and results are unreliable.
+**Delivers:** Working development environment (browser mode auth, dashboard, ffir error toast removed)
+**Addresses:** Known v0.0.3 bugs (ffir toast, browser mode auth, dashboard 1-widget bug)
+**Avoids:** Compound debugging where dev mode bugs mask real integration bugs
 
-**Group A: Bug Verification (must come first)**
+### Phase 3: Dead Route Stripping
+**Rationale:** Remove routes that call nonexistent methods (pause/resume) and audit low-confidence routes (workspace, decisions, workflow_notes, dlp, deploy). Must happen AFTER Phase 1 so that routes calling genuinely nonexistent methods are cleanly distinguished from routes that simply needed method name fixes.
+**Delivers:** Reduced backend surface area, noVNC dependency removed, dead feature stubs stripped
+**Uses:** Backend route inventory technique (static extraction from `routes/mod.rs` + frontend path cross-reference)
+**Avoids:** Pitfall 2 (removing routes called by external systems — requires external caller audit before any deletion)
 
-**Phase 1: Verify widget resize fix**
-- Rationale: v0.0.2 applied a z-index fix but needs verification. Blocks confidence in adding new widgets.
-- Delivers: Confirmed widget resize works across all widget types
-- Features: Bug fix verification
-- Pitfalls to avoid: None (verification only)
+### Phase 4: Frontend Dead Code Detection
+**Rationale:** Run Knip v6 + eslint-plugin-unused-imports + TypeScript strict flags after backend is stabilized. Frontend dead code audit is only reliable after backend API shapes are confirmed — some frontend types appear unused until the correct response shape is wired.
+**Delivers:** Unused files, exports, deps, components, hooks removed; TypeScript strict flags enabled permanently
+**Uses:** knip v6, eslint-plugin-unused-imports v4, TypeScript `noUnusedLocals`/`noUnusedParameters`
+**Avoids:** Pitfall 1 (over-deleting dynamic imports — widget registry and lazy() check required before any deletion)
 
-**Phase 2: Verify page layout fix**
-- Rationale: Pages filling screen width was fixed but needs verification across all pages.
-- Delivers: Confirmed full-bleed and scrolling pages work correctly
-- Features: Bug fix verification
-- Pitfalls to avoid: None
+### Phase 5: Per-Page Integration Verification
+**Rationale:** End-to-end verification of all 21 modules against real services. This phase catches integration issues that unit tests and type checks cannot — pages that compile and pass tests but show wrong data, wrong error states, or silent failures.
+**Delivers:** All pages verified working (or gracefully degraded with correct error state), PageErrorBoundary on all pages, consistent loading/empty/error state components, accessibility audit complete
+**Addresses:** Category 3 (API shapes), Category 4 (error handling), Category 6 (accessibility)
+**Avoids:** Pitfall 3 (widget registry integrity — every page with widgets verified post-cleanup), Pitfall 4 (silent regressions caught by cross-component smoke tests)
 
-**Phase 3: Verify widget tab-switch fix**
-- Rationale: Widget disappearance on tab switch was fixed via memo deps. Needs cross-browser verification.
-- Delivers: Confirmed widgets persist across page/tab navigation
-- Features: Bug fix verification
-- Pitfalls to avoid: None
+### Phase Ordering Rationale
 
-**Phase 4: Verify widget picker UX fixes**
-- Rationale: Duplicates allowed, entry animations, preset feedback, delete dialog -- all recently fixed.
-- Delivers: Confirmed widget picker works as designed
-- Features: Bug fix verification
-- Pitfalls to avoid: None
-
----
-
-**Group B: Infrastructure foundations (independent, can run in parallel)**
-
-**Phase 5: Set CI bundle budget**
-- Rationale: Must be in place BEFORE adding TipTap or xterm.js. Prevents bundle regression.
-- Delivers: CI check failing if any chunk >400KB or total >5MB
-- Features: Infrastructure
-- Pitfalls to avoid: Bundle size blow-up (Pitfall 6)
-
-**Phase 6: Supabase migration for projects**
-- Rationale: Database schema must exist before any project tracker code. Migration + RLS + indexes.
-- Delivers: projects, project_columns, project_items tables with RLS and Realtime
-- Features: Kanban board (schema only)
-- Pitfalls to avoid: Single-table anti-pattern
-
-**Phase 7: Install TipTap packages + remove CodeMirror**
-- Rationale: Package installation is a prerequisite for all editor work. Install new, do NOT remove old yet.
-- Delivers: TipTap packages in node_modules; build still compiles
-- Features: Editor migration (prep only)
-- Pitfalls to avoid: Do NOT remove CodeMirror packages until migration is complete
-
----
-
-**Group C: Low-risk independent features (can run in parallel)**
-
-**Phase 8: Theme blend -- OKLCH helpers**
-- Rationale: Add hexToOklch, oklchToHex, interpolateHexOklch to themes.ts. Pure utility functions, easily tested.
-- Delivers: Color interpolation utilities with unit tests
-- Features: Theme blend (foundations)
-- Pitfalls to avoid: Using sRGB instead of OKLCH (Pitfall 5)
-
-**Phase 9: Theme blend -- interpolation engine**
-- Rationale: Add interpolateThemes() to theme-engine.ts, modify applyTheme() to handle blendPosition.
-- Delivers: Working theme interpolation when blendPosition is set programmatically
-- Features: Theme blend (engine)
-- Pitfalls to avoid: Contrast failure at mid-range; text color must be lightness-dependent
-
-**Phase 10: Theme blend -- slider UI + persistence**
-- Rationale: Add slider to SettingsDisplay.tsx, RAF throttling to theme-store.ts, blendPosition to ThemeState.
-- Delivers: User-facing slider that blends between dark and light themes in real-time
-- Features: Theme blend (complete)
-- Pitfalls to avoid: Animated transitions on 50+ CSS vars; system theme interaction
-
-**Phase 11: OpenClaw gateway proxy helper**
-- Rationale: Build the gateway_forward() helper in gateway.rs with error sanitization BEFORE any CRUD routes. This is the security-critical foundation.
-- Delivers: Reusable proxy function with credential protection and input validation
-- Features: OpenClaw controller (foundation)
-- Pitfalls to avoid: Credential leaks in errors (Pitfall 4), SSRF via unsanitized IDs
-
-**Phase 12: OpenClaw agent CRUD**
-- Rationale: Agent create/update/delete + lifecycle controls. Depends on Phase 11 gateway helper.
-- Delivers: AgentManager.tsx page with full CRUD, optimistic updates, loading/error states
-- Features: Agent management
-- Pitfalls to avoid: Offline behavior when OpenClaw VM unreachable
-
-**Phase 13: OpenClaw cron CRUD**
-- Rationale: Cron create/update/delete + schedule editor. Depends on Phase 11 gateway helper.
-- Delivers: CronManager.tsx page with human-readable schedule UI
-- Features: Cron management
-- Pitfalls to avoid: Duplicate crons on retry (use PUT with deterministic IDs)
-
-**Phase 14: OpenClaw usage + models + controller page**
-- Rationale: Read-only endpoints (usage, models, tools) plus the OpenClawPage.tsx shell with tab navigation. Lower risk than CRUD.
-- Delivers: Usage dashboard, model selector, tool registry, unified OpenClaw page
-- Features: OpenClaw controller (complete)
-- Pitfalls to avoid: Excessive polling (30s minimum, only when page is active)
-
-**Phase 15: Project tracker backend + API**
-- Rationale: Axum routes for project CRUD, depends on Phase 6 schema. Follows todos.rs pattern.
-- Delivers: /api/projects/* endpoints with CRUD for boards, columns, items, drag reorder
-- Features: Project tracker (API)
-- Pitfalls to avoid: Missing RLS, cascade delete issues
-
-**Phase 16: Project tracker frontend + kanban board**
-- Rationale: ProjectsPage.tsx with drag-and-drop kanban, card detail panel, Realtime sync. Depends on Phase 15.
-- Delivers: Full kanban board page with Supabase Realtime sync
-- Features: Project tracker (complete)
-- Pitfalls to avoid: DnD jank; use existing HTML5 DnD pattern, not a new library
-
----
-
-**Group D: High-complexity features (focused attention, sequential)**
-
-**Phase 17: TipTap markdown roundtrip test suite**
-- Rationale: This MUST come before any TipTap editor code. Load 20+ representative notes through TipTap parse/serialize and diff against input. Any diff is a blocker.
-- Delivers: Test suite that validates roundtrip fidelity; list of edge cases needing custom nodes
-- Features: Editor migration (safety gate)
-- Pitfalls to avoid: Skipping this step leads to silent data loss (Pitfall 1)
-- **Needs `/gsd:research-phase`**: YES -- TipTap markdown extension is "early release" and edge cases are undocumented
-
-**Phase 18: TipTap custom extensions (wikilinks + image embeds)**
-- Rationale: WikilinkExtension.ts and ImageEmbedExtension.ts must exist before the editor migration. These handle Obsidian-specific syntax that TipTap does not support natively.
-- Delivers: Two custom TipTap nodes with markdown serialization that roundtrip correctly
-- Features: Editor migration (custom syntax)
-- Pitfalls to avoid: Wikilinks becoming plain text; image embeds breaking on serialize
-
-**Phase 19: TipTap editor migration**
-- Rationale: Rewrite NoteEditor.tsx and EditorToolbar.tsx. Depends on Phase 17 (tests pass) and Phase 18 (extensions exist).
-- Delivers: WYSIWYG editor with all existing features preserved (formatting, toolbar, wikilinks, images, backlinks)
-- Features: WYSIWYG editor (core migration)
-- Pitfalls to avoid: Dual-format corruption (Pitfall 2); one editor at a time, no toggle
-
-**Phase 20: TipTap polish (slash commands, floating toolbar, tables)**
-- Rationale: After core migration works, add differentiator features. BubbleMenu, Suggestion API for slash commands, table extension.
-- Delivers: Google Docs-level editing experience
-- Features: Editor differentiators
-- Pitfalls to avoid: Bundle size; lazy-load entire editor component
-
-**Phase 21: Remove CodeMirror packages**
-- Rationale: Only after TipTap migration is verified end-to-end. Removes 11 packages from bundle.
-- Delivers: Cleaner bundle, no dual-editor overhead
-- Features: Cleanup
-- Pitfalls to avoid: Removing before migration is confirmed working
-
----
-
-**Group E: Terminal (highest risk, after core features stable)**
-
-**Phase 22: Terminal PTY backend (portable-pty + WebSocket)**
-- Rationale: Build terminal.rs with PTY lifecycle management, CAS connection guard, process group cleanup. Test with 100 open/close cycles.
-- Delivers: /api/terminal/ws endpoint that spawns and manages PTY sessions
-- Features: Terminal backend
-- Pitfalls to avoid: Zombie processes (Pitfall 3); env var leakage (filter MC_*, OPENCLAW_* from PTY env)
-- **Needs `/gsd:research-phase`**: YES -- portable-pty API, PTY process group management on macOS/Linux/Windows
-
-**Phase 23: Terminal frontend (xterm.js component)**
-- Rationale: xterm.js in React with WebSocket connection, fit addon, theme integration. Depends on Phase 22.
-- Delivers: Working terminal component with resize handling, copy/paste, scrollback
-- Features: Terminal frontend
-- Pitfalls to avoid: Font mismatch with editor; share monospace CSS variable
-
----
-
-**Group F: Integration + polish (last)**
-
-**Phase 24: Widget registry + sidebar modules**
-- Rationale: Register Terminal and Project Board as widgets. Add OpenClaw and Projects to sidebar modules. Wire Settings connections.
-- Delivers: All new features accessible from sidebar and widget picker
-- Features: Integration
-- Pitfalls to avoid: Forgetting requiresConfig for OpenClaw module
-
-**Phase 25: Final verification + bundle audit**
-- Rationale: End-to-end verification of all features together. Bundle size audit. Contrast check on theme slider.
-- Delivers: Verified v0.0.3 release candidate
-- Features: Quality gate
-- Pitfalls to avoid: Shipping without checking mid-range theme slider contrast
-
----
+- Phase 1 before Phase 3: cannot distinguish "wrong method name" from "dead route" until integrations are corrected
+- Phase 1 before Phase 4: frontend types look wrong against broken gateway responses; fix gateway first to see real shapes
+- Phase 2 before Phases 3-5: dev workflow must work before per-page verification is reliable
+- Phase 3 before Phase 4: removing dead backend routes may make corresponding frontend hooks genuinely unreachable; Knip runs after stripping to catch these cascades
+- Phase 4 before Phase 5: dead code removal creates clean state to verify against
+- Phase 5 last: integration verification is the final gate, not a midpoint checkpoint
 
 ### Research Flags
 
-| Phase | Needs /gsd:research-phase | Reason |
-|-------|---------------------------|--------|
-| Phase 17 (TipTap roundtrip tests) | YES | TipTap markdown extension is "early release"; edge cases undocumented |
-| Phase 18 (Custom TipTap extensions) | MAYBE | aarkue/tiptap-wikilink-extension exists as reference but is unpublished |
-| Phase 22 (Terminal PTY backend) | YES | portable-pty API, process group cleanup patterns, cross-platform PTY differences |
-| All other phases | NO | Well-documented patterns exist in codebase; standard CRUD/UI work |
+Phases likely needing live-gateway testing or deeper investigation during planning:
+- **Phase 1:** `memory.search` is not in the 88 documented gateway methods — needs live gateway probe to determine if the method exists under a different name or should be stripped entirely
+- **Phase 1:** `activity.recent` replacement — research suggests rewiring to an event subscription stream rather than a polling endpoint; needs verification against actual gateway event types
+- **Phase 3:** External caller audit for `deploy.rs`, `cache.rs`, `pipeline/agents.rs` — need to inspect CI pipeline configs and OpenClaw VM scripts for calls to these endpoints before removing them
 
----
+Phases with standard patterns (skip additional research):
+- **Phase 2:** The ffir error and browser mode auth are known, well-scoped bugs with clear fix paths documented in FEATURES.md
+- **Phase 4:** Knip v6 configuration is fully specified in STACK.md with a project-specific `knip.json` and ESLint config diff ready to apply
+- **Phase 5:** Per-page audit checklist is fully defined in FEATURES.md (Per-Page Audit Checklist and Per-Route Audit Checklist sections)
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All packages verified on npm/crates.io with recent publish dates. TipTap v3.20.x is 3 days old. xterm v6 published Dec 2025. |
-| Features | MEDIUM-HIGH | Table stakes well-defined. OpenClaw API surface needs verification against actual gateway docs. |
-| Architecture | HIGH | All patterns verified against existing codebase. No new paradigms needed. |
-| Pitfalls | HIGH | Pitfalls verified against official issue trackers (TipTap #7147, xterm #1518) and codebase analysis. |
-| TipTap markdown round-trip | MEDIUM | Official extension labeled "early release." Wikilinks and image embeds require custom work. No guarantee of byte-perfect round-trip for edge cases. |
-| OpenClaw API endpoints | MEDIUM | Based on code analysis of existing routes. Actual gateway API surface needs verification -- the gateway may have changed since agents.rs and openclaw_cli.rs were written. |
-| Terminal cross-platform | MEDIUM | portable-pty covers Linux/macOS/Windows but PTY behavior differs significantly per platform. SSH passphrase key is a known blocker for non-interactive SSH. |
+| Stack | HIGH | knip v6 verified against official docs same day as research (2026-03-24, npm v6.0.4); cargo-machete verified against crates.io v0.9.1; all configs verified against actual project files (tsconfig.app.json, eslint.config.js, Cargo.toml) |
+| Features | HIGH | Based on direct codebase analysis (44 route modules, 30+ widgets, 29 lazy pages, 106 test files) plus verified OpenClaw gateway protocol v3 (88 RPC methods); specific wrong method names confirmed against reference docs in project memory |
+| Architecture | HIGH | Audit strategy derived from direct inspection of codebase structure; gateway HTTP-vs-WS mismatch confirmed by tracing actual code paths in `openclaw_data.rs` and `gateway.rs` |
+| Pitfalls | HIGH | All 9 pitfalls derived from direct codebase analysis with specific file names, line counts, and runtime failure modes; not generic advice |
+
+**Overall confidence:** HIGH
 
 ### Gaps to Address
 
-1. **OpenClaw gateway API documentation** -- The actual API surface of the OpenClaw gateway needs verification. Research is based on code patterns, not gateway docs. Before Phase 11, run `curl` against the gateway to confirm available endpoints.
-
-2. **TipTap frontmatter handling** -- Obsidian uses YAML frontmatter blocks (`---`). No research confirms whether TipTap's markdown extension preserves these. Test in Phase 17.
-
-3. **LiveSync chunk boundary behavior** -- When TipTap normalizes whitespace, content length may change, which could shift LiveSync chunk boundaries. This could cause conflicts on Obsidian mobile. Needs testing with actual LiveSync sync.
-
-4. **SSH passphrase key for terminal** -- The `~/.ssh/mission-control` key has a passphrase. Non-interactive SSH from the Axum server will fail. Phase 22 may need to use a separate key without a passphrase (stored in keychain) or SSH agent forwarding. This is unresolved.
-
-5. **TipTap StarterKit vs individual imports** -- ARCHITECTURE.md shows StarterKit usage but PITFALLS.md says never use StarterKit (tree-shaking failures, 100KB+ overhead). Phase 7/19 must use individual extension imports.
-
-6. **Theme blend contrast validation** -- No automated WCAG contrast checking exists in the codebase. Phase 9 needs to implement this as part of the interpolation engine, not as a follow-up.
-
----
+- **`memory.search` method existence:** Not in the 88 documented gateway methods. During Phase 1, probe the live gateway to determine if this is a renamed method or genuinely nonexistent. Until confirmed, do not remove the frontend search UI — only correct or stub the backend handler.
+- **Dual source of truth for agents:** `useAgents.ts` reads from local SQLite via `/api/agents`, but agents canonically live on the gateway (`agents.list` WS method). This architectural conflict is documented but deferred to v0.0.5. During Phase 5 verification, document the actual runtime behavior so v0.0.5 planning starts with a clear picture.
+- **External caller inventory for pipeline routes:** `pipeline/agents.rs` and `deploy.rs` may be called by external CI/orchestration systems on the OpenClaw VM. Before Phase 3 stripping, audit the VM's pipeline scripts and any webhook configurations.
+- **Widget registry Knip entry points:** Knip needs widget registry dynamic import factory functions declared as explicit entry points. The proposed `knip.json` in STACK.md handles `main.tsx` but the widget registry path needs explicit addition to avoid false positive "unused" reports on all 30+ widget components.
 
 ## Sources
 
-Aggregated from all four research files:
+### Primary (HIGH confidence)
+- `/home/josue/Documents/projects/mission-control` — Direct codebase analysis (473 frontend files, 72 Rust files, 44 route modules, 30+ widgets, 29 lazy pages)
+- [knip.dev](https://knip.dev/) — Official documentation, v6 release notes (2026-03-24), configuration reference, auto-fix docs
+- [npm: knip v6.0.4](https://www.npmjs.com/package/knip) — Published 2026-03-24
+- [GitHub: bnjbvr/cargo-machete v0.9.1](https://github.com/bnjbvr/cargo-machete) — README, known false positives, crates.io
+- OpenClaw Gateway Protocol v3 reference — 88 RPC methods, 17 events (project memory: `reference_openclaw_complete.md`)
+- Project CLAUDE.md — tsconfig.app.json flags, eslint.config.js structure, pre-commit.sh integration points
 
-**Official documentation:**
-- TipTap React, Markdown, Extensions documentation (tiptap.dev)
-- xterm.js official documentation (xtermjs.org)
-- CSS color-mix() MDN reference
-- portable-pty crate documentation (crates.io)
+### Secondary (MEDIUM confidence)
+- [GitHub: sweepline/eslint-plugin-unused-imports](https://github.com/sweepline/eslint-plugin-unused-imports) — ESLint 9 flat config compatibility confirmed
+- [Effective TypeScript: Use Knip to detect dead code](https://effectivetypescript.com/2023/07/29/knip/) — knip vs ts-prune comparison, ts-prune deprecation confirmed
+- [Rust by Example: dead_code](https://doc.rust-lang.org/rust-by-example/attribute/unused.html) — Built-in lint behavior
+- Project memory `project_v003_postship_bugs.md` — Known v0.0.3 bug inventory
 
-**Issue trackers:**
-- TipTap #7147 (markdown roundtrip inconsistency)
-- TipTap #471 (tree-shaking issues)
-- xterm.js #1518 (memory leak on dispose)
-
-**npm/crates.io registries:**
-- @tiptap/react v3.20.4 (published 3 days ago)
-- @xterm/xterm v6.0.0 (published Dec 2025)
-- portable-pty v0.9.0
-
-**Community references:**
-- aarkue/tiptap-wikilink-extension (reference for custom node)
-- Evil Martians OKLCH guide
-- tauri-terminal (marc2332) reference implementation
-
-**Codebase analysis:**
-- 20+ source files analyzed across frontend and backend
-- Current NoteEditor.tsx (431 lines), EditorToolbar.tsx (343 lines), chat.rs, agents.rs, vault.ts, vault.rs, themes.ts, theme-engine.ts, theme-definitions.ts, vite.config.ts
+### Tertiary (LOW confidence)
+- Rust 1.94.0 dead_code lint improvements (web search claims ~15% fewer false positives) — not verified against official release notes
 
 ---
-*Research synthesis for: OpenClaw Manager v0.0.3*
-*Synthesized: 2026-03-22*
+*Research completed: 2026-03-24*
+*Ready for roadmap: yes*

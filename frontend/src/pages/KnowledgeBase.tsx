@@ -110,8 +110,8 @@ export default function KnowledgePage() {
           type="search"
           value={search}
           onChange={e => handleSearchChange(e.target.value)}
-          placeholder="MagnifyingGlass title, content..."
-          aria-label="MagnifyingGlass knowledge base"
+          placeholder="Search title, content..."
+          aria-label="Search knowledge base"
           style={{
             width: '100%',
             padding: '10px 14px 10px 36px',

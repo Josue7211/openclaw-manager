@@ -1,10 +1,11 @@
 import { memo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Desktop, WifiHigh, Database, Info, ArrowsClockwise, Clock, HardDrive, Stack, Monitor } from '@phosphor-icons/react'
+import { Desktop, WifiHigh, Database, Info, ArrowsClockwise, Clock, HardDrive, Stack, Monitor, Plugs } from '@phosphor-icons/react'
 
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { useGatewayStatus } from '@/hooks/sessions/useGatewayStatus'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -205,19 +206,38 @@ function StatusLoadingSkeleton({ rows }: { rows: number }) {
 export default memo(function SettingsStatus() {
   const queryClient = useQueryClient()
 
-  const { data: health, isLoading: healthLoading, dataUpdatedAt: healthUpdatedAt } = useQuery<HealthData>({
+  const { data: health, isLoading: healthLoading, isError: healthError, dataUpdatedAt: healthUpdatedAt } = useQuery<HealthData>({
     queryKey: queryKeys.health,
     queryFn: () => api.get('/api/status/health'),
     refetchInterval: 10_000,
     staleTime: 8_000,
   })
 
-  const { data: tailscale, isLoading: tsLoading } = useQuery<TailscaleData>({
+  const { data: tailscale, isLoading: tsLoading, isError: tsError } = useQuery<TailscaleData>({
     queryKey: queryKeys.tailscalePeers,
     queryFn: () => api.get('/api/status/tailscale'),
     refetchInterval: 10_000,
     staleTime: 8_000,
   })
+
+  const { status: gwStatus, connected: gwConnected, protocol: gwProtocol, reconnectAttempt } = useGatewayStatus()
+
+  // Compute gateway display text
+  const gwDisplayStatus = gwConnected
+    ? `Connected${gwProtocol ? ` (protocol v${gwProtocol})` : ''}`
+    : gwStatus === 'reconnecting'
+      ? `Reconnecting${reconnectAttempt > 0 ? ` (attempt ${reconnectAttempt})` : '...'}`
+      : gwStatus === 'not_configured'
+        ? 'Not configured'
+        : 'Disconnected'
+
+  const gwDotColor = gwConnected
+    ? 'var(--secondary-dim)'
+    : gwStatus === 'reconnecting'
+      ? 'var(--amber)'
+      : gwStatus === 'not_configured'
+        ? 'var(--text-muted)'
+        : 'var(--red-500)'
 
   const queryCache = queryClient.getQueryCache()
   const allQueries = queryCache.getAll()
@@ -265,6 +285,12 @@ export default memo(function SettingsStatus() {
           </div>
           {healthLoading ? (
             <StatusLoadingSkeleton rows={3} />
+          ) : healthError || !services ? (
+            <div style={{ padding: '12px 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+              {healthError
+                ? 'Unable to reach backend. Check that the Tauri app or dev server is running.'
+                : 'Service status not available from the health endpoint.'}
+            </div>
           ) : (
             serviceEntries.map((svc, i) => {
               const s = svc.data
@@ -302,6 +328,34 @@ export default memo(function SettingsStatus() {
           )}
         </div>
 
+        {/* Gateway WebSocket */}
+        <div style={statusCard}>
+          <div style={statusSectionTitle}>
+            <Plugs size={14} />
+            Gateway WebSocket
+          </div>
+          <div style={statusRowLast}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{
+                display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%',
+                background: gwDotColor,
+                boxShadow: gwConnected
+                  ? `0 0 6px ${gwDotColor}60`
+                  : gwStatus === 'not_configured'
+                    ? 'none'
+                    : `0 0 6px var(--red-500-a25)`,
+              }} />
+              <span style={{ fontWeight: 500 }}>OpenClaw Gateway</span>
+            </div>
+            <span style={{
+              fontSize: '11px', fontWeight: 500,
+              color: gwDotColor,
+            }}>
+              {gwDisplayStatus}
+            </span>
+          </div>
+        </div>
+
         {/* Tailscale Peers */}
         <div style={statusCard}>
           <div style={statusSectionTitle}>
@@ -310,6 +364,10 @@ export default memo(function SettingsStatus() {
           </div>
           {tsLoading ? (
             <StatusLoadingSkeleton rows={3} />
+          ) : tsError ? (
+            <div style={{ padding: '12px 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+              Unable to fetch Tailscale peers. The backend may not be authenticated or Tailscale may not be installed.
+            </div>
           ) : uniquePeers.length === 0 ? (
             <div style={{ padding: '8px 0' }}>
               <EmptyState icon={WifiHigh} title="No peers found" description="Tailscale may not be installed or running." />
@@ -346,6 +404,10 @@ export default memo(function SettingsStatus() {
           </div>
           {healthLoading ? (
             <StatusLoadingSkeleton rows={2} />
+          ) : healthError ? (
+            <div style={{ padding: '12px 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+              Not available &mdash; backend unreachable.
+            </div>
           ) : (
             <>
               <div style={statusRow}>
@@ -361,7 +423,7 @@ export default memo(function SettingsStatus() {
                   Database Size
                 </span>
                 <span style={statusVal}>
-                  {health ? formatBytes(health.sqlite_db_size_bytes) : '--'}
+                  {health?.sqlite_db_size_bytes != null ? formatBytes(health.sqlite_db_size_bytes) : '--'}
                 </span>
               </div>
             </>
@@ -376,6 +438,10 @@ export default memo(function SettingsStatus() {
           </div>
           {healthLoading ? (
             <StatusLoadingSkeleton rows={4} />
+          ) : healthError ? (
+            <div style={{ padding: '12px 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+              Not available &mdash; backend unreachable.
+            </div>
           ) : (
             <>
               <div style={statusRow}>
@@ -388,7 +454,7 @@ export default memo(function SettingsStatus() {
                   Uptime
                 </span>
                 <span style={statusVal}>
-                  {health ? formatUptime(health.uptime_seconds) : '--'}
+                  {health?.uptime_seconds != null ? formatUptime(health.uptime_seconds) : '--'}
                 </span>
               </div>
               <div style={statusRow}>

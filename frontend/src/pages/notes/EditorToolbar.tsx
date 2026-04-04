@@ -254,6 +254,7 @@ function Separator() {
 
 interface EditorToolbarProps {
   viewRef: React.RefObject<EditorView | null>
+  noteTitle?: string
 }
 
 function EditorToolbar({ viewRef }: EditorToolbarProps) {
@@ -340,4 +341,4 @@ function EditorToolbar({ viewRef }: EditorToolbarProps) {
 export default memo(EditorToolbar)
 
 // Export formatting functions so NoteEditor can wire keyboard shortcuts
-export { toggleWrap, insertLink, toggleLinePrefix }
+export { toggleWrap, insertLink }

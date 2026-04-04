@@ -12,7 +12,7 @@ import type { LayoutItem } from './dashboard-store'
 // Types
 // ---------------------------------------------------------------------------
 
-export interface HomeDefaultLayoutResult {
+interface HomeDefaultLayoutResult {
   layouts: Record<string, LayoutItem[]>
   widgetConfigs: Record<string, Record<string, unknown>>
 }
@@ -21,7 +21,7 @@ export interface HomeDefaultLayoutResult {
 // Home-specific default order
 // ---------------------------------------------------------------------------
 
-export const HOME_DEFAULT_ORDER: string[] = [
+const HOME_DEFAULT_ORDER: string[] = [
   'todos',
   'calendar',
   'reminders',

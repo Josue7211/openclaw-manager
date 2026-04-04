@@ -6,10 +6,10 @@
  * Each field has a clear (X) button to reset to default.
  */
 
-import { useState, useCallback, useRef, memo } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 import { setSidebarTitleText, getSidebarTitleText } from '@/lib/sidebar-settings'
-import { sectionLabel, row, inputStyle } from '@/pages/settings/shared'
+import { sectionLabel, inputStyle } from '@/pages/settings/shared'
 import { X } from '@phosphor-icons/react'
 
 // ---------------------------------------------------------------------------

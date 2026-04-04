@@ -24,6 +24,7 @@ pub(crate) const KEY_ENV_MAP: &[(&str, &str)] = &[
     ("openclaw.password", "OPENCLAW_PASSWORD"),
     ("openclaw.api-url", "OPENCLAW_API_URL"),
     ("openclaw.api-key", "OPENCLAW_API_KEY"),
+    ("agentshell.url", "AGENTSHELL_URL"),
     ("mac-bridge.host", "MAC_BRIDGE_HOST"),
     ("mac-bridge.api-key", "MAC_BRIDGE_API_KEY"),
     ("anthropic.api-key", "ANTHROPIC_API_KEY"),
@@ -67,6 +68,7 @@ const USER_KEYS: &[&str] = &[
     "openclaw.password",
     "openclaw.api-url",
     "openclaw.api-key",
+    "agentshell.url",
     "mac-bridge.host",
     "mac-bridge.api-key",
     "anthropic.api-key",
@@ -163,11 +165,9 @@ pub fn load_secrets() -> HashMap<String, String> {
     for path in &[".env.local", "../.env.local"] {
         if let Ok(iter) = dotenvy::from_filename_iter(path) {
             tracing::info!("Merging dev secrets from {}", path);
-            for item in iter {
-                if let Ok((key, value)) = item {
-                    if known.contains(key.as_str()) && !secrets.contains_key(&key) {
-                        secrets.insert(key, value);
-                    }
+            for (key, value) in iter.flatten() {
+                if known.contains(key.as_str()) && !secrets.contains_key(&key) {
+                    secrets.insert(key, value);
                 }
             }
             break;
@@ -235,20 +235,41 @@ const FRONTEND_BLOCKED_KEYS: &[&str] = &[
 /// Keys that the frontend is allowed to write (allowlist).
 /// Only keys needed by the onboarding wizard and Settings UI are included.
 const FRONTEND_WRITABLE_KEYS: &[&str] = &[
-    "bluebubbles.host", "bluebubbles.password",
-    "openclaw.api-url", "openclaw.api-key", "openclaw.ws", "openclaw.password",
-    "proxmox.host", "proxmox.token-id", "proxmox.token-secret",
-    "opnsense.host", "opnsense.key", "opnsense.secret",
-    "plex.url", "plex.token",
-    "sonarr.url", "sonarr.api-key",
-    "radarr.url", "radarr.api-key",
-    "email.host", "email.port", "email.user", "email.password",
-    "caldav.url", "caldav.username", "caldav.password",
-    "ntfy.url", "ntfy.topic",
-    "mac-bridge.host", "mac-bridge.api-key",
+    "bluebubbles.host",
+    "bluebubbles.password",
+    "openclaw.api-url",
+    "openclaw.api-key",
+    "openclaw.ws",
+    "openclaw.password",
+    "agentshell.url",
+    "proxmox.host",
+    "proxmox.token-id",
+    "proxmox.token-secret",
+    "opnsense.host",
+    "opnsense.key",
+    "opnsense.secret",
+    "plex.url",
+    "plex.token",
+    "sonarr.url",
+    "sonarr.api-key",
+    "radarr.url",
+    "radarr.api-key",
+    "email.host",
+    "email.port",
+    "email.user",
+    "email.password",
+    "caldav.url",
+    "caldav.username",
+    "caldav.password",
+    "ntfy.url",
+    "ntfy.topic",
+    "mac-bridge.host",
+    "mac-bridge.api-key",
     "anthropic.api-key",
-    "supabase.url", "supabase.anon-key",
-    "mc-bind.host", "mc-agent.key",
+    "supabase.url",
+    "supabase.anon-key",
+    "mc-bind.host",
+    "mc-agent.key",
 ];
 
 /// Retrieve a single secret from the OS keychain by its keyring key name.

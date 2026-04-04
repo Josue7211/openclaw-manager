@@ -7,6 +7,10 @@ const SECRET_PATTERNS: &[&str] = &[
     r"\b([a-f0-9]{32,})\b",
 ];
 
+/// Fallback regex for redacting alphanumeric sequences (compiled once).
+static FALLBACK_RE: std::sync::LazyLock<Regex> =
+    std::sync::LazyLock::new(|| Regex::new(r"[a-zA-Z0-9]{4,}").unwrap());
+
 /// Redact secrets (API keys, tokens, JWTs, long hex strings) from a string for safe logging.
 pub fn redact(input: &str) -> String {
     let mut result = input.to_string();
@@ -22,8 +26,7 @@ pub fn redact(input: &str) -> String {
                     }
                 }
                 // Fallback
-                let re2 = Regex::new(r"[a-zA-Z0-9]{4,}").unwrap();
-                re2.replace_all(&full, |m: &regex::Captures| {
+                FALLBACK_RE.replace_all(&full, |m: &regex::Captures| {
                     let s = m.get(0).unwrap().as_str();
                     format!("{}***", &s[..std::cmp::min(2, s.len())])
                 }).into_owned()

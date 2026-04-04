@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiError } from '@/lib/api'
+import { isDemoMode } from '@/lib/demo-data'
 import { ensureAvatarBatchCheck } from '@/components/messages/ContactAvatar'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 import { getReadOverrides } from './readOverrides'
@@ -55,6 +56,12 @@ export function useConversationList() {
   const fetchConversations = useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true)
+      // In demo mode or without backend, show "not configured" instead of a network error
+      if (isDemoMode()) {
+        if (!silent) setError('bluebubbles_not_configured')
+        if (!silent) setLoading(false)
+        return
+      }
       const junkParam = showJunk ? 'junk' : 'all'
       const data = await api.get<{ conversations?: Conversation[]; contacts?: Record<string, string>; error?: string }>(`/api/messages?limit=25&filter=${junkParam}`)
       if (data.error) {

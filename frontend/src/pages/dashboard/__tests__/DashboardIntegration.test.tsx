@@ -108,11 +108,19 @@ const mockGenerateDefaultLayout = vi.fn(() => ({
 }))
 
 vi.mock('@/lib/dashboard-defaults', () => ({
-  generateDefaultLayout: (...args: unknown[]) => mockGenerateDefaultLayout(...args),
+  generateDefaultLayout: (..._args: unknown[]) => mockGenerateDefaultLayout(),
 }))
 
 // Mutable dashboard state
-let mockDashState = {
+let mockDashState: {
+  pages: { id: string; name: string; sortOrder: number; layouts: Record<string, { i: string; x: number; y: number; w: number; h: number }[]>; widgetConfigs: Record<string, Record<string, unknown>> }[]
+  activePageId: string
+  editMode: boolean
+  wobbleEnabled: boolean
+  dotIndicatorsEnabled: boolean
+  recycleBin: unknown[]
+  lastModified: string
+} = {
   pages: [{
     id: 'home',
     name: 'Home',
@@ -121,6 +129,7 @@ let mockDashState = {
       lg: [
         { i: 'agent-status', x: 0, y: 0, w: 4, h: 2 },
         { i: 'heartbeat', x: 4, y: 0, w: 4, h: 2 },
+        { i: 'network', x: 8, y: 0, w: 4, h: 2 },
       ],
     },
     widgetConfigs: {},
@@ -138,7 +147,7 @@ const mockSetDashboardState = vi.fn()
 vi.mock('@/lib/dashboard-store', () => ({
   useDashboardStore: () => mockDashState,
   getDashboardState: () => mockDashState,
-  setDashboardState: (...args: unknown[]) => mockSetDashboardState(...args),
+  setDashboardState: (...args: unknown[]) => mockSetDashboardState.apply(null, args),
   setEditMode: vi.fn(),
   removeWidget: vi.fn(),
   updatePageLayouts: vi.fn(),
@@ -172,7 +181,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
-  // Reset mutable state
+  // Reset mutable state — needs >= 3 unique widgets to avoid triggering
+  // first-use default layout (Dashboard.tsx checks uniqueWidgets < 3)
   mockDashState = {
     pages: [{
       id: 'home',
@@ -182,6 +192,7 @@ afterEach(() => {
         lg: [
           { i: 'agent-status', x: 0, y: 0, w: 4, h: 2 },
           { i: 'heartbeat', x: 4, y: 0, w: 4, h: 2 },
+          { i: 'network', x: 8, y: 0, w: 4, h: 2 },
         ],
       },
       widgetConfigs: {},
@@ -355,8 +366,8 @@ describe('Dashboard Integration', () => {
         id: 'empty-page',
         name: 'New Page',
         sortOrder: 0,
-        layouts: {},
-        widgetConfigs: {},
+        layouts: {} as Record<string, { i: string; x: number; y: number; w: number; h: number }[]>,
+        widgetConfigs: {} as Record<string, Record<string, unknown>>,
       }],
       activePageId: 'empty-page',
     }
@@ -392,12 +403,12 @@ describe('Dashboard Integration', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByTestId('placed-count')).toHaveTextContent('2')
+      expect(screen.getByTestId('placed-count')).toHaveTextContent('3')
     })
   })
 
   it('does not export DashboardDataContext (removed — widgets use kernel hooks)', async () => {
-    const mod = await import('../../Dashboard')
+    const mod = await import('../../Dashboard') as Record<string, unknown>
     expect(mod.DashboardDataContext).toBeUndefined()
     expect(mod.useDashboardDataContext).toBeUndefined()
   })

@@ -27,6 +27,7 @@ import { autocompletion, closeBrackets, closeBracketsKeymap } from '@codemirror/
 import type { VaultNote } from './types'
 import EditorToolbar, { toggleWrap, insertLink } from './EditorToolbar'
 import { wikilinkCompletions } from './wikilinkCompletion'
+import { slashCommandCompletions } from './slashCommands'
 
 // --- Image embed widget for ![[image.png]] syntax ---
 
@@ -354,6 +355,7 @@ export default memo(function NoteEditor({ note, onChange, onWikilinkClick, allNo
           { key: 'Mod-i', run: (v) => { toggleWrap(v, '*'); return true } },
           { key: 'Mod-k', run: (v) => { insertLink(v); return true } },
           { key: 'Mod-Shift-s', run: (v) => { toggleWrap(v, '~~'); return true } },
+          { key: 'Mod-Shift-x', run: (v) => { toggleWrap(v, '~~'); return true } },
           ...defaultKeymap,
           ...historyKeymap,
           ...searchKeymap,
@@ -362,7 +364,7 @@ export default memo(function NoteEditor({ note, onChange, onWikilinkClick, allNo
         ]),
         autocompleteCompartment.current.of(
           autocompletion({
-            override: [wikilinkCompletions(allNoteTitles)],
+            override: [wikilinkCompletions(allNoteTitles), slashCommandCompletions],
             activateOnTyping: true,
           }),
         ),
@@ -399,7 +401,7 @@ export default memo(function NoteEditor({ note, onChange, onWikilinkClick, allNo
     view.dispatch({
       effects: autocompleteCompartment.current.reconfigure(
         autocompletion({
-          override: [wikilinkCompletions(allNoteTitles)],
+          override: [wikilinkCompletions(allNoteTitles), slashCommandCompletions],
           activateOnTyping: true,
         }),
       ),
@@ -416,7 +418,7 @@ export default memo(function NoteEditor({ note, onChange, onWikilinkClick, allNo
         background: 'var(--bg-base)',
       }}
     >
-      <EditorToolbar viewRef={viewRef} />
+      <EditorToolbar viewRef={viewRef} noteTitle={note.title} />
       <div
         ref={containerRef}
         style={{

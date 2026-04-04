@@ -42,8 +42,9 @@ export function useDashboardData() {
   const backendErrorRef = useRef<string | false>(false)
 
   // ── Research cron → mission sync ──
+  const researchMissionIdRef = useRef<string | null>(null)
   const syncResearchMission = useCallback(async () => {
-    const researchMissionIdRef = syncResearchMission._missionId
+    const currentMissionId = researchMissionIdRef.current
     try {
       const [{ jobs }, { missions: missionList }] = await Promise.all([
         api.get<{ jobs: Array<{ name: string; state?: { nextRunAtMs?: number; lastRunAtMs?: number; lastRunStatus?: string }; enabled?: boolean }> }>('/api/crons').catch(() => ({ jobs: [] as Array<{ name: string; state?: { nextRunAtMs?: number; lastRunAtMs?: number; lastRunStatus?: string }; enabled?: boolean }> })),
@@ -65,15 +66,15 @@ export function useDashboardData() {
       if (seemsRunning) {
         if (!existing) {
           const created = await api.post<{ mission?: { id: string } }>('/api/missions', { title: 'Research', assignee: 'bjorn' }).catch(() => null)
-          if (created?.mission?.id) syncResearchMission._missionId = created.mission.id
+          if (created?.mission?.id) researchMissionIdRef.current = created.mission.id
         } else {
-          if (!researchMissionIdRef) syncResearchMission._missionId = existing.id
+          if (!currentMissionId) researchMissionIdRef.current = existing.id
           if (existing.status !== 'active') {
             await api.patch('/api/missions', { id: existing.id, status: 'active' }).catch(() => {})
           }
         }
       } else if (lastStatus === 'success' || (lastRun > 0 && !seemsRunning)) {
-        const targetId = researchMissionIdRef ?? existing?.id
+        const targetId = currentMissionId ?? existing?.id
         if (existing && existing.status === 'active' && targetId) {
           await api.patch('/api/missions', { id: targetId, status: 'done' }).catch(() => {})
         }
@@ -81,8 +82,6 @@ export function useDashboardData() {
       queryClient.invalidateQueries({ queryKey: queryKeys.missions })
     } catch { /* silent */ }
   }, [queryClient])
-  // Attach mutable state to the function for the research mission ID
-  syncResearchMission._missionId = syncResearchMission._missionId ?? (null as string | null)
 
   // ── Polling orchestration ──
   const triggerCacheRefresh = useCallback(async () => {

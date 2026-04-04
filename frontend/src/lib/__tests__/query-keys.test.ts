@@ -43,8 +43,12 @@ describe('queryKeys', () => {
       expect(queryKeys.knowledge).toEqual(['knowledge'])
     })
 
-    it('memory returns ["workspace-files"]', () => {
-      expect(queryKeys.memory).toEqual(['workspace-files'])
+    it('memory returns ["memd", "entries"]', () => {
+      expect(queryKeys.memory).toEqual(['memd', 'entries'])
+    })
+
+    it('workspaceFiles returns ["workspace-files"]', () => {
+      expect(queryKeys.workspaceFiles).toEqual(['workspace-files'])
     })
 
     it('chatHistory returns ["chat", "history"]', () => {
@@ -120,6 +124,7 @@ describe('queryKeys', () => {
         queryKeys.capture,
         queryKeys.knowledge,
         queryKeys.memory,
+        queryKeys.workspaceFiles,
       ]
       const firsts = staticKeys.map(k => k[0])
       expect(new Set(firsts).size).toBe(firsts.length)

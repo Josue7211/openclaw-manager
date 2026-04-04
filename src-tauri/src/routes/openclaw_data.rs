@@ -13,7 +13,6 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/openclaw/usage", get(get_usage))
         .route("/openclaw/models", get(get_models))
-        .route("/openclaw/tools", get(get_tools))
 }
 
 // ── GET /openclaw/usage ─────────────────────────────────────────────────────
@@ -36,16 +35,6 @@ async fn get_models(
     Ok(Json(result))
 }
 
-// ── GET /openclaw/tools ─────────────────────────────────────────────────────
-
-async fn get_tools(
-    State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
-) -> Result<Json<Value>, AppError> {
-    let result = gateway_forward(&state, Method::GET, "/tools", None).await?;
-    Ok(Json(result))
-}
-
 // ── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -60,11 +49,6 @@ mod tests {
     #[test]
     fn validate_models_path() {
         assert!(validate_gateway_path("/models").is_ok());
-    }
-
-    #[test]
-    fn validate_tools_path() {
-        assert!(validate_gateway_path("/tools").is_ok());
     }
 
     #[test]

@@ -62,14 +62,14 @@ export function useActivityFeed(maxItems = 15) {
       })
     }
 
-    // Memory entries — workspace file updates
+    // Memory entries — MemD updates
     for (const entry of memory.slice(0, 5)) {
       items.push({
         id: `memory-${entry.path}`,
         type: 'memory',
         icon: 'Brain',
         title: entry.path.split('/').pop() || entry.path,
-        description: 'Workspace file updated',
+        description: 'MemD entry updated',
         timestamp: entry.date || new Date().toISOString(),
         color: 'var(--purple)',
       })

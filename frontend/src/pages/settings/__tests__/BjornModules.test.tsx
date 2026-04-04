@@ -164,14 +164,13 @@ describe('BjornModulesSection in SettingsModules', () => {
     expect(toggle).toHaveAttribute('aria-checked', 'true')
   })
 
-  it('renders empty state when no modules exist', async () => {
+  it('hides Bjorn section when no modules exist', async () => {
     mockGet.mockResolvedValue({ modules: [] })
     render(<SettingsModules />, { wrapper: createWrapper() })
+    // Component returns null when modules array is empty, so section should not appear
     await waitFor(() => {
-      expect(screen.getByText('No Bjorn modules yet')).toBeInTheDocument()
+      expect(screen.queryByText('Bjorn Modules')).not.toBeInTheDocument()
     })
-    // Description rendered by EmptyState component
-    expect(screen.getByText('Use the Bjorn tab in Chat to create one.')).toBeInTheDocument()
   })
 
   it('renders delete button with trash icon', async () => {

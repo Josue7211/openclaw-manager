@@ -49,25 +49,6 @@ export interface AnalysisResult {
 }
 
 // ---------------------------------------------------------------------------
-// Data bridge (postMessage protocol)
-// ---------------------------------------------------------------------------
-
-export interface BridgeRequest {
-  type: 'data-request'
-  requestId: string
-  source: string
-  command: string
-  args?: Record<string, unknown>
-}
-
-export interface BridgeResponse {
-  type: 'data-response' | 'data-error'
-  requestId: string
-  data?: unknown
-  error?: string
-}
-
-// ---------------------------------------------------------------------------
 // Generation state machine
 // ---------------------------------------------------------------------------
 

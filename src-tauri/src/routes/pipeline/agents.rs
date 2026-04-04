@@ -12,7 +12,7 @@ pub(super) mod status {
         pub const IDLE: &str = "idle";
     }
     pub mod mission {
-        #[allow(dead_code)]
+        #[allow(dead_code)] // completes the status enum; will be used when mission creation is wired
         pub const PENDING: &str = "pending";
         pub const ACTIVE: &str = "active";
         pub const DONE: &str = "done";

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react'
-import { Bell, ArrowRight } from '@phosphor-icons/react'
+import { Bell, ArrowRight, WarningCircle } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { SkeletonRows } from '@/components/Skeleton'
 import { useRemindersWidget } from '@/lib/hooks/dashboard/useRemindersWidget'
@@ -19,7 +19,7 @@ function priorityLabel(p?: number): string {
 }
 
 export const RemindersWidget = React.memo(function RemindersWidget({ config }: WidgetProps) {
-  const { reminders, todayReminders, pendingCount, toggleReminder, mounted } = useRemindersWidget()
+  const { reminders, todayReminders, pendingCount, toggleReminder, mounted, isError } = useRemindersWidget()
   const navigate = useNavigate()
 
   const maxItems = Number(config.maxItems ?? 5)
@@ -65,6 +65,16 @@ export const RemindersWidget = React.memo(function RemindersWidget({ config }: W
       {/* Content */}
       {!mounted ? (
         <SkeletonRows count={3} />
+      ) : isError ? (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px 0' }}>
+          <WarningCircle size={20} style={{ color: 'var(--text-muted)' }} />
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
+            Mac Bridge not reachable
+          </span>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', opacity: 0.7 }}>
+            Configure in Settings
+          </span>
+        </div>
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', minHeight: 0 }}>
           {displayReminders.length === 0 ? (

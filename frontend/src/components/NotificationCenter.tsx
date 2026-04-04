@@ -1,13 +1,13 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { Bell, X, Check, Checks, ChatText, Warning, Info, CaretDown, CaretRight } from '@phosphor-icons/react'
+import { Bell, X, Checks, ChatText, Warning, Info, CaretDown, CaretRight } from '@phosphor-icons/react'
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 
-export type NotificationType = 'message' | 'system' | 'alert'
+type NotificationType = 'message' | 'system' | 'alert'
 
-export interface Notification {
+interface Notification {
   id: string
   type: NotificationType
   title: string
@@ -89,13 +89,13 @@ export function markAllRead() {
   emitChange()
 }
 
-export function markRead(id: string) {
+function markRead(id: string) {
   notifications = notifications.map(n => n.id === id ? { ...n, read: true } : n)
   recalcUnread()
   emitChange()
 }
 
-export function clearNotifications() {
+function clearNotifications() {
   notifications = []
   recalcUnread()
   emitChange()
@@ -103,7 +103,7 @@ export function clearNotifications() {
 
 /* ─── Hook for consuming notifications ───────────────────────────────────── */
 
-export function useNotifications() {
+function useNotifications() {
   const items = useSyncExternalStore(subscribe, getSnapshot)
   const unread = useSyncExternalStore(subscribe, getUnreadSnapshot)
   return { notifications: items, unreadCount: unread }

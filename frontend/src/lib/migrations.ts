@@ -1,4 +1,4 @@
-const CURRENT_VERSION = 7
+const CURRENT_VERSION = 8
 
 export function runMigrations() {
   const stored = localStorage.getItem('app-version')
@@ -177,6 +177,28 @@ export function runMigrations() {
     // and named exports were fixed in widget-registry. Old dashboard state
     // may have broken layouts from crash-induced corruption.
     localStorage.removeItem('dashboard-state')
+  }
+
+  if (version < 8) {
+    // v7 -> v8: Remove deleted vnc-viewer widget from persisted dashboard state.
+    // VncPreviewWidget and @novnc/novnc were stripped as dead code (DEAD-05).
+    try {
+      const raw = localStorage.getItem('dashboard-state')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (parsed.widgets && Array.isArray(parsed.widgets)) {
+          const filtered = parsed.widgets.filter(
+            (w: { pluginId?: string }) => w.pluginId !== 'vnc-viewer'
+          )
+          if (filtered.length !== parsed.widgets.length) {
+            parsed.widgets = filtered
+            localStorage.setItem('dashboard-state', JSON.stringify(parsed))
+          }
+        }
+      }
+    } catch {
+      // Non-fatal — corrupted state will be reset on next dashboard load
+    }
   }
 
   localStorage.setItem('app-version', String(CURRENT_VERSION))

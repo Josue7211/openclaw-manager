@@ -324,7 +324,7 @@ fn extract_events_from_ical(cal: &IcalCalendar, calendar_name: &str) -> Vec<Cale
         let has_date_param = |name: &str| -> bool {
             event.properties.iter().any(|p| {
                 p.name == name
-                    && p.params.as_ref().map_or(false, |params| {
+                    && p.params.as_ref().is_some_and(|params| {
                         params.iter().any(|(k, vals)| {
                             k == "VALUE" && vals.iter().any(|v| v == "DATE")
                         })
@@ -349,7 +349,7 @@ fn extract_events_from_ical(cal: &IcalCalendar, calendar_name: &str) -> Vec<Cale
         let start = format_ical_date(&dtstart);
         let end = dtend
             .as_deref()
-            .map(|d| format_ical_date(d))
+            .map(format_ical_date)
             .unwrap_or_else(|| start.clone());
 
         let id = if uid.is_empty() {
@@ -381,9 +381,8 @@ fn parse_vcalendar_manual(ics_text: &str, calendar_name: &str) -> Vec<CalendarEv
             // Match: ^KEY[^:]*:(.*)$  (multiline)
             for line in vevent.lines() {
                 let trimmed = line.trim();
-                if trimmed.starts_with(key) {
+                if let Some(rest) = trimmed.strip_prefix(key) {
                     // Check that the character after the key is either ':' or ';'
-                    let rest = &trimmed[key.len()..];
                     if rest.starts_with(':') || rest.starts_with(';') {
                         // Extract value after the first ':'
                         if let Some(colon_pos) = rest.find(':') {
@@ -517,7 +516,7 @@ fn extract_href_from_tag(xml: &str, tag_local_name: &str) -> Option<String> {
     for pattern in &open_patterns {
         if let Some(start_idx) = xml.find(pattern.as_str()) {
             // Find the closing tag.
-            let close_patterns = vec![
+            let close_patterns = [
                 format!("</d:{tag_local_name}>"),
                 format!("</D:{tag_local_name}>"),
                 format!("</{tag_local_name}>"),

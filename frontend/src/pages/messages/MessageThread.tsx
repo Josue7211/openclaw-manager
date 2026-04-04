@@ -216,7 +216,7 @@ export default function MessageThread({
               return !s
             })
           }}
-          aria-label="MagnifyingGlass messages"
+          aria-label="Search messages"
           style={{
             background: showMessageSearch ? 'var(--accent-a12)' : 'transparent',
             border: '1px solid var(--border)', borderRadius: '8px',
@@ -243,10 +243,10 @@ export default function MessageThread({
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="MagnifyingGlass in conversation..."
+            placeholder="Search in conversation..."
             value={messageSearch}
             onChange={e => setMessageSearch(e.target.value)}
-            aria-label="MagnifyingGlass in conversation"
+            aria-label="Search in conversation"
             onKeyDown={e => {
               if (e.key === 'Enter') {
                 if (e.shiftKey) jumpToPrevMatch()

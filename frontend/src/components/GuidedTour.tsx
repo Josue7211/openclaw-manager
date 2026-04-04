@@ -8,7 +8,7 @@
  * The TourTooltip is a sibling of the backdrop (not nested) so it is not clipped.
  */
 
-import React, { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
   useTourState,
@@ -26,7 +26,6 @@ import { shouldReduceMotion } from '@/lib/animation-intensity'
 // ---------------------------------------------------------------------------
 
 const SPOTLIGHT_PADDING = 8 // px around target element
-const SPOTLIGHT_RADIUS = 8 // visual border-radius of cutout (via inset with round)
 
 // ---------------------------------------------------------------------------
 // Clip-path calculation

@@ -16,9 +16,7 @@ rand = "0.8"
 hex = "0.4"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 axum = { version = "0.7", features = ["ws", "macros"] }
-axum-extra = { version = "0.9", features = ["typed-header"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "fs", "io-util", "process"] }
-tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace", "timeout"] }
 reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"], default-features = false }
 sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite", "chrono"] }
@@ -29,7 +27,6 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 futures = "0.3"
 async-stream = "0.3"
-tokio-stream = "0.1"
 regex = "1"
 tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
 ical = "0.11"
@@ -49,6 +46,7 @@ zeroize = { version = "1", features = ["derive"] }
 libc = "0.2"
 font-kit = "0.14"
 notify = { version = "8", features = ["macos_fsevent"] }
+portable-pty = "0.9"
 # TODO: Uncomment to enable auto-updates (requires rebuild):
 # tauri-plugin-updater = "2"
 

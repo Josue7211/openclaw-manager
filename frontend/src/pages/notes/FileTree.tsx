@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, memo } from 'react'
-import { CaretRight, CaretDown, FileText, FolderOpen, Folder, Plus, MagnifyingGlass, Hash, Image } from '@phosphor-icons/react'
+import { CaretRight, CaretDown, FileText, FolderOpen, Folder, Plus, MagnifyingGlass, Image } from '@phosphor-icons/react'
 import type { VaultNote, FolderNode } from './types'
 
 interface FileTreeProps {

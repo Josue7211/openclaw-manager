@@ -105,13 +105,14 @@ export const DashboardGrid = React.memo(function DashboardGrid({
 
   // Debounced layout change handler
   const layoutUpdater = onLayoutChangeProp ?? updatePageLayouts
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleLayoutChange = useCallback(
-    (_layout: unknown, allLayouts: Record<string, LayoutItem[]>) => {
+    (_layout: any, allLayouts: any) => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current)
       }
       debounceRef.current = setTimeout(() => {
-        layoutUpdater(pageId, allLayouts)
+        layoutUpdater(pageId, allLayouts as Record<string, LayoutItem[]>)
       }, DEBOUNCE_MS)
     },
     [pageId, layoutUpdater],
@@ -152,10 +153,9 @@ export const DashboardGrid = React.memo(function DashboardGrid({
           rowHeight={ROW_HEIGHT}
           margin={MARGIN}
           width={width}
-          isDraggable={editMode}
-          isResizable={editMode}
+          dragConfig={{ enabled: editMode, bounded: false, threshold: 3 }}
+          resizeConfig={{ enabled: editMode, handles: ['se'] }}
           onLayoutChange={handleLayoutChange}
-          compactType="vertical"
           containerPadding={[0, 0]}
         >
           {widgetItems.map(item => (

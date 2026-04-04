@@ -173,7 +173,7 @@ const ServiceCard = React.memo(function ServiceCard({
 // Main component
 // ---------------------------------------------------------------------------
 
-export const WizardMacServices = React.memo(function WizardMacServices() {
+const WizardMacServices = React.memo(function WizardMacServices() {
   const wizard = useWizardState()
   const [bbTestPassed, setBbTestPassed] = useState(false)
   const [mbTestPassed, setMbTestPassed] = useState(false)
@@ -320,3 +320,5 @@ export const WizardMacServices = React.memo(function WizardMacServices() {
     </div>
   )
 })
+
+export default WizardMacServices

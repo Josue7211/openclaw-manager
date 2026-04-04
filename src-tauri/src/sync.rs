@@ -165,7 +165,7 @@ impl SyncEngine {
                         let body: Value = serde_json::from_str(data)
                             .map_err(|e| anyhow::anyhow!("bad sync payload: {e}"))?;
                         client
-                            .upsert_as_user(&table, body, jwt)
+                            .upsert_as_user(table, body, jwt)
                             .await
                             .map(|_| ())
                     } else {
@@ -174,7 +174,7 @@ impl SyncEngine {
                 }
                 "DELETE" => {
                     client
-                        .delete_as_user(&table, &format!("id=eq.{}", row_id), jwt)
+                        .delete_as_user(table, &format!("id=eq.{}", row_id), jwt)
                         .await
                 }
                 _ => continue,
@@ -289,7 +289,7 @@ impl SyncEngine {
                 .bind(table)
                 .bind(id)
                 .bind(&local_json)
-                .bind(&serde_json::to_string(row).unwrap_or_default())
+                .bind(serde_json::to_string(row).unwrap_or_default())
                 .execute(&self.db)
                 .await?;
 

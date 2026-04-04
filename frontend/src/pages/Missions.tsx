@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Target, ArrowsClockwise, Rocket } from '@phosphor-icons/react'
+import { ArrowsClockwise, Rocket } from '@phosphor-icons/react'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'

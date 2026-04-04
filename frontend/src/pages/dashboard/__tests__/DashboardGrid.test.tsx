@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, act, waitFor } from '@testing-library/react'
+import { render, screen, act } from '@testing-library/react'
 import React from 'react'
 
 // ---------------------------------------------------------------------------
@@ -102,7 +102,15 @@ const mockPages = [
   },
 ]
 
-let mockDashboardState = {
+let mockDashboardState: {
+  pages: { id: string; name: string; sortOrder: number; layouts: Record<string, { i: string; x: number; y: number; w: number; h: number }[]>; widgetConfigs: Record<string, Record<string, unknown>> }[]
+  activePageId: string
+  editMode: boolean
+  wobbleEnabled: boolean
+  dotIndicatorsEnabled: boolean
+  recycleBin: unknown[]
+  lastModified: string
+} = {
   pages: mockPages,
   activePageId: 'page-1',
   editMode: false,
@@ -173,16 +181,18 @@ describe('DashboardGrid', () => {
 
   it('drag/resize disabled when editMode is false', () => {
     render(<DashboardGrid pageId="page-1" editMode={false} wobbleEnabled={false} />)
-    const container = screen.getByTestId('rgl-container')
-    expect(container.dataset.draggable).toBe('false')
-    expect(container.dataset.resizable).toBe('false')
+    const dragConfig = capturedGridProps.dragConfig as { enabled: boolean } | undefined
+    const resizeConfig = capturedGridProps.resizeConfig as { enabled: boolean } | undefined
+    expect(dragConfig?.enabled).toBe(false)
+    expect(resizeConfig?.enabled).toBe(false)
   })
 
   it('drag/resize enabled when editMode is true', () => {
     render(<DashboardGrid pageId="page-1" editMode={true} wobbleEnabled={false} />)
-    const container = screen.getByTestId('rgl-container')
-    expect(container.dataset.draggable).toBe('true')
-    expect(container.dataset.resizable).toBe('true')
+    const dragConfig = capturedGridProps.dragConfig as { enabled: boolean } | undefined
+    const resizeConfig = capturedGridProps.resizeConfig as { enabled: boolean } | undefined
+    expect(dragConfig?.enabled).toBe(true)
+    expect(resizeConfig?.enabled).toBe(true)
   })
 
   it('passes correct breakpoints and columns', () => {
@@ -198,8 +208,8 @@ describe('DashboardGrid', () => {
         id: 'empty-page',
         name: 'Empty',
         sortOrder: 0,
-        layouts: {},
-        widgetConfigs: {},
+        layouts: {} as Record<string, { i: string; x: number; y: number; w: number; h: number }[]>,
+        widgetConfigs: {} as Record<string, Record<string, unknown>>,
       }],
       activePageId: 'empty-page',
     }
@@ -261,9 +271,11 @@ describe('DashboardGrid', () => {
     expect(gridLines).not.toBeInTheDocument()
   })
 
-  it('uses compactType="vertical"', () => {
+  it('does not pass compactType (v2 uses compactor)', () => {
     render(<DashboardGrid pageId="page-1" editMode={false} wobbleEnabled={false} />)
-    expect(capturedGridProps.compactType).toBe('vertical')
+    // react-grid-layout v2 removed compactType in favor of compactor prop
+    // The default vertical compaction is used when compactor is not specified
+    expect(capturedGridProps.compactType).toBeUndefined()
   })
 
   it('uses rowHeight of 80', () => {

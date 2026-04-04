@@ -7,6 +7,7 @@ describe('Agent type', () => {
   it('is structurally valid with all fields', () => {
     const agent: Agent = {
       id: 'agent-1',
+      name: 'codebot',
       display_name: 'CodeBot',
       emoji: '🤖',
       role: 'developer',
@@ -14,6 +15,9 @@ describe('Agent type', () => {
       current_task: 'Refactoring auth module',
       color: '#5865f2',
       model: 'claude-opus-4-6',
+      sort_order: 0,
+      created_at: '2026-03-15T10:00:00Z',
+      updated_at: '2026-03-15T10:00:00Z',
     }
     expect(agent.id).toBeTruthy()
     expect(agent.display_name).toBe('CodeBot')
@@ -23,6 +27,7 @@ describe('Agent type', () => {
   it('allows nullable current_task', () => {
     const agent: Agent = {
       id: 'agent-2',
+      name: 'idle-agent',
       display_name: 'Idle Agent',
       emoji: '💤',
       role: 'monitor',
@@ -30,6 +35,9 @@ describe('Agent type', () => {
       current_task: null,
       color: null,
       model: null,
+      sort_order: 1,
+      created_at: '2026-03-15T10:00:00Z',
+      updated_at: '2026-03-15T10:00:00Z',
     }
     expect(agent.current_task).toBeNull()
   })
@@ -37,6 +45,7 @@ describe('Agent type', () => {
   it('allows nullable color and model', () => {
     const agent: Agent = {
       id: 'agent-3',
+      name: 'basic',
       display_name: 'Basic',
       emoji: '🔧',
       role: 'worker',
@@ -44,6 +53,9 @@ describe('Agent type', () => {
       current_task: 'task',
       color: null,
       model: null,
+      sort_order: 2,
+      created_at: '2026-03-15T10:00:00Z',
+      updated_at: '2026-03-15T10:00:00Z',
     }
     expect(agent.color).toBeNull()
     expect(agent.model).toBeNull()

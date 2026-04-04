@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, Query, State},
-    routing::{delete, get, put},
+    routing::get,
     Json, Router,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
@@ -13,7 +13,6 @@ use crate::server::{AppState, RequireAuth};
 /// CouchDB proxy for the Obsidian-style vault.
 /// All requests are proxied through the Axum backend so CouchDB credentials
 /// never reach the frontend.
-
 fn couch_config(state: &AppState) -> Option<(String, String, String, String)> {
     let url = state.secret("COUCHDB_URL")?;
     let user = state.secret("COUCHDB_USER")?;
@@ -330,26 +329,6 @@ async fn delete_note(
     let encoded = urlencoding::encode(&id);
     let result = couch_delete(&state, &format!("{encoded}?rev={}", urlencoding::encode(&q.rev))).await?;
     Ok(success_json(result))
-}
-
-/// Resolve MIME type from file extension.
-fn mime_from_extension(id: &str) -> &'static str {
-    let lower = id.to_lowercase();
-    if lower.ends_with(".png") {
-        "image/png"
-    } else if lower.ends_with(".jpg") || lower.ends_with(".jpeg") {
-        "image/jpeg"
-    } else if lower.ends_with(".gif") {
-        "image/gif"
-    } else if lower.ends_with(".webp") {
-        "image/webp"
-    } else if lower.ends_with(".svg") {
-        "image/svg+xml"
-    } else if lower.ends_with(".pdf") {
-        "application/pdf"
-    } else {
-        "application/octet-stream"
-    }
 }
 
 /// /api/vault/doc?id=... — query-param routes for docs with slashes in IDs

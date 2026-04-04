@@ -1,4 +1,3 @@
-import { useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChatText, ArrowsClockwise, MagnifyingGlass, Check, NotePencil, BellSlash, PushPin } from '@phosphor-icons/react'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -8,7 +7,7 @@ import { cleanPayloadText } from '@/hooks/messages'
 import { MessagesConversationSkeleton } from '@/components/Skeleton'
 import { isDemoMode, DEMO_CONVERSATIONS } from '@/lib/demo-data'
 import { DemoBadge } from '@/components/DemoModeBanner'
-import type { Conversation, Message, ServiceFilter, ConvContextMenu } from './types'
+import type { Conversation, ServiceFilter, ConvContextMenu } from './types'
 import { timeAgo, isIMessage, isGroupChat } from './utils'
 
 const contactLabel = formatContactLabel
@@ -221,8 +220,8 @@ export default function ConversationList({
                   color: 'var(--text-muted)', pointerEvents: 'none',
                 }} />
                 <input
-                  type="text" placeholder="MagnifyingGlass" value={searchQuery}
-                  aria-label="MagnifyingGlass conversations"
+                  type="text" placeholder="Search" value={searchQuery}
+                  aria-label="Search conversations"
                   onChange={e => setSearchQuery(e.target.value)}
                   tabIndex={searchOpacity === 0 ? -1 : 0}
                   style={{

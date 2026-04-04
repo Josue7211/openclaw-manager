@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from 'react'
 import { CalendarDots, CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { useTauriQuery } from '@/hooks/useTauriQuery'
+import { isDemoMode } from '@/lib/demo-data'
 import { PageHeader } from '@/components/PageHeader'
 import {
   CalendarResponse, toDateKey, weekStart, addDays, addMonths,
@@ -14,9 +15,11 @@ import { WeekView } from './calendar/WeekView'
 import { MonthView } from './calendar/MonthView'
 
 export default function CalendarPage() {
+  const demo = isDemoMode()
   const { data: calendarData, isLoading: loading, refetch } = useTauriQuery<CalendarResponse>(
     ['calendar'],
     '/api/calendar',
+    { enabled: !demo },
   )
 
   const events = calendarData?.events ?? []
@@ -160,8 +163,26 @@ export default function CalendarPage() {
         </div>
       </div>
 
+      {/* Demo mode */}
+      {demo && (
+        <div style={{
+          marginBottom: '20px', padding: '20px 24px',
+          background: 'var(--purple-a08)',
+          border: '1px solid var(--border-accent)',
+          borderRadius: '12px', flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+            <CalendarDots size={18} style={{ color: 'var(--accent)' }} />
+            <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--accent-bright)' }}>Calendar not configured</span>
+          </div>
+          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            Connect your iCloud Calendar in Settings to see events here.
+          </p>
+        </div>
+      )}
+
       {/* Missing credentials */}
-      {missingCreds && (
+      {!demo && missingCreds && (
         <div style={{
           marginBottom: '20px', padding: '20px 24px',
           background: 'var(--purple-a08)',
