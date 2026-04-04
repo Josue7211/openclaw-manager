@@ -38,6 +38,14 @@ git checkout -b fix/short-description
 4. The pre-commit hook runs checks automatically, or run manually: `./scripts/pre-commit.sh`
 5. Push your branch and open a pull request against the default branch using the PR template in `.github/pull_request_template.md`
 
+## Open Source Maintainer Workflow
+
+- Every change lands through a pull request. Direct pushes to the default branch are for emergency repo-health fixes only.
+- Keep one branch per workstream. Do not mix widget/edit-mode fixes, backend contract work, and repo-ops in the same PR.
+- Use the PR template exactly. Include branch name, roadmap phase, and verification commands/results.
+- Link follow-up work instead of bundling it. Small PRs are easier to review, revert, and onboard outside contributors into.
+- Security-sensitive findings must go through the private security advisory flow, not public issues.
+
 ## Branch Strategy
 
 - Keep the protected default branch as `main`
@@ -79,6 +87,13 @@ See [CLAUDE.md](CLAUDE.md) for the full style guide. Key points:
 - Run `./scripts/pre-commit.sh` before submitting
 - Test both browser mode and desktop app if touching Tauri code
 - Include the roadmap phase, branch name, and verification commands in the PR body
+- Open the PR against `master` until the default branch transition to `main` is fully complete
+
+## Issues
+
+- Use the bug report template for regressions, crashes, or incorrect behavior
+- Use the feature request template for roadmap ideas and new capability requests
+- Do not open public issues for secrets, auth bypasses, or vulnerability reports; use the security advisory link instead
 
 ## License
 
