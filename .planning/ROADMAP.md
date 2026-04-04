@@ -338,6 +338,7 @@ Plans:
 | 88. Live Crons Tab | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
 | 89. Live Usage & Models Tabs | v0.0.5 | 1/1 | Complete    | 2026-03-24 |
 | 90. Live Activity Feed | v0.0.5 | 0/1 | Complete    | 2026-03-24 |
+<<<<<<< HEAD
 | 99. Branch Split & PR Workflow | v0.0.7 | 0/0 | Not started | - |
 | 100. MemD Contract Definition | v0.0.7 | 0/0 | Not started | - |
 | 101. MemD Storage & APIs | v0.0.7 | 0/0 | Not started | - |
@@ -350,6 +351,19 @@ Plans:
 | 108. Secret Management UI | v0.0.7 | 0/0 | Not started | - |
 | 109. End-to-End Integration | v0.0.7 | 0/0 | Not started | - |
 | 110. Branch & PR Readiness | v0.0.7 | 0/0 | Not started | - |
+=======
+| 99. MemD Contract Definition | v0.0.7 | 0/0 | Not started | - |
+| 100. MemD Storage & APIs | v0.0.7 | 0/0 | Not started | - |
+| 101. MemD UX & Compaction | v0.0.7 | 0/0 | Not started | - |
+| 102. Typed AgentShell Request Contract | v0.0.7 | 0/0 | Not started | - |
+| 103. AgentShell Launch & Approval Bridge | v0.0.7 | 0/0 | Not started | - |
+| 104. AgentShell Safety Hardening | v0.0.7 | 0/0 | Not started | - |
+| 105. Secret Scope Model | v0.0.7 | 0/0 | Not started | - |
+| 106. Secret Lifecycle & Audit | v0.0.7 | 0/0 | Not started | - |
+| 107. Secret Management UI | v0.0.7 | 0/0 | Not started | - |
+| 108. End-to-End Integration | v0.0.7 | 0/0 | Not started | - |
+| 109. Branch & PR Readiness | v0.0.7 | 0/0 | Not started | - |
+>>>>>>> 16f7d07 (feat(memd): wire brain layer and dashboard consumers)
 
 ---
 *Roadmap created: 2026-03-19*
