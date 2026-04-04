@@ -14,6 +14,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/secrets", get(list_secrets))
         .route("/secrets/migrate", axum::routing::post(migrate_secrets))
+        .route("/secrets/:service/summary", get(get_secret_summary))
         .route(
             "/secrets/:service",
             get(get_secret).put(put_secret).delete(delete_secret),
@@ -39,6 +40,83 @@ async fn list_secrets(
         .await?;
 
     Ok(success_json(data))
+}
+
+fn mask_secret_value(value: &Value) -> Value {
+    match value {
+        Value::String(s) => {
+            let trimmed = s.trim();
+            if trimmed.is_empty() {
+                json!({ "kind": "empty", "masked": "" })
+            } else {
+                let first = trimmed.chars().take(2).collect::<String>();
+                let last = trimmed
+                    .chars()
+                    .rev()
+                    .take(2)
+                    .collect::<String>()
+                    .chars()
+                    .rev()
+                    .collect::<String>();
+                json!({
+                    "kind": "string",
+                    "length": trimmed.chars().count(),
+                    "masked": format!("{first}***{last}"),
+                })
+            }
+        }
+        Value::Number(_) => json!({ "kind": "number", "masked": "***" }),
+        Value::Bool(_) => json!({ "kind": "boolean", "masked": "***" }),
+        Value::Null => json!({ "kind": "null", "masked": null }),
+        Value::Array(values) => json!({
+            "kind": "array",
+            "count": values.len(),
+            "masked": format!("[{} items]", values.len()),
+        }),
+        Value::Object(map) => json!({
+            "kind": "object",
+            "count": map.len(),
+            "masked": format!("{{{} keys}}", map.len()),
+        }),
+    }
+}
+
+fn credentials_summary(service: &str, updated_at: Option<&str>, credentials: &Value) -> Value {
+    let fields = credentials
+        .as_object()
+        .map(|map| {
+            map.iter()
+                .map(|(key, value)| {
+                    json!({
+                        "key": key,
+                        "present": !value.is_null(),
+                        "preview": mask_secret_value(value),
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    json!({
+        "service": service,
+        "updatedAt": updated_at,
+        "fieldCount": fields.len(),
+        "fields": fields,
+    })
+}
+
+fn audit_secret_details(service: &str, credentials: &Value) -> String {
+    let field_names = credentials
+        .as_object()
+        .map(|map| map.keys().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+
+    serde_json::to_string(&json!({
+        "service": service,
+        "fieldCount": field_names.len(),
+        "fields": field_names,
+    }))
+    .unwrap_or_else(|_| "{}".to_string())
 }
 
 // ── GET /api/secrets/:service ─────────────────────────────────────────────
@@ -96,6 +174,54 @@ async fn get_secret(
     })))
 }
 
+async fn get_secret_summary(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+    Path(service): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    if session.encryption_key.is_empty() {
+        return Err(AppError::BadRequest(
+            "Encryption key not available. Log in with email/password to manage secrets.".into(),
+        ));
+    }
+
+    let service = service.trim();
+    sanitize_postgrest_value(service)?;
+
+    let sb = SupabaseClient::from_state(&state)?;
+    let rows = sb
+        .select_as_user(
+            "user_secrets",
+            &format!(
+                "select=service,encrypted_credentials,nonce,updated_at&service=eq.{}&limit=1",
+                service
+            ),
+            &session.access_token,
+        )
+        .await?;
+
+    let row = rows
+        .as_array()
+        .and_then(|arr| arr.first())
+        .ok_or_else(|| AppError::NotFound(format!("no secret for service: {service}")))?;
+
+    let ciphertext = row["encrypted_credentials"]
+        .as_str()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("missing encrypted_credentials")))?;
+    let nonce = row["nonce"]
+        .as_str()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("missing nonce")))?;
+    let updated_at = row["updated_at"].as_str();
+
+    let plaintext = crate::crypto::decrypt(ciphertext, nonce, &session.encryption_key)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("decryption failed: {e}")))?;
+
+    let credentials: Value = serde_json::from_slice(&plaintext)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("invalid credentials JSON: {e}")))?;
+
+    Ok(success_json(credentials_summary(service, updated_at, &credentials)))
+}
+
 // ── PUT /api/secrets/:service ─────────────────────────────────────────────
 //
 // Create or update an encrypted secret.
@@ -133,6 +259,19 @@ async fn put_secret(
         .map_err(|e| AppError::Internal(anyhow::anyhow!("encryption failed: {e}")))?;
 
     let sb = SupabaseClient::from_state(&state)?;
+    let existing = sb
+        .select_as_user(
+            "user_secrets",
+            &format!("select=service&service=eq.{}&limit=1", service),
+            &session.access_token,
+        )
+        .await
+        .unwrap_or_else(|_| json!([]));
+    let action = if existing.as_array().map(|arr| arr.is_empty()).unwrap_or(true) {
+        "create"
+    } else {
+        "update"
+    };
 
     let row = json!({
         "user_id": session.user_id,
@@ -145,11 +284,11 @@ async fn put_secret(
         .await?;
 
     // Audit trail (never log the credential values — just the service name)
-    let details = serde_json::to_string(&json!({ "service": service })).unwrap_or_default();
+    let details = audit_secret_details(service, &body.credentials);
     crate::audit::log_audit_or_warn(
         &state.db,
         &session.user_id,
-        "update",
+        action,
         "secrets",
         Some(service),
         Some(&details),
@@ -372,5 +511,35 @@ mod tests {
         let roundtripped: Value = serde_json::from_slice(&decrypted).unwrap();
 
         assert_eq!(roundtripped, credentials);
+    }
+
+    #[test]
+    fn summary_masks_string_values() {
+        let credentials = json!({
+            "url": "http://100.100.100.100:8077",
+            "api_key": "super-secret-token-value",
+        });
+        let summary = credentials_summary("agentshell", Some("2026-04-04T00:00:00Z"), &credentials);
+        assert_eq!(summary["service"], "agentshell");
+        assert_eq!(summary["fieldCount"], 2);
+        let fields = summary["fields"].as_array().unwrap();
+        assert!(fields.iter().all(|field| field["preview"]["masked"].is_string()));
+        let joined = summary.to_string();
+        assert!(!joined.contains("super-secret-token-value"));
+        assert!(!joined.contains("100.100.100.100"));
+    }
+
+    #[test]
+    fn audit_details_only_include_field_names() {
+        let credentials = json!({
+            "url": "http://example.internal",
+            "password": "do-not-log-me",
+        });
+        let details = audit_secret_details("bluebubbles", &credentials);
+        assert!(details.contains("bluebubbles"));
+        assert!(details.contains("url"));
+        assert!(details.contains("password"));
+        assert!(!details.contains("do-not-log-me"));
+        assert!(!details.contains("example.internal"));
     }
 }
