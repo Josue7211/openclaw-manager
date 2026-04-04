@@ -246,4 +246,4 @@ All PRs run through CI: type-check, 1039 frontend tests, 231 Rust tests, securit
 
 ## License
 
-[MIT](LICENSE) — Josue Aparcedo
+[AGPLv3](LICENSE) — Josue Aparcedo

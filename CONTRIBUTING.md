@@ -21,10 +21,34 @@ ln -sf ../../scripts/pre-commit.sh .git/hooks/pre-commit
 
 ## Workflow
 
-1. Create a feature branch from `master`
-2. Make your changes
-3. The pre-commit hook runs checks automatically, or run manually: `./scripts/pre-commit.sh`
-4. Open a pull request describing what changed and why
+1. Sync the latest default branch:
+
+```bash
+git checkout main || git checkout master
+git pull --ff-only
+```
+
+2. Create a focused branch for one fix or feature:
+
+```bash
+git checkout -b fix/short-description
+```
+
+3. Make your changes
+4. The pre-commit hook runs checks automatically, or run manually: `./scripts/pre-commit.sh`
+5. Push your branch and open a pull request against the default branch using the PR template in `.github/pull_request_template.md`
+
+## Branch Strategy
+
+- Keep the protected default branch as `main`
+- Use short-lived topic branches: `fix/...`, `feat/...`, `docs/...`, `refactor/...`, `chore/...`
+- Keep each PR scoped to one concern
+- Rebase or merge `main` before opening the PR if your branch drifts
+- Do not commit directly to the protected branch
+- For roadmap work, keep one branch per workstream and link the PR to the matching phase number
+- For autonomous / GSD runs, keep the branch order and PR order aligned with `.planning/ROADMAP.md`
+
+If the repository still uses `master`, keep CI targeting both `main` and `master` during the transition, then switch the GitHub default branch to `main` and remove the legacy branch later.
 
 ## Testing
 
@@ -54,6 +78,7 @@ See [CLAUDE.md](CLAUDE.md) for the full style guide. Key points:
 - Describe what changed and why in the PR description
 - Run `./scripts/pre-commit.sh` before submitting
 - Test both browser mode and desktop app if touching Tauri code
+- Include the roadmap phase, branch name, and verification commands in the PR body
 
 ## License
 
