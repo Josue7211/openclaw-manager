@@ -2,7 +2,7 @@
   <img src="frontend/public/logo-128.png" alt="OpenClaw Manager" width="96" />
 </p>
 
-<h1 align="center">OpenClaw Manager</h1>
+<h1 align="center">Claw Control</h1>
 
 <p align="center">
   A self-hosted personal command center — messages, AI chat, task management, homelab monitoring, and agent orchestration in one desktop app.
