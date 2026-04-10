@@ -8,6 +8,11 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+    paths-ignore:
+      - ".github/CODEOWNERS"
+      - ".coderabbit.yaml"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/codeql.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
