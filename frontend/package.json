@@ -33,7 +33,7 @@
     "@codemirror/view": "^6.40.0",
     "@lezer/highlight": "^1.2.3",
     "@phosphor-icons/react": "^2.1.10",
-    "@tanstack/react-query": "^5.90.21",
+    "@tanstack/react-query": "^5.95.2",
     "@tanstack/react-virtual": "^3.13.6",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-dialog": "^2.6.0",
