@@ -37,18 +37,18 @@ Verify it's running:
 curl http://localhost:2586/health
 ```
 
-## OpenClaw Manager configuration
+## ClawControl configuration
 
-In OpenClaw Manager → Settings → Notifications:
+In ClawControl → Settings → Notifications:
 
 - **NTFY URL**: `http://<your-ntfy-host>:2586`
-- **Topic**: `mission-control`
+- **Topic**: `clawcontrol`
 
 Or set env vars in `.env.local`:
 
 ```
 NTFY_URL=http://<your-ntfy-host>:2586
-NTFY_TOPIC=mission-control
+NTFY_TOPIC=clawcontrol
 ```
 
 ## iOS / Android app setup
@@ -61,11 +61,11 @@ NTFY_TOPIC=mission-control
 
 3. Enter:
    - **Server URL**: `http://<your-ntfy-host>:2586` (use your homelab IP)
-   - **Topic**: `mission-control`
+   - **Topic**: `clawcontrol`
 
 4. Tap **Subscribe**
 
-Notifications from OpenClaw Manager will now appear on your phone.
+Notifications from ClawControl will now appear on your phone.
 
 ## Events that trigger notifications
 

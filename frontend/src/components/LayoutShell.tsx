@@ -14,7 +14,7 @@ import { getKeybindings, subscribeKeybindings, isBindingModPressed, matchesExtra
 import { getTitleBarVisible, getTitleBarAutoHide, subscribeTitleBarSettings } from '@/lib/titlebar-settings'
 import { getSidebarTitleText, getSidebarDefaultWidth, subscribeSidebarSettings } from '@/lib/sidebar-settings'
 import { isDemoMode } from '@/lib/demo-data'
-import { isFirstRun } from '@/lib/wizard-store'
+import { shouldAutoOpenWizard } from '@/lib/wizard-store'
 import { useTourState } from '@/lib/tour-store'
 import { DemoModeBanner } from '@/components/DemoModeBanner'
 import { IconContext } from '@phosphor-icons/react'
@@ -25,8 +25,6 @@ import { getThemeById } from '@/lib/theme-definitions'
 import { getSidebarConfig } from '@/lib/sidebar-config'
 import { startScheduleTimer } from '@/lib/theme-scheduling'
 import { useApprovals } from '@/hooks/useApprovals'
-
-const _isDemo = isDemoMode()
 
 // Module-level scroll position map -- persists across re-renders without causing re-renders.
 // Capped at 50 entries to prevent memory leaks.
@@ -46,8 +44,10 @@ export default function LayoutShell() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const isLogin = pathname === '/login' || pathname.startsWith('/auth/')
+  const isChatRoute = pathname === '/chat'
+  const isDemo = isDemoMode()
 
-  const [showWizard, setShowWizard] = useState(() => isFirstRun())
+  const [showWizard, setShowWizard] = useState(() => shouldAutoOpenWizard())
   const [offline, setOffline] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
@@ -159,7 +159,6 @@ export default function LayoutShell() {
   const autoHideTitleBar = useSyncExternalStore(subscribeTitleBarSettings, getTitleBarAutoHide)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [titleBarHover, setTitleBarHover] = useState(false)
-
   // Auto-hide title bar: track mouse position globally
   useEffect(() => {
     if (!autoHideTitleBar && !isFullscreen) return () => {}
@@ -353,7 +352,7 @@ export default function LayoutShell() {
           </div>
           {/* Title centered */}
           <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500 }}>
-            {titleText || 'OpenClaw'}
+            {titleText || 'Harness'}
           </span>
         </div>
       </>
@@ -380,7 +379,15 @@ export default function LayoutShell() {
         containerType: 'inline-size',
         containerName: 'main-content',
       }}>
-        <div ref={scrollContainerRef} style={{ flex: 1, overflowY: 'auto', padding: '20px 28px', display: 'flex', flexDirection: 'column' }}>
+        <div ref={scrollContainerRef} style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: isChatRoute ? 'hidden' : 'auto',
+          overscrollBehavior: isChatRoute ? 'contain' : undefined,
+          padding: '20px 28px',
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
         {offline && (
           <div role="alert" aria-live="assertive" style={{
             background: 'var(--warning-a12)',
@@ -398,9 +405,9 @@ export default function LayoutShell() {
             <span>You&apos;re offline &mdash; showing cached data</span>
           </div>
         )}
-        {_isDemo && <DemoModeBanner />}
+        {isDemo && <DemoModeBanner />}
         <PageErrorBoundary key={pathname}>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%', minWidth: 0, animation: 'pageEnter 0.15s ease-out both' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%', minWidth: 0, minHeight: 0, position: 'relative', animation: 'pageEnter 0.15s ease-out both' }}>
             <Outlet />
           </div>
         </PageErrorBoundary>

@@ -1,20 +1,20 @@
 ---
-phase: 07-bjorn-module-builder
+phase: 07-agent-module-builder
 plan: 06
 subsystem: ui
-tags: [react, bjorn, settings, widget-registry, startup, react-query]
+tags: [react, agent, settings, widget-registry, startup, react-query]
 
 # Dependency graph
 requires:
-  - phase: 07-bjorn-module-builder/04
-    provides: bjorn-store CRUD functions (loadBjornModules, exposePrimitivesAPI, toggleBjornModule, deleteBjornModule, rollbackBjornModule, getBjornVersions)
-  - phase: 07-bjorn-module-builder/05
+  - phase: 07-agent-module-builder/04
+    provides: agent-store CRUD functions (loadBjornModules, exposePrimitivesAPI, toggleBjornModule, deleteBjornModule, rollbackBjornModule, getBjornVersions)
+  - phase: 07-agent-module-builder/05
     provides: BjornTab chat UI with approval flow for creating modules
 provides:
-  - App startup loads Bjorn modules non-blocking after primitive registration
-  - Settings Modules page has Bjorn Modules section with full lifecycle management
+  - App startup loads Agent modules non-blocking after primitive registration
+  - Settings Modules page has Agent Modules section with full lifecycle management
   - Enable/disable, soft-delete, version history, and rollback for AI-generated modules
-affects: [dashboard, bjorn-module-builder]
+affects: [dashboard, agent-module-builder]
 
 # Tech tracking
 tech-stack:
@@ -47,7 +47,7 @@ completed: 2026-03-21
 
 # Phase 07 Plan 06: Startup Wiring + Settings Management Summary
 
-**Bjorn modules load at app startup via main.tsx and are manageable from Settings with enable/disable, delete, version history, and rollback**
+**Agent modules load at app startup via main.tsx and are manageable from Settings with enable/disable, delete, version history, and rollback**
 
 ## Performance
 
@@ -59,21 +59,21 @@ completed: 2026-03-21
 
 ## Accomplishments
 - App startup wires exposePrimitivesAPI() and loadBjornModules() after registerPrimitives() for complete module lifecycle
-- Settings Modules page has dedicated Bjorn Modules section with module cards showing name, description, version badge, toggle, delete, and version history
-- Empty state guides users to Chat Bjorn tab when no modules exist
-- 8 integration tests covering all Bjorn module management UI
+- Settings Modules page has dedicated Agent Modules section with module cards showing name, description, version badge, toggle, delete, and version history
+- Empty state guides users to Chat Agent tab when no modules exist
+- 8 integration tests covering all Agent module management UI
 
 ## Task Commits
 
 Each task was committed atomically:
 
 1. **Task 1: Startup wiring in main.tsx + primitives API exposure** - `469a8e0` (feat)
-2. **Task 2: Settings Modules Bjorn section with enable/disable/delete/rollback** - `ee233b5` (feat)
+2. **Task 2: Settings Modules Agent section with enable/disable/delete/rollback** - `ee233b5` (feat)
 
 ## Files Created/Modified
 - `frontend/src/main.tsx` - Added exposePrimitivesAPI() and loadBjornModules() imports and calls after registerPrimitives()
 - `frontend/src/pages/settings/SettingsModules.tsx` - Added BjornModulesSection and BjornModuleCard components with React Query integration
-- `frontend/src/pages/settings/__tests__/BjornModules.test.tsx` - 8 tests for Bjorn module management UI
+- `frontend/src/pages/settings/__tests__/BjornModules.test.tsx` - 8 tests for Agent module management UI
 
 ## Decisions Made
 - BjornModuleCard uses two-step inline delete confirmation (3s auto-reset) instead of a modal dialog for consistency with the lightweight Settings interaction pattern
@@ -104,8 +104,8 @@ Each task was committed atomically:
 None - no external service configuration required.
 
 ## Next Phase Readiness
-- Full Bjorn module lifecycle complete: create (Plan 05) -> restart -> modules persist and register (Plan 06) -> manage in Settings (Plan 06)
-- Phase 07 (Bjorn Module Builder) is now complete across all 6 plans and 4 waves
+- Full Agent module lifecycle complete: create (Plan 05) -> restart -> modules persist and register (Plan 06) -> manage in Settings (Plan 06)
+- Phase 07 (Agent Module Builder) is now complete across all 6 plans and 4 waves
 - Ready for Phase 08 (Data Export) or further integration testing
 
 ## Self-Check: PASSED
@@ -117,5 +117,5 @@ None - no external service configuration required.
 - FOUND: commit ee233b5
 
 ---
-*Phase: 07-bjorn-module-builder*
+*Phase: 07-agent-module-builder*
 *Completed: 2026-03-21*

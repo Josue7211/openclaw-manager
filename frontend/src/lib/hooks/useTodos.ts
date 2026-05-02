@@ -55,7 +55,7 @@ export function useTodos() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await api.del('/api/todos', { id })
+      await api.del(`/api/todos?id=${encodeURIComponent(id)}`)
     },
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.todos })

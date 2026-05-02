@@ -11,14 +11,16 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::net::ToSocketAddrs;
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::OnceLock;
 use tokio::sync::RwLock;
 
 use std::sync::Arc;
 
+use super::util::{base64_decode, percent_encode, random_uuid};
 use crate::server::{AppState, RequireAuth};
-use super::util::{percent_encode, random_uuid, base64_decode};
+
+const BLUEBUBBLES_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(4);
 
 // ---------------------------------------------------------------------------
 // Environment / configuration helpers
@@ -73,8 +75,18 @@ fn attachment_guid_re() -> &'static Regex {
 }
 
 const VALID_REACTIONS: &[&str] = &[
-    "love", "like", "dislike", "laugh", "emphasize", "question",
-    "-love", "-like", "-dislike", "-laugh", "-emphasize", "-question",
+    "love",
+    "like",
+    "dislike",
+    "laugh",
+    "emphasize",
+    "question",
+    "-love",
+    "-like",
+    "-dislike",
+    "-laugh",
+    "-emphasize",
+    "-question",
 ];
 
 // ---------------------------------------------------------------------------
@@ -125,7 +137,10 @@ async fn bb_fetch(
         percent_encode(&password)
     );
 
-    let mut req = client.request(method, &url).header("Content-Type", "application/json");
+    let mut req = client
+        .request(method, &url)
+        .timeout(BLUEBUBBLES_TIMEOUT)
+        .header("Content-Type", "application/json");
     if let Some(b) = body {
         req = req.json(&b);
     }
@@ -310,7 +325,10 @@ const MAX_CACHE_BYTES: usize = 100 * 1024 * 1024;
 /// are served as-is to avoid unbounded memory usage during ffmpeg processing.
 const MAX_TRANSCODE_BYTES: usize = 50 * 1024 * 1024;
 
-async fn get_bb_contact_avatars(client: &reqwest::Client, state: &AppState) -> HashMap<String, Arc<Vec<u8>>> {
+async fn get_bb_contact_avatars(
+    client: &reqwest::Client,
+    state: &AppState,
+) -> HashMap<String, Arc<Vec<u8>>> {
     // Check cache — Arc<Vec<u8>> makes this clone cheap (ref-count bump, no data copy)
     {
         let cache = avatar_cache().read().await;
@@ -335,7 +353,10 @@ async fn get_bb_contact_avatars(client: &reqwest::Client, state: &AppState) -> H
     map
 }
 
-async fn fetch_bb_contact_avatars(client: &reqwest::Client, state: &AppState) -> HashMap<String, Arc<Vec<u8>>> {
+async fn fetch_bb_contact_avatars(
+    client: &reqwest::Client,
+    state: &AppState,
+) -> HashMap<String, Arc<Vec<u8>>> {
     let host = bb_host(state);
     if host.is_empty() {
         return HashMap::new();
@@ -349,6 +370,7 @@ async fn fetch_bb_contact_avatars(client: &reqwest::Client, state: &AppState) ->
 
     let res = match client
         .post(&url)
+        .timeout(BLUEBUBBLES_TIMEOUT)
         .header("Content-Type", "application/json")
         .json(&json!({ "limit": 500, "extraProperties": ["avatar"] }))
         .send()
@@ -493,9 +515,7 @@ fn process_messages_with_reactions(raw_messages: &[Value]) -> Vec<Value> {
             .get("associatedMessageGuid")
             .and_then(|v| v.as_str())
             .unwrap_or("");
-        let assoc_type = msg
-            .get("associatedMessageType")
-            .unwrap_or(&Value::Null);
+        let assoc_type = msg.get("associatedMessageType").unwrap_or(&Value::Null);
         let reaction_type = normalize_reaction_type(assoc_type);
 
         if let Some(reaction_type) = reaction_type.filter(|_| !assoc_guid.is_empty()) {
@@ -513,10 +533,7 @@ fn process_messages_with_reactions(raw_messages: &[Value]) -> Vec<Value> {
                     .unwrap_or("unknown")
                     .to_string()
             };
-            let date_created = msg
-                .get("dateCreated")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(0);
+            let date_created = msg.get("dateCreated").and_then(|v| v.as_i64()).unwrap_or(0);
 
             let sender_map = reaction_map.entry(parent_guid).or_default();
             let existing = sender_map.get(&sender_key);
@@ -640,16 +657,34 @@ async fn fetch_and_build_conversations(
     });
 
     let (chats_p1, chats_p2, recent_result, contact_map) = tokio::join!(
-        bb_fetch(client, state, "/chat/query", reqwest::Method::POST, Some(chat_query_p1)),
+        bb_fetch(
+            client,
+            state,
+            "/chat/query",
+            reqwest::Method::POST,
+            Some(chat_query_p1)
+        ),
         async {
-            bb_fetch(client, state, "/chat/query", reqwest::Method::POST, Some(chat_query_p2))
-                .await
-                .unwrap_or(Value::Array(vec![]))
+            bb_fetch(
+                client,
+                state,
+                "/chat/query",
+                reqwest::Method::POST,
+                Some(chat_query_p2),
+            )
+            .await
+            .unwrap_or(Value::Array(vec![]))
         },
         async {
-            bb_fetch(client, state, "/message/query", reqwest::Method::POST, Some(recent_query))
-                .await
-                .unwrap_or(Value::Array(vec![]))
+            bb_fetch(
+                client,
+                state,
+                "/message/query",
+                reqwest::Method::POST,
+                Some(recent_query),
+            )
+            .await
+            .unwrap_or(Value::Array(vec![]))
         },
         get_contact_map(client, state),
     );
@@ -759,9 +794,7 @@ async fn fetch_and_build_conversations(
                                 .and_then(|v| v.as_i64())
                                 .map(|n| n != 0)
                         }),
-                    date_read: c
-                        .pointer("/lastMessage/dateRead")
-                        .and_then(|v| v.as_i64()),
+                    date_read: c.pointer("/lastMessage/dateRead").and_then(|v| v.as_i64()),
                 },
             );
         }
@@ -839,12 +872,9 @@ async fn fetch_and_build_conversations(
                             .and_then(|v| v.as_str())
                             .map(|s| s.to_string()),
                         date_created: msg.get("dateCreated").and_then(|v| v.as_i64()),
-                        is_from_me: msg
-                            .get("isFromMe")
-                            .and_then(|v| v.as_bool())
-                            .or_else(|| {
-                                msg.get("isFromMe").and_then(|v| v.as_i64()).map(|n| n != 0)
-                            }),
+                        is_from_me: msg.get("isFromMe").and_then(|v| v.as_bool()).or_else(|| {
+                            msg.get("isFromMe").and_then(|v| v.as_i64()).map(|n| n != 0)
+                        }),
                         date_read: msg.get("dateRead").and_then(|v| v.as_i64()),
                     },
                 );
@@ -1164,10 +1194,7 @@ async fn get_messages(
 
         // Delta sync: when `since` is provided, only fetch messages newer
         // than that timestamp.  The BlueBubbles API uses the `after` field.
-        let since_ts = params
-            .since
-            .as_deref()
-            .and_then(|s| s.parse::<i64>().ok());
+        let since_ts = params.since.as_deref().and_then(|s| s.parse::<i64>().ok());
 
         if let Some(ts) = since_ts {
             query_body
@@ -1186,16 +1213,19 @@ async fn get_messages(
         }
 
         let (raw_result, contact_map) = tokio::join!(
-            bb_fetch(client, &state, "/message/query", reqwest::Method::POST, Some(query_body)),
+            bb_fetch(
+                client,
+                &state,
+                "/message/query",
+                reqwest::Method::POST,
+                Some(query_body)
+            ),
             get_contact_map(client, &state),
         );
 
         match raw_result {
             Ok(raw_data) => {
-                let mut arr = raw_data
-                    .as_array()
-                    .cloned()
-                    .unwrap_or_default();
+                let mut arr = raw_data.as_array().cloned().unwrap_or_default();
                 arr.reverse(); // chronological order
                 let messages = process_messages_with_reactions(&arr);
 
@@ -1227,11 +1257,11 @@ async fn get_messages(
                     .into_response();
                 }
                 tracing::error!("Messages API error: {}", e);
-                (
-                    StatusCode::BAD_GATEWAY,
-                    Json(json!({ "error": "Backend service error" })),
-                )
-                    .into_response()
+                Json(json!({
+                    "error": "bluebubbles_unreachable",
+                    "messages": [],
+                }))
+                .into_response()
             }
         }
     } else {
@@ -1266,9 +1296,12 @@ async fn get_messages(
                 // Apply filter + offset + limit from cached data
                 let mut convs = c.conversations.clone();
                 match filter_mode.as_str() {
-                    "junk" => convs.retain(|c| c.get("isJunk").and_then(|v| v.as_bool()).unwrap_or(false)),
+                    "junk" => {
+                        convs.retain(|c| c.get("isJunk").and_then(|v| v.as_bool()).unwrap_or(false))
+                    }
                     "unfiltered" => {}
-                    _ => convs.retain(|c| !c.get("isJunk").and_then(|v| v.as_bool()).unwrap_or(false)),
+                    _ => convs
+                        .retain(|c| !c.get("isJunk").and_then(|v| v.as_bool()).unwrap_or(false)),
                 }
                 if conv_offset > 0 && conv_offset < convs.len() {
                     convs = convs.split_off(conv_offset);
@@ -1290,30 +1323,35 @@ async fn get_messages(
                 }
 
                 return (
-                    [(header::CACHE_CONTROL, "private, max-age=5, stale-while-revalidate=30")],
+                    [(
+                        header::CACHE_CONTROL,
+                        "private, max-age=5, stale-while-revalidate=30",
+                    )],
                     Json(json!({ "conversations": convs, "contacts": contacts })),
-                ).into_response();
+                )
+                    .into_response();
             }
         }
 
-        let (conversations_all, contact_lookup) = match fetch_and_build_conversations(client, &state).await {
-            Ok(data) => data,
-            Err(e) => {
-                if e == "bluebubbles_not_configured" {
+        let (conversations_all, contact_lookup) =
+            match fetch_and_build_conversations(client, &state).await {
+                Ok(data) => data,
+                Err(e) => {
+                    if e == "bluebubbles_not_configured" {
+                        return Json(json!({
+                            "error": "bluebubbles_not_configured",
+                            "conversations": [],
+                        }))
+                        .into_response();
+                    }
+                    tracing::error!("Messages API error: {}", e);
                     return Json(json!({
-                        "error": "bluebubbles_not_configured",
+                        "error": "bluebubbles_unreachable",
                         "conversations": [],
                     }))
                     .into_response();
                 }
-                tracing::error!("Messages API error: {}", e);
-                return (
-                    StatusCode::BAD_GATEWAY,
-                    Json(json!({ "error": "Backend service error" })),
-                )
-                    .into_response();
-            }
-        };
+            };
 
         // Store in cache for subsequent requests + persist to SQLite
         {
@@ -1335,9 +1373,12 @@ async fn get_messages(
         // Apply junk filter
         let mut conversations = conversations_all;
         match filter_mode.as_str() {
-            "junk" => conversations.retain(|c| c.get("isJunk").and_then(|v| v.as_bool()).unwrap_or(false)),
+            "junk" => {
+                conversations.retain(|c| c.get("isJunk").and_then(|v| v.as_bool()).unwrap_or(false))
+            }
             "unfiltered" => {}
-            _ => conversations.retain(|c| !c.get("isJunk").and_then(|v| v.as_bool()).unwrap_or(false)),
+            _ => conversations
+                .retain(|c| !c.get("isJunk").and_then(|v| v.as_bool()).unwrap_or(false)),
         }
 
         // Apply offset + limit
@@ -1349,9 +1390,10 @@ async fn get_messages(
         conversations.truncate(requested_conv_limit);
 
         (
-            [
-                (header::CACHE_CONTROL, "private, max-age=5, stale-while-revalidate=30"),
-            ],
+            [(
+                header::CACHE_CONTROL,
+                "private, max-age=5, stale-while-revalidate=30",
+            )],
             Json(json!({
                 "conversations": conversations,
                 "contacts": contact_lookup,
@@ -1745,7 +1787,9 @@ async fn get_link_preview(
                             || ipv4.is_link_local()
                             || ipv4.is_unspecified()
                             || ipv4.is_broadcast()
-                            || (ipv4.octets()[0] == 100 && ipv4.octets()[1] >= 64 && ipv4.octets()[1] <= 127)
+                            || (ipv4.octets()[0] == 100
+                                && ipv4.octets()[1] >= 64
+                                && ipv4.octets()[1] <= 127)
                     }
                     std::net::IpAddr::V6(ipv6) => {
                         if let Some(mapped) = ipv6.to_ipv4_mapped() {
@@ -1754,14 +1798,16 @@ async fn get_link_preview(
                                 || mapped.is_link_local()
                                 || mapped.is_unspecified()
                                 || mapped.is_broadcast()
-                                || (mapped.octets()[0] == 100 && mapped.octets()[1] >= 64 && mapped.octets()[1] <= 127)
+                                || (mapped.octets()[0] == 100
+                                    && mapped.octets()[1] >= 64
+                                    && mapped.octets()[1] <= 127)
                         } else {
                             let seg = ipv6.segments();
                             ipv6.is_loopback()
                                 || ipv6.is_unspecified()
                                 || (seg[0] & 0xfe00) == 0xfc00  // ULA (fc00::/7)
                                 || (seg[0] == 0xfe80)           // link-local (fe80::/10)
-                                || (seg[0] & 0xff00) == 0xff00  // multicast (ff00::/8)
+                                || (seg[0] & 0xff00) == 0xff00 // multicast (ff00::/8)
                         }
                     }
                 };
@@ -1782,23 +1828,19 @@ async fn get_link_preview(
 
     let is_twitter = {
         static RE: OnceLock<Regex> = OnceLock::new();
-        let re = RE.get_or_init(|| {
-            Regex::new(r"(?i)^(www\.)?(twitter\.com|x\.com)$").unwrap()
-        });
+        let re = RE.get_or_init(|| Regex::new(r"(?i)^(www\.)?(twitter\.com|x\.com)$").unwrap());
         re.is_match(hostname)
     };
     let is_instagram = {
         static RE: OnceLock<Regex> = OnceLock::new();
-        let re =
-            RE.get_or_init(|| Regex::new(r"(?i)^(www\.)?instagram\.com$").unwrap());
+        let re = RE.get_or_init(|| Regex::new(r"(?i)^(www\.)?instagram\.com$").unwrap());
         re.is_match(hostname)
     };
 
     // Instagram: return a static preview since they block all scrapers
     if is_instagram {
         static PATH_RE: OnceLock<Regex> = OnceLock::new();
-        let path_re =
-            PATH_RE.get_or_init(|| Regex::new(r"^/(p|reel|stories)/([^/]+)").unwrap());
+        let path_re = PATH_RE.get_or_init(|| Regex::new(r"^/(p|reel|stories)/([^/]+)").unwrap());
         let title = if let Some(caps) = path_re.captures(parsed.path()) {
             let kind = caps.get(1).map(|m| m.as_str()).unwrap_or("");
             if kind == "reel" {
@@ -1837,9 +1879,7 @@ async fn get_link_preview(
     };
 
     let empty_preview = || {
-        let site = hostname
-            .strip_prefix("www.")
-            .unwrap_or(hostname);
+        let site = hostname.strip_prefix("www.").unwrap_or(hostname);
         Json(json!({
             "title": "",
             "description": "",
@@ -1922,7 +1962,9 @@ async fn get_link_preview(
                                             || ipv4.is_link_local()
                                             || ipv4.is_unspecified()
                                             || ipv4.is_broadcast()
-                                            || (ipv4.octets()[0] == 100 && ipv4.octets()[1] >= 64 && ipv4.octets()[1] <= 127)
+                                            || (ipv4.octets()[0] == 100
+                                                && ipv4.octets()[1] >= 64
+                                                && ipv4.octets()[1] <= 127)
                                     }
                                     std::net::IpAddr::V6(ipv6) => {
                                         if let Some(mapped) = ipv6.to_ipv4_mapped() {
@@ -1931,7 +1973,9 @@ async fn get_link_preview(
                                                 || mapped.is_link_local()
                                                 || mapped.is_unspecified()
                                                 || mapped.is_broadcast()
-                                                || (mapped.octets()[0] == 100 && mapped.octets()[1] >= 64 && mapped.octets()[1] <= 127)
+                                                || (mapped.octets()[0] == 100
+                                                    && mapped.octets()[1] >= 64
+                                                    && mapped.octets()[1] <= 127)
                                         } else {
                                             ipv6.is_loopback() || ipv6.is_unspecified()
                                         }
@@ -2042,9 +2086,7 @@ async fn get_link_preview(
 
     let resolved_image = if !image_raw.is_empty() && !image_raw.starts_with("http") {
         // Resolve relative URL
-        match reqwest::Url::parse(&url_str)
-            .and_then(|base| base.join(&image_raw))
-        {
+        match reqwest::Url::parse(&url_str).and_then(|base| base.join(&image_raw)) {
             Ok(u) => u.to_string(),
             Err(_) => String::new(),
         }
@@ -2210,7 +2252,9 @@ async fn get_attachment(
                         || uti == "public.mpeg-4"
                         || transfer_name.ends_with(".mov")
                         || transfer_name.ends_with(".MOV");
-                    if (needs_transcode || safe_type.starts_with("video/")) && data.len() <= MAX_TRANSCODE_BYTES {
+                    if (needs_transcode || safe_type.starts_with("video/"))
+                        && data.len() <= MAX_TRANSCODE_BYTES
+                    {
                         if let Ok(transcoded) = transcode_to_h264(&data).await {
                             let builder = axum::http::Response::builder()
                                 .status(StatusCode::OK)
@@ -2224,8 +2268,7 @@ async fn get_attachment(
                         }
                     }
 
-                    let mut builder =
-                        axum::http::Response::builder().status(StatusCode::OK);
+                    let mut builder = axum::http::Response::builder().status(StatusCode::OK);
                     builder = builder
                         .header(header::CONTENT_TYPE, &safe_type)
                         .header(header::CONTENT_DISPOSITION, "inline")
@@ -2251,8 +2294,8 @@ async fn get_attachment(
 /// Transcode video to H.264 MP4 using ffmpeg for browser compatibility.
 /// Rejects inputs over MAX_TRANSCODE_BYTES to prevent unbounded memory usage.
 async fn transcode_to_h264(input: &[u8]) -> Result<Vec<u8>, String> {
-    use tokio::process::Command;
     use tokio::io::AsyncWriteExt;
+    use tokio::process::Command;
 
     if input.len() > MAX_TRANSCODE_BYTES {
         return Err(format!(
@@ -2264,14 +2307,21 @@ async fn transcode_to_h264(input: &[u8]) -> Result<Vec<u8>, String> {
 
     let mut child = Command::new("ffmpeg")
         .args([
-            "-i", "pipe:0",          // read from stdin
-            "-c:v", "libx264",       // H.264 video
-            "-preset", "ultrafast",  // speed over compression
-            "-crf", "23",            // reasonable quality
-            "-c:a", "aac",           // AAC audio
-            "-movflags", "+faststart+frag_keyframe+empty_moov", // streaming-friendly
-            "-f", "mp4",             // MP4 container
-            "pipe:1",                // write to stdout
+            "-i",
+            "pipe:0", // read from stdin
+            "-c:v",
+            "libx264", // H.264 video
+            "-preset",
+            "ultrafast", // speed over compression
+            "-crf",
+            "23", // reasonable quality
+            "-c:a",
+            "aac", // AAC audio
+            "-movflags",
+            "+faststart+frag_keyframe+empty_moov", // streaming-friendly
+            "-f",
+            "mp4",    // MP4 container
+            "pipe:1", // write to stdout
         ])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -2301,7 +2351,11 @@ async fn transcode_to_h264(input: &[u8]) -> Result<Vec<u8>, String> {
         return Err("ffmpeg produced empty output".into());
     }
 
-    tracing::info!("Transcoded video: {}KB -> {}KB", input.len() / 1024, output.stdout.len() / 1024);
+    tracing::info!(
+        "Transcoded video: {}KB -> {}KB",
+        input.len() / 1024,
+        output.stdout.len() / 1024
+    );
     Ok(output.stdout)
 }
 
@@ -2331,39 +2385,41 @@ async fn post_react(
             .into_response();
     }
 
-    let chat_guid = match &body.chat_guid {
-        Some(g) if !g.is_empty() => g.clone(),
-        _ => {
-            return (
+    let chat_guid =
+        match &body.chat_guid {
+            Some(g) if !g.is_empty() => g.clone(),
+            _ => return (
                 StatusCode::BAD_REQUEST,
-                Json(json!({ "error": "chatGuid, selectedMessageGuid, and reaction are required" })),
+                Json(
+                    json!({ "error": "chatGuid, selectedMessageGuid, and reaction are required" }),
+                ),
             )
-                .into_response()
-        }
-    };
-    let selected_message_guid = match &body.selected_message_guid {
-        Some(g) if !g.is_empty() => g.clone(),
-        _ => {
-            return (
+                .into_response(),
+        };
+    let selected_message_guid =
+        match &body.selected_message_guid {
+            Some(g) if !g.is_empty() => g.clone(),
+            _ => return (
                 StatusCode::BAD_REQUEST,
-                Json(json!({ "error": "chatGuid, selectedMessageGuid, and reaction are required" })),
+                Json(
+                    json!({ "error": "chatGuid, selectedMessageGuid, and reaction are required" }),
+                ),
             )
-                .into_response()
-        }
-    };
-    let reaction = match &body.reaction {
-        Some(r) if !r.is_empty() => r.clone(),
-        _ => {
-            return (
+                .into_response(),
+        };
+    let reaction =
+        match &body.reaction {
+            Some(r) if !r.is_empty() => r.clone(),
+            _ => return (
                 StatusCode::BAD_REQUEST,
-                Json(json!({ "error": "chatGuid, selectedMessageGuid, and reaction are required" })),
+                Json(
+                    json!({ "error": "chatGuid, selectedMessageGuid, and reaction are required" }),
+                ),
             )
-                .into_response()
-        }
-    };
+                .into_response(),
+        };
 
-    if !chat_guid_re().is_match(&chat_guid) || !message_guid_re().is_match(&selected_message_guid)
-    {
+    if !chat_guid_re().is_match(&chat_guid) || !message_guid_re().is_match(&selected_message_guid) {
         return (
             StatusCode::BAD_REQUEST,
             Json(json!({ "error": "Invalid GUID format" })),
@@ -2472,9 +2528,7 @@ async fn post_read(
         .send()
         .await
     {
-        Ok(res) if res.status().is_success() => {
-            Json(json!({ "ok": true })).into_response()
-        }
+        Ok(res) if res.status().is_success() => Json(json!({ "ok": true })).into_response(),
         Ok(res) => {
             let status = res.status();
             let text = res.text().await.unwrap_or_default();
@@ -2657,7 +2711,12 @@ async fn post_send_attachment(
         write_text_field(&mut body_bytes, &boundary, "message", &message);
     }
     if let Some(ref reply_guid) = selected_message_guid {
-        write_text_field(&mut body_bytes, &boundary, "selectedMessageGuid", reply_guid);
+        write_text_field(
+            &mut body_bytes,
+            &boundary,
+            "selectedMessageGuid",
+            reply_guid,
+        );
     }
 
     // File field
@@ -2741,12 +2800,10 @@ impl MsgSseConnectionGuard {
             if current >= MAX_MSG_SSE_CONNECTIONS {
                 return None;
             }
-            if MSG_SSE_CONNECTIONS.compare_exchange(
-                current,
-                current + 1,
-                Ordering::AcqRel,
-                Ordering::Acquire,
-            ).is_ok() {
+            if MSG_SSE_CONNECTIONS
+                .compare_exchange(current, current + 1, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+            {
                 return Some(Self);
             }
         }
@@ -2839,26 +2896,28 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
                             // Show tray notification for incoming messages when window is hidden
                             let is_from_me = msg.get("isFromMe").and_then(|v| v.as_bool()).unwrap_or(true);
                             if !is_from_me {
-                                use tauri::Manager;
-                                let window_hidden = stream_state.app
-                                    .get_webview_window("main")
-                                    .map(|w| !w.is_visible().unwrap_or(true))
-                                    .unwrap_or(false);
-                                if window_hidden {
-                                    use tauri_plugin_notification::NotificationExt;
-                                    let sender = msg
-                                        .pointer("/handle/address")
-                                        .and_then(|v| v.as_str())
-                                        .or_else(|| msg.get("address").and_then(|v| v.as_str()))
-                                        .unwrap_or("Unknown");
-                                    let body = msg.get("text")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or("New message");
-                                    let _ = stream_state.app.notification()
-                                        .builder()
-                                        .title(sender)
-                                        .body(body)
-                                        .show();
+                                if let Some(app) = &stream_state.app {
+                                    use tauri::Manager;
+                                    let window_hidden = app
+                                        .get_webview_window("main")
+                                        .map(|w| !w.is_visible().unwrap_or(true))
+                                        .unwrap_or(false);
+                                    if window_hidden {
+                                        use tauri_plugin_notification::NotificationExt;
+                                        let sender = msg
+                                            .pointer("/handle/address")
+                                            .and_then(|v| v.as_str())
+                                            .or_else(|| msg.get("address").and_then(|v| v.as_str()))
+                                            .unwrap_or("Unknown");
+                                        let body = msg.get("text")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("New message");
+                                        let _ = app.notification()
+                                            .builder()
+                                            .title(sender)
+                                            .body(body)
+                                            .show();
+                                    }
                                 }
                             }
 
@@ -2887,7 +2946,10 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
 // ---------------------------------------------------------------------------
 
 // Debug endpoint — shows all conversations with junk status for troubleshooting
-async fn get_messages_debug(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Response {
+async fn get_messages_debug(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Response {
     let client = &state.http;
     match fetch_and_build_conversations(client, &state).await {
         Ok((conversations, contacts)) => {
@@ -2911,9 +2973,7 @@ async fn get_messages_debug(State(state): State<AppState>, RequireAuth(_session)
             }))
             .into_response()
         }
-        Err(e) => {
-            Json(json!({ "error": e })).into_response()
-        }
+        Err(e) => Json(json!({ "error": e })).into_response(),
     }
 }
 
@@ -3043,10 +3103,7 @@ mod tests {
 
     #[test]
     fn strip_reaction_prefix_with_bp_prefix() {
-        assert_eq!(
-            strip_reaction_prefix("bp:1/another-guid"),
-            "another-guid"
-        );
+        assert_eq!(strip_reaction_prefix("bp:1/another-guid"), "another-guid");
     }
 
     #[test]
@@ -3059,10 +3116,7 @@ mod tests {
 
     #[test]
     fn strip_reaction_prefix_multi_digit() {
-        assert_eq!(
-            strip_reaction_prefix("p:42/msg-guid"),
-            "msg-guid"
-        );
+        assert_eq!(strip_reaction_prefix("p:42/msg-guid"), "msg-guid");
     }
 
     // ---- service_priority ----

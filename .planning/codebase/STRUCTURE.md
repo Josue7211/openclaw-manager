@@ -5,7 +5,7 @@
 ## Top-Level Layout
 
 ```text
-mission-control/
+clawcontrol/
 ├── frontend/
 ├── src-tauri/
 ├── supabase/

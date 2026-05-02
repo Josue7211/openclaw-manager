@@ -60,7 +60,7 @@ The codebase has 44 route modules merged into the main router in `routes/mod.rs`
 
 Rust's compiler will NOT warn about unused route handlers because they ARE used -- by the Axum router via `.route()` registration. The compiler only sees the function referenced in the router builder. The only way to know if an external system calls them is to audit external codebases or monitor traffic.
 
-Additionally, 7 handler functions already have `#[allow(dead_code)]` annotations (in `pipeline/agents.rs`, `pipeline/helpers.rs`, `auth.rs`, `bjorn.rs`, `media.rs`) -- these were intentionally kept despite appearing unused.
+Additionally, 7 handler functions already have `#[allow(dead_code)]` annotations (in `pipeline/agents.rs`, `pipeline/helpers.rs`, `auth.rs`, `agent.rs`, `media.rs`) -- these were intentionally kept despite appearing unused.
 
 **How to avoid:**
 - Before removing any route handler, check BOTH:
@@ -92,7 +92,7 @@ During cleanup, a developer modifies `widget-registry.ts` -- removing a widget d
 The widget registry is a runtime registry with 30+ entries. Dashboard state is persisted as JSON containing widget instances with a `type` field that matches a registry key (e.g., `"todos"`, `"terminal"`, `"clock"`). These strings are NOT validated at compile time. If a registry entry is removed or its key changes, the string reference becomes a dangling pointer to nothing.
 
 This is compounded by:
-1. **Bjorn AI modules** which dynamically call `registerWidget()` with arbitrary IDs stored in Supabase -- removing or changing `registerWidget`'s signature breaks all AI-created widgets
+1. **Agent AI modules** which dynamically call `registerWidget()` with arbitrary IDs stored in Supabase -- removing or changing `registerWidget`'s signature breaks all AI-created widgets
 2. **Dashboard presets** (7 defined in codebase) which hardcode widget type strings -- removing a type breaks preset application
 3. **Multi-device sync** -- user's desktop has the old widget, mobile Supabase has the old state, new cleanup code doesn't recognize either
 
@@ -101,13 +101,13 @@ This is compounded by:
 - Add a migration step in `lib/migrations.ts` that removes instances of deleted widget types from persisted dashboard state
 - When renaming a widget ID, add a migration mapping old ID -> new ID in dashboard state
 - Test by: saving a dashboard with the target widget, performing the cleanup, reloading, verifying no blank cells or crashes
-- The `registerWidget` function and `WidgetDefinition` type are effectively public API for Bjorn -- do not change signature without updating `bjorn-store.ts`
+- The `registerWidget` function and `WidgetDefinition` type are effectively public API for Agent -- do not change signature without updating `agent-store.ts`
 - 11 primitive widgets registered in `components/primitives/register.ts` have their own registration flow -- verify these survive cleanup too
 
 **Warning signs:**
 - Dashboard loads with blank grid cells where widgets used to render
 - Console errors about unknown widget type or missing definition
-- Bjorn modules stop rendering after cleanup
+- Agent modules stop rendering after cleanup
 - Widget Picker shows fewer widgets than expected
 - `WidgetWrapper` falls through to error boundary
 

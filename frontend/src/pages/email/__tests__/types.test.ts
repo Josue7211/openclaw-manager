@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { formatDate, FOLDERS, EMPTY_FORM } from '../types'
-import type { Email, EmailAccount, AccountForm, Folder } from '../types'
+import type { Email, EmailAccount, AccountForm, Folder, MailThread } from '../types'
 
 /* ─── Type structural validation ─────────────────────────────────────── */
 
@@ -23,29 +23,40 @@ describe('type exports', () => {
     const account: EmailAccount = {
       id: 'acc-1',
       label: 'Work',
-      host: 'imap.example.com',
-      port: 993,
-      username: 'user@example.com',
-      tls: true,
+      provider: 'gmail',
+      address: 'user@example.com',
+      agentmail_inbox_id: 'am-work',
+      forwarding_status: 'active',
       is_default: true,
-      created_at: '2026-03-15T12:00:00Z',
     }
-    expect(account.port).toBe(993)
-    expect(account.tls).toBe(true)
+    expect(account.provider).toBe('gmail')
+    expect(account.forwarding_status).toBe('active')
+  })
+
+  it('MailThread type is structurally valid', () => {
+    const thread: MailThread = {
+      id: 'thr-1',
+      account_id: 'acc-1',
+      subject: 'Quarterly update',
+      from: 'boss@example.com',
+      preview: 'Can you reply by Friday?',
+      unread: true,
+    }
+
+    expect(thread.unread).toBe(true)
+    expect(thread.account_id).toBe('acc-1')
   })
 
   it('AccountForm type is structurally valid', () => {
     const form: AccountForm = {
       label: 'Personal',
-      host: 'imap.gmail.com',
-      port: '993',
-      username: 'user@gmail.com',
-      password: 'secret',
-      tls: true,
+      provider: 'gmail',
+      address: 'user@gmail.com',
+      agentmail_inbox_id: 'am-personal',
+      forwarding_status: 'pending',
       is_default: false,
     }
-    // port is a string in the form (input field value)
-    expect(typeof form.port).toBe('string')
+    expect(form.provider).toBe('gmail')
     expect(form.is_default).toBe(false)
   })
 
@@ -94,20 +105,16 @@ describe('EMPTY_FORM', () => {
   })
 
   it('has empty host', () => {
-    expect(EMPTY_FORM.host).toBe('')
+    expect(EMPTY_FORM.provider).toBe('')
   })
 
-  it('defaults port to 993', () => {
-    expect(EMPTY_FORM.port).toBe('993')
+  it('has empty address and inbox mapping', () => {
+    expect(EMPTY_FORM.address).toBe('')
+    expect(EMPTY_FORM.agentmail_inbox_id).toBe('')
   })
 
-  it('has empty username and password', () => {
-    expect(EMPTY_FORM.username).toBe('')
-    expect(EMPTY_FORM.password).toBe('')
-  })
-
-  it('defaults tls to true', () => {
-    expect(EMPTY_FORM.tls).toBe(true)
+  it('defaults forwarding status to pending', () => {
+    expect(EMPTY_FORM.forwarding_status).toBe('pending')
   })
 
   it('defaults is_default to false', () => {

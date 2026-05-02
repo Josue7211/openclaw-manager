@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
+import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ChatTeardrop } from '@phosphor-icons/react'
+import { ChatTeardrop, MagnifyingGlass } from '@phosphor-icons/react'
 import { isDemoMode } from '@/lib/demo-data'
 import { useGatewaySessions } from '@/hooks/sessions/useGatewaySessions'
 import { useSessionMutations } from '@/hooks/sessions/useSessionMutations'
@@ -11,13 +12,24 @@ interface SessionListProps {
   selectedId: string | null
   onSelect: (key: string) => void
   onDeleteSelected: (key: string) => void
+  title?: string
+  headerAction?: ReactNode
 }
 
-export function SessionList({ selectedId, onSelect, onDeleteSelected }: SessionListProps) {
+export function SessionList({ selectedId, onSelect, onDeleteSelected, title = 'Sessions', headerAction }: SessionListProps) {
   const demo = isDemoMode()
   const { sessions, available, isLoading } = useGatewaySessions()
   const { renameMutation, deleteMutation, compactMutation } = useSessionMutations()
   const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const filteredSessions = sessions.filter((session) => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return true
+    const label = String(session.label || '').toLowerCase()
+    const agent = String(session.agentKey || '').toLowerCase()
+    return label.includes(query) || agent.includes(query) || session.key.toLowerCase().includes(query)
+  })
 
   const sessionToDelete = confirmDeleteKey
     ? sessions.find((s) => s.key === confirmDeleteKey)
@@ -41,28 +53,68 @@ export function SessionList({ selectedId, onSelect, onDeleteSelected }: SessionL
     }}>
       {/* Header */}
       <div style={{
-        height: '48px',
+        height: '44px',
         display: 'flex',
         alignItems: 'center',
-        padding: '0 16px',
-        borderBottom: '1px solid var(--border)',
+        padding: '0 12px',
         flexShrink: 0,
         gap: '8px',
       }}>
-        <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
-          Sessions
+        <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>
+          {title}
         </span>
         <GatewayStatusDot size={7} />
+        {headerAction && (
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+            {headerAction}
+          </div>
+        )}
+      </div>
+
+      <div style={{
+        padding: '0 10px 10px',
+        borderBottom: '1px solid var(--border)',
+        flexShrink: 0,
+      }}>
+        <label style={{
+          height: 32,
+          border: '1px solid var(--border)',
+          borderRadius: 8,
+          background: 'var(--bg-card)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '0 10px',
+          color: 'var(--text-muted)',
+        }}>
+          <MagnifyingGlass size={14} style={{ flexShrink: 0 }} />
+          <input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search chats"
+            aria-label="Search chats"
+            style={{
+              minWidth: 0,
+              flex: 1,
+              border: 'none',
+              outline: 'none',
+              background: 'transparent',
+              color: 'var(--text-primary)',
+              font: 'inherit',
+              fontSize: 12,
+            }}
+          />
+        </label>
       </div>
 
       {/* Scrollable content */}
       <div style={{
         flex: 1,
         overflowY: 'auto',
-        padding: '12px',
+        padding: '8px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '8px',
+        gap: '2px',
       }}>
         {/* Demo mode banner */}
         {demo && (
@@ -79,7 +131,7 @@ export function SessionList({ selectedId, onSelect, onDeleteSelected }: SessionL
           >
             <span style={{ fontWeight: 600, color: 'var(--blue-solid)' }}>Sessions not configured</span>
             <br />
-            Connect OpenClaw in Settings to manage Claude sessions.
+            Connect a harness backend in Settings to manage Claude sessions.
           </div>
         )}
 
@@ -98,7 +150,7 @@ export function SessionList({ selectedId, onSelect, onDeleteSelected }: SessionL
               textAlign: 'center',
             }}
           >
-            OpenClaw is unreachable
+            Harness is unreachable
           </div>
         )}
 
@@ -147,8 +199,19 @@ export function SessionList({ selectedId, onSelect, onDeleteSelected }: SessionL
           </div>
         )}
 
+        {!isLoading && sessions.length > 0 && filteredSessions.length === 0 && (
+          <div style={{
+            padding: '28px 14px',
+            color: 'var(--text-muted)',
+            fontSize: '12px',
+            textAlign: 'center',
+          }}>
+            No chats match that search
+          </div>
+        )}
+
         {/* Session cards */}
-        {sessions.map((session) => (
+        {filteredSessions.map((session) => (
           <SessionCard
             key={session.key as string}
             session={session}

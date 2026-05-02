@@ -1,6 +1,6 @@
-# Mission Control — Performance Autoresearch
+# ClawControl — Performance Autoresearch
 
-You are running the autoresearch loop to reduce the JavaScript bundle size of the Mission Control app.
+You are running the autoresearch loop to reduce the JavaScript bundle size of the ClawControl app.
 
 ## Your goal
 Reduce `total_gzip_kb` in `scripts/perf-research/baseline.json` as much as possible by making targeted optimizations to the frontend code.
@@ -27,7 +27,7 @@ Reduce `total_gzip_kb` in `scripts/perf-research/baseline.json` as much as possi
 
 5. **Measure:**
    ```bash
-   cd /home/josue/Documents/Projects/mission-control/scripts/perf-research
+   cd /home/josue/Documents/projects/clawcontrol/scripts/perf-research
    bash measure.sh
    ```
    This takes ~30-60 seconds.

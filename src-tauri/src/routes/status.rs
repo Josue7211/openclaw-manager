@@ -49,6 +49,30 @@ fn openclaw_dir(state: &AppState) -> String {
     })
 }
 
+fn openclaw_primary_model(state: &AppState) -> String {
+    let config_path = Path::new(&openclaw_dir(state)).join("openclaw.json");
+    let content = match std::fs::read_to_string(config_path) {
+        Ok(content) => content,
+        Err(_) => return String::new(),
+    };
+
+    let parsed: Value = match serde_json::from_str(&content) {
+        Ok(parsed) => parsed,
+        Err(_) => return String::new(),
+    };
+
+    parsed
+        .pointer("/agents/main/model/primary")
+        .and_then(|value| value.as_str())
+        .or_else(|| {
+            parsed
+                .pointer("/agents/defaults/model/primary")
+                .and_then(|value| value.as_str())
+        })
+        .unwrap_or("")
+        .to_string()
+}
+
 /// Build a PATH suitable for child-process execution.
 fn exec_path() -> String {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
@@ -146,7 +170,7 @@ async fn get_status(
                     None
                 }
             })
-            .unwrap_or_else(|| "Bjorn".to_string());
+            .unwrap_or_else(|| "Primary Agent".to_string());
         let emoji = content
             .lines()
             .find_map(|l| {
@@ -161,13 +185,13 @@ async fn get_status(
             .unwrap_or_else(|| "\u{1F9AC}".to_string());
         (name, emoji)
     } else {
-        ("Bjorn".to_string(), "\u{1F9AC}".to_string())
+        ("Primary Agent".to_string(), "\u{1F9AC}".to_string())
     };
 
     Ok(Json(json!({
         "name": name,
         "emoji": emoji,
-        "model": "claude-sonnet-4-6",
+        "model": openclaw_primary_model(&state),
         "status": "online",
         "lastActive": chrono::Utc::now().to_rfc3339(),
         "host": hostname(),
@@ -203,6 +227,9 @@ async fn get_active_config(
     Json(json!({
         "bluebubbles_url": state.secret("BLUEBUBBLES_HOST").unwrap_or_default(),
         "openclaw_url": state.secret("OPENCLAW_API_URL").unwrap_or_default(),
+        "sunshine_url": state.secret("SUNSHINE_HOST").unwrap_or_default(),
+        "vnc_url": state.secret("VNC_HOST").unwrap_or_default(),
+        "agentsecrets_url": state.secret("AGENTSECRETS_URL").unwrap_or_default(),
         "agentshell_url": state.secret("AGENTSHELL_URL").unwrap_or_default(),
     }))
 }
@@ -256,7 +283,7 @@ async fn get_tailscale_peers(RequireAuth(_session): RequireAuth) -> Result<Json<
 
 // ── GET /api/status/connections ───────────────────────────────────────────────
 //
-// Tests connectivity to BlueBubbles, OpenClaw, AgentShell, and Supabase, returning latency
+// Tests connectivity to BlueBubbles, OpenClaw, AgentSecrets, AgentShell, and Supabase, returning latency
 // or error info for each. Also verifies Tailscale peer identity when services
 // are accessed via Tailscale IPs.
 
@@ -270,18 +297,20 @@ async fn get_connections(
     let bb_password = state.secret("BLUEBUBBLES_PASSWORD").unwrap_or_default();
     let openclaw_url = state.secret("OPENCLAW_API_URL").unwrap_or_default();
     let openclaw_key = state.secret("OPENCLAW_API_KEY").unwrap_or_default();
+    let agentsecrets_url = state.secret("AGENTSECRETS_URL").unwrap_or_default();
     let agentshell_url = state.secret("AGENTSHELL_URL").unwrap_or_default();
     let supabase_url = state.secret_or_default("SUPABASE_URL");
     let supabase_key = state.secret_or_default("SUPABASE_SERVICE_ROLE_KEY");
 
     // Load expected hostnames from user preferences (stored in Supabase)
-    let (bb_expected_host, oc_expected_host, sh_expected_host) =
+    let (bb_expected_host, oc_expected_host, as_expected_host, sh_expected_host) =
         load_expected_hostnames(&state, &session.access_token).await;
 
-    // Test all three services concurrently
-    let (bb_result, oc_result, sh_result, sb_result) = tokio::join!(
+    // Test all services concurrently
+    let (bb_result, oc_result, as_result, sh_result, sb_result) = tokio::join!(
         test_bluebubbles(http, &bb_host, &bb_password),
         test_openclaw(http, &openclaw_url, &openclaw_key),
+        test_agentsecrets(http, &agentsecrets_url),
         test_agentshell(http, &agentshell_url),
         test_supabase(http, &supabase_url, &supabase_key),
     );
@@ -289,16 +318,19 @@ async fn get_connections(
     // Run Tailscale peer verification on a blocking thread (calls CLI)
     let bb_url = bb_host.clone();
     let oc_url = openclaw_url.clone();
+    let as_url = agentsecrets_url.clone();
     let sh_url = agentshell_url.clone();
     let bb_exp = bb_expected_host.clone();
     let oc_exp = oc_expected_host.clone();
+    let as_exp = as_expected_host.clone();
     let sh_exp = sh_expected_host.clone();
     let peer_results = tokio::task::spawn_blocking(move || {
         let peers = crate::tailscale::get_tailscale_peers().unwrap_or_default();
         let bb_peer = crate::tailscale::verify_service_peer(&bb_url, bb_exp.as_deref(), &peers);
         let oc_peer = crate::tailscale::verify_service_peer(&oc_url, oc_exp.as_deref(), &peers);
+        let as_peer = crate::tailscale::verify_service_peer(&as_url, as_exp.as_deref(), &peers);
         let sh_peer = crate::tailscale::verify_service_peer(&sh_url, sh_exp.as_deref(), &peers);
-        (bb_peer, oc_peer, sh_peer)
+        (bb_peer, oc_peer, as_peer, sh_peer)
     })
     .await
     .unwrap_or_else(|_| {
@@ -306,7 +338,7 @@ async fn get_connections(
             peer_hostname: None,
             peer_verified: None,
         };
-        (empty.clone(), empty.clone(), empty)
+        (empty.clone(), empty.clone(), empty.clone(), empty)
     });
 
     // Merge connectivity results with peer verification
@@ -326,17 +358,26 @@ async fn get_connections(
         oc_json["peer_verified"] = json!(verified);
     }
 
-    let mut sh_json = sh_result;
+    let mut as_json = as_result;
     if let Some(hostname) = &peer_results.2.peer_hostname {
-        sh_json["peer_hostname"] = json!(hostname);
+        as_json["peer_hostname"] = json!(hostname);
     }
     if let Some(verified) = peer_results.2.peer_verified {
+        as_json["peer_verified"] = json!(verified);
+    }
+
+    let mut sh_json = sh_result;
+    if let Some(hostname) = &peer_results.3.peer_hostname {
+        sh_json["peer_hostname"] = json!(hostname);
+    }
+    if let Some(verified) = peer_results.3.peer_verified {
         sh_json["peer_verified"] = json!(verified);
     }
 
     Ok(Json(json!({
         "bluebubbles": bb_json,
         "openclaw": oc_json,
+        "agentsecrets": as_json,
         "agentshell": sh_json,
         "supabase": sb_result,
     })))
@@ -346,10 +387,15 @@ async fn get_connections(
 async fn load_expected_hostnames(
     state: &AppState,
     jwt: &str,
-) -> (Option<String>, Option<String>, Option<String>) {
+) -> (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+) {
     let sb = match crate::supabase::SupabaseClient::from_state(state) {
         Ok(sb) => sb,
-        Err(_) => return (None, None, None),
+        Err(_) => return (None, None, None, None),
     };
 
     let query = "select=preferences&user_id=eq.default";
@@ -358,7 +404,7 @@ async fn load_expected_hostnames(
         .await
     {
         Ok(row) => row.get("preferences").cloned().unwrap_or(json!({})),
-        Err(_) => return (None, None, None),
+        Err(_) => return (None, None, None, None),
     };
 
     let bb = prefs
@@ -371,13 +417,18 @@ async fn load_expected_hostnames(
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty())
         .map(String::from);
+    let as_host = prefs
+        .get("agentsecrets.expected-host")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(String::from);
     let sh = prefs
         .get("agentshell.expected-host")
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty())
         .map(String::from);
 
-    (bb, oc, sh)
+    (bb, oc, as_host, sh)
 }
 
 async fn test_bluebubbles(http: &reqwest::Client, host: &str, password: &str) -> Value {
@@ -416,6 +467,14 @@ async fn test_openclaw(http: &reqwest::Client, base_url: &str, api_key: &str) ->
 }
 
 async fn test_agentshell(http: &reqwest::Client, base_url: &str) -> Value {
+    if base_url.is_empty() {
+        return json!({ "status": "not_configured" });
+    }
+    let url = format!("{}/healthz", base_url.trim_end_matches('/'));
+    ping_service(http, &url).await
+}
+
+async fn test_agentsecrets(http: &reqwest::Client, base_url: &str) -> Value {
     if base_url.is_empty() {
         return json!({ "status": "not_configured" });
     }
@@ -623,10 +682,10 @@ async fn get_processes(
     State(_state): State<AppState>,
     RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    // Run: ps aux | grep -E 'claude|haiku|sonnet|opus' | grep -v grep | grep -v 'next-server'
+    // Run a provider-agnostic scan for common local AI / OpenClaw worker processes.
     let ps_output = Command::new("bash")
         .arg("-c")
-        .arg("ps aux | grep -E 'claude|haiku|sonnet|opus' | grep -v grep | grep -v 'next-server'")
+        .arg("ps aux | grep -E 'openclaw|litellm|ollama|codex|gpt|qwen|claude|gemini|kimi|llama' | grep -v grep | grep -v 'next-server'")
         .env("PATH", exec_path())
         .output()
         .await;

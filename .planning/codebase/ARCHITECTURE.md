@@ -4,7 +4,7 @@
 
 ## System Shape
 
-- Mission Control is a Tauri v2 desktop app with a React frontend and an embedded Rust/Axum backend.
+- ClawControl is a Tauri v2 desktop app with a React frontend and an embedded Rust/Axum backend.
 - The backend runs locally on `127.0.0.1:3000` and acts as the only trusted gateway from the webview to remote services.
 - The app is local-first but not offline-only: SQLite handles local state while Supabase remains the remote source of truth for synced data.
 
@@ -31,10 +31,10 @@
 
 ## Integration Model
 
-- OpenClaw is the centerpiece runtime and has a built-in gateway that Mission Control can control directly.
-- Mission Control is a control-plane wrapper around the OpenClaw gateway itself, plus its own safe UI/workflow features that sit above the gateway.
+- OpenClaw is the centerpiece runtime and has a built-in gateway that ClawControl can control directly.
+- ClawControl is a control-plane wrapper around the OpenClaw gateway itself, plus its own safe UI/workflow features that sit above the gateway.
 - MemD is the assistant brain layer: it owns durable context, memory retrieval, and compaction policies that shape higher-level agent behavior.
-- AgentShell is a separate optional safety wrapper/adapter that can sit in front of OpenClaw directly or in front of Mission Control's gateway access.
+- AgentShell is a separate optional safety wrapper/adapter that can sit in front of OpenClaw directly or in front of ClawControl's gateway access.
 - BlueBubbles, Supabase, homelab services, email, calendar, ntfy, and notes all plug into the same backend proxy model.
 
 ## Important Boundaries
@@ -44,5 +44,5 @@
 - Service-specific logic belongs in route modules, not the React tree.
 - MemD should stay a first-class subsystem, not a per-page cache.
 - AgentShell should remain a thin adapter, not a second runtime.
-- Mission Control should be thought of as a wrapper around OpenClaw's gateway first, with extra safe features layered on top where needed, and a general personal infrastructure hub second.
+- ClawControl should be thought of as a wrapper around OpenClaw's gateway first, with extra safe features layered on top where needed, and a general personal infrastructure hub second.
 - AgentShell should be thought of as a drop-in safety boundary for OpenClaw consumers, not a product-specific layer.

@@ -37,7 +37,7 @@ key-files:
     - frontend/src/globals.css
 
 key-decisions:
-  - "Widget Registry uses Map for O(1) lookup with registerWidget() for future Bjorn AI-generated widgets"
+  - "Widget Registry uses Map for O(1) lookup with registerWidget() for future Agent AI-generated widgets"
   - "Dashboard store uses structuredClone for undo stack entries to prevent reference aliasing"
   - "All 8 built-in widgets always included in default layout regardless of enabled modules (graceful empty states)"
   - "Per-breakpoint curated layouts instead of auto-reflow: lg 12-col, md 8-col, sm/xs 4-col stacked"
@@ -92,7 +92,7 @@ Each task was committed atomically:
 
 ## Decisions Made
 - Widget Registry uses a Map internally for O(1) lookups, populated from BUILTIN_WIDGETS at module load time
-- registerWidget() enables future Bjorn AI-generated and user-created widgets to be added dynamically
+- registerWidget() enables future Agent AI-generated and user-created widgets to be added dynamically
 - Dashboard store uses structuredClone() for undo stack entries to prevent shared reference mutations
 - All 8 built-in widgets are always included in the default layout regardless of which modules are enabled, since each widget handles missing services with graceful empty states
 - Curated per-breakpoint layouts (not auto-reflow from a single layout) for each screen size

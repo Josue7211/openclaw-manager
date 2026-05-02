@@ -80,9 +80,7 @@ pub(crate) fn sanitize_error_body(body: &str) -> String {
     let sanitized = ip_re.replace_all(&sanitized, "[redacted-ip]").into_owned();
 
     // Step 3: replace Unix file paths (3+ segments like /home/user/file)
-    let path_re = PATH_RE.get_or_init(|| {
-        regex::Regex::new(r"(?:/[\w\-.]+){3,}").unwrap()
-    });
+    let path_re = PATH_RE.get_or_init(|| regex::Regex::new(r"(?:/[\w\-.]+){3,}").unwrap());
     let sanitized = path_re.replace_all(&sanitized, "[path]").into_owned();
 
     // Step 4: truncate stack traces (if "   at " found, keep first line only)
@@ -184,9 +182,7 @@ async fn openclaw_health(
     let base = match openclaw_api_url(&state) {
         Some(b) => b,
         None => {
-            return Ok(Json(
-                json!({"ok": false, "status": "not_configured"}),
-            ));
+            return Ok(Json(json!({"ok": false, "status": "not_configured"})));
         }
     };
 
@@ -199,7 +195,18 @@ async fn openclaw_health(
         .await
     {
         Ok(r) if r.status().is_success() => {
-            Ok(Json(json!({"ok": true, "status": "connected"})))
+            let body = r.json::<Value>().await.unwrap_or_else(|_| json!({}));
+            let provider = body
+                .get("provider")
+                .or_else(|| body.get("platform"))
+                .and_then(Value::as_str)
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or("OpenClaw");
+            Ok(Json(json!({
+                "ok": true,
+                "status": "connected",
+                "provider": provider,
+            })))
         }
         _ => Ok(Json(json!({"ok": false, "status": "unreachable"}))),
     }
@@ -318,10 +325,7 @@ async fn gateway_session_history(
         return Err(AppError::Internal(anyhow::anyhow!("OpenClaw API error")));
     }
 
-    let value: Value = res
-        .json()
-        .await
-        .map_err(|e| AppError::Internal(e.into()))?;
+    let value: Value = res.json().await.map_err(|e| AppError::Internal(e.into()))?;
 
     Ok(Json(value))
 }
@@ -378,20 +382,15 @@ async fn delete_session(
         return Err(AppError::BadRequest("invalid session key".into()));
     }
 
-    let payload = gateway_forward(
-        &state,
-        Method::DELETE,
-        &format!("/sessions/{key}"),
-        None,
-    )
-    .await
-    .map_err(|e| {
-        tracing::error!("[gateway] session delete failed: {e:?}");
-        match e {
-            AppError::BadRequest(_) => e,
-            _ => AppError::BadRequest("Gateway error: failed to delete session".into()),
-        }
-    })?;
+    let payload = gateway_forward(&state, Method::DELETE, &format!("/sessions/{key}"), None)
+        .await
+        .map_err(|e| {
+            tracing::error!("[gateway] session delete failed: {e:?}");
+            match e {
+                AppError::BadRequest(_) => e,
+                _ => AppError::BadRequest("Gateway error: failed to delete session".into()),
+            }
+        })?;
 
     Ok(Json(json!({ "ok": true, "data": payload })))
 }
@@ -433,7 +432,10 @@ pub fn router() -> Router<AppState> {
         .route("/openclaw/health", get(openclaw_health))
         .route("/gateway/activity", get(gateway_activity))
         .route("/gateway/sessions", get(gateway_sessions))
-        .route("/gateway/sessions/:key/history", get(gateway_session_history))
+        .route(
+            "/gateway/sessions/:key/history",
+            get(gateway_session_history),
+        )
         .route(
             "/gateway/sessions/:key",
             patch(patch_session).delete(delete_session),
@@ -453,7 +455,10 @@ mod tests {
     fn sanitize_strips_api_keys() {
         let input = "Authorization: Bearer sk-abc123456789012345678901234567890";
         let result = sanitize_error_body(input);
-        assert!(result.contains("***"), "expected redacted output, got: {result}");
+        assert!(
+            result.contains("***"),
+            "expected redacted output, got: {result}"
+        );
         assert!(
             !result.contains("abc123456789012345678901234567890"),
             "raw key still present: {result}"
@@ -468,7 +473,10 @@ mod tests {
             result.contains("[redacted-ip]"),
             "expected [redacted-ip] in: {result}"
         );
-        assert!(!result.contains("100.64.0.1"), "Tailscale IP leaked: {result}");
+        assert!(
+            !result.contains("100.64.0.1"),
+            "Tailscale IP leaked: {result}"
+        );
         assert!(!result.contains("192.168.1.50"), "LAN IP leaked: {result}");
         assert!(!result.contains("10.0.0.5"), "private IP leaked: {result}");
     }
@@ -494,8 +502,7 @@ mod tests {
         );
         // Should only keep first line
         assert!(
-            result.contains("Error: agent not found")
-                || result.contains("Error:"),
+            result.contains("Error: agent not found") || result.contains("Error:"),
             "first line lost: {result}"
         );
     }
@@ -538,9 +545,7 @@ mod tests {
 
     #[test]
     fn validate_path_accepts_uuid_segments() {
-        assert!(
-            validate_gateway_path("/agents/550e8400-e29b-41d4-a716-446655440000").is_ok()
-        );
+        assert!(validate_gateway_path("/agents/550e8400-e29b-41d4-a716-446655440000").is_ok());
     }
 
     #[test]

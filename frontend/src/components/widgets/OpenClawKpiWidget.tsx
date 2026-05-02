@@ -46,7 +46,7 @@ export const OpenClawKpiWidget = React.memo(function OpenClawKpiWidget(_props: W
           fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)',
           letterSpacing: '0.1em', textTransform: 'uppercase', flex: 1,
         }}>
-          OpenClaw
+          Harness
         </span>
         {activeSessions > 0 && (
           <span style={{
@@ -105,7 +105,7 @@ export const OpenClawKpiWidget = React.memo(function OpenClawKpiWidget(_props: W
       {/* View all link */}
       <button
         onClick={() => navigate('/openclaw')}
-        aria-label="View OpenClaw details"
+        aria-label="View harness details"
         style={{
           display: 'flex', alignItems: 'center', gap: '4px', marginTop: '8px',
           paddingTop: '8px', fontSize: '11px', color: 'var(--accent)',

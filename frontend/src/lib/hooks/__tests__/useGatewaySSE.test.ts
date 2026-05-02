@@ -52,7 +52,7 @@ vi.mock('@tanstack/react-query', () => ({
 
 // Mock API_BASE and getApiKey
 vi.mock('@/lib/api', () => ({
-  API_BASE: 'http://127.0.0.1:3000',
+  API_BASE: 'http://127.0.0.1:5000',
   getApiKey: () => 'test-key',
 }))
 

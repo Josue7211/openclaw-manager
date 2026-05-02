@@ -33,7 +33,7 @@ describe('BackendErrorBanner', () => {
     })
 
     it('does not show default message when custom label is provided', () => {
-      render(<BackendErrorBanner label="OpenClaw unreachable" />)
+      render(<BackendErrorBanner label="Harness unreachable" />)
       expect(
         screen.queryByText(/Backend unreachable/),
       ).not.toBeInTheDocument()

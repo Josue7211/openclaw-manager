@@ -9,9 +9,13 @@ use axum::{
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use serde_json::{json, Map, Value};
 
-use crate::error::{AppError, success_json};
+use crate::error::{success_json, AppError};
 use crate::server::{AppState, RequireAuth};
 use crate::supabase::SupabaseClient;
+
+/// Generated module tables keep the legacy SQLite names for compatibility.
+const GENERATED_MODULE_TABLE: &str = "generated_modules";
+const GENERATED_MODULE_VERSION_TABLE: &str = "generated_module_versions";
 
 /// User-data tables to export from Supabase.
 /// Excludes `cache` (internal sync data) and `user_preferences` (settings, not user content).
@@ -32,8 +36,8 @@ const EXPORT_TABLES: &[&str] = &[
     "weekly_reviews",
     "retrospectives",
     "workflow_notes",
-    "bjorn_modules",
-    "bjorn_module_versions",
+    GENERATED_MODULE_TABLE,
+    GENERATED_MODULE_VERSION_TABLE,
     "pipeline_events",
     "activity_log",
 ];
@@ -55,15 +59,15 @@ async fn export_supabase(
                 tables.insert(table.to_string(), data);
             }
             Err(e) => {
-                tables.insert(
-                    table.to_string(),
-                    json!({ "error": format!("{e:#}") }),
-                );
+                tables.insert(table.to_string(), json!({ "error": format!("{e:#}") }));
             }
         }
     }
 
-    tracing::info!(tables = EXPORT_TABLES.len(), "export: supabase data exported");
+    tracing::info!(
+        tables = EXPORT_TABLES.len(),
+        "export: supabase data exported"
+    );
 
     Ok(success_json(json!({
         "exported_at": chrono::Utc::now().to_rfc3339(),
@@ -77,10 +81,7 @@ async fn export_sqlite(
     RequireAuth(_session): RequireAuth,
     State(_state): State<AppState>,
 ) -> Result<Response, AppError> {
-    let db_path = dirs::data_local_dir()
-        .unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join("mission-control")
-        .join("local.db");
+    let db_path = crate::app_paths::resolve_app_data_dir().join("local.db");
 
     let bytes = tokio::fs::read(&db_path)
         .await
@@ -92,7 +93,7 @@ async fn export_sqlite(
         .header(header::CONTENT_TYPE, "application/octet-stream")
         .header(
             header::CONTENT_DISPOSITION,
-            "attachment; filename=\"mission-control-backup.sqlite\"",
+            "attachment; filename=\"clawcontrol-backup.sqlite\"",
         )
         .body(Body::from(bytes))
         .unwrap()
@@ -107,7 +108,7 @@ fn vault_config(state: &AppState) -> Option<(String, String, String, String)> {
     let pass = state.secret("COUCHDB_PASSWORD")?;
     let db = state
         .secret("COUCHDB_DATABASE")
-        .unwrap_or_else(|| "josue-vault".to_string());
+        .unwrap_or_else(|| "clawcontrol-vault".to_string());
     Some((url, user, pass, db))
 }
 
@@ -168,9 +169,7 @@ async fn export_notes(
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
-        return Err(AppError::BadRequest(format!(
-            "CouchDB {status}: {body}"
-        )));
+        return Err(AppError::BadRequest(format!("CouchDB {status}: {body}")));
     }
 
     let data: Value = resp

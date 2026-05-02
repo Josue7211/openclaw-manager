@@ -3,6 +3,7 @@ name = "openclaw"
 version = "0.0.1"
 edition = "2021"
 license = "AGPL-3.0-or-later"
+default-run = "openclaw"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -43,6 +44,7 @@ sha2 = "0.10"
 aes-gcm = "0.10"
 argon2 = "0.5"
 urlencoding = "2"
+serde_urlencoded = "0.7"
 zeroize = { version = "1", features = ["derive"] }
 libc = "0.2"
 font-kit = "0.14"

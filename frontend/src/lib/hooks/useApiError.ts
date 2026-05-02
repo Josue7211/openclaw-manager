@@ -7,7 +7,7 @@ import { reportError } from '@/lib/error-reporter'
  *
  * Patterns found across pages today:
  *   - Personal/Dashboard: `e instanceof ApiError ? e.serviceLabel : 'Service unavailable'`
- *   - Chat: `err instanceof ApiError ? err.serviceLabel : 'OpenClaw unreachable'`
+ *   - Chat: `err instanceof ApiError ? err.serviceLabel : 'Harness unreachable'`
  *   - Email: `err instanceof Error ? err.message : 'Failed to fetch'`
  *   - HomeLab: `(error as Error).message`
  *   - KnowledgeBase: raw `err.message`
@@ -40,7 +40,7 @@ export function useApiError(
         return error.serviceLabel
       }
       // HTTP errors: show status + service context
-      // e.g. "API 502 — OpenClaw unreachable"
+      // e.g. "API 502 — Harness unreachable"
       return `API ${error.status} — ${error.serviceLabel}`
     }
 

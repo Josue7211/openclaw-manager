@@ -38,6 +38,7 @@ npm-debug.log*
 *.tsbuildinfo
 
 # Tauri
+.cargo-target/
 src-tauri/target/
 src-tauri/gen/
 src-tauri/binaries/*
@@ -47,6 +48,7 @@ src-tauri/resources/*
 
 # Claude Code
 .claude/
+CLAUDE.md
 
 # Playwright MCP
 .playwright-mcp/

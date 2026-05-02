@@ -3,19 +3,29 @@ import { useMutation } from '@tanstack/react-query'
 import { useOpenClawTools } from '@/hooks/useOpenClawTools'
 import { api } from '@/lib/api'
 import type { ToolInfo, ToolInvokeRequest } from './types'
+import type { OpenClawHealthStatus } from '../OpenClaw'
 
-export default function ToolsTab({ healthy }: { healthy: boolean }) {
+function OfflineState({ status, noun }: { status: OpenClawHealthStatus; noun: string }) {
+  const title = status === 'not_configured' ? 'Harness not configured' : 'Harness offline'
+  const detail = status === 'not_configured'
+    ? `Set OPENCLAW_API_URL in Settings > Connections to view ${noun}.`
+    : `ClawControl cannot reach the harness right now. Check the upstream service and try again.`
+
+  return (
+    <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+      <p style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 600 }}>
+        {title}
+      </p>
+      <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>
+        {detail}
+      </p>
+    </div>
+  )
+}
+
+export default function ToolsTab({ healthy, status = 'unknown' }: { healthy: boolean; status?: OpenClawHealthStatus }) {
   if (!healthy) {
-    return (
-      <div style={{ padding: '40px 20px', textAlign: 'center' }}>
-        <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-          OpenClaw is not configured.
-        </p>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>
-          Set OPENCLAW_API_URL in Settings &gt; Connections to view the tool registry.
-        </p>
-      </div>
-    )
+    return <OfflineState status={status} noun="the tool registry" />
   }
 
   return <ToolsContent />

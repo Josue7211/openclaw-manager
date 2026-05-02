@@ -7,7 +7,7 @@ use tracing::{debug, error};
 use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
 
-use super::agents::{status, route_agent, routing_table};
+use super::agents::{route_agent, routing_table, status};
 use super::helpers::{
     log_activity, send_notify, set_agent_active, shell_escape, slugify, supabase,
     validate_cli_flags, validate_uuid, validate_workdir,
@@ -67,13 +67,16 @@ pub(super) async fn pipeline_spawn(
 
     // ── Route ────────────────────────────────────────────────────
     let agent_name = route_agent(body.complexity, task_type);
-    let route = routing_table(agent_name).ok_or_else(|| {
-        AppError::Internal(anyhow::anyhow!("Unknown agent: {agent_name}"))
-    })?;
+    let route = routing_table(agent_name)
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Unknown agent: {agent_name}")))?;
 
     // ── Check agent availability ─────────────────────────────────
     let agent_data = sb
-        .select_single_as_user("agents", &format!("select=status,current_task&id=eq.{}", route.agent_id), jwt)
+        .select_single_as_user(
+            "agents",
+            &format!("select=status,current_task&id=eq.{}", route.agent_id),
+            jwt,
+        )
         .await;
 
     if let Ok(ref agent) = agent_data {
@@ -158,10 +161,13 @@ pub(super) async fn pipeline_spawn(
         "log_path": log_file,
     });
 
-    let mission_result = sb.insert_as_user("missions", mission_insert, jwt).await.map_err(|e| {
-        error!("[pipeline/spawn] mission create: {e}");
-        AppError::Internal(anyhow::anyhow!("Failed to create mission"))
-    })?;
+    let mission_result = sb
+        .insert_as_user("missions", mission_insert, jwt)
+        .await
+        .map_err(|e| {
+            error!("[pipeline/spawn] mission create: {e}");
+            AppError::Internal(anyhow::anyhow!("Failed to create mission"))
+        })?;
 
     // insert returns an array; grab the first element
     let mission = match &mission_result {
@@ -196,7 +202,12 @@ pub(super) async fn pipeline_spawn(
     let jwt_clone = jwt.to_string();
     tokio::spawn(async move {
         let _ = sb2
-            .update_as_user("missions", &format!("id=eq.{mid}"), json!({ "spawn_command": sc }), &jwt_clone)
+            .update_as_user(
+                "missions",
+                &format!("id=eq.{mid}"),
+                json!({ "spawn_command": sc }),
+                &jwt_clone,
+            )
             .await;
     });
 
@@ -204,8 +215,12 @@ pub(super) async fn pipeline_spawn(
     if let Err(e) = set_agent_active(&sb, route.agent_id, title, jwt).await {
         error!("[pipeline/spawn] agent activate: {e}");
         // Rollback: delete the mission
-        let _ = sb.delete_as_user("missions", &format!("id=eq.{mission_id}"), jwt).await;
-        return Err(AppError::Internal(anyhow::anyhow!("Failed to activate agent")));
+        let _ = sb
+            .delete_as_user("missions", &format!("id=eq.{mission_id}"), jwt)
+            .await;
+        return Err(AppError::Internal(anyhow::anyhow!(
+            "Failed to activate agent"
+        )));
     }
 
     // ── Log + notify (fire-and-forget) ───────────────────────────
@@ -231,12 +246,15 @@ pub(super) async fn pipeline_spawn(
 
     send_notify(
         "Mission Spawned",
-        &format!("{} {} -> {} [{}%]", route.emoji, route.display_name, title, body.complexity),
+        &format!(
+            "{} {} -> {} [{}%]",
+            route.emoji, route.display_name, title, body.complexity
+        ),
         3,
         &["rocket"],
     );
 
-    // ── Registry command for Bjorn ───────────────────────────────
+    // ── Registry command for the agent registry ──────────────────
     let registry_entry = json!({
         "agentId": route.agent_id,
         "agentName": route.display_name,

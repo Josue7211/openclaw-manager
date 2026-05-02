@@ -13,14 +13,14 @@ import { LoadingSkeleton } from './status/LoadingSkeleton'
 export default function Status() {
   const queryClient = useQueryClient()
 
-  const { data: health, isLoading: healthLoading, dataUpdatedAt: healthUpdatedAt } = useQuery<HealthData>({
+  const { data: health, isLoading: healthLoading, isError: healthError, dataUpdatedAt: healthUpdatedAt } = useQuery<HealthData>({
     queryKey: queryKeys.health,
     queryFn: () => api.get('/api/status/health'),
     refetchInterval: 10_000,
     staleTime: 8_000,
   })
 
-  const { data: tailscale, isLoading: tsLoading } = useQuery<TailscaleData>({
+  const { data: tailscale, isLoading: tsLoading, isError: tsError } = useQuery<TailscaleData>({
     queryKey: queryKeys.tailscalePeers,
     queryFn: () => api.get('/api/status/tailscale'),
     refetchInterval: 10_000,
@@ -39,7 +39,7 @@ export default function Status() {
   const services = health?.services
   const serviceEntries: { key: string; label: string; data: import('./status/types').ServiceStatus | undefined }[] = [
     { key: 'bluebubbles', label: 'BlueBubbles', data: services?.bluebubbles },
-    { key: 'openclaw', label: 'OpenClaw', data: services?.openclaw },
+    { key: 'openclaw', label: 'Harness', data: services?.openclaw },
     { key: 'supabase', label: 'Supabase', data: services?.supabase },
   ]
 
@@ -98,6 +98,10 @@ export default function Status() {
           </div>
           {healthLoading ? (
             <LoadingSkeleton rows={3} />
+          ) : healthError ? (
+            <div style={{ padding: '12px 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+              Status data is unavailable because the selected backend could not be reached.
+            </div>
           ) : (
             serviceEntries.map((svc, i) => {
               const s = svc.data
@@ -147,6 +151,10 @@ export default function Status() {
           </div>
           {tsLoading ? (
             <LoadingSkeleton rows={3} />
+          ) : tsError ? (
+            <div style={{ padding: '12px 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+              Tailscale peer status is unavailable right now.
+            </div>
           ) : uniquePeers.length === 0 ? (
             <div style={{ padding: '8px 0' }}>
               <EmptyState icon={WifiHigh} title="No peers found" description="Tailscale may not be installed or running." />
@@ -184,6 +192,10 @@ export default function Status() {
           </div>
           {healthLoading ? (
             <LoadingSkeleton rows={2} />
+          ) : healthError ? (
+            <div style={{ padding: '12px 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+              Cache details are unavailable while the backend is offline.
+            </div>
           ) : (
             <>
               <div style={row}>
@@ -214,6 +226,10 @@ export default function Status() {
           </div>
           {healthLoading ? (
             <LoadingSkeleton rows={4} />
+          ) : healthError ? (
+            <div style={{ padding: '12px 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+              App details are unavailable while the backend is offline.
+            </div>
           ) : (
             <>
               <div style={row}>

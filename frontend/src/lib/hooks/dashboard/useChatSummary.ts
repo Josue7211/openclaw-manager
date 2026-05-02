@@ -17,7 +17,7 @@ interface ChatThread {
 // summary from the latest messages in the current conversation.
 
 const DEMO_THREADS: ChatThread[] = [
-  { id: 'demo-thread-1', title: 'Getting started with OpenClaw', model: 'claude-sonnet-4-6', updatedAt: new Date(Date.now() - 300_000).toISOString() },
+  { id: 'demo-thread-1', title: 'Getting started with Harness', model: 'claude-sonnet-4-6', updatedAt: new Date(Date.now() - 300_000).toISOString() },
   { id: 'demo-thread-2', title: 'Homelab architecture review', model: 'claude-opus-4-6', updatedAt: new Date(Date.now() - 3_600_000).toISOString() },
   { id: 'demo-thread-3', title: 'Debugging WebSocket issues', model: 'claude-haiku-4-5', updatedAt: new Date(Date.now() - 86_400_000).toISOString() },
 ]

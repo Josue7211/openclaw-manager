@@ -1,8 +1,11 @@
 use keyring::Entry;
 use rand::Rng;
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
-const SERVICE: &str = "com.mission-control";
+const SERVICE: &str = "com.clawcontrol.desktop";
+const LEGACY_SERVICE: &str = "com.mission-control";
+static PROCESS_API_KEY: OnceLock<String> = OnceLock::new();
 
 /// Mapping of keyring key names to environment variable names.
 pub(crate) const KEY_ENV_MAP: &[(&str, &str)] = &[
@@ -24,14 +27,38 @@ pub(crate) const KEY_ENV_MAP: &[(&str, &str)] = &[
     ("openclaw.password", "OPENCLAW_PASSWORD"),
     ("openclaw.api-url", "OPENCLAW_API_URL"),
     ("openclaw.api-key", "OPENCLAW_API_KEY"),
+    ("sunshine.host", "SUNSHINE_HOST"),
+    ("vnc.host", "VNC_HOST"),
+    ("agentsecrets.url", "AGENTSECRETS_URL"),
+    ("agentsecrets.client-api-key", "AGENTSECRETS_CLIENT_API_KEY"),
+    ("agentmail.url", "AGENTMAIL_URL"),
+    ("agentmail.api-key", "AGENTMAIL_API_KEY"),
+    ("agentmail.default-address", "AGENTMAIL_DEFAULT_ADDRESS"),
+    ("agentmail.default-inbox-id", "AGENTMAIL_DEFAULT_INBOX_ID"),
+    ("agentmail.default-label", "AGENTMAIL_DEFAULT_LABEL"),
+    ("agentmail.default-provider", "AGENTMAIL_DEFAULT_PROVIDER"),
     ("agentshell.url", "AGENTSHELL_URL"),
     ("mac-bridge.host", "MAC_BRIDGE_HOST"),
     ("mac-bridge.api-key", "MAC_BRIDGE_API_KEY"),
     ("anthropic.api-key", "ANTHROPIC_API_KEY"),
+    ("lightrag.base-url", "LIGHTRAG_BASE_URL"),
+    ("lightrag.api-key", "LIGHTRAG_API_KEY"),
+    ("memd.rag-url", "MEMD_RAG_URL"),
+    ("rag.url", "RAG_URL"),
     ("sonarr.url", "SONARR_URL"),
     ("sonarr.api-key", "SONARR_API_KEY"),
     ("radarr.url", "RADARR_URL"),
     ("radarr.api-key", "RADARR_API_KEY"),
+    ("lidarr.url", "LIDARR_URL"),
+    ("lidarr.api-key", "LIDARR_API_KEY"),
+    ("prowlarr.url", "PROWLARR_URL"),
+    ("prowlarr.api-key", "PROWLARR_API_KEY"),
+    ("overseerr.url", "OVERSEERR_URL"),
+    ("overseerr.api-key", "OVERSEERR_API_KEY"),
+    ("tautulli.url", "TAUTULLI_URL"),
+    ("tautulli.api-key", "TAUTULLI_API_KEY"),
+    ("bazarr.url", "BAZARR_URL"),
+    ("bazarr.api-key", "BAZARR_API_KEY"),
     ("email.host", "EMAIL_HOST"),
     ("email.port", "EMAIL_PORT"),
     ("email.user", "EMAIL_USER"),
@@ -41,10 +68,22 @@ pub(crate) const KEY_ENV_MAP: &[(&str, &str)] = &[
     ("supabase.url", "SUPABASE_URL"),
     ("supabase.anon-key", "SUPABASE_ANON_KEY"),
     ("supabase.service-role-key", "SUPABASE_SERVICE_ROLE_KEY"),
+    (
+        "gotrue.external-google-enabled",
+        "GOTRUE_EXTERNAL_GOOGLE_ENABLED",
+    ),
+    (
+        "gotrue.external-github-enabled",
+        "GOTRUE_EXTERNAL_GITHUB_ENABLED",
+    ),
+    ("backend.public-base-url", "BACKEND_PUBLIC_BASE_URL"),
+    ("backend.device-api-key", "BACKEND_DEVICE_API_KEY"),
+    ("pairing.token", "PAIRING_TOKEN"),
     ("couchdb.url", "COUCHDB_URL"),
     ("couchdb.user", "COUCHDB_USER"),
     ("couchdb.password", "COUCHDB_PASSWORD"),
     ("couchdb.database", "COUCHDB_DATABASE"),
+    ("couchdb.custom-headers", "COUCHDB_CUSTOM_HEADERS"),
     ("mc-bind.host", "MC_BIND_HOST"),
     ("mc-agent.key", "MC_AGENT_KEY"),
 ];
@@ -68,14 +107,38 @@ const USER_KEYS: &[&str] = &[
     "openclaw.password",
     "openclaw.api-url",
     "openclaw.api-key",
+    "sunshine.host",
+    "vnc.host",
+    "agentsecrets.url",
+    "agentsecrets.client-api-key",
+    "agentmail.url",
+    "agentmail.api-key",
+    "agentmail.default-address",
+    "agentmail.default-inbox-id",
+    "agentmail.default-label",
+    "agentmail.default-provider",
     "agentshell.url",
     "mac-bridge.host",
     "mac-bridge.api-key",
     "anthropic.api-key",
+    "lightrag.base-url",
+    "lightrag.api-key",
+    "memd.rag-url",
+    "rag.url",
     "sonarr.url",
     "sonarr.api-key",
     "radarr.url",
     "radarr.api-key",
+    "lidarr.url",
+    "lidarr.api-key",
+    "prowlarr.url",
+    "prowlarr.api-key",
+    "overseerr.url",
+    "overseerr.api-key",
+    "tautulli.url",
+    "tautulli.api-key",
+    "bazarr.url",
+    "bazarr.api-key",
     "email.host",
     "email.port",
     "email.user",
@@ -85,16 +148,26 @@ const USER_KEYS: &[&str] = &[
     "supabase.url",
     "supabase.anon-key",
     "supabase.service-role-key",
+    "backend.public-base-url",
+    "backend.device-api-key",
     "couchdb.url",
     "couchdb.user",
     "couchdb.password",
     "couchdb.database",
+    "couchdb.custom-headers",
     "mc-bind.host",
     "mc-agent.key",
 ];
 
 fn get_entry(key: &str) -> Option<String> {
-    Entry::new(SERVICE, key).ok()?.get_password().ok()
+    Entry::new(SERVICE, key)
+        .ok()
+        .and_then(|entry| entry.get_password().ok())
+        .or_else(|| {
+            Entry::new(LEGACY_SERVICE, key)
+                .ok()
+                .and_then(|entry| entry.get_password().ok())
+        })
 }
 
 pub(crate) fn set_entry(key: &str, value: &str) -> Result<(), String> {
@@ -111,15 +184,19 @@ pub(crate) fn set_entry(key: &str, value: &str) -> Result<(), String> {
 /// lives for the duration of one app process. The keychain store is
 /// best-effort (the in-memory key is what actually matters).
 fn ensure_api_key() -> String {
-    let mut bytes = [0u8; 32];
-    rand::thread_rng().fill(&mut bytes);
-    let key = hex::encode(bytes);
+    PROCESS_API_KEY
+        .get_or_init(|| {
+            let mut bytes = [0u8; 32];
+            rand::thread_rng().fill(&mut bytes);
+            let key = hex::encode(bytes);
 
-    // Best-effort store in keychain so `get_secret("mc-api-key")` works
-    // for the frontend to read it during this session.
-    let _ = set_entry("mc-api-key", &key);
+            // Best-effort store in keychain so `get_secret("mc-api-key")` works
+            // for the frontend to read it during this session.
+            let _ = set_entry("mc-api-key", &key);
 
-    key
+            key
+        })
+        .clone()
 }
 
 /// Load all secrets from the OS keychain and return them as a
@@ -157,11 +234,17 @@ fn known_secret_keys() -> std::collections::HashSet<&'static str> {
 /// `/proc/PID/environ`.
 pub fn load_secrets() -> HashMap<String, String> {
     let mut secrets = load_env_vars();
+    let known = known_secret_keys();
+
+    for (key, value) in std::env::vars() {
+        if known.contains(key.as_str()) && !value.trim().is_empty() {
+            secrets.insert(key, value);
+        }
+    }
 
     // Load .env.local as a dev-mode fallback.
     // Only merge keys that correspond to known secrets and that the
     // keychain didn't already provide (keychain takes precedence).
-    let known = known_secret_keys();
     for path in &[".env.local", "../.env.local"] {
         if let Ok(iter) = dotenvy::from_filename_iter(path) {
             tracing::info!("Merging dev secrets from {}", path);
@@ -180,7 +263,15 @@ pub fn load_secrets() -> HashMap<String, String> {
 /// Check if this is a first run — i.e. no user-configured secrets
 /// exist in the keychain yet.
 pub fn is_first_run() -> bool {
-    USER_KEYS.iter().all(|key| get_entry(key).is_none())
+    let loaded = load_secrets();
+
+    !USER_KEYS.iter().any(|key| {
+        KEY_ENV_MAP
+            .iter()
+            .find(|&&(keyring_key, _)| keyring_key == *key)
+            .and_then(|&(_, env_name)| loaded.get(env_name))
+            .is_some_and(|value| !value.trim().is_empty())
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -202,6 +293,8 @@ const FRONTEND_BLOCKED_KEYS: &[&str] = &[
     "openclaw.password",
     "openclaw.api-key",
     "openclaw.ws",
+    "agentsecrets.client-api-key",
+    "agentmail.api-key",
     "proxmox.host",
     "proxmox.token-id",
     "proxmox.token-secret",
@@ -223,6 +316,7 @@ const FRONTEND_BLOCKED_KEYS: &[&str] = &[
     "caldav.password",
     "mac-bridge.host",
     "mac-bridge.api-key",
+    "lightrag.api-key",
     "ntfy.url",
     "ntfy.topic",
     "mc-agent.key",
@@ -230,17 +324,22 @@ const FRONTEND_BLOCKED_KEYS: &[&str] = &[
     "couchdb.user",
     "couchdb.password",
     "couchdb.database",
+    "couchdb.custom-headers",
 ];
 
 /// Keys that the frontend is allowed to write (allowlist).
 /// Only keys needed by the onboarding wizard and Settings UI are included.
 const FRONTEND_WRITABLE_KEYS: &[&str] = &[
+    "backend.public-base-url",
+    "backend.device-api-key",
     "bluebubbles.host",
     "bluebubbles.password",
     "openclaw.api-url",
     "openclaw.api-key",
     "openclaw.ws",
     "openclaw.password",
+    "sunshine.host",
+    "agentsecrets.url",
     "agentshell.url",
     "proxmox.host",
     "proxmox.token-id",
@@ -266,6 +365,15 @@ const FRONTEND_WRITABLE_KEYS: &[&str] = &[
     "mac-bridge.host",
     "mac-bridge.api-key",
     "anthropic.api-key",
+    "lightrag.base-url",
+    "lightrag.api-key",
+    "memd.rag-url",
+    "rag.url",
+    "couchdb.url",
+    "couchdb.user",
+    "couchdb.password",
+    "couchdb.database",
+    "couchdb.custom-headers",
     "supabase.url",
     "supabase.anon-key",
     "mc-bind.host",
@@ -284,7 +392,13 @@ pub fn get_secret(key: String) -> Option<String> {
     if FRONTEND_BLOCKED_KEYS.contains(&key.as_str()) {
         return None;
     }
-    get_entry(&key)
+    if let Some(value) = get_entry(&key) {
+        return Some(value);
+    }
+    let env_name = KEY_ENV_MAP
+        .iter()
+        .find_map(|(keyring_key, env_name)| (*keyring_key == key).then_some(*env_name))?;
+    load_secrets().get(env_name).cloned()
 }
 
 /// Store a secret in the OS keychain.

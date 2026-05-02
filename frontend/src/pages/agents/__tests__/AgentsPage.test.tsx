@@ -8,8 +8,8 @@ import { createElement } from 'react'
 const mockAgents = [
   {
     id: 'agent-1',
-    name: 'bjorn',
-    display_name: 'Bjorn',
+    name: 'primary-agent',
+    display_name: 'Primary Agent',
     emoji: '\uD83E\uDDAC',
     role: 'General purpose',
     status: 'active',
@@ -73,7 +73,7 @@ vi.mock('@/lib/api', () => ({
     patch: vi.fn(),
     del: vi.fn(),
   },
-  API_BASE: 'http://localhost:3000',
+  API_BASE: 'http://localhost:5000',
 }))
 
 // Mock Skeleton (avoid rendering complex loading states)
@@ -123,7 +123,7 @@ describe('AgentsPage', () => {
 
   it('displays both agent names', () => {
     render(createElement(AgentsPage), { wrapper: createWrapper() })
-    expect(screen.getByText('Bjorn')).toBeInTheDocument()
+    expect(screen.getByText('Primary Agent')).toBeInTheDocument()
     expect(screen.getByText('Scout')).toBeInTheDocument()
   })
 

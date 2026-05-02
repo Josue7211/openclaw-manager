@@ -1,4 +1,4 @@
-# Phase 07: Bjorn Module Builder - Research
+# Phase 07: Agent Module Builder - Research
 
 **Researched:** 2026-03-21
 **Domain:** AI code generation, iframe sandboxing, dynamic module loading, postMessage bridging
@@ -6,11 +6,11 @@
 
 ## Summary
 
-The Bjorn Module Builder introduces an AI-powered code generation pipeline where users describe modules in natural language, Bjorn generates React components using the 11 primitives library, and the result previews in a sandboxed iframe before approval installs it into the dashboard widget picker with hot-reload. This phase spans five technical domains: (1) Bjorn chat UI as a specialized tab in the Chat page, (2) static analysis security gate, (3) iframe sandbox with srcdoc + CSP for preview, (4) postMessage data bridge for live data access, and (5) persistence + hot-reload via SQLite/Supabase sync + blob URL dynamic imports.
+The Agent Module Builder introduces an AI-powered code generation pipeline where users describe modules in natural language, Agent generates React components using the 11 primitives library, and the result previews in a sandboxed iframe before approval installs it into the dashboard widget picker with hot-reload. This phase spans five technical domains: (1) Agent chat UI as a specialized tab in the Chat page, (2) static analysis security gate, (3) iframe sandbox with srcdoc + CSP for preview, (4) postMessage data bridge for live data access, and (5) persistence + hot-reload via SQLite/Supabase sync + blob URL dynamic imports.
 
 The codebase already has strong foundations for every integration point: `registerWidget()` accepts `tier: 'ai'` and `category: 'custom'`, `useChatSocket` provides WebSocket + polling fallback to OpenClaw, `addWidgetToPage()` handles programmatic widget installation, and the SQLite migration + Supabase sync pattern is well-established. The primary unknowns are (a) WebKitGTK iframe sandbox behavior on Linux (Tauri cannot distinguish iframe requests from window requests on Linux/Android), and (b) prompt engineering quality for generating correct primitive compositions.
 
-**Primary recommendation:** Build the static analysis gate first as the security foundation, then layer the sandbox iframe, Bjorn chat tab, persistence, and finally the data bridge -- each layer depends on the previous being secure.
+**Primary recommendation:** Build the static analysis gate first as the security foundation, then layer the sandbox iframe, Agent chat tab, persistence, and finally the data bridge -- each layer depends on the previous being secure.
 
 <user_constraints>
 ## User Constraints (from CONTEXT.md)
@@ -20,31 +20,31 @@ The codebase already has strong foundations for every integration point: `regist
 - Strict static analysis blocklist: fetch, XMLHttpRequest, WebSocket, eval, Function, document.cookie, window.parent, window.top, localStorage, sessionStorage, importScripts -- rejected before rendering
 - Approved modules escape the sandbox and run as normal React components (same as primitives) -- sandbox is preview-only
 - Preview iframe CSP: `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'` -- zero network, zero external resources
-- Bjorn composes modules from the 11 primitives API -- prompt includes primitive schemas + WidgetProps interface, assembles using only primitives library + standard React
-- OpenClaw gateway powers generation (user's configured model) -- uses same chat infrastructure, Bjorn is a specialized system prompt
-- Tool manifest file at `~/.config/mission-control/tools.json` lists available CLIs with commands, descriptions, and examples -- Bjorn reads this at generation time
+- Agent composes modules from the 11 primitives API -- prompt includes primitive schemas + WidgetProps interface, assembles using only primitives library + standard React
+- OpenClaw gateway powers generation (user's configured model) -- uses same chat infrastructure, Agent is a specialized system prompt
+- Tool manifest file at `~/.config/mission-control/tools.json` lists available CLIs with commands, descriptions, and examples -- Agent reads this at generation time
 - Approved modules access live data via a data bridge -- postMessage API where parent app proxies requests through Axum. Module requests data, parent resolves via CLI/API. No direct network from module code.
 - Generated modules stored in local SQLite table (`bjorn_modules`) with source, config schema, metadata, version history -- synced to Supabase for cross-device
 - 5 versions per module -- oldest pruned on new save
 - Approval flow: Preview > Approve/Reject/Edit -- sandboxed preview shown, user approves (installs to dashboard), rejects (discards), or requests changes (new generation round)
 - Hot-reload via dynamic import with cache-busting -- approved modules as JS blobs loaded via `() => import(blobURL)` in registerWidget, re-registration replaces component without restart
-- Builder lives in Chat page as Bjorn tab -- reuses existing chat infrastructure
+- Builder lives in Chat page as Agent tab -- reuses existing chat infrastructure
 - Side-by-side split: chat left, preview right -- user sees generation and result simultaneously
-- Module management in Settings > Modules -- shows Bjorn-created modules with enable/disable/delete/rollback
-- Bjorn explains generation failures in chat with suggested fixes
+- Module management in Settings > Modules -- shows Agent-created modules with enable/disable/delete/rollback
+- Agent explains generation failures in chat with suggested fixes
 
 ### Claude's Discretion
-- Prompt engineering details for Bjorn's system prompt
+- Prompt engineering details for Agent's system prompt
 - Exact postMessage bridge protocol
 - SQLite schema field naming
 - Preview iframe HTML template structure
 - Cache-busting strategy for blob URLs
 
 ### Deferred Ideas (OUT OF SCOPE)
-- Bjorn module marketplace/sharing between users
-- Bjorn learning from user feedback to improve generation quality
+- Agent module marketplace/sharing between users
+- Agent learning from user feedback to improve generation quality
 - Module dependency chains (one module depending on another)
-- CLI wrapper generation (Bjorn creates new CLIs)
+- CLI wrapper generation (Agent creates new CLIs)
 </user_constraints>
 
 <phase_requirements>
@@ -52,10 +52,10 @@ The codebase already has strong foundations for every integration point: `regist
 
 | ID | Description | Research Support |
 |----|-------------|-----------------|
-| BJORN-01 | User can describe a module in natural language via chat with Bjorn | Chat page Bjorn tab reusing useChatSocket + specialized system prompt; existing ChatThread/ChatInput components |
-| BJORN-02 | Bjorn generates a React component using module primitives | OpenClaw gateway with Bjorn system prompt containing primitive schemas + WidgetProps interface |
+| BJORN-01 | User can describe a module in natural language via chat with Agent | Chat page Agent tab reusing useChatSocket + specialized system prompt; existing ChatThread/ChatInput components |
+| BJORN-02 | Agent generates a React component using module primitives | OpenClaw gateway with Agent system prompt containing primitive schemas + WidgetProps interface |
 | BJORN-03 | Generated module renders in sandboxed iframe (srcdoc, sandbox="allow-scripts", no allow-same-origin) | srcdoc iframe with CSP meta tag; see Architecture Patterns for HTML template |
-| BJORN-04 | Dev preview panel shows generated module alongside the main app | Side-by-side split layout in Bjorn tab: chat left, preview right |
+| BJORN-04 | Dev preview panel shows generated module alongside the main app | Side-by-side split layout in Agent tab: chat left, preview right |
 | BJORN-05 | User can approve, reject, or request changes to generated module | Approval toolbar below preview; approve triggers registerWidget + addWidgetToPage, reject discards, edit sends follow-up message |
 | BJORN-06 | Approved module installs into Widget Registry and appears in dashboard widget picker | registerWidget() with tier:'ai', category:'custom'; WidgetPicker already shows 'custom' category |
 | BJORN-07 | Hot-reload: approved module appears without app restart | Blob URL dynamic import with cache-busting; registerWidget replaces entry in _registry Map |
@@ -79,7 +79,7 @@ The codebase already has strong foundations for every integration point: `regist
 ### Supporting
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
-| useSyncExternalStore | React 18 | Reactive bjorn-module-store for UI updates | Module state management |
+| useSyncExternalStore | React 18 | Reactive agent-module-store for UI updates | Module state management |
 | React Query | existing | Fetch module list, manage async states | Data fetching for module management UI |
 | postMessage API | Web standard | Data bridge between sandbox iframe and parent | Live data access for approved modules |
 
@@ -99,35 +99,35 @@ No new dependencies required. All capabilities exist in the current stack.
 ```
 frontend/src/
 ├── lib/
-│   ├── bjorn-store.ts          # useSyncExternalStore module state + persistence
-│   ├── bjorn-static-analysis.ts # Blocklist checker for generated code
-│   ├── bjorn-sandbox.ts        # Iframe HTML template + postMessage bridge (parent side)
+│   ├── agent-store.ts          # useSyncExternalStore module state + persistence
+│   ├── agent-static-analysis.ts # Blocklist checker for generated code
+│   ├── agent-sandbox.ts        # Iframe HTML template + postMessage bridge (parent side)
 │   └── __tests__/
-│       ├── bjorn-store.test.ts
-│       ├── bjorn-static-analysis.test.ts
-│       └── bjorn-sandbox.test.ts
+│       ├── agent-store.test.ts
+│       ├── agent-static-analysis.test.ts
+│       └── agent-sandbox.test.ts
 ├── pages/
 │   └── chat/
-│       ├── BjornTab.tsx         # Bjorn builder tab (chat + preview split)
+│       ├── BjornTab.tsx         # Agent builder tab (chat + preview split)
 │       ├── BjornPreview.tsx     # Sandboxed iframe preview component
 │       ├── BjornApprovalBar.tsx # Approve/Reject/Edit toolbar
-│       └── bjorn-types.ts      # Bjorn-specific types
+│       └── agent-types.ts      # Agent-specific types
 ├── pages/settings/
-│   └── SettingsModules.tsx      # Extended with Bjorn module management
+│   └── SettingsModules.tsx      # Extended with Agent module management
 
 src-tauri/
 ├── migrations/
 │   └── 0009_bjorn_modules.sql  # bjorn_modules + bjorn_module_versions tables
 ├── src/routes/
-│   └── bjorn.rs                # CRUD endpoints for bjorn_modules + data bridge proxy
+│   └── agent.rs                # CRUD endpoints for bjorn_modules + data bridge proxy
 ```
 
 ### Pattern 1: Static Analysis Gate
 **What:** Regex-based blocklist check on generated source code before it enters the sandbox
-**When to use:** Every time Bjorn generates code, before rendering in iframe
+**When to use:** Every time Agent generates code, before rendering in iframe
 **Example:**
 ```typescript
-// lib/bjorn-static-analysis.ts
+// lib/agent-static-analysis.ts
 const BLOCKLIST: RegExp[] = [
   /\bfetch\s*\(/,
   /\bXMLHttpRequest\b/,
@@ -173,10 +173,10 @@ export function analyzeCode(source: string): AnalysisResult {
 
 ### Pattern 2: Sandbox Preview Iframe (srcdoc)
 **What:** Render generated React component in a sandboxed iframe using srcdoc
-**When to use:** Showing the preview of Bjorn-generated code before approval
+**When to use:** Showing the preview of Agent-generated code before approval
 **Example:**
 ```typescript
-// lib/bjorn-sandbox.ts
+// lib/agent-sandbox.ts
 export function buildSandboxHTML(componentSource: string, themeVars: string): string {
   return `<!DOCTYPE html>
 <html>
@@ -215,7 +215,7 @@ const handleBridgeMessage = useCallback((event: MessageEvent) => {
   if (type !== 'data-request') return
 
   // Validate against tool manifest allowlist
-  api.post('/api/bjorn/bridge', { source, command })
+  api.post('/api/agent/bridge', { source, command })
     .then(result => {
       iframeRef.current?.contentWindow?.postMessage(
         { type: 'data-response', requestId, data: result },
@@ -236,7 +236,7 @@ const handleBridgeMessage = useCallback((event: MessageEvent) => {
 **When to use:** When user approves a generated module
 **Example:**
 ```typescript
-// lib/bjorn-store.ts
+// lib/agent-store.ts
 export function registerBjornModule(module: BjornModule): void {
   const blob = new Blob(
     [wrapAsESModule(module.source)],
@@ -245,7 +245,7 @@ export function registerBjornModule(module: BjornModule): void {
   const url = URL.createObjectURL(blob)
 
   registerWidget({
-    id: `bjorn-${module.id}`,
+    id: `agent-${module.id}`,
     name: module.name,
     description: module.description,
     icon: module.icon || 'Cube',
@@ -254,7 +254,7 @@ export function registerBjornModule(module: BjornModule): void {
     defaultSize: module.defaultSize || { w: 3, h: 3 },
     configSchema: module.configSchema,
     component: () => import(/* @vite-ignore */ url),
-    metadata: { author: 'Bjorn', version: String(module.version) },
+    metadata: { author: 'Agent', version: String(module.version) },
   })
 }
 
@@ -264,7 +264,7 @@ function wrapAsESModule(source: string): string {
 }
 ```
 
-### Pattern 5: Bjorn Module Persistence and Startup Loading
+### Pattern 5: Agent Module Persistence and Startup Loading
 **What:** Save to SQLite, sync to Supabase, re-register all modules at app startup
 **When to use:** Ensuring modules survive restart and sync across devices
 **Example:**
@@ -272,7 +272,7 @@ function wrapAsESModule(source: string): string {
 // In main.tsx (after registerPrimitives())
 async function loadBjornModules() {
   try {
-    const modules = await api.get<BjornModule[]>('/api/bjorn/modules')
+    const modules = await api.get<BjornModule[]>('/api/agent/modules')
     for (const mod of modules) {
       if (mod.enabled) registerBjornModule(mod)
     }
@@ -322,10 +322,10 @@ loadBjornModules()
 **What goes wrong:** If `URL.revokeObjectURL()` is called before React.lazy resolves the import, the widget fails to load.
 **Why it happens:** React.lazy defers the actual import call until the component is first rendered.
 **How to avoid:** Never revoke blob URLs for active modules. Maintain a Map of moduleId -> blobURL and only revoke when a module is deleted or a newer version replaces it. Memory impact is negligible (a few KB per module).
-**Warning signs:** "Failed to fetch" errors when lazy-loading a Bjorn module that was previously working.
+**Warning signs:** "Failed to fetch" errors when lazy-loading a Agent module that was previously working.
 
 ### Pitfall 4: Prompt Injection via User Description
-**What goes wrong:** A user's module description could contain instructions that manipulate Bjorn into generating harmful code.
+**What goes wrong:** A user's module description could contain instructions that manipulate Agent into generating harmful code.
 **Why it happens:** The user description is included in the prompt to the AI model.
 **How to avoid:** The static analysis gate catches harmful code patterns regardless of how they were generated. The sandbox prevents execution of anything that slips through. This is defense-in-depth: even if prompt injection succeeds, the output is validated.
 **Warning signs:** Generated code containing patterns from the blocklist despite seemingly innocent descriptions.
@@ -346,7 +346,7 @@ loadBjornModules()
 
 ### SQLite Migration (0009_bjorn_modules.sql)
 ```sql
--- Bjorn AI-generated modules with version history
+-- Agent AI-generated modules with version history
 
 CREATE TABLE IF NOT EXISTS bjorn_modules (
     id TEXT PRIMARY KEY,
@@ -382,7 +382,7 @@ CREATE INDEX IF NOT EXISTS idx_bjorn_versions_module ON bjorn_module_versions(mo
 
 ### Supabase Migration (bjorn_modules)
 ```sql
--- Bjorn AI-generated modules (Supabase side)
+-- Agent AI-generated modules (Supabase side)
 
 CREATE TABLE IF NOT EXISTS bjorn_modules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -416,9 +416,9 @@ ALTER TABLE bjorn_modules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bjorn_module_versions ENABLE ROW LEVEL SECURITY;
 ```
 
-### Bjorn System Prompt Structure
+### Agent System Prompt Structure
 ```
-You are Bjorn, the module builder for OpenClaw Manager.
+You are Agent, the module builder for OpenClaw Manager.
 
 TASK: Generate a React component that can be rendered as a dashboard widget.
 
@@ -444,11 +444,11 @@ USER REQUEST:
 {user_message}
 ```
 
-### Bjorn Tab Chat Component Structure
+### Agent Tab Chat Component Structure
 ```typescript
 // pages/chat/BjornTab.tsx (conceptual)
 export default function BjornTab() {
-  // Reuses useChatState pattern but with bjorn-specific system prompt
+  // Reuses useChatState pattern but with agent-specific system prompt
   // and adds preview panel
   return (
     <div style={{ display: 'flex', gap: '16px', height: '100%' }}>
@@ -540,18 +540,18 @@ window.requestData = function(opts) {
 ### Phase Requirements -> Test Map
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|-------------|
-| BJORN-01 | Chat with Bjorn via tab | integration | `cd frontend && npx vitest run src/pages/chat/__tests__/BjornTab.test.tsx -x` | Wave 0 |
-| BJORN-02 | Generate React component from primitives | unit | `cd frontend && npx vitest run src/lib/__tests__/bjorn-store.test.ts -x` | Wave 0 |
-| BJORN-03 | Sandboxed iframe rendering | unit | `cd frontend && npx vitest run src/lib/__tests__/bjorn-sandbox.test.ts -x` | Wave 0 |
+| BJORN-01 | Chat with Agent via tab | integration | `cd frontend && npx vitest run src/pages/chat/__tests__/BjornTab.test.tsx -x` | Wave 0 |
+| BJORN-02 | Generate React component from primitives | unit | `cd frontend && npx vitest run src/lib/__tests__/agent-store.test.ts -x` | Wave 0 |
+| BJORN-03 | Sandboxed iframe rendering | unit | `cd frontend && npx vitest run src/lib/__tests__/agent-sandbox.test.ts -x` | Wave 0 |
 | BJORN-04 | Side-by-side preview panel | integration | `cd frontend && npx vitest run src/pages/chat/__tests__/BjornPreview.test.tsx -x` | Wave 0 |
-| BJORN-05 | Approve/reject/edit workflow | unit | `cd frontend && npx vitest run src/lib/__tests__/bjorn-store.test.ts -x` | Wave 0 |
+| BJORN-05 | Approve/reject/edit workflow | unit | `cd frontend && npx vitest run src/lib/__tests__/agent-store.test.ts -x` | Wave 0 |
 | BJORN-06 | Install to widget registry | unit | `cd frontend && npx vitest run src/lib/__tests__/widget-registry.test.ts -x` | Existing (extend) |
-| BJORN-07 | Hot-reload without restart | unit | `cd frontend && npx vitest run src/lib/__tests__/bjorn-store.test.ts -x` | Wave 0 |
-| BJORN-08 | Static analysis gate | unit | `cd frontend && npx vitest run src/lib/__tests__/bjorn-static-analysis.test.ts -x` | Wave 0 |
-| BJORN-09 | Sandbox isolation | unit | `cd frontend && npx vitest run src/lib/__tests__/bjorn-sandbox.test.ts -x` | Wave 0 |
-| BJORN-10 | Persistence across restart | unit | `cd frontend && npx vitest run src/lib/__tests__/bjorn-store.test.ts -x` | Wave 0 |
-| BJORN-11 | Delete/disable modules | unit | `cd frontend && npx vitest run src/lib/__tests__/bjorn-store.test.ts -x` | Wave 0 |
-| BJORN-12 | Version history + rollback | unit | `cd frontend && npx vitest run src/lib/__tests__/bjorn-store.test.ts -x` | Wave 0 |
+| BJORN-07 | Hot-reload without restart | unit | `cd frontend && npx vitest run src/lib/__tests__/agent-store.test.ts -x` | Wave 0 |
+| BJORN-08 | Static analysis gate | unit | `cd frontend && npx vitest run src/lib/__tests__/agent-static-analysis.test.ts -x` | Wave 0 |
+| BJORN-09 | Sandbox isolation | unit | `cd frontend && npx vitest run src/lib/__tests__/agent-sandbox.test.ts -x` | Wave 0 |
+| BJORN-10 | Persistence across restart | unit | `cd frontend && npx vitest run src/lib/__tests__/agent-store.test.ts -x` | Wave 0 |
+| BJORN-11 | Delete/disable modules | unit | `cd frontend && npx vitest run src/lib/__tests__/agent-store.test.ts -x` | Wave 0 |
+| BJORN-12 | Version history + rollback | unit | `cd frontend && npx vitest run src/lib/__tests__/agent-store.test.ts -x` | Wave 0 |
 
 ### Sampling Rate
 - **Per task commit:** `cd frontend && npx vitest run --reporter=verbose`
@@ -559,13 +559,13 @@ window.requestData = function(opts) {
 - **Phase gate:** Full suite green before `/gsd:verify-work`
 
 ### Wave 0 Gaps
-- [ ] `frontend/src/lib/__tests__/bjorn-static-analysis.test.ts` -- covers BJORN-08
-- [ ] `frontend/src/lib/__tests__/bjorn-sandbox.test.ts` -- covers BJORN-03, BJORN-09
-- [ ] `frontend/src/lib/__tests__/bjorn-store.test.ts` -- covers BJORN-02, BJORN-05, BJORN-07, BJORN-10, BJORN-11, BJORN-12
+- [ ] `frontend/src/lib/__tests__/agent-static-analysis.test.ts` -- covers BJORN-08
+- [ ] `frontend/src/lib/__tests__/agent-sandbox.test.ts` -- covers BJORN-03, BJORN-09
+- [ ] `frontend/src/lib/__tests__/agent-store.test.ts` -- covers BJORN-02, BJORN-05, BJORN-07, BJORN-10, BJORN-11, BJORN-12
 - [ ] `frontend/src/pages/chat/__tests__/BjornTab.test.tsx` -- covers BJORN-01
 - [ ] `frontend/src/pages/chat/__tests__/BjornPreview.test.tsx` -- covers BJORN-04
 - [ ] Extend `frontend/src/lib/__tests__/widget-registry.test.ts` -- covers BJORN-06 (tier:'ai' registration)
-- [ ] Rust tests in `src-tauri/src/routes/bjorn.rs` -- covers CRUD endpoints, data bridge proxy
+- [ ] Rust tests in `src-tauri/src/routes/agent.rs` -- covers CRUD endpoints, data bridge proxy
 - [ ] SQLite migration `src-tauri/migrations/0009_bjorn_modules.sql` -- schema creation
 
 ## Sources

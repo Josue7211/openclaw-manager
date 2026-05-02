@@ -1,5 +1,5 @@
 ---
-phase: 07-bjorn-module-builder
+phase: 07-agent-module-builder
 plan: 03
 subsystem: ui
 tags: [react, iframe, sandbox, postmessage, security, static-analysis, preview]
@@ -7,7 +7,7 @@ tags: [react, iframe, sandbox, postmessage, security, static-analysis, preview]
 # Dependency graph
 requires:
   - phase: 07-01
-    provides: "bjorn-static-analysis.ts (analyzeCode), bjorn-sandbox.ts (buildSandboxHTML, getThemeVarsCSS), bjorn-types.ts"
+    provides: "agent-static-analysis.ts (analyzeCode), agent-sandbox.ts (buildSandboxHTML, getThemeVarsCSS), agent-types.ts"
 provides:
   - "BjornPreview component -- sandboxed iframe preview with postMessage data bridge"
 affects: [07-04, 07-05, 07-06]
@@ -39,7 +39,7 @@ duration: 2min
 completed: 2026-03-21
 ---
 
-# Phase 07 Plan 03: Bjorn Preview Summary
+# Phase 07 Plan 03: Agent Preview Summary
 
 **Sandboxed iframe preview component with static analysis gate, postMessage data bridge, and 4-state rendering (empty/loading/violations/preview)**
 
@@ -54,7 +54,7 @@ completed: 2026-03-21
 ## Accomplishments
 - BjornPreview renders generated modules in a sandboxed iframe (sandbox="allow-scripts", no allow-same-origin)
 - Static analysis gate via analyzeCode runs before any code enters the iframe
-- postMessage data bridge validates event.source and proxies data-request messages to /api/bjorn/bridge
+- postMessage data bridge validates event.source and proxies data-request messages to /api/agent/bridge
 - Four render states: empty (Robot icon), loading (SpinnerGap animation), violations (Warning banner + line-by-line list), preview (iframe with srcdoc)
 - 7 tests covering all states, sandbox attributes, srcdoc usage
 
@@ -99,10 +99,10 @@ None -- no external service configuration required.
 All files and commits verified:
 - frontend/src/pages/chat/BjornPreview.tsx -- FOUND
 - frontend/src/pages/chat/__tests__/BjornPreview.test.tsx -- FOUND
-- .planning/phases/07-bjorn-module-builder/07-03-SUMMARY.md -- FOUND
+- .planning/phases/07-agent-module-builder/07-03-SUMMARY.md -- FOUND
 - Commit d5b0b88 (test RED) -- FOUND
 - Commit e78122d (feat GREEN) -- FOUND
 
 ---
-*Phase: 07-bjorn-module-builder*
+*Phase: 07-agent-module-builder*
 *Completed: 2026-03-21*

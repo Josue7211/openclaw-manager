@@ -16,8 +16,8 @@ import { X } from '@phosphor-icons/react'
 // Constants
 // ---------------------------------------------------------------------------
 
-const DEFAULT_APP_TITLE = 'OpenClaw Manager'
-const DEFAULT_SIDEBAR_TEXT = 'OPENCLAW'
+const DEFAULT_APP_TITLE = 'ClawControl'
+const DEFAULT_SIDEBAR_TEXT = 'CLAWCONTROL'
 const DEFAULT_TAGLINE = 'Your personal command center'
 const MAX_LOGO_SIZE = 512 * 1024 // 512KB
 

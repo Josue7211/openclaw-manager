@@ -14,7 +14,7 @@ provides:
   - First-use default layout population from enabled modules
   - Floating FAB for adding widgets in edit mode
   - DashboardGrid with pageId/onRemove pass-through and long-press edit mode entry
-affects: [phase-05-page-experience, phase-07-bjorn-module-builder]
+affects: [phase-05-page-experience, phase-07-agent-module-builder]
 
 # Tech tracking
 tech-stack:
@@ -111,7 +111,7 @@ None -- no external service configuration required.
 ## Next Phase Readiness
 - Phase 04 (Dashboard Grid + Widget System) is fully complete with all 6 plans executed
 - All 8 built-in widgets render in the grid with error boundaries and lazy loading
-- Widget Registry is ready for Bjorn AI-generated modules (Phase 7)
+- Widget Registry is ready for Agent AI-generated modules (Phase 7)
 - Dashboard state persists to localStorage and syncs to Supabase
 - Ready for Phase 5 (Page Experience) which builds on the dashboard foundation
 

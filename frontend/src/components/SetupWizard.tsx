@@ -9,6 +9,7 @@ import {
   REQUIRED_STEPS,
 } from '@/lib/wizard-store'
 import { setEnabledModules } from '@/lib/modules'
+import { buildServiceCredentialMap, type ServiceCredentialsEntry } from '@/lib/service-registry'
 import { api } from '@/lib/api'
 import { shouldReduceMotion } from '@/lib/animation-intensity'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
@@ -129,7 +130,7 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
   }, [wizard.currentStep, animateTransition, transitionPhase])
 
   // ---------------------------------------------------------------------------
-  // Completion flow: save credentials + reload + persist modules
+  // Completion flow: save credentials + persist modules
   // ---------------------------------------------------------------------------
 
   const handleCompletion = useCallback(async () => {
@@ -137,31 +138,32 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
     setIsCompleting(true)
 
     try {
-      // 1. Build credentials map from wizard state (only non-empty values)
-      const credentials: Record<string, string> = {}
-      if (wizard.supabaseUrl) credentials['supabase.url'] = wizard.supabaseUrl
-      if (wizard.supabaseAnonKey) credentials['supabase.anon-key'] = wizard.supabaseAnonKey
-      if (wizard.openclawUrl) credentials['openclaw.api-url'] = wizard.openclawUrl
-      if (wizard.openclawApiKey) credentials['openclaw.api-key'] = wizard.openclawApiKey
-      if (wizard.blueBubblesUrl) credentials['bluebubbles.host'] = wizard.blueBubblesUrl
-      if (wizard.blueBubblesPassword) credentials['bluebubbles.password'] = wizard.blueBubblesPassword
-      if (wizard.macBridgeUrl) credentials['mac-bridge.host'] = wizard.macBridgeUrl
-      if (wizard.macBridgeApiKey) credentials['mac-bridge.api-key'] = wizard.macBridgeApiKey
-      if (wizard.couchdbUrl) credentials['couchdb.url'] = wizard.couchdbUrl
-      if (wizard.couchdbUsername) credentials['couchdb.user'] = wizard.couchdbUsername
-      if (wizard.couchdbPassword) credentials['couchdb.password'] = wizard.couchdbPassword
+      // 1. Build service-grouped credentials map from wizard state
+      const serviceCredentials: ServiceCredentialsEntry[] = [
+        { service: 'supabase', keychainKey: 'supabase.url', value: wizard.supabaseUrl },
+        { service: 'supabase', keychainKey: 'supabase.anon-key', value: wizard.supabaseAnonKey },
+        { service: 'openclaw', keychainKey: 'openclaw.api-url', value: wizard.openclawUrl },
+        { service: 'openclaw', keychainKey: 'openclaw.api-key', value: wizard.openclawApiKey },
+        { service: 'bluebubbles', keychainKey: 'bluebubbles.host', value: wizard.blueBubblesUrl },
+        { service: 'bluebubbles', keychainKey: 'bluebubbles.password', value: wizard.blueBubblesPassword },
+        { service: 'mac-bridge', keychainKey: 'mac-bridge.host', value: wizard.macBridgeUrl },
+        { service: 'mac-bridge', keychainKey: 'mac-bridge.api-key', value: wizard.macBridgeApiKey },
+        { service: 'couchdb', keychainKey: 'couchdb.url', value: wizard.couchdbUrl },
+        { service: 'couchdb', keychainKey: 'couchdb.user', value: wizard.couchdbUsername },
+        { service: 'couchdb', keychainKey: 'couchdb.password', value: wizard.couchdbPassword },
+        { service: 'couchdb', keychainKey: 'couchdb.database', value: wizard.couchdbDatabase },
+      ]
+      const groupedSecrets = buildServiceCredentialMap(serviceCredentials)
 
-      // 2. Save credentials to OS keychain via backend
-      if (Object.keys(credentials).length > 0) {
-        await api.post('/api/wizard/save-credentials', { credentials }).catch(() => {
-          // Best effort -- wizard can complete even if save fails
+      // 2. Save secrets to Supabase per service via API
+      for (const [service, credentials] of Object.entries(groupedSecrets)) {
+        if (Object.keys(credentials).length === 0) continue
+        await api.put(`/api/secrets/${service}`, { credentials }).catch(() => {
+          // Best effort -- wizard can complete even if this call fails
         })
       }
 
-      // 3. Reload backend secrets so AppState picks up new values
-      await api.post('/api/wizard/reload-secrets').catch(() => {})
-
-      // 4. Persist module selection
+      // 3. Persist module selection
       setEnabledModules(wizard.enabledModules)
 
       // 5. Complete wizard (deletes wizard-state, sets setup-complete)

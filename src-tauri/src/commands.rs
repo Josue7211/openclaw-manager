@@ -1,3 +1,5 @@
+use tauri::{AppHandle, Manager};
+
 /// Return the path to the OpenClaw data directory (`$OPENCLAW_DIR` or `~/.openclaw`).
 #[tauri::command]
 pub fn get_openclaw_dir() -> String {
@@ -12,6 +14,37 @@ pub fn get_openclaw_dir() -> String {
 #[tauri::command]
 pub fn get_log_dir() -> String {
     crate::logging::log_dir().to_string_lossy().into_owned()
+}
+
+#[tauri::command]
+pub fn toggle_main_window_maximized(app: AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window not found".to_string())?;
+
+    let maximized = window.is_maximized().map_err(|e| e.to_string())?;
+    if maximized {
+        window.unmaximize().map_err(|e| e.to_string())
+    } else {
+        window.maximize().map_err(|e| e.to_string())
+    }
+}
+
+#[tauri::command]
+pub fn toggle_main_window_fullscreen(app: AppHandle) -> Result<bool, String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window not found".to_string())?;
+
+    let fullscreen = window.is_fullscreen().map_err(|e| e.to_string())?;
+    let next = !fullscreen;
+    window.set_fullscreen(next).map_err(|e| e.to_string())?;
+    Ok(next)
+}
+
+#[tauri::command]
+pub fn quit_app(app: AppHandle) {
+    app.exit(0);
 }
 
 /// Detect whether the OS is using a dark theme.
@@ -131,9 +164,7 @@ pub fn read_wallbash_colors_from_path(
                 // Strip trailing comment
                 let value_raw = value_part.split('#').next().unwrap_or("").trim();
                 // Validate 6-char hex
-                if value_raw.len() == 6
-                    && value_raw.chars().all(|c| c.is_ascii_hexdigit())
-                {
+                if value_raw.len() == 6 && value_raw.chars().all(|c| c.is_ascii_hexdigit()) {
                     colors.insert(
                         name.to_string(),
                         serde_json::Value::String(format!("#{}", value_raw)),
@@ -362,7 +393,10 @@ pub async fn start_color_scheme_monitor(handle: tauri::AppHandle) {
                     Some(s) => s,
                     None => {
                         let _ = child.wait();
-                        tracing::warn!("gsettings monitor had no stdout, restarting in {:?}", restart_delay);
+                        tracing::warn!(
+                            "gsettings monitor had no stdout, restarting in {:?}",
+                            restart_delay
+                        );
                         std::thread::sleep(restart_delay);
                         restart_delay = std::cmp::min(restart_delay * 2, max_delay);
                         continue;
@@ -394,7 +428,11 @@ pub async fn start_color_scheme_monitor(handle: tauri::AppHandle) {
                     restart_delay = std::time::Duration::from_secs(1);
                 }
 
-                tracing::warn!("gsettings monitor exited after {:?}, restarting in {:?}", alive_duration, restart_delay);
+                tracing::warn!(
+                    "gsettings monitor exited after {:?}, restarting in {:?}",
+                    alive_duration,
+                    restart_delay
+                );
                 std::thread::sleep(restart_delay);
                 restart_delay = std::cmp::min(restart_delay * 2, max_delay);
             }

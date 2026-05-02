@@ -88,8 +88,8 @@ export default function RemindersPage() {
 
   const reminders = demo ? DEMO_REMINDERS : (remindersData?.reminders ?? [])
   const missingCreds = !demo && remindersData?.error === 'missing_credentials'
-  const errorMsg = !demo && remindersData?.error && remindersData.error !== 'missing_credentials' ? remindersData.error : null
-  const unreachable = !demo && queryError && !remindersData
+  const unreachable = !demo && (remindersData?.error === 'bridge_unreachable' || (queryError && !remindersData))
+  const errorMsg = !demo && remindersData?.error && remindersData.error !== 'missing_credentials' && remindersData.error !== 'bridge_unreachable' ? remindersData.error : null
 
   const [filter, setFilter] = useState<FilterTab>('all')
   const [secondsAgo, setSecondsAgo] = useState(0)
@@ -248,10 +248,10 @@ export default function RemindersPage() {
       {unreachable && (
         <div className="card" style={{ padding: '32px', textAlign: 'center' }}>
           <WarningCircle size={32} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
-          <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>Mac Bridge not reachable</h2>
+          <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>Reminders are temporarily unavailable</h2>
           <p style={{ margin: '0 0 16px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            Reminders require the Mac Bridge service running on your Mac.
-            Check that the service is running and the connection is configured in Settings.
+            ClawControl could not reach the Mac Bridge service that syncs Apple Reminders from your Mac.
+            Check that your Mac is online and the service is still connected in Settings.
           </p>
           <button
             onClick={() => refetch()}
@@ -261,7 +261,7 @@ export default function RemindersPage() {
               cursor: 'pointer',
             }}
           >
-            Retry
+            Try again
           </button>
         </div>
       )}

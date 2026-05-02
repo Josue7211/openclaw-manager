@@ -7,7 +7,13 @@ import type { DemoProxmoxVM, DemoProxmoxNode } from '@/lib/demo-data'
 const HOMELAB_KEY = ['homelab'] as const
 
 interface ProxmoxNode {
+  name?: string
   node: string
+  status?: string
+  cpu?: number
+  mem_used?: number
+  mem_total?: number
+  uptime?: number
   cpuPercent: number
   memUsedGB: number
   memTotalGB: number
@@ -18,6 +24,9 @@ interface ProxmoxVM {
   vmid: number
   name: string
   status: string
+  cpu?: number
+  mem?: number
+  maxmem?: number
   cpuPercent: number
   memUsedGB: number
   memTotalGB: number
@@ -74,6 +83,37 @@ function toDemoVMs(): ProxmoxVM[] {
   }))
 }
 
+function bytesToGb(bytes: number | undefined): number {
+  return (bytes ?? 0) / 1_073_741_824
+}
+
+function normalizeNode(node: ProxmoxNode): ProxmoxNode {
+  const memUsedGB = node.memUsedGB ?? bytesToGb(node.mem_used)
+  const memTotalGB = node.memTotalGB ?? bytesToGb(node.mem_total)
+  const cpuPercent = node.cpuPercent ?? Math.round((node.cpu ?? 0) * 100)
+  return {
+    ...node,
+    node: node.node ?? node.name ?? 'node',
+    cpuPercent,
+    memUsedGB,
+    memTotalGB,
+    memPercent: node.memPercent ?? (memTotalGB > 0 ? Math.round((memUsedGB / memTotalGB) * 100) : 0),
+  }
+}
+
+function normalizeVM(vm: ProxmoxVM): ProxmoxVM {
+  const memUsedGB = vm.memUsedGB ?? bytesToGb(vm.mem)
+  const memTotalGB = vm.memTotalGB ?? bytesToGb(vm.maxmem)
+  return {
+    ...vm,
+    vmid: vm.vmid ?? Number(`${vm.node ?? ''}${vm.name}`.split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0)),
+    node: vm.node ?? '',
+    cpuPercent: vm.cpuPercent ?? Math.round((vm.cpu ?? 0) * 100),
+    memUsedGB,
+    memTotalGB,
+  }
+}
+
 export function useHomelabWidget() {
   const _demo = isDemoMode()
 
@@ -84,8 +124,8 @@ export function useHomelabWidget() {
     enabled: !_demo,
   })
 
-  const vms: ProxmoxVM[] = _demo ? toDemoVMs() : (data?.proxmox?.vms ?? [])
-  const nodes: ProxmoxNode[] = _demo ? toDemoNodes() : (data?.proxmox?.nodes ?? [])
+  const vms: ProxmoxVM[] = _demo ? toDemoVMs() : (data?.proxmox?.vms ?? []).map(normalizeVM)
+  const nodes: ProxmoxNode[] = _demo ? toDemoNodes() : (data?.proxmox?.nodes ?? []).map(normalizeNode)
   const opnsense: OPNsenseData | null = _demo ? DEMO_OPNSENSE_FULL : (data?.opnsense ?? null)
 
   const runningCount = useMemo(

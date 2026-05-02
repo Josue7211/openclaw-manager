@@ -26,6 +26,7 @@ export interface ModelOption {
 export interface ModelsResponse {
   models: ModelOption[]
   currentModel: string
+  agentLabel?: string
 }
 
 /** Strip [timestamp] prefix and [[reply_to]] tags from message text */
@@ -41,5 +42,5 @@ export function cleanMessages(msgs: ChatMessage[]): ChatMessage[] {
   return msgs.map(m => ({ ...m, text: cleanText(m.text) }))
 }
 
-export const SLASH_CMDS = ['/new', '/reset']
+export const SLASH_CMDS = ['/new', '/reset', '/clear']
 export const isSlashCommand = (t: string) => SLASH_CMDS.includes(t.toLowerCase())

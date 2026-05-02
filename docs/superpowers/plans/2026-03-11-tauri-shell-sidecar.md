@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Get mission-control running as a Tauri v2 desktop app with the existing Next.js server as a Node.js sidecar — no database changes yet, Supabase still works.
+**Goal:** Get clawcontrol running as a Tauri v2 desktop app with the existing Next.js server as a Node.js sidecar — no database changes yet, Supabase still works.
 
 **Architecture:** Tauri wraps a webview pointing to `localhost:3000`. Rust spawns a Node.js sidecar process that runs the Next.js standalone server. Secrets are read from OS keychain and injected as env vars. The app works identically to the current web version but in a native window.
 
@@ -62,7 +62,7 @@ npm install @tauri-apps/api@^2 @tauri-apps/plugin-shell @tauri-apps/plugin-notif
 
 ```toml
 [package]
-name = "mission-control"
+name = "clawcontrol"
 version = "0.1.0"
 edition = "2021"
 
@@ -94,9 +94,9 @@ fn main() {
 ```json
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
-  "productName": "Mission Control",
+  "productName": "ClawControl",
   "version": "0.1.0",
-  "identifier": "com.mission-control.app",
+  "identifier": "com.clawcontrol.app",
   "build": {
     "beforeDevCommand": "npm run dev -- --hostname 127.0.0.1",
     "devUrl": "http://127.0.0.1:3000",
@@ -106,7 +106,7 @@ fn main() {
   "app": {
     "windows": [
       {
-        "title": "Mission Control",
+        "title": "ClawControl",
         "width": 1280,
         "height": 800,
         "minWidth": 900,
@@ -756,7 +756,7 @@ Dev mode still uses `.env.local` for secrets (Tauri store is for production). No
 npm run tauri:dev
 ```
 
-Expected: Tauri window opens showing the mission-control dashboard. Hot reload works.
+Expected: Tauri window opens showing the clawcontrol dashboard. Hot reload works.
 
 - [ ] **Step 4: Commit any adjustments**
 
@@ -872,13 +872,13 @@ git commit -m "feat: add Tauri bridge utility — notifications with browser fal
 ```bash
 cd <project-root>
 git init  # if not already a repo
-gh repo create mission-control --private --source=. --push
+gh repo create clawcontrol --private --source=. --push
 ```
 
 - [ ] **Step 2: Create releases repo**
 
 ```bash
-gh repo create mission-control-releases --private --description "Mission Control desktop app releases"
+gh repo create clawcontrol-releases --private --description "ClawControl desktop app releases"
 ```
 
 - [ ] **Step 3: Push current state**

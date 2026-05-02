@@ -13,14 +13,21 @@ export function useVault() {
   const [notes, setNotes] = useState<VaultNote[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const mountedRef = useRef(true)
 
   const refresh = useCallback(async () => {
     try {
       const all = await getAllNotes()
-      if (mountedRef.current) setNotes(all)
+      if (mountedRef.current) {
+        setNotes(all)
+        setError(null)
+      }
     } catch (err) {
       console.error('[useVault] refresh failed:', err)
+      if (mountedRef.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load vault')
+      }
     }
   }, [])
 
@@ -84,6 +91,7 @@ export function useVault() {
     notes,
     loading,
     syncing,
+    error,
     refresh,
     createNote,
     updateNote,

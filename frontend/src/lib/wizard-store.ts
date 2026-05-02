@@ -25,6 +25,8 @@ export interface WizardState {
   currentStep: number // 0-9
   completedSteps: number[] // Array, not Set (JSON serialization)
   stepStatus: Record<number, 'idle' | 'testing' | 'success' | 'error' | 'skipped'>
+  backendUrl: string
+  pairingToken: string
   // Credential fields
   tailscaleIp: string
   supabaseUrl: string
@@ -38,6 +40,7 @@ export interface WizardState {
   couchdbUrl: string
   couchdbUsername: string
   couchdbPassword: string
+  couchdbDatabase: string
   // Non-persisted
   testResults: Record<string, TestResult>
   // Module selection
@@ -61,7 +64,7 @@ export const STEP_NAMES = [
   'Welcome',
   'Tailscale',
   'Supabase',
-  'OpenClaw',
+  'Harness',
   'Mac Services',
   'Server Services',
   'Modules',
@@ -71,7 +74,7 @@ export const STEP_NAMES = [
 ] as const
 
 /** Step indices that require a passing connection test before proceeding */
-export const REQUIRED_STEPS = [1, 2, 3] as const // Tailscale, Supabase, OpenClaw
+export const REQUIRED_STEPS = [1, 2, 3] as const // Tailscale, Supabase, Harness
 
 /** Preset bundle definitions mapping to module ID arrays */
 export const PRESET_BUNDLES: Record<'essentials' | 'full' | 'minimal', string[]> = {
@@ -89,6 +92,8 @@ function createDefaultState(): WizardState {
     currentStep: 0,
     completedSteps: [],
     stepStatus: {},
+    backendUrl: '',
+    pairingToken: '',
     tailscaleIp: '',
     supabaseUrl: '',
     supabaseAnonKey: '',
@@ -101,6 +106,7 @@ function createDefaultState(): WizardState {
     couchdbUrl: '',
     couchdbUsername: '',
     couchdbPassword: '',
+    couchdbDatabase: 'clawcontrol-vault',
     testResults: {},
     enabledModules: [],
     activeBundle: 'essentials',
@@ -136,7 +142,8 @@ const _listeners = new Set<() => void>()
 
 function persist() {
   // Exclude testResults from serialized JSON (re-run on resume)
-  const { testResults: _, ...persistable } = _state
+  // Exclude pairingToken to avoid persisting short-lived credentials in localStorage
+  const { testResults: _, pairingToken, ...persistable } = _state
   localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable))
   _listeners.forEach(fn => fn())
 }
@@ -232,6 +239,10 @@ export function isFirstRun(): boolean {
 
 export function isWizardDemoMode(): boolean {
   return localStorage.getItem('demo-mode') === 'true'
+}
+
+export function shouldAutoOpenWizard(): boolean {
+  return isFirstRun() && !isWizardDemoMode()
 }
 
 export function activateDemoMode(): void {

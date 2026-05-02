@@ -17,6 +17,7 @@ import {
   DeviceMobile,
   Desktop,
   FilmStrip,
+  MagnifyingGlass,
   SquaresFour,
   Target,
   Robot,
@@ -43,6 +44,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   calendar: CalendarDots,
   reminders: Bell,
   email: Envelope,
+  'job-hunter': MagnifyingGlass,
   pomodoro: Timer,
   notes: FileText,
   dashboard: SquaresFour,
@@ -68,7 +70,7 @@ interface CategoryDef {
 const CATEGORIES: CategoryDef[] = [
   {
     label: 'Personal',
-    moduleIds: ['messages', 'chat', 'todos', 'calendar', 'reminders', 'email', 'pomodoro', 'notes'],
+    moduleIds: ['messages', 'chat', 'todos', 'calendar', 'reminders', 'email', 'job-hunter', 'pomodoro', 'notes'],
   },
   {
     label: 'Infrastructure',

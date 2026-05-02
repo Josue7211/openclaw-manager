@@ -4,7 +4,7 @@ Agent spawning protocol and PID registry management.
 
 ## Background Spawn Protocol
 
-When Bjorn spawns a worker with `exec(background:true)`, the OS returns a bash wrapper process PID (`/bin/bash -c ...`). The actual `claude` binary runs as a child of that wrapper.
+When the agent spawns a worker with `exec(background:true)`, the OS returns a bash wrapper process PID (`/bin/bash -c ...`). The actual `claude` binary runs as a child of that wrapper.
 
 ### Registry PID Resolution
 

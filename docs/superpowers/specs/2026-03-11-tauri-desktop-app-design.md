@@ -1,4 +1,4 @@
-# Mission Control — Tauri Desktop App Design
+# ClawControl — Tauri Desktop App Design
 
 **Date:** 2026-03-11
 **Status:** Approved
@@ -6,11 +6,11 @@
 
 ## Overview
 
-Wrap the existing mission-control Next.js app in a Tauri v2 desktop shell for cross-platform distribution to family and friends. The app bundles a Node.js sidecar running the Next.js server, with Rust-side secret management via OS keychain and native OS notifications.
+Wrap the existing clawcontrol Next.js app in a Tauri v2 desktop shell for cross-platform distribution to family and friends. The app bundles a Node.js sidecar running the Next.js server, with Rust-side secret management via OS keychain and native OS notifications.
 
 ## Goals
 
-- Distribute mission-control as a downloadable desktop app (.dmg, .msi, .AppImage)
+- Distribute clawcontrol as a downloadable desktop app (.dmg, .msi, .AppImage)
 - Support macOS (Intel + Apple Silicon), Windows (x64), and Linux
 - Non-technical users can install and set up with a wizard or config import
 - Auto-updates so users always run the latest version
@@ -70,41 +70,41 @@ Tauri Desktop App
 
 ### Storage
 
-All secrets stored in OS keychain under the namespace `com.mission-control`:
+All secrets stored in OS keychain under the namespace `com.clawcontrol`:
 
 | Key | Example Value | Required |
 |-----|---------------|----------|
-| `com.mission-control.bluebubbles.host` | `http://<host-ip>:1234` | No |
-| `com.mission-control.bluebubbles.password` | `(password)` | No |
-| `com.mission-control.sync.url` | `https://sync.yourdomain.com` | No (Phase 2) |
-| `com.mission-control.sync.token` | `(auth token)` | No (Phase 2) |
-| `com.mission-control.caldav.url` | `https://caldav.icloud.com` | No |
-| `com.mission-control.caldav.username` | `user@icloud.com` | No |
-| `com.mission-control.caldav.password` | `(app password)` | No |
-| `com.mission-control.proxmox.host` | `https://<host-ip>:8006` | No |
-| `com.mission-control.proxmox.token-id` | `root@pam!mc` | No |
-| `com.mission-control.proxmox.token-secret` | `(token)` | No |
-| `com.mission-control.opnsense.host` | `https://<host-ip>` | No |
-| `com.mission-control.opnsense.key` | `(key)` | No |
-| `com.mission-control.opnsense.secret` | `(secret)` | No |
-| `com.mission-control.mc-api-key` | `(auto-generated)` | Yes (auto) |
-| `com.mission-control.plex.url` | `http://<host-ip>:32400` | No |
-| `com.mission-control.plex.token` | `(token)` | No |
-| `com.mission-control.openclaw.ws` | `ws://127.0.0.1:18789` | No |
-| `com.mission-control.openclaw.password` | `(password)` | No |
-| `com.mission-control.mac-bridge.host` | `http://<host-ip>:4100` | No |
-| `com.mission-control.mac-bridge.api-key` | `(key)` | No |
-| `com.mission-control.anthropic.api-key` | `(key)` | No |
-| `com.mission-control.sonarr.url` | `http://<host-ip>:8989` | No |
-| `com.mission-control.sonarr.api-key` | `(key)` | No |
-| `com.mission-control.radarr.url` | `http://<host-ip>:7878` | No |
-| `com.mission-control.radarr.api-key` | `(key)` | No |
-| `com.mission-control.email.host` | `imap.gmail.com` | No |
-| `com.mission-control.email.port` | `993` | No |
-| `com.mission-control.email.user` | `user@gmail.com` | No |
-| `com.mission-control.email.password` | `(app password)` | No |
-| `com.mission-control.ntfy.url` | `https://ntfy.sh` | No |
-| `com.mission-control.ntfy.topic` | `(topic)` | No |
+| `com.clawcontrol.bluebubbles.host` | `http://<host-ip>:1234` | No |
+| `com.clawcontrol.bluebubbles.password` | `(password)` | No |
+| `com.clawcontrol.sync.url` | `https://sync.yourdomain.com` | No (Phase 2) |
+| `com.clawcontrol.sync.token` | `(auth token)` | No (Phase 2) |
+| `com.clawcontrol.caldav.url` | `https://caldav.icloud.com` | No |
+| `com.clawcontrol.caldav.username` | `user@icloud.com` | No |
+| `com.clawcontrol.caldav.password` | `(app password)` | No |
+| `com.clawcontrol.proxmox.host` | `https://<host-ip>:8006` | No |
+| `com.clawcontrol.proxmox.token-id` | `root@pam!mc` | No |
+| `com.clawcontrol.proxmox.token-secret` | `(token)` | No |
+| `com.clawcontrol.opnsense.host` | `https://<host-ip>` | No |
+| `com.clawcontrol.opnsense.key` | `(key)` | No |
+| `com.clawcontrol.opnsense.secret` | `(secret)` | No |
+| `com.clawcontrol.mc-api-key` | `(auto-generated)` | Yes (auto) |
+| `com.clawcontrol.plex.url` | `http://<host-ip>:32400` | No |
+| `com.clawcontrol.plex.token` | `(token)` | No |
+| `com.clawcontrol.openclaw.ws` | `ws://127.0.0.1:18789` | No |
+| `com.clawcontrol.openclaw.password` | `(password)` | No |
+| `com.clawcontrol.mac-bridge.host` | `http://<host-ip>:4100` | No |
+| `com.clawcontrol.mac-bridge.api-key` | `(key)` | No |
+| `com.clawcontrol.anthropic.api-key` | `(key)` | No |
+| `com.clawcontrol.sonarr.url` | `http://<host-ip>:8989` | No |
+| `com.clawcontrol.sonarr.api-key` | `(key)` | No |
+| `com.clawcontrol.radarr.url` | `http://<host-ip>:7878` | No |
+| `com.clawcontrol.radarr.api-key` | `(key)` | No |
+| `com.clawcontrol.email.host` | `imap.gmail.com` | No |
+| `com.clawcontrol.email.port` | `993` | No |
+| `com.clawcontrol.email.user` | `user@gmail.com` | No |
+| `com.clawcontrol.email.password` | `(app password)` | No |
+| `com.clawcontrol.ntfy.url` | `https://ntfy.sh` | No |
+| `com.clawcontrol.ntfy.topic` | `(topic)` | No |
 
 ### MC_API_KEY Auto-Generation
 
@@ -115,37 +115,37 @@ On first launch, if no `mc-api-key` exists in keychain, Rust generates a random 
 Rust reads keychain entries and maps them to the environment variables the Next.js app expects:
 
 ```
-com.mission-control.bluebubbles.host     → BLUEBUBBLES_HOST
-com.mission-control.bluebubbles.password → BLUEBUBBLES_PASSWORD
-com.mission-control.sync.url             → SYNC_URL (Phase 2, optional)
-com.mission-control.sync.token           → SYNC_TOKEN (Phase 2, optional)
-com.mission-control.caldav.url           → CALDAV_URL
-com.mission-control.caldav.username      → CALDAV_USERNAME
-com.mission-control.caldav.password      → CALDAV_PASSWORD
-com.mission-control.proxmox.host         → PROXMOX_HOST
-com.mission-control.proxmox.token-id     → PROXMOX_TOKEN_ID
-com.mission-control.proxmox.token-secret → PROXMOX_TOKEN_SECRET
-com.mission-control.opnsense.host        → OPNSENSE_HOST
-com.mission-control.opnsense.key         → OPNSENSE_KEY
-com.mission-control.opnsense.secret      → OPNSENSE_SECRET
-com.mission-control.mc-api-key           → MC_API_KEY
-com.mission-control.plex.url             → PLEX_URL
-com.mission-control.plex.token           → PLEX_TOKEN
-com.mission-control.openclaw.ws          → OPENCLAW_WS
-com.mission-control.openclaw.password    → OPENCLAW_PASSWORD
-com.mission-control.mac-bridge.host      → MAC_BRIDGE_HOST
-com.mission-control.mac-bridge.api-key   → MAC_BRIDGE_API_KEY
-com.mission-control.anthropic.api-key    → ANTHROPIC_API_KEY
-com.mission-control.sonarr.url           → SONARR_URL
-com.mission-control.sonarr.api-key       → SONARR_API_KEY
-com.mission-control.radarr.url           → RADARR_URL
-com.mission-control.radarr.api-key       → RADARR_API_KEY
-com.mission-control.email.host           → EMAIL_HOST
-com.mission-control.email.port           → EMAIL_PORT
-com.mission-control.email.user           → EMAIL_USER
-com.mission-control.email.password       → EMAIL_PASSWORD
-com.mission-control.ntfy.url             → NTFY_URL
-com.mission-control.ntfy.topic           → NTFY_TOPIC
+com.clawcontrol.bluebubbles.host     → BLUEBUBBLES_HOST
+com.clawcontrol.bluebubbles.password → BLUEBUBBLES_PASSWORD
+com.clawcontrol.sync.url             → SYNC_URL (Phase 2, optional)
+com.clawcontrol.sync.token           → SYNC_TOKEN (Phase 2, optional)
+com.clawcontrol.caldav.url           → CALDAV_URL
+com.clawcontrol.caldav.username      → CALDAV_USERNAME
+com.clawcontrol.caldav.password      → CALDAV_PASSWORD
+com.clawcontrol.proxmox.host         → PROXMOX_HOST
+com.clawcontrol.proxmox.token-id     → PROXMOX_TOKEN_ID
+com.clawcontrol.proxmox.token-secret → PROXMOX_TOKEN_SECRET
+com.clawcontrol.opnsense.host        → OPNSENSE_HOST
+com.clawcontrol.opnsense.key         → OPNSENSE_KEY
+com.clawcontrol.opnsense.secret      → OPNSENSE_SECRET
+com.clawcontrol.mc-api-key           → MC_API_KEY
+com.clawcontrol.plex.url             → PLEX_URL
+com.clawcontrol.plex.token           → PLEX_TOKEN
+com.clawcontrol.openclaw.ws          → OPENCLAW_WS
+com.clawcontrol.openclaw.password    → OPENCLAW_PASSWORD
+com.clawcontrol.mac-bridge.host      → MAC_BRIDGE_HOST
+com.clawcontrol.mac-bridge.api-key   → MAC_BRIDGE_API_KEY
+com.clawcontrol.anthropic.api-key    → ANTHROPIC_API_KEY
+com.clawcontrol.sonarr.url           → SONARR_URL
+com.clawcontrol.sonarr.api-key       → SONARR_API_KEY
+com.clawcontrol.radarr.url           → RADARR_URL
+com.clawcontrol.radarr.api-key       → RADARR_API_KEY
+com.clawcontrol.email.host           → EMAIL_HOST
+com.clawcontrol.email.port           → EMAIL_PORT
+com.clawcontrol.email.user           → EMAIL_USER
+com.clawcontrol.email.password       → EMAIL_PASSWORD
+com.clawcontrol.ntfy.url             → NTFY_URL
+com.clawcontrol.ntfy.topic           → NTFY_TOPIC
 ```
 
 ## Database — Local SQLite
@@ -153,9 +153,9 @@ com.mission-control.ntfy.topic           → NTFY_TOPIC
 ### Overview
 
 Each user gets their own SQLite database stored in the app's data directory:
-- macOS: `~/Library/Application Support/com.mission-control/data.db`
-- Windows: `%APPDATA%/com.mission-control/data.db`
-- Linux: `~/.local/share/com.mission-control/data.db`
+- macOS: `~/Library/Application Support/com.clawcontrol/data.db`
+- Windows: `%APPDATA%/com.clawcontrol/data.db`
+- Linux: `~/.local/share/com.clawcontrol/data.db`
 
 This replaces Supabase as the default storage backend. Zero setup — the database is created on first launch with the schema applied automatically via migrations.
 
@@ -197,7 +197,7 @@ Five frontend pages use `supabase.channel()` / `.on('postgres_changes', ...)` fo
 ### Email Account Passwords
 
 The `email_accounts` table stores IMAP passwords per-row. These must not sit in plaintext SQLite. Strategy:
-- Each email account password is stored as a separate keychain entry: `com.mission-control.email-account.<account-id>`
+- Each email account password is stored as a separate keychain entry: `com.clawcontrol.email-account.<account-id>`
 - SQLite stores only a reference ID, not the password
 - `lib/db.ts` exposes a helper that joins the DB record with the keychain secret at query time
 
@@ -237,7 +237,7 @@ Optional feature for users who want the same data across multiple devices (e.g. 
 ```
 User's Laptop                Homelab Sync Server              User's Desktop
   SQLite ──push changes──►  SQLite (source of truth)  ◄──push changes── SQLite
-          ◄──pull changes──  (Cloudflare Tunnel)       ──pull changes──►
+          ◄──pull changes──  (Tailscale/private link)   ──pull changes──►
                               sync.yourdomain.com
 ```
 
@@ -253,7 +253,7 @@ User's Laptop                Homelab Sync Server              User's Desktop
 ### Sync Server
 
 - Lightweight service running on the user's homelab (or any server they control)
-- Exposed via Cloudflare Tunnel — no Tailscale/VPN needed for clients
+- Exposed via Tailscale or another private link — no public internet exposure
 - Simple REST API: `POST /sync/push`, `POST /sync/pull`
 - Authenticated with a per-user token stored in the client's keychain
 - Just another SQLite database that acts as the merge point
@@ -267,8 +267,8 @@ User's Laptop                Homelab Sync Server              User's Desktop
 
 | Key | Example | Required |
 |-----|---------|----------|
-| `com.mission-control.sync.url` | `https://sync.yourdomain.com` | No |
-| `com.mission-control.sync.token` | `(auth token)` | No |
+| `com.clawcontrol.sync.url` | `https://sync.yourdomain.com` | No |
+| `com.clawcontrol.sync.token` | `(auth token)` | No |
 
 ## Setup Wizard
 
@@ -278,7 +278,7 @@ User's Laptop                Homelab Sync Server              User's Desktop
 App Launch → No secrets in keychain?
   │
   ├─► Welcome Screen
-  │    "Welcome to Mission Control"
+  │    "Welcome to ClawControl"
   │    [Set Up Manually]  [Import Config]
   │
   ├─► Manual Path: Step-by-step wizard
@@ -367,9 +367,9 @@ All modules are core features of the personal AI dashboard. Each is enabled/disa
 
 ### Repository Structure
 
-**mission-control** (private, development):
+**clawcontrol** (private, development):
 ```
-mission-control/
+clawcontrol/
 ├── app/                            ← existing Next.js pages & API routes
 ├── src-tauri/                      ← Tauri shell
 │   ├── Cargo.toml
@@ -392,9 +392,9 @@ mission-control/
 └── .env.local                      ← dev only, gitignored
 ```
 
-**mission-control-releases** (distribution):
+**clawcontrol-releases** (distribution):
 ```
-mission-control-releases/
+clawcontrol-releases/
 ├── README.md                       ← download links per version + changelog
 ├── latest.json                     ← auto-updater endpoint
 └── (GitHub Releases host .dmg, .msi, .AppImage binaries)
@@ -411,13 +411,13 @@ mission-control-releases/
 
 ### CI/CD Pipeline
 
-1. Developer pushes git tag `v1.2.0` to mission-control
+1. Developer pushes git tag `v1.2.0` to clawcontrol
 2. GitHub Actions workflow triggers:
    - Builds Next.js standalone output
    - Downloads platform-specific Node.js binary
    - Bundles sidecar (Node + standalone)
    - Compiles Tauri for all 4 targets (matrix build)
-3. Uploads artifacts to mission-control-releases as a GitHub Release
+3. Uploads artifacts to clawcontrol-releases as a GitHub Release
 4. Updates `latest.json` for auto-updater
 5. Users' apps detect update → prompt to install → restart
 
@@ -425,7 +425,7 @@ mission-control-releases/
 
 Tauri's built-in updater checks:
 ```
-https://github.com/your-username/mission-control-releases/releases/latest/download/latest.json
+https://github.com/your-username/clawcontrol-releases/releases/latest/download/latest.json
 ```
 
 `latest.json` format:
@@ -505,4 +505,4 @@ The sidecar runs `node .next/standalone/server.js`, not `next start`. Key detail
 - Auto-update signatures verified by Tauri before applying
 - No secrets in git, no secrets in app binary
 - SQLite in WAL mode with automatic backups for data resilience
-- Sync server (Phase 2) authenticated with per-user token over HTTPS via Cloudflare Tunnel
+- Sync server (Phase 2) authenticated with per-user token over HTTPS via a private link

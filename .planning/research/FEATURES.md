@@ -203,7 +203,7 @@ Features the stabilization milestone MUST deliver. Missing = milestone is not co
 | Fix browser mode auth (dev mode API calls) | Can't develop without browser mode | LOW | Known v0.0.3 bug |
 | Fix dashboard showing 1 widget in browser mode | Core UX broken in dev mode | LOW | Known v0.0.3 bug |
 | Remove noVNC dependency and VncPreviewWidget | Dead dependency, rejected feature | LOW | package.json, widget registry |
-| Remove or rename Bjorn tab duplication in Chat | UI confusion | LOW | Chat.tsx |
+| Remove or rename Agent tab duplication in Chat | UI confusion | LOW | Chat.tsx |
 | Add error boundaries to all v0.0.3 pages | Crash resilience | LOW | Per page |
 
 ## Differentiators (Should Do)
@@ -304,7 +304,7 @@ Prioritize in this order:
 4. **Fix "ffir" error toast** -- most visible user-facing bug
 5. **Strip dead routes** (pause/resume/activity) -- quick wins, reduces noise
 6. **Remove noVNC and related code** -- dead dependency, rejected feature
-7. **Fix Bjorn tab duplication** -- quick UX fix
+7. **Fix Agent tab duplication** -- quick UX fix
 8. **Verify OpenClaw pages against live gateway** -- validate fixes work end-to-end
 9. **Fix API shape mismatches** -- based on real response shapes from step 8
 10. **Add error boundaries to v0.0.3 pages** -- crash resilience

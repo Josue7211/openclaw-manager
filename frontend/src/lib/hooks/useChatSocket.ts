@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { API_BASE } from '@/lib/api'
+import { API_BASE, API_BASE_CHANGED_EVENT } from '@/lib/api'
 
 /** API key getter — mirrors what api.ts uses internally */
 let _apiKey: string | undefined
@@ -20,6 +20,8 @@ interface UseChatSocketOptions {
   onStatusChange?: (connected: boolean) => void
   /** Whether the socket should be active (default: true) */
   enabled?: boolean
+  /** Optional OpenClaw session key to stream. Falls back to current chat session. */
+  sessionKey?: string | null
 }
 
 interface UseChatSocketReturn {
@@ -38,7 +40,7 @@ const MAX_RECONNECT_ATTEMPTS = 10
  * established or drops permanently.
  */
 export function useChatSocket(opts: UseChatSocketOptions): UseChatSocketReturn {
-  const { onMessage, onStatusChange, enabled = true } = opts
+  const { onMessage, onStatusChange, enabled = true, sessionKey } = opts
   const [connected, setConnected] = useState(false)
   const [usingFallback, setUsingFallback] = useState(false)
 
@@ -63,8 +65,11 @@ export function useChatSocket(opts: UseChatSocketOptions): UseChatSocketReturn {
     if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) return
 
     const wsBase = API_BASE.replace(/^http/, 'ws')
-    const params = _apiKey ? `?apiKey=${encodeURIComponent(_apiKey)}` : ''
-    const url = `${wsBase}/api/chat/ws${params}`
+    const params = new URLSearchParams()
+    if (_apiKey) params.set('apiKey', _apiKey)
+    if (sessionKey) params.set('sessionKey', sessionKey)
+    const query = params.toString()
+    const url = `${wsBase}/api/chat/ws${query ? `?${query}` : ''}`
 
     let ws: WebSocket
     try {
@@ -117,7 +122,7 @@ export function useChatSocket(opts: UseChatSocketOptions): UseChatSocketReturn {
       const delay = WS_RECONNECT_DELAYS[delayIdx]
       reconnectTimerRef.current = setTimeout(connect, delay)
     }
-  }, [updateStatus])
+  }, [sessionKey, updateStatus])
 
   useEffect(() => {
     mountedRef.current = true
@@ -139,6 +144,33 @@ export function useChatSocket(opts: UseChatSocketOptions): UseChatSocketReturn {
       }
     }
   }, [enabled, connect])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const handleBackendChange = () => {
+      attemptRef.current = 0
+      setUsingFallback(false)
+
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current)
+        reconnectTimerRef.current = null
+      }
+
+      if (wsRef.current) {
+        const ws = wsRef.current
+        wsRef.current = null
+        ws.onclose = null
+        ws.close()
+      }
+
+      updateStatus(false)
+      if (enabled) connect()
+    }
+
+    window.addEventListener(API_BASE_CHANGED_EVENT, handleBackendChange)
+    return () => window.removeEventListener(API_BASE_CHANGED_EVENT, handleBackendChange)
+  }, [connect, enabled, updateStatus])
 
   return { connected, usingFallback }
 }

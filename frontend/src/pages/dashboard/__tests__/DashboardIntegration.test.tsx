@@ -390,6 +390,35 @@ describe('Dashboard Integration', () => {
     expect(mockSetDashboardState).not.toHaveBeenCalled()
   })
 
+  it('does NOT repopulate defaults after a user trims the page below three widgets', async () => {
+    mockDashState = {
+      ...mockDashState,
+      pages: [{
+        id: 'custom-page',
+        name: 'Custom',
+        sortOrder: 0,
+        layouts: {
+          lg: [
+            { i: 'agent-status', x: 0, y: 0, w: 4, h: 2 },
+            { i: 'heartbeat', x: 4, y: 0, w: 4, h: 2 },
+          ],
+        },
+        widgetConfigs: {
+          'agent-status': {},
+          'heartbeat': {},
+        },
+      }],
+      activePageId: 'custom-page',
+    }
+
+    await act(async () => {
+      render(<Dashboard />)
+    })
+
+    expect(mockGenerateDefaultLayout).not.toHaveBeenCalled()
+    expect(mockSetDashboardState).not.toHaveBeenCalled()
+  })
+
   it('passes placed widget IDs to WidgetPicker', async () => {
     mockDashState = { ...mockDashState, editMode: true }
 

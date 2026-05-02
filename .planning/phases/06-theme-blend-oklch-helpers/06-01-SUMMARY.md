@@ -23,7 +23,7 @@ key-files:
   modified: []
 
 key-decisions:
-  - "Pure math implementation with zero external dependencies -- Bjorn Ottosson OKLab matrices hardcoded"
+  - "Pure math implementation with zero external dependencies -- Agent Ottosson OKLab matrices hardcoded"
   - "Shortest-arc hue interpolation prevents 350-degree jumps when crossing the 0/360 boundary"
   - "Achromatic threshold at C < 0.002 -- colors with near-zero chroma use the other color's hue"
 
@@ -52,7 +52,7 @@ completed: 2026-03-22
 - **Files modified:** 2
 
 ## Accomplishments
-- `hexToOklch()` converts hex colors to OKLCH [L, C, H] using Bjorn Ottosson OKLab matrices
+- `hexToOklch()` converts hex colors to OKLCH [L, C, H] using Agent Ottosson OKLab matrices
 - `oklchToHex()` converts OKLCH tuples back to 7-char hex with round-trip fidelity within 1 unit per RGB channel
 - `interpolateHexOklch()` blends two hex colors in OKLCH space with shortest-arc hue interpolation and achromatic handling
 - 25 unit tests covering: black/white/pure colors, all 7 ACCENT_PRESETS round-trips, mid-gray interpolation, t-clamping, edge cases
@@ -72,7 +72,7 @@ _Note: These commits were created under the old phase numbering (08-01) before t
 
 ## Decisions Made
 - Pure math implementation with zero external dependencies -- no color library needed
-- Bjorn Ottosson OKLab matrices and their inverses hardcoded (not computed at runtime) for precision
+- Agent Ottosson OKLab matrices and their inverses hardcoded (not computed at runtime) for precision
 - Achromatic threshold at C < 0.002: when chroma is near zero, hue is meaningless so we use the other color's hue
 - Shortest-arc hue interpolation prevents 350-degree jumps (wraps correctly across 0/360 boundary)
 - sRGB gamma transfer uses the standard IEC 61966-2-1 thresholds (0.04045 / 0.0031308)

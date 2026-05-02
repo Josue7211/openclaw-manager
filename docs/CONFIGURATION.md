@@ -1,6 +1,23 @@
 # Configuration
 
-OpenClaw Manager uses environment variables for all configuration. Copy `.env.example` to `.env.local` and fill in the values you need.
+ClawControl currently has two configuration modes:
+
+1. local/dev mode: `.env.local` plus in-app settings
+2. release-path mode: backend-first setup with one compose file and one deployment env
+
+The backend-first release path is in progress. It is not fully shipped yet.
+
+The active release direction is a backend-first setup flow:
+
+- one backend Docker Compose stack
+- one deployment `.env`
+- one backend URL
+- one pairing token
+
+Tracking docs:
+
+- [backend-stack.md](backend-stack.md)
+- [release-package-plan.md](release-package-plan.md)
 
 ## Required
 
@@ -11,6 +28,22 @@ OpenClaw Manager uses environment variables for all configuration. Copy `.env.ex
 | `VITE_SUPABASE_ANON_KEY` | Supabase anonymous key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
 | `MC_API_KEY` | API authentication key (required in production, optional in dev) |
+
+## Release-Path Scaffold
+
+The current release scaffold lives in:
+
+- [../docker-compose.backend.yml](../docker-compose.backend.yml)
+- [../.env.backend.example](../.env.backend.example)
+- [backend-stack.md](backend-stack.md)
+- [release-package-plan.md](release-package-plan.md)
+
+For now:
+
+- the compose stack is scaffolded
+- setup/status and pairing endpoints exist
+- the desktop app can store a backend URL and pairing token
+- package verification is still a work item
 
 ## Optional -- Homelab
 
@@ -55,7 +88,7 @@ OpenClaw Manager uses environment variables for all configuration. Copy `.env.ex
 | `EMAIL_PASSWORD` | Email account password |
 | `EMAIL_TLS` | Enable TLS (default: `true`) |
 
-## Optional -- Media (Plex, Sonarr, Radarr)
+## Optional -- Media (Plex + ARR stack)
 
 | Variable | Description |
 |----------|-------------|
@@ -65,6 +98,16 @@ OpenClaw Manager uses environment variables for all configuration. Copy `.env.ex
 | `SONARR_API_KEY` | Sonarr API key |
 | `RADARR_URL` | Radarr API URL |
 | `RADARR_API_KEY` | Radarr API key |
+| `LIDARR_URL` | Lidarr API URL |
+| `LIDARR_API_KEY` | Lidarr API key |
+| `PROWLARR_URL` | Prowlarr API URL |
+| `PROWLARR_API_KEY` | Prowlarr API key |
+| `OVERSEERR_URL` | Overseerr API URL |
+| `OVERSEERR_API_KEY` | Overseerr API key |
+| `TAUTULLI_URL` | Tautulli API URL |
+| `TAUTULLI_API_KEY` | Tautulli API key |
+| `BAZARR_URL` | Bazarr API URL |
+| `BAZARR_API_KEY` | Bazarr API key |
 
 ## Optional -- OpenClaw AI Workspace
 
@@ -74,6 +117,14 @@ OpenClaw Manager uses environment variables for all configuration. Copy `.env.ex
 | `OPENCLAW_PASSWORD` | OpenClaw authentication password |
 | `OPENCLAW_API_URL` | OpenClaw API server URL (enables proxied workspace routes) |
 | `OPENCLAW_API_KEY` | OpenClaw API key |
+
+## Optional -- LightRAG / memd RAG
+
+| Variable | Description |
+|----------|-------------|
+| `LIGHTRAG_BASE_URL` | LightRAG server URL (for example `http://your-lightrag-host:9621`) |
+| `LIGHTRAG_API_KEY` | Optional LightRAG bearer token |
+| `MEMD_RAG_URL` | memd RAG sidecar URL. Used when ClawControl should talk to the sidecar instead of raw LightRAG |
 
 ## Optional -- iOS Quick Capture
 

@@ -16,21 +16,25 @@ pub fn redact(input: &str) -> String {
     let mut result = input.to_string();
     for pattern_str in SECRET_PATTERNS {
         if let Ok(re) = Regex::new(pattern_str) {
-            result = re.replace_all(&result, |caps: &regex::Captures| {
-                let full = caps.get(0).unwrap().as_str().to_string();
-                if let Some(group) = caps.get(1) {
-                    let g = group.as_str();
-                    if g.len() > 8 {
-                        let redacted = format!("{}***{}", &g[..4], &g[g.len()-4..]);
-                        return full.replace(g, &redacted);
+            result = re
+                .replace_all(&result, |caps: &regex::Captures| {
+                    let full = caps.get(0).unwrap().as_str().to_string();
+                    if let Some(group) = caps.get(1) {
+                        let g = group.as_str();
+                        if g.len() > 8 {
+                            let redacted = format!("{}***{}", &g[..4], &g[g.len() - 4..]);
+                            return full.replace(g, &redacted);
+                        }
                     }
-                }
-                // Fallback
-                FALLBACK_RE.replace_all(&full, |m: &regex::Captures| {
-                    let s = m.get(0).unwrap().as_str();
-                    format!("{}***", &s[..std::cmp::min(2, s.len())])
-                }).into_owned()
-            }).into_owned();
+                    // Fallback
+                    FALLBACK_RE
+                        .replace_all(&full, |m: &regex::Captures| {
+                            let s = m.get(0).unwrap().as_str();
+                            format!("{}***", &s[..std::cmp::min(2, s.len())])
+                        })
+                        .into_owned()
+                })
+                .into_owned();
         }
     }
     result

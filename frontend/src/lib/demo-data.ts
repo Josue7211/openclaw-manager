@@ -2,15 +2,16 @@
 // Activated when VITE_SUPABASE_URL is not set.
 
 import type { Todo, Mission, CalendarEvent } from './types'
+import { isWizardDemoMode } from './wizard-store'
 
 // ── Todos ────────────────────────────────────────────────────────────────────
 
 export const DEMO_TODOS: Todo[] = [
   { id: 'demo-1', text: 'Set up Supabase instance', done: false, due_date: new Date().toISOString().slice(0, 10) },
   { id: 'demo-2', text: 'Configure BlueBubbles on Mac', done: false, due_date: new Date(Date.now() + 86400000).toISOString().slice(0, 10) },
-  { id: 'demo-3', text: 'Connect OpenClaw AI agent', done: false },
+  { id: 'demo-3', text: 'Connect a harness AI backend', done: false },
   { id: 'demo-4', text: 'Customize sidebar modules', done: false },
-  { id: 'demo-5', text: 'Explore OpenClaw Manager features', done: true },
+  { id: 'demo-5', text: 'Explore ClawControl features', done: true },
   { id: 'demo-6', text: 'Read the setup guide', done: true },
 ]
 
@@ -19,9 +20,9 @@ export const DEMO_TODOS: Todo[] = [
 export const DEMO_MISSIONS: Mission[] = [
   {
     id: 'demo-m1',
-    title: 'Welcome to OpenClaw Manager',
+    title: 'Welcome to ClawControl',
     status: 'active',
-    assignee: 'bjorn',
+    assignee: 'primary-agent',
     progress: 50,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -32,7 +33,7 @@ export const DEMO_MISSIONS: Mission[] = [
     id: 'demo-m2',
     title: 'Implement dark mode theme engine',
     status: 'active',
-    assignee: 'bjorn',
+    assignee: 'primary-agent',
     progress: 75,
     created_at: new Date(Date.now() - 3600000).toISOString(),
     updated_at: new Date().toISOString(),
@@ -43,7 +44,7 @@ export const DEMO_MISSIONS: Mission[] = [
     id: 'demo-m3',
     title: 'Fix WebSocket reconnection logic',
     status: 'done',
-    assignee: 'bjorn',
+    assignee: 'primary-agent',
     progress: 100,
     created_at: new Date(Date.now() - 86400000).toISOString(),
     updated_at: new Date(Date.now() - 43200000).toISOString(),
@@ -54,7 +55,7 @@ export const DEMO_MISSIONS: Mission[] = [
     id: 'demo-m4',
     title: 'Add keyboard shortcuts modal',
     status: 'done',
-    assignee: 'bjorn',
+    assignee: 'primary-agent',
     progress: 100,
     created_at: new Date(Date.now() - 172800000).toISOString(),
     updated_at: new Date(Date.now() - 86400000).toISOString(),
@@ -65,7 +66,7 @@ export const DEMO_MISSIONS: Mission[] = [
     id: 'demo-m5',
     title: 'Set up CI/CD pipeline',
     status: 'pending',
-    assignee: 'bjorn',
+    assignee: 'primary-agent',
     progress: 0,
     created_at: new Date(Date.now() - 7200000).toISOString(),
     task_type: 'infra',
@@ -132,7 +133,7 @@ export const DEMO_CONVERSATIONS: DemoConversation[] = [
     displayName: 'Demo Contact',
     participants: [{ address: 'demo@example.com', service: 'iMessage' }],
     service: 'iMessage',
-    lastMessage: 'Welcome to OpenClaw Manager!',
+    lastMessage: 'Welcome to ClawControl!',
     lastDate: Date.now(),
     lastFromMe: 0,
   },
@@ -164,13 +165,13 @@ export const DEMO_CHAT_MESSAGES: DemoChatMessage[] = [
   {
     id: 'demo-chat-1',
     role: 'user',
-    text: 'What can OpenClaw Manager do?',
+    text: 'What can ClawControl do?',
     timestamp: new Date(Date.now() - 300000).toISOString(),
   },
   {
     id: 'demo-chat-2',
     role: 'assistant',
-    text: 'OpenClaw Manager is your personal command center. It brings together:\n\n- **iMessage** via BlueBubbles (requires a Mac)\n- **AI Chat** through OpenClaw\n- **Task management** with real-time sync\n- **Homelab monitoring** (Proxmox, OPNsense)\n- **Agent orchestration** for automated workflows\n\nEach module is optional — enable only what you have set up. Head to **Settings > Connections** to configure your services.',
+    text: 'ClawControl is your personal command center. It brings together:\n\n- **iMessage** via BlueBubbles (requires a Mac)\n- **AI Chat** through a harness backend\n- **Task management** with real-time sync\n- **Homelab monitoring** (Proxmox, OPNsense)\n- **Agent orchestration** for automated workflows\n\nEach module is optional — enable only what you have set up. Head to **Settings > Connections** to configure your services.',
     timestamp: new Date(Date.now() - 290000).toISOString(),
   },
   {
@@ -200,12 +201,12 @@ interface DemoAgentStatus {
 }
 
 export const DEMO_AGENT_STATUS: DemoAgentStatus = {
-  name: 'Bjorn',
+  name: 'Primary Agent',
   emoji: '🦬',
   model: 'claude-sonnet-4-6',
   status: 'idle',
   lastActive: new Date(Date.now() - 60000).toISOString(),
-  host: 'openclaw-vm',
+  host: 'ai-host',
   ip: '100.x.x.x',
 }
 
@@ -222,7 +223,7 @@ interface DemoAgentInfo {
 }
 
 export const DEMO_AGENTS: DemoAgentInfo[] = [
-  { id: 'demo-agent-1', display_name: 'Bjorn', emoji: '🦬', model: 'claude-sonnet-4-6', role: 'General purpose', status: 'idle', current_task: null, sort_order: 0, color: null },
+  { id: 'demo-agent-1', display_name: 'Primary Agent', emoji: '🦬', model: 'claude-sonnet-4-6', role: 'General purpose', status: 'idle', current_task: null, sort_order: 0, color: null },
   { id: 'demo-agent-2', display_name: 'Scout', emoji: '🦅', model: 'claude-haiku-4-5', role: 'Code review', status: 'idle', current_task: null, sort_order: 1, color: null },
   { id: 'demo-agent-3', display_name: 'Atlas', emoji: '🗺️', model: 'claude-opus-4-6', role: 'Architecture', status: 'idle', current_task: null, sort_order: 2, color: null },
 ]
@@ -248,8 +249,8 @@ export interface DemoProxmoxNode {
 }
 
 export const DEMO_PROXMOX_VMS: DemoProxmoxVM[] = [
-  { vmid: 100, name: 'services-vm', status: 'running', cpuPercent: 12, memUsedGB: 3.2, memTotalGB: 8, node: 'pve' },
-  { vmid: 101, name: 'openclaw-vm', status: 'running', cpuPercent: 45, memUsedGB: 6.1, memTotalGB: 16, node: 'pve' },
+  { vmid: 100, name: 'core-services', status: 'running', cpuPercent: 12, memUsedGB: 3.2, memTotalGB: 8, node: 'pve' },
+  { vmid: 101, name: 'ai-gateway', status: 'running', cpuPercent: 45, memUsedGB: 6.1, memTotalGB: 16, node: 'pve' },
   { vmid: 102, name: 'media-server', status: 'running', cpuPercent: 8, memUsedGB: 2.4, memTotalGB: 4, node: 'pve' },
   { vmid: 103, name: 'backup-vm', status: 'stopped', cpuPercent: 0, memUsedGB: 0, memTotalGB: 4, node: 'pve' },
 ]
@@ -265,12 +266,9 @@ export const DEMO_OPNSENSE = {
   version: '24.7.1',
 }
 
-let _isDemoMode: boolean | null = null
-
 export function isDemoMode(): boolean {
-  if (_isDemoMode !== null) return _isDemoMode
-  // Demo mode ONLY when no backend database is configured.
-  // User explicitly chooses demo via "Try Demo" button.
-  _isDemoMode = !import.meta.env.VITE_SUPABASE_URL
-  return _isDemoMode
+  // Demo mode is opt-in only. The setup wizard or banner can enable it via
+  // localStorage, but a missing frontend Supabase env should not hijack the app
+  // into sample data when the real backend is already available.
+  return isWizardDemoMode()
 }

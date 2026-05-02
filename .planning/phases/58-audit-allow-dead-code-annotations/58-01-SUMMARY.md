@@ -9,7 +9,7 @@ requires: []
 provides:
   - Audited and justified all 12 #[allow(dead_code)] annotations in Rust codebase
   - Removed 1 incorrect suppression (health_check actively used in sync.rs)
-affects: [supabase, media, auth, bjorn, pipeline]
+affects: [supabase, media, auth, agent, pipeline]
 
 # Tech tracking
 tech-stack:
@@ -22,7 +22,7 @@ key-files:
   modified:
     - src-tauri/src/supabase.rs
     - src-tauri/src/routes/auth.rs
-    - src-tauri/src/routes/bjorn.rs
+    - src-tauri/src/routes/agent.rs
     - src-tauri/src/routes/media.rs
     - src-tauri/src/routes/pipeline/helpers.rs
     - src-tauri/src/routes/pipeline/agents.rs
@@ -67,7 +67,7 @@ Each task was committed atomically:
 ## Files Created/Modified
 - `src-tauri/src/supabase.rs` - Removed incorrect health_check() suppression; justified rpc_url() and rpc()
 - `src-tauri/src/routes/auth.rs` - Justified SignupBody suppression (serde struct, body discarded)
-- `src-tauri/src/routes/bjorn.rs` - Justified BridgeBody.args suppression (stub field)
+- `src-tauri/src/routes/agent.rs` - Justified BridgeBody.args suppression (stub field)
 - `src-tauri/src/routes/media.rs` - Justified 5 serde struct suppressions (PlexSession, PlexPlayer, SonarrEpisode, SonarrSeries, RadarrMovie)
 - `src-tauri/src/routes/pipeline/helpers.rs` - Justified clean_env() suppression (reserved for TODO refactor)
 - `src-tauri/src/routes/pipeline/agents.rs` - Justified mission::PENDING suppression (enum completion)
@@ -79,7 +79,7 @@ Each task was committed atomically:
 | supabase.rs:98 | `rpc_url()` | Keep | Only used by `rpc()` which is itself reserved |
 | supabase.rs:423 | `rpc()` | Keep | Reserved for future Postgres function calls |
 | supabase.rs:447 | `health_check()` | **REMOVED** | Actively used in sync.rs (2 call sites) |
-| bjorn.rs:553 | `BridgeBody.args` | Keep | Deserialized but not read; needed when bridge proxy implemented |
+| agent.rs:553 | `BridgeBody.args` | Keep | Deserialized but not read; needed when bridge proxy implemented |
 | auth.rs:598 | `SignupBody` | Keep | Serde struct; body intentionally discarded (signup disabled) |
 | media.rs:107 | `PlexSession` | Keep | Serde struct; player field deserialized but not consumed |
 | media.rs:129 | `PlexPlayer` | Keep | Serde struct; state field deserialized but not consumed |

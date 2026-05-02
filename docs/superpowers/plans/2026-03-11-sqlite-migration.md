@@ -56,7 +56,7 @@ app/api/quick-capture/route.ts          — Supabase to SQLite (routes to todos/
 app/api/missions/sync-agents/route.ts   — Supabase to SQLite (process sync cleanup)
 app/api/deploy/route.ts                 — Supabase to SQLite (review gate + agent reset)
 app/api/dust/route.ts                   — Supabase to SQLite (cross-table dust query)
-app/api/mission-events/bjorn/route.ts   — Supabase to SQLite (streaming event insert)
+app/api/mission-events/agent/route.ts   — Supabase to SQLite (streaming event insert)
 app/api/search/route.ts                 — Supabase to SQLite (cross-table LIKE)
 app/api/stale/route.ts                  — Supabase to SQLite (cross-table date filters)
 app/api/pipeline/spawn/route.ts         — Supabase to SQLite (complex workflow)
@@ -292,10 +292,10 @@ PATCH: Dynamic `UPDATE agents SET ... updated_at = ? WHERE id = ?` (allowed fiel
 - [ ] **Step 4: Migrate `app/api/missions/sync-agents/route.ts`**
 
 POST only. Detects running coding agent processes via `ps aux`, then:
-- `dbAll('SELECT * FROM missions WHERE assignee = ? AND status IN (?, ?)', ['bjorn', 'active', 'pending'])`
+- `dbAll('SELECT * FROM missions WHERE assignee = ? AND status IN (?, ?)', ['agent', 'active', 'pending'])`
 - If no processes but active missions: `dbRun('UPDATE missions SET status = ?, updated_at = ? WHERE id = ?')` in a loop
-- Delete stale: `dbRun('DELETE FROM missions WHERE title = ? AND assignee = ?', ['Coding Agent Task', 'bjorn'])`
-- Delete old done: `dbRun('DELETE FROM missions WHERE assignee = ? AND status = ? AND updated_at < ?', ['bjorn', 'done', oneDayAgo])`
+- Delete stale: `dbRun('DELETE FROM missions WHERE title = ? AND assignee = ?', ['Coding Agent Task', 'agent'])`
+- Delete old done: `dbRun('DELETE FROM missions WHERE assignee = ? AND status = ? AND updated_at < ?', ['agent', 'done', oneDayAgo])`
 
 - [ ] **Step 5: Verify build + test with curl**
 
@@ -562,7 +562,7 @@ git commit -m "feat: migrate lib/pipeline.ts helpers from Supabase to SQLite"
 - Modify: `app/api/pipeline/complete/route.ts`
 - Modify: `app/api/pipeline/review/route.ts`
 - Modify: `app/api/mission-events/route.ts`
-- Modify: `app/api/mission-events/bjorn/route.ts`
+- Modify: `app/api/mission-events/agent/route.ts`
 - Modify: `app/api/deploy/route.ts`
 
 These are the most complex routes — multi-table writes with agent state management. Replace `supabaseAdmin` import with `dbGet`/`dbRun`/`dbAll` from `@/lib/db`, add `emitChange` calls, add `crypto` import for UUID generation.
@@ -599,7 +599,7 @@ Key patterns per route:
 
 For each file: replace supabaseAdmin import, swap queries, add emitChange + crypto imports.
 
-- [ ] **Step 2: Migrate `app/api/mission-events/bjorn/route.ts`**
+- [ ] **Step 2: Migrate `app/api/mission-events/agent/route.ts`**
 
 POST only. Streaming event insert for live coding agent output:
 - Get next seq: `dbGet('SELECT MAX(seq) as max_seq FROM mission_events WHERE mission_id = ?', [mission_id])`
@@ -621,7 +621,7 @@ npm run build
 - [ ] **Step 5: Commit**
 
 ```bash
-git add app/api/pipeline/spawn/route.ts app/api/pipeline/complete/route.ts app/api/pipeline/review/route.ts app/api/mission-events/route.ts app/api/mission-events/bjorn/route.ts app/api/deploy/route.ts
+git add app/api/pipeline/spawn/route.ts app/api/pipeline/complete/route.ts app/api/pipeline/review/route.ts app/api/mission-events/route.ts app/api/mission-events/agent/route.ts app/api/deploy/route.ts
 git commit -m "feat: migrate pipeline, mission-events, deploy routes to SQLite"
 ```
 
@@ -829,9 +829,9 @@ fn get_db_path(app: &AppHandle) -> String {
 ```
 
 This produces platform-specific paths:
-- macOS: `~/Library/Application Support/com.mission-control.desktop/data.db`
-- Windows: `%APPDATA%/com.mission-control.desktop/data.db`
-- Linux: `~/.local/share/com.mission-control.desktop/data.db`
+- macOS: `~/Library/Application Support/com.clawcontrol.desktop/data.db`
+- Windows: `%APPDATA%/com.clawcontrol.desktop/data.db`
+- Linux: `~/.local/share/com.clawcontrol.desktop/data.db`
 
 - [ ] **Step 2: Verify Rust compilation**
 

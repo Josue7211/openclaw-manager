@@ -1,8 +1,8 @@
 ---
-phase: 07-bjorn-module-builder
+phase: 07-agent-module-builder
 plan: 01
 subsystem: ui
-tags: [security, static-analysis, sandbox, csp, iframe, bjorn]
+tags: [security, static-analysis, sandbox, csp, iframe, agent]
 
 requires: []
 provides:
@@ -18,11 +18,11 @@ tech-stack:
 
 key-files:
   created:
-    - frontend/src/lib/bjorn-types.ts
-    - frontend/src/lib/bjorn-static-analysis.ts
-    - frontend/src/lib/bjorn-sandbox.ts
-    - frontend/src/lib/__tests__/bjorn-static-analysis.test.ts
-    - frontend/src/lib/__tests__/bjorn-sandbox.test.ts
+    - frontend/src/lib/agent-types.ts
+    - frontend/src/lib/agent-static-analysis.ts
+    - frontend/src/lib/agent-sandbox.ts
+    - frontend/src/lib/__tests__/agent-static-analysis.test.ts
+    - frontend/src/lib/__tests__/agent-sandbox.test.ts
   modified: []
 
 key-decisions:
@@ -41,9 +41,9 @@ duration: 5min
 completed: 2026-03-21
 ---
 
-# Phase 07 Plan 01: Bjorn Security Foundation Summary
+# Phase 07 Plan 01: Agent Security Foundation Summary
 
-**Static analysis gate with 17-pattern blocklist, sandbox HTML builder with CSP + theme injection, and shared Bjorn types**
+**Static analysis gate with 17-pattern blocklist, sandbox HTML builder with CSP + theme injection, and shared Agent types**
 
 ## Performance
 
@@ -66,11 +66,11 @@ completed: 2026-03-21
 2. **Task 2: Sandbox HTML builder + tests** - `a6422a0` (feat)
 
 ## Files Created/Modified
-- `frontend/src/lib/bjorn-types.ts` - BjornModule, BjornModuleVersion, AnalysisResult, BridgeRequest/Response types
-- `frontend/src/lib/bjorn-static-analysis.ts` - analyzeCode with 17 regex patterns, returns violations with line numbers
-- `frontend/src/lib/bjorn-sandbox.ts` - buildSandboxHTML with CSP meta tag, theme vars, postMessage bridge
-- `frontend/src/lib/__tests__/bjorn-static-analysis.test.ts` - Tests for dangerous API detection and safe code passthrough
-- `frontend/src/lib/__tests__/bjorn-sandbox.test.ts` - Tests for CSP inclusion, theme injection, bridge timeout
+- `frontend/src/lib/agent-types.ts` - BjornModule, BjornModuleVersion, AnalysisResult, BridgeRequest/Response types
+- `frontend/src/lib/agent-static-analysis.ts` - analyzeCode with 17 regex patterns, returns violations with line numbers
+- `frontend/src/lib/agent-sandbox.ts` - buildSandboxHTML with CSP meta tag, theme vars, postMessage bridge
+- `frontend/src/lib/__tests__/agent-static-analysis.test.ts` - Tests for dangerous API detection and safe code passthrough
+- `frontend/src/lib/__tests__/agent-sandbox.test.ts` - Tests for CSP inclusion, theme injection, bridge timeout
 
 ## Decisions Made
 None - followed plan as specified
@@ -85,9 +85,9 @@ None
 None - no external service configuration required.
 
 ## Next Phase Readiness
-- Types and analysis gate ready for BjornPreview (07-03) and bjorn-store (07-04)
+- Types and analysis gate ready for BjornPreview (07-03) and agent-store (07-04)
 - Sandbox HTML builder ready for iframe rendering
 
 ---
-*Phase: 07-bjorn-module-builder*
+*Phase: 07-agent-module-builder*
 *Completed: 2026-03-21*

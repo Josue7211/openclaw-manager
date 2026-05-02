@@ -75,6 +75,11 @@ Send a message to the AI assistant.
 **Body:** `{ "text"?: string, "images"?: string[] (data URLs) }`
 **Response:** `{ "ok": true }`
 
+### POST /api/chat/abort
+Abort the active OpenClaw chat run for the current session.
+**Body:** `{ "sessionKey"?: string }`
+**Response:** `{ "ok": true, "data": object }`
+
 ### GET /api/chat/history
 Fetch chat message history.
 **Response:** `{ "messages": [{ "id": string, "role": string, "text": string, "timestamp": string, "images"?: string[] }] }`
@@ -199,7 +204,7 @@ Ingest log content as mission events.
 **Body:** `{ "mission_id": string, "log_content": string, "mission_duration_seconds"?: number }`
 **Response:** `{ "events_inserted": number }`
 
-### POST /api/mission-events/bjorn
+### POST /api/mission-events/agent
 Insert a single real-time event for a mission (auto-increments seq).
 **Body:** `{ "mission_id": string, "event_type": string, "content": string, "elapsed_seconds"?: number }`
 **Response:** `{ "ok": true, "event": MissionEvent }`

@@ -129,7 +129,7 @@ src-tauri/
 - chat, workspace, status, heartbeat, processes, sessions, subagents, crons, auth
 - homelab, proxmox, opnsense, messages/\*, calendar, email, media, reminders
 - pipeline/spawn, pipeline/complete, pipeline/review, pipeline-events
-- missions (PATCH side effects), mission-events, mission-events/bjorn, missions/sync-agents
+- missions (PATCH side effects), mission-events, mission-events/agent, missions/sync-agents
 - agents, agents/active-coders, subagents/active
 - notify, search, dns, deploy, dust, stale, cache-refresh, cache-refresh-slow
 - quick-capture (has API key check), email-accounts (stores passwords)
@@ -251,7 +251,7 @@ Replace `frontend/index.html` — add Google Fonts links in `<head>` (matching c
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Mission Control — Bjorn</title>
+    <title>ClawControl — Agent</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
@@ -874,7 +874,7 @@ use sqlx::SqlitePool;
 pub async fn init() -> anyhow::Result<SqlitePool> {
     let db_path = dirs::data_local_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join("mission-control")
+        .join("clawcontrol")
         .join("local.db");
 
     std::fs::create_dir_all(db_path.parent().unwrap())?;
@@ -1093,14 +1093,14 @@ async fn get_status(State(state): State<AppState>) -> Result<Json<Value>, AppErr
         let name = content.lines()
             .find(|l| l.starts_with("Name:"))
             .map(|l| l.trim_start_matches("Name:").trim().to_string())
-            .unwrap_or_else(|| "Bjorn".to_string());
+            .unwrap_or_else(|| "Agent".to_string());
         let emoji = content.lines()
             .find(|l| l.starts_with("Emoji:"))
             .map(|l| l.trim_start_matches("Emoji:").trim().to_string())
             .unwrap_or_else(|| "🦬".to_string());
         (name, emoji)
     } else {
-        ("Bjorn".to_string(), "🦬".to_string())
+        ("Agent".to_string(), "🦬".to_string())
     };
 
     Ok(Json(json!({ "name": name, "emoji": emoji })))
@@ -1677,7 +1677,7 @@ Use `tokio::join!()` for parallel queries. Query Supabase directly via REST API 
 - [ ] **Step 5: Port missing sub-routes**
 
 These were not in the original plan but exist in the codebase:
-- `POST /api/mission-events/bjorn` - Ingests events from Bjorn agent specifically
+- `POST /api/mission-events/agent` - Ingests events from Agent agent specifically
 - `POST /api/missions/sync-agents` - Syncs agent status by checking running processes
 - `POST /api/pipeline/review` - Code review verdict handler
 - `GET /api/subagents/active` - Active Claude process detection (uses `execSync`)
@@ -1895,20 +1895,20 @@ if (isLoading) return <ChatLoading />
 ### Task 34: Hyprland support
 
 **Files:**
-- Create: `src-tauri/assets/mission-control.desktop`
+- Create: `src-tauri/assets/clawcontrol.desktop`
 - Create: `docs/HYPRLAND.md`
 
 - [ ] **Step 1: Create .desktop file**
 
 ```ini
 [Desktop Entry]
-Name=Mission Control
+Name=ClawControl
 Comment=Personal AI OS
-Exec=env GDK_BACKEND=wayland mission-control
-Icon=mission-control
+Exec=env GDK_BACKEND=wayland clawcontrol
+Icon=clawcontrol
 Type=Application
 Categories=Utility;
-StartupWMClass=mission-control
+StartupWMClass=clawcontrol
 ```
 
 - [ ] **Step 2: Create HYPRLAND.md**
@@ -2092,7 +2092,7 @@ cd ../src-tauri && cargo build --release
 - [ ] **Step 2: Check binary size**
 
 ```bash
-ls -lh src-tauri/target/release/mission-control
+ls -lh src-tauri/target/release/clawcontrol
 ```
 Target: under 20MB.
 

@@ -201,28 +201,6 @@ const NavSection = React.memo(function NavSection({
                 <Link
                   to={href}
                   data-testid={`nav-${href}`}
-                  draggable
-                  onDragStart={categoryId && onItemDragStart ? (e) => {
-                    e.dataTransfer.setData('text/plain', href)
-                    e.dataTransfer.effectAllowed = 'move'
-                    onItemDragStart(href, categoryId)
-                  } : undefined}
-                  onDragOver={categoryId && onItemDragOver ? (e) => {
-                    e.preventDefault()
-                    e.dataTransfer.dropEffect = 'move'
-                    const rect = e.currentTarget.getBoundingClientRect()
-                    const midY = rect.top + rect.height / 2
-                    const insertIdx = e.clientY < midY ? idx : idx + 1
-                    onItemDragOver(categoryId, insertIdx)
-                  } : undefined}
-                  onDrop={categoryId && onItemDrop ? (e) => {
-                    e.preventDefault()
-                    const rect = e.currentTarget.getBoundingClientRect()
-                    const midY = rect.top + rect.height / 2
-                    const insertIdx = e.clientY < midY ? idx : idx + 1
-                    onItemDrop(categoryId, insertIdx)
-                  } : undefined}
-                  onDragEnd={onItemDragEnd}
                   title={!collapsed && navCharsVisible < itemLabel.length ? itemLabel : undefined}
                   aria-label={collapsed ? itemLabel : undefined}
                   aria-describedby={tooltipId}
@@ -256,7 +234,6 @@ const NavSection = React.memo(function NavSection({
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     opacity: isBeingDragged ? 0.3 : 1,
-                    pointerEvents: isDragging ? 'none' : 'auto',
                   }}
                 >
                   <Icon

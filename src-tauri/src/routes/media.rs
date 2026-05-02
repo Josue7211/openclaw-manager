@@ -1,6 +1,12 @@
-use axum::{extract::State, routing::get, Json, Router};
+use axum::{
+    extract::{Path, Query, State},
+    routing::{delete, get, post},
+    Json, Router,
+};
+use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashMap;
 
 use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
@@ -18,6 +24,24 @@ struct SonarrConfig {
 }
 
 struct RadarrConfig {
+    url: String,
+    api_key: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ArrKind {
+    Sonarr,
+    Radarr,
+    Lidarr,
+    Prowlarr,
+}
+
+#[derive(Debug, Clone)]
+struct ArrConfig {
+    id: &'static str,
+    name: &'static str,
+    kind: ArrKind,
+    api_version: &'static str,
     url: String,
     api_key: String,
 }
@@ -59,6 +83,61 @@ fn radarr_config(state: &AppState) -> Option<RadarrConfig> {
         return None;
     }
     Some(RadarrConfig { url, api_key })
+}
+
+fn trim_url(url: String) -> String {
+    url.trim().trim_end_matches('/').to_string()
+}
+
+fn arr_config(state: &AppState, id: &str) -> Option<ArrConfig> {
+    let (name, kind, url_key, key_key, api_version) = match id {
+        "sonarr" => ("Sonarr", ArrKind::Sonarr, "SONARR_URL", "SONARR_API_KEY", "v3"),
+        "radarr" => ("Radarr", ArrKind::Radarr, "RADARR_URL", "RADARR_API_KEY", "v3"),
+        "lidarr" => ("Lidarr", ArrKind::Lidarr, "LIDARR_URL", "LIDARR_API_KEY", "v1"),
+        "prowlarr" => ("Prowlarr", ArrKind::Prowlarr, "PROWLARR_URL", "PROWLARR_API_KEY", "v1"),
+        _ => return None,
+    };
+
+    let url = trim_url(state.secret_or_default(url_key));
+    let api_key = state.secret_or_default(key_key);
+    if url.is_empty() || api_key.is_empty() {
+        return None;
+    }
+
+    Some(ArrConfig {
+        id: match id {
+            "sonarr" => "sonarr",
+            "radarr" => "radarr",
+            "lidarr" => "lidarr",
+            "prowlarr" => "prowlarr",
+            _ => return None,
+        },
+        name,
+        kind,
+        api_version,
+        url,
+        api_key,
+    })
+}
+
+fn all_arr_configs(state: &AppState) -> Vec<ArrConfig> {
+    ["sonarr", "radarr", "lidarr", "prowlarr"]
+        .into_iter()
+        .filter_map(|id| arr_config(state, id))
+        .collect()
+}
+
+fn arr_path(cfg: &ArrConfig, path: &str) -> String {
+    format!(
+        "{}/api/{}{}",
+        cfg.url,
+        cfg.api_version,
+        if path.starts_with('/') {
+            path.to_string()
+        } else {
+            format!("/{path}")
+        }
+    )
 }
 
 // ── Response types (match TypeScript response shape) ────────────────────────
@@ -245,6 +324,168 @@ async fn radarr_fetch<T: serde::de::DeserializeOwned>(
     res.json::<T>().await.ok()
 }
 
+async fn arr_fetch_value(http: &reqwest::Client, cfg: &ArrConfig, path: &str) -> Option<Value> {
+    arr_request_value(http, cfg, Method::GET, path, None).await.ok()
+}
+
+async fn arr_request_value(
+    http: &reqwest::Client,
+    cfg: &ArrConfig,
+    method: Method,
+    path: &str,
+    body: Option<Value>,
+) -> Result<Value, AppError> {
+    let mut req = http
+        .request(method, arr_path(cfg, path))
+        .header("X-Api-Key", &cfg.api_key)
+        .header("Accept", "application/json");
+
+    if let Some(body) = body {
+        req = req.json(&body);
+    }
+
+    let res = req.send().await.map_err(AppError::from)?;
+    let status = res.status();
+    if !status.is_success() {
+        let text = res.text().await.unwrap_or_default();
+        let short = if text.chars().count() > 220 {
+            format!("{}...", text.chars().take(220).collect::<String>())
+        } else {
+            text
+        };
+        return Err(AppError::BadRequest(format!(
+            "{} {} returned {} {}",
+            cfg.name, path, status, short
+        )));
+    }
+
+    if status == reqwest::StatusCode::NO_CONTENT {
+        return Ok(json!({}));
+    }
+
+    res.json::<Value>().await.map_err(AppError::from)
+}
+
+async fn service_health(http: &reqwest::Client, cfg: &ArrConfig) -> Value {
+    match arr_fetch_value(http, cfg, "/system/status").await {
+        Some(status) => json!({
+            "id": cfg.id,
+            "name": cfg.name,
+            "kind": match cfg.kind {
+                ArrKind::Sonarr => "series",
+                ArrKind::Radarr => "movie",
+                ArrKind::Lidarr => "music",
+                ArrKind::Prowlarr => "indexer",
+            },
+            "configured": true,
+            "healthy": true,
+            "version": status.get("version").and_then(Value::as_str).unwrap_or("unknown"),
+            "appName": status.get("appName").and_then(Value::as_str).unwrap_or(cfg.name),
+        }),
+        None => json!({
+            "id": cfg.id,
+            "name": cfg.name,
+            "kind": match cfg.kind {
+                ArrKind::Sonarr => "series",
+                ArrKind::Radarr => "movie",
+                ArrKind::Lidarr => "music",
+                ArrKind::Prowlarr => "indexer",
+            },
+            "configured": true,
+            "healthy": false,
+        }),
+    }
+}
+
+fn add_service_tag(service: &ArrConfig, mut value: Value) -> Value {
+    if let Some(obj) = value.as_object_mut() {
+        obj.insert("service".into(), json!(service.id));
+        obj.insert("serviceName".into(), json!(service.name));
+    }
+    value
+}
+
+fn extract_records(value: Value) -> Vec<Value> {
+    if let Some(records) = value.get("records").and_then(Value::as_array) {
+        return records.clone();
+    }
+    value.as_array().cloned().unwrap_or_default()
+}
+
+async fn fetch_arr_queue(http: &reqwest::Client, cfg: &ArrConfig) -> Vec<Value> {
+    let Some(value) = arr_fetch_value(http, cfg, "/queue?page=1&pageSize=50").await else {
+        return Vec::new();
+    };
+    extract_records(value)
+        .into_iter()
+        .map(|v| add_service_tag(cfg, v))
+        .collect()
+}
+
+async fn fetch_arr_calendar(
+    http: &reqwest::Client,
+    cfg: &ArrConfig,
+    start: &str,
+    end: &str,
+) -> Vec<Value> {
+    if cfg.kind == ArrKind::Prowlarr {
+        return Vec::new();
+    }
+    let path = format!("/calendar?start={start}&end={end}&includeSeries=true");
+    let Some(value) = arr_fetch_value(http, cfg, &path).await else {
+        return Vec::new();
+    };
+    extract_records(value)
+        .into_iter()
+        .map(|v| add_service_tag(cfg, v))
+        .collect()
+}
+
+async fn fetch_arr_library(http: &reqwest::Client, cfg: &ArrConfig) -> Vec<Value> {
+    let path = match cfg.kind {
+        ArrKind::Sonarr => "/series",
+        ArrKind::Radarr => "/movie",
+        ArrKind::Lidarr => "/artist",
+        ArrKind::Prowlarr => "/indexer",
+    };
+    let Some(value) = arr_fetch_value(http, cfg, path).await else {
+        return Vec::new();
+    };
+    extract_records(value)
+        .into_iter()
+        .take(60)
+        .map(|v| add_service_tag(cfg, v))
+        .collect()
+}
+
+async fn first_option_id(http: &reqwest::Client, cfg: &ArrConfig, path: &str) -> Option<i64> {
+    let value = arr_fetch_value(http, cfg, path).await?;
+    value
+        .as_array()
+        .and_then(|items| items.first())
+        .and_then(|item| item.get("id"))
+        .and_then(Value::as_i64)
+}
+
+async fn first_root_path(http: &reqwest::Client, cfg: &ArrConfig) -> Option<String> {
+    let value = arr_fetch_value(http, cfg, "/rootfolder").await?;
+    value
+        .as_array()
+        .and_then(|items| items.first())
+        .and_then(|item| item.get("path"))
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
+}
+
+fn merge_object(mut base: Value, extra: Value) -> Value {
+    if let (Some(base_obj), Some(extra_obj)) = (base.as_object_mut(), extra.as_object()) {
+        for (k, v) in extra_obj {
+            base_obj.insert(k.clone(), v.clone());
+        }
+    }
+    base
+}
+
 // ── Mock data (matches TypeScript MOCK_DATA) ────────────────────────────────
 
 fn mock_recently_added() -> Vec<RecentlyAdded> {
@@ -286,7 +527,10 @@ fn mock_response() -> Value {
 
 // ── GET /media ──────────────────────────────────────────────────────────────
 
-async fn get_media(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Result<Json<Value>, AppError> {
+async fn get_media(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
     let plex_cfg = plex_config(&state);
     let sonarr_cfg = sonarr_config(&state);
     let radarr_cfg = radarr_config(&state);
@@ -297,6 +541,7 @@ async fn get_media(State(state): State<AppState>, RequireAuth(_session): Require
     }
 
     let http = &state.http;
+    let arr_services = all_arr_configs(&state);
 
     // Build date range for Sonarr calendar: today .. today + 14 days
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
@@ -311,12 +556,8 @@ async fn get_media(State(state): State<AppState>, RequireAuth(_session): Require
         async {
             match &plex_cfg {
                 Some(cfg) => {
-                    plex_fetch::<PlexMediaContainer<PlexSession>>(
-                        http,
-                        cfg,
-                        "/status/sessions",
-                    )
-                    .await
+                    plex_fetch::<PlexMediaContainer<PlexSession>>(http, cfg, "/status/sessions")
+                        .await
                 }
                 None => None,
             }
@@ -504,17 +745,269 @@ async fn get_media(State(state): State<AppState>, RequireAuth(_session): Require
         serde_json::to_value(&upcoming).unwrap_or(json!([]))
     };
 
+    let mut services = Vec::new();
+    for service in &arr_services {
+        services.push(service_health(http, service).await);
+    }
+
+    let mut queue = Vec::new();
+    let mut calendar = Vec::new();
+    let mut library = Vec::new();
+    for service in &arr_services {
+        queue.extend(fetch_arr_queue(http, service).await);
+        calendar.extend(fetch_arr_calendar(http, service, &today, &end_date).await);
+        library.extend(fetch_arr_library(http, service).await);
+    }
+
     Ok(Json(json!({
         "now_playing": now_playing,
         "recently_added": recently_added_out,
         "upcoming": upcoming_out,
+        "services": services,
+        "queue": queue,
+        "calendar": calendar,
+        "library": library,
         "mock": false,
     })))
+}
+
+async fn get_media_services(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let http = &state.http;
+    let mut services = Vec::new();
+    for id in ["sonarr", "radarr", "lidarr", "prowlarr"] {
+        if let Some(cfg) = arr_config(&state, id) {
+            services.push(service_health(http, &cfg).await);
+        } else {
+            services.push(json!({
+                "id": id,
+                "name": match id {
+                    "sonarr" => "Sonarr",
+                    "radarr" => "Radarr",
+                    "lidarr" => "Lidarr",
+                    "prowlarr" => "Prowlarr",
+                    _ => id,
+                },
+                "configured": false,
+                "healthy": false,
+            }));
+        }
+    }
+
+    Ok(Json(json!({ "services": services })))
+}
+
+async fn get_media_queue(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let http = &state.http;
+    let mut queue = Vec::new();
+    for cfg in all_arr_configs(&state) {
+        queue.extend(fetch_arr_queue(http, &cfg).await);
+    }
+    Ok(Json(json!({ "queue": queue })))
+}
+
+async fn get_media_calendar(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let http = &state.http;
+    let start = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let end = (chrono::Utc::now() + chrono::Duration::days(30))
+        .format("%Y-%m-%d")
+        .to_string();
+    let mut calendar = Vec::new();
+    for cfg in all_arr_configs(&state) {
+        calendar.extend(fetch_arr_calendar(http, &cfg, &start, &end).await);
+    }
+    Ok(Json(json!({ "calendar": calendar })))
+}
+
+async fn get_media_library(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let http = &state.http;
+    let mut library = Vec::new();
+    for cfg in all_arr_configs(&state) {
+        library.extend(fetch_arr_library(http, &cfg).await);
+    }
+    Ok(Json(json!({ "library": library })))
+}
+
+async fn search_media(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<Value>, AppError> {
+    let service = params
+        .get("service")
+        .map(String::as_str)
+        .ok_or_else(|| AppError::BadRequest("Missing service".into()))?;
+    let term = params
+        .get("query")
+        .or_else(|| params.get("term"))
+        .map(String::as_str)
+        .unwrap_or("")
+        .trim();
+    if term.is_empty() {
+        return Ok(Json(json!({ "results": [] })));
+    }
+
+    let cfg = arr_config(&state, service)
+        .ok_or_else(|| AppError::BadRequest(format!("{service} is not configured")))?;
+    let lookup_path = match cfg.kind {
+        ArrKind::Sonarr => "/series/lookup",
+        ArrKind::Radarr => "/movie/lookup",
+        ArrKind::Lidarr => "/artist/lookup",
+        ArrKind::Prowlarr => "/search",
+    };
+    let path = format!("{lookup_path}?term={}", urlencoding::encode(term));
+    let results = arr_request_value(&state.http, &cfg, Method::GET, &path, None).await?;
+    Ok(Json(json!({ "service": cfg.id, "results": extract_records(results) })))
+}
+
+#[derive(Debug, Deserialize)]
+struct AddMediaRequest {
+    service: String,
+    item: Value,
+    #[serde(default)]
+    options: Value,
+}
+
+async fn add_media(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Json(req): Json<AddMediaRequest>,
+) -> Result<Json<Value>, AppError> {
+    let cfg = arr_config(&state, &req.service)
+        .ok_or_else(|| AppError::BadRequest(format!("{} is not configured", req.service)))?;
+
+    if !matches!(cfg.kind, ArrKind::Sonarr | ArrKind::Radarr) {
+        return Err(AppError::BadRequest(format!(
+            "Add is only implemented for Sonarr and Radarr right now, not {}",
+            cfg.name
+        )));
+    }
+
+    let http = &state.http;
+    let quality_profile_id = match req
+        .options
+        .get("qualityProfileId")
+        .and_then(Value::as_i64)
+    {
+        Some(id) => id,
+        None => first_option_id(http, &cfg, "/qualityprofile")
+            .await
+            .ok_or_else(|| AppError::BadRequest(format!("{} has no quality profile", cfg.name)))?,
+    };
+    let root_folder_path = match req
+        .options
+        .get("rootFolderPath")
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
+    {
+        Some(path) => path,
+        None => first_root_path(http, &cfg)
+            .await
+            .ok_or_else(|| AppError::BadRequest(format!("{} has no root folder", cfg.name)))?,
+    };
+
+    let body = match cfg.kind {
+        ArrKind::Radarr => merge_object(
+            req.item,
+            json!({
+                "qualityProfileId": quality_profile_id,
+                "rootFolderPath": root_folder_path,
+                "monitored": true,
+                "minimumAvailability": req.options.get("minimumAvailability").and_then(Value::as_str).unwrap_or("released"),
+                "addOptions": { "searchForMovie": true }
+            }),
+        ),
+        ArrKind::Sonarr => merge_object(
+            req.item,
+            json!({
+                "qualityProfileId": quality_profile_id,
+                "rootFolderPath": root_folder_path,
+                "seasonFolder": true,
+                "monitored": true,
+                "addOptions": { "searchForMissingEpisodes": true, "monitor": "all" }
+            }),
+        ),
+        _ => unreachable!(),
+    };
+
+    let path = match cfg.kind {
+        ArrKind::Radarr => "/movie",
+        ArrKind::Sonarr => "/series",
+        _ => unreachable!(),
+    };
+    let created = arr_request_value(http, &cfg, Method::POST, path, Some(body)).await?;
+    Ok(Json(json!({ "service": cfg.id, "item": created })))
+}
+
+#[derive(Debug, Deserialize)]
+struct MediaCommandRequest {
+    service: String,
+    name: String,
+    #[serde(default)]
+    id: Option<i64>,
+    #[serde(default)]
+    body: Value,
+}
+
+async fn media_command(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Json(req): Json<MediaCommandRequest>,
+) -> Result<Json<Value>, AppError> {
+    let cfg = arr_config(&state, &req.service)
+        .ok_or_else(|| AppError::BadRequest(format!("{} is not configured", req.service)))?;
+
+    let command = match req.name.as_str() {
+        "search" => match cfg.kind {
+            ArrKind::Sonarr => json!({ "name": "SeriesSearch", "seriesId": req.id }),
+            ArrKind::Radarr => json!({ "name": "MoviesSearch", "movieIds": req.id.map(|id| vec![id]).unwrap_or_default() }),
+            ArrKind::Lidarr => json!({ "name": "ArtistSearch", "artistId": req.id }),
+            ArrKind::Prowlarr => json!({ "name": "ApplicationIndexerSync" }),
+        },
+        "rss-sync" => json!({ "name": "RssSync" }),
+        "application-sync" => json!({ "name": "ApplicationIndexerSync" }),
+        _ => req.body,
+    };
+
+    let result = arr_request_value(&state.http, &cfg, Method::POST, "/command", Some(command)).await?;
+    Ok(Json(json!({ "service": cfg.id, "command": result })))
+}
+
+async fn delete_media_queue_item(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Path((service, id)): Path<(String, i64)>,
+) -> Result<Json<Value>, AppError> {
+    let cfg = arr_config(&state, &service)
+        .ok_or_else(|| AppError::BadRequest(format!("{service} is not configured")))?;
+    let path = format!("/queue/{id}?removeFromClient=true&blocklist=false");
+    let result = arr_request_value(&state.http, &cfg, Method::DELETE, &path, None).await?;
+    Ok(Json(json!({ "service": cfg.id, "result": result })))
 }
 
 // ── Router ──────────────────────────────────────────────────────────────────
 
 /// Build the `/media` sub-router (Plex now-playing, Sonarr/Radarr recently added + upcoming).
 pub fn router() -> Router<AppState> {
-    Router::new().route("/", get(get_media))
+    Router::new()
+        .route("/", get(get_media))
+        .route("/services", get(get_media_services))
+        .route("/queue", get(get_media_queue))
+        .route("/queue/:service/:id", delete(delete_media_queue_item))
+        .route("/calendar", get(get_media_calendar))
+        .route("/library", get(get_media_library))
+        .route("/search", get(search_media))
+        .route("/add", post(add_media))
+        .route("/command", post(media_command))
 }

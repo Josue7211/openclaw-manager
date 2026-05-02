@@ -1,0 +1,9 @@
+{
+  "turn_key": "10add90728092ccfa0e8ab3e09bcc0c4466ae7aa18ed24f16170b84176dad7eb",
+  "project": "clawcontrol",
+  "namespace": "main",
+  "agent": "codex@session-008f3488",
+  "mode": "checkpoint",
+  "query": "id=ecadde11-93bd-4f29-8f09-b000e2ef8c28 | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777736236 | c=lightra... | on 2026-04-18, user corrected that repo edits did not change the running openclaw vm; do not claim hermes/live model fixes are applied unless the deploy/runtime has actually been updated and verified. | id=5966b9c1-6c36-4aca-acf7-a543362923b0 | stage=canonical | scope=project | kind=preference | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777747937 | c=u... | status m .cargo/config.toml",
+  "refreshed_at": "2026-05-02T23:06:36.915576614Z"
+}

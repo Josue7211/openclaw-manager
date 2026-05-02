@@ -15,22 +15,43 @@ use crate::supabase::SupabaseClient;
 use crate::validation::validate_uuid;
 
 // Supabase client is still used for: mission-events WRITES (ingestion comes
-// from OpenClaw VM), bjorn_event, ingest_events, sync_agents, activity_log.
+// from OpenClaw VM), agent_event, ingest_events, sync_agents, activity_log.
 // Mission-event READS now come from local SQLite (offline-first via sync engine).
 
 /// Row type for mission queries (avoids clippy::type_complexity).
 type MissionRow = (
-    String, String, Option<String>, String, i64,
-    String, Option<String>, Option<i64>, Option<String>,
-    Option<String>, Option<String>, Option<String>, i64,
-    String, String,
+    String,
+    String,
+    Option<String>,
+    String,
+    i64,
+    String,
+    Option<String>,
+    Option<i64>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    i64,
+    String,
+    String,
 );
 
 /// Row type for mission event queries (avoids clippy::type_complexity).
 type MissionEventRow = (
-    String, String, String, i64, String,
-    String, Option<String>, Option<String>, Option<String>,
-    Option<String>, Option<f64>, String, String,
+    String,
+    String,
+    String,
+    i64,
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<f64>,
+    String,
+    String,
 );
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -45,9 +66,18 @@ const STATUS_FAILED: &str = "failed";
 /// Build the missions router (CRUD, event ingestion, agent sync).
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/missions", get(get_missions).post(create_mission).patch(update_mission).delete(delete_mission))
-        .route("/mission-events", get(get_mission_events).post(ingest_events))
-        .route("/mission-events/bjorn", post(bjorn_event))
+        .route(
+            "/missions",
+            get(get_missions)
+                .post(create_mission)
+                .patch(update_mission)
+                .delete(delete_mission),
+        )
+        .route(
+            "/mission-events",
+            get(get_mission_events).post(ingest_events),
+        )
+        .route("/mission-events/agent", post(agent_event))
         .route("/missions/sync-agents", post(sync_agents))
 }
 
@@ -82,10 +112,21 @@ async fn get_missions(
         .iter()
         .map(
             |(
-                id, title, assignee, status, progress,
-                task_type, log_path, complexity, spawn_command,
-                routed_agent, review_status, review_notes, retry_count,
-                created_at, updated_at,
+                id,
+                title,
+                assignee,
+                status,
+                progress,
+                task_type,
+                log_path,
+                complexity,
+                spawn_command,
+                routed_agent,
+                review_status,
+                review_notes,
+                retry_count,
+                created_at,
+                updated_at,
             )| {
                 json!({
                     "id": id,
@@ -259,10 +300,21 @@ async fn update_mission(
 
     let mission = match row {
         Some((
-            rid, title, assignee_val, status_val, progress_val,
-            task_type, log_path_val, complexity, spawn_command,
-            routed_agent, review_status, review_notes, retry_count,
-            created_at, updated_at,
+            rid,
+            title,
+            assignee_val,
+            status_val,
+            progress_val,
+            task_type,
+            log_path_val,
+            complexity,
+            spawn_command,
+            routed_agent,
+            review_status,
+            review_notes,
+            retry_count,
+            created_at,
+            updated_at,
         )) => {
             let val = json!({
                 "id": rid,
@@ -284,8 +336,7 @@ async fn update_mission(
             });
 
             // Log for sync
-            let payload = serde_json::to_string(&val)
-                .map_err(|e| AppError::Internal(e.into()))?;
+            let payload = serde_json::to_string(&val).map_err(|e| AppError::Internal(e.into()))?;
             crate::sync::log_mutation(&state.db, "missions", &rid, "UPDATE", Some(&payload))
                 .await
                 .map_err(|e| AppError::Internal(e.into()))?;
@@ -309,13 +360,24 @@ async fn update_mission(
             };
 
             let ntfy_url = state.secret("NTFY_URL").unwrap_or_default();
-            let ntfy_topic = state.secret("NTFY_TOPIC").unwrap_or_else(|| "mission-control".into());
+            let ntfy_topic = state
+                .secret("NTFY_TOPIC")
+                .unwrap_or_else(|| "clawcontrol".into());
             let http = state.http.clone();
             let label = label.to_string();
             let title_text = title_text.to_string();
             let emoji = emoji.to_string();
             tokio::spawn(async move {
-                let _ = send_ntfy(&http, &ntfy_url, &ntfy_topic, &label, &title_text, priority, &[&emoji]).await;
+                let _ = send_ntfy(
+                    &http,
+                    &ntfy_url,
+                    &ntfy_topic,
+                    &label,
+                    &title_text,
+                    priority,
+                    &[&emoji],
+                )
+                .await;
             });
         }
     }
@@ -349,7 +411,9 @@ async fn update_mission(
             });
             let jwt_clone = jwt.clone();
             tokio::spawn(async move {
-                let _ = sb_log.insert_as_user("activity_log", log_row, &jwt_clone).await;
+                let _ = sb_log
+                    .insert_as_user("activity_log", log_row, &jwt_clone)
+                    .await;
             });
         }
     }
@@ -379,7 +443,15 @@ async fn update_mission(
             let state_clone = state.clone();
             let jwt_clone = jwt.clone();
             tokio::spawn(async move {
-                if let Err(e) = ingest_log_file(&state_clone, &mission_id, &log_path, duration_sec, &jwt_clone).await {
+                if let Err(e) = ingest_log_file(
+                    &state_clone,
+                    &mission_id,
+                    &log_path,
+                    duration_sec,
+                    &jwt_clone,
+                )
+                .await
+                {
                     error!("[missions] auto-ingest error: {e:#}");
                 }
             });
@@ -411,15 +483,13 @@ async fn delete_mission(
     );
 
     let now = chrono::Utc::now().to_rfc3339();
-    sqlx::query(
-        "UPDATE missions SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?",
-    )
-    .bind(&now)
-    .bind(&now)
-    .bind(&body.id)
-    .bind(&session.user_id)
-    .execute(&state.db)
-    .await?;
+    sqlx::query("UPDATE missions SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?")
+        .bind(&now)
+        .bind(&now)
+        .bind(&body.id)
+        .bind(&session.user_id)
+        .execute(&state.db)
+        .await?;
 
     crate::sync::log_mutation(&state.db, "missions", &body.id, "DELETE", None)
         .await
@@ -509,13 +579,8 @@ async fn get_mission_events(
         let rows: Vec<Value> = parsed
             .iter()
             .map(|e| {
-                let content = e
-                    .get("content")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                let tool_input = e
-                    .get("tool_input")
-                    .and_then(|v| v.as_str());
+                let content = e.get("content").and_then(|v| v.as_str()).unwrap_or("");
+                let tool_input = e.get("tool_input").and_then(|v| v.as_str());
 
                 json!({
                     "mission_id": mission_id,
@@ -532,10 +597,15 @@ async fn get_mission_events(
 
         // Delete existing events (idempotent)
         let _ = sb
-            .delete_as_user("mission_events", &format!("mission_id=eq.{mission_id}"), jwt)
+            .delete_as_user(
+                "mission_events",
+                &format!("mission_id=eq.{mission_id}"),
+                jwt,
+            )
             .await;
 
-        sb.insert_as_user("mission_events", json!(rows), jwt).await?;
+        sb.insert_as_user("mission_events", json!(rows), jwt)
+            .await?;
 
         return Ok(Json(json!({
             "success": true,
@@ -567,9 +637,21 @@ async fn get_mission_events(
     let events: Vec<Value> = rows
         .iter()
         .map(
-            |(id, _user_id, mission_id, seq, event_type,
-              content, file_path, tool_input, tool_output,
-              model_name, elapsed_seconds, created_at, updated_at)| {
+            |(
+                id,
+                _user_id,
+                mission_id,
+                seq,
+                event_type,
+                content,
+                file_path,
+                tool_input,
+                tool_output,
+                model_name,
+                elapsed_seconds,
+                created_at,
+                updated_at,
+            )| {
                 json!({
                     "id": id,
                     "mission_id": mission_id,
@@ -625,10 +707,7 @@ async fn ingest_events(
     let rows: Vec<Value> = parsed
         .iter()
         .map(|e| {
-            let content = e
-                .get("content")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let content = e.get("content").and_then(|v| v.as_str()).unwrap_or("");
             json!({
                 "mission_id": mission_id,
                 "event_type": e.get("event_type"),
@@ -645,28 +724,33 @@ async fn ingest_events(
 
     // Delete existing events for this mission first (idempotent re-ingest)
     let _ = sb
-        .delete_as_user("mission_events", &format!("mission_id=eq.{mission_id}"), jwt)
+        .delete_as_user(
+            "mission_events",
+            &format!("mission_id=eq.{mission_id}"),
+            jwt,
+        )
         .await;
 
-    sb.insert_as_user("mission_events", json!(rows), jwt).await?;
+    sb.insert_as_user("mission_events", json!(rows), jwt)
+        .await?;
 
     Ok(Json(json!({ "events_inserted": rows.len() })))
 }
 
-// ── POST /mission-events/bjorn ───────────────────────────────────────────────
+// ── POST /mission-events/agent ───────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
-struct BjornEventBody {
+struct AgentEventBody {
     mission_id: Option<String>,
     event_type: Option<String>,
     content: Option<String>,
     elapsed_seconds: Option<i64>,
 }
 
-async fn bjorn_event(
+async fn agent_event(
     State(state): State<AppState>,
     RequireAuth(session): RequireAuth,
-    Json(body): Json<BjornEventBody>,
+    Json(body): Json<AgentEventBody>,
 ) -> Result<Json<Value>, AppError> {
     let mission_id = body
         .mission_id
@@ -689,9 +773,7 @@ async fn bjorn_event(
     let max_rows = sb
         .select_as_user(
             "mission_events",
-            &format!(
-                "select=seq&mission_id=eq.{mission_id}&order=seq.desc&limit=1"
-            ),
+            &format!("select=seq&mission_id=eq.{mission_id}&order=seq.desc&limit=1"),
             jwt,
         )
         .await
@@ -744,17 +826,17 @@ async fn sync_agents(
     let sb = SupabaseClient::from_state(&state)?;
     let jwt = &session.access_token;
 
-    // Get all active/pending bjorn missions
+    // Get all active/pending agent missions
     let active_missions = sb
         .select_as_user(
             "missions",
-            "select=*&assignee=eq.bjorn&or=(status.eq.active,status.eq.pending)",
+            "select=*&assignee=eq.agent&or=(status.eq.active,status.eq.pending)",
             jwt,
         )
         .await
         .unwrap_or_else(|_| json!([]));
 
-    // If no processes running, close all active bjorn missions
+    // If no processes running, close all active agent missions
     if active_processes.is_empty() {
         if let Some(arr) = active_missions.as_array() {
             if !arr.is_empty() {
@@ -781,7 +863,7 @@ async fn sync_agents(
     let _ = sb
         .delete_as_user(
             "missions",
-            "title=eq.Coding Agent Task&assignee=eq.bjorn",
+            "title=eq.Coding Agent Task&assignee=eq.agent",
             jwt,
         )
         .await;
@@ -792,9 +874,7 @@ async fn sync_agents(
     let _ = sb
         .delete_as_user(
             "missions",
-            &format!(
-                "assignee=eq.bjorn&status=eq.done&updated_at=lt.{one_day_ago}"
-            ),
+            &format!("assignee=eq.agent&status=eq.done&updated_at=lt.{one_day_ago}"),
             jwt,
         )
         .await;
@@ -909,9 +989,14 @@ async fn ingest_log_file(
 
     let sb = SupabaseClient::from_state(state)?;
     let _ = sb
-        .delete_as_user("mission_events", &format!("mission_id=eq.{mission_id}"), jwt)
+        .delete_as_user(
+            "mission_events",
+            &format!("mission_id=eq.{mission_id}"),
+            jwt,
+        )
         .await;
-    sb.insert_as_user("mission_events", json!(rows), jwt).await?;
+    sb.insert_as_user("mission_events", json!(rows), jwt)
+        .await?;
 
     info!(
         "[missions] auto-ingested {} events for mission {mission_id}",
@@ -956,11 +1041,19 @@ fn parse_log_events(log_content: &str, duration_sec: Option<i64>) -> Vec<Value> 
             match entry_type {
                 "assistant" => {
                     // Tool use blocks
-                    if let Some(content_blocks) = entry.get("message").and_then(|m| m.get("content")).and_then(|c| c.as_array()) {
+                    if let Some(content_blocks) = entry
+                        .get("message")
+                        .and_then(|m| m.get("content"))
+                        .and_then(|c| c.as_array())
+                    {
                         for block in content_blocks {
-                            let block_type = block.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                            let block_type =
+                                block.get("type").and_then(|v| v.as_str()).unwrap_or("");
                             if block_type == "tool_use" {
-                                let tool_name = block.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
+                                let tool_name = block
+                                    .get("name")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("unknown");
                                 let input = block.get("input").cloned().unwrap_or(Value::Null);
 
                                 let event_type = match tool_name {
@@ -973,15 +1066,23 @@ fn parse_log_events(log_content: &str, duration_sec: Option<i64>) -> Vec<Value> 
                                     _ => "bash",
                                 };
 
-                                let file_path = input.get("file_path").or(input.get("path")).and_then(|v| v.as_str());
-                                let content_text = input.get("command")
+                                let file_path = input
+                                    .get("file_path")
+                                    .or(input.get("path"))
+                                    .and_then(|v| v.as_str());
+                                let content_text = input
+                                    .get("command")
                                     .or(input.get("content"))
                                     .or(input.get("pattern"))
                                     .and_then(|v| v.as_str())
                                     .unwrap_or("");
 
                                 let elapsed = if let Some(dur) = duration_sec {
-                                    if seq > 0 { Some(dur * seq as i64 / (seq + 1) as i64) } else { Some(0) }
+                                    if seq > 0 {
+                                        Some(dur * seq as i64 / (seq + 1) as i64)
+                                    } else {
+                                        Some(0)
+                                    }
                                 } else {
                                     None
                                 };
@@ -997,7 +1098,8 @@ fn parse_log_events(log_content: &str, duration_sec: Option<i64>) -> Vec<Value> 
                                 }));
                                 seq += 1;
                             } else if block_type == "thinking" {
-                                let text = block.get("thinking").and_then(|v| v.as_str()).unwrap_or("");
+                                let text =
+                                    block.get("thinking").and_then(|v| v.as_str()).unwrap_or("");
                                 if !text.is_empty() {
                                     events.push(json!({
                                         "event_type": "think",

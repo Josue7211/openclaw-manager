@@ -3,6 +3,67 @@ export type JobPriority = 'high' | 'medium' | 'low'
 export type WorkMode = 'remote-first' | 'hybrid-ok' | 'local-fallback'
 export type SearchSourceKey = 'remotive' | 'remoteok' | 'arbeitnow'
 export type LifeMode = 'unemployed' | 'employed'
+export type DossierRecommendation = 'pursue' | 'hold' | 'skip'
+export type DossierSourceKind = 'live-search' | 'manual'
+export type TimelineEventType = 'created' | 'evaluated' | 'asset-generated' | 'stage-changed' | 'note-added' | 'migrated'
+
+export interface CareerProfile {
+  targetRoles: string[]
+  payFloor: number
+  preferredLocations: string[]
+  narrative: string
+  strengths: string[]
+  urgencyMode: 'urgent-active-search'
+}
+
+export interface DossierEvaluation {
+  fitScore: number
+  recommendation: DossierRecommendation
+  reasonsToPursue: string[]
+  reasonsToAvoid: string[]
+  riskFlags: string[]
+  confidenceGaps: string[]
+}
+
+export interface DossierAssetSet {
+  resumeBullets: string[]
+  coverNote: string
+  outreachBlurb: string
+  interviewPrompts: string[]
+}
+
+export interface DossierTimelineEvent {
+  id: string
+  type: TimelineEventType
+  at: string
+  label: string
+}
+
+export interface OpportunityDossier {
+  id: string
+  company: string
+  role: string
+  location: string
+  source: {
+    kind: DossierSourceKind
+    label: string
+    sourceId?: string
+    url?: string
+  }
+  salaryText: string
+  estimatedHourlyRate: number | null
+  summary: string
+  stage: StageId
+  nextAction: string
+  due: string
+  tags: string[]
+  notes: string
+  createdAt: string
+  updatedAt: string
+  evaluation: DossierEvaluation
+  assets: DossierAssetSet
+  timeline: DossierTimelineEvent[]
+}
 
 export interface TrackedLead {
   id: string

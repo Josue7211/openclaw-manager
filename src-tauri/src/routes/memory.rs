@@ -7,13 +7,15 @@ use crate::server::{AppState, RequireAuth};
 
 /// Build the memory router (list recent OpenClaw memory entries).
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/memory", get(get_memory))
+    Router::new().route("/memory", get(get_memory))
 }
 
 // ── GET /api/memory ─────────────────────────────────────────────────────────
 
-async fn get_memory(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Result<Json<Value>, AppError> {
+async fn get_memory(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
     // Check for remote OpenClaw API first
     if let Some(openclaw_url) = state.secret("OPENCLAW_API_URL").filter(|s| !s.is_empty()) {
         let client = reqwest::Client::new();

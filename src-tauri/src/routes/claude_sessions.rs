@@ -148,8 +148,7 @@ async fn create_session(
         "workingDir": body.working_dir,
     });
 
-    let result =
-        gateway_forward(&state, Method::POST, "/sessions/spawn", Some(payload)).await?;
+    let result = gateway_forward(&state, Method::POST, "/sessions/spawn", Some(payload)).await?;
     Ok(Json(result))
 }
 
@@ -163,15 +162,12 @@ async fn kill_session(
         return Err(AppError::BadRequest("invalid session id".into()));
     }
 
-    let result =
-        gateway_forward(&state, Method::DELETE, &format!("/sessions/{id}"), None).await?;
+    let result = gateway_forward(&state, Method::DELETE, &format!("/sessions/{id}"), None).await?;
     Ok(Json(result))
 }
 
 /// `GET /api/claude-sessions/status` -- CAS guard status for WebSocket streams.
-async fn session_ws_status(
-    RequireAuth(_session): RequireAuth,
-) -> Json<Value> {
+async fn session_ws_status(RequireAuth(_session): RequireAuth) -> Json<Value> {
     let active = SESSION_WS_CONNECTIONS.load(Ordering::Acquire);
     let available = MAX_SESSION_WS_CONNECTIONS.saturating_sub(active);
     Json(json!({
@@ -380,14 +376,15 @@ pub fn router() -> Router<AppState> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::gateway::validate_gateway_path;
+    use super::*;
 
     // -- CreateSessionBody deserialization --
 
     #[test]
     fn create_body_deserializes_full() {
-        let json_str = r#"{"task": "fix the login bug", "model": "opus", "workingDir": "/home/user/project"}"#;
+        let json_str =
+            r#"{"task": "fix the login bug", "model": "opus", "workingDir": "/home/user/project"}"#;
         let body: CreateSessionBody = serde_json::from_str(json_str).unwrap();
         assert_eq!(body.task, "fix the login bug");
         assert_eq!(body.model.as_deref(), Some("opus"));

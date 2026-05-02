@@ -144,6 +144,22 @@ async fn put_secret(
     sb.upsert_as_user("user_secrets", row, &session.access_token)
         .await?;
 
+    let mut updated_secrets = std::collections::HashMap::new();
+    if let Some(credentials) = body.credentials.as_object() {
+        for (key, value) in credentials {
+            if let Some(value) = value.as_str().filter(|value| !value.trim().is_empty()) {
+                if let Some(env_var) =
+                    crate::routes::auth::service_credential_to_env_var(service, key.as_str())
+                {
+                    updated_secrets.insert(env_var.to_string(), value.trim().to_string());
+                }
+            }
+        }
+    }
+    if !updated_secrets.is_empty() {
+        state.merge_secrets(updated_secrets);
+    }
+
     // Audit trail (never log the credential values — just the service name)
     let details = serde_json::to_string(&json!({ "service": service })).unwrap_or_default();
     crate::audit::log_audit_or_warn(
@@ -239,6 +255,8 @@ async fn migrate_secrets(
         ("OPENCLAW_API_KEY", "openclaw", "api_key"),
         ("OPENCLAW_WS", "openclaw", "ws"),
         ("OPENCLAW_PASSWORD", "openclaw", "password"),
+        ("SUNSHINE_HOST", "sunshine", "url"),
+        ("VNC_HOST", "vnc", "url"),
         ("AGENTSHELL_URL", "agentshell", "url"),
         ("PROXMOX_HOST", "proxmox", "host"),
         ("PROXMOX_TOKEN_ID", "proxmox", "token_id"),
@@ -252,6 +270,16 @@ async fn migrate_secrets(
         ("SONARR_API_KEY", "sonarr", "api_key"),
         ("RADARR_URL", "radarr", "url"),
         ("RADARR_API_KEY", "radarr", "api_key"),
+        ("LIDARR_URL", "lidarr", "url"),
+        ("LIDARR_API_KEY", "lidarr", "api_key"),
+        ("PROWLARR_URL", "prowlarr", "url"),
+        ("PROWLARR_API_KEY", "prowlarr", "api_key"),
+        ("OVERSEERR_URL", "overseerr", "url"),
+        ("OVERSEERR_API_KEY", "overseerr", "api_key"),
+        ("TAUTULLI_URL", "tautulli", "url"),
+        ("TAUTULLI_API_KEY", "tautulli", "api_key"),
+        ("BAZARR_URL", "bazarr", "url"),
+        ("BAZARR_API_KEY", "bazarr", "api_key"),
         ("EMAIL_HOST", "email", "host"),
         ("EMAIL_PORT", "email", "port"),
         ("EMAIL_USER", "email", "user"),
@@ -261,9 +289,18 @@ async fn migrate_secrets(
         ("CALDAV_PASSWORD", "caldav", "password"),
         ("NTFY_URL", "ntfy", "url"),
         ("NTFY_TOPIC", "ntfy", "topic"),
+        ("COUCHDB_URL", "couchdb", "url"),
+        ("COUCHDB_USER", "couchdb", "user"),
+        ("COUCHDB_PASSWORD", "couchdb", "password"),
+        ("COUCHDB_DATABASE", "couchdb", "database"),
+        ("COUCHDB_CUSTOM_HEADERS", "couchdb", "custom_headers"),
         ("MAC_BRIDGE_HOST", "mac-bridge", "host"),
         ("MAC_BRIDGE_API_KEY", "mac-bridge", "api_key"),
         ("ANTHROPIC_API_KEY", "anthropic", "api_key"),
+        ("LIGHTRAG_BASE_URL", "lightrag", "base_url"),
+        ("LIGHTRAG_API_KEY", "lightrag", "api_key"),
+        ("MEMD_RAG_URL", "memd", "rag_url"),
+        ("RAG_URL", "rag", "url"),
     ];
 
     // Group current secrets by service

@@ -1,4 +1,8 @@
-# OpenClaw Manager — CLAUDE.md
+# ClawControl — CLAUDE.md
+
+<!-- memd-managed:claude-import:start -->
+@.memd/agents/CLAUDE_IMPORTS.md
+<!-- memd-managed:claude-import:end -->
 
 ## What is this?
 A Tauri v2 desktop app — personal command center combining iMessage (via BlueBubbles), AI chat, task management, homelab monitoring, and agent orchestration. Think Discord meets iOS Settings.
@@ -70,7 +74,7 @@ The system runs across multiple machines. The Tauri app must work on ANY machine
 ┌─────────────────────────────────────────────────────────────┐
 │  USER'S MACHINE (Linux CachyOS / macOS / Windows)           │
 │  ┌───────────────────────────────────────────────────────┐  │
-│  │  Tauri App (OpenClaw Manager)                          │  │
+│  │  Tauri App (ClawControl)                               │  │
 │  │  ├── React frontend (Vite, port 5173)                 │  │
 │  │  └── Embedded Axum server (localhost:3000)             │  │
 │  │      ├── Proxies to BlueBubbles (macOS only)          │  │
@@ -111,7 +115,7 @@ The system runs across multiple machines. The Tauri app must work on ANY machine
 - Services-VM: Docker log rotation (`daemon.json`), container resource limits, PostgreSQL/Portainer/Vaultwarden/CouchDB bound to 127.0.0.1
 - Plex-VM: Cloudflare Tunnel gateway, Plex port 32400 open for remote streaming, WireGuard keys in `.env` (chmod 600)
 - OpenClaw-VM: Sunshine host for Moonlight remote desktop streaming
-- SSH key `~/.ssh/mission-control` has a passphrase — non-interactive SSH from Bash tool will fail. Give commands to user instead.
+- Legacy SSH key `~/.ssh/mission-control` has a passphrase — non-interactive SSH from Bash tool will fail. Give commands to user instead.
 
 ## Tech Stack
 
@@ -307,7 +311,7 @@ Import `supabase` from `@/lib/supabase/client` — it's a singleton. Never call 
 - SSRF protection with DNS pinning via `reqwest .resolve()`
 
 ### Axum Route Gotchas
-- `cargo tauri dev` uses `--no-default-features` — `cargo build` alone produces a DIFFERENT binary. Always `cargo clean -p mission-control` before restart.
+- `cargo tauri dev` uses `--no-default-features` — `cargo build` alone produces a DIFFERENT binary. Always `cargo clean -p openclaw` before restart.
 - Handlers returning `Result<Response, AppError>` may silently fail to register in merged routers. Use `Result<Json<Value>, AppError>` to match all other handlers.
 - Test new routes with `curl` immediately after adding — don't assume compilation = registration.
 

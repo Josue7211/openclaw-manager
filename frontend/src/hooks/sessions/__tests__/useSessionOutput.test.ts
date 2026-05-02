@@ -118,7 +118,7 @@ vi.mock('@xterm/addon-fit', () => ({ FitAddon: MockFitAddon }))
 vi.mock('@xterm/addon-web-links', () => ({ WebLinksAddon: vi.fn() }))
 vi.mock('@xterm/xterm/css/xterm.css', () => ({}))
 vi.mock('@/lib/api', () => ({
-  API_BASE: 'http://127.0.0.1:3000',
+  API_BASE: 'http://127.0.0.1:5000',
 }))
 vi.mock('@/lib/terminal-theme', () => ({
   buildThemeFromCSS: vi.fn().mockReturnValue({ background: '#000' }),
@@ -309,6 +309,6 @@ describe('useSessionOutput', () => {
     renderHook(() => useSessionOutput(containerRef, 'abc-123'))
 
     const ws = MockWebSocket.instances[0]
-    expect(ws.url).toBe('ws://127.0.0.1:3000/api/claude-sessions/abc-123/ws')
+    expect(ws.url).toBe('ws://127.0.0.1:5000/api/claude-sessions/abc-123/ws')
   })
 })

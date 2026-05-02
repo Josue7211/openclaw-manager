@@ -1,7 +1,7 @@
 /**
  * LineChart primitive -- renders an SVG polyline from numeric data.
  *
- * Custom SVG (no charting library) so markup is transparent to Bjorn
+ * Custom SVG (no charting library) so markup is transparent to generated modules
  * for AI-generated module composition. Colors resolve through CSS variables.
  */
 

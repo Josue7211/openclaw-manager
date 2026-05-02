@@ -3,7 +3,7 @@
   "entry": [
     "src/lib/widget-registry.ts",
     "src/components/primitives/register.ts",
-    "src/lib/bjorn-store.ts",
+    "src/lib/generated-module-store.ts",
     "src/components/SetupWizard.tsx",
     "src/components/LayoutShell.tsx",
     "src/pages/Dashboard.tsx",
@@ -13,7 +13,7 @@
     "src/pages/OpenClaw.tsx",
     "src/pages/notes/Notes.tsx",
     "src/pages/chat/ChatThread.tsx",
-    "src/pages/chat/BjornTab.tsx",
+    "src/pages/chat/ModuleBuilderTab.tsx",
     "src/pages/settings/SettingsConnections.tsx",
     "src/components/primitives/ImageGallery.tsx",
     "src/pages/dashboard/AgentStatusCard.tsx",

@@ -52,7 +52,9 @@
 - `.env.local` is a developer convenience, not the primary secret store
 - `.env.example` documents the expected local and self-hosted values
 - `frontend/src/lib/service-registry.ts` is the frontend source of truth for connection groups
-- `AGENTSHELL_URL` is the AgentShell adapter hook in Mission Control
+- OpenClaw is the centerpiece consumer/runtime and has a built-in gateway that safety wrappers target
+- ClawControl is one consumer/control plane around OpenClaw
+- `AGENTSHELL_URL` is the AgentShell adapter hook in ClawControl
 
 ## Platform Targets
 

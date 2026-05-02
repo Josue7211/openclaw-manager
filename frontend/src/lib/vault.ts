@@ -101,40 +101,35 @@ function docToNote(doc: Record<string, unknown>): VaultNote {
 // --- Sync via backend proxy ---
 
 async function fetchAllFromBackend(): Promise<VaultNote[]> {
-  try {
-    const json = await api.get<any>('/api/vault/notes')
-    const payload = json?.data || json || {}
+  const json = await api.get<any>('/api/vault/notes')
+  const payload = json?.data || json || {}
 
-    // New format: { notes: [...], attachments: [...] }
-    const rawNotes = Array.isArray(payload.notes) ? payload.notes : (Array.isArray(payload) ? payload : [])
-    const rawAttachments: Array<{ _id: string }> = Array.isArray(payload.attachments) ? payload.attachments : []
+  // New format: { notes: [...], attachments: [...] }
+  const rawNotes = Array.isArray(payload.notes) ? payload.notes : (Array.isArray(payload) ? payload : [])
+  const rawAttachments: Array<{ _id: string }> = Array.isArray(payload.attachments) ? payload.attachments : []
 
-    const notes = rawNotes.map(docToNote).filter((n: VaultNote) => !isInternalDoc(n._id))
+  const notes = rawNotes.map(docToNote).filter((n: VaultNote) => !isInternalDoc(n._id))
 
-    // Convert attachment stubs into VaultNote objects (no content, type=attachment)
-    for (const att of rawAttachments) {
-      if (isInternalDoc(att._id)) continue
-      const id = att._id
-      const name = id.split('/').pop() || id
-      const folder = id.includes('/') ? id.split('/').slice(0, -1).join('/') : ''
-      notes.push({
-        _id: id,
-        type: 'attachment' as const,
-        title: name,
-        content: '',
-        folder,
-        tags: [],
-        links: [],
-        created_at: 0,
-        updated_at: 0,
-      })
-    }
-
-    return notes
-  } catch (err) {
-    console.warn('[vault] fetch failed:', err)
-    return []
+  // Convert attachment stubs into VaultNote objects (no content, type=attachment)
+  for (const att of rawAttachments) {
+    if (isInternalDoc(att._id)) continue
+    const id = att._id
+    const name = id.split('/').pop() || id
+    const folder = id.includes('/') ? id.split('/').slice(0, -1).join('/') : ''
+    notes.push({
+      _id: id,
+      type: 'attachment' as const,
+      title: name,
+      content: '',
+      folder,
+      tags: [],
+      links: [],
+      created_at: 0,
+      updated_at: 0,
+    })
   }
+
+  return notes
 }
 
 export function startSync(onChange?: () => void) {

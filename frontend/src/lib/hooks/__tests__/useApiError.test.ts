@@ -37,10 +37,10 @@ describe('useApiError', () => {
     expect(result.current).toBe('Service unavailable')
   })
 
-  it('returns serviceLabel for OpenClaw network error', () => {
+  it('returns serviceLabel for harness network error', () => {
     const err = new ApiError(0, 'timeout', '/api/chat/history')
     const { result } = renderHook(() => useApiError(err))
-    expect(result.current).toBe('OpenClaw unreachable')
+    expect(result.current).toBe('Harness unreachable')
   })
 
   it('returns serviceLabel for Backend network error', () => {
@@ -52,7 +52,7 @@ describe('useApiError', () => {
   it('returns "API {status}" with service context for HTTP errors', () => {
     const err = new ApiError(502, 'Bad Gateway', '/api/chat/history')
     const { result } = renderHook(() => useApiError(err))
-    expect(result.current).toBe('API 502 — OpenClaw unreachable')
+    expect(result.current).toBe('API 502 — Harness unreachable')
   })
 
   it('returns "API {status}" for 404 errors', () => {

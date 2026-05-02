@@ -73,10 +73,13 @@ pub(super) async fn post_pipeline_event(
         "metadata": body.metadata,
     });
 
-    let result = sb.insert_as_user("pipeline_events", row, &session.access_token).await.map_err(|e| {
-        error!("pipeline_events insert: {e}");
-        AppError::Internal(anyhow::anyhow!("Database error"))
-    })?;
+    let result = sb
+        .insert_as_user("pipeline_events", row, &session.access_token)
+        .await
+        .map_err(|e| {
+            error!("pipeline_events insert: {e}");
+            AppError::Internal(anyhow::anyhow!("Database error"))
+        })?;
 
     // insert returns array; get first element
     let event = match &result {

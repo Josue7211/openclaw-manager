@@ -13,6 +13,7 @@
  */
 
 import { api } from './api'
+import { LOCAL_STORAGE_STATE_EVENT } from './hooks/useLocalStorageState'
 import { notifyModulesChanged } from './modules'
 import { applyThemeFromState } from './theme-store'
 
@@ -28,6 +29,11 @@ export const SYNCED_KEYS = [
   'enabled-modules',
   'sidebar-config',
   'dashboard-state',
+  'chat-model',
+  'chat-favorite-models',
+  'chat-favorite-models-version',
+  'openclaw-chat-primary-model',
+  'openclaw-heartbeat-model',
 ] as const
 
 type SyncedKey = typeof SYNCED_KEYS[number]
@@ -120,6 +126,34 @@ function applySideEffects(remote: Record<string, unknown>) {
   }
 }
 
+export async function initOpenClawRuntimeConfig(): Promise<void> {
+  try {
+    const config = await api.get<{
+      chatPrimaryModel?: string | null
+      heartbeatModel?: string | null
+      favoriteModels?: string[]
+    }>('/api/openclaw/runtime-config')
+
+    _applyingRemote = true
+    try {
+      if (typeof config.chatPrimaryModel === 'string') {
+        localStorage.setItem('openclaw-chat-primary-model', JSON.stringify(config.chatPrimaryModel))
+        localStorage.setItem('chat-model', JSON.stringify(config.chatPrimaryModel))
+      }
+      if (typeof config.heartbeatModel === 'string') {
+        localStorage.setItem('openclaw-heartbeat-model', JSON.stringify(config.heartbeatModel))
+      }
+      if (Array.isArray(config.favoriteModels)) {
+        localStorage.setItem('chat-favorite-models', JSON.stringify(config.favoriteModels))
+      }
+    } finally {
+      _applyingRemote = false
+    }
+  } catch (err) {
+    console.warn('[preferences-sync] failed to fetch openclaw runtime config:', err)
+  }
+}
+
 /** Push current local preferences to Supabase (debounced) */
 function schedulePush() {
   if (_debounceTimer) clearTimeout(_debounceTimer)
@@ -176,6 +210,9 @@ export async function initPreferencesSync(): Promise<void> {
     _originalSetItem = localStorage.setItem.bind(localStorage)
     localStorage.setItem = function (key: string, value: string) {
       _originalSetItem!(key, value)
+      window.dispatchEvent(new CustomEvent(LOCAL_STORAGE_STATE_EVENT, {
+        detail: { key },
+      }))
       if (!_applyingRemote && isSyncedKey(key)) {
         schedulePush()
       }

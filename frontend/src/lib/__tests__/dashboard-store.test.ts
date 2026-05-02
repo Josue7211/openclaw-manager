@@ -197,6 +197,32 @@ describe('restoreWidget', () => {
     )
     expect(hasWidget).toBe(true)
   })
+
+  it('restores the original widget config and plugin mapping', () => {
+    const state = getDashboardState()
+    const pageId = state.pages[0].id
+    const instanceId = 'prim-stat-card-a1b2c3d4'
+
+    addWidgetToPage(pageId, 'prim-stat-card', {
+      i: instanceId, x: 0, y: 0, w: 4, h: 2,
+    })
+    updateWidgetConfig(pageId, instanceId, {
+      _pluginId: 'prim-stat-card',
+      title: 'CPU',
+      showTitle: true,
+    })
+
+    removeWidget(pageId, instanceId)
+    restoreWidget(0)
+
+    const after = getDashboardState()
+    const page = after.pages.find(p => p.id === pageId)
+    expect(page?.widgetConfigs[instanceId]).toEqual({
+      _pluginId: 'prim-stat-card',
+      title: 'CPU',
+      showTitle: true,
+    })
+  })
 })
 
 describe('undoDashboard', () => {
@@ -366,6 +392,33 @@ describe('removeWidget _pluginId', () => {
     const after = getDashboardState()
     expect(after.recycleBin).toHaveLength(1)
     expect(after.recycleBin[0].pluginId).toBe('legacy-widget')
+  })
+})
+
+describe('removePage recycle bin metadata', () => {
+  it('preserves plugin mapping and config for widgets removed with a page', () => {
+    const state = getDashboardState()
+    const homeId = state.pages[0].id
+    const instanceId = 'prim-stat-card-a1b2c3d4'
+
+    addWidgetToPage(homeId, 'prim-stat-card', {
+      i: instanceId, x: 0, y: 0, w: 4, h: 2,
+    })
+    updateWidgetConfig(homeId, instanceId, {
+      _pluginId: 'prim-stat-card',
+      title: 'Infra',
+    })
+
+    addPage('Work')
+    removePage(homeId)
+
+    const recycled = getDashboardState().recycleBin.find(item => item.widgetId === instanceId)
+    expect(recycled).toBeDefined()
+    expect(recycled?.pluginId).toBe('prim-stat-card')
+    expect(recycled?.previousConfig).toEqual({
+      _pluginId: 'prim-stat-card',
+      title: 'Infra',
+    })
   })
 })
 

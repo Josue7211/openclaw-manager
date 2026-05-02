@@ -1,8 +1,8 @@
-# Requirements: OpenClaw Manager
+# Requirements: ClawControl
 
 **Defined:** 2026-03-24
 **Milestone:** v0.0.6 -- Sessions & Chat
-**Core Value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
+**Core Value:** AI agent (Agent) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
 
 ## v0.0.6 Requirements
 

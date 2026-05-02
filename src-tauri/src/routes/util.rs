@@ -38,8 +38,7 @@ pub fn random_uuid() -> String {
 
 /// Decode a base64-encoded string to bytes. Supports standard base64 alphabet.
 pub fn base64_decode(input: &str) -> Option<Vec<u8>> {
-    const TABLE: &[u8; 64] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut lookup = [255u8; 256];
     for (i, &c) in TABLE.iter().enumerate() {
         lookup[c as usize] = i as u8;
@@ -117,7 +116,11 @@ mod tests {
     #[test]
     fn random_uuid_length() {
         let uuid = random_uuid();
-        assert_eq!(uuid.len(), 36, "UUID should be 36 chars (8-4-4-4-12 with hyphens)");
+        assert_eq!(
+            uuid.len(),
+            36,
+            "UUID should be 36 chars (8-4-4-4-12 with hyphens)"
+        );
     }
 
     #[test]

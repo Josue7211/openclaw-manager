@@ -125,7 +125,7 @@ This phase does NOT include: theming UI, theme presets, dashboard grid, page pre
 - **Widget-style placement** — iOS-style drag/resize/replace widgets on pages — Phase 4
 - **Font customization UI** — Let user pick main font, header font, mono font — Phase 2 (theming)
 - **Compact density mode** — Discord-style tight spacing as a user toggle — Phase 2 (theming)
-- **Blank canvas for Bjorn** — One of the empty state presets should be a blank canvas for AI agent to build on — Phase 7
+- **Blank canvas for Agent** — One of the empty state presets should be a blank canvas for AI agent to build on — Phase 7
 
 </deferred>
 

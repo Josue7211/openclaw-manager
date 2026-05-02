@@ -1,4 +1,8 @@
-use axum::{extract::{Query, State}, routing::get, Json, Router};
+use axum::{
+    extract::{Query, State},
+    routing::get,
+    Json, Router,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -9,8 +13,12 @@ use crate::validation::{sanitize_postgrest_value, validate_uuid};
 
 /// Build the workflow-notes router (list, create, mark as applied).
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/workflow-notes", get(get_workflow_notes).post(post_workflow_note).patch(patch_workflow_note))
+    Router::new().route(
+        "/workflow-notes",
+        get(get_workflow_notes)
+            .post(post_workflow_note)
+            .patch(patch_workflow_note),
+    )
 }
 
 // ── Workflow Notes ──────────────────────────────────────────────────────────
@@ -33,7 +41,9 @@ async fn get_workflow_notes(
         query.push_str(&format!("&category=eq.{cat}"));
     }
 
-    let data = sb.select_as_user("workflow_notes", &query, &session.access_token).await?;
+    let data = sb
+        .select_as_user("workflow_notes", &query, &session.access_token)
+        .await?;
     Ok(Json(json!({ "notes": data })))
 }
 
@@ -57,7 +67,11 @@ async fn post_workflow_note(
     }
 
     let data = sb
-        .insert_as_user("workflow_notes", json!({ "category": category, "note": note }), &session.access_token)
+        .insert_as_user(
+            "workflow_notes",
+            json!({ "category": category, "note": note }),
+            &session.access_token,
+        )
         .await?;
     Ok(Json(json!({ "note": data })))
 }
@@ -75,12 +89,19 @@ async fn patch_workflow_note(
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
 
-    let id = body.id.as_ref()
+    let id = body
+        .id
+        .as_ref()
         .and_then(|v| v.as_str())
         .ok_or_else(|| AppError::BadRequest("id required".into()))?;
     validate_uuid(id)?;
     let data = sb
-        .update_as_user("workflow_notes", &format!("id=eq.{id}"), json!({ "applied": body.applied }), &session.access_token)
+        .update_as_user(
+            "workflow_notes",
+            &format!("id=eq.{id}"),
+            json!({ "applied": body.applied }),
+            &session.access_token,
+        )
         .await?;
     Ok(Json(json!({ "note": data })))
 }

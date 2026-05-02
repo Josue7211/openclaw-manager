@@ -1,0 +1,406 @@
+{
+  "turn_key": "f7ae6b2e06b54d3f2b7dd3aa5a87043b7aa8595fdcca5dc89d1c7a2ab37aa2b1",
+  "snapshot": {
+    "project": "clawcontrol",
+    "namespace": "main",
+    "agent": "codex@session-008f3488",
+    "workspace": null,
+    "visibility": null,
+    "route": "auto",
+    "intent": "current_task",
+    "context": {
+      "route": "project_first",
+      "intent": "current_task",
+      "retrieval_order": [
+        "project",
+        "synced",
+        "local",
+        "global"
+      ],
+      "records": [
+        {
+          "id": "65027bd0-cb0d-418a-80c6-26a1e7ace0e8",
+          "record": "id=65027bd0-cb0d-418a-80c6-26a1e7ace0e8 | stage=canonical | scope=local | kind=live_truth | status=active | project=clawcontrol | ns=main | vis=private | agent=memd | tags=live_truth,repo_changes | cf=0.98 | upd=1777763191 | c=file_edited: .cargo/config.toml file_edited: .env.example file_edited: .github/workflows/ci.yml file_edited: .gitignore file_edited: .planning/MILESTONES.md file_edited: .planning/PROJECT.md"
+        },
+        {
+          "id": "ecadde11-93bd-4f29-8f09-b000e2ef8c28",
+          "record": "id=ecadde11-93bd-4f29-8f09-b000e2ef8c28 | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777736236 | c=LightRAG is already configured and populated for clawcontrol/user knowledge. Current gap is active use from ClawControl/memd surfaces, not initial LightRAG setup."
+        },
+        {
+          "id": "774f6590-93d0-4aaa-af11-aee48de50e8f",
+          "record": "id=774f6590-93d0-4aaa-af11-aee48de50e8f | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777748779 | c=User currently works as a personal trainer at Amped Fitness in Fort Myers near FGCU. Career Ops should support both engineering internship/remote work search and online coaching/personal trainer growth work."
+        },
+        {
+          "id": "ca1a2941-4343-48de-b154-96ac4207f1cb",
+          "record": "id=ca1a2941-4343-48de-b154-96ac4207f1cb | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777738324 | c=User expects ClawControl Knowledge to expose LightRAG's visible knowledge graph, not only semantic search/status. LightRAG graph data is available from /graphs plus /graph/label/* endpoints and should be surfaced in t..."
+        },
+        {
+          "id": "f23c7532-d945-487f-be65-376272f7da8d",
+          "record": "id=f23c7532-d945-487f-be65-376272f7da8d | stage=canonical | scope=project | kind=preference | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777748779 | c=User wants two related generated modules: a Personal Trainer / online coaching ops module and an Engineering Ops / internship search module. These should help post on socials, find what works, give advice, analyze inf..."
+        },
+        {
+          "id": "d829f074-9cb1-4025-b8ce-58015ae7b16e",
+          "record": "id=d829f074-9cb1-4025-b8ce-58015ae7b16e | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | lane=design | cf=0.70 | upd=1777739865 | c=ClawControl Remote Viewer is embedded noVNC now: VM runs clawcontrol-vnc.service with TigerVNC on localhost:5901, local openclaw-sunshine-tunnel.service forwards 5901 to 127.0.0.1, backend /api/vnc/ws proxies WebSocke..."
+        },
+        {
+          "id": "f9949444-bbec-481a-8425-5d747f2353f5",
+          "record": "id=f9949444-bbec-481a-8425-5d747f2353f5 | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777738072 | c=OpenClaw remote desktop setup: VM runs native Sunshine via user services sunshine.service, clawcontrol-xvfb.service, and clawcontrol-xfce.service on DISPLAY=:99. Local Moonlight Flatpak is paired to Openclaw-VM and li..."
+        },
+        {
+          "id": "05774941-65f4-4b1e-b1a1-8360ff823e26",
+          "record": "id=05774941-65f4-4b1e-b1a1-8360ff823e26 | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777736379 | c=Correction: For clawcontrol/OpenClaw VM work, sudo access exists in Bitwarden. Do not say VM sudo is unavailable just because the Codex tool shell's bw status is locked; use/request a BW session in this shell and retr..."
+        }
+      ]
+    },
+    "working": {
+      "route": "project_first",
+      "intent": "current_task",
+      "retrieval_order": [
+        "project",
+        "synced",
+        "local",
+        "global"
+      ],
+      "budget_chars": 1600,
+      "used_chars": 1540,
+      "remaining_chars": 60,
+      "truncated": true,
+      "policy": {
+        "admission_limit": 8,
+        "max_chars_per_item": 220,
+        "budget_chars": 1600,
+        "rehydration_limit": 4
+      },
+      "records": [
+        {
+          "id": "ecadde11-93bd-4f29-8f09-b000e2ef8c28",
+          "record": "id=ecadde11-93bd-4f29-8f09-b000e2ef8c28 | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777736236 | c=LightRA..."
+        },
+        {
+          "id": "774f6590-93d0-4aaa-af11-aee48de50e8f",
+          "record": "id=774f6590-93d0-4aaa-af11-aee48de50e8f | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777748779 | c=User cu..."
+        },
+        {
+          "id": "ca1a2941-4343-48de-b154-96ac4207f1cb",
+          "record": "id=ca1a2941-4343-48de-b154-96ac4207f1cb | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777738324 | c=User ex..."
+        },
+        {
+          "id": "f23c7532-d945-487f-be65-376272f7da8d",
+          "record": "id=f23c7532-d945-487f-be65-376272f7da8d | stage=canonical | scope=project | kind=preference | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777748779 | c=U..."
+        },
+        {
+          "id": "d829f074-9cb1-4025-b8ce-58015ae7b16e",
+          "record": "id=d829f074-9cb1-4025-b8ce-58015ae7b16e | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | lane=design | cf=0.70 | upd=17777398..."
+        },
+        {
+          "id": "f9949444-bbec-481a-8425-5d747f2353f5",
+          "record": "id=f9949444-bbec-481a-8425-5d747f2353f5 | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777738072 | c=OpenCla..."
+        },
+        {
+          "id": "05774941-65f4-4b1e-b1a1-8360ff823e26",
+          "record": "id=05774941-65f4-4b1e-b1a1-8360ff823e26 | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777736379 | c=Correct..."
+        }
+      ],
+      "evicted": [
+        {
+          "id": "5966b9c1-6c36-4aca-acf7-a543362923b0",
+          "record": "id=5966b9c1-6c36-4aca-acf7-a543362923b0 | stage=canonical | scope=project | kind=preference | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777747937 | c=U...",
+          "reason": "evicted_by_budget;kind=Preference;status=active;source=canonical;source_trust=0.59;freshness_days=0;verified_days=45;recent_use_days=0;rehearsals=2;trust_below_floor;trusted_source;trust_rank=3"
+        },
+        {
+          "id": "f982f2f1-b6fe-427c-b3f1-d62e820e0b05",
+          "record": "id=f982f2f1-b6fe-427c-b3f1-d62e820e0b05 | stage=canonical | scope=project | kind=preference | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777747575 | c=F...",
+          "reason": "evicted_by_budget;kind=Preference;status=active;source=canonical;source_trust=0.59;freshness_days=0;verified_days=45;recent_use_days=0;rehearsals=2;trust_below_floor;trusted_source;trust_rank=3"
+        },
+        {
+          "id": "c592be33-f8e6-4a69-b76b-1582abd83839",
+          "record": "id=c592be33-f8e6-4a69-b76b-1582abd83839 | stage=canonical | scope=project | kind=preference | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777747066 | c=F...",
+          "reason": "evicted_by_budget;kind=Preference;status=active;source=canonical;source_trust=0.59;freshness_days=0;verified_days=45;recent_use_days=0;rehearsals=2;trust_below_floor;trusted_source;trust_rank=3"
+        },
+        {
+          "id": "dd67e4a7-ce94-44a4-a2f0-d37b708ec4a6",
+          "record": "id=dd67e4a7-ce94-44a4-a2f0-d37b708ec4a6 | stage=canonical | scope=project | kind=preference | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | lane=design | cf=0.70 | upd=17...",
+          "reason": "evicted_by_budget;kind=Preference;status=active;source=canonical;source_trust=0.59;freshness_days=0;verified_days=45;recent_use_days=0;rehearsals=2;trust_below_floor;trusted_source;lane=design;trust_rank=3"
+        },
+        {
+          "id": "65027bd0-cb0d-418a-80c6-26a1e7ace0e8",
+          "record": "id=65027bd0-cb0d-418a-80c6-26a1e7ace0e8 | stage=canonical | scope=local | kind=live_truth | status=active | project=clawcontrol | ns=main | vis=private | agent=memd | tags=live_truth,repo_changes | cf=0.98 | upd=17777...",
+          "reason": "evicted_by_budget;kind=LiveTruth;status=active;source=derived;source_trust=0.87;freshness_days=0;verified_days=0;recent_use_days=0;rehearsals=731;trust_boost;trust_rank=2"
+        }
+      ],
+      "rehydration_queue": [
+        {
+          "id": "5966b9c1-6c36-4aca-acf7-a543362923b0",
+          "kind": "working_memory_record",
+          "label": "preference",
+          "summary": "id=5966b9c1-6c36-4aca-acf7-a543362923b0 | stage=canonical | scope=project | kind=preference | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777747937 | c=U...",
+          "reason": "evicted_by_budget;kind=Preference;status=active;source=canonical;source_trust=0.59;freshness_days=0;verified_days=45;recent_use_days=0;rehearsals=2;trust_below_floor;trusted_source;trust_rank=3",
+          "source_agent": "codex@session-008f3488",
+          "source_system": "memd",
+          "source_path": null,
+          "source_quality": "canonical",
+          "recorded_at": "2026-05-02T18:52:17.754396579Z"
+        },
+        {
+          "id": "f982f2f1-b6fe-427c-b3f1-d62e820e0b05",
+          "kind": "working_memory_record",
+          "label": "preference",
+          "summary": "id=f982f2f1-b6fe-427c-b3f1-d62e820e0b05 | stage=canonical | scope=project | kind=preference | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777747575 | c=F...",
+          "reason": "evicted_by_budget;kind=Preference;status=active;source=canonical;source_trust=0.59;freshness_days=0;verified_days=45;recent_use_days=0;rehearsals=2;trust_below_floor;trusted_source;trust_rank=3",
+          "source_agent": "codex@session-008f3488",
+          "source_system": "memd",
+          "source_path": null,
+          "source_quality": "canonical",
+          "recorded_at": "2026-05-02T18:46:15.113671139Z"
+        },
+        {
+          "id": "c592be33-f8e6-4a69-b76b-1582abd83839",
+          "kind": "working_memory_record",
+          "label": "preference",
+          "summary": "id=c592be33-f8e6-4a69-b76b-1582abd83839 | stage=canonical | scope=project | kind=preference | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777747066 | c=F...",
+          "reason": "evicted_by_budget;kind=Preference;status=active;source=canonical;source_trust=0.59;freshness_days=0;verified_days=45;recent_use_days=0;rehearsals=2;trust_below_floor;trusted_source;trust_rank=3",
+          "source_agent": "codex@session-008f3488",
+          "source_system": "memd",
+          "source_path": null,
+          "source_quality": "canonical",
+          "recorded_at": "2026-05-02T18:37:46.083567026Z"
+        },
+        {
+          "id": "dd67e4a7-ce94-44a4-a2f0-d37b708ec4a6",
+          "kind": "working_memory_record",
+          "label": "preference",
+          "summary": "id=dd67e4a7-ce94-44a4-a2f0-d37b708ec4a6 | stage=canonical | scope=project | kind=preference | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | lane=design | cf=0.70 | upd=17...",
+          "reason": "evicted_by_budget;kind=Preference;status=active;source=canonical;source_trust=0.59;freshness_days=0;verified_days=45;recent_use_days=0;rehearsals=2;trust_below_floor;trusted_source;lane=design;trust_rank=3",
+          "source_agent": "codex@session-008f3488",
+          "source_system": "memd",
+          "source_path": null,
+          "source_quality": "canonical",
+          "recorded_at": "2026-05-02T18:32:11.473812107Z"
+        }
+      ],
+      "traces": [
+        {
+          "item_id": "ecadde11-93bd-4f29-8f09-b000e2ef8c28",
+          "entity_id": "94bd0e1f-cb39-406f-89bd-063c4f4e7bf3",
+          "memory_kind": "fact",
+          "memory_stage": "canonical",
+          "typed_memory": "semantic+canonical",
+          "event_type": "retrieved_working",
+          "summary": "retrieved_working route=project_first intent=current_task",
+          "occurred_at": "2026-05-02T23:06:33.696581900Z",
+          "salience_score": 1.0
+        },
+        {
+          "item_id": "774f6590-93d0-4aaa-af11-aee48de50e8f",
+          "entity_id": "64b10ba4-3d5c-4493-aec8-034b7223f5dc",
+          "memory_kind": "fact",
+          "memory_stage": "canonical",
+          "typed_memory": "semantic+canonical",
+          "event_type": "retrieved_working",
+          "summary": "retrieved_working route=project_first intent=current_task",
+          "occurred_at": "2026-05-02T23:06:33.736376440Z",
+          "salience_score": 0.96
+        },
+        {
+          "item_id": "ca1a2941-4343-48de-b154-96ac4207f1cb",
+          "entity_id": "7fa04abe-f1d1-4942-a358-93e9e45c6e41",
+          "memory_kind": "fact",
+          "memory_stage": "canonical",
+          "typed_memory": "semantic+canonical",
+          "event_type": "retrieved_search",
+          "summary": "retrieved_search route=project_first intent=general",
+          "occurred_at": "2026-05-02T22:33:28.359687437Z",
+          "salience_score": 0.82
+        }
+      ],
+      "semantic_consolidation": null,
+      "procedures": [],
+      "compaction_quality": null
+    },
+    "inbox": {
+      "route": "project_first",
+      "intent": "current_task",
+      "items": [
+        {
+          "item": {
+            "id": "01671bec-8fa1-411c-a0c3-a2cb0d6bc797",
+            "content": "On 2026-04-18, user corrected that repo edits did not change the running OpenClaw VM; do not claim Hermes/live model fixes are applied unless the deploy/runtime has actually been updated and verified.",
+            "redundancy_key": "Fact|Project|clawcontrol|main||04|18|2026|actually|appli|change|claim|correct|deploy|did|do|edit|fix|has|herm|live|model|not|openclaw|repo|runn|runtime|unles|updat|user|verifi|vm",
+            "belief_branch": null,
+            "preferred": false,
+            "kind": "fact",
+            "scope": "project",
+            "project": "clawcontrol",
+            "namespace": "main",
+            "workspace": null,
+            "visibility": "private",
+            "source_agent": "codex@session-008f3488",
+            "source_system": "memd",
+            "source_path": null,
+            "source_quality": "canonical",
+            "confidence": 0.7,
+            "ttl_seconds": null,
+            "created_at": "2026-04-18T13:06:19.963030616Z",
+            "updated_at": "2026-05-02T13:45:02.744701687Z",
+            "last_verified_at": null,
+            "supersedes": [],
+            "tags": [],
+            "status": "stale",
+            "stage": "canonical",
+            "lane": "operations",
+            "version": 1
+          },
+          "reasons": [
+            "stale",
+            "low-confidence"
+          ]
+        }
+      ]
+    },
+    "workspaces": {
+      "workspaces": [
+        {
+          "project": "clawcontrol",
+          "namespace": "main",
+          "workspace": null,
+          "visibility": "private",
+          "item_count": 18,
+          "active_count": 18,
+          "candidate_count": 0,
+          "contested_count": 0,
+          "source_lane_count": 4,
+          "avg_confidence": 0.72722214,
+          "trust_score": 0.6417889,
+          "last_seen_at": "2026-05-02T23:06:31.751197166Z",
+          "tags": [
+            "checkpoint",
+            "current-task",
+            "auto-short-term",
+            "bundle-refresh",
+            "live_truth",
+            "remember"
+          ]
+        }
+      ]
+    },
+    "sources": {
+      "sources": [
+        {
+          "source_agent": "memd",
+          "source_system": "memd-live-truth",
+          "project": "clawcontrol",
+          "namespace": "main",
+          "workspace": null,
+          "visibility": "private",
+          "item_count": 1,
+          "active_count": 1,
+          "candidate_count": 0,
+          "derived_count": 1,
+          "synthetic_count": 0,
+          "contested_count": 0,
+          "avg_confidence": 0.98,
+          "trust_score": 0.8684,
+          "last_seen_at": "2026-05-02T23:06:31.751197166Z",
+          "tags": [
+            "live_truth",
+            "repo_changes"
+          ]
+        },
+        {
+          "source_agent": "codex@session-008f3488",
+          "source_system": "memd-short-term",
+          "project": "clawcontrol",
+          "namespace": "main",
+          "workspace": null,
+          "visibility": "private",
+          "item_count": 4,
+          "active_count": 4,
+          "candidate_count": 0,
+          "derived_count": 4,
+          "synthetic_count": 0,
+          "contested_count": 0,
+          "avg_confidence": 0.7725,
+          "trust_score": 0.74805,
+          "last_seen_at": "2026-05-02T23:06:30.851187729Z",
+          "tags": [
+            "checkpoint",
+            "current-task",
+            "auto-short-term",
+            "bundle-refresh",
+            "remember"
+          ]
+        },
+        {
+          "source_agent": "codex@session-008f3488",
+          "source_system": "memd-resume-state",
+          "project": "clawcontrol",
+          "namespace": "main",
+          "workspace": null,
+          "visibility": "private",
+          "item_count": 1,
+          "active_count": 1,
+          "candidate_count": 0,
+          "derived_count": 1,
+          "synthetic_count": 0,
+          "contested_count": 0,
+          "avg_confidence": 0.62,
+          "trust_score": 0.6596,
+          "last_seen_at": "2026-05-02T22:33:22.253176034Z",
+          "tags": [
+            "resume_state",
+            "session_state"
+          ]
+        },
+        {
+          "source_agent": "codex@session-008f3488",
+          "source_system": "memd",
+          "project": "clawcontrol",
+          "namespace": "main",
+          "workspace": null,
+          "visibility": "private",
+          "item_count": 12,
+          "active_count": 12,
+          "candidate_count": 0,
+          "derived_count": 0,
+          "synthetic_count": 0,
+          "contested_count": 0,
+          "avg_confidence": 0.69999987,
+          "trust_score": 0.5859999,
+          "last_seen_at": "2026-05-02T19:06:19.115132179Z",
+          "tags": []
+        }
+      ]
+    },
+    "semantic": null,
+    "claims": {
+      "claims": []
+    },
+    "recent_repo_changes": [
+      "status M .cargo/config.toml",
+      "status M .env.example",
+      "status M .github/workflows/ci.yml",
+      "status M .gitignore",
+      "status M .planning/MILESTONES.md",
+      "status M .planning/PROJECT.md",
+      "status M .planning/REQUIREMENTS.md",
+      "status M .planning/ROADMAP.md",
+      "diff .cargo/config.toml                       |    3 +-",
+      "diff .env.example                             |   17 +-",
+      "diff .github/workflows/ci.yml                 |    4 +-",
+      "diff .gitignore                               |    2 +"
+    ],
+    "change_summary": [],
+    "resume_state_age_minutes": 221,
+    "refresh_recommended": true,
+    "atlas_region_hints": [],
+    "handoff_quality": null,
+    "files_touched": [],
+    "un_read_paths": [],
+    "preferences": [
+      "id=65027bd0-cb0d-418a-80c6-26a1e7ace0e8 | stage=canonical | scope=local | kind=live_truth | status=active | project=clawcontrol | ns=main | vis=private | agent=memd | tags=live_truth,repo_changes | cf=0.98 | upd=1777763191 | c=file_edited: .cargo/config.toml file_edited: .env.example file_edited: .github/workflows/ci.yml file_edited: .gitignore file_edited: .planning/MILESTONES.md file_edited: .planning/PROJECT.md",
+      "id=ecadde11-93bd-4f29-8f09-b000e2ef8c28 | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777736236 | c=LightRAG is already configured and populated for clawcontrol/user knowledge. Current gap is active use from ClawControl/memd surfaces, not initial LightRAG setup.",
+      "id=774f6590-93d0-4aaa-af11-aee48de50e8f | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777748779 | c=User currently works as a personal trainer at Amped Fitness in Fort Myers near FGCU. Career Ops should support both engineering internship/remote work search and online coaching/personal trainer growth work."
+    ]
+  },
+  "refreshed_at": "2026-05-02T23:06:36.204711153Z"
+}

@@ -10,7 +10,7 @@
  *   - Idea panel state (shared across Dashboard.tsx and IdeaDetailPanel)
  */
 
-import { useEffect, useCallback, useRef } from 'react'
+import { useEffect, useCallback, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 
 import { api, ApiError } from '@/lib/api'
@@ -39,7 +39,7 @@ export function useDashboardData() {
   useAgentCacheSSE()
 
   // ── Backend error tracking (cache-refresh fallback) ──
-  const backendErrorRef = useRef<string | false>(false)
+  const [backendError, setBackendError] = useState<string | false>(false)
 
   // ── Research cron → mission sync ──
   const researchMissionIdRef = useRef<string | null>(null)
@@ -51,7 +51,7 @@ export function useDashboardData() {
         api.get<{ missions: Mission[] }>('/api/missions').catch(() => ({ missions: [] as Mission[] })),
       ])
       const cron = (jobs as Array<{ name: string; state?: { nextRunAtMs?: number; lastRunAtMs?: number; lastRunStatus?: string }; enabled?: boolean }>)
-        .find(j => j.name === 'bjorn-research-agent')
+        .find(j => j.name === 'research-agent' || j.name.endsWith('-research-agent'))
       if (!cron) return
 
       const now = Date.now()
@@ -65,7 +65,7 @@ export function useDashboardData() {
 
       if (seemsRunning) {
         if (!existing) {
-          const created = await api.post<{ mission?: { id: string } }>('/api/missions', { title: 'Research', assignee: 'bjorn' }).catch(() => null)
+          const created = await api.post<{ mission?: { id: string } }>('/api/missions', { title: 'Research', assignee: 'primary-agent' }).catch(() => null)
           if (created?.mission?.id) researchMissionIdRef.current = created.mission.id
         } else {
           if (!currentMissionId) researchMissionIdRef.current = existing.id
@@ -88,14 +88,14 @@ export function useDashboardData() {
     try {
       await api.post('/api/cache-refresh')
       queryClient.invalidateQueries({ queryKey: queryKeys.agentCache })
-      if (backendErrorRef.current) {
+      if (backendError) {
         queryClient.invalidateQueries({ queryKey: queryKeys.missions })
       }
-      backendErrorRef.current = false
+      setBackendError(false)
     } catch (e) {
-      backendErrorRef.current = e instanceof ApiError ? e.serviceLabel : 'Service unavailable'
+      setBackendError(e instanceof ApiError ? e.serviceLabel : 'Service unavailable')
     }
-  }, [queryClient])
+  }, [backendError, queryClient])
 
   const fastTick = useCallback(async () => {
     await triggerCacheRefresh()
@@ -144,7 +144,7 @@ export function useDashboardData() {
 
   return {
     _demo,
-    backendError: backendErrorRef.current,
+    backendError,
     subagentsError,
     lastRefreshMs,
     panelIdea, setPanelIdea,

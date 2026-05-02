@@ -5,12 +5,12 @@
  * OKLCH produces better mid-tones than sRGB linear interpolation -- grays
  * stay neutral instead of going muddy brown.
  *
- * Pipeline: hex -> sRGB -> linear RGB -> OKLab (Bjorn Ottosson) -> OKLCH (polar)
+ * Pipeline: hex -> sRGB -> linear RGB -> OKLab -> OKLCH (polar)
  *
  * Zero external dependencies -- pure math implementation.
  */
 
-// --- Matrices (Bjorn Ottosson OKLab) ---
+// --- Matrices (OKLab) ---
 
 // Linear RGB to LMS
 const M1 = [

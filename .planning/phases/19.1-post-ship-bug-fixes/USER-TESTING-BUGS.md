@@ -10,7 +10,7 @@ All bugs found during manual testing by user. EVERY one must be fixed.
 - Must resolve CSS var to actual color value before passing to Canvas
 
 ### 2. OpenClaw Models/Usage/Tools tabs show "not configured"
-- Agents tab works fine — shows all agents (Bjorn, Roman, Sonnet, Jiraiya, Kimi, Gunther)
+- Agents tab works fine — shows all agents (Agent, Roman, Sonnet, Jiraiya, Kimi, Gunther)
 - But Models, Usage, and Tools tabs say "OpenClaw is not configured"
 - The health check IS passing (agents load) — the tabs have a separate broken check
 - Need to scrape OpenClaw gateway API for ALL features, not just agents/crons

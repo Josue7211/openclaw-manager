@@ -10,12 +10,12 @@ export const NetworkCard = React.memo(function NetworkCard() {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
         <div>
-          <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>OpenClaw Gateway</div>
+          <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>Harness Gateway</div>
           <div className="mono" style={{ color: 'var(--secondary-bright)', fontSize: '12px' }}>{`${window.location.protocol}//${window.location.hostname}:18789`}</div>
           <span className="badge badge-green" style={{ marginTop: '5px' }}>● Active</span>
         </div>
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
-          <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>OpenClaw Manager</div>
+          <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>ClawControl</div>
           <div className="mono" style={{ color: 'var(--tertiary-bright)', fontSize: '12px' }}>{window.location.origin}</div>
           <span className="badge badge-blue" style={{ marginTop: '5px' }}>This app</span>
         </div>

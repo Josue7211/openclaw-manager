@@ -36,7 +36,42 @@ describe('SecondsAgo rendering', () => {
     const SecondsAgo = await importSecondsAgo()
     const twoMinutesAgo = Date.now() - 120_000
     render(createElement(SecondsAgo, { sinceMs: twoMinutesAgo }))
-    expect(screen.getByText('120s ago')).toBeTruthy()
+    expect(screen.getByText('2m ago')).toBeTruthy()
+  })
+
+  it('uses compact larger units', async () => {
+    const SecondsAgo = await importSecondsAgo()
+    const now = Date.now()
+
+    render(
+      createElement('div', null,
+        createElement('span', { 'data-testid': 'minutes' },
+          createElement(SecondsAgo, { sinceMs: now - 59 * 60_000 }),
+        ),
+        createElement('span', { 'data-testid': 'hours' },
+          createElement(SecondsAgo, { sinceMs: now - 23 * 3_600_000 }),
+        ),
+        createElement('span', { 'data-testid': 'days' },
+          createElement(SecondsAgo, { sinceMs: now - 6 * 86_400_000 }),
+        ),
+        createElement('span', { 'data-testid': 'weeks' },
+          createElement(SecondsAgo, { sinceMs: now - 21 * 86_400_000 }),
+        ),
+        createElement('span', { 'data-testid': 'months' },
+          createElement(SecondsAgo, { sinceMs: now - 180 * 86_400_000 }),
+        ),
+        createElement('span', { 'data-testid': 'years' },
+          createElement(SecondsAgo, { sinceMs: now - 730 * 86_400_000 }),
+        ),
+      ),
+    )
+
+    expect(screen.getByTestId('minutes').textContent).toBe('59m ago')
+    expect(screen.getByTestId('hours').textContent).toBe('23h ago')
+    expect(screen.getByTestId('days').textContent).toBe('6d ago')
+    expect(screen.getByTestId('weeks').textContent).toBe('3w ago')
+    expect(screen.getByTestId('months').textContent).toBe('6mo ago')
+    expect(screen.getByTestId('years').textContent).toBe('2y ago')
   })
 
   it('updates display after the shared interval ticks', async () => {
@@ -57,6 +92,13 @@ describe('SecondsAgo rendering', () => {
     const almostTwoSeconds = Date.now() - 1999
     render(createElement(SecondsAgo, { sinceMs: almostTwoSeconds }))
     expect(screen.getByText('1s ago')).toBeTruthy()
+  })
+
+  it('clamps future timestamps to now', async () => {
+    const SecondsAgo = await importSecondsAgo()
+    const future = Date.now() + 5000
+    render(createElement(SecondsAgo, { sinceMs: future }))
+    expect(screen.getByText('0s ago')).toBeTruthy()
   })
 })
 

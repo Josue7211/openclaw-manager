@@ -12,7 +12,7 @@ const GraphView = lazy(() => import('./GraphView'))
 type ViewMode = 'editor' | 'graph'
 
 export default function NotesPage() {
-  const { notes, loading, syncing, createNote, updateNote, deleteNote } = useVault()
+  const { notes, loading, syncing, error, refresh, createNote, updateNote, deleteNote } = useVault()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('graph')
   const [searchQuery, setSearchQuery] = useState('')
@@ -134,9 +134,43 @@ export default function NotesPage() {
     )
   }
 
+  if (error && notes.length === 0) {
+    return (
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexDirection: 'column', gap: 12,
+        color: 'var(--text-muted)', fontSize: 13,
+      }}>
+        <div style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
+          Notes sync unavailable
+        </div>
+        <div style={{ maxWidth: 420, textAlign: 'center', lineHeight: 1.5 }}>
+          {error}
+        </div>
+        <button
+          type="button"
+          onClick={refresh}
+          style={{
+            background: 'var(--bg-white-04)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-sm)',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+            padding: '7px 14px',
+            fontSize: 12,
+          }}
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div style={{
-      position: 'absolute', inset: 0,
+      flex: 1,
+      minHeight: 0,
       margin: '-20px -28px',
       display: 'flex', overflow: 'hidden',
       userSelect: 'text', WebkitUserSelect: 'text',

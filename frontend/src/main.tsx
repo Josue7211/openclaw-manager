@@ -12,7 +12,8 @@ import { setOsDarkPreference, setGtkThemeMapping, setWallbashState, isWallbashAc
 import type { WallbashColors } from './lib/theme-definitions'
 import { PersonalSkeleton, DashboardSkeleton, MessagesSkeleton, SettingsSkeleton, GenericPageSkeleton } from './components/Skeleton'
 import { registerPrimitives } from './components/primitives/register'
-import { exposePrimitivesAPI, loadBjornModules } from './lib/bjorn-store'
+import { exposePrimitivesAPI, loadGeneratedModules } from './lib/generated-module-store'
+import { API_BASE_CHANGED_EVENT } from './lib/api'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Personal = lazy(() => import('./pages/Personal'))
@@ -23,6 +24,7 @@ const Reminders = lazy(() => import('./pages/Reminders'))
 const Messages = lazy(() => import('./pages/Messages'))
 const Pomodoro = lazy(() => import('./pages/Pomodoro'))
 const Email = lazy(() => import('./pages/Email'))
+const JobHunter = lazy(() => import('./pages/JobHunter'))
 const HomeLab = lazy(() => import('./pages/HomeLab'))
 const MediaRadar = lazy(() => import('./pages/MediaRadar'))
 const Missions = lazy(() => import('./pages/Missions'))
@@ -31,7 +33,6 @@ const OpenClaw = lazy(() => import('./pages/OpenClaw'))
 const Pipeline = lazy(() => import('./pages/Pipeline'))
 const KnowledgeBase = lazy(() => import('./pages/KnowledgeBase'))
 const Notes = lazy(() => import('./pages/notes/Notes'))
-const Sessions = lazy(() => import('./pages/sessions/SessionsPage'))
 const RemoteViewer = lazy(() => import('./pages/remote/RemotePage'))
 const Approvals = lazy(() => import('./pages/approvals/ApprovalsPage'))
 const Activity = lazy(() => import('./pages/activity/ActivityPage'))
@@ -54,6 +55,14 @@ const queryClient = new QueryClient({
     }
   }
 })
+
+if (typeof window !== 'undefined') {
+  window.addEventListener(API_BASE_CHANGED_EVENT, () => {
+    // A backend switch invalidates all cached server data. Clearing avoids
+    // showing stale records from the previous backend while new queries load.
+    queryClient.clear()
+  })
+}
 
 // Tie React Query focus refetching to Tauri window focus events
 if (window.__TAURI_INTERNALS__) {
@@ -252,84 +261,105 @@ if (window.__TAURI_INTERNALS__) {
   document.addEventListener('contextmenu', e => e.preventDefault())
 }
 
-// Load the MC API key from the OS keychain via Tauri IPC
-if (window.__TAURI_INTERNALS__) {
-  Promise.all([
-    import('@tauri-apps/api/core'),
-    import('./lib/api'),
-    import('./lib/hooks/useChatSocket'),
-  ]).then(([{ invoke }, { setApiKey }, { setChatSocketApiKey }]) => {
-    invoke<string | null>('get_secret', { key: 'mc-api-key' }).then((key) => {
-      if (key) {
-        setApiKey(key)
-        setChatSocketApiKey(key)
-      }
-    }).catch((err) => {
-      console.warn('Failed to load MC API key:', err)
+async function bootstrapApiKey() {
+  if (!window.__TAURI_INTERNALS__) return
+  try {
+    const [{ invoke }, { resolveDesktopApiBootstrap, setApiBase, setApiKey, setConfiguredBackendBase, setDesktopApiKeys }, { setChatSocketApiKey }] = await Promise.all([
+      import('@tauri-apps/api/core'),
+      import('./lib/api'),
+      import('./lib/hooks/useChatSocket'),
+    ])
+    const savedApiBase = await invoke<string | null>('get_secret', { key: 'backend.public-base-url' }).catch(() => null)
+    const [remoteApiKey, localApiKey] = await Promise.all([
+      invoke<string | null>('get_secret', { key: 'backend.device-api-key' }).catch(() => null),
+      invoke<string | null>('get_secret', { key: 'mc-api-key' }).catch(() => null),
+    ])
+
+    const bootstrap = resolveDesktopApiBootstrap({
+      savedApiBase,
+      remoteApiKey,
+      localApiKey,
     })
-  })
+
+    setConfiguredBackendBase(bootstrap.configuredBackendBase)
+    setDesktopApiKeys({ localApiKey, remoteApiKey })
+    setApiBase(bootstrap.apiBase)
+    setApiKey(bootstrap.apiKey ?? '')
+    setChatSocketApiKey(bootstrap.apiKey ?? '')
+
+    if (!bootstrap.apiKey) {
+      console.warn('No API key was available for the active desktop backend')
+    }
+  } catch (err) {
+    console.warn('Failed to load MC API key:', err)
+  }
 }
 
-// Register module primitives into Widget Registry before first render
+// Register module primitives into Widget Registry before first render.
+// Startup network work waits until backend bootstrap finishes so we do not
+// accidentally hit the localhost fallback before the saved backend target loads.
 registerPrimitives()
 exposePrimitivesAPI()
-// Load Bjorn AI-generated modules from backend (non-blocking)
-loadBjornModules()
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Suspense fallback={
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '2px', zIndex: 9999, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%',
-              background: 'var(--accent)',
-              animation: 'progressBar 1.2s ease-in-out infinite',
-              transformOrigin: 'left',
-            }} />
-            <style>{`@keyframes progressBar { 0% { transform: translateX(-100%) scaleX(0.3); } 50% { transform: translateX(30%) scaleX(0.5); } 100% { transform: translateX(100%) scaleX(0.3); } }`}</style>
-          </div>
-        }>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route element={<AuthGuard><LayoutShell /></AuthGuard>}>
-            <Route path="/" element={<Suspense fallback={<PersonalSkeleton />}><Personal /></Suspense>} />
-            <Route path="/personal" element={<Navigate to="/" replace />} />
-            <Route path="/dashboard" element={<Suspense fallback={<DashboardSkeleton />}><Dashboard /></Suspense>} />
-            <Route path="/chat" element={<Suspense fallback={<GenericPageSkeleton />}><Chat /></Suspense>} />
-            <Route path="/todos" element={<Suspense fallback={<GenericPageSkeleton />}><Todos /></Suspense>} />
-            <Route path="/calendar" element={<Suspense fallback={<GenericPageSkeleton />}><Calendar /></Suspense>} />
-            <Route path="/reminders" element={<Suspense fallback={<GenericPageSkeleton />}><Reminders /></Suspense>} />
-            <Route path="/messages" element={<Suspense fallback={<MessagesSkeleton />}><Messages /></Suspense>} />
-            <Route path="/pomodoro" element={<Suspense fallback={<GenericPageSkeleton />}><Pomodoro /></Suspense>} />
-            <Route path="/email" element={<Suspense fallback={<GenericPageSkeleton />}><Email /></Suspense>} />
-            <Route path="/homelab" element={<Suspense fallback={<GenericPageSkeleton />}><HomeLab /></Suspense>} />
-            <Route path="/media" element={<Suspense fallback={<GenericPageSkeleton />}><MediaRadar /></Suspense>} />
-            <Route path="/missions" element={<Suspense fallback={<GenericPageSkeleton />}><Missions /></Suspense>} />
-            <Route path="/openclaw" element={<Suspense fallback={<GenericPageSkeleton />}><OpenClaw /></Suspense>} />
-            <Route path="/agents" element={<Navigate to="/openclaw" replace />} />
-            <Route path="/memory" element={<Suspense fallback={<GenericPageSkeleton />}><Memory /></Suspense>} />
-            <Route path="/crons" element={<Navigate to="/openclaw" replace />} />
-            <Route path="/pipeline" element={<Suspense fallback={<GenericPageSkeleton />}><Pipeline /></Suspense>} />
-            <Route path="/knowledge" element={<Suspense fallback={<GenericPageSkeleton />}><KnowledgeBase /></Suspense>} />
-            <Route path="/notes" element={<Suspense fallback={<GenericPageSkeleton />}><Notes /></Suspense>} />
-            <Route path="/sessions" element={<Suspense fallback={<GenericPageSkeleton />}><Sessions /></Suspense>} />
-            <Route path="/remote" element={<Suspense fallback={<GenericPageSkeleton />}><RemoteViewer /></Suspense>} />
-            <Route path="/approvals" element={<Suspense fallback={<GenericPageSkeleton />}><Approvals /></Suspense>} />
-            <Route path="/activity" element={<Suspense fallback={<GenericPageSkeleton />}><Activity /></Suspense>} />
-            <Route path="/ideas" element={<Suspense fallback={<GenericPageSkeleton />}><Ideas /></Suspense>} />
-            <Route path="/capture" element={<Suspense fallback={<GenericPageSkeleton />}><Capture /></Suspense>} />
-            <Route path="/settings" element={<Suspense fallback={<SettingsSkeleton />}><Settings /></Suspense>} />
-            <Route path="/search" element={<Suspense fallback={<GenericPageSkeleton />}><Search /></Suspense>} />
-            <Route path="/custom/:id" element={<Suspense fallback={<GenericPageSkeleton />}><CustomPage /></Suspense>} />
-            <Route path="*" element={<Suspense fallback={null}><NotFound /></Suspense>} />
-          </Route>
-        </Routes>
-        </Suspense>
-      </BrowserRouter>
-    </QueryClientProvider>
-    </ErrorBoundary>
-  </React.StrictMode>
-)
+bootstrapApiKey().finally(() => {
+  void loadGeneratedModules()
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <Suspense fallback={
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '2px', zIndex: 9999, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                background: 'var(--accent)',
+                animation: 'progressBar 1.2s ease-in-out infinite',
+                transformOrigin: 'left',
+              }} />
+              <style>{`@keyframes progressBar { 0% { transform: translateX(-100%) scaleX(0.3); } 50% { transform: translateX(30%) scaleX(0.5); } 100% { transform: translateX(100%) scaleX(0.3); } }`}</style>
+            </div>
+          }>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route element={<AuthGuard><LayoutShell /></AuthGuard>}>
+              <Route path="/" element={<Suspense fallback={<PersonalSkeleton />}><Personal /></Suspense>} />
+              <Route path="/personal" element={<Navigate to="/" replace />} />
+              <Route path="/dashboard" element={<Suspense fallback={<DashboardSkeleton />}><Dashboard /></Suspense>} />
+              <Route path="/chat" element={<Suspense fallback={<GenericPageSkeleton />}><Chat /></Suspense>} />
+              <Route path="/builder" element={<Navigate to="/chat" replace />} />
+              <Route path="/todos" element={<Suspense fallback={<GenericPageSkeleton />}><Todos /></Suspense>} />
+              <Route path="/calendar" element={<Suspense fallback={<GenericPageSkeleton />}><Calendar /></Suspense>} />
+              <Route path="/reminders" element={<Suspense fallback={<GenericPageSkeleton />}><Reminders /></Suspense>} />
+              <Route path="/messages" element={<Suspense fallback={<MessagesSkeleton />}><Messages /></Suspense>} />
+              <Route path="/pomodoro" element={<Suspense fallback={<GenericPageSkeleton />}><Pomodoro /></Suspense>} />
+              <Route path="/email" element={<Suspense fallback={<GenericPageSkeleton />}><Email /></Suspense>} />
+              <Route path="/jobs" element={<Suspense fallback={<GenericPageSkeleton />}><JobHunter /></Suspense>} />
+              <Route path="/homelab" element={<Suspense fallback={<GenericPageSkeleton />}><HomeLab /></Suspense>} />
+              <Route path="/media" element={<Suspense fallback={<GenericPageSkeleton />}><MediaRadar /></Suspense>} />
+              <Route path="/missions" element={<Suspense fallback={<GenericPageSkeleton />}><Missions /></Suspense>} />
+              <Route path="/openclaw" element={<Suspense fallback={<GenericPageSkeleton />}><OpenClaw /></Suspense>} />
+              <Route path="/agents" element={<Navigate to="/openclaw" replace />} />
+              <Route path="/memory" element={<Suspense fallback={<GenericPageSkeleton />}><Memory /></Suspense>} />
+              <Route path="/crons" element={<Navigate to="/openclaw" replace />} />
+              <Route path="/pipeline" element={<Suspense fallback={<GenericPageSkeleton />}><Pipeline /></Suspense>} />
+              <Route path="/knowledge" element={<Suspense fallback={<GenericPageSkeleton />}><KnowledgeBase /></Suspense>} />
+              <Route path="/notes" element={<Suspense fallback={<GenericPageSkeleton />}><Notes /></Suspense>} />
+              <Route path="/sessions" element={<Navigate to="/chat" replace />} />
+              <Route path="/remote" element={<Suspense fallback={<GenericPageSkeleton />}><RemoteViewer /></Suspense>} />
+              <Route path="/approvals" element={<Suspense fallback={<GenericPageSkeleton />}><Approvals /></Suspense>} />
+              <Route path="/activity" element={<Suspense fallback={<GenericPageSkeleton />}><Activity /></Suspense>} />
+              <Route path="/ideas" element={<Suspense fallback={<GenericPageSkeleton />}><Ideas /></Suspense>} />
+              <Route path="/capture" element={<Suspense fallback={<GenericPageSkeleton />}><Capture /></Suspense>} />
+              <Route path="/settings" element={<Suspense fallback={<SettingsSkeleton />}><Settings /></Suspense>} />
+              <Route path="/search" element={<Suspense fallback={<GenericPageSkeleton />}><Search /></Suspense>} />
+              <Route path="/custom/:id" element={<Suspense fallback={<GenericPageSkeleton />}><CustomPage /></Suspense>} />
+              <Route path="*" element={<Suspense fallback={null}><NotFound /></Suspense>} />
+            </Route>
+          </Routes>
+          </Suspense>
+        </BrowserRouter>
+      </QueryClientProvider>
+      </ErrorBoundary>
+    </React.StrictMode>
+  )
+})

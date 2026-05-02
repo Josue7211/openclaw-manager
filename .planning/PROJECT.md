@@ -1,12 +1,12 @@
-# OpenClaw Manager
+# ClawControl
 
 ## What This Is
 
-An all-in-one life productivity desktop app (Tauri v2 + Axum + React) that connects AI (OpenClaw) to automate and simplify everything — iMessage, tasks, notes, calendar, homelab, finance, health, and more. Highly modular and customizable: users enable only what they have, and an AI agent (Bjorn) can create entirely new modules on demand. Open source, designed for homelab enthusiasts and power users, but accessible enough for less tech-savvy people to set up.
+An all-in-one life productivity desktop app (Tauri v2 + Axum + React) that connects AI (OpenClaw) to automate and simplify everything — iMessage, tasks, notes, calendar, homelab, finance, health, and more. Highly modular and customizable: users enable only what they have, and an AI agent (Agent) can create entirely new modules on demand. Open source, designed for homelab enthusiasts and power users, but accessible enough for less tech-savvy people to set up.
 
 ## Core Value
 
-The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside the running app — making it infinitely extensible without the user writing code.
+The AI agent (Agent) can build, preview, and hot-reload custom modules inside the running app — making it infinitely extensible without the user writing code.
 
 ## Requirements
 
@@ -35,7 +35,7 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 - ✓ Dashboard grid — drag-and-drop widgets, Widget Registry, multi-page layouts, undo/redo — v1.0
 - ✓ Page experience — scroll restoration, page state cache, unread badges, collapsible categories — v1.0
 - ✓ 11 composable UI primitives (StatCard, charts, tables, forms, kanban, timer, gallery) — v1.0
-- ✓ Bjorn AI module builder — natural language → sandboxed preview → approve → dashboard with hot-reload — v1.0
+- ✓ Agent AI module builder — natural language → sandboxed preview → approve → dashboard with hot-reload — v1.0
 - ✓ Data export — Supabase JSON, SQLite backup, notes markdown from Settings — v1.0
 
 - ✓ Strip dead/unused code, components, routes, and imports — v0.0.4
@@ -51,6 +51,8 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 
 ### Active
 
+- [ ] Cut release complexity down to one Docker Compose stack, one `.env`, one backend URL, and one pairing token
+- [ ] Produce a working desktop package with clear release acceptance criteria and smoke checks
 - [ ] Establish the branch-split / PR workflow as the first v0.0.7 workstream so every follow-up lands as a reviewable topic branch
 - [ ] Verify and fix every page/widget with real data end-to-end
 - [ ] Fix remaining UI bugs, broken loaders, and error states
@@ -64,23 +66,22 @@ The AI agent (Bjorn) can build, preview, and hot-reload custom modules inside th
 - Real-time chat (non-iMessage) — defer to Matrix integration later
 - Video posts / media hosting — storage/bandwidth concerns, defer
 
-## Current Milestone: v0.0.6 — Sessions & Chat
+## Current Milestone: v0.0.8 — Release Package & Backend-First Setup
 
-**Goal:** Full session management with proper chat.send/history/abort methods, live streaming responses, model selection per session.
+**Goal:** Ship a working desktop package and remove the current self-hosting setup pain by collapsing backend setup to one Docker Compose stack, one `.env`, one backend URL, and one pairing token.
 
 **Target features:**
-- Sessions CRUD (list, create via chat.send, patch label, delete, compact)
-- Chat history retrieval (chat.history with sessionKey, paginated)
-- Chat send with live streaming (chat.send with deliver flag, SSE token stream)
-- Chat abort (cancel in-progress agent responses)
-- Model selection per session (models.list → picker in new session form)
-- Session output streaming (gateway events → SSE → frontend live token display)
+- A single Docker Compose backend stack for the required desktop services
+- One `.env.example` and one documented config contract instead of per-service setup drift
+- Backend `setup/status` + pairing token flow so the desktop app can detect what is healthy and what is missing
+- Server-first onboarding that starts with backend URL + pairing token
+- Package smoke tests, clean offline degradation, and release docs for a usable rollout
 
-**Status:** In progress
+**Status:** Planned, immediate priority
 
 ## Next Milestone: v0.0.7 — AgentShell, Agent Secrets, and MemD
 
-**Goal:** Split the next platform work into clean branches so the repo is open-source ready, MemD can become the AI brain, and AgentShell hardening plus scoped agent secrets stay as explicit capability and safety layers around it.
+**Goal:** Resume the platform work after the release path is working so MemD, AgentShell, and agent secrets land on a stable operational base.
 
 **Target features:**
 - MemD as the durable-memory / context brain for assistant workflows
@@ -120,12 +121,12 @@ The user's vision: the app should feel like Discord meets Google Docs — everyt
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Bjorn modules sandboxed via iframe + CSP + static analysis | Prevents AI-generated code from accessing DOM, network, storage | ✓ Validated v1.0 |
+| Agent modules sandboxed via iframe + CSP + static analysis | Prevents AI-generated code from accessing DOM, network, storage | ✓ Validated v1.0 |
 | Free-form grid over slot-based dashboard | More flexibility, matches iOS widget paradigm | ✓ Validated v1.0 |
 | Layered theming (presets + advanced editor) | Accessible for casual users, powerful for tinkerers | ✓ Validated v1.0 |
-| Everything in parallel (polish + features + Bjorn) | All workstreams are load-bearing for v1.0 publish | ✓ Validated v1.0 |
+| Everything in parallel (polish + features + Agent) | All workstreams are load-bearing for v1.0 publish | ✓ Validated v1.0 |
 | Download binary + setup wizard for distribution | Simplest path for users, Docker only for backend services | ✓ Validated v1.0 |
-| Widget Registry as integration hub | Single pattern for built-in, primitive, and Bjorn widgets | ✓ Validated v1.0 |
+| Widget Registry as integration hub | Single pattern for built-in, primitive, and Agent widgets | ✓ Validated v1.0 |
 | Soft-delete for all user data | Recycle bin pattern, never hard delete | ✓ Validated v1.0 |
 
 ## Evolution
@@ -146,4 +147,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-04 after roadmap refresh*
+*Last updated: 2026-04-05 after release-package roadmap insertion*

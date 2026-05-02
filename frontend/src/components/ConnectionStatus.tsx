@@ -50,7 +50,7 @@ async function checkService(
 async function checkAllServices(): Promise<ServiceHealth[]> {
   const [bb, oc, sb] = await Promise.all([
     checkService('BlueBubbles', 'BB', '/api/messages?limit=0'),
-    checkService('OpenClaw', 'OC', '/api/status'),
+    checkService('Harness', 'AI', '/api/status'),
     checkService('Supabase', 'SB', '/api/todos'),
   ])
   return [bb, oc, sb]
@@ -100,7 +100,7 @@ export const ConnectionStatus = memo(function ConnectionStatus({
   // Default to 3 unknown dots while loading
   const items: ServiceHealth[] = services ?? [
     { name: 'BlueBubbles', shortName: 'BB', status: 'degraded' as ServiceStatus, latencyMs: null },
-    { name: 'OpenClaw', shortName: 'OC', status: 'degraded' as ServiceStatus, latencyMs: null },
+    { name: 'Harness', shortName: 'AI', status: 'degraded' as ServiceStatus, latencyMs: null },
     { name: 'Supabase', shortName: 'SB', status: 'degraded' as ServiceStatus, latencyMs: null },
   ]
 

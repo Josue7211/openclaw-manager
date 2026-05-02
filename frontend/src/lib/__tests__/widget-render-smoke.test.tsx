@@ -30,7 +30,7 @@ vi.mock('@/lib/api', () => ({
     patch: vi.fn(() => Promise.resolve({})),
     del: vi.fn(() => Promise.resolve({})),
   },
-  API_BASE: 'http://127.0.0.1:3000',
+  API_BASE: 'http://127.0.0.1:5000',
   ApiError: class ApiError extends Error {
     status: number
     body: unknown

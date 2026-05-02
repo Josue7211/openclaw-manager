@@ -9,6 +9,7 @@ interface SidebarCategory {
 interface CustomModule {
   id: string
   name: string
+  generatedModuleId?: string
 }
 
 interface DeletedItem {
@@ -316,6 +317,33 @@ export function createCustomModule(name: string, categoryId?: string): string {
   const targetCat = categoryId
     ? config.categories.find(c => c.id === categoryId)
     : config.categories[config.categories.length - 1]
+
+  const newCategories = config.categories.map(c => {
+    if (c === targetCat) {
+      return { ...c, items: [...c.items, href] }
+    }
+    return c
+  })
+
+  setSidebarConfig({
+    ...config,
+    categories: newCategories,
+    customModules: [...(config.customModules || []), newMod],
+  })
+
+  return href
+}
+
+/** Create a generated custom page backed by a generated module. */
+export function createGeneratedCustomModule(name: string, generatedModuleId: string, categoryId?: string): string {
+  const config = getSidebarConfig()
+  const id = `mod-${Date.now()}`
+  const href = `/custom/${id}`
+  const newMod: CustomModule = { id, name, generatedModuleId }
+
+  const targetCat = categoryId
+    ? config.categories.find(c => c.id === categoryId)
+    : config.categories.find(c => c.id === 'personal') || config.categories[0]
 
   const newCategories = config.categories.map(c => {
     if (c === targetCat) {

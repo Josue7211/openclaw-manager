@@ -15,7 +15,7 @@ let _defaultWidth = (() => {
 })()
 let _titleLayout: 'one-line' | 'two-line' = (localStorage.getItem(TITLE_LAYOUT_KEY) as 'one-line' | 'two-line') || 'one-line'
 let _titleSize = parseInt(localStorage.getItem(TITLE_SIZE_KEY) || '22', 10)
-let _titleText = localStorage.getItem(TITLE_TEXT_KEY) || 'OPENCLAW'
+let _titleText = localStorage.getItem(TITLE_TEXT_KEY) || 'CLAWCONTROL'
 const _listeners = new Set<() => void>()
 
 export function getSidebarHeaderVisible(): boolean {

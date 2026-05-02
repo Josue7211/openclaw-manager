@@ -92,7 +92,7 @@ pub async fn health_check(&self) -> bool
 - **Verdict:** This annotation is WRONG. The method IS used. The annotation should be removed.
 - **Action:** REMOVE -- method is actively called from `sync.rs`. The warning was likely a false positive from a build configuration mismatch (e.g., the method was marked dead before `sync.rs` was written).
 
-### File 2: `src-tauri/src/routes/bjorn.rs` (1 annotation)
+### File 2: `src-tauri/src/routes/agent.rs` (1 annotation)
 
 **Annotation 4 -- Line 553: `BridgeBody.args` field**
 ```rust
@@ -239,7 +239,7 @@ pub mod mission {
 | 1 | supabase.rs:98 `rpc_url()` | Unused in prod | KEEP | Add justification comment |
 | 2 | supabase.rs:423 `rpc()` | Unused in prod | KEEP | Add justification comment |
 | 3 | supabase.rs:447 `health_check()` | ACTIVELY USED | REMOVE | Delete annotation (it's wrong) |
-| 4 | bjorn.rs:553 `BridgeBody.args` | Stub code, unused | KEEP | Add justification comment |
+| 4 | agent.rs:553 `BridgeBody.args` | Stub code, unused | KEEP | Add justification comment |
 | 5 | auth.rs:598 `SignupBody` | Serde-constructed, disabled handler | KEEP | Add justification comment |
 | 6 | media.rs:107 `PlexSession` | Serde-constructed, most fields used | REMOVE struct-level | Move to field-level on `player` with justification |
 | 7 | media.rs:129 `PlexPlayer` | Serde-constructed, genuinely unused | KEEP | Add justification comment |

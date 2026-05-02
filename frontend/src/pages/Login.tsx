@@ -6,7 +6,7 @@ import { useState, useEffect, useReducer } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { openInBrowser } from '@/lib/tauri'
 
-import { api } from '@/lib/api'
+import { api, CONFIGURED_BACKEND_BASE_CHANGED_EVENT, getConfiguredBackendBase } from '@/lib/api'
 import { viewReducer, initialViewState } from './login/shared'
 import { MainView } from './login/MainView'
 import { EmailForm } from './login/EmailForm'
@@ -14,7 +14,16 @@ import { MfaVerifyForm } from './login/MfaVerifyForm'
 import { WaitingView } from './login/WaitingView'
 import { MfaEnrollView } from './login/MfaEnrollView'
 
+function formatLoginError(err: unknown, fallback: string): string {
+  const message = err instanceof Error ? err.message.trim() : ''
+  if (!message) return fallback
+  if (message === 'Invalid TOTP code entered') return 'That verification code was not accepted. Try the latest code from your authenticator app.'
+  if (message.startsWith('API ')) return fallback
+  return message
+}
+
 export default function LoginPage() {
+  const isTauriApp = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
   const [viewState, dispatch] = useReducer(viewReducer, initialViewState)
   const { view, mfaFactorId, mfaQr, mfaSecret, availableMethods } = viewState
 
@@ -23,6 +32,8 @@ export default function LoginPage() {
   const [mfaCode, setMfaCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [sessionProbeFailed, setSessionProbeFailed] = useState(false)
+  const [backendBase, setBackendBase] = useState(getConfiguredBackendBase())
   const [searchParams] = useSearchParams()
   const rawNext = searchParams.get('next') || '/'
   let next = '/'
@@ -36,45 +47,84 @@ export default function LoginPage() {
     // Invalid URL — keep default '/'
   }
 
+  async function checkSession() {
+    try {
+      const res = await api.get<{
+        authenticated: boolean
+        mfa_required?: boolean
+        mfa_enroll_required?: boolean
+        mfa_verified?: boolean
+        factor_id?: string
+        available_mfa_methods?: Array<'totp' | 'webauthn'>
+      }>('/api/auth/session')
+
+      setSessionProbeFailed(false)
+
+      if (!res.authenticated) return
+      if (res.mfa_verified) {
+        window.location.href = next
+        return
+      }
+      if (res.factor_id) {
+        dispatch({ type: 'SHOW_MFA', factorId: res.factor_id, availableMethods: res.available_mfa_methods ?? ['totp'] })
+      } else if (res.mfa_enroll_required) {
+        api.post<{ id: string; qr_code: string; secret: string }>('/api/auth/mfa/enroll')
+          .then(data => {
+            if (data?.id) {
+              dispatch({ type: 'SHOW_MFA_ENROLL', factorId: data.id, qr: data.qr_code, secret: data.secret })
+            }
+          })
+          .catch(() => {})
+      }
+    } catch {
+      setSessionProbeFailed(true)
+    }
+  }
+
   // On mount, ALWAYS check session — if logged in but MFA not verified, show MFA
   const mfaParam = searchParams.get('mfa')
   useEffect(() => {
-    api.get<{
-      authenticated: boolean
-      mfa_required?: boolean
-      mfa_enroll_required?: boolean
-      mfa_verified?: boolean
-      factor_id?: string
-      available_mfa_methods?: Array<'totp' | 'webauthn'>
-    }>('/api/auth/session')
-      .then(res => {
-        if (!res.authenticated) return
-        // If MFA already verified, go straight to app
-        if (res.mfa_verified) {
-          window.location.href = next
-          return
-        }
-        // MFA not verified — show appropriate screen
-        if (res.factor_id) {
-          dispatch({ type: 'SHOW_MFA', factorId: res.factor_id, availableMethods: res.available_mfa_methods ?? ['totp'] })
-        } else if (res.mfa_enroll_required) {
-          api.post<{ id: string; qr_code: string; secret: string }>('/api/auth/mfa/enroll')
-            .then(data => {
-              if (data?.id) {
-                dispatch({ type: 'SHOW_MFA_ENROLL', factorId: data.id, qr: data.qr_code, secret: data.secret })
-              }
-            })
-            .catch(() => {})
-        }
-      })
-      .catch(() => {})
-  }, [mfaParam])
+    void checkSession()
+  }, [mfaParam, next])
+
+  useEffect(() => {
+    const onBackendChanged = () => {
+      setBackendBase(getConfiguredBackendBase())
+      setSessionProbeFailed(false)
+      setError('')
+      void checkSession()
+    }
+
+    window.addEventListener(CONFIGURED_BACKEND_BASE_CHANGED_EVENT, onBackendChanged)
+    return () => window.removeEventListener(CONFIGURED_BACKEND_BASE_CHANGED_EVENT, onBackendChanged)
+  }, [next])
+
+  useEffect(() => {
+    if (!sessionProbeFailed) return
+    const timeout = setTimeout(() => {
+      void checkSession()
+    }, 5000)
+    return () => clearTimeout(timeout)
+  }, [sessionProbeFailed, next])
 
   // Poll for OAuth completion — backend exchanges the code in the callback
   useEffect(() => {
     if (view !== 'waiting') return
     const interval = setInterval(async () => {
       try {
+        if (isTauriApp) {
+          const tauriSession = await api.get<{ code: string | null; exchange_error?: string | null }>('/api/auth/tauri-session')
+          if (tauriSession.exchange_error) {
+            clearInterval(interval)
+            setError(`Desktop sign-in failed: ${tauriSession.exchange_error}`)
+            dispatch({ type: 'SHOW_MAIN' })
+            setLoading(false)
+            return
+          }
+          if (tauriSession.code) {
+            await new Promise(resolve => setTimeout(resolve, 150))
+          }
+        }
         const res = await api.get<{
           authenticated: boolean
           mfa_required?: boolean
@@ -105,9 +155,7 @@ export default function LoginPage() {
       } catch { /* ignore fetch errors */ }
     }, 2000)
     return () => clearInterval(interval)
-  }, [view, next])
-
-  const isTauriApp = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
+  }, [view, next, isTauriApp])
 
   async function handleOAuth(provider: 'github' | 'google') {
     setError('')
@@ -116,6 +164,7 @@ export default function LoginPage() {
     try {
       const redirectParam = !isTauriApp ? `?redirect_to=${encodeURIComponent(window.location.origin)}` : ''
       const data = await api.get<{ url: string }>(`/api/auth/oauth/${provider}${redirectParam}`)
+      setSessionProbeFailed(false)
       if (data.url) {
         if (isTauriApp) {
           const opened = await openInBrowser(data.url)
@@ -130,7 +179,7 @@ export default function LoginPage() {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'OAuth failed')
+      setError(formatLoginError(err, 'Could not start sign-in right now.'))
       setLoading(false)
     }
   }
@@ -149,6 +198,7 @@ export default function LoginPage() {
         factor_id?: string
         available_mfa_methods?: Array<'totp' | 'webauthn'>
       }>('/api/auth/login', { email, password })
+      setSessionProbeFailed(false)
 
       if (result.error) {
         setError(result.error)
@@ -173,7 +223,7 @@ export default function LoginPage() {
 
       window.location.href = next
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      setError(formatLoginError(err, 'Sign-in failed. Check your details and try again.'))
       setLoading(false)
     }
   }
@@ -196,7 +246,7 @@ export default function LoginPage() {
 
       window.location.href = next
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'MFA verification failed')
+      setError(formatLoginError(err, 'Could not verify that code right now.'))
       setMfaCode('')
       setLoading(false)
     }
@@ -253,7 +303,7 @@ export default function LoginPage() {
         <div style={{ textAlign: 'center' }}>
           <img
             src="/logo-128.png"
-            alt="OpenClaw Manager"
+            alt="ClawControl"
             width={64}
             height={64}
             style={{
@@ -263,6 +313,25 @@ export default function LoginPage() {
               animation: 'subtleFloat 3s ease-in-out infinite',
             }}
           />
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '6px 10px',
+            borderRadius: '999px',
+            border: '1px solid var(--border)',
+            background: 'var(--bg-elevated)',
+            color: 'var(--text-muted)',
+            fontSize: '11px',
+            fontFamily: "'JetBrains Mono', monospace",
+            marginBottom: '12px',
+            maxWidth: '100%',
+          }}>
+            <span>Backend</span>
+            <span style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {backendBase}
+            </span>
+          </div>
           <h1 style={{
             margin: 0,
             fontSize: '22px',
@@ -273,7 +342,7 @@ export default function LoginPage() {
             textTransform: 'uppercase',
             transform: 'scaleY(1.3)',
           }}>
-            OpenClaw Manager
+            ClawControl
           </h1>
           <p style={{
             margin: '8px 0 0',
@@ -301,6 +370,39 @@ export default function LoginPage() {
             animation: 'fadeInUp 0.3s ease both',
           }}>
             {error}
+          </div>
+        )}
+
+        {sessionProbeFailed && !error && (
+          <div style={{
+            fontSize: '12px',
+            color: 'var(--text-secondary)',
+            textAlign: 'center',
+            padding: '10px 12px',
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+          }}>
+            <span>Cannot reach the selected backend right now.</span>
+            <button
+              type="button"
+              onClick={() => { void checkSession() }}
+              style={{
+                alignSelf: 'center',
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                color: 'var(--text-primary)',
+                padding: '6px 10px',
+                cursor: 'pointer',
+                fontSize: '12px',
+              }}
+            >
+              Retry Backend Check
+            </button>
           </div>
         )}
 

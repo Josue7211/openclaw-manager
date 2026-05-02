@@ -38,6 +38,7 @@ describe('wizard-store', () => {
     expect(state.couchdbUrl).toBe('')
     expect(state.couchdbUsername).toBe('')
     expect(state.couchdbPassword).toBe('')
+    expect(state.couchdbDatabase).toBe('clawcontrol-vault')
     expect(state.testResults).toEqual({})
     expect(state.enabledModules).toEqual([])
     expect(state.activeBundle).toBe('essentials')
@@ -61,6 +62,7 @@ describe('wizard-store', () => {
       couchdbUrl: '',
       couchdbUsername: '',
       couchdbPassword: '',
+      couchdbDatabase: 'custom-vault',
       testResults: { supabase: { status: 'success', latencyMs: 45 } },
       enabledModules: ['chat', 'todos'],
       activeBundle: 'essentials',
@@ -75,6 +77,7 @@ describe('wizard-store', () => {
     expect(state.currentStep).toBe(3)
     expect(state.completedSteps).toEqual([0, 1, 2])
     expect(state.supabaseUrl).toBe('https://supabase.example.com')
+    expect(state.couchdbDatabase).toBe('custom-vault')
     expect(state.selectedThemeId).toBe('dracula')
     // testResults should be reset to empty on load
     expect(state.testResults).toEqual({})
@@ -96,6 +99,7 @@ describe('wizard-store', () => {
       couchdbUrl: '',
       couchdbUsername: '',
       couchdbPassword: '',
+      couchdbDatabase: 'clawcontrol-vault',
       enabledModules: [],
       activeBundle: 'essentials',
       selectedThemeId: 'default-dark',
@@ -184,6 +188,20 @@ describe('wizard-store', () => {
     expect(mod1.isWizardDemoMode()).toBe(false)
   })
 
+  it('shouldAutoOpenWizard() is false when demo mode is active on first run', async () => {
+    const { shouldAutoOpenWizard } = await import('../wizard-store')
+    expect(shouldAutoOpenWizard()).toBe(true)
+
+    store['demo-mode'] = 'true'
+    expect(shouldAutoOpenWizard()).toBe(false)
+  })
+
+  it('shouldAutoOpenWizard() is false after setup is complete', async () => {
+    store['setup-complete'] = 'true'
+    const { shouldAutoOpenWizard } = await import('../wizard-store')
+    expect(shouldAutoOpenWizard()).toBe(false)
+  })
+
   it('testResults are NOT included in persisted JSON', async () => {
     const { updateTestResult, setWizardStep } = await import('../wizard-store')
     // First trigger a persist by setting a step
@@ -238,7 +256,7 @@ describe('wizard-store', () => {
     expect(STEP_NAMES[9]).toBe('Done')
   })
 
-  it('REQUIRED_STEPS exports Tailscale, Supabase, OpenClaw indices', async () => {
+  it('REQUIRED_STEPS exports Tailscale, Supabase, and Harness indices', async () => {
     const { REQUIRED_STEPS } = await import('../wizard-store')
     expect(REQUIRED_STEPS).toEqual([1, 2, 3])
   })
@@ -247,6 +265,6 @@ describe('wizard-store', () => {
     const { PRESET_BUNDLES } = await import('../wizard-store')
     expect(PRESET_BUNDLES.essentials).toEqual(['chat', 'todos', 'calendar', 'dashboard', 'notes'])
     expect(PRESET_BUNDLES.minimal).toEqual(['dashboard', 'chat'])
-    expect(PRESET_BUNDLES.full).toHaveLength(20)
+    expect(PRESET_BUNDLES.full).toHaveLength(21)
   })
 })

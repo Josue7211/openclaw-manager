@@ -59,7 +59,8 @@ fn workspace_dir() -> PathBuf {
 
 /// Return `(OPENCLAW_API_URL, OPENCLAW_API_KEY)` when remote mode is active.
 fn remote_config(state: &AppState) -> Option<(String, Option<String>)> {
-    state.secret("OPENCLAW_API_URL")
+    state
+        .secret("OPENCLAW_API_URL")
         .filter(|u| !u.is_empty())
         .map(|url| {
             let key = state.secret("OPENCLAW_API_KEY").filter(|k| !k.is_empty());
@@ -159,9 +160,10 @@ async fn list_files(
 
         return match res {
             Ok(r) if r.status().is_success() => {
-                let body: Value = r.json().await.unwrap_or_else(|_| {
-                    json!({ "coreFiles": [], "memoryFiles": [] })
-                });
+                let body: Value = r
+                    .json()
+                    .await
+                    .unwrap_or_else(|_| json!({ "coreFiles": [], "memoryFiles": [] }));
                 Ok(Json(body))
             }
             _ => Ok(Json(json!({ "coreFiles": [], "memoryFiles": [] }))),
@@ -349,8 +351,7 @@ async fn write_file(
 
     // Post-write safety: canonicalize the written file and verify it's still
     // inside the workspace (guards against symlink races / TOCTOU).
-    let ws_canon = std::fs::canonicalize(workspace_dir())
-        .unwrap_or_else(|_| workspace_dir());
+    let ws_canon = std::fs::canonicalize(workspace_dir()).unwrap_or_else(|_| workspace_dir());
     match std::fs::canonicalize(&full) {
         Ok(real) => {
             let ws_prefix = format!("{}{}", ws_canon.display(), std::path::MAIN_SEPARATOR);
@@ -429,8 +430,7 @@ async fn delete_file(
     }
 
     // Local mode
-    let full =
-        safe_path(&file_path).ok_or_else(|| AppError::BadRequest("Invalid path".into()))?;
+    let full = safe_path(&file_path).ok_or_else(|| AppError::BadRequest("Invalid path".into()))?;
 
     match tokio::fs::remove_file(&full).await {
         Ok(()) => Ok(Json(json!({ "ok": true }))),

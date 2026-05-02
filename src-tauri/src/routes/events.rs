@@ -18,8 +18,8 @@ use axum::{
 };
 use futures::StreamExt;
 use serde_json::{json, Value};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use tokio::sync::broadcast;
 
 use crate::server::{AppState, RequireAuth};
@@ -68,9 +68,7 @@ async fn sse_handler(
 
     // Spawn the Supabase Realtime WebSocket listener in the background
     let supabase_url = state.secret("SUPABASE_URL").unwrap_or_default();
-    let anon_key = state
-        .secret("SUPABASE_ANON_KEY")
-        .unwrap_or_default();
+    let anon_key = state.secret("SUPABASE_ANON_KEY").unwrap_or_default();
 
     if !supabase_url.is_empty() && !anon_key.is_empty() {
         let tx_clone = tx.clone();
@@ -86,7 +84,9 @@ async fn sse_handler(
             .await;
         });
     } else {
-        tracing::warn!("SSE /events: Supabase credentials not configured, stream will be keepalive-only");
+        tracing::warn!(
+            "SSE /events: Supabase credentials not configured, stream will be keepalive-only"
+        );
     }
 
     // Increment the connection counter; decrement when the stream ends.
@@ -163,10 +163,7 @@ async fn realtime_loop(
             break;
         }
 
-        tracing::info!(
-            "SSE /events: reconnecting in {}s",
-            backoff.as_secs()
-        );
+        tracing::info!("SSE /events: reconnecting in {}s", backoff.as_secs());
         tokio::time::sleep(backoff).await;
         backoff = (backoff * 2).min(max_backoff);
     }
@@ -266,8 +263,12 @@ async fn process_messages<S>(
     tx: &broadcast::Sender<String>,
 ) -> anyhow::Result<()>
 where
-    S: futures::Stream<Item = Result<tokio_tungstenite::tungstenite::Message, tokio_tungstenite::tungstenite::Error>>
-        + Unpin,
+    S: futures::Stream<
+            Item = Result<
+                tokio_tungstenite::tungstenite::Message,
+                tokio_tungstenite::tungstenite::Error,
+            >,
+        > + Unpin,
 {
     use tokio_tungstenite::tungstenite::Message;
 
@@ -302,10 +303,7 @@ fn handle_text_message(text: &str, user_id: &str, tx: &broadcast::Sender<String>
         Err(_) => return,
     };
 
-    let event = data
-        .get("event")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let event = data.get("event").and_then(|v| v.as_str()).unwrap_or("");
 
     // Only forward postgres_changes events
     if event != "postgres_changes" {
@@ -334,7 +332,9 @@ fn handle_text_message(text: &str, user_id: &str, tx: &broadcast::Sender<String>
 
     // Filter by user_id — defense-in-depth on top of RLS.
     // The record may be in "record" (INSERT/UPDATE) or "old_record" (DELETE).
-    let record = change_data.get("record").or_else(|| change_data.get("old_record"));
+    let record = change_data
+        .get("record")
+        .or_else(|| change_data.get("old_record"));
     let record_user_id = record
         .and_then(|r| r.get("user_id"))
         .and_then(|v| v.as_str())
@@ -472,7 +472,10 @@ mod tests {
         });
 
         handle_text_message(&msg.to_string(), "user-1", &tx);
-        assert!(rx.try_recv().is_err(), "records without user_id should be filtered out");
+        assert!(
+            rx.try_recv().is_err(),
+            "records without user_id should be filtered out"
+        );
     }
 
     #[test]

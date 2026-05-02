@@ -109,7 +109,8 @@ impl ServiceClient {
     /// Quick reachability check — sends a GET to the base URL and returns
     /// `true` if any non-timeout response is received (even 4xx/5xx).
     pub async fn is_healthy(&self) -> bool {
-        match self.http.get(&self.base_url).send().await {
+        let timeout = self.timeout.min(Duration::from_secs(5));
+        match self.http.get(&self.base_url).timeout(timeout).send().await {
             Ok(_) => true,
             Err(e) if e.is_timeout() => false,
             Err(_) => false,

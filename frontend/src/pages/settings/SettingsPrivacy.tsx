@@ -34,7 +34,7 @@ export default function SettingsPrivacy() {
         <div>
           <span>Anonymous crash reports</span>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', maxWidth: '340px', lineHeight: 1.5 }}>
-            Send anonymized error reports to help improve OpenClaw Manager. No personal data, messages, or credentials are ever included.
+            Send anonymized error reports to help improve ClawControl. No personal data, messages, or credentials are ever included.
           </div>
         </div>
         <Toggle on={errorReporting} onToggle={v => { setErrorReporting(v) }} label="Anonymous crash reports" />
@@ -80,7 +80,7 @@ export default function SettingsPrivacy() {
             const url = URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
-            a.download = `mission-control-settings-${new Date().toISOString().slice(0, 10)}.json`
+            a.download = `clawcontrol-settings-${new Date().toISOString().slice(0, 10)}.json`
             document.body.appendChild(a)
             a.click()
             document.body.removeChild(a)
@@ -177,7 +177,7 @@ export default function SettingsPrivacy() {
             try {
               const result = await api.get<{ data: unknown }>('/api/export/supabase')
               const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: 'application/json' })
-              downloadBlob(blob, `mission-control-data-${new Date().toISOString().slice(0, 10)}.json`)
+              downloadBlob(blob, `clawcontrol-data-${new Date().toISOString().slice(0, 10)}.json`)
             } catch (err) {
               setExportError('Failed to export Supabase data. ' + (err instanceof Error ? err.message : ''))
             } finally {
@@ -211,7 +211,7 @@ export default function SettingsPrivacy() {
               const resp = await fetch(`${API_BASE}/api/export/sqlite`, { headers })
               if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
               const blob = await resp.blob()
-              downloadBlob(blob, `mission-control-backup-${new Date().toISOString().slice(0, 10)}.sqlite`)
+              downloadBlob(blob, `clawcontrol-backup-${new Date().toISOString().slice(0, 10)}.sqlite`)
             } catch (err) {
               setExportError('Failed to export SQLite backup. ' + (err instanceof Error ? err.message : ''))
             } finally {
@@ -252,7 +252,7 @@ export default function SettingsPrivacy() {
                 })),
               }
               const blob = new Blob([JSON.stringify(archive, null, 2)], { type: 'application/json' })
-              downloadBlob(blob, `mission-control-notes-${new Date().toISOString().slice(0, 10)}.json`)
+              downloadBlob(blob, `clawcontrol-notes-${new Date().toISOString().slice(0, 10)}.json`)
             } catch (err) {
               setExportError('Failed to export notes. ' + (err instanceof Error ? err.message : ''))
             } finally {

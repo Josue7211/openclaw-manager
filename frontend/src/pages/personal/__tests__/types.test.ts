@@ -43,7 +43,7 @@ describe('type exports', () => {
   it('ProxmoxVM type is structurally valid', () => {
     const vm: ProxmoxVM = {
       vmid: 100,
-      name: 'services-vm',
+      name: 'core-services',
       status: 'running',
       cpuPercent: 12.5,
       memUsedGB: 4.2,

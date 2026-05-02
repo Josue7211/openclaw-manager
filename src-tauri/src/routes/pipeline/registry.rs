@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use super::agents::REGISTRY_PATH;
 use super::agents::AgentRoute;
+use super::agents::REGISTRY_PATH;
 
 // ── Agent-registry helpers ───────────────────────────────────────────────────
 
@@ -39,7 +39,13 @@ pub(super) async fn write_registry(registry: &Registry) {
     }
 }
 
-pub(super) async fn register_process(pid: u32, route: &AgentRoute, task: &str, log_file: &str, mission_id: &str) {
+pub(super) async fn register_process(
+    pid: u32,
+    route: &AgentRoute,
+    task: &str,
+    log_file: &str,
+    mission_id: &str,
+) {
     let mut reg = read_registry().await;
     reg.insert(
         pid.to_string(),

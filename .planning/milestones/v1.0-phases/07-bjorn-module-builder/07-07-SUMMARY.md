@@ -1,18 +1,18 @@
 ---
-phase: 07-bjorn-module-builder
+phase: 07-agent-module-builder
 plan: 07
 subsystem: api
-tags: [rust, axum, bjorn, sqlite, serde, json]
+tags: [rust, axum, agent, sqlite, serde, json]
 
 # Dependency graph
 requires:
-  - phase: 07-bjorn-module-builder (plans 01-02)
-    provides: Bjorn backend CRUD endpoints and persistence layer
+  - phase: 07-agent-module-builder (plans 01-02)
+    provides: Agent backend CRUD endpoints and persistence layer
 provides:
   - All 3 mutation endpoints (update/toggle/rollback) return full BjornModule JSON
   - defaultSize accepts nested { w, h } object from frontend
   - DRY module_row_to_json helper for consistent JSON serialization
-affects: [frontend bjorn-store, dashboard widget system, bjorn module builder UI]
+affects: [frontend agent-store, dashboard widget system, agent module builder UI]
 
 # Tech tracking
 tech-stack:
@@ -22,7 +22,7 @@ tech-stack:
 key-files:
   created: []
   modified:
-    - src-tauri/src/routes/bjorn.rs
+    - src-tauri/src/routes/agent.rs
 
 key-decisions:
   - "module_row_to_json helper + fetch_module_row DRYs 4 serialization sites into 1 shared function"
@@ -42,7 +42,7 @@ completed: 2026-03-21
 
 # Phase 07 Plan 07: Gap Closure Summary
 
-**Fix 3 Bjorn mutation endpoints to return full module JSON under "module" key, add nested defaultSize deserialization, and extract DRY module_row_to_json helper**
+**Fix 3 Agent mutation endpoints to return full module JSON under "module" key, add nested defaultSize deserialization, and extract DRY module_row_to_json helper**
 
 ## Performance
 
@@ -54,7 +54,7 @@ completed: 2026-03-21
 
 ## Accomplishments
 - update_module, toggle_module, rollback_module now return `{ "module": { ...full BjornModule } }` matching frontend contract
-- Frontend bjorn-store.ts `result.module` destructuring will receive a complete object instead of undefined
+- Frontend agent-store.ts `result.module` destructuring will receive a complete object instead of undefined
 - defaultSize deserialization accepts both nested `{ w, h }` and flat `defaultSizeW`/`defaultSizeH` with fallback
 - Extracted `module_row_to_json` + `fetch_module_row` helpers used by 4 endpoints (list + 3 mutations)
 - All 245 Rust tests pass, all 2177 frontend tests pass
@@ -67,7 +67,7 @@ Each task was committed atomically:
 2. **Task 2: Verify frontend-backend contract alignment with compilation and Rust tests** - verification-only, no code changes
 
 ## Files Created/Modified
-- `src-tauri/src/routes/bjorn.rs` - Added SizeObj, ModuleRow type alias, module_row_to_json helper, fetch_module_row helper; refactored list_modules, update_module, toggle_module, rollback_module
+- `src-tauri/src/routes/agent.rs` - Added SizeObj, ModuleRow type alias, module_row_to_json helper, fetch_module_row helper; refactored list_modules, update_module, toggle_module, rollback_module
 
 ## Decisions Made
 - module_row_to_json helper + fetch_module_row DRYs 4 serialization sites into 1 shared function
@@ -86,11 +86,11 @@ None
 None - no external service configuration required.
 
 ## Next Phase Readiness
-- All 7 plans in Phase 07 (Bjorn Module Builder) are now complete
+- All 7 plans in Phase 07 (Agent Module Builder) are now complete
 - BJORN-10 (persistence), BJORN-11 (toggle), BJORN-12 (rollback) requirements fully satisfied
-- Frontend-backend contract is aligned across all Bjorn endpoints
+- Frontend-backend contract is aligned across all Agent endpoints
 - Ready for Phase 08 (Data Export) or further integration testing
 
 ---
-*Phase: 07-bjorn-module-builder*
+*Phase: 07-agent-module-builder*
 *Completed: 2026-03-21*

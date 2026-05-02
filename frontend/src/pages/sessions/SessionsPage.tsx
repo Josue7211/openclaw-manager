@@ -35,8 +35,8 @@ export default function SessionsPage() {
 
   return (
     <div style={{
-      position: 'absolute',
-      inset: 0,
+      flex: 1,
+      minHeight: 0,
       margin: '-20px -28px',
       display: 'flex',
       overflow: 'hidden',

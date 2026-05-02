@@ -11,17 +11,24 @@ const __dirname = resolve(fileURLToPath(import.meta.url), '..')
 // Mock modules before importing the component
 vi.mock('@/lib/api', () => ({
   api: { get: vi.fn() },
+  API_BASE_CHANGED_EVENT: 'backend-api-base-changed',
 }))
 vi.mock('@/lib/demo-data', () => ({
   isDemoMode: vi.fn(() => false),
 }))
 vi.mock('@/lib/preferences-sync', () => ({
   initPreferencesSync: vi.fn(),
+  initOpenClawRuntimeConfig: vi.fn(),
+}))
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn(),
 }))
 
 import AuthGuard from '../AuthGuard'
 import { api } from '@/lib/api'
 import { isDemoMode } from '@/lib/demo-data'
+import { initPreferencesSync, initOpenClawRuntimeConfig } from '@/lib/preferences-sync'
+import { invoke } from '@tauri-apps/api/core'
 
 function renderWithRouter(initialEntries = ['/']) {
   return render(
@@ -45,10 +52,21 @@ describe('AuthGuard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(isDemoMode).mockReturnValue(false)
+    vi.mocked(initPreferencesSync).mockResolvedValue(undefined)
+    vi.mocked(initOpenClawRuntimeConfig).mockResolvedValue(undefined)
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: undefined,
+    })
+    localStorage.clear()
   })
 
   it('renders children when isDemoMode() returns true', async () => {
     vi.mocked(isDemoMode).mockReturnValue(true)
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/api/setup/status') return { ok: false } as never
+      return { authenticated: true } as never
+    })
 
     renderWithRouter()
 
@@ -65,6 +83,27 @@ describe('AuthGuard', () => {
     await waitFor(() => {
       expect(screen.getByText('Protected Content')).toBeInTheDocument()
     })
+  })
+
+  it('forces setup flow when backend pairing is required but no device key exists', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: {},
+    })
+    localStorage.setItem('setup-complete', 'true')
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/api/auth/session') return { authenticated: true } as never
+      if (path === '/api/setup/status') return { pairing_required: true } as never
+      throw new Error(`unexpected path: ${path}`)
+    })
+    vi.mocked(invoke).mockResolvedValue(null)
+
+    renderWithRouter()
+
+    await waitFor(() => {
+      expect(screen.getByText('Protected Content')).toBeInTheDocument()
+    })
+    expect(localStorage.getItem('setup-complete')).toBeNull()
   })
 
   it('navigates to /login when api.get returns authenticated: false', async () => {
@@ -92,7 +131,10 @@ describe('AuthGuard', () => {
 
   it('renders children when api.get throws but isDemoMode() returns true (demo fallback)', async () => {
     vi.mocked(isDemoMode).mockReturnValue(true)
-    vi.mocked(api.get).mockRejectedValue(new Error('Network error'))
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/api/setup/status') throw new Error('Network error')
+      throw new Error('Network error')
+    })
 
     renderWithRouter()
 

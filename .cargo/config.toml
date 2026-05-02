@@ -1,4 +1,3 @@
 
 [build]
-target-dir = "/tmp/mc-target"
-
+target-dir = "/home/josue/Documents/projects/clawcontrol/.cargo-target"

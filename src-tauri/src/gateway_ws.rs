@@ -142,7 +142,10 @@ mod tests {
     #[tokio::test]
     async fn test_connection_state_default() {
         let client = GatewayWsClient::new();
-        assert_eq!(client.connection_state().await, ConnectionState::Disconnected);
+        assert_eq!(
+            client.connection_state().await,
+            ConnectionState::Disconnected
+        );
     }
 
     #[tokio::test]

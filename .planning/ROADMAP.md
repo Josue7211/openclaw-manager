@@ -1,4 +1,4 @@
-# Roadmap: OpenClaw Manager
+# Roadmap: ClawControl
 
 ## Milestones
 
@@ -8,6 +8,7 @@
 - v0.0.4 -- Stabilize & Strip (shipped 2026-03-24) -- [Full details](milestones/v0.0.4-ROADMAP.md)
 - v0.0.5 -- Gateway Protocol v3 (shipped 2026-03-24) -- [Full details](milestones/v0.0.5-ROADMAP.md)
 - v0.0.6 -- Sessions & Chat (in progress)
+- v0.0.8 -- Release Package & Backend-First Setup (planned, immediate priority) -- [Full details](milestones/v0.0.8-ROADMAP.md) -- [Requirements](milestones/v0.0.8-REQUIREMENTS.md)
 - v0.0.7 -- AgentShell, Agent Secrets, and MemD (planned) -- [Full details](milestones/v0.0.7-ROADMAP.md) -- [Requirements](milestones/v0.0.7-REQUIREMENTS.md)
 
 ## Phases
@@ -69,6 +70,37 @@
 **Group AN: Cross-System Verification** *(ship only after the three surfaces work together)*
 - [ ] **Phase 109: End-to-End Integration** - Verify AgentShell, secrets, and MemD behave correctly in one production build
 - [ ] **Phase 110: Branch & PR Readiness** - Split remaining follow-ups into clean branches, document release order, and run final verification
+
+### v0.0.8 -- Release Package & Backend-First Setup
+
+**Branch plan** *(ship a working package first; keep backend-first setup separate from platform R&D)*
+- `chore/release-roadmap-ops` - release checklist, branch discipline, PR sequencing, packaging runbook
+- `feature/backend-stack-compose` - Docker Compose backend stack, `.env.example`, health wiring
+- `feature/setup-status-contract` - backend `/api/setup/status`, pairing token bootstrap, capability detection
+- `feature/onboarding-server-first` - desktop onboarding rewrite for server URL + pairing token
+- `feature/release-package-hardening` - packaging, smoke tests, installer/readme polish, final release candidate
+
+**PR order:**
+1. Release roadmap + repo ops alignment
+2. Docker backend stack and env template
+3. Setup status + pairing contract
+4. Desktop onboarding simplification
+5. Packaging, smoke test, and release candidate verification
+
+**Group AO: Release Operations** *(lock the release path before more feature churn)*
+- [ ] **Phase 111: Release Branch & Package Plan** - Freeze the release lane, document branch ownership, and define the package acceptance checklist
+
+**Group AP: Backend Stack** *(one compose file, one env, one backend URL)*
+- [ ] **Phase 112: Docker Compose Backend Stack** - Ship a single backend compose stack for Supabase, OpenClaw, MemD, and supporting services
+- [ ] **Phase 113: Unified Environment Contract** - Define `.env.example`, secret injection rules, and per-service config boundaries so users edit one env file
+
+**Group AQ: Pairing & Setup Contract** *(desktop app should ask for one URL and one token)*
+- [ ] **Phase 114: Setup Status & Pairing API** - Add a backend-first setup/status contract with service health, capability detection, and pairing-token bootstrap
+- [ ] **Phase 115: Server-First Onboarding Flow** - Rewrite setup to ask for backend URL and pairing token first, then only surface missing integrations
+
+**Group AR: Package Hardening** *(ship a working package, not just a dev environment)*
+- [ ] **Phase 116: Package Smoke & Offline Degradation** - Verify packaged desktop flows, auth, chat, and clear offline states when external services are down
+- [ ] **Phase 117: Release Candidate Build** - Produce a working package, update release docs, and lock the final release checklist
 
 <details>
 <summary>v0.0.5 -- Gateway Protocol v3 (16 phases) -- SHIPPED 2026-03-24</summary>

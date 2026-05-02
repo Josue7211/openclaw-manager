@@ -1,0 +1,73 @@
+{
+  "generated_at": "2026-05-02T23:06:37.162700291Z",
+  "project_root": "/home/josue/Documents/projects/clawcontrol",
+  "source_registry_hash": null,
+  "source_registry_path": null,
+  "layer_summary": [
+    {
+      "layer": "live_truth",
+      "sources": 4,
+      "summary": [
+        "file_edited: .cargo/config.toml",
+        "file_edited: .env.example",
+        "file_edited: .github/workflows/ci.yml",
+        "file_edited: .gitignore"
+      ]
+    },
+    {
+      "layer": "project_brain",
+      "sources": 16,
+      "summary": [
+        "id=65027bd0-cb0d-418a-80c6-26a1e7ace0e8 | stage=canonical | scope=local | kind=live_truth | status=active | project=clawcontrol | ns=main | vis=private | agent=memd | tags=live_truth,repo_changes | cf=0.98 | upd=1777763191 | c=file_edited: .cargo/config.toml file_edited: .env.example file_edited: .github/workflows/ci.yml file_edited: .gitignore file_edited: .planning/MILESTONES.md file_edited: .planning/PROJECT.md",
+        "id=ecadde11-93bd-4f29-8f09-b000e2ef8c28 | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777736236 | c=LightRAG is already configured and populated for clawcontrol/user knowledge. Current gap is active use from ClawControl/memd surfaces, not initial LightRAG setup.",
+        "id=774f6590-93d0-4aaa-af11-aee48de50e8f | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777748779 | c=User currently works as a personal trainer at Amped Fitness in Fort Myers near FGCU. Career Ops should support both engineering internship/remote work search and online coaching/personal trainer growth work.",
+        "id=ca1a2941-4343-48de-b154-96ac4207f1cb | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777738324 | c=User expects ClawControl Knowledge to expose LightRAG's visible knowledge graph, not only semantic search/status. LightRAG graph data is available from /graphs plus /graph/label/* endpoints and should be surfaced in t...",
+        "id=f23c7532-d945-487f-be65-376272f7da8d | stage=canonical | scope=project | kind=preference | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777748779 | c=User wants two related generated modules: a Personal Trainer / online coaching ops module and an Engineering Ops / internship search module. These should help post on socials, find what works, give advice, analyze inf...",
+        "id=d829f074-9cb1-4025-b8ce-58015ae7b16e | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | lane=design | cf=0.70 | upd=1777739865 | c=ClawControl Remote Viewer is embedded noVNC now: VM runs clawcontrol-vnc.service with TigerVNC on localhost:5901, local openclaw-sunshine-tunnel.service forwards 5901 to 127.0.0.1, backend /api/vnc/ws proxies WebSocke...",
+        "id=f9949444-bbec-481a-8425-5d747f2353f5 | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777738072 | c=OpenClaw remote desktop setup: VM runs native Sunshine via user services sunshine.service, clawcontrol-xvfb.service, and clawcontrol-xfce.service on DISPLAY=:99. Local Moonlight Flatpak is paired to Openclaw-VM and li...",
+        "id=05774941-65f4-4b1e-b1a1-8360ff823e26 | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777736379 | c=Correction: For clawcontrol/OpenClaw VM work, sudo access exists in Bitwarden. Do not say VM sudo is unavailable just because the Codex tool shell's bw status is locked; use/request a BW session in this shell and retr...",
+        "id=ecadde11-93bd-4f29-8f09-b000e2ef8c28 | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777736236 | c=LightRA...",
+        "id=774f6590-93d0-4aaa-af11-aee48de50e8f | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777748779 | c=User cu...",
+        "id=ca1a2941-4343-48de-b154-96ac4207f1cb | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777738324 | c=User ex...",
+        "id=f23c7532-d945-487f-be65-376272f7da8d | stage=canonical | scope=project | kind=preference | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777748779 | c=U...",
+        "id=d829f074-9cb1-4025-b8ce-58015ae7b16e | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | lane=design | cf=0.70 | upd=17777398...",
+        "id=f9949444-bbec-481a-8425-5d747f2353f5 | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777738072 | c=OpenCla...",
+        "id=05774941-65f4-4b1e-b1a1-8360ff823e26 | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777736379 | c=Correct...",
+        "On 2026-04-18, user corrected that repo edits did not change the running OpenClaw VM; do not claim Hermes/live model fixes are applied unless the deploy/runtime has actually been updated and verified."
+      ]
+    },
+    {
+      "layer": "user_policy",
+      "sources": 8,
+      "summary": [
+        "claude / agent / agent:gsd-advisor-researcher.md",
+        "claude / agent / agent:gsd-assumptions-analyzer.md",
+        "claude / agent / agent:gsd-codebase-mapper.md",
+        "claude / agent / agent:gsd-debugger.md",
+        "claude / agent / agent:gsd-executor.md",
+        "claude / agent / agent:gsd-integration-checker.md",
+        "claude / agent / agent:gsd-nyquist-auditor.md",
+        "claude / agent / agent:gsd-phase-researcher.md"
+      ]
+    },
+    {
+      "layer": "promoted_abstractions",
+      "sources": 8,
+      "summary": [
+        "opencode / codex:system--imagegen -> already-bridged",
+        "opencode / codex:system--openai-docs -> already-bridged",
+        "opencode / codex:system--plugin-creator -> already-bridged",
+        "opencode / codex:system--skill-creator -> already-bridged",
+        "opencode / codex:system--skill-installer -> already-bridged",
+        "opencode / codex:autodream -> already-bridged",
+        "opencode / codex:autoplan -> already-bridged",
+        "opencode / codex:autoresearch -> already-bridged"
+      ]
+    }
+  ],
+  "notes": [
+    "bootstrap remains read-once for unchanged sources",
+    "delta refresh reuses the existing source registry instead of reimporting stable files",
+    "explicit init remains the only mutating bridge path for shared runtime surfaces"
+  ]
+}

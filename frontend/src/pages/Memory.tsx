@@ -4,7 +4,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { Brain, Scroll, MagnifyingGlass, Sparkle } from '@phosphor-icons/react'
-import { api } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
 import { timeAgo } from '@/lib/utils'
 import { queryKeys } from '@/lib/query-keys'
 import { SkeletonList } from '@/components/Skeleton'
@@ -55,6 +55,7 @@ export default function MemoryPage() {
   const [searchMode, setSearchMode] = useState<'files' | 'semantic'>('files')
   const [semanticQuery, setSemanticQuery] = useState('')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const loadRequestRef = useRef(0)
 
   // Debounce semantic search input
   const handleSemanticInput = useCallback((value: string) => {
@@ -76,10 +77,11 @@ export default function MemoryPage() {
   const { data: searchResults, isLoading: searchLoading, error: searchError } = useQuery<SearchResult[]>({
     queryKey: queryKeys.memorySearch(semanticQuery),
     queryFn: async () => {
-      const resp = await api.post<{ ok: boolean; data?: { results?: SearchResult[] } & Record<string, unknown> }>('/api/gateway/memory/search', {
+      const resp = await api.post<{ ok: boolean; results?: SearchResult[]; data?: { results?: SearchResult[] } & Record<string, unknown> }>('/api/rag/search', {
         query: semanticQuery,
         limit: 20,
       })
+      if (Array.isArray(resp?.results)) return resp.results
       // The gateway returns { ok, data } where data is the raw payload
       // The payload shape may vary — try common fields
       const payload = resp?.data
@@ -97,18 +99,40 @@ export default function MemoryPage() {
   })
 
   const loadFile = useCallback(async (filePath: string) => {
+    const requestId = ++loadRequestRef.current
     setActiveFile(filePath)
     setMode('view')
     setLoading(true)
     setContent('')
     try {
-      const data = await api.get<{ content?: string }>(`/api/workspace/file?path=${encodeURIComponent(filePath)}`)
-      setContent(data.content || '')
-      setEditContent(data.content || '')
-    } catch {
-      setContent('Error loading file.')
+      let lastError: unknown = null
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          const data = await api.get<{ content?: string }>(`/api/workspace/file?path=${encodeURIComponent(filePath)}`)
+          if (loadRequestRef.current !== requestId) return
+          const nextContent = data.content || ''
+          setContent(nextContent)
+          setEditContent(nextContent)
+          return
+        } catch (err) {
+          lastError = err
+          if (attempt === 0) {
+            await new Promise(resolve => setTimeout(resolve, 250))
+            if (loadRequestRef.current !== requestId) return
+            continue
+          }
+        }
+      }
+      if (loadRequestRef.current !== requestId) return
+      if (lastError instanceof ApiError) {
+        setContent(`Error loading file: ${lastError.message}`)
+      } else {
+        setContent('Error loading file.')
+      }
     } finally {
-      setLoading(false)
+      if (loadRequestRef.current === requestId) {
+        setLoading(false)
+      }
     }
   }, [])
 
@@ -252,7 +276,7 @@ export default function MemoryPage() {
             )}
             {searchError && (
               <div style={{ padding: '12px', fontSize: '12px', color: 'var(--red-500)' }}>
-                Search unavailable. Check gateway connection.
+                Search unavailable. Check LightRAG connection.
               </div>
             )}
             {!searchLoading && !searchError && semanticQuery.length >= 2 && searchResults && searchResults.length === 0 && (

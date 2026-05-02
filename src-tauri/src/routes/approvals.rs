@@ -1,10 +1,14 @@
-use axum::{extract::{Path, State}, routing::{get, post}, Json, Router};
+use axum::{
+    extract::{Path, State},
+    routing::{get, post},
+    Json, Router,
+};
 use reqwest::Method;
 use serde_json::{json, Value};
 
+use super::gateway::gateway_forward;
 use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
-use super::gateway::gateway_forward;
 
 // ── List pending approvals ─────────────────────────────────────────────────
 

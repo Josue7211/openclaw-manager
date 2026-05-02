@@ -264,7 +264,7 @@ Add crates here only after confirming they are used via build scripts that mache
    cd src-tauri && cargo machete
    ```
 
-8. **Audit existing `#[allow(dead_code)]` annotations** -- 13 across 7 files (supabase.rs: 3, media.rs: 5, terminal.rs: 1, bjorn.rs: 1, auth.rs: 1, pipeline/helpers.rs: 1, pipeline/agents.rs: 1). Each annotation is either genuinely needed (e.g., struct fields for deserialization) or suppressing a warning that hides actual dead code to remove.
+8. **Audit existing `#[allow(dead_code)]` annotations** -- 13 across 7 files (supabase.rs: 3, media.rs: 5, terminal.rs: 1, agent.rs: 1, auth.rs: 1, pipeline/helpers.rs: 1, pipeline/agents.rs: 1). Each annotation is either genuinely needed (e.g., struct fields for deserialization) or suppressing a warning that hides actual dead code to remove.
 
 ### How the tools complement each other
 

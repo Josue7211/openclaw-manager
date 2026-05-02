@@ -25,7 +25,8 @@ fn is_private_or_loopback(ip: &IpAddr) -> bool {
             || v4.octets() == [192, 0, 0, 0] || (v4.octets()[0] == 192 && v4.octets()[1] == 0 && v4.octets()[2] == 0) // 192.0.0.0/24
             || (v4.octets()[0] == 192 && v4.octets()[1] == 0 && v4.octets()[2] == 2)   // 192.0.2.0/24 TEST-NET-1
             || (v4.octets()[0] == 198 && v4.octets()[1] == 51 && v4.octets()[2] == 100) // 198.51.100.0/24 TEST-NET-2
-            || (v4.octets()[0] == 203 && v4.octets()[1] == 0 && v4.octets()[2] == 113)  // 203.0.113.0/24 TEST-NET-3
+            || (v4.octets()[0] == 203 && v4.octets()[1] == 0 && v4.octets()[2] == 113)
+            // 203.0.113.0/24 TEST-NET-3
         }
         IpAddr::V6(v6) => {
             v6.is_loopback()             // ::1
@@ -73,9 +74,7 @@ async fn send_notification(
         .ok_or_else(|| AppError::BadRequest("title and message required".into()))?;
 
     if title.is_empty() || message.is_empty() {
-        return Err(AppError::BadRequest(
-            "title and message required".into(),
-        ));
+        return Err(AppError::BadRequest("title and message required".into()));
     }
 
     // CRLF injection protection: reject control characters in header-bound values
@@ -99,10 +98,12 @@ async fn send_notification(
         }
     }
 
-    let url = state.secret("NTFY_URL")
+    let url = state
+        .secret("NTFY_URL")
         .ok_or_else(|| AppError::BadRequest("NTFY_URL not configured".into()))?;
-    let topic = state.secret("NTFY_TOPIC")
-        .unwrap_or_else(|| "mission-control".into());
+    let topic = state
+        .secret("NTFY_TOPIC")
+        .unwrap_or_else(|| "clawcontrol".into());
 
     // SSRF protection: comprehensive private/loopback/reserved IP check
     let full_url = format!("{url}/{topic}");
@@ -120,7 +121,8 @@ async fn send_notification(
     }
 
     // Block well-known metadata hostnames
-    if host.ends_with(".internal") || host.ends_with(".local") || host == "metadata.google.internal" {
+    if host.ends_with(".internal") || host.ends_with(".local") || host == "metadata.google.internal"
+    {
         return Err(AppError::BadRequest("Invalid ntfy URL".into()));
     }
 
@@ -139,20 +141,29 @@ async fn send_notification(
             }
             url::Host::Domain(_) => {
                 // DNS resolution check: resolve the hostname and verify no resolved IP is private
-                let port = parsed.port().unwrap_or(if scheme == "https" { 443 } else { 80 });
+                let port = parsed
+                    .port()
+                    .unwrap_or(if scheme == "https" { 443 } else { 80 });
                 let addr = format!("{}:{}", host, port);
-                let resolved: Vec<std::net::SocketAddr> = match tokio::net::lookup_host(&addr).await {
+                let resolved: Vec<std::net::SocketAddr> = match tokio::net::lookup_host(&addr).await
+                {
                     Ok(addrs) => addrs.collect(),
                     Err(_) => {
-                        return Err(AppError::BadRequest("Invalid ntfy URL: DNS resolution failed".into()));
+                        return Err(AppError::BadRequest(
+                            "Invalid ntfy URL: DNS resolution failed".into(),
+                        ));
                     }
                 };
                 if resolved.is_empty() {
-                    return Err(AppError::BadRequest("Invalid ntfy URL: DNS resolution failed".into()));
+                    return Err(AppError::BadRequest(
+                        "Invalid ntfy URL: DNS resolution failed".into(),
+                    ));
                 }
                 for socket_addr in &resolved {
                     if is_private_or_loopback(&socket_addr.ip()) {
-                        return Err(AppError::BadRequest("Invalid ntfy URL: resolves to private IP".into()));
+                        return Err(AppError::BadRequest(
+                            "Invalid ntfy URL: resolves to private IP".into(),
+                        ));
                     }
                 }
             }

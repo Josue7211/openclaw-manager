@@ -22,7 +22,7 @@ vi.mock('@/lib/api', () => ({
     patch: vi.fn(),
     del: vi.fn(),
   },
-  API_BASE: 'http://localhost:3000',
+  API_BASE: 'http://localhost:5000',
   getApiKey: () => 'test-key',
   setApiKey: vi.fn(),
 }))

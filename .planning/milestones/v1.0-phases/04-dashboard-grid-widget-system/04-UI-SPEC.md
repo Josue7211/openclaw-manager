@@ -378,7 +378,7 @@ interface WidgetConfigSchema {
 |------|--------|-------------|-----------|
 | Built-in | Shipped with the app | Full trust | Direct React component in main context |
 | User | Downloaded/installed (future Phase) | Validated | Direct React component after validation |
-| AI | Bjorn-generated (Phase 7) | Sandboxed | iframe with `sandbox="allow-scripts"`, no same-origin |
+| AI | Agent-generated (Phase 7) | Sandboxed | iframe with `sandbox="allow-scripts"`, no same-origin |
 
 Phase 4 only implements `builtin` tier. The registry interface is designed to support all three tiers for forward compatibility.
 
@@ -558,7 +558,7 @@ In edit mode, clicking an empty area of the grid opens the widget picker with th
 |----------|---------|
 | Monitoring | agent-status, heartbeat, network, sessions |
 | Productivity | missions, idea-briefing, memory |
-| AI | agents (Bjorn + subagent monitoring) |
+| AI | agents (Agent + subagent monitoring) |
 | Bundles | Agent Monitor, Mission Control, System Overview |
 
 ### Widget Config Panel (Gear Icon)

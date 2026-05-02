@@ -1,7 +1,7 @@
 // ── Constants ────────────────────────────────────────────────────────────────
 
 pub(super) const REGISTRY_PATH: &str = "/tmp/agent-registry.json";
-pub(super) const MC_BASE_URL: &str = "http://localhost:3000";
+pub(super) const MC_BASE_URL: &str = "http://localhost:5000";
 pub(super) const MAX_RETRIES: u32 = 3;
 
 // ── Status constants (mirrors lib/constants.ts) ──────────────────────────────

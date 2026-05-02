@@ -58,7 +58,7 @@ gaps:
 | `src-tauri/src/supabase.rs` | health_check annotation removed; rpc/rpc_url justified | VERIFIED | Lines 98 and 423 have inline justification comments; no annotation on health_check at line 447 |
 | `src-tauri/src/routes/media.rs` | Struct-level annotations removed or field-level justified | PARTIAL | 5 struct-level annotations present, all with inline justification comments; added/date_added fields retained (deviation from plan) |
 | `src-tauri/src/routes/auth.rs` | SignupBody annotation justified | VERIFIED | Line 598: `#[allow(dead_code)] // fields consumed by serde deserialization; body intentionally discarded (signup disabled)` |
-| `src-tauri/src/routes/bjorn.rs` | BridgeBody.args annotation justified | VERIFIED | Line 553: `#[allow(dead_code)] // deserialized from JSON request but not yet read; needed when bridge proxy is implemented` |
+| `src-tauri/src/routes/agent.rs` | BridgeBody.args annotation justified | VERIFIED | Line 553: `#[allow(dead_code)] // deserialized from JSON request but not yet read; needed when bridge proxy is implemented` |
 | `src-tauri/src/routes/terminal.rs` | PtyCleanup.master annotation justified | FAILED | Line 184: `#[allow(dead_code)]` with NO inline comment — file was not modified by this phase despite being listed in PLAN's files_modified |
 | `src-tauri/src/routes/pipeline/helpers.rs` | clean_env() annotation justified | VERIFIED | Line 208: `#[allow(dead_code)] // preferred over clean_env_from_env once spawn_agent_process gets &AppState (see TODO below)` |
 | `src-tauri/src/routes/pipeline/agents.rs` | PENDING constant annotation justified | VERIFIED | Line 15: `#[allow(dead_code)] // completes the status enum; will be used when mission creation is wired` |

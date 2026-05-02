@@ -182,7 +182,8 @@ enum TerminalCommand {
 
 struct PtyCleanup {
     child: Box<dyn portable_pty::Child + Send + Sync>,
-    #[allow(dead_code)] // Justification: held alive to keep PTY master fd open; dropping it closes the terminal session
+    #[allow(dead_code)]
+    // Justification: held alive to keep PTY master fd open; dropping it closes the terminal session
     master: Box<dyn MasterPty + Send>,
     #[cfg(unix)]
     pgid: Option<i32>,
@@ -414,9 +415,7 @@ async fn handle_terminal_ws(socket: WebSocket, _guard: PtyConnectionGuard) {
 // Status endpoint (pre-flight capacity check)
 // ---------------------------------------------------------------------------
 
-async fn terminal_status(
-    RequireAuth(_session): RequireAuth,
-) -> Json<serde_json::Value> {
+async fn terminal_status(RequireAuth(_session): RequireAuth) -> Json<serde_json::Value> {
     let active = PTY_CONNECTIONS.load(Ordering::Acquire);
     let available = MAX_PTY_CONNECTIONS.saturating_sub(active);
     Json(json!({

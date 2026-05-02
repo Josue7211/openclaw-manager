@@ -17,9 +17,18 @@ use super::gateway::{gateway_forward, openclaw_api_key, openclaw_api_url};
 
 /// Row type for agent queries (avoids clippy::type_complexity).
 type AgentRow = (
-    String, String, Option<String>, Option<String>, Option<String>,
-    String, String, Option<String>, Option<String>, i64,
-    String, String,
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+    i64,
+    String,
+    String,
 );
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -66,7 +75,20 @@ async fn get_agents(
     let agents: Vec<Value> = rows
         .iter()
         .map(
-            |(id, name, display_name, emoji, role, status, current_task, model, color, sort_order, created_at, updated_at)| {
+            |(
+                id,
+                name,
+                display_name,
+                emoji,
+                role,
+                status,
+                current_task,
+                model,
+                color,
+                sort_order,
+                created_at,
+                updated_at,
+            )| {
                 json!({
                     "id": id,
                     "name": name,
@@ -175,8 +197,7 @@ async fn create_agent(
         "updated_at": now,
     });
 
-    let payload = serde_json::to_string(&agent_val)
-        .map_err(|e| AppError::Internal(e.into()))?;
+    let payload = serde_json::to_string(&agent_val).map_err(|e| AppError::Internal(e.into()))?;
     crate::sync::log_mutation(&state.db, "agents", &id, "INSERT", Some(&payload))
         .await
         .map_err(|e| AppError::Internal(e.into()))?;
@@ -316,14 +337,30 @@ async fn update_agent(
 
     // Build dynamic UPDATE from allowed fields
     let mut sets = vec!["updated_at = ?"];
-    if body.display_name.is_some() { sets.push("display_name = ?"); }
-    if body.emoji.is_some() { sets.push("emoji = ?"); }
-    if body.role.is_some() { sets.push("role = ?"); }
-    if body.status.is_some() { sets.push("status = ?"); }
-    if body.current_task.is_some() { sets.push("current_task = ?"); }
-    if body.color.is_some() { sets.push("color = ?"); }
-    if body.model.is_some() { sets.push("model = ?"); }
-    if body.sort_order.is_some() { sets.push("sort_order = ?"); }
+    if body.display_name.is_some() {
+        sets.push("display_name = ?");
+    }
+    if body.emoji.is_some() {
+        sets.push("emoji = ?");
+    }
+    if body.role.is_some() {
+        sets.push("role = ?");
+    }
+    if body.status.is_some() {
+        sets.push("status = ?");
+    }
+    if body.current_task.is_some() {
+        sets.push("current_task = ?");
+    }
+    if body.color.is_some() {
+        sets.push("color = ?");
+    }
+    if body.model.is_some() {
+        sets.push("model = ?");
+    }
+    if body.sort_order.is_some() {
+        sets.push("sort_order = ?");
+    }
 
     let sql = format!(
         "UPDATE agents SET {} WHERE id = ? AND user_id = ?",
@@ -331,13 +368,27 @@ async fn update_agent(
     );
 
     let mut query = sqlx::query(&sql).bind(&now);
-    if let Some(ref v) = body.display_name { query = query.bind(v); }
-    if let Some(ref v) = body.emoji { query = query.bind(v); }
-    if let Some(ref v) = body.role { query = query.bind(v); }
-    if let Some(ref v) = body.status { query = query.bind(v); }
-    if let Some(ref v) = body.current_task { query = query.bind(v); }
-    if let Some(ref v) = body.color { query = query.bind(v); }
-    if let Some(ref v) = body.model { query = query.bind(v); }
+    if let Some(ref v) = body.display_name {
+        query = query.bind(v);
+    }
+    if let Some(ref v) = body.emoji {
+        query = query.bind(v);
+    }
+    if let Some(ref v) = body.role {
+        query = query.bind(v);
+    }
+    if let Some(ref v) = body.status {
+        query = query.bind(v);
+    }
+    if let Some(ref v) = body.current_task {
+        query = query.bind(v);
+    }
+    if let Some(ref v) = body.color {
+        query = query.bind(v);
+    }
+    if let Some(ref v) = body.model {
+        query = query.bind(v);
+    }
     if let Some(ref v) = body.sort_order {
         let sort_val = v.as_i64().unwrap_or(0);
         query = query.bind(sort_val);
@@ -359,9 +410,18 @@ async fn update_agent(
 
     let agent = match row {
         Some((
-            rid, name, display_name, emoji, role,
-            status, current_task, model, color, sort_order,
-            created_at, updated_at,
+            rid,
+            name,
+            display_name,
+            emoji,
+            role,
+            status,
+            current_task,
+            model,
+            color,
+            sort_order,
+            created_at,
+            updated_at,
         )) => {
             let val = json!({
                 "id": rid,
@@ -379,8 +439,7 @@ async fn update_agent(
                 "updated_at": updated_at,
             });
 
-            let payload = serde_json::to_string(&val)
-                .map_err(|e| AppError::Internal(e.into()))?;
+            let payload = serde_json::to_string(&val).map_err(|e| AppError::Internal(e.into()))?;
             crate::sync::log_mutation(&state.db, "agents", &rid, "UPDATE", Some(&payload))
                 .await
                 .map_err(|e| AppError::Internal(e.into()))?;
@@ -525,14 +584,8 @@ async fn subagents_active(
                     continue;
                 }
 
-                let kind = session
-                    .get("kind")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                let status = session
-                    .get("status")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let kind = session.get("kind").and_then(|v| v.as_str()).unwrap_or("");
+                let status = session.get("status").and_then(|v| v.as_str()).unwrap_or("");
 
                 if kind == "subagent" && (status == "running" || status == "active") {
                     tasks.push(ActiveTask {
@@ -579,9 +632,7 @@ async fn detect_claude_processes() -> anyhow::Result<Vec<String>> {
     let lines: Vec<String> = stdout
         .lines()
         .filter(|line| {
-            line.contains("claude")
-                && !line.contains("grep")
-                && !line.contains("/bin/bash")
+            line.contains("claude") && !line.contains("grep") && !line.contains("/bin/bash")
         })
         .map(|s| s.to_string())
         .collect();
@@ -602,7 +653,11 @@ async fn detect_dangerously_claude_processes() -> anyhow::Result<Vec<String>> {
         return Ok(Vec::new());
     }
 
-    Ok(stdout.lines().filter(|l| !l.is_empty()).map(|s| s.to_string()).collect())
+    Ok(stdout
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(|s| s.to_string())
+        .collect())
 }
 
 /// Parse ps STIME field into an ISO timestamp.
@@ -617,8 +672,11 @@ fn parse_ps_stime(stime: &str) -> String {
                 let today = now.date_naive();
                 if let Some(time) = chrono::NaiveTime::from_hms_opt(h, m, 0) {
                     let dt = today.and_time(time);
-                    return chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(dt, chrono::Utc)
-                        .to_rfc3339();
+                    return chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+                        dt,
+                        chrono::Utc,
+                    )
+                    .to_rfc3339();
                 }
             }
         }

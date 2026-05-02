@@ -234,9 +234,7 @@ pub fn verify_service_peer(
     let actual_hostname = peer.map(|p| p.hostname.clone());
 
     let verified = match (expected_hostname, &actual_hostname) {
-        (Some(expected), Some(actual)) => {
-            Some(actual.to_lowercase() == expected.to_lowercase())
-        }
+        (Some(expected), Some(actual)) => Some(actual.to_lowercase() == expected.to_lowercase()),
         _ => None,
     };
 
@@ -260,7 +258,11 @@ pub fn startup_verify(secrets: &std::collections::HashMap<String, String>) {
     };
 
     let services: &[(&str, &str, &str)] = &[
-        ("BlueBubbles", "BLUEBUBBLES_HOST", "BLUEBUBBLES_EXPECTED_HOST"),
+        (
+            "BlueBubbles",
+            "BLUEBUBBLES_HOST",
+            "BLUEBUBBLES_EXPECTED_HOST",
+        ),
         ("OpenClaw", "OPENCLAW_API_URL", "OPENCLAW_EXPECTED_HOST"),
     ];
 
@@ -269,7 +271,10 @@ pub fn startup_verify(secrets: &std::collections::HashMap<String, String>) {
             Some(u) => u,
             None => continue,
         };
-        let expected = secrets.get(*host_key).filter(|s| !s.is_empty()).map(|s| s.as_str());
+        let expected = secrets
+            .get(*host_key)
+            .filter(|s| !s.is_empty())
+            .map(|s| s.as_str());
         let result = verify_service_peer(url, expected, &peers);
 
         match (result.peer_verified, &result.peer_hostname) {
@@ -349,16 +354,12 @@ mod tests {
             },
             TailscalePeer {
                 ip: "100.64.0.5".into(),
-                hostname: "openclaw-vm".into(),
+                hostname: "ai-gateway".into(),
                 online: true,
             },
         ];
 
-        let result = verify_service_peer(
-            "http://100.64.0.3:1234",
-            Some("macbook"),
-            &peers,
-        );
+        let result = verify_service_peer("http://100.64.0.3:1234", Some("macbook"), &peers);
         assert_eq!(result.peer_verified, Some(true));
         assert_eq!(result.peer_hostname, Some("macbook".into()));
     }
@@ -371,11 +372,7 @@ mod tests {
             online: true,
         }];
 
-        let result = verify_service_peer(
-            "http://100.64.0.3:1234",
-            Some("wrong-host"),
-            &peers,
-        );
+        let result = verify_service_peer("http://100.64.0.3:1234", Some("wrong-host"), &peers);
         assert_eq!(result.peer_verified, Some(false));
         assert_eq!(result.peer_hostname, Some("macbook".into()));
     }
@@ -383,11 +380,7 @@ mod tests {
     #[test]
     fn verify_service_peer_non_tailscale() {
         let peers = vec![];
-        let result = verify_service_peer(
-            "http://192.168.1.50:1234",
-            Some("macbook"),
-            &peers,
-        );
+        let result = verify_service_peer("http://192.168.1.50:1234", Some("macbook"), &peers);
         assert_eq!(result.peer_verified, None);
         assert_eq!(result.peer_hostname, None);
     }

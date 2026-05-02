@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { PaperPlaneTilt, Image as ImageIcon, X } from '@phosphor-icons/react'
+import { PaperPlaneTilt, Image as ImageIcon, Square, X } from '@phosphor-icons/react'
 import type { ModelOption } from './types'
 
 interface ChatInputProps {
@@ -10,16 +10,18 @@ interface ChatInputProps {
   imagesRef: React.RefObject<string[]>
   sending: boolean
   onSend: () => void
+  onStop: () => void
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   draftTimerRef: React.RefObject<ReturnType<typeof setTimeout> | null>
 }
 
 /** Top bar: model selector + connection status */
 function ChatInputHeader({
-  model, setModel, models,
+  model, setModel, models, agentLabel,
   connected, wsConnected, historyIsError, isDemo,
 }: {
   model: string; setModel: (v: string) => void; models: ModelOption[]
+  agentLabel?: string
   connected: boolean; wsConnected: boolean; historyIsError: boolean; isDemo: boolean
 }) {
   const activeModel = models.find(m => m.id === model)
@@ -27,6 +29,24 @@ function ChatInputHeader({
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      {agentLabel && (
+        <div
+          aria-label="Active agent"
+          style={{
+            background: 'var(--hover-bg)',
+            border: '1px solid var(--border)',
+            borderRadius: '999px',
+            color: 'var(--text-muted)',
+            fontSize: '11px',
+            fontFamily: 'monospace',
+            padding: '4px 10px',
+            lineHeight: 1.2,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {agentLabel}
+        </div>
+      )}
       <select
         value={model}
         onChange={e => setModel(e.target.value)}
@@ -72,7 +92,7 @@ function ChatInputHeader({
             ? 'demo'
             : connected
               ? (wsConnected ? 'live' : 'polling')
-              : historyIsError ? 'OpenClaw unreachable' : 'reconnecting\u2026'}
+              : historyIsError ? 'chat unavailable' : 'reconnecting\u2026'}
         </span>
       </div>
     </div>
@@ -82,7 +102,7 @@ function ChatInputHeader({
 /** Bottom bar: image previews + text input */
 function ChatInputBox({
   input, setInput, images, setImages, imagesRef, sending,
-  onSend, onFileChange, draftTimerRef,
+  onSend, onStop, onFileChange, draftTimerRef,
 }: ChatInputProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -97,6 +117,8 @@ function ChatInputBox({
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend() }
   }
+
+  const canSend = !!input.trim() || images.length > 0
 
   return (
     <div style={{ flexShrink: 0 }}>
@@ -150,23 +172,47 @@ function ChatInputBox({
             draftTimerRef.current = setTimeout(() => sessionStorage.setItem('chat-draft', v), 300)
           }}
           onKeyDown={onKeyDown}
-          placeholder="Message Bjorn\u2026 (paste or drag images)"
+          placeholder="Message builder\u2026 (paste or drag images)"
           aria-label="Chat message"
           rows={1}
           style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: '13px', lineHeight: 1.6, resize: 'none', fontFamily: 'inherit', maxHeight: '160px', overflowY: 'auto' }}
         />
 
-        <button onClick={onSend} disabled={sending || (!input.trim() && images.length === 0)} aria-label="PaperPlaneTilt message"
-          style={{
-            flexShrink: 0,
-            background: (sending || (!input.trim() && images.length === 0)) ? 'var(--hover-bg)' : 'var(--accent)',
-            border: 'none', borderRadius: '10px',
-            color: (sending || (!input.trim() && images.length === 0)) ? 'var(--text-muted)' : 'var(--text-on-color)',
-            padding: '7px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all 0.25s var(--ease-spring)',
-          }}
-        >
-          <PaperPlaneTilt size={15} />
-        </button>
+        {sending ? (
+          <button
+            onClick={onStop}
+            aria-label="Stop response"
+            title="Stop response"
+            style={{
+              flexShrink: 0,
+              background: 'var(--red-a8, rgba(239, 68, 68, 0.12))',
+              border: '1px solid var(--red-500, rgba(239, 68, 68, 0.35))',
+              borderRadius: '10px',
+              color: 'var(--red-500, #ef4444)',
+              padding: '7px 10px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.25s var(--ease-spring)',
+            }}
+          >
+            <Square size={13} weight="fill" />
+            Stop
+          </button>
+        ) : (
+          <button onClick={onSend} disabled={!canSend} aria-label="Send message"
+            style={{
+              flexShrink: 0,
+              background: !canSend ? 'var(--hover-bg)' : 'var(--accent)',
+              border: 'none', borderRadius: '10px',
+              color: !canSend ? 'var(--text-muted)' : 'var(--text-on-color)',
+              padding: '7px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all 0.25s var(--ease-spring)',
+            }}
+          >
+            <PaperPlaneTilt size={15} />
+          </button>
+        )}
       </div>
     </div>
   )

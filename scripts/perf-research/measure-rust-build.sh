@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Measure Rust build time baseline for Mission Control
+# Measure Rust build time baseline for ClawControl
 # Usage: bash scripts/perf-research/measure-rust-build.sh
 # Run from project root.
 
@@ -29,7 +29,7 @@ CRATE_COUNT=$(grep -c "Compiling" /tmp/mc-rust-build.log || echo "unknown")
 echo ">>> Crates compiled: ${CRATE_COUNT}"
 
 # Binary size
-BINARY="$TAURI_DIR/target/debug/mission-control"
+BINARY="$TAURI_DIR/target/debug/openclaw"
 if [ -f "$BINARY" ]; then
     SIZE=$(ls -lh "$BINARY" | awk '{print $5}')
     echo ">>> Debug binary size: $SIZE"

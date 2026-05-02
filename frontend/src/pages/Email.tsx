@@ -9,12 +9,36 @@ import { ErrorState } from '@/components/ui/ErrorState'
 import { SkeletonList } from '@/components/Skeleton'
 
 import { api } from '@/lib/api'
+import { queryKeys } from '@/lib/query-keys'
 import { PageHeader } from '@/components/PageHeader'
-import type { Email, EmailAccount, AccountForm, Folder } from './email/types'
+import type { Email, EmailAccount, AccountForm, DraftItem, Folder, MailThread } from './email/types'
 import { FOLDERS, EMPTY_FORM } from './email/types'
 import { ManagePanel } from './email/ManagePanel'
 import { AccountSwitcher } from './email/AccountSwitcher'
 import { EmailList } from './email/EmailList'
+import { ThreadPanel } from './email/ThreadPanel'
+import { DraftQueue } from './email/DraftQueue'
+
+function mapEmailsToThreads(emails: Email[]): MailThread[] {
+  return emails.map((email) => ({
+    id: email.id,
+    account_id: null,
+    subject: email.subject,
+    from: email.from,
+    preview: email.preview,
+    unread: !email.read,
+  }))
+}
+
+const DEV_AGENTMAIL_ACCOUNTS: EmailAccount[] = import.meta.env.DEV ? [{
+  id: 'josue@aparcedo.org',
+  label: 'Aparcedo',
+  provider: 'agentmail',
+  address: 'josue@aparcedo.org',
+  agentmail_inbox_id: 'clawcontrol-josue-aparcedo@agentmail.to',
+  forwarding_status: 'active',
+  is_default: true,
+}] : []
 
 export default function EmailPage() {
   const queryClient = useQueryClient()
@@ -28,17 +52,24 @@ export default function EmailPage() {
   const [form, setForm] = useState<AccountForm>(EMPTY_FORM)
   const [formSaving, setFormSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
-  const [showPassword, setShowPassword] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null)
+  const [drafts, setDrafts] = useState<DraftItem[]>([])
   const accountInitRef = useRef(false)
 
   // Load accounts via useQuery
   const { data: accountsData } = useQuery<{ accounts: EmailAccount[] }>({
-    queryKey: ['email-accounts'],
-    queryFn: () => api.get<{ accounts: EmailAccount[] }>('/api/email-accounts'),
+    queryKey: queryKeys.emailAccounts,
+    queryFn: async () => {
+      const resp = await api.get<{ accounts?: EmailAccount[]; data?: { accounts?: EmailAccount[] } }>('/api/mail-accounts')
+      return { accounts: resp.accounts ?? resp.data?.accounts ?? [] }
+    },
   })
 
-  const accounts = accountsData?.accounts ?? []
+  const loadedAccounts = accountsData?.accounts ?? []
+  const accounts = loadedAccounts.length > 0 ? loadedAccounts : DEV_AGENTMAIL_ACCOUNTS
+  const defaultAccount = accounts.find(a => a.is_default) || accounts[0] || null
+  const effectiveSelectedAccountId = selectedAccountId ?? defaultAccount?.id ?? null
 
   // Initialise selected account from localStorage / default when accounts first load
   useEffect(() => {
@@ -58,21 +89,21 @@ export default function EmailPage() {
   }, [accounts])
 
   // Fetch emails via useQuery
-  const { data: emailsData, isLoading: loading, error: emailsError, refetch: refetchEmails } = useQuery<{ emails?: Email[]; error?: string }>({
-    queryKey: ['emails', folder, selectedAccountId],
+  const { data: emailsData, isLoading: loading, error: emailsError, refetch: refetchEmails } = useQuery<{ threads?: MailThread[]; emails?: Email[]; error?: string }>({
+    queryKey: queryKeys.emails(folder, effectiveSelectedAccountId ?? undefined),
     queryFn: () => {
       const params = new URLSearchParams({ folder })
-      if (selectedAccountId) params.set('account_id', selectedAccountId)
-      return api.get<{ emails?: Email[]; error?: string }>(`/api/email?${params}`)
+      if (effectiveSelectedAccountId) params.set('account_id', effectiveSelectedAccountId)
+      return api.get<{ threads?: MailThread[]; emails?: Email[]; error?: string }>(`/api/email?${params}`)
     },
   })
 
-  const emails = emailsData?.emails ?? []
+  const threads = emailsData?.threads ?? mapEmailsToThreads(emailsData?.emails ?? [])
   const missingCreds = emailsData?.error === 'missing_credentials'
   const error = emailsError ? (emailsError instanceof Error ? emailsError.message : 'Failed to fetch') : (emailsData?.error && emailsData.error !== 'missing_credentials' ? emailsData.error : null)
 
-  const invalidateAccounts = () => queryClient.invalidateQueries({ queryKey: ['email-accounts'] })
-  const invalidateEmails = useCallback(() => queryClient.invalidateQueries({ queryKey: ['emails'] }), [queryClient])
+  const invalidateAccounts = () => queryClient.invalidateQueries({ queryKey: queryKeys.emailAccounts })
+  const invalidateEmails = useCallback(() => queryClient.invalidateQueries({ queryKey: queryKeys.emails(folder, effectiveSelectedAccountId ?? undefined) }), [queryClient, folder, effectiveSelectedAccountId])
 
   const selectAccount = useCallback((id: string) => {
     setSelectedAccountId(id)
@@ -84,48 +115,44 @@ export default function EmailPage() {
     setEditingAccount(null)
     setForm(EMPTY_FORM)
     setFormError(null)
-    setShowPassword(false)
   }
 
   const openEditForm = (acc: EmailAccount) => {
     setEditingAccount(acc)
     setForm({
       label: acc.label,
-      host: acc.host,
-      port: String(acc.port),
-      username: acc.username,
-      password: '',
-      tls: acc.tls,
+      provider: acc.provider,
+      address: acc.address,
+      agentmail_inbox_id: acc.agentmail_inbox_id,
+      forwarding_status: acc.forwarding_status,
       is_default: acc.is_default,
     })
     setFormError(null)
-    setShowPassword(false)
   }
 
   const handleFormSave = async () => {
-    if (!form.label || !form.host || !form.username) {
-      setFormError('Label, host, and username are required')
-      return
-    }
-    if (!editingAccount && !form.password) {
-      setFormError('Password is required for new accounts')
+    if (!form.label || !form.provider || !form.address) {
+      setFormError('Label, provider, and address are required')
       return
     }
     setFormSaving(true)
     setFormError(null)
     try {
       const body: Record<string, unknown> = {
-        label: form.label, host: form.host, port: parseInt(form.port, 10) || 993,
-        username: form.username, tls: form.tls, is_default: form.is_default,
+        label: form.label,
+        provider: form.provider,
+        address: form.address,
+        agentmail_inbox_id: form.agentmail_inbox_id,
+        forwarding_status: form.forwarding_status,
+        is_default: form.is_default,
       }
-      if (form.password) body.password = form.password
 
       let data: { error?: string }
       if (editingAccount) {
         body.id = editingAccount.id
-        data = await api.patch<{ error?: string }>('/api/email-accounts', body)
+        data = await api.patch<{ error?: string }>('/api/mail-accounts', body)
       } else {
-        data = await api.post<{ error?: string }>('/api/email-accounts', body)
+        data = await api.post<{ error?: string }>('/api/mail-accounts', body)
       }
       if (data.error) { setFormError(data.error); return }
       invalidateAccounts()
@@ -142,7 +169,7 @@ export default function EmailPage() {
   const handleDelete = async (id: string) => {
     setDeletingId(id)
     try {
-      await api.del(`/api/email-accounts?id=${id}`)
+      await api.del(`/api/mail-accounts?id=${id}`)
       invalidateAccounts()
       accountInitRef.current = false
       if (selectedAccountId === id) {
@@ -159,7 +186,7 @@ export default function EmailPage() {
 
   const handleSetDefault = async (id: string) => {
     try {
-      await api.patch('/api/email-accounts', { id, is_default: true })
+      await api.patch('/api/mail-accounts', { id, is_default: true })
       invalidateAccounts()
       accountInitRef.current = false
     } catch (e) {
@@ -167,7 +194,40 @@ export default function EmailPage() {
     }
   }
 
-  const unreadCount = emails.filter(e => !e.read).length
+  const unreadCount = threads.filter(thread => thread.unread).length
+  const selectedThread = threads.find((thread) => thread.id === selectedThreadId) ?? threads[0] ?? null
+  const selectedThreadAccount = accounts.find((account) => account.id === (selectedThread?.account_id ?? effectiveSelectedAccountId))
+
+  useEffect(() => {
+    if (!selectedThread && threads.length > 0) {
+      setSelectedThreadId(threads[0].id)
+    }
+  }, [selectedThread, threads])
+
+  const handlePrepareDraft = useCallback(() => {
+    if (!selectedThread || !selectedThreadAccount) return
+
+    void (async () => {
+      try {
+        const response = await api.post<{ draft?: DraftItem }>('/api/email/drafts', {
+          thread_id: selectedThread.id,
+          account_id: selectedThreadAccount.id,
+          subject: selectedThread.subject,
+          from: selectedThread.from,
+          preview: selectedThread.preview,
+        })
+
+        if (!response.draft) return
+
+        setDrafts((current) => {
+          const withoutExisting = current.filter((draft) => draft.id !== response.draft?.id)
+          return [response.draft as DraftItem, ...withoutExisting]
+        })
+      } catch (error) {
+        console.error('handlePrepareDraft failed:', error)
+      }
+    })()
+  }, [selectedThread, selectedThreadAccount])
 
   const handleCloseManagePanel = useCallback(() => {
     setManageOpen(false)
@@ -180,10 +240,6 @@ export default function EmailPage() {
     setForm(EMPTY_FORM)
   }, [])
 
-  const handleToggleShowPassword = useCallback(() => {
-    setShowPassword(p => !p)
-  }, [])
-
   const managePanelNode = manageOpen && (
     <ManagePanel
       accounts={accounts}
@@ -191,7 +247,6 @@ export default function EmailPage() {
       form={form}
       formSaving={formSaving}
       formError={formError}
-      showPassword={showPassword}
       deletingId={deletingId}
       onClose={handleCloseManagePanel}
       onSetForm={setForm}
@@ -200,7 +255,6 @@ export default function EmailPage() {
       onFormSave={handleFormSave}
       onDelete={handleDelete}
       onSetDefault={handleSetDefault}
-      onToggleShowPassword={handleToggleShowPassword}
     />
   )
 
@@ -215,8 +269,7 @@ export default function EmailPage() {
           <WarningCircle size={32} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
           <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>Email not configured</h2>
           <p style={{ margin: '0 0 20px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            Add an IMAP account via <strong>Manage Accounts</strong> or set env vars in{' '}
-            <code style={{ fontFamily: 'monospace', color: 'var(--accent)' }}>.env.local</code>.
+            Link a mail account via <strong>Manage Accounts</strong> using its provider, address, and mapped AgentMail inbox ID.
           </p>
           <button
             onClick={() => { setManageOpen(true); openAddForm() }}
@@ -250,7 +303,7 @@ export default function EmailPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <AccountSwitcher
             accounts={accounts}
-            selectedAccountId={selectedAccountId}
+            selectedAccountId={effectiveSelectedAccountId}
             onSelectAccount={selectAccount}
           />
 
@@ -325,11 +378,24 @@ export default function EmailPage() {
 
       {/* Email list */}
       {!loading && !error && !missingCreds && (
-        <EmailList
-          emails={emails}
-          selectedAccountId={selectedAccountId}
-          onInvalidateEmails={invalidateEmails}
-        />
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(320px, 0.8fr)', gap: '16px', alignItems: 'start' }}>
+          <EmailList
+            threads={threads}
+            selectedAccountId={effectiveSelectedAccountId}
+            folder={folder}
+            onInvalidateEmails={invalidateEmails}
+            selectedThreadId={selectedThread?.id ?? null}
+            onSelectThread={(thread) => setSelectedThreadId(thread.id)}
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <ThreadPanel
+              thread={selectedThread}
+              accountLabel={selectedThreadAccount?.label ?? null}
+              onPrepareDraft={handlePrepareDraft}
+            />
+            <DraftQueue drafts={drafts} />
+          </div>
+        </div>
       )}
 
       {/* Manage accounts panel */}

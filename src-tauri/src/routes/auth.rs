@@ -1,16 +1,17 @@
 use axum::{
     extract::{Path, Query, State},
     http::header,
+    http::HeaderMap,
     response::{Html, IntoResponse},
     routing::{delete, get, post},
     Json, Router,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use subtle::ConstantTimeEq;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use subtle::ConstantTimeEq;
 
 use crate::error::AppError;
 use crate::gotrue::GoTrueClient;
@@ -33,14 +34,13 @@ async fn log_security_event(
     details: &serde_json::Value,
 ) {
     let details_str = details.to_string();
-    let result = sqlx::query(
-        "INSERT INTO security_events (event_type, user_id, details) VALUES (?, ?, ?)",
-    )
-    .bind(event_type)
-    .bind(user_id)
-    .bind(&details_str)
-    .execute(db)
-    .await;
+    let result =
+        sqlx::query("INSERT INTO security_events (event_type, user_id, details) VALUES (?, ?, ?)")
+            .bind(event_type)
+            .bind(user_id)
+            .bind(&details_str)
+            .execute(db)
+            .await;
 
     if let Err(e) = result {
         tracing::warn!(event_type = %event_type, "failed to log security event: {e}");
@@ -131,7 +131,7 @@ fn epoch_secs() -> i64 {
 /// `KEY_ENV_MAP` in `secrets.rs`.
 ///
 /// Returns `None` for unknown combinations (they are skipped with a warning).
-fn service_credential_to_env_var(service: &str, key: &str) -> Option<&'static str> {
+pub(crate) fn service_credential_to_env_var(service: &str, key: &str) -> Option<&'static str> {
     match (service, key) {
         // BlueBubbles
         ("bluebubbles", "host") => Some("BLUEBUBBLES_HOST"),
@@ -141,6 +141,10 @@ fn service_credential_to_env_var(service: &str, key: &str) -> Option<&'static st
         ("openclaw", "api_key" | "api-key") => Some("OPENCLAW_API_KEY"),
         ("openclaw", "ws") => Some("OPENCLAW_WS"),
         ("openclaw", "password") => Some("OPENCLAW_PASSWORD"),
+        // Sunshine
+        ("sunshine", "url" | "host") => Some("SUNSHINE_HOST"),
+        // Embedded VNC viewer
+        ("vnc", "url" | "host") => Some("VNC_HOST"),
         // Proxmox
         ("proxmox", "host") => Some("PROXMOX_HOST"),
         ("proxmox", "token_id" | "token-id") => Some("PROXMOX_TOKEN_ID"),
@@ -158,11 +162,27 @@ fn service_credential_to_env_var(service: &str, key: &str) -> Option<&'static st
         // Radarr
         ("radarr", "url") => Some("RADARR_URL"),
         ("radarr", "api_key" | "api-key") => Some("RADARR_API_KEY"),
+        // Lidarr
+        ("lidarr", "url") => Some("LIDARR_URL"),
+        ("lidarr", "api_key" | "api-key") => Some("LIDARR_API_KEY"),
+        // Prowlarr
+        ("prowlarr", "url") => Some("PROWLARR_URL"),
+        ("prowlarr", "api_key" | "api-key") => Some("PROWLARR_API_KEY"),
+        // Media request/stat services
+        ("overseerr", "url") => Some("OVERSEERR_URL"),
+        ("overseerr", "api_key" | "api-key") => Some("OVERSEERR_API_KEY"),
+        ("tautulli", "url") => Some("TAUTULLI_URL"),
+        ("tautulli", "api_key" | "api-key") => Some("TAUTULLI_API_KEY"),
+        ("bazarr", "url") => Some("BAZARR_URL"),
+        ("bazarr", "api_key" | "api-key") => Some("BAZARR_API_KEY"),
         // Email
         ("email", "host") => Some("EMAIL_HOST"),
         ("email", "port") => Some("EMAIL_PORT"),
         ("email", "user") => Some("EMAIL_USER"),
         ("email", "password") => Some("EMAIL_PASSWORD"),
+        // AgentMail
+        ("agentmail", "url" | "base_url" | "base-url") => Some("AGENTMAIL_URL"),
+        ("agentmail", "api_key" | "api-key") => Some("AGENTMAIL_API_KEY"),
         // CalDAV
         ("caldav", "url") => Some("CALDAV_URL"),
         ("caldav", "username") => Some("CALDAV_USERNAME"),
@@ -170,11 +190,24 @@ fn service_credential_to_env_var(service: &str, key: &str) -> Option<&'static st
         // ntfy
         ("ntfy", "url") => Some("NTFY_URL"),
         ("ntfy", "topic") => Some("NTFY_TOPIC"),
+        // CouchDB
+        ("couchdb", "url") => Some("COUCHDB_URL"),
+        ("couchdb", "user" | "username") => Some("COUCHDB_USER"),
+        ("couchdb", "password") => Some("COUCHDB_PASSWORD"),
+        ("couchdb", "database") => Some("COUCHDB_DATABASE"),
+        ("couchdb", "custom_headers" | "custom-headers" | "headers") => {
+            Some("COUCHDB_CUSTOM_HEADERS")
+        }
         // Mac Bridge
         ("mac-bridge" | "mac_bridge", "host") => Some("MAC_BRIDGE_HOST"),
         ("mac-bridge" | "mac_bridge", "api_key" | "api-key") => Some("MAC_BRIDGE_API_KEY"),
         // Anthropic
         ("anthropic", "api_key" | "api-key") => Some("ANTHROPIC_API_KEY"),
+        // LightRAG / memd RAG sidecar
+        ("lightrag", "url" | "base_url" | "base-url") => Some("LIGHTRAG_BASE_URL"),
+        ("lightrag", "api_key" | "api-key") => Some("LIGHTRAG_API_KEY"),
+        ("memd", "rag_url" | "rag-url") => Some("MEMD_RAG_URL"),
+        ("rag", "url") => Some("RAG_URL"),
         _ => None,
     }
 }
@@ -312,6 +345,8 @@ async fn auto_migrate_keychain_secrets(
         ("OPENCLAW_API_KEY", "openclaw", "api_key"),
         ("OPENCLAW_WS", "openclaw", "ws"),
         ("OPENCLAW_PASSWORD", "openclaw", "password"),
+        ("SUNSHINE_HOST", "sunshine", "url"),
+        ("VNC_HOST", "vnc", "url"),
         ("PROXMOX_HOST", "proxmox", "host"),
         ("PROXMOX_TOKEN_ID", "proxmox", "token_id"),
         ("PROXMOX_TOKEN_SECRET", "proxmox", "token_secret"),
@@ -324,15 +359,32 @@ async fn auto_migrate_keychain_secrets(
         ("SONARR_API_KEY", "sonarr", "api_key"),
         ("RADARR_URL", "radarr", "url"),
         ("RADARR_API_KEY", "radarr", "api_key"),
+        ("LIDARR_URL", "lidarr", "url"),
+        ("LIDARR_API_KEY", "lidarr", "api_key"),
+        ("PROWLARR_URL", "prowlarr", "url"),
+        ("PROWLARR_API_KEY", "prowlarr", "api_key"),
+        ("OVERSEERR_URL", "overseerr", "url"),
+        ("OVERSEERR_API_KEY", "overseerr", "api_key"),
+        ("TAUTULLI_URL", "tautulli", "url"),
+        ("TAUTULLI_API_KEY", "tautulli", "api_key"),
+        ("BAZARR_URL", "bazarr", "url"),
+        ("BAZARR_API_KEY", "bazarr", "api_key"),
         ("EMAIL_HOST", "email", "host"),
         ("EMAIL_PORT", "email", "port"),
         ("EMAIL_USER", "email", "user"),
         ("EMAIL_PASSWORD", "email", "password"),
+        ("AGENTMAIL_URL", "agentmail", "url"),
+        ("AGENTMAIL_API_KEY", "agentmail", "api_key"),
         ("CALDAV_URL", "caldav", "url"),
         ("CALDAV_USERNAME", "caldav", "username"),
         ("CALDAV_PASSWORD", "caldav", "password"),
         ("NTFY_URL", "ntfy", "url"),
         ("NTFY_TOPIC", "ntfy", "topic"),
+        ("COUCHDB_URL", "couchdb", "url"),
+        ("COUCHDB_USER", "couchdb", "user"),
+        ("COUCHDB_PASSWORD", "couchdb", "password"),
+        ("COUCHDB_DATABASE", "couchdb", "database"),
+        ("COUCHDB_CUSTOM_HEADERS", "couchdb", "custom_headers"),
         ("MAC_BRIDGE_HOST", "mac-bridge", "host"),
         ("MAC_BRIDGE_API_KEY", "mac-bridge", "api_key"),
         ("ANTHROPIC_API_KEY", "anthropic", "api_key"),
@@ -425,10 +477,7 @@ async fn get_or_create_salt(
     // No profile yet — generate a random 16-byte salt
     let mut salt_bytes = [0u8; 16];
     rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut salt_bytes);
-    let salt_b64 = base64::Engine::encode(
-        &base64::engine::general_purpose::STANDARD,
-        salt_bytes,
-    );
+    let salt_b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, salt_bytes);
 
     let body = serde_json::json!({
         "user_id": user_id,
@@ -458,8 +507,7 @@ async fn login(
     State(state): State<AppState>,
     Json(body): Json<LoginBody>,
 ) -> Result<Json<Value>, AppError> {
-    let gotrue = GoTrueClient::from_state(&state)
-        .map_err(AppError::Internal)?;
+    let gotrue = GoTrueClient::from_state(&state).map_err(AppError::Internal)?;
 
     let auth = match gotrue
         .sign_in_with_password(&body.email, &body.password)
@@ -492,14 +540,13 @@ async fn login(
     // they need to complete MFA verification before getting full access.
     let factors = auth.user.get("factors").and_then(|v| v.as_array());
     // Find first verified MFA factor (TOTP or WebAuthn)
-    let verified_factor = factors
-        .and_then(|fs| {
-            fs.iter().find(|f| {
-                let ft = f.get("factor_type").and_then(|t| t.as_str());
-                let status = f.get("status").and_then(|s| s.as_str());
-                (ft == Some("totp") || ft == Some("webauthn")) && status == Some("verified")
-            })
-        });
+    let verified_factor = factors.and_then(|fs| {
+        fs.iter().find(|f| {
+            let ft = f.get("factor_type").and_then(|t| t.as_str());
+            let status = f.get("status").and_then(|s| s.as_str());
+            (ft == Some("totp") || ft == Some("webauthn")) && status == Some("verified")
+        })
+    });
     let verified_factor_id = verified_factor
         .and_then(|f| f.get("id").and_then(|v| v.as_str()))
         .map(|s| s.to_string());
@@ -515,7 +562,11 @@ async fn login(
             let mut methods: Vec<String> = fs
                 .iter()
                 .filter(|f| f.get("status").and_then(|s| s.as_str()) == Some("verified"))
-                .filter_map(|f| f.get("factor_type").and_then(|t| t.as_str()).map(|s| s.to_string()))
+                .filter_map(|f| {
+                    f.get("factor_type")
+                        .and_then(|t| t.as_str())
+                        .map(|s| s.to_string())
+                })
                 .collect();
             methods.sort();
             methods.dedup();
@@ -608,13 +659,7 @@ async fn signup(
 ) -> Result<Json<Value>, AppError> {
     // Signup is disabled — this is a personal self-hosted app.
     // New accounts must be created by an administrator via the Supabase dashboard.
-    log_security_event(
-        &state.db,
-        "signup_attempt",
-        None,
-        &json!({}),
-    )
-    .await;
+    log_security_event(&state.db, "signup_attempt", None, &json!({})).await;
     tracing::warn!("signup attempt rejected (signup is disabled)");
     Err(AppError::Forbidden(
         "Signup is disabled. New accounts must be created by an administrator.".into(),
@@ -626,11 +671,21 @@ async fn signup(
 // ---------------------------------------------------------------------------
 
 async fn get_session(State(state): State<AppState>) -> Json<Value> {
-    let session = state.session.read().await;
+    let session = state.session.read().await.clone();
     match session.as_ref() {
         Some(s) => {
-            // If MFA is already verified, return immediately — no network call needed
+            // Backfill synced user_secrets for already-authenticated sessions when
+            // a restart or stale in-memory state left CouchDB unset.
             if s.mfa_verified {
+                if !s.encryption_key.is_empty()
+                    && state
+                        .secret("COUCHDB_URL")
+                        .map(|v| v.is_empty())
+                        .unwrap_or(true)
+                {
+                    load_user_secrets(&state, s).await;
+                }
+
                 return Json(json!({
                     "authenticated": true,
                     "user": { "id": s.user_id, "email": s.email },
@@ -672,15 +727,10 @@ async fn logout(State(state): State<AppState>) -> Json<Value> {
         }
         // Clear cached API responses for this user to prevent data leakage
         state.cache_clear_user(&sess.user_id).await;
-        log_security_event(
-            &state.db,
-            "logout",
-            Some(&sess.user_id),
-            &json!({}),
-        )
-        .await;
+        log_security_event(&state.db, "logout", Some(&sess.user_id), &json!({})).await;
         // Audit trail
-        crate::audit::log_audit_or_warn(&state.db, &sess.user_id, "logout", "session", None, None).await;
+        crate::audit::log_audit_or_warn(&state.db, &sess.user_id, "logout", "session", None, None)
+            .await;
         tracing::info!(user_id = %sess.user_id, "user logged out");
     }
     *state.session.write().await = None;
@@ -720,8 +770,7 @@ async fn refresh(State(state): State<AppState>) -> Result<Json<Value>, AppError>
         }
     }
 
-    let gotrue = GoTrueClient::from_state(&state)
-        .map_err(AppError::Internal)?;
+    let gotrue = GoTrueClient::from_state(&state).map_err(AppError::Internal)?;
 
     let auth = gotrue
         .refresh_token(&session.refresh_token)
@@ -757,9 +806,7 @@ async fn change_password(
     RequireAuth(session): RequireAuth,
     Json(body): Json<PasswordBody>,
 ) -> Result<Json<Value>, AppError> {
-
-    let gotrue = GoTrueClient::from_state(&state)
-        .map_err(AppError::Internal)?;
+    let gotrue = GoTrueClient::from_state(&state).map_err(AppError::Internal)?;
 
     // Re-verify current password
     gotrue
@@ -772,8 +819,7 @@ async fn change_password(
     // is corrupted or encrypted with a different key.
     let old_key = &session.encryption_key;
     if !old_key.is_empty() {
-        let sb_dryrun = SupabaseClient::from_state(&state)
-            .map_err(AppError::Internal)?;
+        let sb_dryrun = SupabaseClient::from_state(&state).map_err(AppError::Internal)?;
 
         let dryrun_secrets = sb_dryrun
             .select_as_user(
@@ -809,7 +855,10 @@ async fn change_password(
 
     // Update password
     gotrue
-        .update_user(&session.access_token, json!({ "password": body.new_password }))
+        .update_user(
+            &session.access_token,
+            json!({ "password": body.new_password }),
+        )
         .await
         .map_err(AppError::Internal)?;
 
@@ -823,8 +872,7 @@ async fn change_password(
     // The old key is still in session.encryption_key at this point.
     let old_key = &session.encryption_key;
     if !old_key.is_empty() {
-        let sb = SupabaseClient::from_state(&state)
-            .map_err(AppError::Internal)?;
+        let sb = SupabaseClient::from_state(&state).map_err(AppError::Internal)?;
 
         let secrets = sb
             .select_as_user(
@@ -861,7 +909,9 @@ async fn change_password(
 
                 // Re-encrypt with new key
                 let (new_ciphertext, new_nonce) = crate::crypto::encrypt(&plaintext, &new_key)
-                    .map_err(|e| AppError::Internal(anyhow::anyhow!("re-encryption failed: {e}")))?;
+                    .map_err(|e| {
+                        AppError::Internal(anyhow::anyhow!("re-encryption failed: {e}"))
+                    })?;
 
                 let update_row = serde_json::json!({
                     "user_id": session.user_id,
@@ -870,7 +920,10 @@ async fn change_password(
                     "nonce": new_nonce,
                 });
 
-                if let Err(e) = sb.upsert_as_user("user_secrets", update_row, &session.access_token).await {
+                if let Err(e) = sb
+                    .upsert_as_user("user_secrets", update_row, &session.access_token)
+                    .await
+                {
                     tracing::warn!(service = %service, "failed to upsert re-encrypted secret: {e}");
                     return Err(AppError::Internal(anyhow::anyhow!(
                         "failed to re-encrypt secrets — password change aborted: {e}"
@@ -911,8 +964,47 @@ struct OAuthStartQuery {
     redirect_to: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PendingOAuthFlowSnapshot {
+    provider: String,
+    verifier: String,
+    nonce: String,
+    url: String,
+    created_at: i64,
+    redirect_to: Option<String>,
+}
+
+fn pending_oauth_file_path() -> PathBuf {
+    std::env::temp_dir().join("mc-tauri-pending-oauth.json")
+}
+
+async fn write_pending_oauth_snapshot(flow: &crate::server::PendingOAuthFlow) {
+    let snapshot = PendingOAuthFlowSnapshot {
+        provider: flow.provider.clone(),
+        verifier: flow.verifier.clone(),
+        nonce: flow.nonce.clone(),
+        url: flow.url.clone(),
+        created_at: flow.created_at,
+        redirect_to: flow.redirect_to.clone(),
+    };
+    if let Ok(json) = serde_json::to_vec(&snapshot) {
+        let path = pending_oauth_file_path();
+        let _ = tokio::task::spawn_blocking(move || std::fs::write(path, json)).await;
+    }
+}
+
+async fn read_pending_oauth_snapshot() -> Option<PendingOAuthFlowSnapshot> {
+    let bytes = tokio::fs::read(pending_oauth_file_path()).await.ok()?;
+    serde_json::from_slice::<PendingOAuthFlowSnapshot>(&bytes).ok()
+}
+
+async fn clear_pending_oauth_snapshot() {
+    let _ = tokio::fs::remove_file(pending_oauth_file_path()).await;
+}
+
 async fn start_oauth(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(provider): Path<String>,
     Query(query): Query<OAuthStartQuery>,
 ) -> Result<Json<Value>, AppError> {
@@ -923,9 +1015,14 @@ async fn start_oauth(
         )));
     }
 
-    // Validate redirect_to — only allow localhost URLs to prevent open redirect
+    let public_base = backend_public_base_url(&state, &headers);
+
+    // Validate redirect_to — only allow localhost URLs or this backend's base
+    // to prevent open redirect.
     let validated_redirect = query.redirect_to.filter(|url| {
-        url.starts_with("http://localhost:") || url.starts_with("http://127.0.0.1:")
+        url.starts_with("http://localhost:")
+            || url.starts_with("http://127.0.0.1:")
+            || url.starts_with(&public_base)
     });
 
     // If an OAuth flow was initiated recently (< 120s), return the same URL
@@ -935,7 +1032,7 @@ async fn start_oauth(
         let guard = state.pending_oauth.read().await;
         if let Some(ref flow) = *guard {
             let age = epoch_secs() - flow.created_at;
-            if age < 120 {
+            if age < 120 && flow.provider == provider {
                 tracing::info!(provider = %provider, age_secs = age, "OAuth flow already in progress — returning existing URL");
                 return Ok(Json(json!({ "url": flow.url, "nonce": flow.nonce })));
             }
@@ -951,7 +1048,7 @@ async fn start_oauth(
     let url = crate::gotrue::build_oauth_url(
         &supabase_url,
         &provider,
-        "http://127.0.0.1:3000/api/auth/callback",
+        &format!("{}/api/auth/callback", public_base),
         &challenge,
     );
 
@@ -963,16 +1060,57 @@ async fn start_oauth(
 
     // Store the full flow state so duplicate calls return the same URL
     *state.pending_oauth.write().await = Some(crate::server::PendingOAuthFlow {
+        provider: provider.clone(),
         verifier,
         nonce: nonce.clone(),
         url: url.clone(),
         created_at: epoch_secs(),
         redirect_to: validated_redirect,
     });
+    if let Some(flow) = state.pending_oauth.read().await.as_ref() {
+        write_pending_oauth_snapshot(flow).await;
+    }
 
     tracing::info!(provider = %provider, "OAuth flow initiated");
 
     Ok(Json(json!({ "url": url, "nonce": nonce })))
+}
+
+fn backend_public_base_url(state: &AppState, headers: &HeaderMap) -> String {
+    let host = headers
+        .get("x-forwarded-host")
+        .or_else(|| headers.get("host"))
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.split(',').next().unwrap_or("").trim())
+        .filter(|s| !s.is_empty());
+    let proto = headers
+        .get("x-forwarded-proto")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.split(',').next().unwrap_or("").trim())
+        .filter(|s| !s.is_empty())
+        .unwrap_or("http");
+
+    if let Some(host) = host.as_deref() {
+        if host.starts_with("127.0.0.1:") || host.starts_with("localhost:") {
+            return format!("{proto}://{host}")
+                .trim_end_matches('/')
+                .to_string();
+        }
+    }
+
+    if let Some(value) = state.secret("BACKEND_PUBLIC_BASE_URL") {
+        let trimmed = value.trim();
+        if !trimmed.is_empty() {
+            return trimmed.trim_end_matches('/').to_string();
+        }
+    }
+
+    match host {
+        Some(host) => format!("{proto}://{host}")
+            .trim_end_matches('/')
+            .to_string(),
+        None => "http://127.0.0.1:5000".to_string(),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -980,11 +1118,17 @@ async fn start_oauth(
 // ---------------------------------------------------------------------------
 
 async fn mfa_list_factors(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
-    let session = state.session.read().await.clone()
+    let session = state
+        .session
+        .read()
+        .await
+        .clone()
         .ok_or(AppError::Unauthorized)?;
     let gotrue = GoTrueClient::from_state(&state).map_err(AppError::Internal)?;
-    let factors = gotrue.mfa_list_factors(&session.access_token).await
-        .map_err(AppError::Internal)?;
+    let factors = gotrue
+        .mfa_list_factors(&session.access_token)
+        .await
+        .map_err(map_auth_error)?;
     let json_factors: Vec<Value> = factors.iter().map(|f| {
         json!({ "id": f.id, "type": f.factor_type, "status": f.status, "friendly_name": f.friendly_name })
     }).collect();
@@ -1004,11 +1148,10 @@ async fn mfa_enroll(State(state): State<AppState>) -> Result<Json<Value>, AppErr
         .clone()
         .ok_or(AppError::Unauthorized)?;
 
-    let gotrue = GoTrueClient::from_state(&state)
-        .map_err(AppError::Internal)?;
+    let gotrue = GoTrueClient::from_state(&state).map_err(AppError::Internal)?;
 
     let resp = gotrue
-        .mfa_enroll_totp(&session.access_token, "OpenClaw Manager")
+        .mfa_enroll_totp(&session.access_token, "ClawControl")
         .await
         .map_err(AppError::Internal)?;
 
@@ -1035,8 +1178,7 @@ async fn mfa_enroll_webauthn(State(state): State<AppState>) -> Result<Json<Value
         .clone()
         .ok_or(AppError::Unauthorized)?;
 
-    let gotrue = GoTrueClient::from_state(&state)
-        .map_err(AppError::Internal)?;
+    let gotrue = GoTrueClient::from_state(&state).map_err(AppError::Internal)?;
 
     let result = gotrue
         .mfa_enroll(&session.access_token, "webauthn", "Hardware Key")
@@ -1074,13 +1216,12 @@ async fn mfa_challenge(
         .clone()
         .ok_or(AppError::Unauthorized)?;
 
-    let gotrue = GoTrueClient::from_state(&state)
-        .map_err(AppError::Internal)?;
+    let gotrue = GoTrueClient::from_state(&state).map_err(AppError::Internal)?;
 
     let result = gotrue
         .mfa_challenge(&session.access_token, &body.factor_id)
         .await
-        .map_err(AppError::Internal)?;
+        .map_err(map_auth_error)?;
 
     // Return the full GoTrue response (includes challenge id + WebAuthn options if applicable)
     Ok(Json(result))
@@ -1118,18 +1259,13 @@ async fn mfa_verify(
         .clone()
         .ok_or(AppError::Unauthorized)?;
 
-    let gotrue = GoTrueClient::from_state(&state)
-        .map_err(AppError::Internal)?;
+    let gotrue = GoTrueClient::from_state(&state).map_err(AppError::Internal)?;
 
     // Build the verify payload from the extra fields (challenge_id + code or credential)
     let verify_body = Value::Object(body.extra.clone());
 
     let auth = match gotrue
-        .mfa_verify(
-            &session.access_token,
-            &body.factor_id,
-            &verify_body,
-        )
+        .mfa_verify(&session.access_token, &body.factor_id, &verify_body)
         .await
     {
         Ok(auth) => {
@@ -1150,7 +1286,7 @@ async fn mfa_verify(
                 &json!({ "factor_id": body.factor_id }),
             )
             .await;
-            return Err(AppError::Internal(e));
+            return Err(map_auth_error(e));
         }
     };
 
@@ -1183,6 +1319,19 @@ async fn mfa_verify(
     Ok(Json(json!({ "ok": true })))
 }
 
+fn map_auth_error(err: anyhow::Error) -> AppError {
+    let message = err.to_string();
+    if message.contains("400 Bad Request")
+        || message.contains("401 Unauthorized")
+        || message.contains("403 Forbidden")
+        || message.contains("422 Unprocessable Entity")
+    {
+        AppError::BadRequest(message)
+    } else {
+        AppError::Internal(err)
+    }
+}
+
 // DELETE /auth/mfa/unenroll/:factor_id
 async fn mfa_unenroll(
     State(state): State<AppState>,
@@ -1199,11 +1348,12 @@ async fn mfa_unenroll(
 
     // CRITICAL: Cannot unenroll MFA without first verifying MFA
     if !session.mfa_verified {
-        return Err(AppError::BadRequest("MFA verification required to unenroll factors".into()));
+        return Err(AppError::BadRequest(
+            "MFA verification required to unenroll factors".into(),
+        ));
     }
 
-    let gotrue = GoTrueClient::from_state(&state)
-        .map_err(AppError::Internal)?;
+    let gotrue = GoTrueClient::from_state(&state).map_err(AppError::Internal)?;
 
     gotrue
         .mfa_unenroll(&session.access_token, &factor_id)
@@ -1316,7 +1466,7 @@ fn no_cache_headers() -> axum::http::HeaderMap {
 }
 
 async fn get_tauri_session(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
 ) -> Result<(axum::http::HeaderMap, Json<Value>), AppError> {
     let path = code_file_path();
     let headers = no_cache_headers();
@@ -1325,17 +1475,130 @@ async fn get_tauri_session(
         Ok(code) => {
             // Delete immediately — one-time use.
             if let Err(e) = tokio::fs::remove_file(&path).await {
-                tracing::warn!(
-                    "[tauri-session] failed to remove code file: {}",
-                    e
-                );
+                tracing::warn!("[tauri-session] failed to remove code file: {}", e);
+            }
+            let mut exchange_error: Option<String> = None;
+            // The desktop app may still hold the PKCE verifier even if the
+            // browser callback landed in a different process instance.
+            if state.session.read().await.is_none() {
+                let verifier = state
+                    .pending_oauth
+                    .read()
+                    .await
+                    .as_ref()
+                    .map(|flow| flow.verifier.clone());
+                let verifier = match verifier {
+                    Some(verifier) => Some(verifier),
+                    None => read_pending_oauth_snapshot()
+                        .await
+                        .map(|flow| flow.verifier),
+                };
+                if let Some(verifier) = verifier {
+                    if let Ok(gotrue) = GoTrueClient::from_state(&state) {
+                        match gotrue.exchange_code_for_session(&code, &verifier).await {
+                            Ok(auth) => {
+                                let now = epoch_secs();
+                                let user_id = auth.user["id"].as_str().unwrap_or("").to_string();
+                                let email = auth.user["email"].as_str().unwrap_or("").to_string();
+                                let verified_factor = auth
+                                    .user
+                                    .get("factors")
+                                    .and_then(|v| v.as_array())
+                                    .and_then(|fs| {
+                                        fs.iter().find(|f| {
+                                            let ft = f.get("factor_type").and_then(|t| t.as_str());
+                                            let status = f.get("status").and_then(|s| s.as_str());
+                                            (ft == Some("totp") || ft == Some("webauthn"))
+                                                && status == Some("verified")
+                                        })
+                                    });
+                                let factor_id = verified_factor
+                                    .and_then(|f| f.get("id").and_then(|v| v.as_str()))
+                                    .map(|s| s.to_string());
+                                let factor_type = verified_factor
+                                    .and_then(|f| f.get("factor_type").and_then(|v| v.as_str()))
+                                    .map(|s| s.to_string());
+                                let available_mfa_methods: Vec<String> = auth
+                                    .user
+                                    .get("factors")
+                                    .and_then(|v| v.as_array())
+                                    .map(|fs| {
+                                        let mut methods: Vec<String> = fs
+                                            .iter()
+                                            .filter(|f| {
+                                                f.get("status").and_then(|s| s.as_str())
+                                                    == Some("verified")
+                                            })
+                                            .filter_map(|f| {
+                                                f.get("factor_type")
+                                                    .and_then(|t| t.as_str())
+                                                    .map(|s| s.to_string())
+                                            })
+                                            .collect();
+                                        methods.sort();
+                                        methods.dedup();
+                                        methods
+                                    })
+                                    .unwrap_or_default();
+
+                                let session = UserSession {
+                                    access_token: auth.access_token,
+                                    refresh_token: auth.refresh_token,
+                                    user_id: user_id.clone(),
+                                    email: email.clone(),
+                                    expires_at: now + auth.expires_in,
+                                    encryption_key: Vec::new(),
+                                    mfa_verified: false,
+                                    factor_id,
+                                    factor_type,
+                                    available_mfa_methods,
+                                    created_at: now,
+                                };
+                                *state.session.write().await = Some(session.clone());
+                                {
+                                    let mut guard = state.pending_oauth.write().await;
+                                    if let Some(ref mut flow) = *guard {
+                                        flow.verifier.zeroize();
+                                    }
+                                    *guard = None;
+                                }
+                                clear_pending_oauth_snapshot().await;
+                                load_user_secrets(&state, &session).await;
+                                #[cfg(debug_assertions)]
+                                crate::server::save_dev_session(&state.db, &session).await;
+                                log_security_event(
+                                    &state.db,
+                                    "oauth_login",
+                                    Some(&user_id),
+                                    &json!({ "email": email, "source": "tauri-session" }),
+                                )
+                                .await;
+                                tracing::info!(
+                                    user_id = %user_id,
+                                    "[tauri-session] PKCE exchange succeeded — session stored"
+                                );
+                            }
+                            Err(e) => {
+                                clear_pending_oauth_snapshot().await;
+                                exchange_error = Some(e.to_string());
+                                tracing::warn!("[tauri-session] PKCE exchange failed: {e}");
+                            }
+                        }
+                    }
+                }
             }
             tracing::info!("[tauri-session] delivering code to webview");
-            Ok((headers, Json(json!({ "code": code }))))
+            Ok((
+                headers,
+                Json(json!({ "code": code, "exchange_error": exchange_error })),
+            ))
         }
         Err(_) => {
             // File does not exist (or is unreadable) — no pending code.
-            Ok((headers, Json(json!({ "code": null }))))
+            Ok((
+                headers,
+                Json(json!({ "code": null, "exchange_error": null })),
+            ))
         }
     }
 }
@@ -1385,18 +1648,23 @@ const LOGO_128_PNG: &[u8] = include_bytes!("../../../frontend/public/logo-128.pn
 
 async fn serve_logo() -> impl IntoResponse {
     (
-        [(header::CONTENT_TYPE, "image/png"), (header::CACHE_CONTROL, "public, max-age=86400")],
+        [
+            (header::CONTENT_TYPE, "image/png"),
+            (header::CACHE_CONTROL, "public, max-age=86400"),
+        ],
         LOGO_128_PNG,
     )
 }
 
 async fn serve_favicon() -> impl IntoResponse {
     (
-        [(header::CONTENT_TYPE, "image/png"), (header::CACHE_CONTROL, "public, max-age=86400")],
+        [
+            (header::CONTENT_TYPE, "image/png"),
+            (header::CACHE_CONTROL, "public, max-age=86400"),
+        ],
         FAVICON_PNG,
     )
 }
-
 
 const PAGE_STYLE: &str = r#"
 *{margin:0;padding:0;box-sizing:border-box}
@@ -1416,11 +1684,11 @@ fn callback_page(title: &str, heading: &str, msg: &str, is_error: bool) -> Strin
     let h1_class = if is_error { "err" } else { "ok" };
     format!(
         r##"<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>{title} — OpenClaw Manager</title>
+<html lang="en"><head><meta charset="utf-8"><title>{title} — ClawControl</title>
 <link rel="icon" type="image/png" href="/api/auth/favicon.png">
 <style>{style}</style></head>
 <body><div class="card">
-<img src="/api/auth/logo.png" width="64" height="64" alt="OpenClaw Manager" style="margin:0 auto 14px;display:block;filter:drop-shadow(0 2px 8px rgba(167,139,250,0.3))">
+<img src="/api/auth/logo.png" width="64" height="64" alt="ClawControl" style="margin:0 auto 14px;display:block;filter:drop-shadow(0 2px 8px rgba(167,139,250,0.3))">
 <h1 class="{h1_class}">{heading}</h1>
 <p>{msg}</p>
 </div>
@@ -1441,10 +1709,26 @@ async fn oauth_callback(
     if let Some(err) = params.error {
         let desc = params.error_description.unwrap_or_default();
         tracing::error!("[oauth-callback] error={err} desc={desc}");
-        let err_safe = err.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;");
-        let desc_safe = desc.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;");
-        let msg = format!("{}: {}<br>Close this tab and try again.", err_safe, desc_safe);
-        return Ok(Html(callback_page("Auth Error", "Authentication Error", &msg, true)));
+        let err_safe = err
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+            .replace('"', "&quot;");
+        let desc_safe = desc
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+            .replace('"', "&quot;");
+        let msg = format!(
+            "{}: {}<br>Close this tab and try again.",
+            err_safe, desc_safe
+        );
+        return Ok(Html(callback_page(
+            "Auth Error",
+            "Authentication Error",
+            &msg,
+            true,
+        )));
     }
 
     // Verify the OAuth state/nonce to prevent code injection.
@@ -1485,115 +1769,138 @@ async fn oauth_callback(
             let redirect = guard.as_ref().and_then(|f| f.redirect_to.clone());
             (verifier, redirect)
         };
-        if let Some(verifier) = verifier {
-            if let Ok(gotrue) = GoTrueClient::from_state(&state) {
-                match gotrue.exchange_code_for_session(&code, &verifier).await {
-                    Ok(auth) => {
-                        let now = epoch_secs();
-                        let user_id =
-                            auth.user["id"].as_str().unwrap_or("").to_string();
-                        let email = auth.user["email"]
-                            .as_str()
-                            .unwrap_or("")
-                            .to_string();
+        let snapshot = read_pending_oauth_snapshot().await;
+        let verifier = verifier.or_else(|| snapshot.as_ref().map(|flow| flow.verifier.clone()));
+        let browser_redirect = browser_redirect
+            .or_else(|| snapshot.as_ref().and_then(|flow| flow.redirect_to.clone()));
+        // Browser mode owns the exchange in the callback. Tauri mode only
+        // stores the code here; the desktop app completes the exchange via
+        // /api/auth/tauri-session to avoid consuming the one-time code early.
+        if browser_redirect.is_some() {
+            if let Some(verifier) = verifier {
+                if let Ok(gotrue) = GoTrueClient::from_state(&state) {
+                    match gotrue.exchange_code_for_session(&code, &verifier).await {
+                        Ok(auth) => {
+                            let now = epoch_secs();
+                            let user_id = auth.user["id"].as_str().unwrap_or("").to_string();
+                            let email = auth.user["email"].as_str().unwrap_or("").to_string();
 
-                        // Extract factor_id and factor_type from user object (same as email login)
-                        // Looks for both TOTP and WebAuthn verified factors
-                        let oauth_verified_factor = auth.user.get("factors")
-                            .and_then(|v| v.as_array())
-                            .and_then(|fs| fs.iter().find(|f| {
-                                let ft = f.get("factor_type").and_then(|t| t.as_str());
-                                let status = f.get("status").and_then(|s| s.as_str());
-                                (ft == Some("totp") || ft == Some("webauthn")) && status == Some("verified")
-                            }));
-                        let oauth_factor_id = oauth_verified_factor
-                            .and_then(|f| f.get("id").and_then(|v| v.as_str()))
-                            .map(|s| s.to_string());
-                        let oauth_factor_type = oauth_verified_factor
-                            .and_then(|f| f.get("factor_type").and_then(|v| v.as_str()))
-                            .map(|s| s.to_string());
-                        let oauth_available_methods: Vec<String> = auth.user.get("factors")
-                            .and_then(|v| v.as_array())
-                            .map(|fs| {
-                                let mut methods: Vec<String> = fs
-                                    .iter()
-                                    .filter(|f| f.get("status").and_then(|s| s.as_str()) == Some("verified"))
-                                    .filter_map(|f| f.get("factor_type").and_then(|t| t.as_str()).map(|s| s.to_string()))
-                                    .collect();
-                                methods.sort();
-                                methods.dedup();
-                                methods
-                            })
-                            .unwrap_or_default();
+                            // Extract factor_id and factor_type from user object (same as email login)
+                            // Looks for both TOTP and WebAuthn verified factors
+                            let oauth_verified_factor = auth
+                                .user
+                                .get("factors")
+                                .and_then(|v| v.as_array())
+                                .and_then(|fs| {
+                                    fs.iter().find(|f| {
+                                        let ft = f.get("factor_type").and_then(|t| t.as_str());
+                                        let status = f.get("status").and_then(|s| s.as_str());
+                                        (ft == Some("totp") || ft == Some("webauthn"))
+                                            && status == Some("verified")
+                                    })
+                                });
+                            let oauth_factor_id = oauth_verified_factor
+                                .and_then(|f| f.get("id").and_then(|v| v.as_str()))
+                                .map(|s| s.to_string());
+                            let oauth_factor_type = oauth_verified_factor
+                                .and_then(|f| f.get("factor_type").and_then(|v| v.as_str()))
+                                .map(|s| s.to_string());
+                            let oauth_available_methods: Vec<String> = auth
+                                .user
+                                .get("factors")
+                                .and_then(|v| v.as_array())
+                                .map(|fs| {
+                                    let mut methods: Vec<String> = fs
+                                        .iter()
+                                        .filter(|f| {
+                                            f.get("status").and_then(|s| s.as_str())
+                                                == Some("verified")
+                                        })
+                                        .filter_map(|f| {
+                                            f.get("factor_type")
+                                                .and_then(|t| t.as_str())
+                                                .map(|s| s.to_string())
+                                        })
+                                        .collect();
+                                    methods.sort();
+                                    methods.dedup();
+                                    methods
+                                })
+                                .unwrap_or_default();
 
-                        // Detect concurrent session
-                        if let Some(ref existing) = *state.session.read().await {
+                            // Detect concurrent session
+                            if let Some(ref existing) = *state.session.read().await {
+                                log_security_event(
+                                    &state.db,
+                                    "concurrent_session",
+                                    Some(&user_id),
+                                    &json!({
+                                        "action": "new_login_replaced_existing",
+                                        "method": "oauth",
+                                        "previous_user_id": existing.user_id,
+                                    }),
+                                )
+                                .await;
+                                tracing::warn!(
+                                    user_id = %user_id,
+                                    previous_user_id = %existing.user_id,
+                                    "concurrent session detected (OAuth) — replacing existing session"
+                                );
+                            }
+
+                            let session = UserSession {
+                                access_token: auth.access_token,
+                                refresh_token: auth.refresh_token,
+                                user_id: user_id.clone(),
+                                email: email.clone(),
+                                expires_at: now + auth.expires_in,
+                                encryption_key: Vec::new(),
+                                mfa_verified: false,
+                                factor_id: oauth_factor_id,
+                                factor_type: oauth_factor_type,
+                                available_mfa_methods: oauth_available_methods,
+                                created_at: now,
+                            };
+                            *state.session.write().await = Some(session.clone());
+                            {
+                                let mut guard = state.pending_oauth.write().await;
+                                if let Some(ref mut flow) = *guard {
+                                    flow.verifier.zeroize();
+                                }
+                                *guard = None;
+                            }
+                            clear_pending_oauth_snapshot().await;
+
+                            // Try to load user_secrets (will skip if no encryption
+                            // key, which is the case for OAuth logins without a
+                            // password-derived key).
+                            load_user_secrets(&state, &session).await;
+                            #[cfg(debug_assertions)]
+                            crate::server::save_dev_session(&state.db, &session).await;
+
                             log_security_event(
                                 &state.db,
-                                "concurrent_session",
+                                "oauth_login",
                                 Some(&user_id),
-                                &json!({
-                                    "action": "new_login_replaced_existing",
-                                    "method": "oauth",
-                                    "previous_user_id": existing.user_id,
-                                }),
+                                &json!({ "email": email }),
                             )
                             .await;
-                            tracing::warn!(
+
+                            tracing::info!(
                                 user_id = %user_id,
-                                previous_user_id = %existing.user_id,
-                                "concurrent session detected (OAuth) — replacing existing session"
+                                "[oauth-callback] PKCE exchange succeeded — session stored"
                             );
                         }
-
-                        let session = UserSession {
-                            access_token: auth.access_token,
-                            refresh_token: auth.refresh_token,
-                            user_id: user_id.clone(),
-                            email: email.clone(),
-                            expires_at: now + auth.expires_in,
-                            encryption_key: Vec::new(),
-                            mfa_verified: false,
-                            factor_id: oauth_factor_id,
-                            factor_type: oauth_factor_type,
-                            available_mfa_methods: oauth_available_methods,
-                            created_at: now,
-                        };
-                        *state.session.write().await = Some(session.clone());
-                        {
+                        Err(e) => {
+                            // Zeroize and clear the PKCE verifier even on failure
                             let mut guard = state.pending_oauth.write().await;
                             if let Some(ref mut flow) = *guard {
                                 flow.verifier.zeroize();
                             }
                             *guard = None;
+                            clear_pending_oauth_snapshot().await;
+                            tracing::warn!("[oauth-callback] PKCE exchange failed: {e}");
                         }
-
-                        // Try to load user_secrets (will skip if no encryption
-                        // key, which is the case for OAuth logins without a
-                        // password-derived key).
-                        load_user_secrets(&state, &session).await;
-
-                        log_security_event(
-                            &state.db,
-                            "oauth_login",
-                            Some(&user_id),
-                            &json!({ "email": email }),
-                        )
-                        .await;
-
-                        tracing::info!(
-                            user_id = %user_id,
-                            "[oauth-callback] PKCE exchange succeeded — session stored"
-                        );
-                    }
-                    Err(e) => {
-                        // Zeroize and clear the PKCE verifier even on failure
-                        let mut guard = state.pending_oauth.write().await;
-                        if let Some(ref mut flow) = *guard {
-                            flow.verifier.zeroize();
-                        }
-                        *guard = None;
-                        tracing::warn!("[oauth-callback] PKCE exchange failed: {e}");
                     }
                 }
             }
@@ -1614,7 +1921,7 @@ async fn oauth_callback(
         Ok(Html(callback_page(
             "Signed In",
             "Signed in!",
-            "You\u{2019}re all set! You can close this tab and return to OpenClaw Manager.",
+            "You\u{2019}re all set! You can close this tab and return to ClawControl.",
             false,
         )))
     } else {
@@ -1647,8 +1954,7 @@ async fn get_security_events(
     let events: Vec<Value> = rows
         .into_iter()
         .map(|(id, event_type, user_id, ip, details, created_at)| {
-            let details_val: Value =
-                serde_json::from_str(&details).unwrap_or(json!({}));
+            let details_val: Value = serde_json::from_str(&details).unwrap_or(json!({}));
             json!({
                 "id": id,
                 "event_type": event_type,
@@ -1742,8 +2048,14 @@ mod tests {
     fn epoch_secs_returns_reasonable_value() {
         let now = epoch_secs();
         // Should be after 2024-01-01 (1704067200) and before 2100-01-01
-        assert!(now > 1_704_067_200, "epoch_secs should be a recent timestamp");
-        assert!(now < 4_102_444_800, "epoch_secs should not be in the far future");
+        assert!(
+            now > 1_704_067_200,
+            "epoch_secs should be a recent timestamp"
+        );
+        assert!(
+            now < 4_102_444_800,
+            "epoch_secs should not be in the far future"
+        );
     }
 
     // ---- service_credential_to_env_var ----
@@ -1805,27 +2117,108 @@ mod tests {
     }
 
     #[test]
+    fn service_credential_mapping_couchdb() {
+        assert_eq!(
+            service_credential_to_env_var("couchdb", "url"),
+            Some("COUCHDB_URL")
+        );
+        assert_eq!(
+            service_credential_to_env_var("couchdb", "user"),
+            Some("COUCHDB_USER")
+        );
+        assert_eq!(
+            service_credential_to_env_var("couchdb", "username"),
+            Some("COUCHDB_USER")
+        );
+        assert_eq!(
+            service_credential_to_env_var("couchdb", "password"),
+            Some("COUCHDB_PASSWORD")
+        );
+        assert_eq!(
+            service_credential_to_env_var("couchdb", "database"),
+            Some("COUCHDB_DATABASE")
+        );
+        assert_eq!(
+            service_credential_to_env_var("couchdb", "custom_headers"),
+            Some("COUCHDB_CUSTOM_HEADERS")
+        );
+        assert_eq!(
+            service_credential_to_env_var("couchdb", "headers"),
+            Some("COUCHDB_CUSTOM_HEADERS")
+        );
+    }
+
+    #[test]
     fn service_credential_mapping_returns_none_for_unknown() {
         assert_eq!(service_credential_to_env_var("unknown", "host"), None);
-        assert_eq!(service_credential_to_env_var("bluebubbles", "unknown_key"), None);
+        assert_eq!(
+            service_credential_to_env_var("bluebubbles", "unknown_key"),
+            None
+        );
         assert_eq!(service_credential_to_env_var("", ""), None);
+    }
+
+    #[test]
+    fn service_credential_mapping_agentmail() {
+        assert_eq!(
+            service_credential_to_env_var("agentmail", "url"),
+            Some("AGENTMAIL_URL")
+        );
+        assert_eq!(
+            service_credential_to_env_var("agentmail", "api_key"),
+            Some("AGENTMAIL_API_KEY")
+        );
+        assert_eq!(
+            service_credential_to_env_var("agentmail", "api-key"),
+            Some("AGENTMAIL_API_KEY")
+        );
     }
 
     #[test]
     fn service_credential_mapping_all_services_covered() {
         // Verify every service mentioned in the design spec has at least one mapping
         let services = [
-            "bluebubbles", "openclaw", "proxmox", "opnsense", "plex",
-            "sonarr", "radarr", "email", "caldav", "ntfy",
+            "bluebubbles",
+            "openclaw",
+            "proxmox",
+            "opnsense",
+            "plex",
+            "sonarr",
+            "radarr",
+            "email",
+            "agentmail",
+            "caldav",
+            "ntfy",
+            "couchdb",
         ];
         for service in services {
             // Each service should have at least one recognized credential key
-            let has_mapping = ["host", "url", "password", "key", "secret", "token",
-                "api_key", "api-key", "ws", "token_id", "token-id", "token_secret",
-                "token-secret", "username", "user", "port", "topic"]
-                .iter()
-                .any(|key| service_credential_to_env_var(service, key).is_some());
-            assert!(has_mapping, "service '{}' should have at least one credential mapping", service);
+            let has_mapping = [
+                "host",
+                "url",
+                "password",
+                "key",
+                "secret",
+                "token",
+                "api_key",
+                "api-key",
+                "ws",
+                "token_id",
+                "token-id",
+                "token_secret",
+                "token-secret",
+                "username",
+                "user",
+                "port",
+                "topic",
+            ]
+            .iter()
+            .any(|key| service_credential_to_env_var(service, key).is_some());
+            assert!(
+                has_mapping,
+                "service '{}' should have at least one credential mapping",
+                service
+            );
         }
     }
 }

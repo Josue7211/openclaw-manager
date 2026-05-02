@@ -11,7 +11,7 @@ const mockGet = vi.fn()
 
 vi.mock('@/lib/api', () => ({
   api: { get: (...args: unknown[]) => mockGet(...args) },
-  API_BASE: 'http://127.0.0.1:3000',
+  API_BASE: 'http://127.0.0.1:5000',
 }))
 
 vi.mock('@/lib/hooks/useRealtimeSSE', () => ({

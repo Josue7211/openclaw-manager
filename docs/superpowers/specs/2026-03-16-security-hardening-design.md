@@ -6,7 +6,7 @@
 
 ## Context
 
-Mission Control is a Tauri v2 desktop app that will be shared with family members. Multiple users will share a single self-hosted Supabase instance, each with their own account and fully private data. The Supabase instance is exposed via Cloudflare Tunnel (with Cloudflare Access for network-level auth). A future mobile version is planned.
+Mission Control is a Tauri v2 desktop app that will be shared with family members. Multiple users will share a single self-hosted Supabase instance, each with their own account and fully private data. The Supabase instance is exposed over Tailscale only. A future mobile version is planned.
 
 ### Current state
 
@@ -20,14 +20,14 @@ Mission Control is a Tauri v2 desktop app that will be shared with family member
 ### Target state
 
 - Frontend has zero knowledge of Supabase (no SDK, no URL, no keys)
-- Three-layer auth: Cloudflare Access -> Supabase Auth -> RLS
+- Three-layer auth: Tailscale ACLs -> Supabase Auth -> RLS
 - All tables have `user_id` + RLS policies enforcing `auth.uid() = user_id`
 - Backend uses per-user JWT (not service role key) for all user-scoped queries
 - App works fully offline via local SQLite, with Supabase as sync layer
 
 ## Architecture
 
-**Important clarification**: Each user runs their own Tauri app with an embedded Axum server on `localhost:3000`. The Cloudflare Tunnel fronts **Supabase only** (on the homelab VM), not the embedded Axum. The Axum server connects to Supabase through the CF Tunnel URL.
+**Important clarification**: Each user runs their own Tauri app with an embedded Axum server on `localhost:3000`. The private tailnet fronts **Supabase only** (on the homelab VM), not the embedded Axum. The Axum server connects to Supabase through the tailnet URL.
 
 ```
 +------------------------------+     +------------------------------+
@@ -41,10 +41,10 @@ Mission Control is a Tauri v2 desktop app that will be shared with family member
                |
                v
 +------------------------------+
-|  Cloudflare Tunnel + Access  |
-|  - Authorized emails only    |
+|  Tailscale / private link    |
+|  - Tailnet ACLs              |
 |  - TLS termination           |
-|  - DDoS protection           |
+|  - No public ingress         |
 +--------------+---------------+
                |
                v
@@ -870,7 +870,7 @@ AppError::Internal(e) => {
 
 | Layer | What it does | What it catches |
 |---|---|---|
-| Cloudflare Access | Network gate, authorized emails only | Random internet attackers |
+| Tailscale ACLs | Network gate, authorized tailnet nodes only | Random internet attackers |
 | Supabase Auth + JWT | Application auth, per-user sessions | Unauthorized access within the network |
 | RLS (user_id) | Database enforcement, row isolation | Bugs in application code, direct DB access |
 
@@ -889,7 +889,7 @@ AppError::Internal(e) => {
 
 ### Remaining attack vectors
 
-- Cloudflare sees traffic in cleartext at their edge (accepted trade-off for family usability)
+- No public edge termination; traffic stays within the tailnet
 - Local SQLite is unencrypted at rest (can add SQLCipher later if needed)
 - Service role key on the Axum server could be extracted by local malware (mitigated by OS keychain)
 - user_secrets credentials are only accessible while the user is logged in (encryption key in memory)

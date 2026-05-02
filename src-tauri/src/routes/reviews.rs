@@ -12,9 +12,18 @@ use crate::validation::{validate_date, validate_uuid};
 /// Build the reviews router (daily reviews, weekly reviews, retrospectives).
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/daily-review", get(get_daily_review).post(post_daily_review))
-        .route("/weekly-review", get(get_weekly_review).post(post_weekly_review))
-        .route("/retrospectives", get(get_retrospectives).post(post_retrospective))
+        .route(
+            "/daily-review",
+            get(get_daily_review).post(post_daily_review),
+        )
+        .route(
+            "/weekly-review",
+            get(get_weekly_review).post(post_weekly_review),
+        )
+        .route(
+            "/retrospectives",
+            get(get_retrospectives).post(post_retrospective),
+        )
 }
 
 // ── GET /api/daily-review ───────────────────────────────────────────────────
@@ -95,10 +104,13 @@ async fn post_daily_review(
     });
 
     let data = if let Some(row) = existing.as_array().and_then(|a| a.first()) {
-        let id = row.get("id").and_then(|v| v.as_str())
+        let id = row
+            .get("id")
+            .and_then(|v| v.as_str())
             .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Missing id")))?;
         validate_uuid(id)?;
-        sb.update_as_user("daily_reviews", &format!("id=eq.{id}"), review_data, jwt).await?
+        sb.update_as_user("daily_reviews", &format!("id=eq.{id}"), review_data, jwt)
+            .await?
     } else {
         sb.insert_as_user("daily_reviews", review_data, jwt).await?
     };
@@ -128,7 +140,10 @@ async fn get_weekly_review(
         "select=*&order=week_start.desc&limit=10".to_string()
     };
 
-    let data = sb.select_as_user("weekly_reviews", &query, jwt).await.unwrap_or(json!([]));
+    let data = sb
+        .select_as_user("weekly_reviews", &query, jwt)
+        .await
+        .unwrap_or(json!([]));
     Ok(Json(json!({ "reviews": data })))
 }
 
@@ -175,12 +190,16 @@ async fn post_weekly_review(
         .await?;
 
     let data = if let Some(row) = existing.as_array().and_then(|a| a.first()) {
-        let id = row.get("id").and_then(|v| v.as_str())
+        let id = row
+            .get("id")
+            .and_then(|v| v.as_str())
             .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Missing id")))?;
         validate_uuid(id)?;
-        sb.update_as_user("weekly_reviews", &format!("id=eq.{id}"), review_data, jwt).await?
+        sb.update_as_user("weekly_reviews", &format!("id=eq.{id}"), review_data, jwt)
+            .await?
     } else {
-        sb.insert_as_user("weekly_reviews", review_data, jwt).await?
+        sb.insert_as_user("weekly_reviews", review_data, jwt)
+            .await?
     };
 
     Ok(Json(json!({ "review": data })))
@@ -194,7 +213,11 @@ async fn get_retrospectives(
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
     let data = sb
-        .select_as_user("retrospectives", "select=*&order=created_at.desc", &session.access_token)
+        .select_as_user(
+            "retrospectives",
+            "select=*&order=created_at.desc",
+            &session.access_token,
+        )
         .await?;
     Ok(Json(json!({ "retrospectives": data })))
 }

@@ -1,4 +1,8 @@
-use axum::{extract::{Query, State}, routing::get, Json, Router};
+use axum::{
+    extract::{Query, State},
+    routing::get,
+    Json, Router,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -8,15 +12,29 @@ use crate::validation::validate_uuid;
 
 /// Row type for idea queries (avoids clippy::type_complexity).
 type IdeaRow = (
-    String, String, Option<String>, Option<String>, Option<String>,
-    Option<String>, Option<String>, String, Option<String>, Option<String>,
-    String, String,
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    String,
+    Option<String>,
+    Option<String>,
+    String,
+    String,
 );
 
 /// Build the ideas router (CRUD with auto-mission creation on approval).
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/ideas", get(get_ideas).post(post_idea).patch(patch_idea).delete(delete_idea))
+    Router::new().route(
+        "/ideas",
+        get(get_ideas)
+            .post(post_idea)
+            .patch(patch_idea)
+            .delete(delete_idea),
+    )
 }
 
 // ── Ideas ───────────────────────────────────────────────────────────────────
@@ -59,7 +77,20 @@ async fn get_ideas(
     let ideas: Vec<Value> = rows
         .iter()
         .map(
-            |(id, title, description, why, effort, impact, category, status, priority, mission_id, created_at, updated_at)| {
+            |(
+                id,
+                title,
+                description,
+                why,
+                effort,
+                impact,
+                category,
+                status,
+                priority,
+                mission_id,
+                created_at,
+                updated_at,
+            )| {
                 json!({
                     "id": id,
                     "title": title,
@@ -173,7 +204,10 @@ async fn patch_idea(
     RequireAuth(session): RequireAuth,
     Json(body): Json<PatchIdeaBody>,
 ) -> Result<Json<Value>, AppError> {
-    let id = body.id.as_ref().ok_or_else(|| AppError::BadRequest("id required".into()))?;
+    let id = body
+        .id
+        .as_ref()
+        .ok_or_else(|| AppError::BadRequest("id required".into()))?;
     validate_uuid(id)?;
 
     if body.status.is_none() && body.mission_id.is_none() {
@@ -187,13 +221,12 @@ async fn patch_idea(
 
     // If approving, auto-create a mission in local SQLite
     if body.status.as_deref() == Some("approved") {
-        let idea_row: Option<(String,)> = sqlx::query_as(
-            "SELECT title FROM ideas WHERE id = ? AND user_id = ?",
-        )
-        .bind(id)
-        .bind(&session.user_id)
-        .fetch_optional(&state.db)
-        .await?;
+        let idea_row: Option<(String,)> =
+            sqlx::query_as("SELECT title FROM ideas WHERE id = ? AND user_id = ?")
+                .bind(id)
+                .bind(&session.user_id)
+                .fetch_optional(&state.db)
+                .await?;
 
         if let Some((idea_title,)) = idea_row {
             let mission_id = crate::routes::util::random_uuid();
@@ -221,9 +254,15 @@ async fn patch_idea(
             }))
             .map_err(|e| AppError::Internal(e.into()))?;
 
-            crate::sync::log_mutation(&state.db, "missions", &mission_id, "INSERT", Some(&mission_payload))
-                .await
-                .map_err(|e| AppError::Internal(e.into()))?;
+            crate::sync::log_mutation(
+                &state.db,
+                "missions",
+                &mission_id,
+                "INSERT",
+                Some(&mission_payload),
+            )
+            .await
+            .map_err(|e| AppError::Internal(e.into()))?;
 
             mission_id_to_set = Some(json!(mission_id));
         }
@@ -231,18 +270,28 @@ async fn patch_idea(
 
     // Build dynamic UPDATE
     let mut sets = vec!["updated_at = ?"];
-    if body.status.is_some() { sets.push("status = ?"); }
-    if mission_id_to_set.is_some() { sets.push("mission_id = ?"); }
+    if body.status.is_some() {
+        sets.push("status = ?");
+    }
+    if mission_id_to_set.is_some() {
+        sets.push("mission_id = ?");
+    }
     let sql = format!(
         "UPDATE ideas SET {} WHERE id = ? AND user_id = ?",
         sets.join(", ")
     );
 
     let mut query = sqlx::query(&sql).bind(&now);
-    if let Some(ref status) = body.status { query = query.bind(status); }
+    if let Some(ref status) = body.status {
+        query = query.bind(status);
+    }
     if let Some(ref mid) = mission_id_to_set {
         let mid_str = mid.as_str().map(|s| s.to_string()).or_else(|| {
-            if mid.is_null() { None } else { Some(mid.to_string()) }
+            if mid.is_null() {
+                None
+            } else {
+                Some(mid.to_string())
+            }
         });
         query = query.bind(mid_str);
     }
@@ -263,9 +312,18 @@ async fn patch_idea(
 
     let idea = match updated {
         Some((
-            rid, title, description, why, effort,
-            impact, category, status, priority, mission_id,
-            created_at, updated_at,
+            rid,
+            title,
+            description,
+            why,
+            effort,
+            impact,
+            category,
+            status,
+            priority,
+            mission_id,
+            created_at,
+            updated_at,
         )) => {
             let val = json!({
                 "id": rid,
@@ -283,8 +341,7 @@ async fn patch_idea(
                 "updated_at": updated_at,
             });
 
-            let payload = serde_json::to_string(&val)
-                .map_err(|e| AppError::Internal(e.into()))?;
+            let payload = serde_json::to_string(&val).map_err(|e| AppError::Internal(e.into()))?;
             crate::sync::log_mutation(&state.db, "ideas", &rid, "UPDATE", Some(&payload))
                 .await
                 .map_err(|e| AppError::Internal(e.into()))?;
@@ -307,12 +364,7 @@ async fn delete_idea(
     RequireAuth(session): RequireAuth,
     axum::extract::Query(params): axum::extract::Query<DeleteIdeaParams>,
 ) -> Result<Json<Value>, AppError> {
-    let id = params
-        .id
-        .as_deref()
-        .unwrap_or("")
-        .trim()
-        .to_string();
+    let id = params.id.as_deref().unwrap_or("").trim().to_string();
     if id.is_empty() {
         return Err(AppError::BadRequest("id required".into()));
     }
@@ -326,15 +378,13 @@ async fn delete_idea(
     );
 
     let now = chrono::Utc::now().to_rfc3339();
-    sqlx::query(
-        "UPDATE ideas SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?",
-    )
-    .bind(&now)
-    .bind(&now)
-    .bind(&id)
-    .bind(&session.user_id)
-    .execute(&state.db)
-    .await?;
+    sqlx::query("UPDATE ideas SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?")
+        .bind(&now)
+        .bind(&now)
+        .bind(&id)
+        .bind(&session.user_id)
+        .execute(&state.db)
+        .await?;
 
     crate::sync::log_mutation(&state.db, "ideas", &id, "DELETE", None)
         .await

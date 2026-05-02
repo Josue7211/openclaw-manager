@@ -1,12 +1,12 @@
-# OpenClaw Manager — iOS Quick Capture Shortcut
+# ClawControl — iOS Quick Capture Shortcut
 
-Capture tasks, ideas, and notes from anywhere on your iPhone and send them straight into OpenClaw Manager.
+Capture tasks, ideas, and notes from anywhere on your iPhone and send them straight into ClawControl.
 
 ---
 
 ## Prerequisites
 
-- OpenClaw Manager running and reachable at `http://<your-server-ip>:3000` (or your server IP)
+- ClawControl running and reachable at `http://<your-server-ip>:3000` (or your server IP)
 - `CAPTURE_API_KEY` set in your `.env.local` (see below)
 - iOS Shortcuts app
 
@@ -14,7 +14,7 @@ Capture tasks, ideas, and notes from anywhere on your iPhone and send them strai
 
 ## 1. Set the API Key (server side)
 
-Add this to `/path/to/mission-control/.env.local`:
+Add this to `/path/to/clawcontrol/.env.local`:
 
 ```
 CAPTURE_API_KEY=your-secret-key-here
@@ -27,7 +27,7 @@ Restart the Next.js server after saving. If `CAPTURE_API_KEY` is **not set**, th
 ## 2. Build the iOS Shortcut
 
 Open the **Shortcuts** app → tap **+** to create a new shortcut.
-Name it **"OpenClaw Manager Capture"**.
+Name it **"ClawControl Capture"**.
 
 ### Action 1 — Ask for Input
 - Action: **Ask for Input**
@@ -68,7 +68,7 @@ Repeat this block inside **each** menu branch (Task, Idea, Note, Decision):
 
 ### Action 4 — Show Notification
 - Action: **Show Notification**
-- Title: `OpenClaw Manager`
+- Title: `ClawControl`
 - Body: `Captured!`
 
 ---
@@ -83,7 +83,7 @@ In the shortcut editor tap **⋯** → **Add to Home Screen** → give it an ico
 
 1. Run the shortcut
 2. Type something like `Buy groceries` and pick **Task**
-3. Check OpenClaw Manager → the item should appear in your Todos
+3. Check ClawControl → the item should appear in your Todos
 
 ---
 

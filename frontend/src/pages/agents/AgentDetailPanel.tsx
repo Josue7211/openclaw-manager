@@ -11,7 +11,7 @@ interface AgentDetailPanelProps {
   onUpdate: (id: string, fields: Partial<Agent>) => void
   onDelete: (id: string) => void
   onAction: (id: string, action: AgentAction) => void
-  openclawHealthy: boolean
+  harnessHealthy: boolean
 }
 
 const labelStyle: React.CSSProperties = {
@@ -39,7 +39,7 @@ const fieldGroupStyle: React.CSSProperties = {
   marginBottom: '16px',
 }
 
-export function AgentDetailPanel({ agent, onUpdate, onDelete, onAction, openclawHealthy }: AgentDetailPanelProps) {
+export function AgentDetailPanel({ agent, onUpdate, onDelete, onAction, harnessHealthy }: AgentDetailPanelProps) {
   const [displayName, setDisplayName] = useState(agent.display_name)
   const [emoji, setEmoji] = useState(agent.emoji)
   const [role, setRole] = useState(agent.role)
@@ -118,54 +118,54 @@ export function AgentDetailPanel({ agent, onUpdate, onDelete, onAction, openclaw
           <button
             type="button"
             onClick={() => onAction(agent.id, 'start')}
-            disabled={!openclawHealthy}
+            disabled={!harnessHealthy}
             aria-label="Start agent"
-            title={openclawHealthy ? 'Start agent' : 'OpenClaw not connected'}
+            title={harnessHealthy ? 'Start agent' : 'Harness unavailable'}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: '32px', height: '32px', borderRadius: '8px',
               border: '1px solid var(--border)', background: 'transparent',
-              color: 'var(--text-muted)', cursor: openclawHealthy ? 'pointer' : 'not-allowed',
-              opacity: openclawHealthy ? 1 : 0.4,
+              color: 'var(--text-muted)', cursor: harnessHealthy ? 'pointer' : 'not-allowed',
+              opacity: harnessHealthy ? 1 : 0.4,
               transition: 'background 0.15s',
             }}
-            className={openclawHealthy ? 'hover-bg' : undefined}
+            className={harnessHealthy ? 'hover-bg' : undefined}
           >
             <Play size={16} />
           </button>
           <button
             type="button"
             onClick={() => onAction(agent.id, 'stop')}
-            disabled={!openclawHealthy}
+            disabled={!harnessHealthy}
             aria-label="Stop agent"
-            title={openclawHealthy ? 'Stop agent' : 'OpenClaw not connected'}
+            title={harnessHealthy ? 'Stop agent' : 'Harness unavailable'}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: '32px', height: '32px', borderRadius: '8px',
               border: '1px solid var(--border)', background: 'transparent',
-              color: 'var(--text-muted)', cursor: openclawHealthy ? 'pointer' : 'not-allowed',
-              opacity: openclawHealthy ? 1 : 0.4,
+              color: 'var(--text-muted)', cursor: harnessHealthy ? 'pointer' : 'not-allowed',
+              opacity: harnessHealthy ? 1 : 0.4,
               transition: 'background 0.15s',
             }}
-            className={openclawHealthy ? 'hover-bg' : undefined}
+            className={harnessHealthy ? 'hover-bg' : undefined}
           >
             <Stop size={16} />
           </button>
           <button
             type="button"
             onClick={() => onAction(agent.id, 'restart')}
-            disabled={!openclawHealthy}
+            disabled={!harnessHealthy}
             aria-label="Restart agent"
-            title={openclawHealthy ? 'Restart agent' : 'OpenClaw not connected'}
+            title={harnessHealthy ? 'Restart agent' : 'Harness unavailable'}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: '32px', height: '32px', borderRadius: '8px',
               border: '1px solid var(--border)', background: 'transparent',
-              color: 'var(--text-muted)', cursor: openclawHealthy ? 'pointer' : 'not-allowed',
-              opacity: openclawHealthy ? 1 : 0.4,
+              color: 'var(--text-muted)', cursor: harnessHealthy ? 'pointer' : 'not-allowed',
+              opacity: harnessHealthy ? 1 : 0.4,
               transition: 'background 0.15s',
             }}
-            className={openclawHealthy ? 'hover-bg' : undefined}
+            className={harnessHealthy ? 'hover-bg' : undefined}
           >
             <ArrowClockwise size={16} />
           </button>

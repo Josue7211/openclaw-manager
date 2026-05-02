@@ -1,4 +1,8 @@
-use axum::{http::StatusCode, response::{IntoResponse, Response}, Json};
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
 use serde_json::{json, Value};
 
 // ── Standard API Response Envelope ──────────────────────────────────────────
@@ -33,7 +37,11 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, code, message) = match self {
             AppError::NotFound(m) => (StatusCode::NOT_FOUND, "not_found", m),
-            AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized", "Unauthorized".into()),
+            AppError::Unauthorized => (
+                StatusCode::UNAUTHORIZED,
+                "unauthorized",
+                "Unauthorized".into(),
+            ),
             AppError::Forbidden(m) => (StatusCode::FORBIDDEN, "forbidden", m),
             AppError::BadRequest(m) => (StatusCode::BAD_REQUEST, "bad_request", m),
             AppError::Internal(e) => {
@@ -44,7 +52,11 @@ impl IntoResponse for AppError {
                 ).into_response();
             }
         };
-        (status, Json(json!({ "ok": false, "error": message, "code": code }))).into_response()
+        (
+            status,
+            Json(json!({ "ok": false, "error": message, "code": code })),
+        )
+            .into_response()
     }
 }
 

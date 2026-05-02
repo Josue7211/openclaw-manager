@@ -4,10 +4,10 @@ use serde_json::{json, Value};
 
 pub mod agent_shell;
 pub mod agent_shell_support;
+pub mod agentmail;
 pub mod agents;
 pub mod approvals;
 pub mod auth;
-pub mod bjorn;
 pub mod cache;
 pub mod calendar;
 pub mod captures;
@@ -21,24 +21,31 @@ pub mod events;
 pub mod export;
 pub mod gateway;
 pub mod gateway_events;
+pub mod generated_modules;
 pub mod homelab;
 pub mod ideas;
 pub mod jobs;
 // pub mod koel; // removed: file does not exist (stripped in prior phase)
 pub mod knowledge;
+pub mod mail_accounts;
+pub mod mail_policy;
 pub mod media;
 pub mod memd;
 pub mod memory;
 pub mod messages;
 pub mod missions;
+pub mod module_proposals;
 pub mod notify;
 pub mod openclaw_cli;
 pub mod openclaw_data;
 pub mod pipeline;
 pub mod preferences;
+pub mod rag;
 pub mod reminders;
 pub mod reviews;
 pub mod search;
+pub mod secret_broker_support;
+pub mod setup;
 pub mod stale;
 pub mod status;
 pub mod terminal;
@@ -58,7 +65,7 @@ pub fn router() -> Router<AppState> {
         .merge(agents::router())
         .merge(agent_shell::router())
         .merge(approvals::router())
-        .merge(bjorn::router())
+        .merge(generated_modules::router())
         .nest("/auth", auth::router())
         .merge(calendar::router())
         .nest("/chat", chat::router())
@@ -80,7 +87,9 @@ pub fn router() -> Router<AppState> {
         .merge(jobs::router())
         // .merge(koel::router()) // removed: module does not exist
         .nest("/memd", memd::router())
+        .merge(mail_accounts::router())
         .merge(memory::router())
+        .merge(module_proposals::router())
         .merge(search::router())
         .merge(workflow_notes::router())
         .merge(missions::router())
@@ -89,6 +98,7 @@ pub fn router() -> Router<AppState> {
         .merge(openclaw_data::router())
         .merge(pipeline::router())
         .merge(preferences::router())
+        .merge(rag::router())
         .merge(reminders::router())
         .merge(reviews::router())
         .merge(stale::router())

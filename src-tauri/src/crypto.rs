@@ -18,9 +18,9 @@ use zeroize::Zeroizing;
 /// passing them to Argon2, which requires a salt of at least 8 bytes.
 pub fn derive_key(password: &str, salt: &str) -> Zeroizing<Vec<u8>> {
     let params = Params::new(
-        65536, // 64 MiB memory cost
-        3,     // 3 iterations
-        4,     // 4 degrees of parallelism
+        65536,    // 64 MiB memory cost
+        3,        // 3 iterations
+        4,        // 4 degrees of parallelism
         Some(32), // 32-byte output key
     )
     .expect("valid argon2 params");
@@ -29,7 +29,8 @@ pub fn derive_key(password: &str, salt: &str) -> Zeroizing<Vec<u8>> {
 
     // Decode base64 salt (from user_profiles.encryption_salt), falling back
     // to raw UTF-8 bytes for legacy/test salts that aren't base64-encoded.
-    let salt_bytes = STANDARD.decode(salt)
+    let salt_bytes = STANDARD
+        .decode(salt)
         .unwrap_or_else(|_| salt.as_bytes().to_vec());
     let mut salt_fixed = [0u8; 16];
     let copy_len = salt_bytes.len().min(16);
@@ -50,8 +51,8 @@ pub fn derive_key(password: &str, salt: &str) -> Zeroizing<Vec<u8>> {
 pub fn encrypt(plaintext: &[u8], key: &[u8]) -> anyhow::Result<(String, String)> {
     anyhow::ensure!(key.len() == 32, "key must be 32 bytes");
 
-    let cipher = Aes256Gcm::new_from_slice(key)
-        .map_err(|e| anyhow::anyhow!("invalid key: {}", e))?;
+    let cipher =
+        Aes256Gcm::new_from_slice(key).map_err(|e| anyhow::anyhow!("invalid key: {}", e))?;
 
     let mut nonce_bytes = [0u8; 12];
     rand::thread_rng().fill_bytes(&mut nonce_bytes);
@@ -71,8 +72,8 @@ pub fn encrypt(plaintext: &[u8], key: &[u8]) -> anyhow::Result<(String, String)>
 pub fn decrypt(ciphertext_b64: &str, nonce_b64: &str, key: &[u8]) -> anyhow::Result<Vec<u8>> {
     anyhow::ensure!(key.len() == 32, "key must be 32 bytes");
 
-    let cipher = Aes256Gcm::new_from_slice(key)
-        .map_err(|e| anyhow::anyhow!("invalid key: {}", e))?;
+    let cipher =
+        Aes256Gcm::new_from_slice(key).map_err(|e| anyhow::anyhow!("invalid key: {}", e))?;
 
     let ciphertext = STANDARD
         .decode(ciphertext_b64)

@@ -1,4 +1,4 @@
-# Contributing to OpenClaw Manager
+# Contributing to ClawControl
 
 ## Getting Started
 

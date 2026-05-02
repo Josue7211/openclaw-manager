@@ -36,7 +36,7 @@ The existing dashboard has 9 card components (8 data cards + DashboardHeader) in
 - **Widget Picker Organization:** Categories (Monitoring, Productivity, AI, Media) + search bar + preview pane showing widget appearance before adding
 - **Existing cards:** Each of 9 dashboard cards available as individual widgets AND as grouped bundles
 - **Widget config:** Gear icon per widget (visible in edit mode or on hover) opening a config panel. Each widget type defines its own settings schema
-- **Three-tier Widget Registry:** (1) Built-in widgets (shipped), (2) User widgets (future marketplace), (3) AI widgets (Phase 7 Bjorn)
+- **Three-tier Widget Registry:** (1) Built-in widgets (shipped), (2) User widgets (future marketplace), (3) AI widgets (Phase 7 Agent)
 - **Smart default + curated:** Auto-generate layout from enabled modules, but with curated arrangement
 - **Reset:** Per-page and global "Reset to default layout" option
 - **Layout storage:** Default auto-reflow + optional per-breakpoint custom layouts
@@ -70,7 +70,7 @@ The existing dashboard has 9 card components (8 data cards + DashboardHeader) in
 | DASH-04 | Edit mode shows grid lines, resize handles, add widget button, remove widget X | CSS class on grid container toggled by edit state. Grid lines via CSS `background-image: repeating-linear-gradient`. Resize handles and remove buttons rendered conditionally. |
 | DASH-05 | Non-edit mode shows clean layout with no edit chrome | `dragConfig.enabled: false`, `resizeConfig.enabled: false` hides all interaction handles. CSS class removal hides grid lines. |
 | DASH-06 | Add widget picker showing available widgets by category | Widget picker as a modal/panel reading from WidgetRegistry. Categories stored in widget metadata. Search via filtered list. |
-| DASH-07 | Widget Registry mapping widget IDs to lazy-loaded React components | `WidgetRegistry` manifest: `Record<string, WidgetDefinition>` with `component: () => Promise<{default: ComponentType}>` for `React.lazy`. Three tiers: builtin, user, bjorn. |
+| DASH-07 | Widget Registry mapping widget IDs to lazy-loaded React components | `WidgetRegistry` manifest: `Record<string, WidgetDefinition>` with `component: () => Promise<{default: ComponentType}>` for `React.lazy`. Three tiers: builtin, user, agent. |
 | DASH-08 | Layout persisted to SQLite + synced to Supabase per breakpoint | New `widget_layouts` table in SQLite (migration 0009) and Supabase. Layouts stored as JSON per page per breakpoint. Sync via existing sync.rs engine + preferences-sync.ts. |
 | DASH-09 | Default layout provided for first-time users (populated from enabled modules) | `generateDefaultLayout(enabledModules: string[])` function creates curated grid placement. Uses `modules.ts` `getEnabledModules()` to filter. |
 | DASH-10 | Existing dashboard cards refactored as grid widgets | Each card gets a `WidgetDefinition` entry. Cards wrapped in error boundary + loading state. Data fetching moves from centralized `useDashboardData` to per-widget React Query hooks. |
@@ -152,7 +152,7 @@ export interface WidgetDefinition {
   defaultSize: { w: number; h: number }
   minSize?: { w: number; h: number }
   maxSize?: { w: number; h: number }
-  tier: 'builtin' | 'user' | 'bjorn'
+  tier: 'builtin' | 'user' | 'agent'
   configSchema?: Record<string, unknown>  // Per-widget settings definition
   component: () => Promise<{ default: React.ComponentType<WidgetProps> }>
 }

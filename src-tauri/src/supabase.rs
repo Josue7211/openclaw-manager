@@ -41,11 +41,13 @@ impl SupabaseClient {
 
     /// Build a client from AppState secrets (preferred).
     pub fn from_state(state: &crate::server::AppState) -> anyhow::Result<Self> {
-        let url = state.secret("SUPABASE_URL")
+        let url = state
+            .secret("SUPABASE_URL")
             .context("SUPABASE_URL not set")?
             .trim_end_matches('/')
             .to_string();
-        let service_key = state.secret("SUPABASE_SERVICE_ROLE_KEY")
+        let service_key = state
+            .secret("SUPABASE_SERVICE_ROLE_KEY")
             .context("SUPABASE_SERVICE_ROLE_KEY not set")?;
 
         Ok(Self {
@@ -100,10 +102,7 @@ impl SupabaseClient {
         format!("{}/rest/v1/rpc/{}", self.url, function)
     }
 
-    fn auth_headers(
-        &self,
-        builder: reqwest::RequestBuilder,
-    ) -> reqwest::RequestBuilder {
+    fn auth_headers(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         builder
             .header("apikey", &self.service_key)
             .header("Authorization", format!("Bearer {}", self.service_key))
@@ -171,7 +170,9 @@ impl SupabaseClient {
             let body = resp.text().await.unwrap_or_default();
             let truncated = safe_truncate(&body, 200);
             warn!("supabase select_single {table} returned {status}: {truncated}");
-            return Err(anyhow!("supabase select_single {table}: {status} — {truncated}"));
+            return Err(anyhow!(
+                "supabase select_single {table}: {status} — {truncated}"
+            ));
         }
 
         resp.json::<Value>()
@@ -214,7 +215,10 @@ impl SupabaseClient {
         let resp = self
             .auth_headers(self.http.post(self.rest_url(table)))
             .header("Content-Type", "application/json")
-            .header("Prefer", "return=representation,resolution=merge-duplicates")
+            .header(
+                "Prefer",
+                "return=representation,resolution=merge-duplicates",
+            )
             .json(&body)
             .send()
             .await
@@ -286,7 +290,12 @@ impl SupabaseClient {
 
     /// Like `select` but authenticates as the user identified by `jwt`.
     /// RLS policies will see `auth.uid()` set to the user's ID.
-    pub async fn select_as_user(&self, table: &str, query: &str, jwt: &str) -> anyhow::Result<Value> {
+    pub async fn select_as_user(
+        &self,
+        table: &str,
+        query: &str,
+        jwt: &str,
+    ) -> anyhow::Result<Value> {
         let url = format!("{}?{}", self.rest_url(table), query);
         let resp = self
             .auth_headers_as_user(self.http.get(&url), jwt)
@@ -300,7 +309,9 @@ impl SupabaseClient {
             let body = resp.text().await.unwrap_or_default();
             let truncated = safe_truncate(&body, 200);
             warn!("supabase select_as_user {table} returned {status}: {truncated}");
-            return Err(anyhow!("supabase select_as_user {table}: {status} — {truncated}"));
+            return Err(anyhow!(
+                "supabase select_as_user {table}: {status} — {truncated}"
+            ));
         }
 
         resp.json::<Value>()
@@ -309,7 +320,12 @@ impl SupabaseClient {
     }
 
     /// Like `select_single` but authenticates as the user identified by `jwt`.
-    pub async fn select_single_as_user(&self, table: &str, query: &str, jwt: &str) -> anyhow::Result<Value> {
+    pub async fn select_single_as_user(
+        &self,
+        table: &str,
+        query: &str,
+        jwt: &str,
+    ) -> anyhow::Result<Value> {
         let sep = if query.is_empty() { "" } else { "&" };
         let url = format!("{}?{}{sep}limit=1", self.rest_url(table), query);
         let resp = self
@@ -324,7 +340,9 @@ impl SupabaseClient {
             let body = resp.text().await.unwrap_or_default();
             let truncated = safe_truncate(&body, 200);
             warn!("supabase select_single_as_user {table} returned {status}: {truncated}");
-            return Err(anyhow!("supabase select_single_as_user {table}: {status} — {truncated}"));
+            return Err(anyhow!(
+                "supabase select_single_as_user {table}: {status} — {truncated}"
+            ));
         }
 
         resp.json::<Value>()
@@ -333,7 +351,12 @@ impl SupabaseClient {
     }
 
     /// Like `insert` but authenticates as the user identified by `jwt`.
-    pub async fn insert_as_user(&self, table: &str, body: Value, jwt: &str) -> anyhow::Result<Value> {
+    pub async fn insert_as_user(
+        &self,
+        table: &str,
+        body: Value,
+        jwt: &str,
+    ) -> anyhow::Result<Value> {
         let resp = self
             .auth_headers_as_user(self.http.post(self.rest_url(table)), jwt)
             .header("Content-Type", "application/json")
@@ -348,7 +371,9 @@ impl SupabaseClient {
             let body_text = resp.text().await.unwrap_or_default();
             let truncated = safe_truncate(&body_text, 200);
             warn!("supabase insert_as_user {table} returned {status}: {truncated}");
-            return Err(anyhow!("supabase insert_as_user {table}: {status} — {truncated}"));
+            return Err(anyhow!(
+                "supabase insert_as_user {table}: {status} — {truncated}"
+            ));
         }
 
         resp.json::<Value>()
@@ -357,11 +382,19 @@ impl SupabaseClient {
     }
 
     /// Like `upsert` but authenticates as the user identified by `jwt`.
-    pub async fn upsert_as_user(&self, table: &str, body: Value, jwt: &str) -> anyhow::Result<Value> {
+    pub async fn upsert_as_user(
+        &self,
+        table: &str,
+        body: Value,
+        jwt: &str,
+    ) -> anyhow::Result<Value> {
         let resp = self
             .auth_headers_as_user(self.http.post(self.rest_url(table)), jwt)
             .header("Content-Type", "application/json")
-            .header("Prefer", "return=representation,resolution=merge-duplicates")
+            .header(
+                "Prefer",
+                "return=representation,resolution=merge-duplicates",
+            )
             .json(&body)
             .send()
             .await
@@ -372,7 +405,9 @@ impl SupabaseClient {
             let body_text = resp.text().await.unwrap_or_default();
             let truncated = safe_truncate(&body_text, 200);
             warn!("supabase upsert_as_user {table} returned {status}: {truncated}");
-            return Err(anyhow!("supabase upsert_as_user {table}: {status} — {truncated}"));
+            return Err(anyhow!(
+                "supabase upsert_as_user {table}: {status} — {truncated}"
+            ));
         }
 
         resp.json::<Value>()
@@ -381,7 +416,13 @@ impl SupabaseClient {
     }
 
     /// Like `update` but authenticates as the user identified by `jwt`.
-    pub async fn update_as_user(&self, table: &str, query: &str, body: Value, jwt: &str) -> anyhow::Result<Value> {
+    pub async fn update_as_user(
+        &self,
+        table: &str,
+        query: &str,
+        body: Value,
+        jwt: &str,
+    ) -> anyhow::Result<Value> {
         let url = format!("{}?{}", self.rest_url(table), query);
         let resp = self
             .auth_headers_as_user(self.http.patch(&url), jwt)
@@ -397,7 +438,9 @@ impl SupabaseClient {
             let body_text = resp.text().await.unwrap_or_default();
             let truncated = safe_truncate(&body_text, 200);
             warn!("supabase update_as_user {table} returned {status}: {truncated}");
-            return Err(anyhow!("supabase update_as_user {table}: {status} — {truncated}"));
+            return Err(anyhow!(
+                "supabase update_as_user {table}: {status} — {truncated}"
+            ));
         }
 
         resp.json::<Value>()
@@ -419,7 +462,9 @@ impl SupabaseClient {
             let body_text = resp.text().await.unwrap_or_default();
             let truncated = safe_truncate(&body_text, 200);
             warn!("supabase delete_as_user {table} returned {status}: {truncated}");
-            return Err(anyhow!("supabase delete_as_user {table}: {status} — {truncated}"));
+            return Err(anyhow!(
+                "supabase delete_as_user {table}: {status} — {truncated}"
+            ));
         }
 
         Ok(())
@@ -454,6 +499,7 @@ impl SupabaseClient {
         let url = format!("{}/rest/v1/", self.url);
         match self
             .auth_headers(self.http.get(&url))
+            .timeout(std::time::Duration::from_secs(5))
             .send()
             .await
         {

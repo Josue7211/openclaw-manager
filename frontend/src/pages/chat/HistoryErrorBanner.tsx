@@ -12,9 +12,14 @@ export function HistoryErrorBanner({ error, onRetry }: HistoryErrorBannerProps) 
       borderRadius: '10px',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     }}>
-      <span style={{ fontSize: '13px', color: 'var(--red)' }}>
-        Could not load chat history: {error}
-      </span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--red)' }}>
+          Chat is temporarily unavailable
+        </span>
+        <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+          {error}
+        </span>
+      </div>
       <button
         onClick={onRetry}
         style={{
@@ -23,7 +28,7 @@ export function HistoryErrorBanner({ error, onRetry }: HistoryErrorBannerProps) 
           fontSize: '12px', cursor: 'pointer', flexShrink: 0,
         }}
       >
-        Retry
+        Try again
       </button>
     </div>
   )

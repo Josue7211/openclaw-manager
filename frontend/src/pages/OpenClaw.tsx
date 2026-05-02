@@ -1,14 +1,13 @@
 import { useState, useCallback, useRef, lazy, Suspense } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { Robot, CaretLeft, CaretRight, Plus } from '@phosphor-icons/react'
 import { createPortal } from 'react-dom'
-import { api } from '@/lib/api'
 import { PageHeader } from '@/components/PageHeader'
 import { GatewayStatusDot } from '@/components/GatewayStatusDot'
 import { Button } from '@/components/ui/Button'
 import { SkeletonList } from '@/components/Skeleton'
 // Agent sub-components
 import { useAgents } from '@/hooks/useAgents'
+import { useHarnessStatus } from '@/hooks/useHarnessStatus'
 import { useTableRealtime } from '@/lib/hooks/useRealtimeSSE'
 import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode, DEMO_AGENTS } from '@/lib/demo-data'
@@ -51,9 +50,11 @@ function SectionFallback() {
   )
 }
 
+export type OpenClawHealthStatus = 'ok' | 'not_configured' | 'unreachable' | 'unknown'
+
 // --- Agents Tab Content ---
 
-function AgentsTabContent({ openclawHealthy }: { openclawHealthy: boolean }) {
+function AgentsTabContent({ harnessHealthy }: { harnessHealthy: boolean }) {
   const _demo = isDemoMode()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [listWidth, setListWidth] = useState(320)
@@ -160,7 +161,7 @@ function AgentsTabContent({ openclawHealthy }: { openclawHealthy: boolean }) {
             onUpdate={handleUpdate}
             onDelete={handleDelete}
             onAction={handleAction}
-            openclawHealthy={openclawHealthy}
+            harnessHealthy={harnessHealthy}
           />
         ) : (
           <div style={{
@@ -357,17 +358,17 @@ function CronsTabContent() {
 export default function OpenClawPage() {
   const [tab, setTab] = useState<TabKey>('agents')
 
-  // Health check -- shared across all tabs
-  const { data: healthData } = useQuery({
-    queryKey: ['openclaw', 'health'],
-    queryFn: () => api.get<{ ok: boolean; status: string }>('/api/openclaw/health'),
-    staleTime: 30_000,
-  })
-  const healthy = healthData?.ok ?? false
+  const { connected: healthy, status: harnessStatus, providerLabel } = useHarnessStatus()
+  const openclawStatus: OpenClawHealthStatus =
+    harnessStatus === 'connected' ? 'ok'
+      : harnessStatus === 'not_configured' ? 'not_configured'
+        : harnessStatus === 'disconnected' ? 'unreachable'
+          : 'unknown'
 
   return (
     <div style={{
-      position: 'absolute', inset: 0,
+      flex: 1,
+      minHeight: 0,
       margin: '-20px -28px',
       display: 'flex', flexDirection: 'column',
       overflow: 'hidden',
@@ -379,7 +380,7 @@ export default function OpenClawPage() {
         borderBottom: '1px solid var(--border)',
       }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <PageHeader defaultTitle="OpenClaw" defaultSubtitle="agent management, usage & tools" />
+          <PageHeader defaultTitle={providerLabel} defaultSubtitle="agent management, usage & tools" />
           <GatewayStatusDot showLabel size={8} />
         </div>
         <div style={{
@@ -411,26 +412,26 @@ export default function OpenClawPage() {
 
       {/* Tab content */}
       <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-        {tab === 'agents' && <AgentsTabContent openclawHealthy={healthy} />}
+        {tab === 'agents' && <AgentsTabContent harnessHealthy={healthy} />}
         {tab === 'crons' && <CronsTabContent />}
         {tab === 'usage' && (
           <Suspense fallback={<SectionFallback />}>
-            <UsageTab healthy={healthy} />
+            <UsageTab healthy={healthy} status={openclawStatus} />
           </Suspense>
         )}
         {tab === 'models' && (
           <Suspense fallback={<SectionFallback />}>
-            <ModelsTab healthy={healthy} />
+            <ModelsTab healthy={healthy} status={openclawStatus} />
           </Suspense>
         )}
         {tab === 'tools' && (
           <Suspense fallback={<SectionFallback />}>
-            <ToolsTab healthy={healthy} />
+            <ToolsTab healthy={healthy} status={openclawStatus} />
           </Suspense>
         )}
         {tab === 'skills' && (
           <Suspense fallback={<SectionFallback />}>
-            <SkillsTab healthy={healthy} />
+            <SkillsTab healthy={healthy} status={openclawStatus} />
           </Suspense>
         )}
       </div>

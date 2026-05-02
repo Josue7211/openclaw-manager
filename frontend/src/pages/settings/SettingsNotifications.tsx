@@ -18,7 +18,7 @@ export default function SettingsNotifications() {
   const [inAppNotifs, setInAppNotifs] = useLocalStorageState('in-app-notifs', true)
   const [notifSound, setNotifSound] = useLocalStorageState('notif-sound', true)
   const [ntfyUrl, setNtfyUrl] = useState('')
-  const [ntfyTopic, setNtfyTopic] = useState('mission-control')
+  const [ntfyTopic, setNtfyTopic] = useState('clawcontrol')
   const [ntfyStatus, setNtfyStatus] = useState<string | null>(null)
   const [ntfyTesting, setNtfyTesting] = useState(false)
 
@@ -53,8 +53,8 @@ export default function SettingsNotifications() {
     setNtfyStatus(null)
     try {
       const json = await api.post<{ ok?: boolean; error?: string }>('/api/notify', {
-        title: 'OpenClaw Manager',
-        message: 'Test notification from OpenClaw Manager',
+        title: 'ClawControl',
+        message: 'Test notification from ClawControl',
         priority: 3,
         tags: ['bell'],
       })
@@ -140,7 +140,7 @@ export default function SettingsNotifications() {
             if (systemNotifs && typeof Notification !== 'undefined') {
               if (Notification.permission === 'default') await Notification.requestPermission()
               if (Notification.permission === 'granted') {
-                new Notification('OpenClaw Manager', { body: 'This is a test notification', tag: 'mc-test-' + Date.now() })
+        new Notification('ClawControl', { body: 'This is a test notification', tag: 'mc-test-' + Date.now() })
               }
             }
             // In-app (just a brief visual confirmation here since we're not on Messages page)
@@ -177,7 +177,7 @@ export default function SettingsNotifications() {
       </div>
       <div style={row}>
         <span>Topic</span>
-        <input style={inputStyle} value={ntfyTopic} onChange={e => setNtfyTopic(e.target.value)} placeholder="mission-control" aria-label="NTFY topic" />
+        <input style={inputStyle} value={ntfyTopic} onChange={e => setNtfyTopic(e.target.value)} placeholder="clawcontrol" aria-label="NTFY topic" />
       </div>
       <div style={{ ...rowLast, flexDirection: 'column', alignItems: 'flex-start', gap: '10px' }}>
         <div style={{ display: 'flex', gap: '8px' }}>

@@ -114,20 +114,15 @@ async fn update_cron(
         return Err(AppError::BadRequest("invalid cron id".into()));
     }
 
-    let payload = gateway_forward(
-        &state,
-        Method::PATCH,
-        &format!("/crons/{id}"),
-        Some(body),
-    )
-    .await
-    .map_err(|e| {
-        tracing::error!("[crons] update failed: {e:?}");
-        match e {
-            AppError::BadRequest(_) => e,
-            _ => AppError::BadRequest("Gateway error: failed to update cron".into()),
-        }
-    })?;
+    let payload = gateway_forward(&state, Method::PATCH, &format!("/crons/{id}"), Some(body))
+        .await
+        .map_err(|e| {
+            tracing::error!("[crons] update failed: {e:?}");
+            match e {
+                AppError::BadRequest(_) => e,
+                _ => AppError::BadRequest("Gateway error: failed to update cron".into()),
+            }
+        })?;
 
     Ok(Json(json!({ "ok": true, "job": payload })))
 }
@@ -151,20 +146,15 @@ async fn delete_cron(
         return Err(AppError::BadRequest("invalid cron id".into()));
     }
 
-    let payload = gateway_forward(
-        &state,
-        Method::DELETE,
-        &format!("/crons/{}", body.id),
-        None,
-    )
-    .await
-    .map_err(|e| {
-        tracing::error!("[crons] delete failed: {e:?}");
-        match e {
-            AppError::BadRequest(_) => e,
-            _ => AppError::BadRequest("Gateway error: failed to delete cron".into()),
-        }
-    })?;
+    let payload = gateway_forward(&state, Method::DELETE, &format!("/crons/{}", body.id), None)
+        .await
+        .map_err(|e| {
+            tracing::error!("[crons] delete failed: {e:?}");
+            match e {
+                AppError::BadRequest(_) => e,
+                _ => AppError::BadRequest("Gateway error: failed to delete cron".into()),
+            }
+        })?;
 
     Ok(Json(json!({ "ok": true, "data": payload })))
 }

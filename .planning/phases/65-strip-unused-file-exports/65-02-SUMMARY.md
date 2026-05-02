@@ -15,7 +15,7 @@ key_files:
     - frontend/src/lib/constants.ts
     - frontend/src/lib/event-bus.ts
     - frontend/src/lib/demo-data.ts
-    - frontend/src/lib/bjorn-types.ts
+    - frontend/src/lib/agent-types.ts
     - frontend/src/lib/modules.ts
     - frontend/src/lib/keybindings.ts
     - frontend/src/lib/themes.ts
@@ -32,7 +32,7 @@ key_files:
 decisions:
   - "Deleted formatDate from utils.ts rather than de-exporting -- no internal usage"
   - "Deleted IMAGE_EXTENSIONS, isImageFile, getNote, renameNote from vault.ts -- no internal or external usage"
-  - "Deleted BridgeRequest and BridgeResponse from bjorn-types.ts -- no usage anywhere"
+  - "Deleted BridgeRequest and BridgeResponse from agent-types.ts -- no usage anywhere"
   - "Deleted PrimitiveErrorFallback from primitives/shared.tsx -- no usage, also removed unused WarningCircle import"
   - "Deleted useSecretsList, useSecret, useDeleteSecret from useUserSecrets.ts -- only useSaveSecret is consumed"
   - "Deleted useEditablePageTitle and usePageSubtitle from usePageTitle.ts -- only usePageTitle is consumed"
@@ -51,7 +51,7 @@ Remove 43 unused exports from library, component, and hook files identified by k
 - `formatDate` from `utils.ts` (separate `formatDate` functions in pipeline/utils.ts are unrelated)
 - `IMAGE_EXTENSIONS`, `isImageFile`, `getNote`, `renameNote` from `vault.ts` (no usage anywhere)
 - `MISSION_STATUS` from `constants.ts` (no usage anywhere)
-- `BridgeRequest`, `BridgeResponse` from `bjorn-types.ts` (no usage anywhere)
+- `BridgeRequest`, `BridgeResponse` from `agent-types.ts` (no usage anywhere)
 
 **De-exported (kept as internal):**
 - `extractWikilinks`, `extractTags` in `vault.ts` (used by `docToNote` and `putNote`)

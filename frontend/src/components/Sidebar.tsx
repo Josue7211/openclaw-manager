@@ -507,7 +507,6 @@ export default function Sidebar({ width, onWidthChange, draggingRef }: SidebarPr
       overflow: 'hidden',
       position: 'relative',
       zIndex: 100,
-      pointerEvents: isDragging ? 'none' : 'auto',
     }}>
 
       {/* ── Context menu ─────────────────────────────────────────────────── */}

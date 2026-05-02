@@ -100,7 +100,7 @@ describe('useGatewaySessions', () => {
       {
         key: 'sess-1',
         label: 'Test Session',
-        agentKey: 'agent-bjorn',
+        agentKey: 'agent-primary',
         messageCount: 5,
         lastActivity: '2026-03-24T10:00:00Z',
       },
@@ -119,7 +119,7 @@ describe('useGatewaySessions', () => {
 
     expect(result.current.sessions[0].key).toBe('sess-1')
     expect(result.current.sessions[0].label).toBe('Test Session')
-    expect(result.current.sessions[0].agentKey).toBe('agent-bjorn')
+    expect(result.current.sessions[0].agentKey).toBe('agent-primary')
     expect(result.current.sessions[0].messageCount).toBe(5)
     expect(result.current.available).toBe(true)
   })
@@ -132,21 +132,21 @@ describe('useGatewaySessions', () => {
       {
         key: 'sess-old',
         label: 'Old Session',
-        agentKey: 'agent-bjorn',
+        agentKey: 'agent-primary',
         messageCount: 1,
         lastActivity: '2026-03-22T08:00:00Z',
       },
       {
         key: 'sess-new',
         label: 'New Session',
-        agentKey: 'agent-bjorn',
+        agentKey: 'agent-primary',
         messageCount: 3,
         lastActivity: '2026-03-24T10:00:00Z',
       },
       {
         key: 'sess-mid',
         label: 'Mid Session',
-        agentKey: 'agent-bjorn',
+        agentKey: 'agent-primary',
         messageCount: 2,
         lastActivity: '2026-03-23T15:00:00Z',
       },

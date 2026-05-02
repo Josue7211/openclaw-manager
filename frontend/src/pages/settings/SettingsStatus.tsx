@@ -1,8 +1,13 @@
-import { memo } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Desktop, WifiHigh, Database, Info, ArrowsClockwise, Clock, HardDrive, Stack, Monitor, Plugs } from '@phosphor-icons/react'
 
-import { api } from '@/lib/api'
+import {
+  api,
+  CONFIGURED_BACKEND_BASE_CHANGED_EVENT,
+  getConfiguredBackendBase,
+} from '@/lib/api'
+import { getSetupStatus } from '@/lib/setup'
 import { queryKeys } from '@/lib/query-keys'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useGatewayStatus } from '@/hooks/sessions/useGatewayStatus'
@@ -39,6 +44,24 @@ interface TailscalePeer {
 
 interface TailscaleData {
   peers: TailscalePeer[]
+}
+
+interface SetupStatusData {
+  ok: boolean
+  backend_public_base_url: string
+  pairing_required: boolean
+  capabilities: {
+    google_oauth: boolean
+    github_oauth: boolean
+    openclaw: boolean
+    memd: boolean
+  }
+  services: {
+    supabase: { configured: boolean; reachable: boolean }
+    openclaw: { configured: boolean; reachable: boolean }
+    memd: { configured: boolean; reachable: boolean }
+  }
+  missing: string[]
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -80,6 +103,18 @@ function svcStatusLabel(status: string): string {
     case 'not_configured': return 'Not Configured'
     default: return status
   }
+}
+
+function setupReadinessLabel(setupStatus: SetupStatusData): string {
+  if (setupStatus.pairing_required) return 'Needs pairing'
+  if (setupStatus.missing.length === 0) return 'Ready'
+  return 'Needs setup'
+}
+
+function setupReadinessColor(setupStatus: SetupStatusData): string {
+  if (setupStatus.pairing_required) return 'var(--amber)'
+  if (setupStatus.missing.length === 0) return 'var(--secondary-dim)'
+  return 'var(--amber)'
 }
 
 // ── Styles ───────────────────────────────────────────────────────────────────
@@ -205,6 +240,7 @@ function StatusLoadingSkeleton({ rows }: { rows: number }) {
 
 export default memo(function SettingsStatus() {
   const queryClient = useQueryClient()
+  const [backendBase, setBackendBase] = useState(getConfiguredBackendBase())
 
   const { data: health, isLoading: healthLoading, isError: healthError, dataUpdatedAt: healthUpdatedAt } = useQuery<HealthData>({
     queryKey: queryKeys.health,
@@ -219,6 +255,24 @@ export default memo(function SettingsStatus() {
     refetchInterval: 10_000,
     staleTime: 8_000,
   })
+
+  const { data: setupStatus, isLoading: setupLoading, isError: setupError } = useQuery<SetupStatusData>({
+    queryKey: ['setup-status', backendBase],
+    queryFn: () => getSetupStatus(backendBase),
+    refetchInterval: 10_000,
+    staleTime: 8_000,
+  })
+
+  useEffect(() => {
+    const onBackendChanged = () => {
+      const nextBase = getConfiguredBackendBase()
+      setBackendBase(nextBase)
+      void queryClient.invalidateQueries({ queryKey: ['setup-status'] })
+    }
+
+    window.addEventListener(CONFIGURED_BACKEND_BASE_CHANGED_EVENT, onBackendChanged)
+    return () => window.removeEventListener(CONFIGURED_BACKEND_BASE_CHANGED_EVENT, onBackendChanged)
+  }, [queryClient])
 
   const { status: gwStatus, connected: gwConnected, protocol: gwProtocol, reconnectAttempt } = useGatewayStatus()
 
@@ -250,7 +304,7 @@ export default memo(function SettingsStatus() {
   const services = health?.services
   const serviceEntries: { key: string; label: string; data: ServiceStatus | undefined }[] = [
     { key: 'bluebubbles', label: 'BlueBubbles', data: services?.bluebubbles },
-    { key: 'openclaw', label: 'OpenClaw', data: services?.openclaw },
+    { key: 'openclaw', label: 'Harness', data: services?.openclaw },
     { key: 'supabase', label: 'Supabase', data: services?.supabase },
   ]
 
@@ -277,6 +331,48 @@ export default memo(function SettingsStatus() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+        {/* Release Backend */}
+        <div style={statusCard}>
+          <div style={statusSectionTitle}>
+            <Desktop size={14} />
+            Release Backend
+          </div>
+          {setupLoading ? (
+            <StatusLoadingSkeleton rows={4} />
+          ) : setupError || !setupStatus ? (
+            <div style={{ padding: '12px 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+              Backend setup status unavailable.
+            </div>
+          ) : (
+            <>
+              <div style={statusRow}>
+                <span>Server</span>
+                <span style={{ ...statusVal, maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {setupStatus.backend_public_base_url}
+                </span>
+              </div>
+              <div style={statusRow}>
+                <span>Readiness</span>
+                <span style={{ ...statusVal, color: setupReadinessColor(setupStatus) }}>
+                  {setupReadinessLabel(setupStatus)}
+                </span>
+              </div>
+              <div style={statusRow}>
+                <span>Pairing</span>
+                <span style={{ ...statusVal, color: setupStatus.pairing_required ? 'var(--amber)' : 'var(--secondary-dim)' }}>
+                  {setupStatus.pairing_required ? 'Required before this app can connect' : 'Not required'}
+                </span>
+              </div>
+              <div style={statusRowLast}>
+                <span>Available services</span>
+                <span style={{ ...statusVal, maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {setupStatus.missing.length === 0 ? 'Everything required is configured' : `Missing: ${setupStatus.missing.join(', ')}`}
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+
         {/* Services */}
         <div style={statusCard}>
           <div style={statusSectionTitle}>
@@ -326,6 +422,13 @@ export default memo(function SettingsStatus() {
               )
             })
           )}
+          {setupStatus && (
+            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                OAuth: {setupStatus.capabilities.github_oauth ? 'GitHub on' : 'GitHub off'} • {setupStatus.capabilities.google_oauth ? 'Google on' : 'Google off'}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Gateway WebSocket */}
@@ -345,7 +448,7 @@ export default memo(function SettingsStatus() {
                     ? 'none'
                     : `0 0 6px var(--red-500-a25)`,
               }} />
-              <span style={{ fontWeight: 500 }}>OpenClaw Gateway</span>
+              <span style={{ fontWeight: 500 }}>Harness Gateway</span>
             </div>
             <span style={{
               fontSize: '11px', fontWeight: 500,

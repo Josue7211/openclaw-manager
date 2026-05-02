@@ -6,9 +6,9 @@
 <domain>
 ## Phase Boundary
 
-Transform the dashboard from a static card layout into a free-form draggable/resizable widget grid with edit mode, Widget Registry, multiple dashboard pages, and per-user layout persistence. This is the centerpiece of the app — "Discord-like customizability meets Apple widgets." The Widget Registry established here is the foundation that Phase 7 (Bjorn Module Builder) plugs AI-generated modules into.
+Transform the dashboard from a static card layout into a free-form draggable/resizable widget grid with edit mode, Widget Registry, multiple dashboard pages, and per-user layout persistence. This is the centerpiece of the app — "Discord-like customizability meets Apple widgets." The Widget Registry established here is the foundation that Phase 7 (Agent Module Builder) plugs AI-generated modules into.
 
-This phase does NOT include: widget marketplace/extension downloads (deferred), split view/popout windows (deferred), module primitives library (Phase 6), or Bjorn module generation (Phase 7).
+This phase does NOT include: widget marketplace/extension downloads (deferred), split view/popout windows (deferred), module primitives library (Phase 6), or Agent module generation (Phase 7).
 
 </domain>
 
@@ -48,11 +48,11 @@ This phase does NOT include: widget marketplace/extension downloads (deferred), 
 - **Existing cards:** Each of the 9 dashboard cards available as individual widgets AND as grouped bundles ("Agent Monitor" = AgentStatusCard + AgentsCard)
 - **Widget config:** Gear icon per widget (visible in edit mode or on hover) opening a config panel. Each widget type defines its own settings schema (e.g., HeartbeatCard: polling interval)
 
-### Widget Registry (Foundation for Bjorn)
+### Widget Registry (Foundation for Agent)
 - **Three-tier layered architecture:**
   1. **Built-in widgets** — shipped with the app (the 9 existing cards + bundles)
   2. **User widgets** — installed from marketplace/downloaded (future)
-  3. **AI widgets** — Bjorn-generated modules (Phase 7)
+  3. **AI widgets** — Agent-generated modules (Phase 7)
 - Each tier has different trust levels (built-in = full trust, user = validated, AI = sandboxed)
 - Registry uses a WidgetPlugin interface: `{ id, component, configSchema, metadata, tier }`
 
@@ -141,7 +141,7 @@ This phase does NOT include: widget marketplace/extension downloads (deferred), 
 - Dashboard pages are like Discord server channels — scrollable, named, switchable
 - App title always pinned at top like a Discord server name
 - iOS wobble mode is the edit mode signature interaction — but can be disabled
-- Three-tier Widget Registry is forward-looking: built-in now, marketplace and Bjorn later
+- Three-tier Widget Registry is forward-looking: built-in now, marketplace and Agent later
 - Ctrl+Z undo for dashboard edits is essential for fearless customization
 
 </specifics>

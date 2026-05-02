@@ -1,6 +1,5 @@
 import React from 'react'
-import { useGatewayStatus } from '@/hooks/sessions/useGatewayStatus'
-import { GATEWAY_STATUS_COLORS, GATEWAY_STATUS_LABELS } from '@/pages/sessions/types'
+import { useHarnessStatus } from '@/hooks/useHarnessStatus'
 
 interface GatewayStatusDotProps {
   /** Show the text label next to the dot. Defaults to false. */
@@ -10,19 +9,29 @@ interface GatewayStatusDotProps {
 }
 
 /**
- * Small status indicator for the OpenClaw Gateway WebSocket connection.
- * Green = connected, red = disconnected, gray = not configured.
+ * Small status indicator for the active harness connection.
+ * Works for either OpenClaw or Hermes compat because it reads generic
+ * harness HTTP health instead of the unfinished gateway WS status stub.
  */
 export const GatewayStatusDot = React.memo(function GatewayStatusDot({
   showLabel = false,
   size = 8,
 }: GatewayStatusDotProps) {
-  const { status, isLoading } = useGatewayStatus()
+  const { status, isLoading, providerLabel } = useHarnessStatus()
 
   if (isLoading) return null
 
-  const color = GATEWAY_STATUS_COLORS[status]
-  const label = GATEWAY_STATUS_LABELS[status]
+  const color = {
+    connected: 'var(--green-400)',
+    disconnected: 'var(--red-500)',
+    not_configured: 'var(--text-muted)',
+  }[status]
+
+  const label = {
+    connected: `${providerLabel} connected`,
+    disconnected: `${providerLabel} offline`,
+    not_configured: `${providerLabel} not configured`,
+  }[status]
 
   return (
     <span
@@ -42,11 +51,7 @@ export const GatewayStatusDot = React.memo(function GatewayStatusDot({
           borderRadius: '50%',
           background: color,
           flexShrink: 0,
-          animation: status === 'connected'
-            ? 'none'
-            : status === 'disconnected'
-              ? 'pulse-dot 1.5s ease-in-out infinite'
-              : 'none',
+          animation: status === 'disconnected' ? 'pulse-dot 1.5s ease-in-out infinite' : 'none',
         }}
       />
       {showLabel && (

@@ -152,6 +152,20 @@ const WizardServerServices = React.memo(function WizardServerServices() {
           </div>
         </div>
 
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+          <label htmlFor="wizard-couchdb-database" style={labelStyle}>
+            Database
+          </label>
+          <input
+            id="wizard-couchdb-database"
+            type="text"
+            value={wizard.couchdbDatabase}
+            onChange={e => updateWizardField('couchdbDatabase', e.target.value)}
+            placeholder="clawcontrol-vault"
+            style={inputStyle}
+          />
+        </div>
+
         <WizardConnectionTest
           service="couchdb"
           url={wizard.couchdbUrl}

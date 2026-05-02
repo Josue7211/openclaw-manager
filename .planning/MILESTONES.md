@@ -41,7 +41,7 @@
 2. Full theming system — 15+ presets, GTK/Wallbash system mode, font customization, share codes
 3. Setup wizard — 9-step onboarding with demo mode, guided tour, credential validation
 4. Dashboard grid — drag-and-drop widgets, Widget Registry, multi-page layouts, undo/redo
-5. Bjorn AI module builder — natural language → sandboxed preview → approve → dashboard with hot-reload
+5. Agent AI module builder — natural language → sandboxed preview → approve → dashboard with hot-reload
 6. 11 composable UI primitives registered in Widget Registry for manual and AI composition
 7. Data export — Supabase JSON, SQLite backup, notes markdown from Settings
 

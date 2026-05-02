@@ -3,26 +3,27 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 describe('demo-data exports', () => {
   beforeEach(() => {
     vi.resetModules()
+    localStorage.clear()
   })
 
   afterEach(() => {
     vi.unstubAllEnvs()
+    localStorage.clear()
   })
 
-  it('isDemoMode returns true when VITE_SUPABASE_URL is not set', async () => {
-    vi.stubEnv('VITE_SUPABASE_URL', '')
+  it('isDemoMode returns true when demo-mode is enabled', async () => {
+    localStorage.setItem('demo-mode', 'true')
     const { isDemoMode } = await import('../demo-data')
     expect(isDemoMode()).toBe(true)
   })
 
-  it('isDemoMode returns false when VITE_SUPABASE_URL is set', async () => {
-    vi.stubEnv('VITE_SUPABASE_URL', 'https://supabase.example.com')
+  it('isDemoMode returns false when demo-mode is not enabled', async () => {
     const { isDemoMode } = await import('../demo-data')
     expect(isDemoMode()).toBe(false)
   })
 
-  it('isDemoMode caches the result on subsequent calls', async () => {
-    vi.stubEnv('VITE_SUPABASE_URL', '')
+  it('isDemoMode reflects the stored demo-mode flag on subsequent calls', async () => {
+    localStorage.setItem('demo-mode', 'true')
     const { isDemoMode } = await import('../demo-data')
     const first = isDemoMode()
     const second = isDemoMode()

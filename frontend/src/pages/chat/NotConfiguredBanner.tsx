@@ -10,10 +10,10 @@ export function NotConfiguredBanner() {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
         <PaperPlaneTilt size={14} style={{ color: 'var(--blue-solid)' }} />
-        <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--blue-solid)' }}>OpenClaw not reachable</span>
+        <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--blue-solid)' }}>Harness not configured</span>
       </div>
       <p style={{ margin: '0 0 12px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-        Chat requires an OpenClaw instance. Add the following to <code style={{ background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px' }}>.env.local</code> and restart:
+        Chat needs a harness backend before it can send messages. Configure it in <code style={{ background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px' }}>Settings → Connections</code>, or add these values to <code style={{ background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px' }}>.env.local</code> and restart:
       </p>
       <pre style={{ margin: '0', padding: '12px 16px', background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px', fontFamily: 'monospace', color: 'var(--text-primary)', overflowX: 'auto', lineHeight: 1.8 }}>
 {`OPENCLAW_WS=ws://your-openclaw-host:18789

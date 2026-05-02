@@ -7,6 +7,8 @@
 - The frontend does not call remote services directly.
 - The embedded Rust server proxies all service calls and owns auth, validation, and redaction.
 - Settings and onboarding both write to the same connection contract via `frontend/src/lib/service-registry.ts`.
+- OpenClaw is the centerpiece integration because the whole safety model is about controlling it safely.
+- OpenClaw has a built-in gateway, so AgentShell can sit directly in front of OpenClaw or in front of ClawControl workflows.
 - AgentShell is a separate adapter surface exposed through `AGENTSHELL_URL`.
 
 ## Service Matrix
@@ -18,13 +20,15 @@
   - Test endpoint: `GET /api/v1/server/info?password=...`
 
 - OpenClaw
+- The centerpiece AI runtime that ClawControl controls day to day
+  - Built-in gateway makes it the primary target for safety wrappers
   - Used for chat, agents, crons, missions, and other AI workspace flows
   - Keys: `openclaw.api-url`, `openclaw.api-key`, `openclaw.ws`, `openclaw.password`
   - Backend paths: `src-tauri/src/routes/chat.rs`, `memory.rs`, `openclaw_cli.rs`, `claude_sessions.rs`, `status.rs`
   - Test endpoint: `GET /v1/models`
 
 - AgentShell
-  - Used as a thin launch/approval adapter around OpenClaw-compatible hosts
+- Used as a thin launch/approval adapter around OpenClaw-compatible hosts and ClawControl workflows
   - Keys: `agentshell.url`
   - Backend paths: `src-tauri/src/routes/agent_shell.rs`, `agent_shell_support.rs`
   - Test endpoint: `GET /healthz`

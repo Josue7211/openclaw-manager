@@ -9,7 +9,7 @@
  *   - An optional config schema for per-instance settings
  *
  * The registry is the contract between the dashboard grid, widget picker, and future
- * Bjorn AI-generated modules. Bjorn registers widgets via registerWidget().
+ * generated modules. External agents register widgets via registerWidget().
  */
 
 import type { ComponentType } from 'react'
@@ -527,7 +527,7 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
   {
     id: 'vnc-viewer',
     name: 'Remote Viewer',
-    description: 'OpenClaw VM remote desktop preview',
+    description: 'Harness VM remote desktop preview',
     icon: 'Monitor',
     category: 'ai',
     tier: 'builtin',
@@ -537,7 +537,7 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
   },
   {
     id: 'openclaw-kpi',
-    name: 'OpenClaw KPI',
+    name: 'Harness KPI',
     description: 'Key metrics: agents, sessions, tokens, cost',
     icon: 'Robot',
     category: 'ai',
@@ -587,8 +587,8 @@ export function getWidgetBundles(): WidgetBundle[] {
       widgetIds: ['agent-status', 'agents', 'heartbeat'],
     },
     {
-      id: 'mission-control',
-      name: 'Mission Control',
+      id: 'clawcontrol',
+      name: 'ClawControl',
       description: 'Missions, idea pipeline, and pipeline status',
       widgetIds: ['missions', 'idea-briefing', 'pipeline-status'],
     },

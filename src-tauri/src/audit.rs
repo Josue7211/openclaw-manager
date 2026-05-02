@@ -4,8 +4,8 @@
 //! here. The audit_log table is append-only — entries are never updated or deleted.
 
 use axum::extract::{Query, State};
-use axum::{Json, Router};
 use axum::routing::get;
+use axum::{Json, Router};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::SqlitePool;
@@ -95,8 +95,9 @@ async fn get_audit_log(
         conditions.join(" AND ")
     );
 
-    let mut query = sqlx::query_as::<_, (i64, String, String, String, Option<String>, String, String)>(&sql)
-        .bind(&session.user_id);
+    let mut query =
+        sqlx::query_as::<_, (i64, String, String, String, Option<String>, String, String)>(&sql)
+            .bind(&session.user_id);
 
     if let Some(ref rt) = params.resource_type {
         query = query.bind(rt);
@@ -110,20 +111,22 @@ async fn get_audit_log(
 
     let entries: Vec<Value> = rows
         .into_iter()
-        .map(|(id, user_id, action, resource_type, resource_id, details, created_at)| {
-            // Parse details back to JSON object if possible, otherwise keep as string
-            let details_val = serde_json::from_str::<Value>(&details)
-                .unwrap_or(Value::String(details));
-            json!({
-                "id": id,
-                "user_id": user_id,
-                "action": action,
-                "resource_type": resource_type,
-                "resource_id": resource_id,
-                "details": details_val,
-                "created_at": created_at,
-            })
-        })
+        .map(
+            |(id, user_id, action, resource_type, resource_id, details, created_at)| {
+                // Parse details back to JSON object if possible, otherwise keep as string
+                let details_val =
+                    serde_json::from_str::<Value>(&details).unwrap_or(Value::String(details));
+                json!({
+                    "id": id,
+                    "user_id": user_id,
+                    "action": action,
+                    "resource_type": resource_type,
+                    "resource_id": resource_id,
+                    "details": details_val,
+                    "created_at": created_at,
+                })
+            },
+        )
         .collect();
 
     Ok(success_json(json!(entries)))
@@ -232,12 +235,11 @@ mod tests {
             .await
             .unwrap();
 
-        let row: (String,) =
-            sqlx::query_as("SELECT details FROM audit_log WHERE user_id = ?")
-                .bind("user-1")
-                .fetch_one(&pool)
-                .await
-                .unwrap();
+        let row: (String,) = sqlx::query_as("SELECT details FROM audit_log WHERE user_id = ?")
+            .bind("user-1")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
         assert_eq!(row.0, "{}");
     }
 }

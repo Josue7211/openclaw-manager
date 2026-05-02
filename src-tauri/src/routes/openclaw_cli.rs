@@ -109,16 +109,14 @@ async fn get_sessions(RequireAuth(_session): RequireAuth) -> Result<Json<Value>,
             sessions.truncate(5);
             Ok(Json(json!({ "sessions": sessions })))
         }
-        Err(_) => {
-            Ok(Json(json!({
-                "sessions": [{
-                    "id": "main",
-                    "label": "main session",
-                    "kind": "main",
-                    "lastActive": chrono::Utc::now().to_rfc3339(),
-                }]
-            })))
-        }
+        Err(_) => Ok(Json(json!({
+            "sessions": [{
+                "id": "main",
+                "label": "main session",
+                "kind": "main",
+                "lastActive": chrono::Utc::now().to_rfc3339(),
+            }]
+        }))),
     }
 }
 
@@ -135,4 +133,3 @@ async fn get_subagents(RequireAuth(_session): RequireAuth) -> Result<Json<Value>
         Err(_) => Ok(Json(json!({ "count": 0, "agents": [] }))),
     }
 }
-

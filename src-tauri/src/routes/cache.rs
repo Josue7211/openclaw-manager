@@ -21,9 +21,10 @@ fn value_hash(v: &Value) -> u64 {
 
 /// Build the cache router (read/refresh Supabase cache rows).
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/cache", get(get_cache))
-        .route("/cache-refresh", get(get_cache_refresh).post(post_cache_refresh))
+    Router::new().route("/cache", get(get_cache)).route(
+        "/cache-refresh",
+        get(get_cache_refresh).post(post_cache_refresh),
+    )
 }
 
 // ── Cache ───────────────────────────────────────────────────────────────────
@@ -33,15 +34,16 @@ async fn get_cache(
     RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
-    let data = sb.select_as_user("cache", "select=*", &session.access_token).await?;
+    let data = sb
+        .select_as_user("cache", "select=*", &session.access_token)
+        .await?;
 
     let mut result = serde_json::Map::new();
     if let Some(rows) = data.as_array() {
         for row in rows {
-            if let (Some(key), Some(value)) = (
-                row.get("key").and_then(|k| k.as_str()),
-                row.get("value"),
-            ) {
+            if let (Some(key), Some(value)) =
+                (row.get("key").and_then(|k| k.as_str()), row.get("value"))
+            {
                 result.insert(key.to_string(), value.clone());
             }
         }
@@ -55,7 +57,9 @@ async fn get_cache_refresh(
     RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
     let sb = SupabaseClient::from_state(&state)?;
-    let data = sb.select_as_user("cache", "select=*", &session.access_token).await?;
+    let data = sb
+        .select_as_user("cache", "select=*", &session.access_token)
+        .await?;
     Ok(Json(json!({ "rows": data })))
 }
 
@@ -72,7 +76,7 @@ async fn post_cache_refresh(
 
     let cache_keys = ["status", "heartbeat", "sessions", "subagents", "agents"];
     let client = reqwest::Client::new();
-    let base = "http://127.0.0.1:3000";
+    let base = "http://127.0.0.1:5000";
 
     let mut ok_count = 0u32;
     let total = cache_keys.len() as u32;

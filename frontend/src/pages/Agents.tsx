@@ -1,11 +1,10 @@
 import { useState, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { Robot } from '@phosphor-icons/react'
 import { useAgents } from '@/hooks/useAgents'
+import { useHarnessStatus } from '@/hooks/useHarnessStatus'
 import { useTableRealtime } from '@/lib/hooks/useRealtimeSSE'
 import { useGatewaySSE } from '@/lib/hooks/useGatewaySSE'
 import { queryKeys } from '@/lib/query-keys'
-import { api } from '@/lib/api'
 import { isDemoMode, DEMO_AGENTS } from '@/lib/demo-data'
 import { SkeletonList } from '@/components/Skeleton'
 import { AgentList } from './agents/AgentList'
@@ -18,16 +17,8 @@ export default function AgentsPage() {
   const [listWidth, setListWidth] = useState(320)
 
   const { agents: realAgents, loading, createMutation, updateMutation, deleteMutation, actionMutation } = useAgents()
+  const { connected: harnessHealthy } = useHarnessStatus()
   const agents: Agent[] = _demo ? (DEMO_AGENTS as unknown as Agent[]) : realAgents
-
-  // OpenClaw health check
-  const { data: healthData } = useQuery({
-    queryKey: ['openclaw', 'health'],
-    queryFn: () => api.get<{ ok: boolean }>('/api/openclaw/health'),
-    staleTime: 30_000,
-    enabled: !_demo,
-  })
-  const openclawHealthy = healthData?.ok ?? false
 
   // Real-time subscription via SSE
   useTableRealtime('agents', { queryKey: queryKeys.agents })
@@ -102,7 +93,8 @@ export default function AgentsPage() {
 
   return (
     <div style={{
-      position: 'absolute', inset: 0,
+      flex: 1,
+      minHeight: 0,
       margin: '-20px -28px',
       display: 'flex', overflow: 'hidden',
     }}>
@@ -143,7 +135,7 @@ export default function AgentsPage() {
             onUpdate={handleUpdate}
             onDelete={handleDelete}
             onAction={handleAction}
-            openclawHealthy={openclawHealthy}
+            harnessHealthy={harnessHealthy}
           />
         ) : (
           <div style={{

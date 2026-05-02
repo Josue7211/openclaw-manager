@@ -116,7 +116,10 @@ pub(super) async fn pipeline_review(
     // ── Rejected -> auto-spawn Gunther to fix ─────────────────────
     let gunther_route = &GUNTHER;
     let workdir = extract_workdir(&mission);
-    let fix_log_file = format!("/tmp/gunther-fix-{}.log", &mission_id[..mission_id.len().min(8)]);
+    let fix_log_file = format!(
+        "/tmp/gunther-fix-{}.log",
+        &mission_id[..mission_id.len().min(8)]
+    );
 
     // Update mission + reset Codex + activate Gunther in parallel
     let mission_query = format!("id=eq.{mission_id}");

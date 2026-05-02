@@ -45,7 +45,7 @@ vi.mock('@tanstack/react-query', () => ({
 
 // Mock API_BASE
 vi.mock('@/lib/api', () => ({
-  API_BASE: 'http://127.0.0.1:3000',
+  API_BASE: 'http://127.0.0.1:5000',
 }))
 
 // Helper: import a fresh copy of the hook after resetting modules.
@@ -80,7 +80,7 @@ describe('useRealtimeSSE', () => {
     renderHook(() => useRealtimeSSE(['todos'], {}))
 
     expect(MockEventSource.instances.length).toBeGreaterThan(0)
-    expect(MockEventSource.instances[0].url).toBe('http://127.0.0.1:3000/api/events')
+    expect(MockEventSource.instances[0].url).toBe('http://127.0.0.1:5000/api/events')
   })
 
   it('invalidates query key when a matching table event arrives', async () => {

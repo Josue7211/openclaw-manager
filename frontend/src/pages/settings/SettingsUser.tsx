@@ -25,6 +25,15 @@ interface SettingsUserProps {
   setupMfaRequired: boolean
 }
 
+function formatAccountError(err: unknown, fallback: string): string {
+  const message = err instanceof Error ? err.message.trim() : ''
+  if (!message) return fallback
+  if (message === 'Invalid TOTP code entered') return 'That verification code was not accepted. Try the latest code from your authenticator app.'
+  if (message.includes('cancelled') || message.includes('canceled') || message.includes('timed out')) return fallback
+  if (message.startsWith('API ')) return fallback
+  return message
+}
+
 export default function SettingsUser({
   userName, setUserName, userAvatar, setUserAvatar,
   userEmail, hasPassword, mfaEnabled, setMfaEnabled, setupMfaRequired,
@@ -99,9 +108,9 @@ export default function SettingsUser({
       setWebAuthnStatus('Hardware key registered successfully')
     } catch (err) {
       if (err instanceof DOMException && err.name === 'NotAllowedError') {
-        setWebAuthnStatus('Error: Registration was cancelled or timed out')
+        setWebAuthnStatus('Hardware key setup was cancelled or timed out.')
       } else {
-        setWebAuthnStatus(`Error: ${err instanceof Error ? err.message : 'Failed to register key'}`)
+        setWebAuthnStatus(formatAccountError(err, 'Could not register that hardware key. Try again.'))
       }
       setWebAuthnEnrolling(false)
     }
@@ -113,7 +122,7 @@ export default function SettingsUser({
       setWebAuthnKeys(prev => prev.filter(k => k.id !== factorId))
       setWebAuthnStatus('Hardware key removed')
     } catch (err) {
-      setWebAuthnStatus(`Error: ${err instanceof Error ? err.message : 'Failed to remove key'}`)
+      setWebAuthnStatus(formatAccountError(err, 'Could not remove that hardware key right now.'))
     }
   }
 
@@ -204,13 +213,13 @@ export default function SettingsUser({
                       await api.post('/api/auth/password', { current_password: currentPw, new_password: newPw })
                       setPwStatus('Password updated.'); setChangingPw(false); setCurrentPw(''); setNewPw(''); setConfirmPw('')
                     } catch (err) {
-                      setPwStatus(`Error: ${err instanceof Error ? err.message : 'Failed'}`)
+                      setPwStatus(formatAccountError(err, 'Could not update your password right now.'))
                     }
                   }}
                   style={{ fontSize: '12px', padding: '8px 16px' }}
                 >Save</Button>
               </div>
-              {pwStatus && <span style={{ fontSize: '11px', fontFamily: 'monospace', color: pwStatus.startsWith('Error') ? 'var(--red)' : 'var(--secondary)' }}>{pwStatus}</span>}
+              {pwStatus && <span style={{ fontSize: '11px', fontFamily: 'monospace', color: pwStatus.includes('Could not') ? 'var(--red)' : 'var(--secondary)' }}>{pwStatus}</span>}
             </div>
           )}
         </div>
@@ -227,10 +236,10 @@ export default function SettingsUser({
               const data = await api.post<{ id: string; qr_code: string; secret: string }>('/api/auth/mfa/enroll')
               setMfaFactorId(data.id); setMfaQr(data.qr_code); setMfaSecret(data.secret); setMfaEnrolling(true)
             } catch (err) {
-              setMfaStatus(`Error: ${err instanceof Error ? err.message : 'Failed'}`)
+              setMfaStatus(formatAccountError(err, 'Could not start authenticator setup right now.'))
             }
           }} style={{ fontSize: '12px', padding: '8px 16px' }}>Set up authenticator</Button>
-          {mfaStatus && <span style={{ fontSize: '12px', fontFamily: 'monospace', color: mfaStatus.startsWith('Error') ? 'var(--red)' : 'var(--secondary)', marginLeft: '10px' }}>{mfaStatus}</span>}
+          {mfaStatus && <span style={{ fontSize: '12px', fontFamily: 'monospace', color: mfaStatus.includes('Could not') || mfaStatus.includes('not accepted') ? 'var(--red)' : 'var(--secondary)', marginLeft: '10px' }}>{mfaStatus}</span>}
         </div>
       )}
       {mfaEnrolling && (
@@ -248,7 +257,7 @@ export default function SettingsUser({
                 setMfaEnabled(true); setMfaEnrolling(false); setMfaQr(null); setMfaSecret(null); setMfaCode(''); setMfaStatus(null)
                 if (setupMfaRequired) window.location.href = '/'
               } catch (err) {
-                setMfaStatus(`Error: ${err instanceof Error ? err.message : 'Failed'}`); setMfaCode('')
+                setMfaStatus(formatAccountError(err, 'Could not verify that authenticator code.')); setMfaCode('')
               }
             }} style={{ fontSize: '12px', padding: '8px 16px' }}>Verify</Button>
             <Button variant="secondary" onClick={async () => {
@@ -256,7 +265,7 @@ export default function SettingsUser({
               setMfaEnrolling(false); setMfaQr(null); setMfaSecret(null); setMfaCode(''); setMfaFactorId(null); setMfaStatus(null)
             }} style={{ fontSize: '12px', padding: '8px 16px' }}>Cancel</Button>
           </div>
-          {mfaStatus && <span style={{ fontSize: '12px', fontFamily: 'monospace', color: mfaStatus.startsWith('Error') ? 'var(--red)' : 'var(--secondary)' }}>{mfaStatus}</span>}
+          {mfaStatus && <span style={{ fontSize: '12px', fontFamily: 'monospace', color: mfaStatus.includes('Could not') || mfaStatus.includes('not accepted') ? 'var(--red)' : 'var(--secondary)' }}>{mfaStatus}</span>}
         </div>
       )}
       {mfaEnabled && !mfaEnrolling && (

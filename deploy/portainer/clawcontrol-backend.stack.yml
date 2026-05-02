@@ -1,0 +1,67 @@
+services:
+  secret-broker:
+    build:
+      context: ${SECRET_BROKER_BUILD_CONTEXT:-/opt/clawcontrol-backend/secret-broker}
+      dockerfile: Dockerfile
+    container_name: clawcontrol-agentsecrets
+    restart: unless-stopped
+    environment:
+      SECRET_BROKER_BIND: 0.0.0.0:4815
+      SECRET_BROKER_DB: sqlite:///var/lib/secret-broker/secret-broker.db?mode=rwc
+      SECRET_BROKER_MODE: ${SECRET_BROKER_MODE:-monitor}
+      SECRET_BROKER_CLIENT_API_KEY: ${SECRET_BROKER_CLIENT_API_KEY}
+      SECRET_BROKER_APPROVER_API_KEY: ${SECRET_BROKER_APPROVER_API_KEY}
+      SECRET_BROKER_ALLOWED_TARGET_PREFIXES: ${SECRET_BROKER_ALLOWED_TARGET_PREFIXES:-}
+      SECRET_BROKER_MAX_AMOUNT_CENTS: ${SECRET_BROKER_MAX_AMOUNT_CENTS:-10000}
+      SECRET_BROKER_CAPABILITY_TTL_SECONDS: ${SECRET_BROKER_CAPABILITY_TTL_SECONDS:-300}
+      SECRET_BROKER_REQUEST_TTL_SECONDS: ${SECRET_BROKER_REQUEST_TTL_SECONDS:-86400}
+      SECRET_BROKER_RATE_LIMIT_PER_MINUTE: ${SECRET_BROKER_RATE_LIMIT_PER_MINUTE:-60}
+      SECRET_BROKER_BITWARDEN_BASE_URL: ${SECRET_BROKER_BITWARDEN_BASE_URL:-}
+      SECRET_BROKER_BITWARDEN_TOKEN: ${SECRET_BROKER_BITWARDEN_TOKEN:-}
+      SECRET_BROKER_BITWARDEN_TIMEOUT_SECONDS: ${SECRET_BROKER_BITWARDEN_TIMEOUT_SECONDS:-30}
+    ports:
+      - "${SECRET_BROKER_BIND:-127.0.0.1:4815}:4815"
+    volumes:
+      - ${SECRET_BROKER_DATA_VOLUME:-clawcontrol-agentsecrets-data}:/var/lib/secret-broker
+
+  clawcontrol-backend:
+    build:
+      context: ${STACK_BUILD_CONTEXT:-/opt/clawcontrol-backend}
+      dockerfile: docker/clawcontrol-backend.Dockerfile
+    container_name: clawcontrol-backend
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      - secret-broker
+    environment:
+      MC_BIND_HOST: 0.0.0.0
+      MC_BIND_PORT: 3000
+      CLAWCONTROL_DATA_DIR: /var/lib/clawcontrol
+      BACKEND_PUBLIC_BASE_URL: ${BACKEND_PUBLIC_BASE_URL}
+      PAIRING_TOKEN: ${PAIRING_TOKEN}
+      MC_AGENT_KEY: ${MC_AGENT_KEY}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOTRUE_EXTERNAL_GOOGLE_ENABLED:-true}
+      GOTRUE_EXTERNAL_GITHUB_ENABLED: ${GOTRUE_EXTERNAL_GITHUB_ENABLED:-true}
+      OPENCLAW_API_URL: ${OPENCLAW_API_URL:-http://127.0.0.1:3939}
+      OPENCLAW_API_KEY: ${OPENCLAW_API_KEY:-}
+      OPENCLAW_WS: ${OPENCLAW_WS:-ws://127.0.0.1:18789/ws}
+      OPENCLAW_PASSWORD: ${OPENCLAW_PASSWORD:-}
+      AGENTSECRETS_URL: ${AGENTSECRETS_URL:-http://127.0.0.1:4815}
+      AGENTSECRETS_CLIENT_API_KEY: ${AGENTSECRETS_CLIENT_API_KEY:-}
+      AGENTSHELL_URL: ${AGENTSHELL_URL:-}
+      BLUEBUBBLES_HOST: ${BLUEBUBBLES_HOST:-}
+      BLUEBUBBLES_PASSWORD: ${BLUEBUBBLES_PASSWORD:-}
+      COUCHDB_URL: ${COUCHDB_URL:-}
+      COUCHDB_USER: ${COUCHDB_USER:-}
+      COUCHDB_PASSWORD: ${COUCHDB_PASSWORD:-}
+      COUCHDB_DATABASE: ${COUCHDB_DATABASE:-}
+      COUCHDB_CUSTOM_HEADERS: ${COUCHDB_CUSTOM_HEADERS:-}
+    volumes:
+      - ${BACKEND_DATA_VOLUME:-clawcontrol-backend-data}:/var/lib/clawcontrol
+
+volumes:
+  clawcontrol-backend-data:
+  clawcontrol-agentsecrets-data:

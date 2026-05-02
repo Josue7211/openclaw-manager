@@ -8,24 +8,39 @@ export interface Email {
   folder: string
 }
 
+export interface MailThread {
+  id: string
+  account_id: string | null
+  subject: string
+  from: string
+  preview: string
+  unread: boolean
+}
+
+export interface DraftItem {
+  id: string
+  account_label: string
+  subject: string
+  body: string
+  handoff_status: 'needs_human_send'
+}
+
 export interface EmailAccount {
   id: string
   label: string
-  host: string
-  port: number
-  username: string
-  tls: boolean
+  provider: string
+  address: string
+  agentmail_inbox_id: string
+  forwarding_status: 'active' | 'pending' | 'error'
   is_default: boolean
-  created_at: string
 }
 
 export interface AccountForm {
   label: string
-  host: string
-  port: string
-  username: string
-  password: string
-  tls: boolean
+  provider: string
+  address: string
+  agentmail_inbox_id: string
+  forwarding_status: 'active' | 'pending' | 'error'
   is_default: boolean
 }
 
@@ -37,7 +52,7 @@ export const FOLDERS: { id: Folder; label: string }[] = [
 ]
 
 export const EMPTY_FORM: AccountForm = {
-  label: '', host: '', port: '993', username: '', password: '', tls: true, is_default: false,
+  label: '', provider: '', address: '', agentmail_inbox_id: '', forwarding_status: 'pending', is_default: false,
 }
 
 export function formatDate(iso: string): string {

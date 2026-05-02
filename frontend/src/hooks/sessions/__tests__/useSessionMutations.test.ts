@@ -26,14 +26,14 @@ const SEED_SESSIONS = {
     {
       key: 'sess-1',
       label: 'Test Session',
-      agentKey: 'bjorn',
+      agentKey: 'primary-agent',
       messageCount: 5,
       lastActivity: '2026-01-01T00:00:00Z',
     },
     {
       key: 'sess-2',
       label: 'Another',
-      agentKey: 'bjorn',
+      agentKey: 'primary-agent',
       messageCount: 3,
       lastActivity: '2026-01-02T00:00:00Z',
     },

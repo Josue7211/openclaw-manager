@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
-import { api } from '@/lib/api'
-import { initPreferencesSync } from '@/lib/preferences-sync'
+import { api, API_BASE_CHANGED_EVENT } from '@/lib/api'
+import { initOpenClawRuntimeConfig, initPreferencesSync } from '@/lib/preferences-sync'
+import { deactivateDemoMode } from '@/lib/wizard-store'
 import { isDemoMode } from '@/lib/demo-data'
 
 type AuthState = 'loading' | 'authenticated' | 'unauthenticated' | 'mfa_required'
@@ -12,13 +13,22 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const syncInitRef = useRef(false)
 
   useEffect(() => {
-    if (isDemoMode()) {
-      setState('authenticated')
-      return
-    }
-
     async function checkAuth() {
       try {
+        if (isDemoMode()) {
+          try {
+            const setup = await api.get<{ ok: boolean }>('/api/setup/status')
+            if (!setup?.ok) {
+              setState('authenticated')
+              return
+            }
+            deactivateDemoMode()
+          } catch {
+            setState('authenticated')
+            return
+          }
+        }
+
         const res = await api.get<{
           authenticated: boolean
           mfa_required?: boolean
@@ -41,20 +51,50 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           return
         }
 
+        if (window.__TAURI_INTERNALS__) {
+          try {
+            const [{ invoke }, setup] = await Promise.all([
+              import('@tauri-apps/api/core'),
+              api.get<{ pairing_required?: boolean }>('/api/setup/status'),
+            ])
+            if (setup?.pairing_required) {
+              const deviceKey = await invoke<string | null>('get_secret', { key: 'backend.device-api-key' }).catch(() => null)
+              if (!deviceKey?.trim()) {
+                localStorage.removeItem('setup-complete')
+                setState('authenticated')
+                return
+              }
+            }
+          } catch {
+            // If setup probing fails, fall through to the regular authenticated state.
+          }
+        }
+
         setState('authenticated')
 
         if (!syncInitRef.current) {
           syncInitRef.current = true
-          initPreferencesSync()
+          void initPreferencesSync().then(() => initOpenClawRuntimeConfig())
         }
       } catch {
         setState('unauthenticated')
       }
     }
 
-    checkAuth()
+    void checkAuth()
+
+    const onBackendChanged = () => {
+      syncInitRef.current = false
+      setState('loading')
+      void checkAuth()
+    }
+
+    window.addEventListener(API_BASE_CHANGED_EVENT, onBackendChanged)
     const interval = setInterval(checkAuth, 30000)
-    return () => clearInterval(interval)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener(API_BASE_CHANGED_EVENT, onBackendChanged)
+    }
   }, [])
 
   if (state === 'loading') return (
@@ -64,7 +104,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       background: 'var(--bg-primary, var(--bg-base))',
     }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', animation: 'fadeIn 0.3s ease' }}>
-        <img src="/logo-128.png" alt="OpenClaw Manager" width={48} height={48} style={{ borderRadius: '12px' }} />
+        <img src="/logo-128.png" alt="ClawControl" width={48} height={48} style={{ borderRadius: '12px' }} />
         <div style={{
           width: '24px', height: '24px',
           border: '2px solid var(--border, var(--border-hover))',

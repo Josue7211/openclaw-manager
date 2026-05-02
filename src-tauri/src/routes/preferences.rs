@@ -32,9 +32,7 @@ async fn get_preferences(
     .await?;
 
     let prefs = match row {
-        Some((prefs_str,)) => {
-            serde_json::from_str::<Value>(&prefs_str).unwrap_or(json!({}))
-        }
+        Some((prefs_str,)) => serde_json::from_str::<Value>(&prefs_str).unwrap_or(json!({})),
         None => json!({}),
     };
 
@@ -118,9 +116,15 @@ async fn patch_preferences(
     }))
     .map_err(|e| AppError::Internal(e.into()))?;
 
-    crate::sync::log_mutation(&state.db, "user_preferences", user_id, "UPDATE", Some(&payload))
-        .await
-        .map_err(|e| AppError::Internal(e.into()))?;
+    crate::sync::log_mutation(
+        &state.db,
+        "user_preferences",
+        user_id,
+        "UPDATE",
+        Some(&payload),
+    )
+    .await
+    .map_err(|e| AppError::Internal(e.into()))?;
 
     Ok(success_json(Value::Object(merged)))
 }

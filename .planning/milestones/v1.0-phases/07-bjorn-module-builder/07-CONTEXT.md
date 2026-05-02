@@ -1,4 +1,4 @@
-# Phase 7: Bjorn Module Builder - Context
+# Phase 7: Agent Module Builder - Context
 
 **Gathered:** 2026-03-21
 **Status:** Ready for planning
@@ -6,7 +6,7 @@
 <domain>
 ## Phase Boundary
 
-Bjorn Module Builder — users describe a module in natural language, Bjorn generates a React component from the primitives library, previews it in a sandboxed iframe, and installs approved modules to the dashboard widget picker with hot-reload and version history.
+Agent Module Builder — users describe a module in natural language, Agent generates a React component from the primitives library, previews it in a sandboxed iframe, and installs approved modules to the dashboard widget picker with hot-reload and version history.
 
 </domain>
 
@@ -20,9 +20,9 @@ Bjorn Module Builder — users describe a module in natural language, Bjorn gene
 - Preview iframe CSP: `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'` — zero network, zero external resources
 
 ### Code Generation Strategy
-- Bjorn composes modules from the 11 primitives API — prompt includes primitive schemas + WidgetProps interface, assembles using only primitives library + standard React
-- OpenClaw gateway powers generation (user's configured model) — uses same chat infrastructure, Bjorn is a specialized system prompt
-- Tool manifest file at `~/.config/mission-control/tools.json` lists available CLIs with commands, descriptions, and examples — Bjorn reads this at generation time
+- Agent composes modules from the 11 primitives API — prompt includes primitive schemas + WidgetProps interface, assembles using only primitives library + standard React
+- OpenClaw gateway powers generation (user's configured model) — uses same chat infrastructure, Agent is a specialized system prompt
+- Tool manifest file at `~/.config/mission-control/tools.json` lists available CLIs with commands, descriptions, and examples — Agent reads this at generation time
 - Approved modules access live data via a data bridge — postMessage API where parent app proxies requests through Axum. Module requests data, parent resolves via CLI/API. No direct network from module code.
 
 ### Module Lifecycle & Persistence
@@ -32,13 +32,13 @@ Bjorn Module Builder — users describe a module in natural language, Bjorn gene
 - Hot-reload via dynamic import with cache-busting — approved modules as JS blobs loaded via `() => import(blobURL)` in registerWidget, re-registration replaces component without restart
 
 ### Builder UI & UX
-- Builder lives in Chat page as Bjorn tab — reuses existing chat infrastructure
+- Builder lives in Chat page as Agent tab — reuses existing chat infrastructure
 - Side-by-side split: chat left, preview right — user sees generation and result simultaneously
-- Module management in Settings → Modules — shows Bjorn-created modules with enable/disable/delete/rollback
-- Bjorn explains generation failures in chat with suggested fixes
+- Module management in Settings → Modules — shows Agent-created modules with enable/disable/delete/rollback
+- Agent explains generation failures in chat with suggested fixes
 
 ### Claude's Discretion
-- Prompt engineering details for Bjorn's system prompt
+- Prompt engineering details for Agent's system prompt
 - Exact postMessage bridge protocol
 - SQLite schema field naming
 - Preview iframe HTML template structure
@@ -65,7 +65,7 @@ Bjorn Module Builder — users describe a module in natural language, Bjorn gene
 - Supabase sync pattern from `sync.rs` (30s interval)
 
 ### Integration Points
-- `main.tsx` — registerPrimitives() already called at startup, Bjorn modules register similarly
+- `main.tsx` — registerPrimitives() already called at startup, Agent modules register similarly
 - Chat page (`pages/chat/`) — existing ChatThread, ChatInput, model switcher
 - Settings Modules (`pages/settings/SettingsModules.tsx`) — drag-drop module management
 - Widget Picker (`components/dashboard/WidgetPicker.tsx`) — shows registered widgets by category
@@ -78,16 +78,16 @@ Bjorn Module Builder — users describe a module in natural language, Bjorn gene
 - User has 8 CLIs available: homelab, portainer, koel, firecrawl, vault, openclaw, bw, plus Cloudflare/Proxmox/Portainer APIs via vault credentials
 - Tool manifest should auto-discover CLIs from PATH + manual entries for API-only services
 - Data bridge pattern: module emits `{ type: 'data-request', source: 'homelab', command: 'status' }` via postMessage, parent validates against tool manifest allowlist, executes via Axum backend, returns result
-- Bjorn-generated modules should use `tier: 'ai'` in widget registry to distinguish from built-in and user primitives
+- Agent-generated modules should use `tier: 'ai'` in widget registry to distinguish from built-in and user primitives
 
 </specifics>
 
 <deferred>
 ## Deferred Ideas
 
-- Bjorn module marketplace/sharing between users
-- Bjorn learning from user feedback to improve generation quality
+- Agent module marketplace/sharing between users
+- Agent learning from user feedback to improve generation quality
 - Module dependency chains (one module depending on another)
-- CLI wrapper generation (Bjorn creates new CLIs)
+- CLI wrapper generation (Agent creates new CLIs)
 
 </deferred>

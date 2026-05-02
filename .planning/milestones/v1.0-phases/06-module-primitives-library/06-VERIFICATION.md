@@ -8,7 +8,7 @@ re_verification: false
 
 # Phase 6: Module Primitives Library Verification Report
 
-**Phase Goal:** A comprehensive set of tested, themed, widget-compatible UI primitives exists that both users and Bjorn can compose modules from.
+**Phase Goal:** A comprehensive set of tested, themed, widget-compatible UI primitives exists that both users and Agent can compose modules from.
 **Verified:** 2026-03-21T05:45:00Z
 **Status:** PASSED
 **Re-verification:** No -- initial verification
@@ -131,7 +131,7 @@ No gaps found. All 14 requirements are satisfied with substantive implementation
 5. **Use CSS variables** -- no hardcoded colors (2 tooltip box-shadows are the only rgba, which is standard)
 6. **Handle errors gracefully** -- cross-cutting error-handling tests prove no crashes on empty/malformed config
 
-The phase goal -- "a comprehensive set of tested, themed, widget-compatible UI primitives that both users and Bjorn can compose modules from" -- is fully achieved.
+The phase goal -- "a comprehensive set of tested, themed, widget-compatible UI primitives that both users and Agent can compose modules from" -- is fully achieved.
 
 ---
 

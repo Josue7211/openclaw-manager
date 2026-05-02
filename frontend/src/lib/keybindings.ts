@@ -31,6 +31,7 @@ const DEFAULTS: Keybinding[] = [
   { id: 'nav-calendar', label: 'Go to Calendar', key: 'l', mod: true, route: '/calendar' },
   { id: 'nav-todos', label: 'Go to Todos', key: 't', mod: true, route: '/todos' },
   { id: 'nav-email', label: 'Go to Email', key: 'e', mod: true, route: '/email' },
+  { id: 'nav-jobs', label: 'Go to Career Ops', key: 'j', mod: true, route: '/jobs' },
   { id: 'nav-settings', label: 'Go to Settings', key: 's', mod: true, route: '/settings' },
   { id: 'nav-messages', label: 'Go to Messages', key: 'i', mod: true, route: '/messages' },
 

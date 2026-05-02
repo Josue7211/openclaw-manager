@@ -12,7 +12,10 @@ const STALE_DAYS: i64 = 3;
 
 /// Build the stale-items router (find, snooze, complete, or delete stale todos/missions/ideas).
 pub fn router() -> Router<AppState> {
-    Router::new().route("/stale", get(get_stale).patch(patch_stale).delete(delete_stale))
+    Router::new().route(
+        "/stale",
+        get(get_stale).patch(patch_stale).delete(delete_stale),
+    )
 }
 
 // ── GET /stale ──────────────────────────────────────────────────────────────
@@ -136,9 +139,14 @@ async fn patch_stale(
         }
         "snooze" => {
             let table = type_to_table(&body.item_type)?;
-            sb.update_as_user(table, &query, json!({ "updated_at": now }), jwt).await?;
+            sb.update_as_user(table, &query, json!({ "updated_at": now }), jwt)
+                .await?;
         }
-        _ => return Err(AppError::BadRequest("action must be 'done' or 'snooze'".into())),
+        _ => {
+            return Err(AppError::BadRequest(
+                "action must be 'done' or 'snooze'".into(),
+            ))
+        }
     }
 
     Ok(Json(json!({ "ok": true })))
@@ -169,7 +177,8 @@ async fn delete_stale(
         "DLP: item deleted"
     );
 
-    sb.delete_as_user(table, &format!("id=eq.{}", body.id), &session.access_token).await?;
+    sb.delete_as_user(table, &format!("id=eq.{}", body.id), &session.access_token)
+        .await?;
     Ok(Json(json!({ "ok": true })))
 }
 

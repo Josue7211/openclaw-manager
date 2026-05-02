@@ -6,14 +6,18 @@
 //! when a remote update arrives, the remote update is logged to `_conflict_log`
 //! and skipped — the local version will be pushed on the next cycle.
 
-use sqlx::SqlitePool;
 use serde_json::Value;
+use sqlx::SqlitePool;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
 use crate::server::UserSession;
 use crate::supabase::SupabaseClient;
+
+/// Generated module tables keep the legacy SQLite names for compatibility.
+const GENERATED_MODULE_TABLE: &str = "generated_modules";
+const GENERATED_MODULE_VERSION_TABLE: &str = "generated_module_versions";
 
 /// Tables to sync between local SQLite and remote Supabase.
 const SYNC_TABLES: &[&str] = &[
@@ -34,8 +38,8 @@ const SYNC_TABLES: &[&str] = &[
     "retrospectives",
     "workflow_notes",
     "cache",
-    "bjorn_modules",
-    "bjorn_module_versions",
+    GENERATED_MODULE_TABLE,
+    GENERATED_MODULE_VERSION_TABLE,
 ];
 
 /// Background sync engine that keeps local SQLite in sync with Supabase.
@@ -164,10 +168,7 @@ impl SyncEngine {
                     if let Some(data) = payload {
                         let body: Value = serde_json::from_str(data)
                             .map_err(|e| anyhow::anyhow!("bad sync payload: {e}"))?;
-                        client
-                            .upsert_as_user(table, body, jwt)
-                            .await
-                            .map(|_| ())
+                        client.upsert_as_user(table, body, jwt).await.map(|_| ())
                     } else {
                         continue;
                     }
@@ -223,19 +224,21 @@ impl SyncEngine {
         jwt: &str,
         table: &str,
     ) -> anyhow::Result<()> {
-        let last_synced: Option<String> = sqlx::query_scalar(
-            "SELECT last_synced_at FROM _sync_state WHERE table_name = ?",
-        )
-        .bind(table)
-        .fetch_optional(&self.db)
-        .await?
-        .flatten();
+        let last_synced: Option<String> =
+            sqlx::query_scalar("SELECT last_synced_at FROM _sync_state WHERE table_name = ?")
+                .bind(table)
+                .fetch_optional(&self.db)
+                .await?
+                .flatten();
 
         let query = match &last_synced {
             Some(ts) => {
                 // Validate timestamp format before interpolating into PostgREST query
                 let safe_ts = ts.replace(' ', "T").replace('+', "%2B");
-                if !safe_ts.chars().all(|c| c.is_ascii_digit() || "-T:.%BZ".contains(c)) {
+                if !safe_ts
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || "-T:.%BZ".contains(c))
+                {
                     warn!("sync: invalid last_synced_at for {table}: {ts}");
                     "select=*&order=updated_at.asc&limit=500".to_string()
                 } else {
@@ -356,9 +359,9 @@ impl SyncEngine {
         };
 
         // Query local SQLite for which columns actually exist in this table
-        let local_cols: Vec<String> = sqlx::query_scalar::<_, String>(
-            &format!("SELECT name FROM pragma_table_info('{table}')")
-        )
+        let local_cols: Vec<String> = sqlx::query_scalar::<_, String>(&format!(
+            "SELECT name FROM pragma_table_info('{table}')"
+        ))
         .fetch_all(&self.db)
         .await
         .unwrap_or_default();
@@ -403,7 +406,9 @@ impl SyncEngine {
             match val {
                 Value::String(s) => query = query.bind(s.clone()),
                 Value::Number(n) => query = query.bind(n.to_string()),
-                Value::Bool(b) => query = query.bind(if *b { "1".to_string() } else { "0".to_string() }),
+                Value::Bool(b) => {
+                    query = query.bind(if *b { "1".to_string() } else { "0".to_string() })
+                }
                 Value::Null => query = query.bind(None::<String>),
                 _ => query = query.bind(val.to_string()),
             }
@@ -446,7 +451,7 @@ impl SyncEngine {
                tool_output = excluded.tool_output, \
                model_name = excluded.model_name, \
                elapsed_seconds = excluded.elapsed_seconds, \
-               updated_at = excluded.updated_at"
+               updated_at = excluded.updated_at",
         )
         .bind(id)
         .bind(user_id)
@@ -490,12 +495,11 @@ pub async fn log_mutation(
     payload: Option<&str>,
 ) -> Result<(), sqlx::Error> {
     // Cap unbounded growth: if > 10,000 unsynced entries, delete the oldest 1,000
-    let unsynced_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM _sync_log WHERE synced_at IS NULL",
-    )
-    .fetch_one(db)
-    .await
-    .unwrap_or(0);
+    let unsynced_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM _sync_log WHERE synced_at IS NULL")
+            .fetch_one(db)
+            .await
+            .unwrap_or(0);
 
     if unsynced_count > 10_000 {
         sqlx::query(
@@ -551,12 +555,25 @@ mod tests {
     #[test]
     fn sync_tables_contains_all_expected() {
         let expected = vec![
-            "todos", "missions", "mission_events", "agents", "ideas",
-            "captures", "habits", "habit_entries", "user_preferences",
-            "changelog_entries", "decisions", "knowledge_entries",
-            "daily_reviews", "weekly_reviews", "retrospectives",
-            "workflow_notes", "cache",
-            "bjorn_modules", "bjorn_module_versions",
+            "todos",
+            "missions",
+            "mission_events",
+            "agents",
+            "ideas",
+            "captures",
+            "habits",
+            "habit_entries",
+            "user_preferences",
+            "changelog_entries",
+            "decisions",
+            "knowledge_entries",
+            "daily_reviews",
+            "weekly_reviews",
+            "retrospectives",
+            "workflow_notes",
+            "cache",
+            GENERATED_MODULE_TABLE,
+            GENERATED_MODULE_VERSION_TABLE,
         ];
         for table in expected {
             assert!(

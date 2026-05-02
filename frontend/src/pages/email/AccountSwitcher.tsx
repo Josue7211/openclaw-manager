@@ -64,7 +64,7 @@ export function AccountSwitcher({ accounts, selectedAccountId, onSelectAccount }
             >
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)' }}>{acc.label}</div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{acc.username}</div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{acc.address}</div>
               </div>
               {acc.is_default && <Star size={10} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
             </button>

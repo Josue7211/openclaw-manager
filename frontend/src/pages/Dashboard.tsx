@@ -46,14 +46,15 @@ export default function Dashboard() {
     [dashState.pages, dashState.activePageId],
   )
 
-  // First-use: populate default layout if active page has no/too-few widgets
+  // First-use: populate a default layout only for truly empty pages.
+  // Do not repopulate after the user intentionally removes widgets in edit mode.
   useEffect(() => {
-    // Count UNIQUE widget IDs (not total items across breakpoints).
-    // One widget in 4 breakpoints = 4 items but still only 1 unique widget.
     const uniqueWidgets = activePage
       ? new Set(Object.values(activePage.layouts).flat().map((item: { i: string }) => item.i)).size
       : 0
-    if (activePage && (Object.keys(activePage.layouts).length === 0 || uniqueWidgets < 3)) {
+    const hasSavedConfig = activePage ? Object.keys(activePage.widgetConfigs).length > 0 : false
+
+    if (activePage && uniqueWidgets === 0 && !hasSavedConfig) {
       const defaults = generateDefaultLayout(getEnabledModules())
       const state = getDashboardState()
       const updated = {

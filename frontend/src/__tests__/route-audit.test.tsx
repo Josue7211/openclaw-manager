@@ -32,12 +32,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 vi.mock('@/pages/Dashboard', () => ({ default: () => <div data-testid="page-dashboard">Dashboard</div> }))
 vi.mock('@/pages/Personal', () => ({ default: () => <div data-testid="page-personal">Personal</div> }))
 vi.mock('@/pages/Chat', () => ({ default: () => <div data-testid="page-chat">Chat</div> }))
+vi.mock('@/pages/Builder', () => ({ default: () => <div data-testid="page-builder">Builder</div> }))
 vi.mock('@/pages/Todos', () => ({ default: () => <div data-testid="page-todos">Todos</div> }))
 vi.mock('@/pages/Calendar', () => ({ default: () => <div data-testid="page-calendar">Calendar</div> }))
 vi.mock('@/pages/Reminders', () => ({ default: () => <div data-testid="page-reminders">Reminders</div> }))
 vi.mock('@/pages/Messages', () => ({ default: () => <div data-testid="page-messages">Messages</div> }))
 vi.mock('@/pages/Pomodoro', () => ({ default: () => <div data-testid="page-pomodoro">Pomodoro</div> }))
 vi.mock('@/pages/Email', () => ({ default: () => <div data-testid="page-email">Email</div> }))
+vi.mock('@/pages/JobHunter', () => ({ default: () => <div data-testid="page-jobs">Career Ops</div> }))
 vi.mock('@/pages/HomeLab', () => ({ default: () => <div data-testid="page-homelab">HomeLab</div> }))
 vi.mock('@/pages/MediaRadar', () => ({ default: () => <div data-testid="page-media">MediaRadar</div> }))
 vi.mock('@/pages/Missions', () => ({ default: () => <div data-testid="page-missions">Missions</div> }))
@@ -93,12 +95,14 @@ const { lazy } = React
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
 const Personal = lazy(() => import('@/pages/Personal'))
 const Chat = lazy(() => import('@/pages/Chat'))
+const Builder = lazy(() => import('@/pages/Builder'))
 const Todos = lazy(() => import('@/pages/Todos'))
 const Calendar = lazy(() => import('@/pages/Calendar'))
 const Reminders = lazy(() => import('@/pages/Reminders'))
 const Messages = lazy(() => import('@/pages/Messages'))
 const Pomodoro = lazy(() => import('@/pages/Pomodoro'))
 const Email = lazy(() => import('@/pages/Email'))
+const JobHunter = lazy(() => import('@/pages/JobHunter'))
 const HomeLab = lazy(() => import('@/pages/HomeLab'))
 const MediaRadar = lazy(() => import('@/pages/MediaRadar'))
 const Missions = lazy(() => import('@/pages/Missions'))
@@ -107,7 +111,6 @@ const Memory = lazy(() => import('@/pages/Memory'))
 const Pipeline = lazy(() => import('@/pages/Pipeline'))
 const KnowledgeBase = lazy(() => import('@/pages/KnowledgeBase'))
 const Notes = lazy(() => import('@/pages/notes/Notes'))
-const Sessions = lazy(() => import('@/pages/sessions/SessionsPage'))
 const RemoteViewer = lazy(() => import('@/pages/remote/RemotePage'))
 const Approvals = lazy(() => import('@/pages/approvals/ApprovalsPage'))
 const Activity = lazy(() => import('@/pages/activity/ActivityPage'))
@@ -143,12 +146,14 @@ const ROUTES: RouteEntry[] = [
   { path: '/personal', type: 'redirect', target: '/', testId: 'page-personal', guarded: true },
   { path: '/dashboard', type: 'page', testId: 'page-dashboard', guarded: true },
   { path: '/chat', type: 'page', testId: 'page-chat', guarded: true },
+  { path: '/builder', type: 'page', testId: 'page-builder', guarded: true },
   { path: '/todos', type: 'page', testId: 'page-todos', guarded: true },
   { path: '/calendar', type: 'page', testId: 'page-calendar', guarded: true },
   { path: '/reminders', type: 'page', testId: 'page-reminders', guarded: true },
   { path: '/messages', type: 'page', testId: 'page-messages', guarded: true },
   { path: '/pomodoro', type: 'page', testId: 'page-pomodoro', guarded: true },
   { path: '/email', type: 'page', testId: 'page-email', guarded: true },
+  { path: '/jobs', type: 'page', testId: 'page-jobs', guarded: true },
   { path: '/homelab', type: 'page', testId: 'page-homelab', guarded: true },
   { path: '/media', type: 'page', testId: 'page-media', guarded: true },
   { path: '/missions', type: 'page', testId: 'page-missions', guarded: true },
@@ -159,7 +164,7 @@ const ROUTES: RouteEntry[] = [
   { path: '/pipeline', type: 'page', testId: 'page-pipeline', guarded: true },
   { path: '/knowledge', type: 'page', testId: 'page-knowledge', guarded: true },
   { path: '/notes', type: 'page', testId: 'page-notes', guarded: true },
-  { path: '/sessions', type: 'page', testId: 'page-sessions', guarded: true },
+  { path: '/sessions', type: 'redirect', target: '/chat', testId: 'page-chat', guarded: true },
   { path: '/remote', type: 'page', testId: 'page-remote', guarded: true },
   { path: '/approvals', type: 'page', testId: 'page-approvals', guarded: true },
   { path: '/activity', type: 'page', testId: 'page-activity', guarded: true },
@@ -200,12 +205,14 @@ function renderRoute(routePath: string) {
               <Route path="/personal" element={<Navigate to="/" replace />} />
               <Route path="/dashboard" element={<Suspense fallback={null}><Dashboard /></Suspense>} />
               <Route path="/chat" element={<Suspense fallback={null}><Chat /></Suspense>} />
+              <Route path="/builder" element={<Suspense fallback={null}><Builder /></Suspense>} />
               <Route path="/todos" element={<Suspense fallback={null}><Todos /></Suspense>} />
               <Route path="/calendar" element={<Suspense fallback={null}><Calendar /></Suspense>} />
               <Route path="/reminders" element={<Suspense fallback={null}><Reminders /></Suspense>} />
               <Route path="/messages" element={<Suspense fallback={null}><Messages /></Suspense>} />
               <Route path="/pomodoro" element={<Suspense fallback={null}><Pomodoro /></Suspense>} />
               <Route path="/email" element={<Suspense fallback={null}><Email /></Suspense>} />
+              <Route path="/jobs" element={<Suspense fallback={null}><JobHunter /></Suspense>} />
               <Route path="/homelab" element={<Suspense fallback={null}><HomeLab /></Suspense>} />
               <Route path="/media" element={<Suspense fallback={null}><MediaRadar /></Suspense>} />
               <Route path="/missions" element={<Suspense fallback={null}><Missions /></Suspense>} />
@@ -216,7 +223,7 @@ function renderRoute(routePath: string) {
               <Route path="/pipeline" element={<Suspense fallback={null}><Pipeline /></Suspense>} />
               <Route path="/knowledge" element={<Suspense fallback={null}><KnowledgeBase /></Suspense>} />
               <Route path="/notes" element={<Suspense fallback={null}><Notes /></Suspense>} />
-              <Route path="/sessions" element={<Suspense fallback={null}><Sessions /></Suspense>} />
+              <Route path="/sessions" element={<Navigate to="/chat" replace />} />
               <Route path="/remote" element={<Suspense fallback={null}><RemoteViewer /></Suspense>} />
               <Route path="/approvals" element={<Suspense fallback={null}><Approvals /></Suspense>} />
               <Route path="/activity" element={<Suspense fallback={null}><Activity /></Suspense>} />
@@ -377,6 +384,7 @@ describe('Route Audit', () => {
       ['Messages', () => import('@/pages/Messages')],
       ['Pomodoro', () => import('@/pages/Pomodoro')],
       ['Email', () => import('@/pages/Email')],
+      ['JobHunter', () => import('@/pages/JobHunter')],
       ['HomeLab', () => import('@/pages/HomeLab')],
       ['MediaRadar', () => import('@/pages/MediaRadar')],
       ['Missions', () => import('@/pages/Missions')],
@@ -385,7 +393,6 @@ describe('Route Audit', () => {
       ['Pipeline', () => import('@/pages/Pipeline')],
       ['KnowledgeBase', () => import('@/pages/KnowledgeBase')],
       ['Notes', () => import('@/pages/notes/Notes')],
-      ['Sessions', () => import('@/pages/sessions/SessionsPage')],
       ['RemoteViewer', () => import('@/pages/remote/RemotePage')],
       ['Approvals', () => import('@/pages/approvals/ApprovalsPage')],
       ['Activity', () => import('@/pages/activity/ActivityPage')],

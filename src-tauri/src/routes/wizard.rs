@@ -23,7 +23,7 @@ pub struct WizardTestRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct WizardSaveRequest {
-    credentials: HashMap<String, String>,
+    services: HashMap<String, HashMap<String, String>>,
 }
 
 // ── Router ──────────────────────────────────────────────────────────────────
@@ -32,7 +32,6 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/wizard/test-connection", post(wizard_test_connection))
         .route("/wizard/save-credentials", post(wizard_save_credentials))
-        .route("/wizard/reload-secrets", post(wizard_reload_secrets))
 }
 
 // ── POST /api/wizard/test-connection ────────────────────────────────────────
@@ -88,9 +87,7 @@ async fn wizard_test_connection(
         Err(msg) => {
             // Append Tailscale hint if the URL looks like a Tailscale address
             let error_msg = if url.contains("://100.") && is_connection_error(&msg) {
-                format!(
-                    "{msg}. This looks like a Tailscale address -- is Tailscale connected?"
-                )
+                format!("{msg}. This looks like a Tailscale address -- is Tailscale connected?")
             } else {
                 msg
             };
@@ -159,11 +156,7 @@ async fn test_openclaw(http: &reqwest::Client, url: &str, api_key: &str) -> Resu
     Err(format!("OpenClaw returned HTTP {status}"))
 }
 
-async fn test_bluebubbles(
-    http: &reqwest::Client,
-    url: &str,
-    password: &str,
-) -> Result<(), String> {
+async fn test_bluebubbles(http: &reqwest::Client, url: &str, password: &str) -> Result<(), String> {
     let endpoint = format!("{url}/api/v1/server/info?password={password}");
     let resp = http
         .get(&endpoint)
@@ -197,7 +190,9 @@ async fn test_couchdb(
 
     let status = resp.status().as_u16();
     if status == 401 {
-        return Err("Authentication failed -- check your CouchDB username and password".to_string());
+        return Err(
+            "Authentication failed -- check your CouchDB username and password".to_string(),
+        );
     }
     if resp.status().is_success() {
         return Ok(());
@@ -230,9 +225,7 @@ fn connection_error_msg(e: &reqwest::Error, service: &str) -> String {
         // Try to extract port from the URL in the error
         if let Some(url) = e.url() {
             if let Some(port) = url.port() {
-                return format!(
-                    "Connection refused on port {port} -- is {service} running?"
-                );
+                return format!("Connection refused on port {port} -- is {service} running?");
             }
         }
         format!("Connection refused -- is {service} running?")
@@ -248,24 +241,56 @@ fn connection_error_msg(e: &reqwest::Error, service: &str) -> String {
 // ── POST /api/wizard/save-credentials ───────────────────────────────────────
 
 async fn wizard_save_credentials(
+    State(state): State<AppState>,
     Json(body): Json<WizardSaveRequest>,
 ) -> Result<Json<Value>, AppError> {
     let mut saved = 0u32;
     let mut errors = Vec::new();
+    let mut updated_secrets: HashMap<String, String> = HashMap::new();
 
-    for (key, value) in &body.credentials {
-        // Only allow keys that exist in KEY_ENV_MAP
-        if !crate::secrets::is_allowed_key(key) {
-            errors.push(format!("Key '{key}' is not in the allowed set"));
+    for (service, creds) in body.services {
+        let service = service.trim();
+        if service.is_empty() {
             continue;
         }
-        match crate::secrets::set_entry(key, value) {
-            Ok(()) => saved += 1,
-            Err(e) => errors.push(format!("Failed to save '{key}': {e}")),
+
+        for (cred_key, value) in creds {
+            let value = value.trim().to_string();
+            if value.is_empty() {
+                continue;
+            }
+
+            let keychain_key = format!("{}.{}", service, cred_key.replace('_', "-"));
+            if !crate::secrets::is_allowed_key(&keychain_key) {
+                errors.push(format!("Key '{keychain_key}' is not in the allowed set"));
+                continue;
+            }
+
+            match crate::secrets::set_secret(keychain_key.clone(), value.clone()) {
+                Ok(()) => {
+                    saved += 1;
+
+                    if let Some((_, env_name)) = crate::secrets::KEY_ENV_MAP
+                        .iter()
+                        .find(|(k, _)| k == &keychain_key)
+                    {
+                        updated_secrets.insert((*env_name).to_string(), value);
+                    }
+                }
+                Err(e) => errors.push(format!("Failed to save '{keychain_key}': {e}")),
+            }
         }
     }
 
-    tracing::info!(saved = saved, errors = errors.len(), "wizard: saved credentials");
+    if !updated_secrets.is_empty() {
+        state.merge_secrets(updated_secrets);
+    }
+
+    tracing::info!(
+        saved = saved,
+        errors = errors.len(),
+        "wizard: saved credentials"
+    );
 
     if errors.is_empty() {
         Ok(Json(json!({ "saved": saved })))
@@ -275,25 +300,6 @@ async fn wizard_save_credentials(
             "errors": errors
         })))
     }
-}
-
-// ── POST /api/wizard/reload-secrets ─────────────────────────────────────────
-
-async fn wizard_reload_secrets(
-    State(state): State<AppState>,
-) -> Result<Json<Value>, AppError> {
-    let new_secrets = crate::secrets::load_secrets();
-    let count = new_secrets.len();
-
-    // Replace the secrets HashMap behind the RwLock
-    {
-        let mut guard = state.secrets.write().unwrap_or_else(|e| e.into_inner());
-        *guard = new_secrets;
-    }
-
-    tracing::info!(count = count, "wizard: reloaded secrets into AppState");
-
-    Ok(Json(json!({ "reloaded": true, "count": count })))
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
@@ -335,16 +341,31 @@ mod tests {
     #[test]
     fn wizard_save_request_deserializes() {
         let json_str = r#"{
-            "credentials": {
-                "supabase.url": "http://localhost:8000",
-                "supabase.anon-key": "my-key"
+            "services": {
+                "supabase": {
+                    "url": "http://localhost:8000",
+                    "anon_key": "my-key"
+                },
+                "openclaw": {
+                    "api_key": "openclaw-key"
+                }
             }
         }"#;
         let req: WizardSaveRequest = serde_json::from_str(json_str).unwrap();
-        assert_eq!(req.credentials.len(), 2);
+        assert_eq!(req.services.len(), 2);
         assert_eq!(
-            req.credentials.get("supabase.url"),
-            Some(&"http://localhost:8000".to_string())
+            req.services
+                .get("supabase")
+                .and_then(|svc| svc.get("url"))
+                .map(String::as_str),
+            Some("http://localhost:8000")
+        );
+        assert_eq!(
+            req.services
+                .get("openclaw")
+                .and_then(|svc| svc.get("api_key"))
+                .map(String::as_str),
+            Some("openclaw-key")
         );
     }
 
@@ -352,9 +373,15 @@ mod tests {
     fn connection_error_msg_formats_correctly() {
         // We can't easily create reqwest::Error instances in tests,
         // but we can verify the helper function logic via is_connection_error
-        assert!(is_connection_error("Connection refused on port 8000 -- is Supabase running?"));
-        assert!(is_connection_error("Connection timed out -- check that OpenClaw is reachable"));
-        assert!(is_connection_error("Could not resolve hostname -- check the URL"));
+        assert!(is_connection_error(
+            "Connection refused on port 8000 -- is Supabase running?"
+        ));
+        assert!(is_connection_error(
+            "Connection timed out -- check that OpenClaw is reachable"
+        ));
+        assert!(is_connection_error(
+            "Could not resolve hostname -- check the URL"
+        ));
         assert!(!is_connection_error("Authentication failed"));
     }
 
@@ -364,7 +391,9 @@ mod tests {
         assert!(is_connection_error("timed out"));
         assert!(is_connection_error("resolve hostname"));
         assert!(is_connection_error("unreachable"));
-        assert!(!is_connection_error("Authentication failed -- check your API key"));
+        assert!(!is_connection_error(
+            "Authentication failed -- check your API key"
+        ));
         assert!(!is_connection_error("HTTP 500"));
     }
 

@@ -60,10 +60,10 @@ describe('UsageTab', () => {
     expect(screen.getByText('2026-03')).toBeInTheDocument()
   })
 
-  it('shows "OpenClaw is not configured" when healthy is false', () => {
-    renderWithQC(<UsageTab healthy={false} />)
+  it('shows "Harness not configured" when healthy is false', () => {
+    renderWithQC(<UsageTab healthy={false} status="not_configured" />)
 
-    expect(screen.getByText('OpenClaw is not configured.')).toBeInTheDocument()
+    expect(screen.getByText('Harness not configured')).toBeInTheDocument()
   })
 
   it('shows loading state', () => {

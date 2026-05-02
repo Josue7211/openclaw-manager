@@ -9,6 +9,14 @@ interface MfaEnrollViewProps {
   next: string
 }
 
+function formatMfaError(err: unknown, fallback: string): string {
+  const message = err instanceof Error ? err.message.trim() : ''
+  if (!message) return fallback
+  if (message === 'Invalid TOTP code entered') return 'That verification code was not accepted. Try the latest code from your authenticator app.'
+  if (message.startsWith('API ')) return fallback
+  return message
+}
+
 export function MfaEnrollView({ mfaFactorId, mfaQr, mfaSecret, next }: MfaEnrollViewProps) {
   const [mfaCode, setMfaCode] = useState('')
   const [loading, setLoading] = useState(false)
@@ -100,7 +108,7 @@ export function MfaEnrollView({ mfaFactorId, mfaQr, mfaSecret, next }: MfaEnroll
 
           window.location.href = next
         } catch (err) {
-          setError(err instanceof Error ? err.message : 'Verification failed')
+          setError(formatMfaError(err, 'Could not verify that code right now.'))
           setMfaCode('')
           setLoading(false)
         }

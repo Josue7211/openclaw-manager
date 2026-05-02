@@ -1,6 +1,6 @@
 //! Simple file-based logging with daily rotation (last 7 days) and size caps.
 //!
-//! Writes logs to `{data_local_dir}/mission-control/logs/mission-control-YYYY-MM-DD.log`.
+//! Writes logs to `{data_local_dir}/clawcontrol/logs/clawcontrol-YYYY-MM-DD.log`.
 //! On startup, deletes log files older than 7 days and removes any log file exceeding
 //! 100 MB. During runtime, if the current day's log exceeds 100 MB, writing stops
 //! until the next day's rotation.
@@ -19,18 +19,19 @@ use tracing::field::Visit;
 use tracing::Subscriber;
 use tracing_subscriber::Layer;
 
-/// Returns the log directory path: `{data_local_dir}/mission-control/logs/`
+/// Returns the log directory path: `{data_local_dir}/clawcontrol/logs/`
 pub fn log_dir() -> PathBuf {
-    dirs::data_local_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("mission-control")
-        .join("logs")
+    crate::app_paths::resolve_app_data_dir().join("logs")
 }
 
 /// Returns the log file path for today.
 fn log_file_path() -> PathBuf {
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-    log_dir().join(format!("mission-control-{}.log", today))
+    log_dir().join(format!(
+        "{}-{}.log",
+        crate::app_paths::active_log_prefix(),
+        today
+    ))
 }
 
 /// Delete log files older than `keep_days` days.
@@ -52,9 +53,11 @@ pub fn cleanup_old_logs(keep_days: i64) {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
 
-        // Match pattern: mission-control-YYYY-MM-DD.log
+        // Match pattern: clawcontrol-YYYY-MM-DD.log (or legacy mission-control-YYYY-MM-DD.log)
         if let Some(date_part) = name_str
-            .strip_prefix("mission-control-")
+            .strip_prefix(crate::app_paths::APP_LOG_PREFIX)
+            .or_else(|| name_str.strip_prefix(crate::app_paths::LEGACY_APP_LOG_PREFIX))
+            .and_then(|s| s.strip_prefix('-'))
             .and_then(|s| s.strip_suffix(".log"))
         {
             if date_part < cutoff_str.as_str() {
@@ -81,8 +84,10 @@ pub fn cap_log_files(log_dir: &Path, max_bytes: u64) {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
 
-        // Only touch our own log files (mission-control-YYYY-MM-DD.log)
-        if !name_str.starts_with("mission-control-") || !name_str.ends_with(".log") {
+        // Only touch our own log files (clawcontrol-YYYY-MM-DD.log or legacy mission-control-YYYY-MM-DD.log)
+        let valid_prefix = name_str.starts_with(&format!("{}-", crate::app_paths::APP_LOG_PREFIX))
+            || name_str.starts_with(&format!("{}-", crate::app_paths::LEGACY_APP_LOG_PREFIX));
+        if !valid_prefix || !name_str.ends_with(".log") {
             continue;
         }
 
@@ -136,9 +141,7 @@ impl FileLogLayer {
 
         // Seed the byte counter with the current file size so we enforce the
         // cap correctly even when appending to a file from a previous run.
-        let initial_size = fs::metadata(log_file_path())
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let initial_size = fs::metadata(log_file_path()).map(|m| m.len()).unwrap_or(0);
 
         FileLogLayer {
             file: Mutex::new(file.map(|f| (today, f))),
@@ -182,9 +185,7 @@ impl FileLogLayer {
             // Reset byte counter — new file starts from whatever size it
             // already has (could be non-zero if another process wrote to it).
             if let Ok(mut w) = self.written.lock() {
-                *w = fs::metadata(log_file_path())
-                    .map(|m| m.len())
-                    .unwrap_or(0);
+                *w = fs::metadata(log_file_path()).map(|m| m.len()).unwrap_or(0);
             }
         }
 
@@ -216,7 +217,8 @@ impl Visit for FieldCollector {
             if !self.fields.is_empty() {
                 self.fields.push(' ');
             }
-            self.fields.push_str(&format!("{}={:?}", field.name(), value));
+            self.fields
+                .push_str(&format!("{}={:?}", field.name(), value));
         }
     }
 
@@ -230,7 +232,8 @@ impl Visit for FieldCollector {
             if !self.fields.is_empty() {
                 self.fields.push(' ');
             }
-            self.fields.push_str(&format!("{}=\"{}\"", field.name(), value));
+            self.fields
+                .push_str(&format!("{}=\"{}\"", field.name(), value));
         }
     }
 }

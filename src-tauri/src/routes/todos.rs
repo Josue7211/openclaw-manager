@@ -1,4 +1,9 @@
-use axum::{extract::State, routing::get, Json, Router};
+use axum::{
+    extract::rejection::JsonRejection,
+    extract::{Query, State},
+    routing::get,
+    Json, Router,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -20,6 +25,19 @@ pub fn router() -> Router<AppState> {
             .patch(patch_todo)
             .delete(delete_todo),
     )
+}
+
+fn validate_todo_id(input: &str) -> Result<&str, AppError> {
+    if validate_uuid(input).is_ok() {
+        return Ok(input);
+    }
+
+    let trimmed = input.trim();
+    if !trimmed.is_empty() && trimmed.bytes().all(|b| b.is_ascii_digit()) {
+        return Ok(trimmed);
+    }
+
+    Err(AppError::BadRequest("invalid todo id".into()))
 }
 
 async fn get_todos(
@@ -99,7 +117,15 @@ async fn post_todo(
         .map_err(|e| AppError::Internal(e.into()))?;
 
     // Audit trail
-    crate::audit::log_audit_or_warn(&state.db, &session.user_id, "create", "todos", Some(&id), None).await;
+    crate::audit::log_audit_or_warn(
+        &state.db,
+        &session.user_id,
+        "create",
+        "todos",
+        Some(&id),
+        None,
+    )
+    .await;
 
     Ok(Json(json!({
         "todo": [{
@@ -127,7 +153,7 @@ async fn patch_todo(
     if body.done.is_none() && body.due_date.is_none() {
         return Err(AppError::BadRequest("nothing to update".into()));
     }
-    validate_uuid(&body.id)?;
+    validate_todo_id(&body.id)?;
 
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -182,8 +208,7 @@ async fn patch_todo(
             });
 
             // Log for sync
-            let payload = serde_json::to_string(&val)
-                .map_err(|e| AppError::Internal(e.into()))?;
+            let payload = serde_json::to_string(&val).map_err(|e| AppError::Internal(e.into()))?;
             crate::sync::log_mutation(&state.db, "todos", &id, "UPDATE", Some(&payload))
                 .await
                 .map_err(|e| AppError::Internal(e.into()))?;
@@ -201,39 +226,58 @@ struct DeleteTodoBody {
     id: String,
 }
 
+#[derive(Debug, Deserialize, Default)]
+struct DeleteTodoQuery {
+    id: Option<String>,
+}
+
 async fn delete_todo(
     State(state): State<AppState>,
     RequireAuth(session): RequireAuth,
-    Json(body): Json<DeleteTodoBody>,
+    Query(query): Query<DeleteTodoQuery>,
+    body: Result<Json<DeleteTodoBody>, JsonRejection>,
 ) -> Result<Json<Value>, AppError> {
-    validate_uuid(&body.id)?;
+    let id = match body {
+        Ok(Json(body)) => body.id,
+        Err(_) => query
+            .id
+            .ok_or_else(|| AppError::BadRequest("id required".into()))?,
+    };
+
+    validate_todo_id(&id)?;
 
     tracing::warn!(
         user_id = %session.user_id,
         table = "todos",
-        item_id = %body.id,
+        item_id = %id,
         "DLP: item deleted"
     );
 
     // Soft-delete locally (mark deleted_at) so sync engine can propagate
     let now = chrono::Utc::now().to_rfc3339();
-    sqlx::query(
-        "UPDATE todos SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?",
-    )
-    .bind(&now)
-    .bind(&now)
-    .bind(&body.id)
-    .bind(&session.user_id)
-    .execute(&state.db)
-    .await?;
+    sqlx::query("UPDATE todos SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?")
+        .bind(&now)
+        .bind(&now)
+        .bind(&id)
+        .bind(&session.user_id)
+        .execute(&state.db)
+        .await?;
 
     // Log for sync — DELETE operation tells sync engine to delete remotely
-    crate::sync::log_mutation(&state.db, "todos", &body.id, "DELETE", None)
+    crate::sync::log_mutation(&state.db, "todos", &id, "DELETE", None)
         .await
         .map_err(|e| AppError::Internal(e.into()))?;
 
     // Audit trail
-    crate::audit::log_audit_or_warn(&state.db, &session.user_id, "delete", "todos", Some(&body.id), None).await;
+    crate::audit::log_audit_or_warn(
+        &state.db,
+        &session.user_id,
+        "delete",
+        "todos",
+        Some(&id),
+        None,
+    )
+    .await;
 
     Ok(Json(json!({ "ok": true })))
 }
@@ -268,5 +312,30 @@ mod tests {
         let json = r#"{"id": "550e8400-e29b-41d4-a716-446655440000"}"#;
         let body: super::DeleteTodoBody = serde_json::from_str(json).unwrap();
         assert_eq!(body.id, "550e8400-e29b-41d4-a716-446655440000");
+    }
+
+    #[test]
+    fn delete_todo_query_deserializes() {
+        let query: super::DeleteTodoQuery =
+            serde_urlencoded::from_str("id=550e8400-e29b-41d4-a716-446655440000").unwrap();
+        assert_eq!(
+            query.id.as_deref(),
+            Some("550e8400-e29b-41d4-a716-446655440000")
+        );
+    }
+
+    #[test]
+    fn validate_todo_id_accepts_uuid() {
+        assert!(super::validate_todo_id("550e8400-e29b-41d4-a716-446655440000").is_ok());
+    }
+
+    #[test]
+    fn validate_todo_id_accepts_legacy_numeric_id() {
+        assert!(super::validate_todo_id("1772839447839").is_ok());
+    }
+
+    #[test]
+    fn validate_todo_id_rejects_other_values() {
+        assert!(super::validate_todo_id("todo-123").is_err());
     }
 }

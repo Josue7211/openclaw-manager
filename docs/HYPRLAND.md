@@ -1,17 +1,17 @@
 # Hyprland Configuration
 
-OpenClaw Manager works as a scratchpad window in Hyprland.
+ClawControl works as a scratchpad window in Hyprland.
 
 ## Window Rules
 
 Add to `~/.config/hypr/hyprland.conf`:
 
 ```conf
-# OpenClaw Manager scratchpad
-windowrulev2 = float, class:^(mission-control)$
-windowrulev2 = size 75% 85%, class:^(mission-control)$
-windowrulev2 = center, class:^(mission-control)$
-windowrulev2 = workspace special:mc silent, class:^(mission-control)$
+# ClawControl scratchpad
+windowrulev2 = float, class:^(clawcontrol)$
+windowrulev2 = size 75% 85%, class:^(clawcontrol)$
+windowrulev2 = center, class:^(clawcontrol)$
+windowrulev2 = workspace special:mc silent, class:^(clawcontrol)$
 
 # Toggle with a keybind
 bind = $mainMod, M, togglespecialworkspace, mc
@@ -22,7 +22,7 @@ bind = $mainMod, M, togglespecialworkspace, mc
 Add to Hyprland config:
 
 ```conf
-exec-once = mission-control
+exec-once = clawcontrol
 ```
 
 ## Environment Variables
@@ -36,5 +36,5 @@ The Tauri app automatically sets:
 Install the desktop entry:
 
 ```bash
-cp src-tauri/assets/mission-control.desktop ~/.local/share/applications/
+cp src-tauri/assets/clawcontrol.desktop ~/.local/share/applications/
 ```

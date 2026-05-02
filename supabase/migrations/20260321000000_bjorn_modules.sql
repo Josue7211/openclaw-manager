@@ -32,20 +32,17 @@ CREATE INDEX IF NOT EXISTS idx_bjorn_modules_user ON bjorn_modules(user_id);
 CREATE INDEX IF NOT EXISTS idx_bjorn_modules_enabled ON bjorn_modules(enabled);
 CREATE INDEX IF NOT EXISTS idx_bjorn_versions_module ON bjorn_module_versions(module_id);
 
--- RLS
 ALTER TABLE bjorn_modules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bjorn_module_versions ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE bjorn_modules FORCE ROW LEVEL SECURITY;
 ALTER TABLE bjorn_module_versions FORCE ROW LEVEL SECURITY;
 
--- Policies: users can only access their own modules
 CREATE POLICY bjorn_modules_select ON bjorn_modules FOR SELECT USING (user_id = auth.uid());
 CREATE POLICY bjorn_modules_insert ON bjorn_modules FOR INSERT WITH CHECK (user_id = auth.uid());
 CREATE POLICY bjorn_modules_update ON bjorn_modules FOR UPDATE USING (user_id = auth.uid());
 CREATE POLICY bjorn_modules_delete ON bjorn_modules FOR DELETE USING (user_id = auth.uid());
 
--- Version policies: access through module ownership
 CREATE POLICY bjorn_versions_select ON bjorn_module_versions FOR SELECT
     USING (module_id IN (SELECT id FROM bjorn_modules WHERE user_id = auth.uid()));
 CREATE POLICY bjorn_versions_insert ON bjorn_module_versions FOR INSERT
@@ -53,5 +50,4 @@ CREATE POLICY bjorn_versions_insert ON bjorn_module_versions FOR INSERT
 CREATE POLICY bjorn_versions_delete ON bjorn_module_versions FOR DELETE
     USING (module_id IN (SELECT id FROM bjorn_modules WHERE user_id = auth.uid()));
 
--- Realtime publication
 ALTER PUBLICATION supabase_realtime ADD TABLE bjorn_modules;

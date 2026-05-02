@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { CheckCircle, CaretLeft, CaretRight, SpinnerGap, SkipForward, Database, ChatText, Robot, Rocket, Desktop, FilmStrip, Envelope, CalendarDots, Bell, Brain, Eye, EyeSlash } from '@phosphor-icons/react'
-import { api } from '@/lib/api'
+import { CheckCircle, CaretLeft, CaretRight, SpinnerGap, SkipForward, Database, ChatText, Robot, Rocket, Desktop, FilmStrip, Envelope, CalendarDots, Eye, EyeSlash, MagnifyingGlass } from '@phosphor-icons/react'
+import { api, getApiBase } from '@/lib/api'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
 import { getEnabledModules, setEnabledModules, APP_MODULES } from '@/lib/modules'
+import { SERVICE_GROUPS, type ServiceGroupDef, keychainKeyToCredKey } from '@/lib/service-registry'
 
 const STORAGE_KEY = 'setup-complete'
 
@@ -68,187 +69,6 @@ interface StepProps {
   onBack: () => void
 }
 
-// ── Field definitions for each service group ──
-
-interface FieldDef {
-  /** Display label */
-  label: string
-  /** Keychain key: e.g. "bluebubbles.host" */
-  keychainKey: string
-  /** Placeholder text */
-  placeholder: string
-  /** Whether this is a secret (password field) */
-  secret?: boolean
-  /** Input type override */
-  type?: string
-}
-
-interface ServiceGroupDef {
-  /** Unique ID */
-  id: string
-  /** Display name */
-  title: string
-  /** Description */
-  description: string
-  /** Icon component */
-  icon: React.ElementType
-  /** Which module IDs enable this group (empty = always shown) */
-  moduleIds: string[]
-  /** Whether this step can be skipped */
-  optional: boolean
-  /** Skip button label */
-  skipLabel?: string
-  /** Fields to collect */
-  fields: FieldDef[]
-  /** Supabase service name for PUT /api/secrets/:service */
-  services: { name: string; fieldKeys: string[] }[]
-  /** Connection test endpoint key (in /api/status/connections response) */
-  testKey?: string
-}
-
-const SERVICE_GROUPS: ServiceGroupDef[] = [
-  {
-    id: 'bluebubbles',
-    title: 'BlueBubbles',
-    description: 'iMessage bridge for Messages. Requires a Mac running the BlueBubbles server.',
-    icon: ChatText,
-    moduleIds: ['messages'],
-    optional: true,
-    skipLabel: "Skip — I don't have a Mac",
-    fields: [
-      { label: 'BlueBubbles Host URL', keychainKey: 'bluebubbles.host', placeholder: 'http://100.x.x.x:1234' },
-      { label: 'BlueBubbles Password', keychainKey: 'bluebubbles.password', placeholder: 'Desktop password', secret: true },
-    ],
-    services: [{ name: 'bluebubbles', fieldKeys: ['bluebubbles.host', 'bluebubbles.password'] }],
-    testKey: 'bluebubbles',
-  },
-  {
-    id: 'openclaw',
-    title: 'OpenClaw',
-    description: 'Remote AI workspace that powers chat sessions and agent tasks.',
-    icon: Robot,
-    moduleIds: ['chat'],
-    optional: false,
-    fields: [
-      { label: 'OpenClaw API URL', keychainKey: 'openclaw.api-url', placeholder: 'http://100.x.x.x:18789' },
-      { label: 'OpenClaw API Key', keychainKey: 'openclaw.api-key', placeholder: 'API key', secret: true },
-      { label: 'OpenClaw WebSocket URL', keychainKey: 'openclaw.ws', placeholder: 'ws://100.x.x.x:18789/ws' },
-      { label: 'OpenClaw Password', keychainKey: 'openclaw.password', placeholder: 'Password', secret: true },
-    ],
-    services: [{ name: 'openclaw', fieldKeys: ['openclaw.api-url', 'openclaw.api-key', 'openclaw.ws', 'openclaw.password'] }],
-    testKey: 'openclaw',
-  },
-  {
-    id: 'homelab',
-    title: 'Home Lab',
-    description: 'Proxmox virtualization and OPNsense firewall monitoring.',
-    icon: Desktop,
-    moduleIds: ['homelab'],
-    optional: true,
-    skipLabel: "Skip — I don't have a homelab",
-    fields: [
-      { label: 'Proxmox Host URL', keychainKey: 'proxmox.host', placeholder: 'https://100.x.x.x:8006' },
-      { label: 'Proxmox Token ID', keychainKey: 'proxmox.token-id', placeholder: 'user@pam!token-name' },
-      { label: 'Proxmox Token Secret', keychainKey: 'proxmox.token-secret', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', secret: true },
-      { label: 'OPNsense Host URL', keychainKey: 'opnsense.host', placeholder: 'https://100.x.x.x' },
-      { label: 'OPNsense API Key', keychainKey: 'opnsense.key', placeholder: 'API key', secret: true },
-      { label: 'OPNsense API Secret', keychainKey: 'opnsense.secret', placeholder: 'API secret', secret: true },
-    ],
-    services: [
-      { name: 'proxmox', fieldKeys: ['proxmox.host', 'proxmox.token-id', 'proxmox.token-secret'] },
-      { name: 'opnsense', fieldKeys: ['opnsense.host', 'opnsense.key', 'opnsense.secret'] },
-    ],
-    testKey: 'proxmox',
-  },
-  {
-    id: 'media',
-    title: 'Media Radar',
-    description: 'Plex media server, Sonarr for TV, and Radarr for movies.',
-    icon: FilmStrip,
-    moduleIds: ['media'],
-    optional: true,
-    skipLabel: 'Skip — no media stack',
-    fields: [
-      { label: 'Plex URL', keychainKey: 'plex.url', placeholder: 'http://100.x.x.x:32400' },
-      { label: 'Plex Token', keychainKey: 'plex.token', placeholder: 'X-Plex-Token value', secret: true },
-      { label: 'Sonarr URL', keychainKey: 'sonarr.url', placeholder: 'http://100.x.x.x:8989' },
-      { label: 'Sonarr API Key', keychainKey: 'sonarr.api-key', placeholder: 'API key', secret: true },
-      { label: 'Radarr URL', keychainKey: 'radarr.url', placeholder: 'http://100.x.x.x:7878' },
-      { label: 'Radarr API Key', keychainKey: 'radarr.api-key', placeholder: 'API key', secret: true },
-    ],
-    services: [
-      { name: 'plex', fieldKeys: ['plex.url', 'plex.token'] },
-      { name: 'sonarr', fieldKeys: ['sonarr.url', 'sonarr.api-key'] },
-      { name: 'radarr', fieldKeys: ['radarr.url', 'radarr.api-key'] },
-    ],
-  },
-  {
-    id: 'email',
-    title: 'Email',
-    description: 'IMAP email integration for inbox monitoring.',
-    icon: Envelope,
-    moduleIds: ['email'],
-    optional: true,
-    skipLabel: 'Skip — no email integration',
-    fields: [
-      { label: 'IMAP Host', keychainKey: 'email.host', placeholder: 'imap.example.com' },
-      { label: 'IMAP Port', keychainKey: 'email.port', placeholder: '993', type: 'text' },
-      { label: 'Email Username', keychainKey: 'email.user', placeholder: 'you@example.com' },
-      { label: 'Email Password', keychainKey: 'email.password', placeholder: 'App password', secret: true },
-    ],
-    services: [{ name: 'email', fieldKeys: ['email.host', 'email.port', 'email.user', 'email.password'] }],
-  },
-  {
-    id: 'calendar',
-    title: 'Calendar',
-    description: 'CalDAV calendar integration.',
-    icon: CalendarDots,
-    moduleIds: ['calendar'],
-    optional: true,
-    skipLabel: 'Skip — no CalDAV',
-    fields: [
-      { label: 'CalDAV URL', keychainKey: 'caldav.url', placeholder: 'https://caldav.example.com/dav/' },
-      { label: 'CalDAV Username', keychainKey: 'caldav.username', placeholder: 'username' },
-      { label: 'CalDAV Password', keychainKey: 'caldav.password', placeholder: 'Password', secret: true },
-    ],
-    services: [{ name: 'caldav', fieldKeys: ['caldav.url', 'caldav.username', 'caldav.password'] }],
-  },
-  {
-    id: 'ntfy',
-    title: 'Notifications (ntfy)',
-    description: 'Push notifications via ntfy server.',
-    icon: Bell,
-    moduleIds: [],
-    optional: true,
-    skipLabel: 'Skip — no ntfy',
-    fields: [
-      { label: 'ntfy URL', keychainKey: 'ntfy.url', placeholder: 'https://ntfy.example.com' },
-      { label: 'ntfy Topic', keychainKey: 'ntfy.topic', placeholder: 'mission-control' },
-    ],
-    services: [{ name: 'ntfy', fieldKeys: ['ntfy.url', 'ntfy.topic'] }],
-  },
-  {
-    id: 'anthropic',
-    title: 'Anthropic',
-    description: 'Anthropic API key for direct Claude access.',
-    icon: Brain,
-    moduleIds: [],
-    optional: true,
-    skipLabel: 'Skip — no Anthropic key',
-    fields: [
-      { label: 'Anthropic API Key', keychainKey: 'anthropic.api-key', placeholder: 'sk-ant-...', secret: true },
-    ],
-    services: [{ name: 'anthropic', fieldKeys: ['anthropic.api-key'] }],
-  },
-]
-
-// Map keychain keys to Supabase credential keys (strip the service prefix, replace . and - with _)
-function keychainKeyToCredKey(keychainKey: string): string {
-  const parts = keychainKey.split('.')
-  // e.g. "bluebubbles.host" -> "host", "openclaw.api-url" -> "api_url"
-  const credPart = parts.slice(1).join('_')
-  return credPart.replace(/-/g, '_')
-}
 
 // ── Step 1: Welcome ──
 
@@ -257,7 +77,7 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '8px 0' }}>
       <img
         src="/logo-128.png"
-        alt="OpenClaw Manager"
+        alt="ClawControl"
         width={72}
         height={72}
         style={{ borderRadius: '18px' }}
@@ -267,7 +87,7 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
           margin: 0, fontSize: '22px', fontWeight: 700,
           color: 'var(--text-primary)', letterSpacing: '-0.02em',
         }}>
-          Welcome to OpenClaw Manager
+          Welcome to ClawControl
         </h2>
         <p style={{
           margin: '10px 0 0', fontSize: '13px',
@@ -283,7 +103,7 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
         background: 'var(--bg-white-03)', border: '1px solid var(--bg-white-04)',
       }}>
         <SetupFeature icon={Database} title="Supabase" desc="Database and authentication (required)" />
-        <SetupFeature icon={Robot} title="AI & Chat" desc="OpenClaw, Anthropic (optional)" />
+        <SetupFeature icon={Robot} title="AI & Chat" desc="Harness backend, Anthropic (optional)" />
         <SetupFeature icon={ChatText} title="Messages" desc="iMessage via BlueBubbles (Mac only)" />
         <SetupFeature icon={Desktop} title="Services" desc="Homelab, Media, Email, Calendar, Notifications" />
       </div>
@@ -344,7 +164,7 @@ function StepModuleSelection({ onNext, onBack }: StepProps) {
 
   const iconMap: Record<string, React.ElementType> = {
     messages: ChatText, chat: Robot, homelab: Desktop, media: FilmStrip,
-    email: Envelope, calendar: CalendarDots,
+    email: Envelope, calendar: CalendarDots, 'job-hunter': MagnifyingGlass,
   }
 
   return (
@@ -792,7 +612,7 @@ function StepDone({ onFinish, activeGroups }: { onFinish: () => void; activeGrou
       // Fallback: try backend health check
       if (!results['Supabase']) {
         try {
-          const res = await fetch('http://127.0.0.1:3000/api/status', { signal: AbortSignal.timeout(3000) })
+          const res = await fetch(`${getApiBase()}/api/status`, { signal: AbortSignal.timeout(3000) })
           if (res.ok) results['Supabase'] = true
         } catch { /* */ }
       }

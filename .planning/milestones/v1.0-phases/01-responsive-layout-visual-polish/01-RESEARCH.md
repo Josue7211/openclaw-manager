@@ -51,7 +51,7 @@ The app currently uses Plus Jakarta Sans (loaded via Google Fonts CDN) and needs
 - Widget-style placement -- Phase 4
 - Font customization UI -- Phase 2
 - Compact density mode -- Phase 2
-- Blank canvas for Bjorn -- Phase 7
+- Blank canvas for Agent -- Phase 7
 </user_constraints>
 
 <phase_requirements>

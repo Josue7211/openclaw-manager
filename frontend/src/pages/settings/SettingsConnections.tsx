@@ -1,21 +1,44 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense, useRef } from 'react'
 import { Warning } from '@phosphor-icons/react'
-import { api } from '@/lib/api'
+import {
+  api,
+  CONFIGURED_BACKEND_BASE_CHANGED_EVENT,
+  getConfiguredBackendBase,
+  setApiBase,
+  setApiKey,
+  setConfiguredBackendBase,
+} from '@/lib/api'
 import { isDemoMode } from '@/lib/demo-data'
+import { getSetupStatus, normalizeBackendUrl, pairWithBackend } from '@/lib/setup'
 import { useSaveSecret } from '@/hooks/useUserSecrets'
 import { resetWizard as resetSetupWizard } from '@/lib/wizard-store'
 import { Button } from '@/components/ui/Button'
+import {
+  CONNECTION_SETTINGS,
+  type ConnectionSettingId,
+} from '@/lib/service-registry'
 import { row, rowLast, val, inputStyle, sectionLabel } from './shared'
 
 const OnboardingWelcome = lazy(() => import('@/components/OnboardingWelcome'))
 
 export default function SettingsConnections() {
-  const [bbUrl, setBbUrl] = useState('')
-  const [ocUrl, setOcUrl] = useState('')
-  const [asUrl, setAsUrl] = useState('')
-  const [bbExpectedHost, setBbExpectedHost] = useState('')
-  const [ocExpectedHost, setOcExpectedHost] = useState('')
-  const [asExpectedHost, setAsExpectedHost] = useState('')
+  const suppressNextBackendRefreshRef = useRef(false)
+  const [connectionUrls, setConnectionUrls] = useState<Record<ConnectionSettingId, string>>({
+    bluebubbles: '',
+    openclaw: '',
+    sunshine: '',
+    vnc: '',
+    agentsecrets: '',
+    agentshell: '',
+  })
+  const [expectedHosts, setExpectedHosts] = useState<Record<ConnectionSettingId, string>>({
+    bluebubbles: '',
+    openclaw: '',
+    sunshine: '',
+    vnc: '',
+    agentsecrets: '',
+    agentshell: '',
+  })
   const [bindHost, setBindHost] = useState('')
   const [agentKey, setAgentKey] = useState('')
   const [connSaving, setConnSaving] = useState(false)
@@ -24,58 +47,216 @@ export default function SettingsConnections() {
   const [connResults, setConnResults] = useState<Record<string, { status: string; latency_ms?: number; error?: string; peer_hostname?: string; peer_verified?: boolean }> | null>(null)
   const [showSetupWizard, setShowSetupWizard] = useState(false)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
+  const [backendUrl, setBackendUrl] = useState(getConfiguredBackendBase())
+  const [pairingToken, setPairingToken] = useState('')
+  const [backendChecking, setBackendChecking] = useState(false)
+  const [backendSaving, setBackendSaving] = useState(false)
+  const [backendPairing, setBackendPairing] = useState(false)
+  const [backendStatus, setBackendStatus] = useState<null | {
+    backend_public_base_url: string
+    pairing_required: boolean
+    services: {
+      supabase: { configured: boolean; reachable: boolean }
+      openclaw: { configured: boolean; reachable: boolean }
+      memd: { configured: boolean; reachable: boolean }
+    }
+    missing: string[]
+  }>(null)
+  const [backendStatusMessage, setBackendStatusMessage] = useState<string | null>(null)
 
   const saveSecretMutation = useSaveSecret()
+
+  const updateConnectionUrl = useCallback((id: ConnectionSettingId, value: string) => {
+    setConnectionUrls(prev => ({ ...prev, [id]: value }))
+  }, [])
+
+  const updateExpectedHost = useCallback((id: ConnectionSettingId, value: string) => {
+    setExpectedHosts(prev => ({ ...prev, [id]: value }))
+  }, [])
 
   // Load saved connection URLs from the backend API first (Supabase-encrypted),
   // falling back to OS keychain, then to the backend's active config (which
   // includes .env.local values merged at startup).
   useEffect(() => {
-    let keychainBb: string | null = null
-    let keychainOc: string | null = null
-    let keychainAs: string | null = null
-
     let keychainBindHost: string | null = null
     let keychainAgentKey: string | null = null
+    let keychainBackendBase: string | null = null
 
     const loadKeychain = window.__TAURI_INTERNALS__
       ? import('@tauri-apps/api/core').then(({ invoke }) =>
           Promise.all([
-            invoke<string | null>('get_secret', { key: 'bluebubbles.host' }).then(v => { keychainBb = v }),
-            invoke<string | null>('get_secret', { key: 'openclaw.api-url' }).then(v => { keychainOc = v }),
-            invoke<string | null>('get_secret', { key: 'agentshell.url' }).then(v => { keychainAs = v }),
+            ...CONNECTION_SETTINGS.map(setting =>
+              invoke<string | null>('get_secret', { key: setting.urlKeychainKey }).then(v => {
+                setConnectionUrls(prev => ({ ...prev, [setting.id]: v || prev[setting.id] }))
+              })
+            ),
             invoke<string | null>('get_secret', { key: 'mc-bind.host' }).then(v => { keychainBindHost = v }),
             invoke<string | null>('get_secret', { key: 'mc-agent.key' }).then(v => { keychainAgentKey = v }),
+            invoke<string | null>('get_secret', { key: 'backend.public-base-url' }).then(v => { keychainBackendBase = v }),
           ])
         ).catch(() => {})
       : Promise.resolve()
 
-    const loadFromApi = Promise.all([
-      api.get<Record<string, string>>('/api/secrets/bluebubbles').catch(() => null),
-      api.get<Record<string, string>>('/api/secrets/openclaw').catch(() => null),
-      api.get<Record<string, string>>('/api/secrets/agentshell').catch(() => null),
-    ])
+    const loadFromApi = Promise.all(
+      CONNECTION_SETTINGS.map(setting =>
+        api.get<Record<string, string>>(`/api/secrets/${setting.apiSecretService}`).catch(() => null)
+      )
+    )
 
-    const loadActiveConfig = api.get<{ bluebubbles_url?: string; openclaw_url?: string; agentshell_url?: string }>('/api/status/active-config').catch(() => null)
+    const loadActiveConfig = api.get<{
+      bluebubbles_url?: string
+      openclaw_url?: string
+      sunshine_url?: string
+      vnc_url?: string
+      agentsecrets_url?: string
+      agentshell_url?: string
+    }>('/api/status/active-config').catch(() => null)
 
     Promise.all([loadKeychain, loadFromApi, loadActiveConfig]).then(([, apiSecrets, activeConfig]) => {
-      const [bbSecrets, ocSecrets, asSecrets] = apiSecrets ?? [null, null, null]
-      // Priority: API secrets (Supabase) > OS keychain > active config (env)
-      setBbUrl(bbSecrets?.url || keychainBb || activeConfig?.bluebubbles_url || '')
-      setOcUrl(ocSecrets?.url || keychainOc || activeConfig?.openclaw_url || '')
-      setAsUrl(asSecrets?.url || keychainAs || activeConfig?.agentshell_url || '')
+      const activeConfigMap: Record<ConnectionSettingId, string> = {
+        bluebubbles: activeConfig?.bluebubbles_url || '',
+        openclaw: activeConfig?.openclaw_url || '',
+        sunshine: activeConfig?.sunshine_url || '',
+        vnc: activeConfig?.vnc_url || '',
+        agentsecrets: activeConfig?.agentsecrets_url || '',
+        agentshell: activeConfig?.agentshell_url || '',
+      }
+
+      const loadedUrls: Partial<Record<ConnectionSettingId, string>> = {}
+      CONNECTION_SETTINGS.forEach((setting, index) => {
+        const apiUrl = apiSecrets?.[index]?.url
+        loadedUrls[setting.id] = apiUrl || activeConfigMap[setting.id] || ''
+      })
+      setConnectionUrls(prev => ({ ...prev, ...loadedUrls }))
+
       if (keychainBindHost) setBindHost(keychainBindHost)
       if (keychainAgentKey) setAgentKey(keychainAgentKey)
+      if (keychainBackendBase) setBackendUrl(keychainBackendBase)
     }).catch(() => {})
 
     // Load expected hostnames from user preferences
     api.get<{ ok: boolean; data: Record<string, unknown> }>('/api/user-preferences').then(resp => {
       const prefs = resp?.data ?? resp
-      if (prefs?.['bluebubbles.expected-host']) setBbExpectedHost(String(prefs['bluebubbles.expected-host']))
-      if (prefs?.['openclaw.expected-host']) setOcExpectedHost(String(prefs['openclaw.expected-host']))
-      if (prefs?.['agentshell.expected-host']) setAsExpectedHost(String(prefs['agentshell.expected-host']))
+      CONNECTION_SETTINGS.forEach(setting => {
+        const value = prefs?.[setting.expectedHostPreferenceKey]
+        if (value) {
+          updateExpectedHost(setting.id, String(value))
+        }
+      })
     }).catch(() => {})
-  }, [])
+  }, [updateExpectedHost])
+
+  const refreshBackendStatus = useCallback(async (targetBase = backendUrl, announce = true) => {
+    setBackendChecking(true)
+    if (announce) setBackendStatusMessage(null)
+    try {
+      const status = await getSetupStatus(targetBase)
+      setBackendStatus(status)
+      if (announce) setBackendStatusMessage('Backend reachable')
+      return status
+    } catch (e: unknown) {
+      setBackendStatus(null)
+      setBackendStatusMessage(`Error: ${e instanceof Error ? e.message : String(e)}`)
+      return null
+    } finally {
+      setBackendChecking(false)
+    }
+  }, [backendUrl])
+
+  useEffect(() => {
+    void refreshBackendStatus(getConfiguredBackendBase(), false)
+  }, [refreshBackendStatus])
+
+  useEffect(() => {
+    const onBackendChanged = () => {
+      if (suppressNextBackendRefreshRef.current) {
+        suppressNextBackendRefreshRef.current = false
+        return
+      }
+      const nextBase = getConfiguredBackendBase()
+      setBackendUrl(nextBase)
+      void refreshBackendStatus(nextBase, false)
+    }
+
+    window.addEventListener(CONFIGURED_BACKEND_BASE_CHANGED_EVENT, onBackendChanged)
+    return () => window.removeEventListener(CONFIGURED_BACKEND_BASE_CHANGED_EVENT, onBackendChanged)
+  }, [refreshBackendStatus])
+
+  const saveBackendTarget = useCallback(async () => {
+    const normalized = normalizeBackendUrl(backendUrl)
+    if (!normalized) {
+      setBackendStatusMessage('Error: backend URL is required')
+      return
+    }
+
+    setBackendSaving(true)
+    setBackendStatusMessage(null)
+    try {
+      await getSetupStatus(normalized)
+      let deviceApiKey: string | null = null
+      if (window.__TAURI_INTERNALS__) {
+        const { invoke } = await import('@tauri-apps/api/core')
+        deviceApiKey = await invoke<string | null>('get_secret', { key: 'backend.device-api-key' }).catch(() => null)
+        await invoke('set_secret', { key: 'backend.public-base-url', value: normalized })
+      }
+      suppressNextBackendRefreshRef.current = true
+      setConfiguredBackendBase(normalized)
+      if (deviceApiKey?.trim()) {
+        setApiBase(normalized)
+        setApiKey(deviceApiKey)
+        const { setChatSocketApiKey } = await import('@/lib/hooks/useChatSocket')
+        setChatSocketApiKey(deviceApiKey)
+      }
+      setBackendUrl(normalized)
+      await refreshBackendStatus(normalized, false)
+      setBackendStatusMessage('Backend target saved')
+    } catch (e: unknown) {
+      setBackendStatusMessage(`Error: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setBackendSaving(false)
+    }
+  }, [backendUrl, refreshBackendStatus])
+
+  const handlePairBackend = useCallback(async () => {
+    const normalized = normalizeBackendUrl(backendUrl)
+    if (!normalized) {
+      setBackendStatusMessage('Error: backend URL is required')
+      return
+    }
+    if (!pairingToken.trim()) {
+      setBackendStatusMessage('Error: pairing token is required')
+      return
+    }
+
+    setBackendPairing(true)
+    setBackendStatusMessage(null)
+    try {
+      const pairResult = await pairWithBackend(pairingToken.trim(), 'ClawControl Desktop', normalized)
+      if (window.__TAURI_INTERNALS__) {
+        const { invoke } = await import('@tauri-apps/api/core')
+        await invoke('set_secret', { key: 'backend.public-base-url', value: normalized })
+        if (pairResult.device_api_key) {
+          await invoke('set_secret', { key: 'backend.device-api-key', value: pairResult.device_api_key })
+        }
+      }
+      suppressNextBackendRefreshRef.current = true
+      setConfiguredBackendBase(normalized)
+      setApiBase(normalized)
+      if (pairResult.device_api_key?.trim()) {
+        setApiKey(pairResult.device_api_key)
+        const { setChatSocketApiKey } = await import('@/lib/hooks/useChatSocket')
+        setChatSocketApiKey(pairResult.device_api_key)
+      }
+      setBackendUrl(normalized)
+      setPairingToken('')
+      await refreshBackendStatus(normalized, false)
+      setBackendStatusMessage('Backend paired')
+    } catch (e: unknown) {
+      setBackendStatusMessage(`Error: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setBackendPairing(false)
+    }
+  }, [backendUrl, pairingToken, refreshBackendStatus])
 
   const saveConnections = useCallback(async () => {
     setConnSaving(true)
@@ -83,27 +264,21 @@ export default function SettingsConnections() {
     try {
       // Save to Supabase (encrypted) via backend API
       await Promise.all([
-        saveSecretMutation.mutateAsync({
-          service: 'bluebubbles',
-          credentials: { url: bbUrl },
-        }),
-        saveSecretMutation.mutateAsync({
-          service: 'openclaw',
-          credentials: { url: ocUrl },
-        }),
-        saveSecretMutation.mutateAsync({
-          service: 'agentshell',
-          credentials: { url: asUrl },
-        }),
+        ...CONNECTION_SETTINGS.map(setting =>
+          saveSecretMutation.mutateAsync({
+            service: setting.apiSecretService,
+            credentials: { url: connectionUrls[setting.id] },
+          })
+        ),
       ])
 
       // Also save to OS keychain as local cache/fallback (for startup before login)
       if (window.__TAURI_INTERNALS__) {
         const { invoke } = await import('@tauri-apps/api/core')
         await Promise.all([
-          invoke('set_secret', { key: 'bluebubbles.host', value: bbUrl }),
-          invoke('set_secret', { key: 'openclaw.api-url', value: ocUrl }),
-          invoke('set_secret', { key: 'agentshell.url', value: asUrl }),
+          ...CONNECTION_SETTINGS.map(setting =>
+            invoke('set_secret', { key: setting.urlKeychainKey, value: connectionUrls[setting.id] })
+          ),
           bindHost ? invoke('set_secret', { key: 'mc-bind.host', value: bindHost }) : Promise.resolve(),
           agentKey ? invoke('set_secret', { key: 'mc-agent.key', value: agentKey }) : Promise.resolve(),
         ]).catch(() => {
@@ -112,12 +287,11 @@ export default function SettingsConnections() {
       }
 
       // Save expected hostnames to user preferences
+      const nextPreferences = Object.fromEntries(
+        CONNECTION_SETTINGS.map(setting => [setting.expectedHostPreferenceKey, expectedHosts[setting.id]])
+      )
       await api.patch('/api/user-preferences', {
-        preferences: {
-          'bluebubbles.expected-host': bbExpectedHost,
-          'openclaw.expected-host': ocExpectedHost,
-          'agentshell.expected-host': asExpectedHost,
-        }
+        preferences: nextPreferences,
       }).catch(() => {})
 
       setConnSaveStatus('Saved & encrypted. Restart to apply changes.')
@@ -126,7 +300,7 @@ export default function SettingsConnections() {
     } finally {
       setConnSaving(false)
     }
-  }, [bbUrl, ocUrl, asUrl, bbExpectedHost, ocExpectedHost, asExpectedHost, bindHost, agentKey, saveSecretMutation])
+  }, [agentKey, bindHost, connectionUrls, expectedHosts, saveSecretMutation])
 
   const testConnections = useCallback(async () => {
     setConnTesting(true)
@@ -163,96 +337,138 @@ export default function SettingsConnections() {
   }
   const hostInputStyle: React.CSSProperties = { ...inputStyle, width: '140px', fontSize: '11px' }
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '(not set)'
+  const normalizedBackendUrl = backendUrl.trim().replace(/\/+$/, '')
+  const activeBackendUrl = backendStatus?.backend_public_base_url || normalizedBackendUrl
+  const backendReady = !!backendStatus?.services.supabase.reachable && !!backendStatus?.services.openclaw.reachable
+  const backendNeedsPairing = backendStatus?.pairing_required === true
+  const backendSummary = backendStatus
+    ? backendNeedsPairing
+      ? 'Backend reachable, pairing required'
+      : backendReady
+        ? 'Backend ready'
+        : 'Backend reachable, some core services still need work'
+    : backendChecking
+      ? 'Checking backend...'
+      : 'No backend status yet'
+  const backendDetails = backendStatus
+    ? `Supabase ${backendStatus.services.supabase.reachable ? 'online' : backendStatus.services.supabase.configured ? 'configured but offline' : 'not configured'} • Harness ${backendStatus.services.openclaw.reachable ? 'online' : backendStatus.services.openclaw.configured ? 'configured but offline' : 'not configured'} • MemD ${backendStatus.services.memd.reachable ? 'online' : backendStatus.services.memd.configured ? 'configured but offline' : 'offline'}`
+    : 'Run a backend check to validate the selected server.'
 
   return (
     <div>
-      {isDemoMode() && (<div style={{ background: 'var(--warning-a08)', border: '1px solid var(--warning-a25)', borderRadius: 'var(--radius-md)', padding: '16px 20px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Warning size={16} style={{ color: 'var(--warning)', flexShrink: 0 }} /><span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--warning)' }}>You're in demo mode</span></div><p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>No services are connected. The app is showing sample data so you can explore the interface. To use real data, set the following environment variables and restart:</p><div style={{ background: 'var(--overlay-light)', borderRadius: '6px', padding: '10px 14px', fontFamily: 'monospace', fontSize: '11px', color: 'var(--text-primary)', lineHeight: 1.8 }}><div><span style={{ color: 'var(--accent)' }}>VITE_SUPABASE_URL</span>=https://your-project.supabase.co</div><div><span style={{ color: 'var(--accent)' }}>VITE_SUPABASE_ANON_KEY</span>=your-anon-key</div></div><p style={{ margin: 0, fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5 }}>Then configure BlueBubbles and OpenClaw URLs below (saved to OS keychain).</p></div>)}
+      {isDemoMode() && (<div style={{ background: 'var(--warning-a08)', border: '1px solid var(--warning-a25)', borderRadius: 'var(--radius-md)', padding: '16px 20px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Warning size={16} style={{ color: 'var(--warning)', flexShrink: 0 }} /><span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--warning)' }}>You're in demo mode</span></div><p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>No services are connected. The app is showing sample data so you can explore the interface. To use real data, set the following environment variables and restart:</p><div style={{ background: 'var(--overlay-light)', borderRadius: '6px', padding: '10px 14px', fontFamily: 'monospace', fontSize: '11px', color: 'var(--text-primary)', lineHeight: 1.8 }}><div><span style={{ color: 'var(--accent)' }}>VITE_SUPABASE_URL</span>=https://your-project.supabase.co</div><div><span style={{ color: 'var(--accent)' }}>VITE_SUPABASE_ANON_KEY</span>=your-anon-key</div></div><p style={{ margin: 0, fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5 }}>Then configure BlueBubbles and the harness URL below (saved to OS keychain).</p></div>)}
       <div style={sectionLabel}>Service Connections</div>
       <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 16px' }}>
         Configure URLs for external services. Credentials are encrypted and stored in Supabase with a local keychain fallback.
         Set expected Tailscale hostnames to verify peer identity.
       </p>
 
+      <div style={{ ...sectionLabel, marginTop: '0' }}>Backend Server</div>
+      <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 16px' }}>
+        Choose which server this desktop app should use for auth, setup, and data. Check it first, then save or pair it.
+      </p>
+
       <div style={row}>
         <div style={{ flex: 1 }}>
-          <span>BlueBubbles</span>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>iMessage bridge server URL</div>
+          <span>Backend URL</span>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>The server ClawControl will talk to.</div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-          <input
-            style={inputStyle}
-            value={bbUrl}
-            onChange={e => setBbUrl(e.target.value)}
-            placeholder="http://100.x.x.x:1234"
-            aria-label="BlueBubbles URL"
-          />
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Expected host:</span>
-            <input
-              style={hostInputStyle}
-              value={bbExpectedHost}
-              onChange={e => setBbExpectedHost(e.target.value)}
-              placeholder="e.g. macbook"
-              aria-label="BlueBubbles expected Tailscale hostname"
-            />
-          </div>
-          {connResults?.bluebubbles && statusLabel(connResults.bluebubbles)}
-        </div>
+        <input
+          style={inputStyle}
+          value={backendUrl}
+          onChange={e => setBackendUrl(e.target.value)}
+          placeholder="https://your-backend.example.com"
+          aria-label="Backend URL"
+        />
       </div>
 
       <div style={row}>
         <div style={{ flex: 1 }}>
-          <span>OpenClaw API</span>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Remote AI workspace API</div>
+          <span>Pairing Token</span>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Only needed if this server requires device pairing.</div>
+        </div>
+        <input
+          type="password"
+          style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '11px' }}
+          value={pairingToken}
+          onChange={e => setPairingToken(e.target.value)}
+          placeholder="Paste pairing token"
+          aria-label="Pairing token"
+        />
+      </div>
+
+      <div style={rowLast}>
+        <div style={{ flex: 1 }}>
+          <span>Backend Status</span>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+            {backendSummary}
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+            {backendDetails}
+          </div>
+          {backendStatus?.missing?.length ? (
+            <div style={{ fontSize: '11px', color: 'var(--gold)', marginTop: '4px' }}>
+              Missing: {backendStatus.missing.join(', ')}
+            </div>
+          ) : null}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-          <input
-            style={inputStyle}
-            value={ocUrl}
-            onChange={e => setOcUrl(e.target.value)}
-            placeholder="http://100.x.x.x:18789"
-            aria-label="OpenClaw API URL"
-          />
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Expected host:</span>
-            <input
-              style={hostInputStyle}
-              value={ocExpectedHost}
-              onChange={e => setOcExpectedHost(e.target.value)}
-              placeholder="e.g. openclaw-vm"
-              aria-label="OpenClaw expected Tailscale hostname"
-            />
-          </div>
-          {connResults?.openclaw && statusLabel(connResults.openclaw)}
+          <span style={{ ...val, maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {activeBackendUrl}
+          </span>
+          {backendStatusMessage && (
+            <span style={{ fontSize: '11px', fontFamily: 'monospace', color: backendStatusMessage.startsWith('Error') ? 'var(--red)' : 'var(--secondary)' }}>
+              {backendStatusMessage}
+            </span>
+          )}
         </div>
       </div>
 
-      <div style={row}>
-        <div style={{ flex: 1 }}>
-          <span>AgentShell</span>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>OpenClaw adapter shell URL</div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-          <input
-            style={inputStyle}
-            value={asUrl}
-            onChange={e => setAsUrl(e.target.value)}
-            placeholder="http://100.x.x.x:8077"
-            aria-label="AgentShell URL"
-          />
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Expected host:</span>
-            <input
-              style={hostInputStyle}
-              value={asExpectedHost}
-              onChange={e => setAsExpectedHost(e.target.value)}
-              placeholder="e.g. mission-control"
-              aria-label="AgentShell expected Tailscale hostname"
-            />
-          </div>
-          {connResults?.agentshell && statusLabel(connResults.agentshell)}
-        </div>
+      <div style={{ display: 'flex', gap: '8px', marginTop: '16px', marginBottom: '24px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <Button variant="secondary" onClick={() => void refreshBackendStatus()} disabled={backendChecking} style={{ fontSize: '12px', padding: '8px 16px' }}>
+          {backendChecking ? 'Checking...' : 'Check Server'}
+        </Button>
+        <Button variant="primary" onClick={() => void saveBackendTarget()} disabled={backendSaving} style={{ fontSize: '12px', padding: '8px 16px' }}>
+          {backendSaving ? 'Saving...' : 'Save Server'}
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={() => void handlePairBackend()}
+          disabled={backendPairing || backendStatus?.pairing_required !== true}
+          style={{ fontSize: '12px', padding: '8px 16px', color: 'var(--text-secondary)' }}
+        >
+          {backendPairing ? 'Pairing...' : 'Pair Device'}
+        </Button>
       </div>
+
+      {CONNECTION_SETTINGS.map(setting => (
+        <div key={setting.id} style={row}>
+          <div style={{ flex: 1 }}>
+            <span>{setting.label}</span>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>{setting.description}</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+            <input
+              style={inputStyle}
+              value={connectionUrls[setting.id]}
+              onChange={e => updateConnectionUrl(setting.id, e.target.value)}
+              placeholder={setting.urlPlaceholder}
+              aria-label={`${setting.label} URL`}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Expected host:</span>
+              <input
+                style={hostInputStyle}
+                value={expectedHosts[setting.id]}
+                onChange={e => updateExpectedHost(setting.id, e.target.value)}
+                placeholder={setting.expectedHostPlaceholder}
+                aria-label={`${setting.label} expected Tailscale hostname`}
+              />
+            </div>
+            {connResults?.[setting.id] && statusLabel(connResults[setting.id])}
+          </div>
+        </div>
+      ))}
 
       <div style={rowLast}>
         <div style={{ flex: 1 }}>
@@ -281,7 +497,7 @@ export default function SettingsConnections() {
 
       <div style={{ ...sectionLabel, marginTop: '24px' }}>Server Access</div>
       <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 16px' }}>
-        Allow external agents (like Bjorn) to reach the OpenClaw Manager API over Tailscale. Requires restart.
+        Allow external agents to reach the ClawControl API over Tailscale. Requires restart.
       </p>
 
       <div style={row}>

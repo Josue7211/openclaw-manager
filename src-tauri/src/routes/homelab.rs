@@ -3,6 +3,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::OnceLock;
+use tokio::process::Command;
 use tracing::warn;
 
 use crate::error::AppError;
@@ -21,9 +22,9 @@ fn mock_proxmox() -> Value {
             "uptime": 864_000
         }],
         "vms": [
-            { "name": "media-vm",     "status": "running", "cpu": 0.05, "mem": 4_294_967_296_u64 },
-            { "name": "nextcloud-vm", "status": "running", "cpu": 0.02, "mem": 2_147_483_648_u64 },
-            { "name": "openclaw-vm",  "status": "running", "cpu": 0.08, "mem": 4_294_967_296_u64 },
+            { "vmid": 100, "name": "media-vm",     "node": "pve", "status": "running", "cpu": 0.05, "mem": 4_294_967_296_u64, "maxmem": 25_769_803_776_u64 },
+            { "vmid": 400, "name": "nextcloud-vm", "node": "pve", "status": "running", "cpu": 0.02, "mem": 2_147_483_648_u64, "maxmem": 8_589_934_592_u64 },
+            { "vmid": 200, "name": "ai-gateway",  "node": "pve", "status": "running", "cpu": 0.08, "mem": 4_294_967_296_u64, "maxmem": 17_179_869_184_u64 },
         ]
     })
 }
@@ -63,9 +64,11 @@ struct ProxmoxResourceRaw {
     resource_type: Option<String>,
     name: Option<String>,
     vmid: Option<u64>,
+    node: Option<String>,
     status: Option<String>,
     cpu: Option<f64>,
     mem: Option<u64>,
+    maxmem: Option<u64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -80,10 +83,13 @@ struct ProxmoxNode {
 
 #[derive(Debug, Serialize)]
 struct ProxmoxVM {
+    vmid: u64,
     name: String,
+    node: String,
     status: String,
     cpu: f64,
     mem: u64,
+    maxmem: u64,
 }
 
 // ── Serde types for OPNsense API responses ──────────────────────────────────
@@ -134,7 +140,7 @@ async fn fetch_proxmox(state: &AppState) -> Option<Value> {
         if !token_id.is_empty() || !token_secret.is_empty() {
             warn!("Proxmox credentials are set but PROXMOX_HOST is not configured");
         }
-        return None;
+        return fetch_proxmox_ssh().await;
     }
 
     let client = insecure_client();
@@ -153,8 +159,7 @@ async fn fetch_proxmox(state: &AppState) -> Option<Value> {
         return None;
     }
 
-    let nodes_data: ProxmoxResponse<Vec<ProxmoxNodeRaw>> =
-        nodes_res.json().await.ok()?;
+    let nodes_data: ProxmoxResponse<Vec<ProxmoxNodeRaw>> = nodes_res.json().await.ok()?;
     let raw_nodes = nodes_data.data.unwrap_or_default();
 
     let nodes: Vec<ProxmoxNode> = raw_nodes
@@ -179,20 +184,12 @@ async fn fetch_proxmox(state: &AppState) -> Option<Value> {
         .await
     {
         if res.status().is_success() {
-            if let Ok(data) = res
-                .json::<ProxmoxResponse<Vec<ProxmoxResourceRaw>>>()
-                .await
-            {
+            if let Ok(data) = res.json::<ProxmoxResponse<Vec<ProxmoxResourceRaw>>>().await {
                 vms = data
                     .data
                     .unwrap_or_default()
                     .into_iter()
-                    .filter(|r| {
-                        matches!(
-                            r.resource_type.as_deref(),
-                            Some("qemu") | Some("lxc")
-                        )
-                    })
+                    .filter(|r| matches!(r.resource_type.as_deref(), Some("qemu") | Some("lxc")))
                     .map(|r| to_vm(&r))
                     .collect();
             }
@@ -235,15 +232,77 @@ async fn fetch_proxmox(state: &AppState) -> Option<Value> {
     }))
 }
 
+async fn ssh_output(host: &str, command: &str) -> Option<String> {
+    let output = tokio::time::timeout(
+        std::time::Duration::from_secs(8),
+        Command::new("ssh")
+            .arg("-o")
+            .arg("BatchMode=yes")
+            .arg("-o")
+            .arg("ConnectTimeout=6")
+            .arg(host)
+            .arg(command)
+            .output(),
+    )
+    .await
+    .ok()?
+    .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    String::from_utf8(output.stdout).ok()
+}
+
+async fn fetch_proxmox_ssh() -> Option<Value> {
+    let nodes_raw = ssh_output("proxmox", "pvesh get /nodes --output-format json").await?;
+    let resources_raw =
+        ssh_output("proxmox", "pvesh get /cluster/resources --type vm --output-format json")
+            .await
+            .unwrap_or_else(|| "[]".to_string());
+
+    let raw_nodes: Vec<ProxmoxNodeRaw> = serde_json::from_str(&nodes_raw).ok()?;
+    let raw_resources: Vec<ProxmoxResourceRaw> =
+        serde_json::from_str(&resources_raw).unwrap_or_default();
+
+    let nodes: Vec<ProxmoxNode> = raw_nodes
+        .iter()
+        .map(|n| ProxmoxNode {
+            name: n.node.clone().unwrap_or_default(),
+            status: n.status.clone().unwrap_or_default(),
+            cpu: n.cpu.unwrap_or(0.0),
+            mem_used: n.mem.unwrap_or(0),
+            mem_total: n.maxmem.unwrap_or(0),
+            uptime: n.uptime.unwrap_or(0),
+        })
+        .collect();
+
+    let vms: Vec<ProxmoxVM> = raw_resources
+        .into_iter()
+        .filter(|r| matches!(r.resource_type.as_deref(), Some("qemu") | Some("lxc")))
+        .map(|r| to_vm(&r))
+        .collect();
+
+    Some(json!({
+        "nodes": nodes,
+        "vms": vms,
+        "source": "ssh",
+    }))
+}
+
 fn to_vm(r: &ProxmoxResourceRaw) -> ProxmoxVM {
     ProxmoxVM {
+        vmid: r.vmid.unwrap_or(0),
         name: r
             .name
             .clone()
             .unwrap_or_else(|| format!("VM {}", r.vmid.unwrap_or(0))),
+        node: r.node.clone().unwrap_or_default(),
         status: r.status.clone().unwrap_or_default(),
         cpu: r.cpu.unwrap_or(0.0),
         mem: r.mem.unwrap_or(0),
+        maxmem: r.maxmem.unwrap_or(0),
     }
 }
 
@@ -265,12 +324,7 @@ async fn fetch_node_vms(
     };
 
     match res.json::<ProxmoxResponse<Vec<ProxmoxResourceRaw>>>().await {
-        Ok(data) => data
-            .data
-            .unwrap_or_default()
-            .iter()
-            .map(to_vm)
-            .collect(),
+        Ok(data) => data.data.unwrap_or_default().iter().map(to_vm).collect(),
         Err(_) => Vec::new(),
     }
 }
@@ -278,7 +332,8 @@ async fn fetch_node_vms(
 // ── OPNsense fetcher ────────────────────────────────────────────────────────
 
 async fn fetch_opnsense(state: &AppState) -> Option<Value> {
-    let mut url = state.secret("OPNSENSE_HOST")
+    let mut url = state
+        .secret("OPNSENSE_HOST")
         .or_else(|| state.secret("OPNSENSE_URL"))
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| {
@@ -287,7 +342,7 @@ async fn fetch_opnsense(state: &AppState) -> Option<Value> {
         });
 
     if url.is_empty() {
-        return None;
+        return fetch_opnsense_ssh().await;
     }
 
     // Force HTTPS (matching TS behavior)
@@ -295,15 +350,17 @@ async fn fetch_opnsense(state: &AppState) -> Option<Value> {
         url = format!("https://{}", &url[7..]);
     }
 
-    let key = state.secret("OPNSENSE_API_KEY")
+    let key = state
+        .secret("OPNSENSE_API_KEY")
         .or_else(|| state.secret("OPNSENSE_KEY"))
         .unwrap_or_default();
-    let secret = state.secret("OPNSENSE_API_SECRET")
+    let secret = state
+        .secret("OPNSENSE_API_SECRET")
         .or_else(|| state.secret("OPNSENSE_SECRET"))
         .unwrap_or_default();
 
     if key.is_empty() || secret.is_empty() {
-        return None;
+        return fetch_opnsense_ssh().await;
     }
 
     let client = insecure_client();
@@ -371,8 +428,10 @@ async fn fetch_opnsense(state: &AppState) -> Option<Value> {
                         .or_else(|| loadavg.split(',').next())
                     {
                         // Strip any non-numeric trailing chars
-                        let cleaned: String =
-                            first.chars().take_while(|c| *c == '.' || c.is_ascii_digit()).collect();
+                        let cleaned: String = first
+                            .chars()
+                            .take_while(|c| *c == '.' || c.is_ascii_digit())
+                            .collect();
                         if let Ok(load) = cleaned.parse::<f64>() {
                             cpu = (load / 4.0).min(1.0);
                         }
@@ -413,6 +472,12 @@ async fn fetch_opnsense(state: &AppState) -> Option<Value> {
         "wan_in": wan_in,
         "wan_out": wan_out,
     }))
+}
+
+async fn fetch_opnsense_ssh() -> Option<Value> {
+    let command = r#"sh -c 'total=$(sysctl -n hw.physmem 2>/dev/null || echo 0); free=$(sysctl -n vm.stats.vm.v_free_count 2>/dev/null || echo 0); page=$(sysctl -n hw.pagesize 2>/dev/null || echo 4096); used=$((total - free * page)); boot=$(sysctl -n kern.boottime 2>/dev/null | cut -d" " -f4 | tr -d ,); now=$(date +%s); uptime=$((now - ${boot:-now})); printf "{\"status\":\"online\",\"cpu\":0.0,\"mem_used\":%s,\"mem_total\":%s,\"uptime\":%s,\"wan_in\":\"N/A\",\"wan_out\":\"N/A\",\"source\":\"ssh\"}\n" "$used" "$total" "$uptime"'"#;
+    let raw = ssh_output("opnsense", command).await?;
+    serde_json::from_str(&raw).ok()
 }
 
 /// Parse OPNsense uptime string like "3 days, 03:58:11" into seconds.
@@ -486,38 +551,34 @@ async fn get_homelab(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let proxmox_configured = state.secret("PROXMOX_TOKEN_ID")
+    let proxmox_configured = state
+        .secret("PROXMOX_TOKEN_ID")
         .filter(|s| !s.is_empty())
         .is_some()
-        && state.secret("PROXMOX_TOKEN_SECRET")
+        && state
+            .secret("PROXMOX_TOKEN_SECRET")
             .filter(|s| !s.is_empty())
             .is_some();
 
-    let opnsense_configured = (state.secret("OPNSENSE_API_KEY")
+    let opnsense_configured = (state
+        .secret("OPNSENSE_API_KEY")
         .filter(|s| !s.is_empty())
         .is_some()
-        || state.secret("OPNSENSE_KEY")
+        || state
+            .secret("OPNSENSE_KEY")
             .filter(|s| !s.is_empty())
             .is_some())
-        && (state.secret("OPNSENSE_API_SECRET")
+        && (state
+            .secret("OPNSENSE_API_SECRET")
             .filter(|s| !s.is_empty())
             .is_some()
-            || state.secret("OPNSENSE_SECRET")
+            || state
+                .secret("OPNSENSE_SECRET")
                 .filter(|s| !s.is_empty())
                 .is_some());
 
-    // Neither service configured — return mock data with explanation
-    if !proxmox_configured && !opnsense_configured {
-        return Ok(Json(json!({
-            "error": "service_not_configured",
-            "message": "Neither Proxmox nor OPNsense credentials are configured. Set PROXMOX_TOKEN_ID/PROXMOX_TOKEN_SECRET and/or OPNSENSE_API_KEY/OPNSENSE_API_SECRET in .env.local.",
-            "proxmox": mock_proxmox(),
-            "opnsense": mock_opnsense(),
-            "mock": true,
-        })));
-    }
-
-    // Fetch both concurrently; each returns None on failure
+    // Fetch both concurrently; each returns None on failure. When API credentials
+    // are missing, each fetcher tries the local SSH host alias before giving up.
     let (proxmox_result, opnsense_result) =
         tokio::join!(fetch_proxmox(&state), fetch_opnsense(&state));
 
@@ -532,9 +593,15 @@ async fn get_homelab(
         "opnsense": opnsense,
     });
 
-    // Only include mock flag when at least one service fell back to mock data
+    // Only include mock flag when at least one service fell back to mock data.
+    // The configured booleans are kept for diagnostics; SSH fallbacks can be live
+    // even when API credentials are not configured.
     if !proxmox_live || !opnsense_live {
         response["mock"] = json!(true);
+        response["api_configured"] = json!({
+            "proxmox": proxmox_configured,
+            "opnsense": opnsense_configured,
+        });
     }
 
     Ok(Json(response))
@@ -546,8 +613,14 @@ mod tests {
 
     #[test]
     fn test_parse_opnsense_uptime() {
-        assert_eq!(parse_opnsense_uptime("3 days, 03:58:11"), 3 * 86400 + 3 * 3600 + 58 * 60 + 11);
-        assert_eq!(parse_opnsense_uptime("0 days, 01:30:00"), 1 * 3600 + 30 * 60);
+        assert_eq!(
+            parse_opnsense_uptime("3 days, 03:58:11"),
+            3 * 86400 + 3 * 3600 + 58 * 60 + 11
+        );
+        assert_eq!(
+            parse_opnsense_uptime("0 days, 01:30:00"),
+            1 * 3600 + 30 * 60
+        );
         assert_eq!(parse_opnsense_uptime("12:05:33"), 12 * 3600 + 5 * 60 + 33);
         assert_eq!(parse_opnsense_uptime("1 day, 00:00:01"), 86400 + 1);
     }
@@ -585,7 +658,10 @@ mod tests {
 
     #[test]
     fn test_parse_opnsense_uptime_plural_days() {
-        assert_eq!(parse_opnsense_uptime("15 days, 02:30:45"), 15 * 86400 + 2 * 3600 + 30 * 60 + 45);
+        assert_eq!(
+            parse_opnsense_uptime("15 days, 02:30:45"),
+            15 * 86400 + 2 * 3600 + 30 * 60 + 45
+        );
     }
 
     #[test]

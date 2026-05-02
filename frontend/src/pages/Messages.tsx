@@ -654,7 +654,7 @@ export default function MessagesPage() {
           <div className="card" style={{ padding: '32px', textAlign: 'center' }}>
             <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600 }}>BlueBubbles not configured</h2>
             <p style={{ margin: '0 0 20px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              Messages requires BlueBubbles running on your Mac.
+              Messages needs a BlueBubbles server before it can sync your conversations.
             </p>
             <div style={{
               background: 'var(--bg-base)', borderRadius: '8px', border: '1px solid var(--border)',
@@ -669,6 +669,23 @@ export default function MessagesPage() {
         </div>
       )
     }
+    if (error === 'bluebubbles_unreachable' || error === 'BlueBubbles unreachable') {
+      return (
+        <div style={{ maxWidth: '560px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px' }}>
+            <ChatText size={20} style={{ color: 'var(--accent)' }} />
+            <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 700 }}>Messages</h1>
+          </div>
+          <div className="card" style={{ padding: '32px', textAlign: 'center' }}>
+            <BellSlash size={32} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
+            <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600 }}>Messages are temporarily unavailable</h2>
+            <p style={{ margin: '0 0 20px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              ClawControl could not reach your BlueBubbles server. Check that your Mac is online and BlueBubbles is still running.
+            </p>
+          </div>
+        </div>
+      )
+    }
     return (
       <ErrorState resource="messages" onRetry={() => { setError(null); fetchConversations() }} />
     )
@@ -677,7 +694,7 @@ export default function MessagesPage() {
   /* ── Render ── */
 
   return (
-    <div style={{ display: 'flex', position: 'absolute', inset: 0, margin: '-20px -28px', gap: '0', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flex: 1, minHeight: 0, margin: '-20px -28px', gap: '0', overflow: 'hidden' }}>
 
       {/* ═══ Conversation list ═══ */}
       <ConversationList

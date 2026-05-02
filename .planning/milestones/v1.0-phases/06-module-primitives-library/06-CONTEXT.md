@@ -6,9 +6,9 @@
 <domain>
 ## Phase Boundary
 
-A comprehensive set of tested, themed, widget-compatible UI primitives that both users and Bjorn can compose modules from. 14 primitives total, each with a JSON config schema, widget compatibility, internal error handling, and theme compliance.
+A comprehensive set of tested, themed, widget-compatible UI primitives that both users and Agent can compose modules from. 14 primitives total, each with a JSON config schema, widget compatibility, internal error handling, and theme compliance.
 
-This phase creates the building blocks. Bjorn (Phase 7) composes them. Users can also use them directly as dashboard widgets.
+This phase creates the building blocks. Agent (Phase 7) composes them. Users can also use them directly as dashboard widgets.
 
 </domain>
 
@@ -18,7 +18,7 @@ This phase creates the building blocks. Bjorn (Phase 7) composes them. Users can
 ### Chart Rendering
 - Lightweight SVG-based charts — no heavy charting library (Recharts, Chart.js, etc.)
 - Custom SVG components for line chart and bar chart — keeps bundle small
-- Bjorn can generate SVG markup directly, which is impossible with canvas-based libraries
+- Agent can generate SVG markup directly, which is impossible with canvas-based libraries
 - Sparklines in stat cards use inline SVG paths
 - Tooltip positioning via CSS transform, not a portal
 
@@ -33,7 +33,7 @@ This phase creates the building blocks. Bjorn (Phase 7) composes them. Users can
 - Flat JSON schemas matching the existing `WidgetConfigSchema` type from Phase 4
 - Field types: `text`, `number`, `toggle`, `select`, `slider` (already defined)
 - Each primitive's schema documents every configurable property with defaults
-- Schema doubles as documentation — Bjorn reads schemas to understand what primitives accept
+- Schema doubles as documentation — Agent reads schemas to understand what primitives accept
 - VS Code-inspired: schema drives the config panel UI automatically (like VS Code's contributes.configuration)
 
 ### Internal State Management
@@ -47,7 +47,7 @@ This phase creates the building blocks. Bjorn (Phase 7) composes them. Users can
 - Primitives are registered in the Widget Registry via `registerWidget()` — same as built-in widgets
 - Each primitive can be lazy-loaded independently
 - Config schema is co-located with the component (exported from the same file)
-- Future: Bjorn generates new primitives that follow the same contract and register themselves
+- Future: Agent generates new primitives that follow the same contract and register themselves
 
 ### Theme Compliance
 - All colors via CSS variables — `var(--text-primary)`, `var(--accent)`, `var(--border)`, etc.
@@ -122,7 +122,7 @@ This phase creates the building blocks. Bjorn (Phase 7) composes them. Users can
 
 - VS Code's modular extension system as inspiration — each primitive is like a mini-extension with a manifest (configSchema), isolation (error boundary), and registration (registerWidget)
 - Primitives should feel like Lego blocks — composable, predictable, self-contained
-- Chart primitives should be simple enough that Bjorn can understand and generate them (SVG, not canvas)
+- Chart primitives should be simple enough that Agent can understand and generate them (SVG, not canvas)
 
 </specifics>
 

@@ -315,11 +315,67 @@ vi.mock('@/lib/dashboard-defaults', () => ({
   generateDefaultLayout: vi.fn(() => []),
 }))
 
-// Bjorn store
-vi.mock('@/lib/bjorn-store', () => ({
+vi.mock('@/pages/dashboard/useDashboardData', () => ({
+  useDashboardData: vi.fn(() => ({
+    _demo: false,
+    backendError: false,
+    subagentsError: null,
+    lastRefreshMs: 0,
+    panelIdea: null,
+    setPanelIdea: vi.fn(),
+    fastTick: vi.fn(),
+    slowTick: vi.fn(),
+    handleIdeaAction: vi.fn(),
+  })),
+}))
+
+vi.mock('@/pages/dashboard/DashboardGrid', () => ({
+  DashboardGrid: () => <div data-testid="dashboard-grid" />,
+}))
+
+vi.mock('@/pages/dashboard/DashboardHeader', () => ({
+  DashboardHeader: () => <div data-testid="dashboard-header" />,
+}))
+
+vi.mock('@/components/dashboard/DashboardEditBar', () => ({
+  DashboardEditBar: () => <div data-testid="dashboard-edit-bar" />,
+  useLongPress: () => ({}),
+}))
+
+vi.mock('@/components/dashboard/DashboardTabs', () => ({
+  DashboardTabs: () => <div data-testid="dashboard-tabs" />,
+}))
+
+vi.mock('@/pages/dashboard/IdeaDetailPanel', () => ({
+  IdeaDetailPanel: () => null,
+}))
+
+vi.mock('@/components/dashboard/WidgetPicker', () => ({
+  WidgetPicker: () => null,
+}))
+
+vi.mock('@/components/dashboard/RecycleBin', () => ({
+  RecycleBin: () => null,
+}))
+
+vi.mock('@/pages/Dashboard', () => ({
+  default: () => <div data-testid="dashboard-page" />,
+}))
+
+vi.mock('../Dashboard', () => ({
+  default: () => <div data-testid="dashboard-page" />,
+}))
+
+// Generated module store
+vi.mock('@/lib/generated-module-store', () => ({
   exposePrimitivesAPI: vi.fn(),
-  loadBjornModules: vi.fn(),
-  useBjornModules: vi.fn(() => []),
+  loadGeneratedModules: vi.fn(),
+  useGeneratedModules: vi.fn(() => []),
+  saveGeneratedModule: vi.fn(),
+  toggleGeneratedModule: vi.fn(() => Promise.resolve({ module: {} })),
+  deleteGeneratedModule: vi.fn(() => Promise.resolve()),
+  rollbackGeneratedModule: vi.fn(() => Promise.resolve({ module: {} })),
+  getGeneratedModuleVersions: vi.fn(() => Promise.resolve([])),
 }))
 
 // Command palette
@@ -384,6 +440,7 @@ const MODULE_PAGE_MAP: Record<string, () => Promise<{ default: React.ComponentTy
   '/calendar': () => import('../Calendar'),
   '/reminders': () => import('../Reminders'),
   '/email': () => import('../Email'),
+  '/jobs': () => import('../JobHunter'),
   '/pomodoro': () => import('../Pomodoro'),
   '/homelab': () => import('../HomeLab'),
   '/media': () => import('../MediaRadar'),

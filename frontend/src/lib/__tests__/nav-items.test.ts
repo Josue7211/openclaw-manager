@@ -54,11 +54,11 @@ describe('agentDashboardItems', () => {
     }
   })
 
-  it('includes Dashboard, Missions, and OpenClaw', () => {
+  it('includes Dashboard, Missions, and Harness', () => {
     const labels = agentDashboardItems.map(i => i.label)
     expect(labels).toContain('Dashboard')
     expect(labels).toContain('Missions')
-    expect(labels).toContain('OpenClaw')
+    expect(labels).toContain('Harness')
   })
 })
 

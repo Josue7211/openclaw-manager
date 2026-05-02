@@ -64,7 +64,7 @@ describe('isWebAuthnSupported', () => {
 describe('registerWebAuthnKey', () => {
   const mockCreationOptions: WebAuthnCreationOptions = {
     challenge: 'dGVzdC1jaGFsbGVuZ2U', // "test-challenge" in base64url
-    rp: { name: 'OpenClaw Manager', id: 'localhost' },
+    rp: { name: 'ClawControl', id: 'localhost' },
     user: {
       id: 'dXNlci1pZA', // "user-id" in base64url
       name: 'user@test.com',

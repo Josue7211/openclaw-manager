@@ -115,7 +115,7 @@ _Note: TDD RED+GREEN combined per task due to pre-commit hook requiring all test
 None - no external service configuration required.
 
 ## Next Phase Readiness
-- LineChart and BarChart primitives ready for Bjorn AI-generated module composition
+- LineChart and BarChart primitives ready for Agent AI-generated module composition
 - SVG viewBox pattern and tooltip pattern established for future chart primitives
 - Both charts registered in Widget Registry with configSchema for dashboard config panel
 - 16 tests provide regression safety for chart rendering

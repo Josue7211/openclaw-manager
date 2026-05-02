@@ -31,7 +31,7 @@ export const AgentStatusCard = React.memo(function AgentStatusCard() {
           <span style={{ fontSize: '48px' }}>{status?.emoji || '🦬'}</span>
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-              <span style={{ fontSize: '20px', fontWeight: 700 }}>{status?.name || 'Bjorn'}</span>
+              <span style={{ fontSize: '20px', fontWeight: 700 }}>{status?.name || 'Primary Agent'}</span>
               {/* Green dot = online signal */}
               <span className="badge badge-green" aria-live="polite">
                 <span style={{

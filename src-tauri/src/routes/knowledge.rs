@@ -11,7 +11,9 @@ use crate::validation::{sanitize_postgrest_value, sanitize_search_query, validat
 pub fn router() -> Router<AppState> {
     Router::new().route(
         "/knowledge",
-        get(get_knowledge).post(post_knowledge).delete(delete_knowledge),
+        get(get_knowledge)
+            .post(post_knowledge)
+            .delete(delete_knowledge),
     )
 }
 
@@ -51,7 +53,9 @@ async fn get_knowledge(
         }
     }
 
-    let data = sb.select_as_user("knowledge_entries", &query, &session.access_token).await?;
+    let data = sb
+        .select_as_user("knowledge_entries", &query, &session.access_token)
+        .await?;
     Ok(Json(json!({ "entries": data })))
 }
 
@@ -104,7 +108,13 @@ async fn post_knowledge(
         }
     }
 
-    let data = sb.insert_as_user("knowledge_entries", Value::Object(row), &session.access_token).await?;
+    let data = sb
+        .insert_as_user(
+            "knowledge_entries",
+            Value::Object(row),
+            &session.access_token,
+        )
+        .await?;
     Ok(Json(json!({ "entry": data })))
 }
 
@@ -113,12 +123,7 @@ async fn delete_knowledge(
     RequireAuth(session): RequireAuth,
     axum::extract::Query(params): axum::extract::Query<GetKnowledgeParams>,
 ) -> Result<Json<Value>, AppError> {
-    let id = params
-        .id
-        .as_deref()
-        .unwrap_or("")
-        .trim()
-        .to_string();
+    let id = params.id.as_deref().unwrap_or("").trim().to_string();
     if id.is_empty() {
         return Err(AppError::BadRequest("id required".into()));
     }
@@ -132,6 +137,11 @@ async fn delete_knowledge(
     );
 
     let sb = SupabaseClient::from_state(&state)?;
-    sb.delete_as_user("knowledge_entries", &format!("id=eq.{}", id), &session.access_token).await?;
+    sb.delete_as_user(
+        "knowledge_entries",
+        &format!("id=eq.{}", id),
+        &session.access_token,
+    )
+    .await?;
     Ok(Json(json!({ "ok": true })))
 }

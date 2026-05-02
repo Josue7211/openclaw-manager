@@ -4,7 +4,7 @@
 
 **Goal:** Remove Supabase from the frontend, enable RLS on all tables, proxy auth/realtime through Axum, add offline-first SQLite, and harden security across the stack.
 
-**Architecture:** Each user runs a Tauri app with embedded Axum on localhost:3000. Axum connects to a shared Supabase instance behind Cloudflare Tunnel. JWTs are stored in Rust memory (never exposed to frontend). Local SQLite is the primary data store, synced to Supabase when online.
+**Architecture:** Each user runs a Tauri app with embedded Axum on localhost:3000. Axum connects to a shared Supabase instance over Tailscale/private networking. JWTs are stored in Rust memory (never exposed to frontend). Local SQLite is the primary data store, synced to Supabase when online.
 
 **Tech Stack:** Rust (Axum, sqlx, tokio), TypeScript (React, TanStack Query), PostgreSQL (Supabase), SQLite
 

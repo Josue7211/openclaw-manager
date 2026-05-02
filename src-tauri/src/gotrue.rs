@@ -85,14 +85,24 @@ impl GoTrueClient {
         }
     }
 
-    /// Create a client from `AppState` secrets (`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`).
+    /// Create a client from `AppState` secrets.
+    ///
+    /// Auth/GoTrue flows should use the public anon key, not the service-role
+    /// key. Fall back to the service-role key only if the anon key is absent
+    /// so local dev keeps working with partially configured environments.
     pub fn from_state(state: &crate::server::AppState) -> anyhow::Result<Self> {
         let url = state
             .secret("SUPABASE_URL")
             .context("SUPABASE_URL not set")?;
         let key = state
-            .secret("SUPABASE_SERVICE_ROLE_KEY")
-            .context("SUPABASE_SERVICE_ROLE_KEY not set")?;
+            .secret("SUPABASE_ANON_KEY")
+            .filter(|value| !value.trim().is_empty())
+            .or_else(|| {
+                state
+                    .secret("SUPABASE_SERVICE_ROLE_KEY")
+                    .filter(|value| !value.trim().is_empty())
+            })
+            .context("SUPABASE_ANON_KEY or SUPABASE_SERVICE_ROLE_KEY not set")?;
         Ok(Self::new(&url, &key))
     }
 
@@ -156,11 +166,7 @@ impl GoTrueClient {
     /// Create a new account with email and password.
     ///
     /// `POST /signup`
-    pub async fn sign_up(
-        &self,
-        email: &str,
-        password: &str,
-    ) -> anyhow::Result<AuthResponse> {
+    pub async fn sign_up(&self, email: &str, password: &str) -> anyhow::Result<AuthResponse> {
         let url = format!("{}/signup", self.base_url);
         let resp = self
             .auth_request(self.http.post(&url))
@@ -180,10 +186,7 @@ impl GoTrueClient {
     /// Refresh an expired session using a refresh token.
     ///
     /// `POST /token?grant_type=refresh_token`
-    pub async fn refresh_token(
-        &self,
-        refresh_token: &str,
-    ) -> anyhow::Result<AuthResponse> {
+    pub async fn refresh_token(&self, refresh_token: &str) -> anyhow::Result<AuthResponse> {
         let url = format!("{}?grant_type=refresh_token", self.token_url());
         let resp = self
             .auth_request(self.http.post(&url))
@@ -268,11 +271,7 @@ impl GoTrueClient {
     /// Update the current user (e.g., change password).
     ///
     /// `PUT /user`
-    pub async fn update_user(
-        &self,
-        access_token: &str,
-        body: Value,
-    ) -> anyhow::Result<Value> {
+    pub async fn update_user(&self, access_token: &str, body: Value) -> anyhow::Result<Value> {
         let url = format!("{}/user", self.base_url);
         let resp = self
             .user_request(self.http.put(&url), access_token)
@@ -396,11 +395,7 @@ impl GoTrueClient {
     /// Unenroll (delete) an MFA factor.
     ///
     /// `DELETE /factors/{factor_id}`
-    pub async fn mfa_unenroll(
-        &self,
-        access_token: &str,
-        factor_id: &str,
-    ) -> anyhow::Result<()> {
+    pub async fn mfa_unenroll(&self, access_token: &str, factor_id: &str) -> anyhow::Result<()> {
         let url = format!("{}/factors/{}", self.base_url, factor_id);
         let resp = self
             .user_request(self.http.delete(&url), access_token)
@@ -417,10 +412,7 @@ impl GoTrueClient {
     /// List all MFA factors for the current user.
     ///
     /// `GET /factors`
-    pub async fn mfa_list_factors(
-        &self,
-        access_token: &str,
-    ) -> anyhow::Result<Vec<MfaFactor>> {
+    pub async fn mfa_list_factors(&self, access_token: &str) -> anyhow::Result<Vec<MfaFactor>> {
         let url = format!("{}/factors", self.base_url);
         let resp = self
             .user_request(self.http.get(&url), access_token)
@@ -431,9 +423,23 @@ impl GoTrueClient {
         if !resp.status().is_success() {
             return Err(Self::parse_error(resp, "mfa_list_factors").await);
         }
-        resp.json::<Vec<MfaFactor>>()
+        let value = resp
+            .json::<Value>()
             .await
-            .context("mfa_list_factors: failed to parse response")
+            .context("mfa_list_factors: failed to parse response")?;
+
+        let factors_value = match value {
+            Value::Array(arr) => Value::Array(arr),
+            Value::Object(obj) => obj
+                .get("all")
+                .cloned()
+                .or_else(|| obj.get("factors").cloned())
+                .ok_or_else(|| anyhow!("mfa_list_factors: unexpected response shape"))?,
+            _ => return Err(anyhow!("mfa_list_factors: unexpected response shape")),
+        };
+
+        serde_json::from_value::<Vec<MfaFactor>>(factors_value)
+            .context("mfa_list_factors: failed to decode factors")
     }
 
     // ── Private helpers ──────────────────────────────────────────────────
@@ -527,7 +533,7 @@ mod tests {
         let url = build_oauth_url(
             "https://test.supabase.co",
             "github",
-            "http://localhost:3000/api/auth/callback",
+            "http://localhost:5000/api/auth/callback",
             "test-challenge",
         );
         assert!(url.contains("provider=github"));
@@ -541,11 +547,13 @@ mod tests {
         let url = build_oauth_url(
             "https://test.supabase.co",
             "google",
-            "http://localhost:3000/api/auth/callback?foo=bar",
+            "http://localhost:5000/api/auth/callback?foo=bar",
             "challenge",
         );
         // The `?` and `=` in redirect_to should be percent-encoded
-        assert!(url.contains("redirect_to=http%3A%2F%2Flocalhost%3A3000%2Fapi%2Fauth%2Fcallback%3Ffoo%3Dbar"));
+        assert!(url.contains(
+            "redirect_to=http%3A%2F%2Flocalhost%3A5000%2Fapi%2Fauth%2Fcallback%3Ffoo%3Dbar"
+        ));
     }
 
     #[test]
@@ -553,7 +561,7 @@ mod tests {
         let url = build_oauth_url(
             "https://test.supabase.co/",
             "github",
-            "http://localhost:3000/callback",
+            "http://localhost:5000/callback",
             "challenge",
         );
         assert!(

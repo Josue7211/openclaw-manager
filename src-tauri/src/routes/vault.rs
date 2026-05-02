@@ -4,76 +4,169 @@ use axum::{
     Json, Router,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use reqwest::{
+    header::{HeaderMap, HeaderName, HeaderValue},
+    RequestBuilder,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::error::{AppError, success_json};
+use crate::error::{success_json, AppError};
+use crate::routes::auth::load_user_secrets;
 use crate::server::{AppState, RequireAuth};
 
 /// CouchDB proxy for the Obsidian-style vault.
 /// All requests are proxied through the Axum backend so CouchDB credentials
 /// never reach the frontend.
-fn couch_config(state: &AppState) -> Option<(String, String, String, String)> {
-    let url = state.secret("COUCHDB_URL")?;
-    let user = state.secret("COUCHDB_USER")?;
-    let pass = state.secret("COUCHDB_PASSWORD")?;
-    let db = state.secret("COUCHDB_DATABASE").unwrap_or_else(|| "josue-vault".to_string());
-    Some((url, user, pass, db))
+struct CouchConfig {
+    url: String,
+    user: String,
+    pass: String,
+    db: String,
+    headers: HeaderMap,
+}
+
+fn couch_config(state: &AppState) -> Result<Option<CouchConfig>, AppError> {
+    let Some(url) = state.secret("COUCHDB_URL") else {
+        return Ok(None);
+    };
+    let Some(user) = state.secret("COUCHDB_USER") else {
+        return Ok(None);
+    };
+    let Some(pass) = state.secret("COUCHDB_PASSWORD") else {
+        return Ok(None);
+    };
+    let db = state
+        .secret("COUCHDB_DATABASE")
+        .unwrap_or_else(|| "clawcontrol-vault".to_string());
+    let headers = parse_custom_headers(
+        state
+            .secret("COUCHDB_CUSTOM_HEADERS")
+            .or_else(|| state.secret("COUCHDB_HEADERS"))
+            .as_deref()
+            .unwrap_or(""),
+    )?;
+    Ok(Some(CouchConfig {
+        url,
+        user,
+        pass,
+        db,
+        headers,
+    }))
+}
+
+fn parse_custom_headers(raw: &str) -> Result<HeaderMap, AppError> {
+    let mut headers = HeaderMap::new();
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Ok(headers);
+    }
+
+    if raw.starts_with('{') {
+        let parsed: serde_json::Map<String, Value> = serde_json::from_str(raw)
+            .map_err(|_| AppError::BadRequest("Invalid CouchDB custom headers JSON".into()))?;
+        for (name, value) in parsed {
+            if let Some(value) = value.as_str() {
+                insert_custom_header(&mut headers, &name, value)?;
+            }
+        }
+        return Ok(headers);
+    }
+
+    for line in raw.lines().map(str::trim).filter(|line| !line.is_empty()) {
+        let (name, value) = line
+            .split_once(':')
+            .ok_or_else(|| AppError::BadRequest("Invalid CouchDB custom header line".into()))?;
+        insert_custom_header(&mut headers, name.trim(), value.trim())?;
+    }
+    Ok(headers)
+}
+
+fn insert_custom_header(headers: &mut HeaderMap, name: &str, value: &str) -> Result<(), AppError> {
+    let name = HeaderName::from_bytes(name.as_bytes())
+        .map_err(|_| AppError::BadRequest("Invalid CouchDB custom header name".into()))?;
+    let value = HeaderValue::from_str(value)
+        .map_err(|_| AppError::BadRequest("Invalid CouchDB custom header value".into()))?;
+    headers.insert(name, value);
+    Ok(())
+}
+
+fn couch_request(req: RequestBuilder, config: &CouchConfig) -> RequestBuilder {
+    req.basic_auth(&config.user, Some(&config.pass))
+        .headers(config.headers.clone())
 }
 
 async fn couch_get(state: &AppState, path: &str) -> Result<Value, AppError> {
-    let (url, user, pass, db) = couch_config(state)
+    let config = couch_config(state)?
         .ok_or_else(|| AppError::BadRequest("CouchDB not configured".into()))?;
-    let resp = state
-        .http
-        .get(format!("{url}/{db}/{path}"))
-        .basic_auth(&user, Some(&pass))
-        .send()
-        .await
-        .map_err(|e| AppError::Internal(e.into()))?;
+    let resp = couch_request(
+        state.http.get(format!(
+            "{}/{}/{path}",
+            config.url.trim_end_matches('/'),
+            config.db
+        )),
+        &config,
+    )
+    .send()
+    .await
+    .map_err(|e| AppError::Internal(e.into()))?;
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
         return Err(AppError::BadRequest(format!("CouchDB {status}: {body}")));
     }
-    resp.json::<Value>().await.map_err(|e| AppError::Internal(e.into()))
+    resp.json::<Value>()
+        .await
+        .map_err(|e| AppError::Internal(e.into()))
 }
 
 async fn couch_put(state: &AppState, path: &str, body: Value) -> Result<Value, AppError> {
-    let (url, user, pass, db) = couch_config(state)
+    let config = couch_config(state)?
         .ok_or_else(|| AppError::BadRequest("CouchDB not configured".into()))?;
-    let resp = state
-        .http
-        .put(format!("{url}/{db}/{path}"))
-        .basic_auth(&user, Some(&pass))
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| AppError::Internal(e.into()))?;
+    let resp = couch_request(
+        state.http.put(format!(
+            "{}/{}/{path}",
+            config.url.trim_end_matches('/'),
+            config.db
+        )),
+        &config,
+    )
+    .json(&body)
+    .send()
+    .await
+    .map_err(|e| AppError::Internal(e.into()))?;
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
         return Err(AppError::BadRequest(format!("CouchDB {status}: {body}")));
     }
-    resp.json::<Value>().await.map_err(|e| AppError::Internal(e.into()))
+    resp.json::<Value>()
+        .await
+        .map_err(|e| AppError::Internal(e.into()))
 }
 
 async fn couch_delete(state: &AppState, path: &str) -> Result<Value, AppError> {
-    let (url, user, pass, db) = couch_config(state)
+    let config = couch_config(state)?
         .ok_or_else(|| AppError::BadRequest("CouchDB not configured".into()))?;
-    let resp = state
-        .http
-        .delete(format!("{url}/{db}/{path}"))
-        .basic_auth(&user, Some(&pass))
-        .send()
-        .await
-        .map_err(|e| AppError::Internal(e.into()))?;
+    let resp = couch_request(
+        state.http.delete(format!(
+            "{}/{}/{path}",
+            config.url.trim_end_matches('/'),
+            config.db
+        )),
+        &config,
+    )
+    .send()
+    .await
+    .map_err(|e| AppError::Internal(e.into()))?;
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
         return Err(AppError::BadRequest(format!("CouchDB {status}: {body}")));
     }
-    resp.json::<Value>().await.map_err(|e| AppError::Internal(e.into()))
+    resp.json::<Value>()
+        .await
+        .map_err(|e| AppError::Internal(e.into()))
 }
 
 /// Decode chunk data based on note type.
@@ -93,8 +186,8 @@ fn decode_chunk_data(raw: &str, is_binary: bool) -> String {
 /// Check if an ID (lowercased) is a binary attachment, not a text note.
 fn is_attachment(id_lower: &str) -> bool {
     const EXTS: &[&str] = &[
-        ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp",
-        ".pdf", ".mp3", ".mp4", ".wav", ".webm",
+        ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".pdf", ".mp3", ".mp4", ".wav",
+        ".webm",
     ];
     EXTS.iter().any(|ext| id_lower.ends_with(ext))
 }
@@ -111,8 +204,9 @@ fn is_binary_note(doc: &Value) -> bool {
 /// GET /api/vault/notes — list all notes (with content reassembled from LiveSync chunks)
 async fn list_notes(
     State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
+    RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
+    ensure_couch_config(&state, &session).await;
     let data = couch_get(&state, "_all_docs?include_docs=true").await?;
     let rows = data.get("rows").and_then(|r| r.as_array());
     let all_docs: Vec<&Value> = rows
@@ -132,7 +226,10 @@ async fn list_notes(
             }
         }
     }
-    tracing::debug!(chunk_count = chunks.len(), "vault: built chunk lookup table");
+    tracing::debug!(
+        chunk_count = chunks.len(),
+        "vault: built chunk lookup table"
+    );
 
     // Collect attachment IDs (binary files) for the sidebar — no content needed
     let mut attachments: Vec<Value> = Vec::new();
@@ -214,11 +311,16 @@ async fn list_notes(
                 "vault: note assembled"
             );
             let mut note = (*doc).clone();
-            note.as_object_mut()?.insert("content".to_string(), Value::String(content));
+            note.as_object_mut()?
+                .insert("content".to_string(), Value::String(content));
             Some(note)
         })
         .collect();
-    tracing::info!(notes = notes.len(), attachments = attachments.len(), "vault: returning notes + attachments");
+    tracing::info!(
+        notes = notes.len(),
+        attachments = attachments.len(),
+        "vault: returning notes + attachments"
+    );
     Ok(success_json(json!({
         "notes": notes,
         "attachments": attachments,
@@ -228,9 +330,10 @@ async fn list_notes(
 /// GET /api/vault/notes/:id — get a single note with content reassembled
 async fn get_note(
     State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
+    RequireAuth(session): RequireAuth,
     Path(id): Path<String>,
 ) -> Result<Json<Value>, AppError> {
+    ensure_couch_config(&state, &session).await;
     // URL-encode the doc ID for CouchDB (IDs like "homework/image.png" have slashes)
     let encoded = urlencoding::encode(&id);
     tracing::info!(note_id = %id, encoded_id = %encoded, "vault: get_note called");
@@ -299,10 +402,11 @@ async fn get_note(
 /// PUT /api/vault/notes/:id — create or update a note
 async fn put_note(
     State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
+    RequireAuth(session): RequireAuth,
     Path(id): Path<String>,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
+    ensure_couch_config(&state, &session).await;
     if id.contains("..") || id.starts_with('_') {
         return Err(AppError::BadRequest("Invalid document ID".into()));
     }
@@ -319,16 +423,32 @@ struct DeleteQuery {
 
 async fn delete_note(
     State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
+    RequireAuth(session): RequireAuth,
     Path(id): Path<String>,
     Query(q): Query<DeleteQuery>,
 ) -> Result<Json<Value>, AppError> {
+    ensure_couch_config(&state, &session).await;
     if id.contains("..") || id.starts_with('_') {
         return Err(AppError::BadRequest("Invalid document ID".into()));
     }
     let encoded = urlencoding::encode(&id);
-    let result = couch_delete(&state, &format!("{encoded}?rev={}", urlencoding::encode(&q.rev))).await?;
+    let result = couch_delete(
+        &state,
+        &format!("{encoded}?rev={}", urlencoding::encode(&q.rev)),
+    )
+    .await?;
     Ok(success_json(result))
+}
+
+async fn ensure_couch_config(state: &AppState, session: &crate::server::UserSession) {
+    if !session.encryption_key.is_empty()
+        && state
+            .secret("COUCHDB_URL")
+            .map(|value| value.trim().is_empty())
+            .unwrap_or(true)
+    {
+        load_user_secrets(state, session).await;
+    }
 }
 
 /// /api/vault/doc?id=... — query-param routes for docs with slashes in IDs
@@ -365,12 +485,26 @@ async fn delete_doc_by_query(
     RequireAuth(session): RequireAuth,
     Query(q): Query<DocDeleteQuery>,
 ) -> Result<Json<Value>, AppError> {
-    delete_note(State(state), RequireAuth(session), Path(q.id), Query(DeleteQuery { rev: q.rev })).await
+    delete_note(
+        State(state),
+        RequireAuth(session),
+        Path(q.id),
+        Query(DeleteQuery { rev: q.rev }),
+    )
+    .await
 }
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/vault/notes", get(list_notes))
-        .route("/vault/notes/{id}", get(get_note).put(put_note).delete(delete_note))
-        .route("/vault/doc", get(get_doc_by_query).put(put_doc_by_query).delete(delete_doc_by_query))
+        .route(
+            "/vault/notes/{id}",
+            get(get_note).put(put_note).delete(delete_note),
+        )
+        .route(
+            "/vault/doc",
+            get(get_doc_by_query)
+                .put(put_doc_by_query)
+                .delete(delete_doc_by_query),
+        )
 }

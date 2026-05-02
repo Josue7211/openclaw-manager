@@ -5,12 +5,13 @@ use serde_json::{json, Value};
 use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
 
+const MAC_BRIDGE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(4);
+
 // ── Router ──────────────────────────────────────────────────────────────────
 
 /// Build the reminders router (proxy to Mac-Bridge for Apple Reminders).
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/reminders", get(get_reminders).patch(patch_reminder))
+    Router::new().route("/reminders", get(get_reminders).patch(patch_reminder))
 }
 
 // ── Bridge helper ───────────────────────────────────────────────────────────
@@ -33,7 +34,10 @@ async fn bridge_fetch(
     body: Option<Value>,
 ) -> Result<Value, AppError> {
     let url = format!("{host}{path}");
-    let mut req = client.request(method, &url).header("Content-Type", "application/json");
+    let mut req = client
+        .request(method, &url)
+        .timeout(MAC_BRIDGE_TIMEOUT)
+        .header("Content-Type", "application/json");
 
     if !api_key.is_empty() {
         req = req.header("X-API-Key", api_key);
@@ -52,10 +56,14 @@ async fn bridge_fetch(
         let status = res.status();
         let text = res.text().await.unwrap_or_default();
         tracing::error!("[reminders] Bridge {status}: {text}");
-        return Err(AppError::Internal(anyhow::anyhow!("Bridge {status}: {text}")));
+        return Err(AppError::Internal(anyhow::anyhow!(
+            "Bridge {status}: {text}"
+        )));
     }
 
-    res.json::<Value>().await.map_err(|e| AppError::Internal(e.into()))
+    res.json::<Value>()
+        .await
+        .map_err(|e| AppError::Internal(e.into()))
 }
 
 /// Normalize a bridge reminder to a consistent shape.
@@ -90,7 +98,7 @@ async fn get_reminders(
         None => {
             return Ok(Json(json!({
                 "error": "bridge_not_configured",
-                "message": "Set MAC_BRIDGE_HOST in Settings (e.g. http://macbook.tailnet.ts.net:4100)",
+                "message": "Set MAC_BRIDGE_HOST in Settings (e.g. http://your-mac-host:4100)",
                 "reminders": [],
             })));
         }
@@ -105,7 +113,16 @@ async fn get_reminders(
 
     let path = format!("/reminders?filter={filter}");
 
-    match bridge_fetch(&state.http, &host, &api_key, &path, reqwest::Method::GET, None).await {
+    match bridge_fetch(
+        &state.http,
+        &host,
+        &api_key,
+        &path,
+        reqwest::Method::GET,
+        None,
+    )
+    .await
+    {
         Ok(data) => {
             let raw_list = if data.is_array() {
                 data.as_array().cloned().unwrap_or_default()
@@ -121,7 +138,11 @@ async fn get_reminders(
         }
         Err(e) => {
             tracing::error!("[reminders] Error: {e:?}");
-            Ok(Json(json!({ "error": "Failed to fetch reminders", "reminders": [] })))
+            Ok(Json(json!({
+                "error": "bridge_unreachable",
+                "message": "Mac Bridge not reachable",
+                "reminders": []
+            })))
         }
     }
 }
@@ -146,7 +167,10 @@ async fn patch_reminder(
         }
     };
 
-    let id = body.id.as_deref().ok_or_else(|| AppError::BadRequest("Missing id".into()))?;
+    let id = body
+        .id
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Missing id".into()))?;
 
     if body.completed == Some(true) {
         bridge_fetch(

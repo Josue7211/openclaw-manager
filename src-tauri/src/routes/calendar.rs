@@ -34,7 +34,8 @@ async fn get_events(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
 ) -> impl IntoResponse {
-    let url = state.secret("CALDAV_URL")
+    let url = state
+        .secret("CALDAV_URL")
         .unwrap_or_else(|| "https://caldav.icloud.com".to_string());
     let username = state.secret_or_default("CALDAV_USERNAME");
     let password = state.secret_or_default("CALDAV_PASSWORD");
@@ -93,10 +94,7 @@ async fn discover_calendars(
 </d:propfind>"#;
 
     let resp = client
-        .request(
-            reqwest::Method::from_bytes(b"PROPFIND").unwrap(),
-            base_url,
-        )
+        .request(reqwest::Method::from_bytes(b"PROPFIND").unwrap(), base_url)
         .basic_auth(username, Some(password))
         .header(CONTENT_TYPE, "application/xml; charset=utf-8")
         .header("Depth", "0")
@@ -147,10 +145,7 @@ async fn discover_calendars(
 </d:propfind>"#;
 
     let resp = client
-        .request(
-            reqwest::Method::from_bytes(b"PROPFIND").unwrap(),
-            &home_url,
-        )
+        .request(reqwest::Method::from_bytes(b"PROPFIND").unwrap(), &home_url)
         .basic_auth(username, Some(password))
         .header(CONTENT_TYPE, "application/xml; charset=utf-8")
         .header("Depth", "1")
@@ -257,9 +252,7 @@ async fn fetch_caldav_events(
                 {
                     Ok(events) => events,
                     Err(e) => {
-                        tracing::warn!(
-                            "[calendar] failed to fetch {cal_name} ({cal_url}): {e:#}"
-                        );
+                        tracing::warn!("[calendar] failed to fetch {cal_name} ({cal_url}): {e:#}");
                         Vec::new()
                     }
                 }
@@ -325,9 +318,9 @@ fn extract_events_from_ical(cal: &IcalCalendar, calendar_name: &str) -> Vec<Cale
             event.properties.iter().any(|p| {
                 p.name == name
                     && p.params.as_ref().is_some_and(|params| {
-                        params.iter().any(|(k, vals)| {
-                            k == "VALUE" && vals.iter().any(|v| v == "DATE")
-                        })
+                        params
+                            .iter()
+                            .any(|(k, vals)| k == "VALUE" && vals.iter().any(|v| v == "DATE"))
                     })
             })
         };
@@ -338,8 +331,7 @@ fn extract_events_from_ical(cal: &IcalCalendar, calendar_name: &str) -> Vec<Cale
         };
 
         let uid = get_prop("UID").unwrap_or_default();
-        let summary = get_prop("SUMMARY")
-            .unwrap_or_else(|| "(No title)".to_string());
+        let summary = get_prop("SUMMARY").unwrap_or_else(|| "(No title)".to_string());
         let dtend = get_prop("DTEND").or_else(|| get_prop("DUE"));
 
         // Determine if all-day: either the raw value is 8 chars (YYYYMMDD)
@@ -352,11 +344,7 @@ fn extract_events_from_ical(cal: &IcalCalendar, calendar_name: &str) -> Vec<Cale
             .map(format_ical_date)
             .unwrap_or_else(|| start.clone());
 
-        let id = if uid.is_empty() {
-            generate_id()
-        } else {
-            uid
-        };
+        let id = if uid.is_empty() { generate_id() } else { uid };
 
         events.push(CalendarEvent {
             id,
@@ -431,11 +419,7 @@ fn parse_vcalendar_manual(ics_text: &str, calendar_name: &str) -> Vec<CalendarEv
             format_ical_date(&dtend_raw)
         };
 
-        let id = if uid.is_empty() {
-            generate_id()
-        } else {
-            uid
-        };
+        let id = if uid.is_empty() { generate_id() } else { uid };
 
         events.push(CalendarEvent {
             id,
@@ -577,8 +561,7 @@ fn parse_calendar_list(xml: &str, base_url: &str) -> Vec<(String, String)> {
         };
 
         // Extract displayname.
-        let name = extract_displayname(response)
-            .unwrap_or_else(|| "Calendar".to_string());
+        let name = extract_displayname(response).unwrap_or_else(|| "Calendar".to_string());
 
         let url = resolve_url(base_url, &href);
         calendars.push((url, name));
@@ -592,7 +575,14 @@ fn split_xml_responses(xml: &str) -> Vec<&str> {
     let mut results = Vec::new();
 
     // Try various namespace prefixes for <response>.
-    let open_tags = ["<d:response>", "<D:response>", "<response>", "<d:response ", "<D:response ", "<response "];
+    let open_tags = [
+        "<d:response>",
+        "<D:response>",
+        "<response>",
+        "<d:response ",
+        "<D:response ",
+        "<response ",
+    ];
     let close_tags = ["</d:response>", "</D:response>", "</response>"];
 
     for open in &open_tags {
@@ -604,7 +594,11 @@ fn split_xml_responses(xml: &str) -> Vec<&str> {
             // Find the matching close tag.
             let end = close_tags
                 .iter()
-                .filter_map(|ct| xml[after_start..].find(ct).map(|pos| after_start + pos + ct.len()))
+                .filter_map(|ct| {
+                    xml[after_start..]
+                        .find(ct)
+                        .map(|pos| after_start + pos + ct.len())
+                })
                 .min();
 
             if let Some(abs_end) = end {
@@ -637,12 +631,12 @@ fn extract_tag_content(xml: &str, tag_names: &[&str]) -> Option<String> {
         let open_attr = format!("<{} ", tag);
         let close = format!("</{}>", tag);
 
-        let start_pos = xml.find(&open_exact)
+        let start_pos = xml
+            .find(&open_exact)
             .map(|pos| pos + open_exact.len())
             .or_else(|| {
-                xml.find(&open_attr).and_then(|pos| {
-                    xml[pos..].find('>').map(|gt| pos + gt + 1)
-                })
+                xml.find(&open_attr)
+                    .and_then(|pos| xml[pos..].find('>').map(|gt| pos + gt + 1))
             });
 
         if let Some(value_start) = start_pos {
@@ -679,7 +673,8 @@ fn extract_calendar_data(xml: &str) -> Vec<String> {
         let mut search_from = 0;
         while search_from < xml.len() {
             // Find opening tag (exact or with attributes)
-            let start_pos = xml[search_from..].find(&open_exact)
+            let start_pos = xml[search_from..]
+                .find(&open_exact)
                 .map(|pos| (search_from + pos, search_from + pos + open_exact.len()))
                 .or_else(|| {
                     xml[search_from..].find(&open_attr).and_then(|pos| {
@@ -750,18 +745,12 @@ mod tests {
 
     #[test]
     fn test_format_ical_date_utc() {
-        assert_eq!(
-            format_ical_date("20250315T140000Z"),
-            "2025-03-15T14:00:00Z"
-        );
+        assert_eq!(format_ical_date("20250315T140000Z"), "2025-03-15T14:00:00Z");
     }
 
     #[test]
     fn test_format_ical_date_floating() {
-        assert_eq!(
-            format_ical_date("20250315T140000"),
-            "2025-03-15T14:00:00"
-        );
+        assert_eq!(format_ical_date("20250315T140000"), "2025-03-15T14:00:00");
     }
 
     #[test]
@@ -965,7 +954,10 @@ END:VCALENDAR</cal:calendar-data>
     #[test]
     fn test_extract_displayname_with_entities() {
         let xml = "<d:displayname>John&apos;s Calendar</d:displayname>";
-        assert_eq!(extract_displayname(xml), Some("John's Calendar".to_string()));
+        assert_eq!(
+            extract_displayname(xml),
+            Some("John's Calendar".to_string())
+        );
     }
 
     #[test]

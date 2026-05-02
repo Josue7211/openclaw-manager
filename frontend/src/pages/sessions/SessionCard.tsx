@@ -150,6 +150,7 @@ export const SessionCard = React.memo(function SessionCard({
     : Date.now()
 
   const sessionLabel = (session.label as string) || 'Untitled'
+  const messageCount = Number(session.messageCount || 0)
 
   const commitRename = () => {
     const trimmed = draftLabel.trim()
@@ -185,19 +186,18 @@ export const SessionCard = React.memo(function SessionCard({
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
-          background: selected ? 'var(--active-bg)' : 'var(--bg-card)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-          border: `1px solid ${selected ? 'var(--accent)44' : 'var(--border)'}`,
-          borderRadius: '16px',
-          padding: '14px 16px',
+          background: selected ? 'var(--active-bg)' : 'transparent',
+          border: `1px solid ${selected ? 'var(--accent)33' : 'transparent'}`,
+          borderRadius: '8px',
+          padding: '8px 10px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '4px',
+          gap: '3px',
           cursor: 'pointer',
           width: '100%',
+          minHeight: 54,
           textAlign: 'left',
-          transition: 'border-color 0.3s, background 0.15s',
+          transition: 'border-color 0.15s, background 0.15s',
           fontFamily: 'inherit',
           color: 'inherit',
           position: 'relative',
@@ -215,8 +215,8 @@ export const SessionCard = React.memo(function SessionCard({
           }}
           style={{
             position: 'absolute',
-            top: 8,
-            right: 8,
+            top: 6,
+            right: 6,
             width: 24,
             height: 24,
             display: 'flex',
@@ -281,40 +281,32 @@ export const SessionCard = React.memo(function SessionCard({
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
-              paddingRight: 24,
+              paddingRight: 26,
             }}
           >
             {sessionLabel}
           </div>
         )}
 
-        {/* Agent key */}
-        <div style={{
-          fontSize: '11px',
-          color: 'var(--text-muted)',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}>
-          {session.agentKey as string}
-        </div>
-
-        {/* Message count + timestamp row */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '8px',
+          justifyContent: 'space-between',
+          gap: '10px',
           fontSize: '11px',
           color: 'var(--text-muted)',
+          minWidth: 0,
         }}>
-          <span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {isCompacting ? (
               <span style={{ color: 'var(--accent)' }}>Compacting...</span>
             ) : (
-              `${session.messageCount as number} messages`
+              `${messageCount} message${messageCount === 1 ? '' : 's'}`
             )}
           </span>
-          <SecondsAgo sinceMs={lastActivityMs} />
+          <span style={{ flexShrink: 0 }}>
+            <SecondsAgo sinceMs={lastActivityMs} />
+          </span>
         </div>
       </button>
 

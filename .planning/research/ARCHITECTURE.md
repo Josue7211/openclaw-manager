@@ -255,7 +255,7 @@ Knip handles most cases, but these require manual review:
 | Lazy-loaded pages | Knip follows static imports; `lazy(() => import(...))` should be traced | Verify each `lazy()` in main.tsx maps to a working page |
 | Dynamic widget registry | Widgets registered via `widget-registry.ts` may not have static imports | Cross-reference registry entries with actual component files |
 | CSS-only dependencies | Packages imported only in CSS or HTML won't be caught | Review `globals.css` for `@import` statements |
-| Bjorn modules (runtime) | Runtime-loaded sandboxed modules can't be statically analyzed | Separate concern -- not part of this audit |
+| Agent modules (runtime) | Runtime-loaded sandboxed modules can't be statically analyzed | Separate concern -- not part of this audit |
 
 ### What to Look For
 
@@ -410,7 +410,7 @@ OpenClaw Models page
 
 **When to use:** Phase 3, as the primary dead code detection strategy.
 
-**Trade-offs:** Knip may produce false positives for dynamically-referenced code (widget registry entries, Bjorn sandbox API). Suppress these explicitly in knip.json rather than ignoring Knip findings globally.
+**Trade-offs:** Knip may produce false positives for dynamically-referenced code (widget registry entries, Agent sandbox API). Suppress these explicitly in knip.json rather than ignoring Knip findings globally.
 
 ### Pattern 3: Gateway Method Verification
 
@@ -435,7 +435,7 @@ let payload = gw.request("usage.status", json!({})).await?;
 
 **What people do:** See a warning about unused code and delete it immediately.
 **Why it's wrong:** The code may be consumed via dynamic import, widget registry, or lazy loading. Deletion breaks runtime behavior that the compiler/linter can't see.
-**Do this instead:** Before removing any code, trace its usage: check lazy imports in main.tsx, widget-registry.ts entries, modules.ts references, and Bjorn sandbox API surface.
+**Do this instead:** Before removing any code, trace its usage: check lazy imports in main.tsx, widget-registry.ts entries, modules.ts references, and Agent sandbox API surface.
 
 ### Anti-Pattern 2: Fixing Frontend Before Backend
 
@@ -484,7 +484,7 @@ let payload = gw.request("usage.status", json!({})).await?;
 | Terminal | hooks/useTerminal.ts | routes/terminal.rs | Local PTY |
 | VNC/Remote | pages/remote/ | routes/vnc.rs | Sunshine |
 | Approvals | hooks/useApprovals.ts | routes/approvals.rs | OpenClaw WS |
-| Bjorn | pages/chat/BjornTab.tsx | routes/bjorn.rs | Supabase + sandbox |
+| Agent | pages/chat/BjornTab.tsx | routes/agent.rs | Supabase + sandbox |
 | Auth | pages/login/ | routes/auth.rs | Supabase Auth |
 | Export | pages/settings/SettingsPrivacy.tsx | routes/export.rs | Supabase + CouchDB |
 | Search | components/GlobalSearch.tsx | routes/search.rs | Supabase |

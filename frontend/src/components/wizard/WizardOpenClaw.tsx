@@ -1,5 +1,5 @@
 /**
- * WizardOpenClaw -- OpenClaw URL + API key connection step (required).
+ * WizardOpenClaw -- harness URL + API key connection step (required).
  *
  * Tests connectivity via POST /api/wizard/test-connection with service="openclaw".
  * Secret field has show/hide toggle with Eye/EyeSlash icons.
@@ -62,24 +62,24 @@ const WizardOpenClaw = React.memo(function WizardOpenClaw() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
       <h2 style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-        Connect OpenClaw
+        Connect Harness
       </h2>
       <p style={{ fontSize: '15px', color: 'var(--text-secondary)', margin: 0, maxWidth: '520px' }}>
-        The AI gateway that powers Chat, Agents, and Mission Control's intelligence.
+        The AI harness that powers Chat, Agents, and ClawControl's intelligence.
       </p>
 
       <WizardGuidePanel>
         <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.8 }}>
-          <li>Deploy OpenClaw on a VM accessible via Tailscale</li>
+          <li>Deploy Hermes compat or OpenClaw on a VM accessible via Tailscale</li>
           <li>Note the API URL (e.g. http://100.x.x.x:18789)</li>
-          <li>Generate an API key from the OpenClaw admin panel</li>
-          <li>Make sure the gateway is reachable over your Tailscale network</li>
+          <li>Generate or copy the API key for that harness backend</li>
+          <li>Make sure the harness is reachable over your Tailscale network</li>
         </ol>
       </WizardGuidePanel>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
         <label htmlFor="wizard-openclaw-url" style={labelStyle}>
-          OpenClaw URL
+          Harness URL
         </label>
         <input
           id="wizard-openclaw-url"

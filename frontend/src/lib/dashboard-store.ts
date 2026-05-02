@@ -37,6 +37,7 @@ export interface RecycleBinItem {
   removedAt: string       // ISO timestamp
   previousPosition: LayoutItem
   previousPageId: string
+  previousConfig?: Record<string, unknown>
 }
 
 export interface DashboardState {
@@ -118,6 +119,26 @@ function _pushUndo(): void {
   _redoStack.length = 0
 }
 
+function getPageBreakpoints(page: DashboardPage): string[] {
+  return Object.keys(page.layouts).length > 0 ? Object.keys(page.layouts) : ['lg']
+}
+
+function addLayoutItemToBreakpoints(
+  layouts: Record<string, LayoutItem[]>,
+  breakpoints: string[],
+  item: LayoutItem,
+): Record<string, LayoutItem[]> {
+  const nextLayouts = { ...layouts }
+  for (const bp of breakpoints) {
+    nextLayouts[bp] = [...(nextLayouts[bp] || []), { ...item }]
+  }
+  return nextLayouts
+}
+
+function resolveWidgetPluginId(page: DashboardPage, widgetId: string): string {
+  return String(page.widgetConfigs[widgetId]?._pluginId ?? widgetId)
+}
+
 // ---------------------------------------------------------------------------
 // Public API — getters & subscriptions
 // ---------------------------------------------------------------------------
@@ -195,10 +216,11 @@ export function removePage(pageId: string): void {
     for (const item of items as LayoutItem[]) {
       newRecycleBin.push({
         widgetId: item.i,
-        pluginId: item.i,
+        pluginId: resolveWidgetPluginId(page, item.i),
         removedAt: new Date().toISOString(),
         previousPosition: { ...item },
         previousPageId: pageId,
+        previousConfig: page.widgetConfigs[item.i],
       })
     }
   }
@@ -292,14 +314,7 @@ export function addWidgetToPage(pageId: string, pluginId: string, layout: Layout
     ..._cached,
     pages: _cached.pages.map(p => {
       if (p.id !== pageId) return p
-      // Add layout item to all breakpoints that exist, or to a default 'lg'
-      const breakpoints = Object.keys(p.layouts).length > 0
-        ? Object.keys(p.layouts)
-        : ['lg']
-      const newLayouts = { ...p.layouts }
-      for (const bp of breakpoints) {
-        newLayouts[bp] = [...(newLayouts[bp] || []), layout]
-      }
+      const newLayouts = addLayoutItemToBreakpoints(p.layouts, getPageBreakpoints(p), layout)
       // Store pluginId in widgetConfigs so DashboardGrid can resolve the registry ID
       const newConfigs = {
         ...p.widgetConfigs,
@@ -332,7 +347,7 @@ export function removeWidget(pageId: string, widgetId: string): void {
   }
 
   // Read _pluginId from widgetConfigs (set by addWidgetToPage), fall back to widgetId for built-in singletons
-  const resolvedPluginId = String(page.widgetConfigs[widgetId]?._pluginId ?? widgetId)
+  const resolvedPluginId = resolveWidgetPluginId(page, widgetId)
 
   const newRecycleBin = [
     ..._cached.recycleBin,
@@ -342,6 +357,7 @@ export function removeWidget(pageId: string, widgetId: string): void {
       removedAt: new Date().toISOString(),
       previousPosition,
       previousPageId: pageId,
+      previousConfig: page.widgetConfigs[widgetId],
     },
   ]
 
@@ -390,14 +406,20 @@ export function restoreWidget(recycleBinIndex: number): void {
     ..._cached,
     pages: _cached.pages.map(p => {
       if (p.id !== targetPageId) return p
-      const breakpoints = Object.keys(p.layouts).length > 0
-        ? Object.keys(p.layouts)
-        : ['lg']
-      const newLayouts = { ...p.layouts }
-      for (const bp of breakpoints) {
-        newLayouts[bp] = [...(newLayouts[bp] || []), item.previousPosition]
+      const newLayouts = addLayoutItemToBreakpoints(
+        p.layouts,
+        getPageBreakpoints(p),
+        item.previousPosition,
+      )
+      const restoredConfig = item.previousConfig ?? { _pluginId: item.pluginId }
+      return {
+        ...p,
+        layouts: newLayouts,
+        widgetConfigs: {
+          ...p.widgetConfigs,
+          [item.widgetId]: restoredConfig,
+        },
       }
-      return { ...p, layouts: newLayouts }
     }),
     recycleBin: newRecycleBin,
   }

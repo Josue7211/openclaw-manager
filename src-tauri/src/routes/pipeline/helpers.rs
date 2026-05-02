@@ -12,8 +12,7 @@ use super::registry::register_process;
 // ── Validation helpers ───────────────────────────────────────────────────────
 
 pub(super) fn validate_uuid(id: &str) -> Result<&str, AppError> {
-    let re = Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
-        .unwrap();
+    let re = Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$").unwrap();
     if re.is_match(id) {
         Ok(id)
     } else {
@@ -23,14 +22,20 @@ pub(super) fn validate_uuid(id: &str) -> Result<&str, AppError> {
 
 pub(super) fn validate_workdir(workdir: &str) -> Result<&str, AppError> {
     if !workdir.starts_with('/') {
-        return Err(AppError::BadRequest("workdir must be an absolute path".into()));
+        return Err(AppError::BadRequest(
+            "workdir must be an absolute path".into(),
+        ));
     }
     let re = Regex::new(r"^[a-zA-Z0-9/_.\-]+$").unwrap();
     if !re.is_match(workdir) {
-        return Err(AppError::BadRequest("workdir contains invalid characters".into()));
+        return Err(AppError::BadRequest(
+            "workdir contains invalid characters".into(),
+        ));
     }
     if workdir.contains("..") {
-        return Err(AppError::BadRequest("workdir must not contain \"..\"".into()));
+        return Err(AppError::BadRequest(
+            "workdir must not contain \"..\"".into(),
+        ));
     }
     Ok(workdir)
 }
@@ -70,8 +75,14 @@ pub(super) fn validate_cli_flags(flags: &str) -> Result<&str, AppError> {
     let parts: Vec<&str> = flags.split_whitespace().collect();
     for (i, part) in parts.iter().enumerate() {
         if part.starts_with('-') {
-            if !allowed_prefixes.iter().any(|prefix| part.starts_with(prefix)) {
-                return Err(AppError::BadRequest(format!("disallowed CLI flag: {}", part)));
+            if !allowed_prefixes
+                .iter()
+                .any(|prefix| part.starts_with(prefix))
+            {
+                return Err(AppError::BadRequest(format!(
+                    "disallowed CLI flag: {}",
+                    part
+                )));
             }
         } else if i == 0 {
             // First token must be a flag, not a bare argument
@@ -106,7 +117,12 @@ pub(super) fn supabase(state: &crate::server::AppState) -> Result<SupabaseClient
 }
 
 /// Set agent status to active with current task.
-pub(super) async fn set_agent_active(sb: &SupabaseClient, agent_id: &str, task: &str, jwt: &str) -> anyhow::Result<Value> {
+pub(super) async fn set_agent_active(
+    sb: &SupabaseClient,
+    agent_id: &str,
+    task: &str,
+    jwt: &str,
+) -> anyhow::Result<Value> {
     sanitize_postgrest_value(agent_id).map_err(|e| anyhow::anyhow!("{e:?}"))?;
     sb.update_as_user(
         "agents",
@@ -122,7 +138,11 @@ pub(super) async fn set_agent_active(sb: &SupabaseClient, agent_id: &str, task: 
 }
 
 /// Set agent status to idle.
-pub(super) async fn set_agent_idle(sb: &SupabaseClient, agent_id: &str, jwt: &str) -> anyhow::Result<Value> {
+pub(super) async fn set_agent_idle(
+    sb: &SupabaseClient,
+    agent_id: &str,
+    jwt: &str,
+) -> anyhow::Result<Value> {
     sanitize_postgrest_value(agent_id).map_err(|e| anyhow::anyhow!("{e:?}"))?;
     sb.update_as_user(
         "agents",
@@ -177,9 +197,9 @@ pub(super) fn extract_workdir(mission: &Value) -> String {
         .as_str()
         .and_then(|cmd| {
             let re = Regex::new(r"^cd ([^ ]+)").ok()?;
-            re.captures(cmd)?.get(1).map(|m| {
-                m.as_str().trim_matches('\'').trim_matches('"').to_string()
-            })
+            re.captures(cmd)?
+                .get(1)
+                .map(|m| m.as_str().trim_matches('\'').trim_matches('"').to_string())
         })
         .unwrap_or(default)
 }
@@ -237,7 +257,16 @@ pub(super) fn clean_env(state: &crate::server::AppState, model: &str) -> Vec<(St
 /// TODO: Remove this once spawn_agent_process accepts &AppState.
 fn clean_env_from_env(model: &str) -> Vec<(String, String)> {
     let mut env = Vec::new();
-    let passthrough = ["HOME", "USER", "PATH", "SHELL", "TERM", "LANG", "ANTHROPIC_API_KEY", "MC_API_KEY"];
+    let passthrough = [
+        "HOME",
+        "USER",
+        "PATH",
+        "SHELL",
+        "TERM",
+        "LANG",
+        "ANTHROPIC_API_KEY",
+        "MC_API_KEY",
+    ];
     for key in passthrough {
         if let Ok(val) = std::env::var(key) {
             env.push((key.to_string(), val));
@@ -313,7 +342,10 @@ pub(super) async fn spawn_agent_process(
         .stderr(std::process::Stdio::null())
         .spawn()
         .map_err(|e| {
-            error!("Failed to spawn agent process for {}: {e}", route.display_name);
+            error!(
+                "Failed to spawn agent process for {}: {e}",
+                route.display_name
+            );
             AppError::Internal(e.into())
         })?;
 

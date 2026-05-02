@@ -3,7 +3,7 @@
  *
  * Supports single-series (number[]) and multi-series (number[][]) data,
  * with grouped or stacked display modes. Custom SVG keeps markup transparent
- * to Bjorn for AI-generated module composition.
+ * for generated module composition.
  */
 
 import React, { useState, useCallback } from 'react'

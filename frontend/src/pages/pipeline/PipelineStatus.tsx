@@ -15,12 +15,7 @@ export function PipelineStatus() {
     setLoading(true)
     const json = await api.get<{ jobs?: CronJob[] }>('/api/crons')
     const all: CronJob[] = json.jobs || []
-    const filtered = all.filter((j) =>
-      j.name?.includes('bjorn-ideas') ||
-      j.name?.includes('bjorn-daily') ||
-      j.name?.includes('bjorn-weekly')
-    )
-    setCrons(filtered)
+    setCrons(all)
     setLoading(false)
   }
 
@@ -31,11 +26,11 @@ export function PipelineStatus() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
       <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '8px' }}>
-        Scheduled pipeline runs (filtered to Bjorn agents):
+        Scheduled pipeline runs:
       </div>
       {crons.length === 0 ? (
         <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
-          No matching cron jobs found. Expected: bjorn-ideas, bjorn-daily, bjorn-weekly.
+          No cron jobs found.
         </div>
       ) : (
         crons.map((job, i) => (

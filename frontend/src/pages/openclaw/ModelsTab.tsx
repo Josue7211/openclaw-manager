@@ -1,17 +1,45 @@
+import { useEffect } from 'react'
 import { useOpenClawModels } from '@/hooks/useOpenClawModels'
+import { Star } from '@phosphor-icons/react'
+import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
+import { ModelSelector } from '@/components/ModelSelector'
+import { api } from '@/lib/api'
+import {
+  CHAT_DEFAULT_FAVORITE_MODELS,
+  CHAT_FAVORITE_MODELS_STORAGE_KEY,
+  CHAT_FAVORITE_MODELS_VERSION,
+  CHAT_FAVORITE_MODELS_VERSION_STORAGE_KEY,
+  CHAT_PRIMARY_MODEL_STORAGE_KEY,
+  OPENCLAW_HEARTBEAT_MODEL_STORAGE_KEY,
+  getOpenClawModelList,
+  isFavoriteModel,
+  mergeDefaultFavoriteModelIds,
+  resolvePreferredModelId,
+  sanitizeFavoriteModelIds,
+} from '@/lib/model-favorites'
+import type { OpenClawHealthStatus } from '../OpenClaw'
 
-export default function ModelsTab({ healthy }: { healthy: boolean }) {
+function OfflineState({ status, noun }: { status: OpenClawHealthStatus; noun: string }) {
+  const title = status === 'not_configured' ? 'Harness not configured' : 'Harness offline'
+  const detail = status === 'not_configured'
+    ? `Set OPENCLAW_API_URL in Settings > Connections to view ${noun}.`
+    : `ClawControl cannot reach the harness right now. Check the upstream service and try again.`
+
+  return (
+    <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+      <p style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 600 }}>
+        {title}
+      </p>
+      <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>
+        {detail}
+      </p>
+    </div>
+  )
+}
+
+export default function ModelsTab({ healthy, status = 'unknown' }: { healthy: boolean; status?: OpenClawHealthStatus }) {
   if (!healthy) {
-    return (
-      <div style={{ padding: '40px 20px', textAlign: 'center' }}>
-        <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-          OpenClaw is not configured.
-        </p>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>
-          Set OPENCLAW_API_URL in Settings &gt; Connections to view available models.
-        </p>
-      </div>
-    )
+    return <OfflineState status={status} noun="available models" />
   }
 
   return <ModelsContent />
@@ -19,6 +47,104 @@ export default function ModelsTab({ healthy }: { healthy: boolean }) {
 
 function ModelsContent() {
   const { models, loading } = useOpenClawModels()
+  const [primaryModel, setPrimaryModel] = useLocalStorageState(CHAT_PRIMARY_MODEL_STORAGE_KEY, '')
+  const [heartbeatModel, setHeartbeatModel] = useLocalStorageState(OPENCLAW_HEARTBEAT_MODEL_STORAGE_KEY, '')
+  const [favoriteModelIds, setFavoriteModelIds] = useLocalStorageState<string[]>(CHAT_FAVORITE_MODELS_STORAGE_KEY, [])
+  const [favoriteModelsVersion, setFavoriteModelsVersion] = useLocalStorageState<number>(CHAT_FAVORITE_MODELS_VERSION_STORAGE_KEY, 0)
+  const modelList = getOpenClawModelList(models)
+  const sanitizedFavoriteIds = sanitizeFavoriteModelIds(favoriteModelIds)
+  const favoriteIds = sanitizedFavoriteIds.length === favoriteModelIds.length
+    ? favoriteModelIds
+    : sanitizedFavoriteIds
+  const normalizedPrimaryModel = resolvePreferredModelId(primaryModel, modelList)
+  const normalizedHeartbeatModel = resolvePreferredModelId(heartbeatModel, modelList)
+
+  useEffect(() => {
+    let cancelled = false
+    void api.get<{
+      chatPrimaryModel?: string | null
+      heartbeatModel?: string | null
+      favoriteModels?: string[]
+    }>('/api/openclaw/runtime-config').then((config) => {
+      if (cancelled) return
+      if (typeof config.chatPrimaryModel === 'string' && config.chatPrimaryModel !== primaryModel) {
+        setPrimaryModel(config.chatPrimaryModel)
+      }
+      if (typeof config.heartbeatModel === 'string' && config.heartbeatModel !== heartbeatModel) {
+        setHeartbeatModel(config.heartbeatModel)
+      }
+      if (Array.isArray(config.favoriteModels)) {
+        setFavoriteModelIds(config.favoriteModels)
+      }
+    }).catch(() => {})
+
+    return () => {
+      cancelled = true
+    }
+  }, [heartbeatModel, primaryModel, setFavoriteModelIds, setHeartbeatModel, setPrimaryModel])
+
+  const persistRuntimeConfig = async (next: {
+    chatPrimaryModel?: string
+    heartbeatModel?: string
+    favoriteModels?: string[]
+  }) => {
+    await api.patch('/api/openclaw/runtime-config', next)
+  }
+
+  const handlePrimaryModelChange = async (nextModel: string) => {
+    setPrimaryModel(nextModel)
+    await persistRuntimeConfig({ chatPrimaryModel: nextModel })
+  }
+
+  const handleHeartbeatModelChange = async (nextModel: string) => {
+    setHeartbeatModel(nextModel)
+    await persistRuntimeConfig({ heartbeatModel: nextModel })
+  }
+
+  const toggleFavoriteModel = async (modelId: string) => {
+    const nextFavorites = favoriteIds.includes(modelId)
+      ? favoriteIds.filter((id) => id !== modelId)
+      : [...favoriteIds, modelId]
+    setFavoriteModelIds(nextFavorites)
+    await persistRuntimeConfig({ favoriteModels: nextFavorites })
+  }
+
+  useEffect(() => {
+    if (modelList.length === 0) return
+    if (favoriteModelsVersion < CHAT_FAVORITE_MODELS_VERSION) {
+      const mergedFavorites = mergeDefaultFavoriteModelIds(
+        favoriteModelIds,
+        CHAT_DEFAULT_FAVORITE_MODELS,
+        modelList,
+      )
+      setFavoriteModelIds(mergedFavorites)
+      setFavoriteModelsVersion(CHAT_FAVORITE_MODELS_VERSION)
+      void persistRuntimeConfig({ favoriteModels: mergedFavorites })
+      return
+    }
+    if (favoriteIds !== favoriteModelIds) {
+      setFavoriteModelIds(favoriteIds)
+    }
+    if (primaryModel !== normalizedPrimaryModel) {
+      setPrimaryModel(normalizedPrimaryModel)
+    }
+    if (heartbeatModel !== normalizedHeartbeatModel) {
+      setHeartbeatModel(normalizedHeartbeatModel)
+    }
+  }, [
+    favoriteIds,
+    favoriteModelIds,
+    favoriteModelsVersion,
+    heartbeatModel,
+    modelList,
+    normalizedHeartbeatModel,
+    normalizedPrimaryModel,
+    primaryModel,
+    setFavoriteModelIds,
+    setFavoriteModelsVersion,
+    setHeartbeatModel,
+    setPrimaryModel,
+  ])
 
   if (loading) {
     return (
@@ -27,8 +153,6 @@ function ModelsContent() {
       </div>
     )
   }
-
-  const modelList = models?.models ?? models?.data ?? []
 
   if (modelList.length === 0) {
     return (
@@ -41,6 +165,71 @@ function ModelsContent() {
   return (
     <div style={{ overflow: 'auto', height: '100%', padding: '20px' }}>
       <div style={{
+        marginBottom: '16px',
+        padding: '12px 14px',
+        borderRadius: '10px',
+        border: '1px solid var(--hover-bg-bright)',
+        background: 'var(--bg-white-03)',
+        color: 'var(--text-secondary)',
+        fontSize: '12px',
+      }}>
+        Configure the harness model policy here instead of relying on hidden app defaults.
+      </div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+        gap: '12px',
+        marginBottom: '16px',
+      }}>
+        <div style={{
+          background: 'var(--bg-white-03)',
+          border: '1px solid var(--hover-bg-bright)',
+          borderRadius: '10px',
+          padding: '16px 20px',
+        }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
+            Primary chat model
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+            Used when chat has no active model pinned yet or the saved model is unavailable.
+          </div>
+          <ModelSelector
+            value={primaryModel}
+            onChange={(value) => { void handlePrimaryModelChange(value) }}
+            placeholder="Pick the default harness chat model"
+          />
+        </div>
+        <div style={{
+          background: 'var(--bg-white-03)',
+          border: '1px solid var(--hover-bg-bright)',
+          borderRadius: '10px',
+          padding: '16px 20px',
+        }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
+            Heartbeat model preference
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+            Your selected lightweight model for heartbeat and background harness work.
+          </div>
+          <ModelSelector
+            value={heartbeatModel}
+            onChange={(value) => { void handleHeartbeatModelChange(value) }}
+            placeholder="Pick the preferred heartbeat model"
+          />
+        </div>
+      </div>
+      <div style={{
+        marginBottom: '16px',
+        padding: '12px 14px',
+        borderRadius: '10px',
+        border: '1px solid var(--hover-bg-bright)',
+        background: 'var(--bg-white-03)',
+        color: 'var(--text-secondary)',
+        fontSize: '12px',
+      }}>
+        Star the models you want in the chat switcher. Only starred models show up there.
+      </div>
+      <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
         gap: '12px',
@@ -52,17 +241,42 @@ function ModelsContent() {
             borderRadius: '10px',
             padding: '16px 20px',
           }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
             {/* Model name */}
-            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
-              {model.name ?? model.id}
-            </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  {model.name ?? model.id}
+                </div>
 
             {/* Model ID (if different from name) */}
-            {model.name && model.name !== model.id && (
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', fontFamily: 'monospace' }}>
-                {model.id}
+                {model.name && model.name !== model.id && (
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', fontFamily: 'monospace' }}>
+                    {model.id}
+                  </div>
+                )}
               </div>
-            )}
+              <button
+                type="button"
+                aria-label={isFavoriteModel(model.id, favoriteIds) ? 'Remove model from chat favorites' : 'Add model to chat favorites'}
+                title={isFavoriteModel(model.id, favoriteIds) ? 'Remove from chat favorites' : 'Add to chat favorites'}
+                onClick={() => { void toggleFavoriteModel(model.id) }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--hover-bg-bright)',
+                  background: isFavoriteModel(model.id, favoriteIds) ? 'var(--amber-a15, rgba(245, 158, 11, 0.12))' : 'transparent',
+                  color: isFavoriteModel(model.id, favoriteIds) ? 'var(--amber, #f59e0b)' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                <Star size={16} weight={isFavoriteModel(model.id, favoriteIds) ? 'fill' : 'regular'} />
+              </button>
+            </div>
 
             {/* Provider badge + max tokens row */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>

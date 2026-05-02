@@ -1,5 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { api, ApiError, API_BASE, serviceForPath, serviceErrorLabel } from '../api'
+import {
+  api,
+  ApiError,
+  API_BASE,
+  API_BASE_CHANGED_EVENT,
+  getApiBase,
+  resolveDesktopApiBootstrap,
+  serviceForPath,
+  serviceErrorLabel,
+  setApiBase,
+} from '../api'
 
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn())
@@ -7,6 +17,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  localStorage.clear()
 })
 
 function mockFetch(response: {
@@ -104,7 +115,7 @@ describe('api', () => {
     } catch (err) {
       expect(err).toBeInstanceOf(ApiError)
       expect((err as ApiError).service).toBe('OpenClaw')
-      expect((err as ApiError).serviceLabel).toBe('OpenClaw unreachable')
+      expect((err as ApiError).serviceLabel).toBe('Harness unreachable')
     }
   })
 })
@@ -136,7 +147,7 @@ describe('serviceForPath', () => {
 describe('serviceErrorLabel', () => {
   it('returns human-readable labels', () => {
     expect(serviceErrorLabel('BlueBubbles')).toBe('BlueBubbles unreachable')
-    expect(serviceErrorLabel('OpenClaw')).toBe('OpenClaw unreachable')
+    expect(serviceErrorLabel('OpenClaw')).toBe('Harness unreachable')
     expect(serviceErrorLabel('Backend')).toBe('Service unavailable')
   })
 })
@@ -282,5 +293,64 @@ describe('serviceForPath edge cases', () => {
 
   it('maps empty string to Backend', () => {
     expect(serviceForPath('')).toBe('Backend')
+  })
+})
+
+describe('setApiBase', () => {
+  it('normalizes the value, persists it, and emits a backend change event', () => {
+    const listener = vi.fn()
+    window.addEventListener(API_BASE_CHANGED_EVENT, listener as EventListener)
+
+    const previousBase = getApiBase()
+    setApiBase('http://example.test:4000///')
+
+    expect(getApiBase()).toBe('http://example.test:4000')
+    expect(localStorage.getItem('backend-api-base')).toBe('http://example.test:4000')
+    expect(listener).toHaveBeenCalledTimes(1)
+
+    const event = listener.mock.calls[0]?.[0] as CustomEvent<{ previousBase: string; nextBase: string }>
+    expect(event.detail).toEqual({
+      previousBase,
+      nextBase: 'http://example.test:4000',
+    })
+
+    window.removeEventListener(API_BASE_CHANGED_EVENT, listener as EventListener)
+  })
+
+  it('does not emit the backend change event when the normalized base does not change', () => {
+    setApiBase('http://example.test:4000')
+    const listener = vi.fn()
+    window.addEventListener(API_BASE_CHANGED_EVENT, listener as EventListener)
+
+    setApiBase('http://example.test:4000///')
+
+    expect(listener).not.toHaveBeenCalled()
+    window.removeEventListener(API_BASE_CHANGED_EVENT, listener as EventListener)
+  })
+})
+
+describe('resolveDesktopApiBootstrap', () => {
+  it('prefers the selected remote backend in desktop mode', () => {
+    expect(resolveDesktopApiBootstrap({
+      savedApiBase: 'http://100.104.154.24:3000///',
+      localApiKey: 'local-key',
+      remoteApiKey: 'remote-key',
+    })).toEqual({
+      apiBase: 'http://100.104.154.24:3000',
+      configuredBackendBase: 'http://100.104.154.24:3000',
+      apiKey: 'remote-key',
+    })
+  })
+
+  it('falls back to the local embedded backend when no remote target is selected', () => {
+    expect(resolveDesktopApiBootstrap({
+      savedApiBase: null,
+      localApiKey: 'local-key',
+      remoteApiKey: 'remote-key',
+    })).toEqual({
+      apiBase: 'http://127.0.0.1:5000',
+      configuredBackendBase: 'http://127.0.0.1:5000',
+      apiKey: 'local-key',
+    })
   })
 })

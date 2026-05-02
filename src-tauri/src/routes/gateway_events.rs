@@ -205,16 +205,16 @@ mod tests {
         let mut stream = Box::pin(gateway_sse_stream(rx));
 
         // We need to collect in a timeout since the stream is infinite
-        let result = tokio::time::timeout(
-            Duration::from_millis(100),
-            stream.next(),
-        ).await;
+        let result = tokio::time::timeout(Duration::from_millis(100), stream.next()).await;
 
         assert!(result.is_ok(), "should receive an event");
         let event = result.unwrap().unwrap().unwrap();
         // Event should serialize to SSE format with event name "agent"
         let text = format!("{:?}", event);
-        assert!(text.contains("agent"), "event should contain 'agent': {text}");
+        assert!(
+            text.contains("agent"),
+            "event should contain 'agent': {text}"
+        );
     }
 
     #[tokio::test]
@@ -230,15 +230,15 @@ mod tests {
         }));
 
         let mut stream = Box::pin(gateway_sse_stream(rx));
-        let result = tokio::time::timeout(
-            Duration::from_millis(100),
-            stream.next(),
-        ).await;
+        let result = tokio::time::timeout(Duration::from_millis(100), stream.next()).await;
 
         assert!(result.is_ok());
         let event = result.unwrap().unwrap().unwrap();
         let text = format!("{:?}", event);
-        assert!(text.contains("test-agent"), "payload should be in event data: {text}");
+        assert!(
+            text.contains("test-agent"),
+            "payload should be in event data: {text}"
+        );
     }
 
     #[tokio::test]
@@ -261,17 +261,20 @@ mod tests {
         }));
 
         let mut stream = Box::pin(gateway_sse_stream(rx));
-        let result = tokio::time::timeout(
-            Duration::from_millis(100),
-            stream.next(),
-        ).await;
+        let result = tokio::time::timeout(Duration::from_millis(100), stream.next()).await;
 
         assert!(result.is_ok());
         let event = result.unwrap().unwrap().unwrap();
         let text = format!("{:?}", event);
         // Should be the "chat" event, not "connect.challenge"
-        assert!(text.contains("chat"), "should receive 'chat' not 'connect.challenge': {text}");
-        assert!(!text.contains("connect.challenge"), "connect.challenge should be filtered: {text}");
+        assert!(
+            text.contains("chat"),
+            "should receive 'chat' not 'connect.challenge': {text}"
+        );
+        assert!(
+            !text.contains("connect.challenge"),
+            "connect.challenge should be filtered: {text}"
+        );
     }
 
     #[tokio::test]
@@ -294,15 +297,15 @@ mod tests {
         }));
 
         let mut stream = Box::pin(gateway_sse_stream(rx));
-        let result = tokio::time::timeout(
-            Duration::from_millis(100),
-            stream.next(),
-        ).await;
+        let result = tokio::time::timeout(Duration::from_millis(100), stream.next()).await;
 
         assert!(result.is_ok());
         let event = result.unwrap().unwrap().unwrap();
         let text = format!("{:?}", event);
-        assert!(text.contains("presence"), "should receive 'presence' not 'tick': {text}");
+        assert!(
+            text.contains("presence"),
+            "should receive 'presence' not 'tick': {text}"
+        );
     }
 
     #[tokio::test]
@@ -325,15 +328,15 @@ mod tests {
         }));
 
         let mut stream = Box::pin(gateway_sse_stream(rx));
-        let result = tokio::time::timeout(
-            Duration::from_millis(100),
-            stream.next(),
-        ).await;
+        let result = tokio::time::timeout(Duration::from_millis(100), stream.next()).await;
 
         assert!(result.is_ok());
         let event = result.unwrap().unwrap().unwrap();
         let text = format!("{:?}", event);
-        assert!(text.contains("cron"), "should receive 'cron' not 'heartbeat': {text}");
+        assert!(
+            text.contains("cron"),
+            "should receive 'cron' not 'heartbeat': {text}"
+        );
     }
 
     #[tokio::test]
@@ -355,7 +358,9 @@ mod tests {
     #[tokio::test]
     async fn test_gateway_status_connected() {
         let client = GatewayWsClient::new();
-        client.set_state(crate::gateway_ws::ConnectionState::Connected).await;
+        client
+            .set_state(crate::gateway_ws::ConnectionState::Connected)
+            .await;
         client.set_protocol_version(Some(3)).await;
 
         let state = client.connection_state().await;

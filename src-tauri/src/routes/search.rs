@@ -1,4 +1,8 @@
-use axum::{extract::{Query, State}, routing::get, Json, Router};
+use axum::{
+    extract::{Query, State},
+    routing::get,
+    Json, Router,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -10,8 +14,7 @@ use crate::validation::sanitize_search_query;
 /// Build the search router (cross-table search across todos, missions,
 /// calendar events, and knowledge entries).
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/search", get(get_search))
+    Router::new().route("/search", get(get_search))
 }
 
 // ── Search ──────────────────────────────────────────────────────────────────
@@ -29,7 +32,9 @@ async fn get_search(
     let q = params.q.as_deref().unwrap_or("").trim().to_string();
 
     if q.len() > 200 {
-        return Err(AppError::BadRequest("Search query too long (max 200 characters)".into()));
+        return Err(AppError::BadRequest(
+            "Search query too long (max 200 characters)".into(),
+        ));
     }
 
     if q.is_empty() {
@@ -51,7 +56,8 @@ async fn get_search(
 
     // Search todos, missions, calendar_events, and knowledge_entries in parallel
     let todos_query = format!("select=id,text,done,created_at&text=ilike.{pattern}&limit=20");
-    let missions_query = format!("select=id,title,status,created_at&title=ilike.{pattern}&limit=20");
+    let missions_query =
+        format!("select=id,title,status,created_at&title=ilike.{pattern}&limit=20");
     let calendar_query = format!(
         "select=id,title,start_time,end_time,all_day,calendar_name&title=ilike.{pattern}&limit=10"
     );
@@ -75,16 +81,19 @@ async fn get_search(
     let events = match calendar_result {
         Ok(val) => {
             if let Some(arr) = val.as_array() {
-                let mapped: Vec<Value> = arr.iter().map(|evt| {
-                    json!({
-                        "id": evt.get("id").unwrap_or(&json!(null)),
-                        "title": evt.get("title").unwrap_or(&json!("")),
-                        "start": evt.get("start_time").unwrap_or(&json!("")),
-                        "end": evt.get("end_time").unwrap_or(&json!("")),
-                        "allDay": evt.get("all_day").unwrap_or(&json!(false)),
-                        "calendar": evt.get("calendar_name").unwrap_or(&json!("")),
+                let mapped: Vec<Value> = arr
+                    .iter()
+                    .map(|evt| {
+                        json!({
+                            "id": evt.get("id").unwrap_or(&json!(null)),
+                            "title": evt.get("title").unwrap_or(&json!("")),
+                            "start": evt.get("start_time").unwrap_or(&json!("")),
+                            "end": evt.get("end_time").unwrap_or(&json!("")),
+                            "allDay": evt.get("all_day").unwrap_or(&json!(false)),
+                            "calendar": evt.get("calendar_name").unwrap_or(&json!("")),
+                        })
                     })
-                }).collect();
+                    .collect();
                 json!(mapped)
             } else {
                 json!([])

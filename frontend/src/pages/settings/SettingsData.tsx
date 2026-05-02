@@ -40,7 +40,7 @@ export default function SettingsData() {
             const url = URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
-            a.download = `mission-control-settings-${new Date().toISOString().slice(0, 10)}.json`
+            a.download = `clawcontrol-settings-${new Date().toISOString().slice(0, 10)}.json`
             document.body.appendChild(a)
             a.click()
             document.body.removeChild(a)

@@ -38,7 +38,7 @@ export interface SystemService {
 
 const DEMO_SERVICES: SystemService[] = [
   { name: 'BlueBubbles', key: 'bluebubbles', status: 'ok', latency_ms: 12 },
-  { name: 'OpenClaw', key: 'openclaw', status: 'ok', latency_ms: 8 },
+  { name: 'Harness', key: 'openclaw', status: 'ok', latency_ms: 8 },
   { name: 'AgentShell', key: 'agentshell', status: 'ok', latency_ms: 10 },
   { name: 'Supabase', key: 'supabase', status: 'ok', latency_ms: 5 },
 ]
@@ -77,7 +77,7 @@ export function useSystemInfo() {
   if (source) {
     const entries: [string, string][] = [
       ['bluebubbles', 'BlueBubbles'],
-      ['openclaw', 'OpenClaw'],
+      ['openclaw', 'Harness'],
       ['agentshell', 'AgentShell'],
       ['supabase', 'Supabase'],
     ]

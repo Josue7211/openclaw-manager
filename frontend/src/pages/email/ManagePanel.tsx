@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { Star, Trash, X, Eye, EyeSlash, EnvelopeSimple } from '@phosphor-icons/react'
+import { Star, Trash, X, EnvelopeSimple } from '@phosphor-icons/react'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Button } from '@/components/ui/Button'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
@@ -12,7 +12,6 @@ interface ManagePanelProps {
   form: AccountForm
   formSaving: boolean
   formError: string | null
-  showPassword: boolean
   deletingId: string | null
   onClose: () => void
   onSetForm: (updater: (f: AccountForm) => AccountForm) => void
@@ -21,7 +20,6 @@ interface ManagePanelProps {
   onFormSave: () => void
   onDelete: (id: string) => void
   onSetDefault: (id: string) => void
-  onToggleShowPassword: () => void
 }
 
 const inputStyle = {
@@ -37,7 +35,6 @@ export function ManagePanel({
   form,
   formSaving,
   formError,
-  showPassword,
   deletingId,
   onClose,
   onSetForm,
@@ -46,7 +43,6 @@ export function ManagePanel({
   onFormSave,
   onDelete,
   onSetDefault,
-  onToggleShowPassword,
 }: ManagePanelProps) {
   const trapRef = useFocusTrap(true)
 
@@ -105,7 +101,7 @@ export function ManagePanel({
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{acc.label}</div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {acc.username} · {acc.host}:{acc.port}
+                      {acc.address} · {acc.provider} · {acc.forwarding_status}
                     </div>
                   </div>
                   {acc.is_default && (
@@ -160,48 +156,32 @@ export function ManagePanel({
                 <label style={labelStyle}>Label</label>
                 <input style={inputStyle} placeholder="Personal, Work…" value={form.label} onChange={e => onSetForm(f => ({ ...f, label: e.target.value }))} aria-label="Account label" />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '8px' }}>
-                <div>
-                  <label style={labelStyle}>Host</label>
-                  <input style={inputStyle} placeholder="imap.gmail.com" value={form.host} onChange={e => onSetForm(f => ({ ...f, host: e.target.value }))} aria-label="IMAP host" />
-                </div>
-                <div>
-                  <label style={labelStyle}>Port</label>
-                  <input style={{ ...inputStyle, width: '70px' }} placeholder="993" value={form.port} onChange={e => onSetForm(f => ({ ...f, port: e.target.value }))} aria-label="IMAP port" />
-                </div>
+              <div>
+                <label style={labelStyle}>Provider</label>
+                <input style={inputStyle} placeholder="gmail, outlook, fastmail…" value={form.provider} onChange={e => onSetForm(f => ({ ...f, provider: e.target.value }))} aria-label="Mail provider" />
               </div>
               <div>
-                <label style={labelStyle}>Username</label>
-                <input style={inputStyle} placeholder="you@example.com" value={form.username} onChange={e => onSetForm(f => ({ ...f, username: e.target.value }))} aria-label="Email address" />
+                <label style={labelStyle}>Address</label>
+                <input style={inputStyle} placeholder="you@example.com" value={form.address} onChange={e => onSetForm(f => ({ ...f, address: e.target.value }))} aria-label="Mailbox address" />
               </div>
               <div>
-                <label style={labelStyle}>Password {editingAccount && <span style={{ color: 'var(--text-muted)' }}>(leave blank to keep current)</span>}</label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    style={{ ...inputStyle, paddingRight: '32px' }}
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder={editingAccount ? '••••••••' : 'App password'}
-                    value={form.password}
-                    onChange={e => onSetForm(f => ({ ...f, password: e.target.value }))}
-                    aria-label="Email password"
-                  />
-                  <button
-                    onClick={onToggleShowPassword}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    style={{
-                      position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
-                      background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0,
-                    }}
-                  >
-                    {showPassword ? <EyeSlash size={12} /> : <Eye size={12} />}
-                  </button>
-                </div>
+                <label style={labelStyle}>AgentMail Inbox ID</label>
+                <input style={inputStyle} placeholder="leave blank to create through AgentMail" value={form.agentmail_inbox_id} onChange={e => onSetForm(f => ({ ...f, agentmail_inbox_id: e.target.value }))} aria-label="AgentMail inbox id" />
+              </div>
+              <div>
+                <label style={labelStyle}>Forwarding Status</label>
+                <select
+                  style={inputStyle}
+                  value={form.forwarding_status}
+                  onChange={e => onSetForm(f => ({ ...f, forwarding_status: e.target.value as AccountForm['forwarding_status'] }))}
+                  aria-label="Forwarding status"
+                >
+                  <option value="pending">Pending</option>
+                  <option value="active">Active</option>
+                  <option value="error">Error</option>
+                </select>
               </div>
               <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={form.tls} onChange={e => onSetForm(f => ({ ...f, tls: e.target.checked }))} />
-                  TLS/SSL
-                </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                   <input type="checkbox" checked={form.is_default} onChange={e => onSetForm(f => ({ ...f, is_default: e.target.checked }))} />
                   Set as default

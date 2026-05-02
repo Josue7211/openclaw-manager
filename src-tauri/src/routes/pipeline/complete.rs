@@ -1,5 +1,5 @@
-use std::sync::OnceLock;
 use std::sync::atomic::Ordering;
+use std::sync::OnceLock;
 
 use axum::{extract::State, Json};
 use regex::Regex;
@@ -19,7 +19,7 @@ fn log_path_re() -> &'static Regex {
     RE.get_or_init(|| Regex::new(LOG_PATH_RE).unwrap())
 }
 
-use super::agents::{status, escalation_target, CODEX, MAX_RETRIES};
+use super::agents::{escalation_target, status, CODEX, MAX_RETRIES};
 use super::helpers::{
     extract_workdir, log_activity, send_notify, set_agent_active, set_agent_idle,
     spawn_agent_process, supabase, validate_uuid,
@@ -57,11 +57,7 @@ pub(super) async fn pipeline_complete(
 
     // Fetch mission
     let mission = sb
-        .select_single_as_user(
-            "missions",
-            &format!("select=*&id=eq.{mission_id}"),
-            jwt,
-        )
+        .select_single_as_user("missions", &format!("select=*&id=eq.{mission_id}"), jwt)
         .await
         .map_err(|_| AppError::NotFound("Mission not found".into()))?;
 
@@ -80,9 +76,11 @@ pub(super) async fn pipeline_complete(
     }
 
     // Decrement active pipeline counter (saturating to avoid underflow)
-    ACTIVE_PIPELINES.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
-        Some(n.saturating_sub(1))
-    }).ok();
+    ACTIVE_PIPELINES
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
+            Some(n.saturating_sub(1))
+        })
+        .ok();
 
     let is_code_task = mission["task_type"].as_str() == Some("code");
     let agent_id = mission["assignee"].as_str().unwrap_or("").to_string();
@@ -194,7 +192,10 @@ pub(super) async fn pipeline_complete(
     if is_code_task {
         let codex_route = &CODEX;
         let workdir = extract_workdir(&mission);
-        let codex_log_file = format!("/tmp/codex-review-{}.log", &mission_id[..mission_id.len().min(8)]);
+        let codex_log_file = format!(
+            "/tmp/codex-review-{}.log",
+            &mission_id[..mission_id.len().min(8)]
+        );
 
         // Update mission + reset worker + activate Codex in parallel
         let mission_query = format!("id=eq.{mission_id}");
@@ -224,7 +225,7 @@ pub(super) async fn pipeline_complete(
              3. Check for broken imports, logic errors, missing props, type errors\n\
              4. If agent-browser is available, open the app and visually verify the changes look correct\n\n\
              When done, submit your review by running:\n\n\
-             curl -X POST http://localhost:3000/api/pipeline/review \\\n\
+             curl -X POST http://localhost:5000/api/pipeline/review \\\n\
                -H \"Content-Type: application/json\" \\\n\
                -H \"X-API-Key: $MC_API_KEY\" \\\n\
                -d '{{\"mission_id\":\"{mission_id}\",\"verdict\":\"approved\",\"notes\":\"your review notes\"}}'\n\n\
@@ -346,7 +347,7 @@ pub(super) async fn pipeline_complete(
         clean_registry_by_mission_id(&mid).await;
     });
 
-    let _ = log_tail; // used for notifyBjorn in TS; kept here for future use
+    let _ = log_tail; // used for agent registry notifications in TS; kept here for future use
 
     Ok(Json(json!({
         "action": "done",

@@ -1,20 +1,49 @@
 import { useState, useCallback } from 'react'
 import { CaretDown, CaretUp } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
-import type { Email } from './types'
+import type { Email, MailThread } from './types'
 import { formatDate } from './types'
 
 interface EmailListProps {
-  emails: Email[]
+  threads: MailThread[]
   selectedAccountId: string | null
+  folder: string
   onInvalidateEmails: () => void
+  selectedThreadId: string | null
+  onSelectThread: (thread: MailThread) => void
 }
 
-export function EmailList({ emails, selectedAccountId, onInvalidateEmails }: EmailListProps) {
+function threadSupportsReadMutation(thread: MailThread) {
+  return !thread.id.startsWith('thr_')
+}
+
+function threadToLegacyEmail(thread: MailThread, folder: string): Email {
+  return {
+    id: thread.id,
+    from: thread.from,
+    subject: thread.subject,
+    date: new Date().toISOString(),
+    preview: thread.preview,
+    read: !thread.unread,
+    folder,
+  }
+}
+
+export function EmailList({
+  threads,
+  selectedAccountId,
+  folder,
+  onInvalidateEmails,
+  selectedThreadId,
+  onSelectThread,
+}: EmailListProps) {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [markingRead, setMarkingRead] = useState<Set<string>>(new Set())
 
-  const handleMarkRead = useCallback(async (email: Email) => {
+  const handleMarkRead = useCallback(async (thread: MailThread) => {
+    if (!threadSupportsReadMutation(thread)) return
+
+    const email = threadToLegacyEmail(thread, folder)
     if (email.read || markingRead.has(email.id)) return
     setMarkingRead(prev => new Set(prev).add(email.id))
     try {
@@ -25,38 +54,41 @@ export function EmailList({ emails, selectedAccountId, onInvalidateEmails }: Ema
     } finally {
       setMarkingRead(prev => { const s = new Set(prev); s.delete(email.id); return s })
     }
-  }, [markingRead, selectedAccountId, onInvalidateEmails])
+  }, [folder, markingRead, selectedAccountId, onInvalidateEmails])
 
-  const toggleExpand = useCallback((email: Email) => {
-    setExpanded(prev => prev === email.id ? null : email.id)
-    handleMarkRead(email)
-  }, [handleMarkRead])
+  const toggleExpand = useCallback((thread: MailThread) => {
+    setExpanded(prev => prev === thread.id ? null : thread.id)
+    onSelectThread(thread)
+    handleMarkRead(thread)
+  }, [handleMarkRead, onSelectThread])
 
-  if (emails.length === 0) {
+  if (threads.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic' }}>
-        No emails
+        No threads
       </div>
     )
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      {emails.map(email => {
-        const isExpanded = expanded === email.id
+      {threads.map(thread => {
+        const email = threadToLegacyEmail(thread, folder)
+        const isExpanded = expanded === thread.id
+        const isSelected = selectedThreadId === thread.id
         return (
           <div
-            key={email.id}
+            key={thread.id}
             style={{
               borderRadius: '8px',
-              border: email.read ? '1px solid var(--border)' : '1px solid var(--purple-a30)',
-              background: email.read ? 'var(--bg-panel)' : 'var(--purple-a08)',
+              border: isSelected ? '1px solid var(--accent)' : email.read ? '1px solid var(--border)' : '1px solid var(--purple-a30)',
+              background: isSelected ? 'var(--purple-a08)' : email.read ? 'var(--bg-panel)' : 'var(--purple-a08)',
               transition: 'all 0.15s',
               overflow: 'hidden',
             }}
           >
             <button
-              onClick={() => toggleExpand(email)}
+              onClick={() => toggleExpand(thread)}
               style={{
                 display: 'flex', alignItems: 'center', gap: '12px',
                 width: '100%', padding: '12px 14px',
@@ -107,15 +139,15 @@ export function EmailList({ emails, selectedAccountId, onInvalidateEmails }: Ema
                   marginTop: '12px', fontSize: '12px', color: 'var(--text-secondary)',
                   lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
                 }}>
-                  {email.preview || '(no preview available)'}
+                  {thread.preview || '(no preview available)'}
                 </div>
                 <div style={{ marginTop: '12px', display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                     {new Date(email.date).toLocaleString()}
                   </span>
-                  {!email.read && (
+                  {!email.read && threadSupportsReadMutation(thread) && (
                     <button
-                      onClick={() => handleMarkRead(email)}
+                      onClick={() => handleMarkRead(thread)}
                       disabled={markingRead.has(email.id)}
                       style={{
                         padding: '3px 10px', borderRadius: '6px', fontSize: '11px',

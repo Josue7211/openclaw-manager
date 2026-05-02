@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Josue7211/openclaw-manager/releases"><img src="https://img.shields.io/github/v/release/Josue7211/openclaw-manager?include_prereleases&label=Download&color=7c3aed" alt="Download" /></a>
+  <a href="https://github.com/Josue7211/clawcontrol"><img src="https://img.shields.io/badge/GitHub-Josue7211%2Fclawcontrol-181717?logo=github" alt="GitHub repository" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPLv3-blue.svg" alt="AGPLv3 License" /></a>
   <img src="https://img.shields.io/badge/Tauri-v2-24C8D8?logo=tauri&logoColor=white" alt="Tauri v2" />
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -67,38 +67,57 @@ The app runs as a **Tauri v2 desktop application** with an embedded Axum HTTP se
 - **Offline-first**: Local SQLite database syncs to Supabase every 30 seconds
 - **Multi-device**: Run on Linux + macOS simultaneously, data syncs via Supabase
 - **Zero telemetry**: No analytics, no phone-home, fully self-hosted
-- **Defense in depth**: API key auth + Tailscale ACLs + Cloudflare Access + MFA + RLS on all tables
+- **Defense in depth**: API key auth + Tailscale ACLs + MFA + RLS on all tables
 
 ---
 
-## Download
+## Release Status
 
-Grab the latest release for your platform:
+`v0.0.8` is the current release-prep milestone.
 
-| Platform | Download |
-|----------|----------|
-| **Linux** (.deb) | [Releases page](https://github.com/Josue7211/openclaw-manager/releases) |
-| **Linux** (.rpm) | [Releases page](https://github.com/Josue7211/openclaw-manager/releases) |
-| **macOS** (.dmg) — Intel + Apple Silicon | [Releases page](https://github.com/Josue7211/openclaw-manager/releases) |
-| **Windows** (.msi) | [Releases page](https://github.com/Josue7211/openclaw-manager/releases) |
+The repo is moving toward a backend-first package flow:
 
-Or build from source (see below).
+1. one Docker Compose backend stack
+2. one deployment `.env`
+3. one backend URL
+4. one pairing token
+
+That flow is partially implemented, but it is not fully verified as a release yet.
+
+Tracking docs:
+
+- [docs/release-package-plan.md](docs/release-package-plan.md)
+- [docs/backend-stack.md](docs/backend-stack.md)
+- [docs/CONFIGURATION.md](docs/CONFIGURATION.md)
 
 ---
 
 ## Quick Start
 
-### From release binary
+### Planned self-hosted release path
 
-1. Download and install for your platform
-2. Launch the app
-3. The onboarding wizard guides you through connecting services
-4. No services configured? The app runs in **demo mode** with sample data
+The current release priority is a backend-first setup flow:
+
+1. copy one backend `.env`
+2. run one Docker Compose stack
+3. open the desktop app
+4. paste backend URL
+5. paste pairing token
+
+Tracking docs:
+
+- [docs/release-package-plan.md](docs/release-package-plan.md)
+- [docs/backend-stack.md](docs/backend-stack.md)
+
+Current scaffold files:
+
+- [docker-compose.backend.yml](docker-compose.backend.yml)
+- [.env.backend.example](.env.backend.example)
 
 ### From source
 
 ```bash
-git clone https://github.com/Josue7211/openclaw-manager.git
+git clone https://github.com/Josue7211/clawcontrol.git
 cd clawcontrol
 
 # Install frontend dependencies
@@ -124,11 +143,22 @@ cargo tauri build
 
 ## Configuration
 
-All service URLs and secrets are configured through **Settings > Connections** in the app. For development, you can also use a `.env.local` file:
+There are currently two configuration paths:
+
+1. current dev/local path: desktop app settings + `.env.local`
+2. in-progress release path: backend-first setup with `docker-compose.backend.yml`
+
+For local development, you can still use a `.env.local` file:
 
 ```bash
 cp .env.example .env.local   # Edit with your values
 ```
+
+For release-path planning, use:
+
+- [docker-compose.backend.yml](docker-compose.backend.yml)
+- [.env.backend.example](.env.backend.example)
+- [docs/backend-stack.md](docs/backend-stack.md)
 
 ### Required (for full functionality)
 
@@ -163,9 +193,14 @@ OpenClaw powers AI Chat, Agents, Crons, Missions, and the OpenClaw control plane
 | `PLEX_URL` / `PLEX_TOKEN` | Media Radar |
 | `SONARR_URL` / `SONARR_API_KEY` / `RADARR_URL` / `RADARR_API_KEY` | Media Radar |
 | `MC_BIND_HOST` | Set to `0.0.0.0` to expose API over Tailscale |
-| `MC_AGENT_KEY` | Stable API key for external agents (e.g. Bjorn) |
+| `MC_AGENT_KEY` | Stable API key for external agents |
 
 Sensitive credentials are stored in the **OS keychain** at runtime (macOS Keychain, Linux Secret Service, Windows Credential Manager). The `.env.local` file is a development fallback only and is gitignored.
+
+For the backend-first release work, see:
+
+- [docs/backend-stack.md](docs/backend-stack.md)
+- [docs/release-package-plan.md](docs/release-package-plan.md)
 
 ---
 
@@ -174,7 +209,7 @@ Sensitive credentials are stored in the **OS keychain** at runtime (macOS Keycha
 ClawControl handles private data (messages, credentials, notes). Security is non-negotiable:
 
 - **No telemetry, no analytics, no phone-home** — fully self-hosted and offline-capable
-- **3-layer auth**: API key (constant-time) → Tailscale ACLs (WireGuard) → Cloudflare Access (OAuth)
+- **3-layer auth**: API key (constant-time) → Tailscale ACLs (WireGuard) → MFA-gated backend access
 - **MFA hard gate** on all data endpoints — no data access without TOTP verification
 - **AES-256-GCM** encryption for user secrets, **Argon2id** key derivation
 - **RLS + FORCE** on all 28 Supabase tables — row-level user isolation
@@ -191,10 +226,10 @@ See [docs/SECURITY.md](docs/SECURITY.md) for the full security model, threat ana
 ## Testing
 
 ```bash
-# Frontend (1039 tests)
+# Frontend
 cd frontend && npx vitest run
 
-# Rust (231 tests)
+# Rust
 cd src-tauri && cargo test
 
 # Type check
@@ -209,7 +244,7 @@ cd frontend && npx tsc --noEmit
 ## Project Structure
 
 ```
-mission-control/
+clawcontrol/
 ├── frontend/                # React + Vite + TypeScript
 │   └── src/
 │       ├── components/      # Sidebar, CommandPalette, Lightbox, etc.

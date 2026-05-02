@@ -18,7 +18,7 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-03-22)
 
-**Core value:** AI agent (Bjorn) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
+**Core value:** AI agent (Agent) builds, previews, and hot-reloads custom modules inside the running app -- making it infinitely extensible without writing code.
 **Current focus:** Phase 93 — chat-send-token-streaming
 
 ## Current Position
@@ -64,7 +64,7 @@ Recent decisions affecting current work:
 - Theme blend, OpenClaw controller, Terminal phases kept as-is
 - Phase numbering: renumbered contiguously after cuts (old Phase 8 -> new Phase 6, etc.)
 - User vision: Mission Control as AI operations center — monitor Claude Code sessions, VNC into OpenClaw VM, Moonlight integration
-- OKLCH color utilities: pure math, zero deps, Bjorn Ottosson matrices, shortest-arc hue interpolation (Phase 6)
+- OKLCH color utilities: pure math, zero deps, Agent Ottosson matrices, shortest-arc hue interpolation (Phase 6)
 - Theme blend engine: OKLCH-aware Tier 1 interpolation, WCAG AA text contrast enforcement, bp=0.5 data-theme switch (Phase 7)
 - Theme blend slider: setBlendPosition() with 0-1 clamping, system mode auto-reset, RAF-throttled UI in Settings > Display (Phase 8)
 - OpenClaw gateway: state.http (bare reqwest) over ServiceClient -- avoids 5xx retry on writes, forced JSON parsing (Phase 9)

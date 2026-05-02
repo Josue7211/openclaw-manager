@@ -129,7 +129,7 @@ vi.mock('@xterm/addon-fit', () => ({ FitAddon: MockFitAddon }))
 vi.mock('@xterm/addon-web-links', () => ({ WebLinksAddon: vi.fn() }))
 vi.mock('@xterm/xterm/css/xterm.css', () => ({}))
 vi.mock('@/lib/api', () => ({
-  API_BASE: 'http://127.0.0.1:3000',
+  API_BASE: 'http://127.0.0.1:5000',
   api: {
     get: vi.fn().mockResolvedValue({ active: 0, max: 5, available: 5 }),
   },

@@ -1,8 +1,8 @@
 ---
-phase: 07-bjorn-module-builder
+phase: 07-agent-module-builder
 plan: 04
 subsystem: ui
-tags: [bjorn, blob-url, hot-reload, widget-registry, crud, react-query]
+tags: [agent, blob-url, hot-reload, widget-registry, crud, react-query]
 
 requires:
   - phase: 07-01
@@ -10,7 +10,7 @@ requires:
   - phase: 07-02
     provides: Rust CRUD endpoints for bjorn_modules persistence
 provides:
-  - Frontend Bjorn module store with full CRUD (create, update, delete, toggle, rollback)
+  - Frontend Agent module store with full CRUD (create, update, delete, toggle, rollback)
   - Hot-reload via blob URL dynamic imports into Widget Registry
   - Blob URL lifecycle management (revoke on update/delete)
   - Startup module loading (loadBjornModules)
@@ -24,8 +24,8 @@ tech-stack:
 
 key-files:
   created:
-    - frontend/src/lib/bjorn-store.ts
-    - frontend/src/lib/__tests__/bjorn-store.test.ts
+    - frontend/src/lib/agent-store.ts
+    - frontend/src/lib/__tests__/agent-store.test.ts
   modified:
     - frontend/src/lib/query-keys.ts
 
@@ -45,7 +45,7 @@ duration: 2min
 completed: 2026-03-21
 ---
 
-# Phase 07 Plan 04: Bjorn Frontend Store Summary
+# Phase 07 Plan 04: Agent Frontend Store Summary
 
 **Frontend module store with blob URL hot-reload, API-backed CRUD, and widget registry integration for AI-generated modules**
 
@@ -67,14 +67,14 @@ completed: 2026-03-21
 
 Each task was committed atomically:
 
-1. **Task 1 (RED): Failing tests for bjorn store** - `4a536f0` (test)
-2. **Task 1 (GREEN): Bjorn store implementation** - `884acc1` (feat)
+1. **Task 1 (RED): Failing tests for agent store** - `4a536f0` (test)
+2. **Task 1 (GREEN): Agent store implementation** - `884acc1` (feat)
 
 _TDD task with RED (failing tests) and GREEN (implementation) commits._
 
 ## Files Created/Modified
-- `frontend/src/lib/bjorn-store.ts` - Module store with CRUD, blob URL hot-reload, exposePrimitivesAPI
-- `frontend/src/lib/__tests__/bjorn-store.test.ts` - 20 tests for all store operations
+- `frontend/src/lib/agent-store.ts` - Module store with CRUD, blob URL hot-reload, exposePrimitivesAPI
+- `frontend/src/lib/__tests__/agent-store.test.ts` - 20 tests for all store operations
 - `frontend/src/lib/query-keys.ts` - Added bjornModules and bjornVersions query keys
 
 ## Decisions Made
@@ -102,5 +102,5 @@ None - no external service configuration required.
 All files exist, all commits verified.
 
 ---
-*Phase: 07-bjorn-module-builder*
+*Phase: 07-agent-module-builder*
 *Completed: 2026-03-21*

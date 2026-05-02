@@ -16,11 +16,11 @@ The existing codebase provides strong foundations: `WidgetProps` and `WidgetConf
 ## User Constraints (from CONTEXT.md)
 
 ### Locked Decisions
-- **Chart Rendering:** Lightweight SVG-based charts -- no heavy charting library (Recharts, Chart.js, etc.). Custom SVG components for line chart and bar chart. Bjorn can generate SVG markup directly. Sparklines in stat cards use inline SVG paths. Tooltip positioning via CSS transform, not a portal.
+- **Chart Rendering:** Lightweight SVG-based charts -- no heavy charting library (Recharts, Chart.js, etc.). Custom SVG components for line chart and bar chart. Agent can generate SVG markup directly. Sparklines in stat cards use inline SVG paths. Tooltip positioning via CSS transform, not a portal.
 - **Primitive API Contract:** Every primitive implements `WidgetProps` from `widget-registry.ts`: `{ widgetId, config, isEditMode, size }`. Config is `Record<string, unknown>` -- primitives validate against their own `WidgetConfigSchema`. Each primitive exports a `configSchema: WidgetConfigSchema` alongside the component. Primitives are pure render components -- they receive data via config, not internal fetching. Data fetching happens in the widget wrapper or parent, not inside the primitive.
-- **Config Schema Design:** Flat JSON schemas matching the existing `WidgetConfigSchema` type from Phase 4. Field types: `text`, `number`, `toggle`, `select`, `slider` (already defined). Each primitive's schema documents every configurable property with defaults. Schema doubles as documentation -- Bjorn reads schemas to understand what primitives accept. VS Code-inspired: schema drives the config panel UI automatically.
+- **Config Schema Design:** Flat JSON schemas matching the existing `WidgetConfigSchema` type from Phase 4. Field types: `text`, `number`, `toggle`, `select`, `slider` (already defined). Each primitive's schema documents every configurable property with defaults. Schema doubles as documentation -- Agent reads schemas to understand what primitives accept. VS Code-inspired: schema drives the config panel UI automatically.
 - **Internal State Management:** Each primitive wraps itself with error boundary (catch + fallback UI). Empty state handled via conditional render -- no data shows EmptyState from `components/ui/`. Loading state is the parent's responsibility (Suspense boundary in WidgetWrapper). Primitives never crash -- malformed config renders a helpful error message, not a blank widget.
-- **Modularity (VS Code-inspired):** Each primitive is a standalone file in `components/primitives/`. Primitives are registered in the Widget Registry via `registerWidget()` -- same as built-in widgets. Each primitive can be lazy-loaded independently. Config schema is co-located with the component (exported from the same file). Future: Bjorn generates new primitives that follow the same contract and register themselves.
+- **Modularity (VS Code-inspired):** Each primitive is a standalone file in `components/primitives/`. Primitives are registered in the Widget Registry via `registerWidget()` -- same as built-in widgets. Each primitive can be lazy-loaded independently. Config schema is co-located with the component (exported from the same file). Future: Agent generates new primitives that follow the same contract and register themselves.
 - **Theme Compliance:** All colors via CSS variables -- `var(--text-primary)`, `var(--accent)`, `var(--border)`, etc. Chart colors use the accent/secondary/tertiary color hierarchy from the theme engine. No hardcoded colors, font sizes, or spacing values. Dark/light mode handled automatically by CSS variables -- primitives don't check theme mode.
 
 ### Claude's Discretion
@@ -79,7 +79,7 @@ The existing codebase provides strong foundations: `WidgetProps` and `WidgetConf
 ### Alternatives Considered
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| Custom SVG charts | Recharts / Victory / visx | User decision: custom SVG keeps bundle small, Bjorn can generate SVG directly. Heavy libraries add 50-200KB. |
+| Custom SVG charts | Recharts / Victory / visx | User decision: custom SVG keeps bundle small, Agent can generate SVG directly. Heavy libraries add 50-200KB. |
 | Native HTML5 DnD (kanban) | @dnd-kit/core / @hello-pangea/dnd | Native DnD is the project pattern (SettingsModules.tsx uses it extensively). Adding a library would be inconsistent. |
 | marked (markdown) | remark / markdown-it | marked is already installed and used in MarkdownBubble.tsx. No reason to add another renderer. |
 
@@ -236,7 +236,7 @@ function resolveColor(key: string): string {
 ```
 
 ### Anti-Patterns to Avoid
-- **Fetching data inside primitives:** Primitives are pure render components. The parent (or a data provider at the dashboard level) fetches data and passes it via `config`. This keeps primitives testable and Bjorn-friendly.
+- **Fetching data inside primitives:** Primitives are pure render components. The parent (or a data provider at the dashboard level) fetches data and passes it via `config`. This keeps primitives testable and Agent-friendly.
 - **Using React Error Boundaries inside primitives:** The parent `WidgetWrapper` already provides `PageErrorBoundary`. Primitives should use defensive config parsing (type guards + fallbacks), not additional error boundaries. The parent catches unrecoverable crashes.
 - **Hardcoding pixel values for responsive sizing:** Primitives receive `size: { w, h }` (grid units, not pixels). Use percentage-based or viewBox-based SVG sizing. The grid cell dimensions are determined by `ROW_HEIGHT` (80px) and column width.
 - **Creating portals for tooltips:** CONTEXT.md specifies tooltip positioning via CSS transform, not portals. Portals can escape the widget boundary and cause z-index issues in the dashboard grid.
@@ -282,7 +282,7 @@ function resolveColor(key: string): string {
 **Warning signs:** Drag operation starts but no visual feedback; ghost image is a white rectangle or flickers.
 
 ### Pitfall 5: Markdown XSS via Config Injection
-**What goes wrong:** Markdown content passed via widget config could contain malicious HTML/JS if the config source is untrusted (future: Bjorn-generated configs).
+**What goes wrong:** Markdown content passed via widget config could contain malicious HTML/JS if the config source is untrusted (future: Agent-generated configs).
 **Why it happens:** `marked` converts markdown to HTML which can contain script tags or event handlers without sanitization.
 **How to avoid:** Always pipe through `sanitizeHtml()` from `lib/sanitize.ts` (which uses DOMPurify with a strict allowlist). Never render raw HTML from config without sanitization. This is already the pattern in `MarkdownBubble.tsx`.
 **Warning signs:** `<script>` tags or `onclick` handlers in rendered markdown output.
@@ -426,7 +426,7 @@ export function configArray<T>(config: Record<string, unknown>, key: string): T[
 
 | Old Approach | Current Approach | When Changed | Impact |
 |--------------|------------------|--------------|--------|
-| Canvas-based charts (Chart.js) | SVG-based (custom or visx) | 2023-2024 | SVG is more accessible (DOM nodes), theme-able via CSS, and Bjorn can generate SVG markup directly |
+| Canvas-based charts (Chart.js) | SVG-based (custom or visx) | 2023-2024 | SVG is more accessible (DOM nodes), theme-able via CSS, and Agent can generate SVG markup directly |
 | External DnD libraries (react-beautiful-dnd) | Native HTML5 DnD or @dnd-kit | 2023 (react-beautiful-dnd deprecated) | react-beautiful-dnd deprecated in favor of @hello-pangea/dnd fork. But native DnD is lighter and what this project uses. |
 | marked v4-12 | marked v17 | 2025 | v17 uses `marked.use({ renderer: { code({text, lang}) {} } })` instead of `marked.setOptions()`. GFM and breaks configured via `marked.use()`. |
 | React 18 patterns | React 19 patterns | 2024-2025 | React 19 is installed. `use()` hook available but not required. `React.memo` still the primary optimization pattern in this codebase. |
@@ -449,8 +449,8 @@ export function configArray<T>(config: Record<string, unknown>, key: string): T[
 
 3. **Data Passing Strategy for Complex Primitives**
    - What we know: Config is `Record<string, unknown>`. Config panel handles simple types (text, number, toggle, select, slider). Charts need arrays of data points, tables need row arrays.
-   - What's unclear: How Bjorn or users will supply complex data to primitives at runtime (Phase 7 concern, but architecture affects Phase 6).
-   - Recommendation: Design primitives to accept complex data via config keys (e.g., `config.data`, `config.rows`, `config.columns`) that are opaque to the config panel. The config panel only controls user-facing settings. Complex data is injected programmatically by Bjorn or by data provider wrappers.
+   - What's unclear: How Agent or users will supply complex data to primitives at runtime (Phase 7 concern, but architecture affects Phase 6).
+   - Recommendation: Design primitives to accept complex data via config keys (e.g., `config.data`, `config.rows`, `config.columns`) that are opaque to the config panel. The config panel only controls user-facing settings. Complex data is injected programmatically by Agent or by data provider wrappers.
 
 ## Validation Architecture
 

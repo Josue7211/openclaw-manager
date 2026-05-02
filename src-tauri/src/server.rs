@@ -18,9 +18,10 @@ use zeroize::Zeroize;
 /// without touching process environment variables.
 pub static MC_API_KEY: OnceLock<String> = OnceLock::new();
 
-/// MC_AGENT_KEY — optional stable key for external agents (e.g. Bjorn on OpenClaw VM).
+/// MC_AGENT_KEY — optional stable key for external agents on OpenClaw VM.
 /// Unlike MC_API_KEY which rotates every launch, this is user-configured and persistent.
 pub static MC_AGENT_KEY: OnceLock<String> = OnceLock::new();
+pub static PAIRING_TOKEN: OnceLock<String> = OnceLock::new();
 use crate::routes;
 use crate::service_client::ServiceClient;
 use tokio::net::TcpListener;
@@ -128,6 +129,16 @@ pub async fn save_dev_session(db: &sqlx::SqlitePool, session: &UserSession) {
 /// ```
 pub struct RequireAuth(pub UserSession);
 
+#[cfg(debug_assertions)]
+fn insecure_dev_auth_bypass_enabled() -> bool {
+    matches!(
+        std::env::var("ALLOW_INSECURE_DEV_AUTH_BYPASS")
+            .ok()
+            .as_deref(),
+        Some("1" | "true" | "TRUE" | "True")
+    )
+}
+
 #[axum::async_trait]
 impl<S> axum::extract::FromRequestParts<S> for RequireAuth
 where
@@ -139,11 +150,12 @@ where
         parts: &mut axum::http::request::Parts,
         _state: &S,
     ) -> Result<Self, Self::Rejection> {
-        // In debug mode, bypass auth with a fake dev session so browser
-        // testing works without OAuth login.
+        // Never bypass auth implicitly. A fake dev session is only allowed
+        // when a developer explicitly opts into the insecure shortcut.
         #[cfg(debug_assertions)]
         {
-            if parts.extensions.get::<UserSession>().is_none() {
+            if parts.extensions.get::<UserSession>().is_none() && insecure_dev_auth_bypass_enabled()
+            {
                 let now = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
@@ -182,7 +194,7 @@ where
 
 #[derive(Clone)]
 pub struct AppState {
-    pub app: tauri::AppHandle,
+    pub app: Option<tauri::AppHandle>,
     pub db: sqlx::SqlitePool,
     pub http: reqwest::Client,
     /// Secrets loaded from the OS keychain at startup, then enriched with
@@ -218,6 +230,7 @@ pub struct AppState {
 /// State for an in-progress OAuth flow.
 #[derive(Clone)]
 pub struct PendingOAuthFlow {
+    pub provider: String,
     pub verifier: String,
     pub nonce: String,
     pub url: String,
@@ -532,9 +545,9 @@ async fn verify_connection_security(secrets: &std::collections::HashMap<String, 
     }
 }
 
-/// Start the embedded Axum HTTP server on localhost:3000 with all API routes.
+/// Start the embedded Axum HTTP server on localhost:5000 with all API routes.
 pub async fn start(
-    app_handle: tauri::AppHandle,
+    app_handle: Option<tauri::AppHandle>,
     secrets: std::collections::HashMap<String, String>,
 ) -> anyhow::Result<()> {
     // Run Tailscale peer identity verification in the background.
@@ -552,6 +565,9 @@ pub async fn start(
     // Store MC_API_KEY for the auth middleware (runs outside State extraction)
     if let Some(key) = secrets.get("MC_API_KEY").filter(|s| !s.is_empty()) {
         let _ = MC_API_KEY.set(key.clone());
+    }
+    if let Some(key) = secrets.get("PAIRING_TOKEN").filter(|s| !s.is_empty()) {
+        let _ = PAIRING_TOKEN.set(key.clone());
     }
 
     // Store stable agent key (user-configured, doesn't rotate)
@@ -622,29 +638,8 @@ pub async fn start(
     #[cfg(not(debug_assertions))]
     let restored_session: Option<UserSession> = None;
 
-    // In debug mode, if no restored session exists, create a fake dev session
-    // so browser testing works without OAuth login.
     #[cfg(debug_assertions)]
-    let restored_session = restored_session.or_else(|| {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64;
-        tracing::info!("no dev session found — creating fake dev session for browser testing");
-        Some(UserSession {
-            access_token: "dev-token".to_string(),
-            refresh_token: "dev-refresh".to_string(),
-            user_id: "dev-user".to_string(),
-            email: "dev@localhost".to_string(),
-            expires_at: now + 86400,
-            encryption_key: vec![0u8; 32],
-            mfa_verified: true,
-            factor_id: None,
-            factor_type: None,
-            available_mfa_methods: vec![],
-            created_at: now,
-        })
-    });
+    let restored_session = restored_session;
 
     // Create gateway WS client if OpenClaw is configured
     let gateway_ws = openclaw
@@ -704,9 +699,10 @@ pub async fn start(
     // Resolve bind address before state is moved into the router.
     // Default: 127.0.0.1 (localhost only). Set MC_BIND_HOST to "0.0.0.0"
     // or a specific Tailscale IP to expose the API to the tailnet.
-    let bind_host = state
-        .secret("MC_BIND_HOST")
+    let bind_host = std::env::var("MC_BIND_HOST")
+        .ok()
         .filter(|s| !s.is_empty())
+        .or_else(|| state.secret("MC_BIND_HOST").filter(|s| !s.is_empty()))
         .unwrap_or_else(|| "127.0.0.1".to_string());
     let bind_ip: std::net::IpAddr = bind_host.parse().unwrap_or_else(|_| {
         tracing::warn!(
@@ -723,6 +719,16 @@ pub async fn start(
              External agents will not be able to authenticate. Set MC_AGENT_KEY for Tailscale access."
         , bind_ip);
     }
+
+    let bind_port = std::env::var("MC_BIND_PORT")
+        .ok()
+        .and_then(|value| value.parse::<u16>().ok())
+        .or_else(|| {
+            state
+                .secret("MC_BIND_PORT")
+                .and_then(|value| value.parse::<u16>().ok())
+        })
+        .unwrap_or(5000);
 
     // Pre-warm the messages conversation cache in the background
     let prewarm_state = state.clone();
@@ -747,6 +753,7 @@ pub async fn start(
                             || s == "http://localhost"
                             || s == "http://127.0.0.1"
                             || s.starts_with("tauri://")
+                            || s.starts_with("http://tauri.localhost")
                             || s.starts_with("https://tauri.localhost")
                     } else {
                         false
@@ -769,7 +776,7 @@ pub async fn start(
         });
     }
 
-    let addr = SocketAddr::from((bind_ip, 3000));
+    let addr = SocketAddr::from((bind_ip, bind_port));
     let listener = TcpListener::bind(addr).await?;
     tracing::info!("Axum listening on {}", addr);
     axum::serve(listener, app).await?;
@@ -787,6 +794,11 @@ async fn inject_session(
     mut req: Request<Body>,
     next: Next,
 ) -> Response {
+    let path = req.uri().path().to_string();
+    if path == "/api/health" || path.starts_with("/api/setup/") || path.starts_with("/api/auth/") {
+        return next.run(req).await;
+    }
+
     let session = state.session.read().await.clone();
 
     if let Some(ref sess) = session {
@@ -920,7 +932,15 @@ const AUTH_EXEMPT_PATHS: &[&str] = &["/api/health"];
 /// Path prefixes exempt from API key authentication.
 /// Note: "/api/wizard/" endpoints are NOT exempt -- they require X-API-Key
 /// but not RequireAuth (no user session needed during setup wizard).
-const AUTH_EXEMPT_PREFIXES: &[&str] = &["/api/auth/"];
+const AUTH_EXEMPT_PREFIXES: &[&str] = &["/api/auth/", "/api/setup/"];
+
+fn is_dev_agentmail_read(req: &Request<Body>) -> bool {
+    if !cfg!(debug_assertions) || req.method() != axum::http::Method::GET {
+        return false;
+    }
+
+    matches!(req.uri().path(), "/api/mail-accounts" | "/api/email")
+}
 
 // ---------------------------------------------------------------------------
 // Per-user rate limiting
@@ -1044,6 +1064,7 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
         || AUTH_EXEMPT_PREFIXES
             .iter()
             .any(|prefix| path.starts_with(prefix))
+        || is_dev_agentmail_read(&req)
     {
         return next.run(req).await;
     }
@@ -1078,16 +1099,23 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
         if provided.as_bytes().ct_eq(expected.as_bytes()).into() {
             return next.run(req).await;
         }
-        // Also check against stable agent key (for external agents like Bjorn)
+        // Also check against stable agent key for external agents
         if let Some(agent_key) = MC_AGENT_KEY.get() {
             if !agent_key.is_empty() && provided.as_bytes().ct_eq(agent_key.as_bytes()).into() {
+                return next.run(req).await;
+            }
+        }
+        if let Some(pairing_token) = PAIRING_TOKEN.get() {
+            if !pairing_token.is_empty()
+                && crate::routes::setup::matches_device_api_key(pairing_token, provided)
+            {
                 return next.run(req).await;
             }
         }
     }
 
     // WebSocket connections can't send custom headers — check query parameter
-    // e.g. ws://127.0.0.1:3000/api/chat/ws?apiKey=...
+    // e.g. ws://127.0.0.1:5000/api/chat/ws?apiKey=...
     if req
         .headers()
         .get("upgrade")
@@ -1098,13 +1126,23 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
         if let Some(query) = req.uri().query() {
             for pair in query.split('&') {
                 if let Some(val) = pair.strip_prefix("apiKey=") {
-                    if val.as_bytes().ct_eq(expected.as_bytes()).into() {
+                    let decoded = urlencoding::decode(val)
+                        .map(|v| v.into_owned())
+                        .unwrap_or_else(|_| val.to_string());
+                    if decoded.as_bytes().ct_eq(expected.as_bytes()).into() {
                         return next.run(req).await;
                     }
                     // Also check stable agent key for WebSocket connections
                     if let Some(agent_key) = MC_AGENT_KEY.get() {
                         if !agent_key.is_empty()
-                            && val.as_bytes().ct_eq(agent_key.as_bytes()).into()
+                            && decoded.as_bytes().ct_eq(agent_key.as_bytes()).into()
+                        {
+                            return next.run(req).await;
+                        }
+                    }
+                    if let Some(pairing_token) = PAIRING_TOKEN.get() {
+                        if !pairing_token.is_empty()
+                            && crate::routes::setup::matches_device_api_key(pairing_token, &decoded)
                         {
                             return next.run(req).await;
                         }
@@ -1118,7 +1156,12 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
     // (CORS limits origins; API key provides defense-in-depth for Tauri production)
     #[cfg(debug_assertions)]
     if let Some(origin) = req.headers().get("origin").and_then(|v| v.to_str().ok()) {
-        if origin.starts_with("http://localhost:") || origin.starts_with("http://127.0.0.1:") {
+        if origin.starts_with("http://localhost:")
+            || origin.starts_with("http://127.0.0.1:")
+            || origin.starts_with("tauri://")
+            || origin.starts_with("http://tauri.localhost")
+            || origin.starts_with("https://tauri.localhost")
+        {
             return next.run(req).await;
         }
     }
@@ -1361,7 +1404,7 @@ mod tests {
 
     #[test]
     fn warn_if_insecure_url_ignores_localhost() {
-        warn_if_insecure_url("TestService", "http://127.0.0.1:3000");
+        warn_if_insecure_url("TestService", "http://127.0.0.1:5000");
         warn_if_insecure_url("TestService", "http://localhost:8080");
     }
 
@@ -1388,7 +1431,7 @@ mod tests {
         log_tls_status("Supabase", "https://supabase.example.com");
         log_tls_status("Supabase", "http://192.0.2.1:8000");
         log_tls_status("External", "http://203.0.113.50:8080");
-        log_tls_status("Local", "http://127.0.0.1:3000");
+        log_tls_status("Local", "http://127.0.0.1:5000");
         log_tls_status("Tailscale", "http://100.64.0.3:1234");
     }
 

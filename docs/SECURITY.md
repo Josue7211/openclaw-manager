@@ -1,12 +1,12 @@
 # Security Model
 
-This document describes OpenClaw Manager's security architecture, threat model, and hardening measures. It is intended for contributors, security reviewers, and anyone self-hosting the application.
+This document describes ClawControl's security architecture, threat model, and hardening measures. It is intended for contributors, security reviewers, and anyone self-hosting the application.
 
 ## Architecture Overview
 
-OpenClaw Manager is a Tauri v2 desktop application with an embedded Axum HTTP server bound to `127.0.0.1:3000`. The frontend is a React SPA rendered in Tauri's WebView. All remote services (BlueBubbles, OpenClaw, Supabase) are accessed over a Tailscale WireGuard mesh VPN. Nothing is exposed to the public internet.
+ClawControl is a Tauri v2 desktop application with an embedded Axum HTTP server bound to `127.0.0.1:3000`. The frontend is a React SPA rendered in Tauri's WebView. All remote services (BlueBubbles, OpenClaw, Supabase) are accessed over a Tailscale WireGuard mesh VPN. Nothing is exposed to the public internet.
 
-![Architecture](https://raw.githubusercontent.com/Josue7211/openclaw-manager/master/docs/architecture.png)
+![Architecture](https://raw.githubusercontent.com/Josue7211/clawcontrol/master/docs/architecture.png)
 
 The Axum server acts as the sole gateway between the frontend and all backend services. The frontend never contacts remote services directly.
 
@@ -51,7 +51,7 @@ On startup, `tailscale.rs` runs `startup_verify()` in a background thread to val
 
 ### Bootstrap secrets (OS keychain)
 
-At startup, `secrets.rs` loads all credentials from the OS keychain (`keyring` crate, service name `com.mission-control`). The keychain stores service URLs, API keys, passwords, and tokens for all integrations (BlueBubbles, OpenClaw, Proxmox, Supabase, etc.).
+At startup, `secrets.rs` loads all credentials from the OS keychain (`keyring` crate, service name `com.clawcontrol.desktop`, with read fallback to legacy `com.mission-control`). The keychain stores service URLs, API keys, passwords, and tokens for all integrations (BlueBubbles, OpenClaw, Proxmox, Supabase, etc.).
 
 Secrets are loaded into an in-memory `HashMap<String, String>` wrapped in `Arc<RwLock>` and accessed via `AppState::secret()`. They are never written to process-wide environment variables, so they do not appear in `/proc/PID/environ`.
 
@@ -88,7 +88,7 @@ The frontend is only permitted to read: `mc-api-key`, `bluebubbles.host`, `openc
 
 ### Local SQLite
 
-The local database (`{data_local_dir}/mission-control/local.db`) is configured with:
+The local database (`{data_local_dir}/clawcontrol/local.db`, with legacy migration fallback from `mission-control/local.db`) is configured with:
 
 - `journal_mode=WAL` for concurrent reads.
 - `secure_delete=ON` to overwrite deleted data with zeros.
@@ -285,7 +285,7 @@ The `scripts/pre-commit.sh` script scans staged files for:
 
 ### CI Pipeline
 
-GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `master` and every PR:
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push to the protected default branch (`main`, with `master` supported during migration) and every PR:
 
 1. **TypeScript typecheck**: `tsc --noEmit`
 2. **Frontend tests**: `vitest run`

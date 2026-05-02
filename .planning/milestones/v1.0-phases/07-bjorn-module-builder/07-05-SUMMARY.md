@@ -1,8 +1,8 @@
 ---
-phase: 07-bjorn-module-builder
+phase: 07-agent-module-builder
 plan: 05
 subsystem: ui
-tags: [react, ai-chat, bjorn, module-builder, system-prompt, primitives-api, code-extraction]
+tags: [react, ai-chat, agent, module-builder, system-prompt, primitives-api, code-extraction]
 
 # Dependency graph
 requires:
@@ -11,24 +11,24 @@ requires:
   - phase: 07-03
     provides: BjornPreview sandboxed iframe component
   - phase: 07-04
-    provides: bjorn-store CRUD, saveBjornModule, blob URL hot-reload
+    provides: agent-store CRUD, saveBjornModule, blob URL hot-reload
 provides:
   - BjornTab chat + preview split layout component
   - BjornApprovalBar approve/reject/edit toolbar
   - buildBjornSystemPrompt with all 11 primitive schemas
   - extractCodeFromResponse for markdown code fence parsing
   - extractModuleMetadata for name/description extraction
-  - Chat page tab switcher (Chat / Bjorn tabs)
+  - Chat page tab switcher (Chat / Agent tabs)
 affects: [07-06, settings-modules]
 
 # Tech tracking
 tech-stack:
   added: []
-  patterns: [bjorn-system-prompt-builder, code-fence-extraction, chat-tab-switcher]
+  patterns: [agent-system-prompt-builder, code-fence-extraction, chat-tab-switcher]
 
 key-files:
   created:
-    - frontend/src/pages/chat/bjorn-prompt.ts
+    - frontend/src/pages/chat/agent-prompt.ts
     - frontend/src/pages/chat/BjornApprovalBar.tsx
     - frontend/src/pages/chat/BjornTab.tsx
     - frontend/src/pages/chat/__tests__/BjornTab.test.tsx
@@ -37,9 +37,9 @@ key-files:
 
 key-decisions:
   - "BjornTab uses own message state (not useChatState) for separate conversation context"
-  - "System prompt sent as system_prompt field on each api.post to /api/chat for Bjorn-specific prompting"
+  - "System prompt sent as system_prompt field on each api.post to /api/chat for Agent-specific prompting"
   - "Tab switcher as segmented control in header bar next to PageHeader, not separate nav"
-  - "Chat state kept alive in parent when switching to Bjorn tab (useChatState in ChatPage, not unmounted)"
+  - "Chat state kept alive in parent when switching to Agent tab (useChatState in ChatPage, not unmounted)"
 
 patterns-established:
   - "Chat tab switcher: segmented control with aria-pressed for tab state"
@@ -53,9 +53,9 @@ duration: 4min
 completed: 2026-03-21
 ---
 
-# Phase 07 Plan 05: Bjorn Chat Tab Summary
+# Phase 07 Plan 05: Agent Chat Tab Summary
 
-**Bjorn chat tab with side-by-side preview, system prompt with all 11 primitive schemas, approve/reject/edit approval bar, and Chat page tab switcher**
+**Agent chat tab with side-by-side preview, system prompt with all 11 primitive schemas, approve/reject/edit approval bar, and Chat page tab switcher**
 
 ## Performance
 
@@ -66,30 +66,30 @@ completed: 2026-03-21
 - **Files modified:** 5
 
 ## Accomplishments
-- Built Bjorn system prompt containing all 11 primitive config schemas (StatCard, ProgressGauge, MarkdownDisplay, LineChart, BarChart, ListView, DataTable, FormWidget, KanbanBoard, TimerCountdown, ImageGallery)
+- Built Agent system prompt containing all 11 primitive config schemas (StatCard, ProgressGauge, MarkdownDisplay, LineChart, BarChart, ListView, DataTable, FormWidget, KanbanBoard, TimerCountdown, ImageGallery)
 - Created BjornTab with chat + preview split layout, generation state machine, and approval flow (approve saves module, reject discards, edit re-focuses input)
-- Added Chat page tab switcher between Chat and Bjorn tabs with lazy-loaded BjornTab
+- Added Chat page tab switcher between Chat and Agent tabs with lazy-loaded BjornTab
 - 20 integration tests covering prompt builder, code extraction, metadata parsing, and approval bar state
 
 ## Task Commits
 
 Each task was committed atomically:
 
-1. **Task 1: Bjorn system prompt builder + approval bar + tab component** - `14e043f` (feat)
+1. **Task 1: Agent system prompt builder + approval bar + tab component** - `14e043f` (feat)
 2. **Task 2: Chat page tab integration + BjornTab tests** - `b48333b` (feat)
 
 ## Files Created/Modified
-- `frontend/src/pages/chat/bjorn-prompt.ts` - System prompt builder with 11 primitive schemas, code extraction, metadata parsing
+- `frontend/src/pages/chat/agent-prompt.ts` - System prompt builder with 11 primitive schemas, code extraction, metadata parsing
 - `frontend/src/pages/chat/BjornApprovalBar.tsx` - Approve/reject/edit toolbar below preview
 - `frontend/src/pages/chat/BjornTab.tsx` - Side-by-side chat + preview layout with generation state machine
-- `frontend/src/pages/Chat.tsx` - Added tab switcher (Chat/Bjorn), lazy-loaded BjornTab
+- `frontend/src/pages/Chat.tsx` - Added tab switcher (Chat/Agent), lazy-loaded BjornTab
 - `frontend/src/pages/chat/__tests__/BjornTab.test.tsx` - 20 tests for prompt, extraction, approval bar
 
 ## Decisions Made
-- BjornTab uses its own message state separate from useChatState to keep Bjorn conversations independent from regular chat
+- BjornTab uses its own message state separate from useChatState to keep Agent conversations independent from regular chat
 - System prompt sent as `system_prompt` field in the api.post body to leverage existing /api/chat endpoint with specialized prompting
 - Tab switcher placed as segmented control next to PageHeader in header bar (not a separate navigation mechanism)
-- Chat state (useChatState) stays alive in parent component when switching to Bjorn tab, preserving WebSocket connection and message history
+- Chat state (useChatState) stays alive in parent component when switching to Agent tab, preserving WebSocket connection and message history
 
 ## Deviations from Plan
 
@@ -102,9 +102,9 @@ None
 None - no external service configuration required.
 
 ## Next Phase Readiness
-- Bjorn chat + preview + approval pipeline complete and wired together
-- Ready for Phase 07-06 (Settings modules management for Bjorn modules)
-- All 11 primitive schemas embedded in system prompt for Bjorn code generation
+- Agent chat + preview + approval pipeline complete and wired together
+- Ready for Phase 07-06 (Settings modules management for Agent modules)
+- All 11 primitive schemas embedded in system prompt for Agent code generation
 
 ## Self-Check: PASSED
 
@@ -114,5 +114,5 @@ None - no external service configuration required.
 - 27 tests passing (20 BjornTab + 7 BjornPreview)
 
 ---
-*Phase: 07-bjorn-module-builder*
+*Phase: 07-agent-module-builder*
 *Completed: 2026-03-21*

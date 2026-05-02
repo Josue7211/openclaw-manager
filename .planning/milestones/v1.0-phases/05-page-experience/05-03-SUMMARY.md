@@ -17,7 +17,7 @@ provides:
   - "Activity indicator dots on collapsed category headers"
   - "Dashboard page sub-items in sidebar navigation"
   - "pipeline-updated event type in event-bus"
-affects: [06-module-primitives, 07-bjorn-module-builder]
+affects: [06-module-primitives, 07-agent-module-builder]
 
 # Tech tracking
 tech-stack:

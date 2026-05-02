@@ -164,7 +164,7 @@ queryClient.setQueryData<GatewaySessionsResponse>(queryKeys.gatewaySessions, (ol
 
 ```rust
 // Source: src-tauri/src/routes/crons.rs (verified — gateway_forward pattern with body)
-// Source: src-tauri/src/routes/bjorn.rs (verified — Path<String> extraction)
+// Source: src-tauri/src/routes/agent.rs (verified — Path<String> extraction)
 async fn patch_session(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
@@ -445,7 +445,7 @@ const compactMutation = useMutation({
 
 ### Axum PATCH Handler — `gateway.rs`
 ```rust
-// Source: crons.rs update_cron pattern (verified) + bjorn.rs Path<String> pattern (verified)
+// Source: crons.rs update_cron pattern (verified) + agent.rs Path<String> pattern (verified)
 #[derive(Debug, Deserialize)]
 struct PatchSessionBody {
     label: Option<String>,
@@ -573,7 +573,7 @@ use serde::Deserialize;
    - Recommendation: Only send `{ label }` as locked in CONTEXT.md. Do not attempt to patch other fields in this phase.
 
 3. **Session key character set**
-   - What we know: Phase 91 uses `key` from the gateway response. Test data shows `sess-1`, `agent-bjorn` style keys.
+   - What we know: Phase 91 uses `key` from the gateway response. Test data shows `sess-1`, `agent-agent` style keys.
    - What's unclear: Whether keys can contain characters that need URL encoding (e.g., spaces, `+`).
    - Recommendation: Apply the same `key.len() > 100` guard used in crons. The `validate_gateway_path` in `gateway_forward` provides secondary protection. If future keys need URL encoding, use `crate::routes::util::percent_encode(&key)` (same as Plan 92).
 
@@ -619,7 +619,7 @@ use serde::Deserialize;
 - `frontend/src/lib/hooks/useTodos.ts` — same optimistic pattern for delete (filter from list)
 - `src-tauri/src/routes/gateway.rs` — `gateway_forward()` signature, `validate_gateway_path()` behavior, existing router structure
 - `src-tauri/src/routes/crons.rs` — body-based gateway mutations (PATCH/DELETE patterns with id validation)
-- `src-tauri/src/routes/bjorn.rs` — `Path<String>` extraction pattern in Axum
+- `src-tauri/src/routes/agent.rs` — `Path<String>` extraction pattern in Axum
 - `frontend/src/components/messages/MessageMenu.tsx` — context menu: backdrop overlay, outside-click handler, Escape handler, `MButton` component
 - `frontend/src/pages/agents/AgentDetailPanel.tsx` — delete confirmation dialog: createPortal, useFocusTrap, useEscapeKey, Button variant="danger"
 - `frontend/src/components/ui/Toast.tsx` — `useToast()` API: `show({ type, message })`
