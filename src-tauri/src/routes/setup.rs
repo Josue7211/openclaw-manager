@@ -32,6 +32,7 @@ struct SetupStatusResponse {
 struct SetupCapabilities {
     google_oauth: bool,
     github_oauth: bool,
+    harness: bool,
     openclaw: bool,
     agentsecrets: bool,
     memd: bool,
@@ -40,6 +41,7 @@ struct SetupCapabilities {
 #[derive(Debug, Serialize)]
 struct SetupServices {
     supabase: SetupServiceState,
+    harness: SetupServiceState,
     openclaw: SetupServiceState,
     agentsecrets: SetupServiceState,
     memd: SetupServiceState,
@@ -76,8 +78,11 @@ async fn get_setup_status(
 ) -> Json<SetupStatusResponse> {
     let supabase_url = state.secret_or_default("SUPABASE_URL");
     let supabase_service_key = state.secret_or_default("SUPABASE_SERVICE_ROLE_KEY");
-    let openclaw_url = state.secret_or_default("OPENCLAW_API_URL");
-    let openclaw_api_key = state.secret_or_default("OPENCLAW_API_KEY");
+    // The persisted key names are still OPENCLAW_* for compatibility with the
+    // older API contract, but the active runtime may be Hermes behind that
+    // compatibility layer. Expose it to setup as the product "harness".
+    let harness_url = state.secret_or_default("OPENCLAW_API_URL");
+    let harness_api_key = state.secret_or_default("OPENCLAW_API_KEY");
     let agentsecrets_url = state.secret_or_default("AGENTSECRETS_URL");
     let agentsecrets_key = state.secret_or_default("AGENTSECRETS_CLIENT_API_KEY");
 
@@ -88,9 +93,9 @@ async fn get_setup_status(
         false
     };
 
-    let openclaw_configured = !openclaw_url.is_empty();
-    let openclaw_reachable = if openclaw_configured {
-        openclaw_health(&state, &openclaw_url, &openclaw_api_key).await
+    let harness_configured = !harness_url.is_empty();
+    let harness_reachable = if harness_configured {
+        harness_health(&state, &harness_url, &harness_api_key).await
     } else {
         false
     };
@@ -114,8 +119,8 @@ async fn get_setup_status(
     if !supabase_configured {
         missing.push("supabase".to_string());
     }
-    if !openclaw_configured {
-        missing.push("openclaw".to_string());
+    if !harness_configured {
+        missing.push("harness".to_string());
     }
     if !agentsecrets_configured {
         missing.push("agentsecrets".to_string());
@@ -128,7 +133,8 @@ async fn get_setup_status(
         capabilities: SetupCapabilities {
             google_oauth: env_or_secret_bool(&state, "GOTRUE_EXTERNAL_GOOGLE_ENABLED"),
             github_oauth: env_or_secret_bool(&state, "GOTRUE_EXTERNAL_GITHUB_ENABLED"),
-            openclaw: openclaw_configured,
+            harness: harness_configured,
+            openclaw: harness_configured,
             agentsecrets: agentsecrets_configured,
             memd: true,
         },
@@ -137,9 +143,13 @@ async fn get_setup_status(
                 configured: supabase_configured,
                 reachable: supabase_reachable,
             },
+            harness: SetupServiceState {
+                configured: harness_configured,
+                reachable: harness_reachable,
+            },
             openclaw: SetupServiceState {
-                configured: openclaw_configured,
-                reachable: openclaw_reachable,
+                configured: harness_configured,
+                reachable: harness_reachable,
             },
             agentsecrets: SetupServiceState {
                 configured: agentsecrets_configured,
@@ -208,7 +218,7 @@ async fn post_pair(
     }))
 }
 
-async fn openclaw_health(state: &AppState, base_url: &str, api_key: &str) -> bool {
+async fn harness_health(state: &AppState, base_url: &str, api_key: &str) -> bool {
     let url = format!("{}/files", base_url.trim_end_matches('/'));
     let mut req = state
         .http
@@ -222,19 +232,19 @@ async fn openclaw_health(state: &AppState, base_url: &str, api_key: &str) -> boo
         Ok(resp) if resp.status().is_success() => true,
         Ok(resp) => {
             warn!(
-                openclaw_url = %base_url,
+                harness_url = %base_url,
                 status = resp.status().as_u16(),
-                "openclaw health check returned non-success"
+                "harness health check returned non-success"
             );
             false
         }
         Err(err) => {
             warn!(
-                openclaw_url = %base_url,
+                harness_url = %base_url,
                 error = %err,
                 is_timeout = err.is_timeout(),
                 is_connect = err.is_connect(),
-                "openclaw health check failed"
+                "harness health check failed"
             );
             false
         }

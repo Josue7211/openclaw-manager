@@ -258,7 +258,7 @@ export default function WizardWelcome({ onComplete }: { onComplete?: () => void 
               {' '}
               Supabase {status.services.supabase.reachable ? 'online' : 'offline'}
               {' · '}
-              Harness {status.services.openclaw.reachable ? 'online' : 'offline'}
+              Harness {(status.services.harness ?? status.services.openclaw).reachable ? 'online' : 'offline'}
               {' · '}
               MemD {status.services.memd.reachable ? 'online' : 'offline'}
             </div>
@@ -311,7 +311,7 @@ export default function WizardWelcome({ onComplete }: { onComplete?: () => void 
                 </Button>
               </>
             )}
-            {!status.pairing_required && status.services.supabase.reachable && status.services.openclaw.reachable && (
+            {!status.pairing_required && status.services.supabase.reachable && (
               <Button
                 variant="secondary"
                 onClick={() => {

@@ -7,12 +7,14 @@ export interface SetupStatus {
   capabilities: {
     google_oauth: boolean
     github_oauth: boolean
+    harness?: boolean
     openclaw: boolean
     agentsecrets: boolean
     memd: boolean
   }
   services: {
     supabase: { configured: boolean; reachable: boolean }
+    harness?: { configured: boolean; reachable: boolean }
     openclaw: { configured: boolean; reachable: boolean }
     agentsecrets: { configured: boolean; reachable: boolean }
     memd: { configured: boolean; reachable: boolean }

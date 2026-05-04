@@ -53,12 +53,16 @@ interface SetupStatusData {
   capabilities: {
     google_oauth: boolean
     github_oauth: boolean
+    harness?: boolean
     openclaw: boolean
+    agentsecrets?: boolean
     memd: boolean
   }
   services: {
     supabase: { configured: boolean; reachable: boolean }
+    harness?: { configured: boolean; reachable: boolean }
     openclaw: { configured: boolean; reachable: boolean }
+    agentsecrets?: { configured: boolean; reachable: boolean }
     memd: { configured: boolean; reachable: boolean }
   }
   missing: string[]
@@ -115,6 +119,18 @@ function setupReadinessColor(setupStatus: SetupStatusData): string {
   if (setupStatus.pairing_required) return 'var(--amber)'
   if (setupStatus.missing.length === 0) return 'var(--secondary-dim)'
   return 'var(--amber)'
+}
+
+function formatMissingSetup(missing: string[]): string {
+  if (missing.length === 0) return 'Everything required is configured'
+  const labels: Record<string, string> = {
+    harness: 'Harness',
+    openclaw: 'Harness',
+    agentsecrets: 'AgentSecrets',
+    supabase: 'Supabase',
+    memd: 'memd',
+  }
+  return `Missing: ${missing.map((key) => labels[key] ?? key).join(', ')}`
 }
 
 // ── Styles ───────────────────────────────────────────────────────────────────
@@ -366,7 +382,7 @@ export default memo(function SettingsStatus() {
               <div style={statusRowLast}>
                 <span>Available services</span>
                 <span style={{ ...statusVal, maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {setupStatus.missing.length === 0 ? 'Everything required is configured' : `Missing: ${setupStatus.missing.join(', ')}`}
+                  {formatMissingSetup(setupStatus.missing)}
                 </span>
               </div>
             </>
