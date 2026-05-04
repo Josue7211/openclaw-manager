@@ -392,12 +392,12 @@ describe('setApiBase', () => {
 describe('resolveDesktopApiBootstrap', () => {
   it('prefers the selected remote backend in desktop mode', () => {
     expect(resolveDesktopApiBootstrap({
-      savedApiBase: 'http://100.104.154.24:3000///',
+      savedApiBase: 'http://remote-backend.example.test:3000///',
       localApiKey: 'local-key',
       remoteApiKey: 'remote-key',
     })).toEqual({
-      apiBase: 'http://100.104.154.24:3000',
-      configuredBackendBase: 'http://100.104.154.24:3000',
+      apiBase: 'http://remote-backend.example.test:3000',
+      configuredBackendBase: 'http://remote-backend.example.test:3000',
       apiKey: 'remote-key',
     })
   })

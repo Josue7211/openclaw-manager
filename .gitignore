@@ -14,7 +14,12 @@ frontend/dist
 
 # misc
 .DS_Store
+._*
+.AppleDouble/
 *.pem
+.memd/
+.superpowers/
+dogfood-output/
 
 # databases
 *.db

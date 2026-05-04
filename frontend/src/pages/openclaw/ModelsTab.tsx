@@ -88,7 +88,11 @@ function ModelsContent() {
     heartbeatModel?: string
     favoriteModels?: string[]
   }) => {
-    await api.patch('/api/openclaw/runtime-config', next)
+    try {
+      await api.patch('/api/openclaw/runtime-config', next)
+    } catch {
+      // Local preferences remain authoritative while the backend is offline.
+    }
   }
 
   const handlePrimaryModelChange = async (nextModel: string) => {
