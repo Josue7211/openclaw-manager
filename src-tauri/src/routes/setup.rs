@@ -219,36 +219,42 @@ async fn post_pair(
 }
 
 async fn harness_health(state: &AppState, base_url: &str, api_key: &str) -> bool {
-    let url = format!("{}/files", base_url.trim_end_matches('/'));
-    let mut req = state
-        .http
-        .get(&url)
-        .timeout(std::time::Duration::from_secs(5));
-    if !api_key.is_empty() {
-        req = req.header("Authorization", format!("Bearer {api_key}"));
-    }
+    for path in ["/health", "/files"] {
+        let url = format!("{}{}", base_url.trim_end_matches('/'), path);
+        let mut req = state
+            .http
+            .get(&url)
+            .timeout(std::time::Duration::from_secs(5));
+        if !api_key.is_empty() {
+            req = req.header("Authorization", format!("Bearer {api_key}"));
+        }
 
-    match req.send().await {
-        Ok(resp) if resp.status().is_success() => true,
-        Ok(resp) => {
-            warn!(
-                harness_url = %base_url,
-                status = resp.status().as_u16(),
-                "harness health check returned non-success"
-            );
-            false
-        }
-        Err(err) => {
-            warn!(
-                harness_url = %base_url,
-                error = %err,
-                is_timeout = err.is_timeout(),
-                is_connect = err.is_connect(),
-                "harness health check failed"
-            );
-            false
+        match req.send().await {
+            Ok(resp) if resp.status().is_success() => return true,
+            Ok(resp) if resp.status().as_u16() == 404 && path == "/health" => continue,
+            Ok(resp) => {
+                warn!(
+                    harness_url = %base_url,
+                    path = path,
+                    status = resp.status().as_u16(),
+                    "harness health check returned non-success"
+                );
+                return false;
+            }
+            Err(err) => {
+                warn!(
+                    harness_url = %base_url,
+                    path = path,
+                    error = %err,
+                    is_timeout = err.is_timeout(),
+                    is_connect = err.is_connect(),
+                    "harness health check failed"
+                );
+                return false;
+            }
         }
     }
+    false
 }
 
 fn backend_public_base_url(state: &AppState, headers: &HeaderMap) -> String {
