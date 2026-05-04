@@ -31,5 +31,32 @@ CREATE POLICY generated_versions_insert ON generated_module_versions FOR INSERT
 CREATE POLICY generated_versions_delete ON generated_module_versions FOR DELETE
     USING (module_id IN (SELECT id FROM generated_modules WHERE user_id = auth.uid()));
 
-ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS bjorn_modules;
-ALTER PUBLICATION supabase_realtime ADD TABLE generated_modules;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'bjorn_modules'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime DROP TABLE bjorn_modules;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'generated_modules'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE generated_modules;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'generated_module_versions'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE generated_module_versions;
+  END IF;
+END $$;
