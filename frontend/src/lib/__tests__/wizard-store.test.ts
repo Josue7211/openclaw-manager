@@ -138,9 +138,22 @@ describe('wizard-store', () => {
   it('completeWizard() deletes wizard-state and sets setup-complete', async () => {
     const { completeWizard, setWizardStep } = await import('../wizard-store')
     setWizardStep(9)
-    completeWizard()
+    completeWizard('user-1')
     expect(localStorageMock.removeItem).toHaveBeenCalledWith('wizard-state')
     expect(localStorageMock.setItem).toHaveBeenCalledWith('setup-complete', 'true')
+    expect(localStorageMock.setItem).toHaveBeenCalledWith('setup-account-id', 'user-1')
+  })
+
+  it('markSetupCompleteForAccount() updates setup completion subscribers', async () => {
+    const { markSetupCompleteForAccount, subscribeSetupCompletion, shouldAutoOpenWizard } = await import('../wizard-store')
+    const listener = vi.fn()
+    const unsub = subscribeSetupCompletion(listener)
+    markSetupCompleteForAccount('user-2')
+    expect(localStorageMock.setItem).toHaveBeenCalledWith('setup-complete', 'true')
+    expect(localStorageMock.setItem).toHaveBeenCalledWith('setup-account-id', 'user-2')
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(shouldAutoOpenWizard()).toBe(false)
+    unsub()
   })
 
   it('resetWizard() deletes setup-complete and wizard-state from localStorage', async () => {
@@ -149,6 +162,7 @@ describe('wizard-store', () => {
     const { resetWizard, getWizardState } = await import('../wizard-store')
     resetWizard()
     expect(localStorageMock.removeItem).toHaveBeenCalledWith('setup-complete')
+    expect(localStorageMock.removeItem).toHaveBeenCalledWith('setup-account-id')
     expect(localStorageMock.removeItem).toHaveBeenCalledWith('wizard-state')
     expect(getWizardState().currentStep).toBe(0)
   })

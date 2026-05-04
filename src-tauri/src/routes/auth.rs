@@ -164,11 +164,19 @@ pub(crate) fn service_credential_to_env_var(service: &str, key: &str) -> Option<
         // BlueBubbles
         ("bluebubbles", "host") => Some("BLUEBUBBLES_HOST"),
         ("bluebubbles", "password") => Some("BLUEBUBBLES_PASSWORD"),
-        // OpenClaw
-        ("openclaw", "url" | "api_url" | "api-url") => Some("OPENCLAW_API_URL"),
-        ("openclaw", "api_key" | "api-key") => Some("OPENCLAW_API_KEY"),
-        ("openclaw", "ws") => Some("OPENCLAW_WS"),
-        ("openclaw", "password") => Some("OPENCLAW_PASSWORD"),
+        // Harness (legacy env vars retain the OPENCLAW_* names)
+        ("openclaw" | "harness", "url" | "api_url" | "api-url") => Some("OPENCLAW_API_URL"),
+        ("openclaw" | "harness", "api_key" | "api-key") => Some("OPENCLAW_API_KEY"),
+        ("openclaw" | "harness", "ws") => Some("OPENCLAW_WS"),
+        ("openclaw" | "harness", "password") => Some("OPENCLAW_PASSWORD"),
+        // AgentSecrets
+        ("agentsecrets" | "agent-secrets", "url" | "base_url" | "base-url") => {
+            Some("AGENTSECRETS_URL")
+        }
+        (
+            "agentsecrets" | "agent-secrets",
+            "client_api_key" | "client-api-key" | "api_key" | "api-key",
+        ) => Some("AGENTSECRETS_CLIENT_API_KEY"),
         // Sunshine
         ("sunshine", "url" | "host") => Some("SUNSHINE_HOST"),
         // Embedded VNC viewer
@@ -394,6 +402,12 @@ async fn auto_migrate_keychain_secrets(
         ("OPENCLAW_API_KEY", "openclaw", "api_key"),
         ("OPENCLAW_WS", "openclaw", "ws"),
         ("OPENCLAW_PASSWORD", "openclaw", "password"),
+        ("AGENTSECRETS_URL", "agentsecrets", "url"),
+        (
+            "AGENTSECRETS_CLIENT_API_KEY",
+            "agentsecrets",
+            "client_api_key",
+        ),
         ("SUNSHINE_HOST", "sunshine", "url"),
         ("VNC_HOST", "vnc", "url"),
         ("PROXMOX_HOST", "proxmox", "host"),
@@ -2180,6 +2194,42 @@ mod tests {
         assert_eq!(
             service_credential_to_env_var("openclaw", "ws"),
             Some("OPENCLAW_WS")
+        );
+    }
+
+    #[test]
+    fn service_credential_mapping_harness_alias() {
+        assert_eq!(
+            service_credential_to_env_var("harness", "url"),
+            Some("OPENCLAW_API_URL")
+        );
+        assert_eq!(
+            service_credential_to_env_var("harness", "api-key"),
+            Some("OPENCLAW_API_KEY")
+        );
+        assert_eq!(
+            service_credential_to_env_var("harness", "ws"),
+            Some("OPENCLAW_WS")
+        );
+    }
+
+    #[test]
+    fn service_credential_mapping_agentsecrets() {
+        assert_eq!(
+            service_credential_to_env_var("agentsecrets", "url"),
+            Some("AGENTSECRETS_URL")
+        );
+        assert_eq!(
+            service_credential_to_env_var("agent-secrets", "base-url"),
+            Some("AGENTSECRETS_URL")
+        );
+        assert_eq!(
+            service_credential_to_env_var("agentsecrets", "client-api-key"),
+            Some("AGENTSECRETS_CLIENT_API_KEY")
+        );
+        assert_eq!(
+            service_credential_to_env_var("agentsecrets", "api_key"),
+            Some("AGENTSECRETS_CLIENT_API_KEY")
         );
     }
 

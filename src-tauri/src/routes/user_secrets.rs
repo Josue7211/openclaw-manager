@@ -255,6 +255,12 @@ async fn migrate_secrets(
         ("OPENCLAW_API_KEY", "openclaw", "api_key"),
         ("OPENCLAW_WS", "openclaw", "ws"),
         ("OPENCLAW_PASSWORD", "openclaw", "password"),
+        ("AGENTSECRETS_URL", "agentsecrets", "url"),
+        (
+            "AGENTSECRETS_CLIENT_API_KEY",
+            "agentsecrets",
+            "client_api_key",
+        ),
         ("SUNSHINE_HOST", "sunshine", "url"),
         ("VNC_HOST", "vnc", "url"),
         ("AGENTSHELL_URL", "agentshell", "url"),

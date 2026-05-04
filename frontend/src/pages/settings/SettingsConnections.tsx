@@ -57,6 +57,7 @@ export default function SettingsConnections() {
     pairing_required: boolean
     services: {
       supabase: { configured: boolean; reachable: boolean }
+      harness?: { configured: boolean; reachable: boolean }
       openclaw: { configured: boolean; reachable: boolean }
       memd: { configured: boolean; reachable: boolean }
     }
@@ -339,7 +340,8 @@ export default function SettingsConnections() {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '(not set)'
   const normalizedBackendUrl = backendUrl.trim().replace(/\/+$/, '')
   const activeBackendUrl = backendStatus?.backend_public_base_url || normalizedBackendUrl
-  const backendReady = !!backendStatus?.services.supabase.reachable && !!backendStatus?.services.openclaw.reachable
+  const backendReady = !!backendStatus?.services.supabase.reachable
+  const harnessStatus = backendStatus?.services.harness ?? backendStatus?.services.openclaw
   const backendNeedsPairing = backendStatus?.pairing_required === true
   const backendSummary = backendStatus
     ? backendNeedsPairing
@@ -351,7 +353,7 @@ export default function SettingsConnections() {
       ? 'Checking backend...'
       : 'No backend status yet'
   const backendDetails = backendStatus
-    ? `Supabase ${backendStatus.services.supabase.reachable ? 'online' : backendStatus.services.supabase.configured ? 'configured but offline' : 'not configured'} • Harness ${backendStatus.services.openclaw.reachable ? 'online' : backendStatus.services.openclaw.configured ? 'configured but offline' : 'not configured'} • MemD ${backendStatus.services.memd.reachable ? 'online' : backendStatus.services.memd.configured ? 'configured but offline' : 'offline'}`
+    ? `Supabase ${backendStatus.services.supabase.reachable ? 'online' : backendStatus.services.supabase.configured ? 'configured but offline' : 'not configured'} • Harness ${harnessStatus?.reachable ? 'online' : harnessStatus?.configured ? 'configured but offline' : 'not configured'} • MemD ${backendStatus.services.memd.reachable ? 'online' : backendStatus.services.memd.configured ? 'configured but offline' : 'offline'}`
     : 'Run a backend check to validate the selected server.'
 
   return (

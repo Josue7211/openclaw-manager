@@ -76,13 +76,15 @@ describe('AuthGuard', () => {
   })
 
   it('renders children when api.get returns authenticated: true', async () => {
-    vi.mocked(api.get).mockResolvedValue({ authenticated: true })
+    vi.mocked(api.get).mockResolvedValue({ authenticated: true, user: { id: 'user-1', email: 'user@example.com' } })
 
     renderWithRouter()
 
     await waitFor(() => {
       expect(screen.getByText('Protected Content')).toBeInTheDocument()
     })
+    expect(localStorage.getItem('setup-complete')).toBe('true')
+    expect(localStorage.getItem('setup-account-id')).toBe('user-1')
   })
 
   it('forces setup flow when backend pairing is required but no device key exists', async () => {
@@ -104,6 +106,7 @@ describe('AuthGuard', () => {
       expect(screen.getByText('Protected Content')).toBeInTheDocument()
     })
     expect(localStorage.getItem('setup-complete')).toBeNull()
+    expect(localStorage.getItem('setup-account-id')).toBeNull()
   })
 
   it('navigates to /login when api.get returns authenticated: false', async () => {

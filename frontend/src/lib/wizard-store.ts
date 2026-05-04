@@ -58,6 +58,8 @@ export interface WizardState {
 // ---------------------------------------------------------------------------
 
 const STORAGE_KEY = 'wizard-state'
+const SETUP_COMPLETE_KEY = 'setup-complete'
+const SETUP_ACCOUNT_KEY = 'setup-account-id'
 const TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
 
 export const STEP_NAMES = [
@@ -139,6 +141,11 @@ function loadInitialState(): WizardState {
 
 let _state: WizardState = loadInitialState()
 const _listeners = new Set<() => void>()
+const _setupListeners = new Set<() => void>()
+
+function notifySetupListeners() {
+  _setupListeners.forEach(fn => fn())
+}
 
 function persist() {
   // Exclude testResults from serialized JSON (re-run on resume)
@@ -159,6 +166,15 @@ export function getWizardState(): WizardState {
 export function subscribeWizard(fn: () => void) {
   _listeners.add(fn)
   return () => { _listeners.delete(fn) }
+}
+
+export function getSetupCompletionSnapshot(): boolean {
+  return shouldAutoOpenWizard()
+}
+
+export function subscribeSetupCompletion(fn: () => void) {
+  _setupListeners.add(fn)
+  return () => { _setupListeners.delete(fn) }
 }
 
 // ---------------------------------------------------------------------------
@@ -215,18 +231,28 @@ export function markStepStatus(
   persist()
 }
 
-export function completeWizard(): void {
-  localStorage.setItem('setup-complete', 'true')
+export function completeWizard(accountId?: string): void {
+  localStorage.setItem(SETUP_COMPLETE_KEY, 'true')
+  if (accountId) localStorage.setItem(SETUP_ACCOUNT_KEY, accountId)
   localStorage.removeItem(STORAGE_KEY)
   _state = createDefaultState()
   _listeners.forEach(fn => fn())
+  notifySetupListeners()
+}
+
+export function markSetupCompleteForAccount(accountId?: string): void {
+  localStorage.setItem(SETUP_COMPLETE_KEY, 'true')
+  if (accountId) localStorage.setItem(SETUP_ACCOUNT_KEY, accountId)
+  notifySetupListeners()
 }
 
 export function resetWizard(): void {
-  localStorage.removeItem('setup-complete')
+  localStorage.removeItem(SETUP_COMPLETE_KEY)
+  localStorage.removeItem(SETUP_ACCOUNT_KEY)
   localStorage.removeItem(STORAGE_KEY)
   _state = createDefaultState()
   _listeners.forEach(fn => fn())
+  notifySetupListeners()
 }
 
 // ---------------------------------------------------------------------------
@@ -234,7 +260,7 @@ export function resetWizard(): void {
 // ---------------------------------------------------------------------------
 
 export function isFirstRun(): boolean {
-  return !localStorage.getItem('setup-complete')
+  return !localStorage.getItem(SETUP_COMPLETE_KEY)
 }
 
 export function isWizardDemoMode(): boolean {

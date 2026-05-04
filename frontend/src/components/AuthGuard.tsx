@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { api, API_BASE_CHANGED_EVENT } from '@/lib/api'
 import { initOpenClawRuntimeConfig, initPreferencesSync } from '@/lib/preferences-sync'
-import { deactivateDemoMode } from '@/lib/wizard-store'
+import { deactivateDemoMode, markSetupCompleteForAccount } from '@/lib/wizard-store'
 import { isDemoMode } from '@/lib/demo-data'
 
 type AuthState = 'loading' | 'authenticated' | 'unauthenticated' | 'mfa_required'
@@ -70,6 +70,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           }
         }
 
+        markSetupCompleteForAccount(res.user?.id)
         setState('authenticated')
 
         if (!syncInitRef.current) {

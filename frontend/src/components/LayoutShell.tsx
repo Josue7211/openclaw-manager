@@ -14,7 +14,7 @@ import { getKeybindings, subscribeKeybindings, isBindingModPressed, matchesExtra
 import { getTitleBarVisible, getTitleBarAutoHide, subscribeTitleBarSettings } from '@/lib/titlebar-settings'
 import { getSidebarTitleText, getSidebarDefaultWidth, subscribeSidebarSettings } from '@/lib/sidebar-settings'
 import { isDemoMode } from '@/lib/demo-data'
-import { shouldAutoOpenWizard } from '@/lib/wizard-store'
+import { getSetupCompletionSnapshot, shouldAutoOpenWizard, subscribeSetupCompletion } from '@/lib/wizard-store'
 import { useTourState } from '@/lib/tour-store'
 import { DemoModeBanner } from '@/components/DemoModeBanner'
 import { IconContext } from '@phosphor-icons/react'
@@ -47,6 +47,7 @@ export default function LayoutShell() {
   const isChatRoute = pathname === '/chat'
   const isDemo = isDemoMode()
 
+  const shouldShowSetupWizard = useSyncExternalStore(subscribeSetupCompletion, getSetupCompletionSnapshot)
   const [showWizard, setShowWizard] = useState(() => shouldAutoOpenWizard())
   const [offline, setOffline] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -65,6 +66,10 @@ export default function LayoutShell() {
 
   // Keep approval badge count synced globally (polls gateway every 3s)
   useApprovals()
+
+  useEffect(() => {
+    if (!shouldShowSetupWizard) setShowWizard(false)
+  }, [shouldShowSetupWizard])
 
   // Sync sidebar width from settings store changes
   useEffect(() => {
