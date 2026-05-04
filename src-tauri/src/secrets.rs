@@ -348,7 +348,10 @@ pub fn load_secrets() -> HashMap<String, String> {
         manifest_dir.join("../.env.local"),
     ];
     for path in &paths {
-        if let Ok(iter) = dotenvy::from_filename_iter(path) {
+        if !path.is_file() {
+            continue;
+        }
+        if let Ok(iter) = dotenvy::from_path_iter(path) {
             tracing::info!("Merging dev secrets from {}", path.display());
             for (key, value) in iter.flatten() {
                 if known.contains(key.as_str()) && !secrets.contains_key(&key) {
