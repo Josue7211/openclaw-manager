@@ -1,0 +1,13 @@
+[Unit]
+Description=OpenClaw VM Sunshine and VNC TCP tunnel
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+ExecStart=/usr/bin/ssh -N -L 47984:127.0.0.1:47984 -L 47989:127.0.0.1:47989 -L 47990:127.0.0.1:47990 -L 48010:127.0.0.1:48010 -L 5901:127.0.0.1:5901 openclaw-vm -o BatchMode=yes -o ConnectTimeout=10 -o TCPKeepAlive=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=2 -o ExitOnForwardFailure=yes
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

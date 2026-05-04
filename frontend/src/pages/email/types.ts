@@ -15,6 +15,24 @@ export interface MailThread {
   from: string
   preview: string
   unread: boolean
+  timestamp?: string | null
+  message_count?: number | null
+}
+
+export interface ComposeState {
+  to: string
+  cc: string
+  bcc: string
+  subject: string
+  body: string
+}
+
+export interface SendEmailResponse {
+  sent?: {
+    message_id: string
+    thread_id: string
+  }
+  error?: string
 }
 
 export interface DraftItem {
@@ -44,15 +62,27 @@ export interface AccountForm {
   is_default: boolean
 }
 
-export type Folder = 'INBOX' | 'Sent'
+export type Folder = 'INBOX' | 'All' | 'Unread' | 'Starred' | 'Archive' | 'Sent' | 'Drafts' | 'Spam' | 'Trash'
 
-export const FOLDERS: { id: Folder; label: string }[] = [
-  { id: 'INBOX', label: 'Inbox' },
-  { id: 'Sent', label: 'Sent' },
+export const FOLDERS: { id: Folder; label: string; section: 'mailbox' | 'system' }[] = [
+  { id: 'INBOX', label: 'Inbox', section: 'mailbox' },
+  { id: 'All', label: 'All mail', section: 'mailbox' },
+  { id: 'Unread', label: 'Unread', section: 'mailbox' },
+  { id: 'Starred', label: 'Starred', section: 'mailbox' },
+  { id: 'Archive', label: 'Archive', section: 'system' },
+  { id: 'Sent', label: 'Sent', section: 'system' },
+  { id: 'Drafts', label: 'Drafts', section: 'system' },
+  { id: 'Spam', label: 'Spam', section: 'system' },
+  { id: 'Trash', label: 'Trash', section: 'system' },
 ]
 
 export const EMPTY_FORM: AccountForm = {
-  label: '', provider: '', address: '', agentmail_inbox_id: '', forwarding_status: 'pending', is_default: false,
+  label: '',
+  provider: '',
+  address: '',
+  agentmail_inbox_id: '',
+  forwarding_status: 'pending',
+  is_default: false,
 }
 
 export function formatDate(iso: string): string {

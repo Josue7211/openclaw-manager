@@ -274,6 +274,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/email", get(get_emails).patch(patch_email))
         .route("/email/drafts", post(create_draft_reply))
+        .route("/email/send", post(send_email))
 }
 
 // ── GET /api/email ──────────────────────────────────────────────────────────
@@ -282,6 +283,17 @@ pub fn router() -> Router<AppState> {
 struct GetEmailsQuery {
     folder: Option<String>,
     account_id: Option<String>,
+    limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct SendEmailRequest {
+    account_id: Option<String>,
+    to: Option<String>,
+    cc: Option<String>,
+    bcc: Option<String>,
+    subject: Option<String>,
+    body: Option<String>,
 }
 
 /// Validate folder name: only allow alphanumeric, dots, slashes, hyphens,
@@ -295,6 +307,10 @@ fn sanitize_folder(raw: &str) -> &str {
     } else {
         "INBOX"
     }
+}
+
+fn sanitize_limit(raw: Option<u32>) -> u32 {
+    raw.unwrap_or(100).clamp(1, 200)
 }
 
 fn validate_patch_folder(raw: &str) -> Result<&str, AppError> {
@@ -389,12 +405,89 @@ async fn resolve_linked_agentmail_inbox_id(
     Ok(resolve_agentmail_inbox_id(&accounts, selected_account_id))
 }
 
+async fn list_all_agentmail_threads(
+    state: &AppState,
+    selected_inbox_id: Option<&str>,
+    limit: usize,
+) -> Result<Vec<agentmail::MailThread>, AppError> {
+    let Some(inboxes) = agentmail::list_inboxes(state, 100).await? else {
+        return Ok(Vec::new());
+    };
+
+    let mut threads = Vec::new();
+    for inbox in inboxes {
+        let inbox_id = inbox.inbox_id.trim();
+        if inbox_id.is_empty() || Some(inbox_id) == selected_inbox_id {
+            continue;
+        }
+
+        if let Some(inbox_threads) =
+            agentmail::list_threads_for_account(state, inbox_id, limit).await?
+        {
+            threads.extend(inbox_threads);
+        }
+
+        if let Some(message_threads) =
+            agentmail::list_messages_as_threads_for_account(state, inbox_id, limit).await?
+        {
+            threads.extend(message_threads);
+        }
+
+        if threads.len() >= limit {
+            break;
+        }
+    }
+
+    threads.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    threads.truncate(limit);
+    Ok(threads)
+}
+
 fn required_draft_text(value: Option<&str>, field: &str) -> Result<String, AppError> {
     let text = value.unwrap_or_default().trim();
     if text.is_empty() {
         return Err(AppError::BadRequest(format!("Missing {field}")));
     }
     Ok(text.to_string())
+}
+
+fn required_send_text(value: Option<&str>, field: &str) -> Result<String, AppError> {
+    let text = value.unwrap_or_default().trim();
+    if text.is_empty() {
+        return Err(AppError::BadRequest(format!("Missing {field}")));
+    }
+    Ok(text.to_string())
+}
+
+fn split_recipients(value: Option<&str>) -> Vec<String> {
+    value
+        .unwrap_or_default()
+        .split([',', ';', '\n'])
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn build_agentmail_send_request(
+    body: &SendEmailRequest,
+) -> Result<agentmail::SendMessageRequest, AppError> {
+    let to = split_recipients(body.to.as_deref());
+    if to.is_empty() {
+        return Err(AppError::BadRequest("Missing recipient".into()));
+    }
+
+    let subject = required_send_text(body.subject.as_deref(), "subject")?;
+    let text = required_send_text(body.body.as_deref(), "body")?;
+
+    Ok(agentmail::SendMessageRequest {
+        to,
+        cc: split_recipients(body.cc.as_deref()),
+        bcc: split_recipients(body.bcc.as_deref()),
+        subject,
+        text,
+        labels: vec!["clawcontrol".into()],
+    })
 }
 
 fn find_account_label(
@@ -445,6 +538,7 @@ async fn get_emails(
 ) -> Result<Json<Value>, AppError> {
     let raw_folder = params.folder.as_deref().unwrap_or("INBOX");
     let folder = sanitize_folder(raw_folder);
+    let limit = sanitize_limit(params.limit);
     let selected_account_id = params
         .account_id
         .as_deref()
@@ -463,14 +557,63 @@ async fn get_emails(
             )
         };
 
+        let mut agentmail_checked = false;
+        let mut agentmail_available = false;
         if let Some(agentmail_inbox_id) = agentmail_inbox_id {
+            agentmail_checked = true;
             if let Some(threads) =
-                agentmail::list_threads_for_account(&state, &agentmail_inbox_id, 20).await?
+                agentmail::list_threads_for_account(&state, &agentmail_inbox_id, limit as usize)
+                    .await?
             {
-                let emails = agentmail_threads_to_emails(&threads, folder);
-                return Ok(Json(json!({ "threads": threads, "emails": emails })));
+                agentmail_available = true;
+                if !threads.is_empty() {
+                    let emails = agentmail_threads_to_emails(&threads, folder);
+                    return Ok(Json(json!({ "threads": threads, "emails": emails })));
+                }
+            }
+
+            if let Some(message_threads) = agentmail::list_messages_as_threads_for_account(
+                &state,
+                &agentmail_inbox_id,
+                limit as usize,
+            )
+            .await?
+            {
+                agentmail_available = true;
+                if !message_threads.is_empty() {
+                    let emails = agentmail_threads_to_emails(&message_threads, folder);
+                    return Ok(Json(
+                        json!({ "threads": message_threads, "emails": emails }),
+                    ));
+                }
+            }
+
+            let all_inbox_threads =
+                list_all_agentmail_threads(&state, Some(&agentmail_inbox_id), limit as usize)
+                    .await?;
+            if !all_inbox_threads.is_empty() {
+                let emails = agentmail_threads_to_emails(&all_inbox_threads, folder);
+                return Ok(Json(json!({
+                    "threads": all_inbox_threads,
+                    "emails": emails,
+                    "source": "agentmail_all_inboxes"
+                })));
+            }
+
+            if agentmail_available {
+                return Ok(Json(json!({
+                    "threads": [],
+                    "emails": [],
+                    "source": "agentmail"
+                })));
             }
         }
+
+        tracing::info!(
+            account_id = %account_id,
+            agentmail_checked,
+            "AgentMail returned no mail; falling back to IMAP credentials"
+        );
     }
 
     let creds = match get_credentials(&state) {
@@ -478,12 +621,12 @@ async fn get_emails(
         None => {
             // Match TS: return 200 with error key and empty array
             return Ok(Json(
-                json!({ "error": "missing_credentials", "emails": [] }),
+                json!({ "error": "missing_credentials", "emails": [], "threads": [] }),
             ));
         }
     };
 
-    match fetch_emails(&creds, folder, 20).await {
+    match fetch_emails(&creds, folder, limit).await {
         Ok(emails) => Ok(Json(json!({ "emails": emails }))),
         Err(e) => {
             tracing::error!("[email] GET error: {:#}", e);
@@ -504,7 +647,11 @@ fn default_account_id_for_email_request(
     mail_accounts::default_agentmail_accounts(state)
         .into_iter()
         .find(|account| account.is_default)
-        .or_else(|| mail_accounts::default_agentmail_accounts(state).into_iter().next())
+        .or_else(|| {
+            mail_accounts::default_agentmail_accounts(state)
+                .into_iter()
+                .next()
+        })
         .map(|account| account.id)
 }
 
@@ -580,6 +727,31 @@ async fn create_draft_reply(
     Ok(Json(json!({ "draft": draft })))
 }
 
+async fn send_email(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+    Json(body): Json<SendEmailRequest>,
+) -> Result<Json<Value>, AppError> {
+    let account_id = required_send_text(body.account_id.as_deref(), "account_id")?;
+    let accounts = mail_accounts::load_mail_accounts(&state, &session).await?;
+    let account = accounts
+        .iter()
+        .find(|account| account.id == account_id)
+        .ok_or_else(|| {
+            AppError::BadRequest("Sending is blocked until sender identity is resolved".into())
+        })?;
+    let inbox_id = account.agentmail_inbox_id.trim();
+    if inbox_id.is_empty() {
+        return Err(AppError::BadRequest(
+            "Selected account has no AgentMail inbox id".into(),
+        ));
+    }
+
+    let send_body = build_agentmail_send_request(&body)?;
+    let sent = agentmail::send_message_for_account(&state, inbox_id, &send_body).await?;
+    Ok(Json(json!({ "sent": sent })))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -594,6 +766,8 @@ mod tests {
             from: "boss@example.com".into(),
             preview: "Can you reply by Friday?".into(),
             unread: true,
+            timestamp: None,
+            message_count: None,
         };
 
         assert!(thread.draftable_account_id().is_some());
@@ -608,6 +782,8 @@ mod tests {
             from: "mystery@example.com".into(),
             preview: "hello".into(),
             unread: true,
+            timestamp: None,
+            message_count: None,
         };
 
         assert!(thread.draftable_account_id().is_none());
@@ -688,6 +864,8 @@ mod tests {
             from: "sender@example.com".into(),
             preview: "Preview".into(),
             unread: true,
+            timestamp: None,
+            message_count: None,
         }];
 
         let emails = agentmail_threads_to_emails(&threads, "INBOX");
@@ -727,6 +905,36 @@ mod tests {
     }
 
     #[test]
+    fn sorts_agentmail_threads_by_timestamp_descending() {
+        let mut threads = [
+            MailThread {
+                id: "old".into(),
+                account_id: Some("acct".into()),
+                subject: "Old".into(),
+                from: "old@example.com".into(),
+                preview: "old".into(),
+                unread: false,
+                timestamp: Some("2026-01-01T00:00:00Z".into()),
+                message_count: Some(1),
+            },
+            MailThread {
+                id: "new".into(),
+                account_id: Some("acct".into()),
+                subject: "New".into(),
+                from: "new@example.com".into(),
+                preview: "new".into(),
+                unread: true,
+                timestamp: Some("2026-02-01T00:00:00Z".into()),
+                message_count: Some(1),
+            },
+        ];
+
+        threads.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
+        assert_eq!(threads[0].id, "new");
+    }
+
+    #[test]
     fn builds_draft_reply_with_resolved_sender_identity() {
         let accounts = vec![MailAccountRecord {
             id: "acct_personal".into(),
@@ -750,6 +958,51 @@ mod tests {
         assert_eq!(draft.account_label, "Personal Gmail");
         assert_eq!(draft.subject, "Re: Quarterly update");
         assert_eq!(draft.handoff_status, "needs_human_send");
+    }
+
+    #[test]
+    fn clamps_email_fetch_limit() {
+        assert_eq!(sanitize_limit(None), 100);
+        assert_eq!(sanitize_limit(Some(0)), 1);
+        assert_eq!(sanitize_limit(Some(250)), 200);
+        assert_eq!(sanitize_limit(Some(75)), 75);
+    }
+
+    #[test]
+    fn builds_agentmail_send_request_from_compose_payload() {
+        let body = SendEmailRequest {
+            account_id: Some("acct_personal".into()),
+            to: Some("a@example.com, b@example.com".into()),
+            cc: Some("c@example.com".into()),
+            bcc: None,
+            subject: Some("Hello".into()),
+            body: Some("Body text".into()),
+        };
+
+        let request = build_agentmail_send_request(&body).unwrap();
+
+        assert_eq!(request.to, vec!["a@example.com", "b@example.com"]);
+        assert_eq!(request.cc, vec!["c@example.com"]);
+        assert_eq!(request.subject, "Hello");
+        assert_eq!(request.text, "Body text");
+        assert_eq!(request.labels, vec!["clawcontrol"]);
+    }
+
+    #[test]
+    fn rejects_send_without_recipient() {
+        let body = SendEmailRequest {
+            account_id: Some("acct_personal".into()),
+            to: Some("   ".into()),
+            cc: None,
+            bcc: None,
+            subject: Some("Hello".into()),
+            body: Some("Body text".into()),
+        };
+
+        let err = build_agentmail_send_request(&body).unwrap_err();
+
+        assert!(matches!(err, AppError::BadRequest(_)));
+        assert!(format!("{err:?}").contains("Missing recipient"));
     }
 
     #[test]

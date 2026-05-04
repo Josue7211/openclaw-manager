@@ -147,7 +147,7 @@ const mockSetDashboardState = vi.fn()
 vi.mock('@/lib/dashboard-store', () => ({
   useDashboardStore: () => mockDashState,
   getDashboardState: () => mockDashState,
-  setDashboardState: (...args: unknown[]) => mockSetDashboardState.apply(null, args),
+  setDashboardState: (...args: unknown[]) => mockSetDashboardState(...args),
   setEditMode: vi.fn(),
   removeWidget: vi.fn(),
   updatePageLayouts: vi.fn(),

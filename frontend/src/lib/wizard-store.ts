@@ -143,7 +143,7 @@ const _listeners = new Set<() => void>()
 function persist() {
   // Exclude testResults from serialized JSON (re-run on resume)
   // Exclude pairingToken to avoid persisting short-lived credentials in localStorage
-  const { testResults: _, pairingToken, ...persistable } = _state
+  const { testResults: _, pairingToken: _pairingToken, ...persistable } = _state
   localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable))
   _listeners.forEach(fn => fn())
 }

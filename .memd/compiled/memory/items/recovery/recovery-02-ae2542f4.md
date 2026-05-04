@@ -14,5 +14,5 @@
 - intent: `current_task`
 - bundle: `/home/josue/Documents/projects/clawcontrol/.memd`
 
-- lane=recovery | index=3
-- id=c592be33 kind=working_memory_record label="preference" source=codex@session-008f3488 / memd reason="evicted_by_budget;kind=Preference;status=active;source=canonical;source_trust=0.59;freshness_days=0;verified_days=45;recent_use_days=0;rehearsals=2;trust_below_floor;trusted_source;trust_rank=3"
+- lane=recovery | index=2
+- id=c4c3b560 kind=working_memory_record label="livetruth" source=memd / memd-live-truth /  reason="evicted_by_budget;kind=LiveTruth;status=active;source=derived;source_trust=0.87;freshness_days=0;verified_days=0;recent_use_days=0;rehearsals=27998;trust_boost;trust_rank=2"

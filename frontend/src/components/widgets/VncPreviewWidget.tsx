@@ -3,16 +3,23 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
+import type { RemoteViewerStatus } from '@/lib/remote-viewer'
 
 export const VncPreviewWidget = React.memo(function VncPreviewWidget() {
   const navigate = useNavigate()
-  const { data } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: queryKeys.vncStatus,
-    queryFn: () => api.get<{ active: number; max: number; available: boolean }>('/api/vnc/status'),
+    queryFn: () => api.get<RemoteViewerStatus>('/api/vnc/status'),
     refetchInterval: 30_000,
   })
 
-  const isConnected = (data?.active ?? 0) > 0
+  const isReachable = data?.reachable ?? false
+  const isInUse = (data?.active ?? 0) > 0
+  const label = isLoading
+    ? 'Checking'
+    : isReachable
+      ? (isInUse ? 'Viewer Active' : 'Viewer Ready')
+      : 'Viewer Offline'
 
   return (
     <button
@@ -38,7 +45,7 @@ export const VncPreviewWidget = React.memo(function VncPreviewWidget() {
         width: 36,
         height: 24,
         borderRadius: 4,
-        border: `2px solid ${isConnected ? 'var(--green-400)' : 'var(--border)'}`,
+        border: `2px solid ${isReachable ? 'var(--green-400)' : 'var(--border)'}`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -47,11 +54,11 @@ export const VncPreviewWidget = React.memo(function VncPreviewWidget() {
           width: 6,
           height: 6,
           borderRadius: '50%',
-          background: isConnected ? 'var(--green-400)' : 'var(--text-tertiary)',
+          background: isReachable ? 'var(--green-400)' : 'var(--text-tertiary)',
         }} />
       </div>
       <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-        {isConnected ? 'VM Connected' : 'Remote Desktop'}
+        {label}
       </span>
     </button>
   )

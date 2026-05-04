@@ -2,10 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../api', () => ({
   getApiBase: vi.fn(() => 'http://127.0.0.1:5000'),
+  getConfiguredBackendBase: vi.fn(() => 'http://127.0.0.1:5000'),
 }))
 
 import { getSetupStatus, normalizeBackendUrl, pairWithBackend } from '../setup'
-import { getApiBase } from '../api'
+import { getConfiguredBackendBase } from '../api'
 
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn())
@@ -33,7 +34,7 @@ describe('normalizeBackendUrl', () => {
   })
 
   it('falls back to the current api base when empty', () => {
-    vi.mocked(getApiBase).mockReturnValue('http://saved-backend:5000')
+    vi.mocked(getConfiguredBackendBase).mockReturnValue('http://saved-backend:5000')
     expect(normalizeBackendUrl('   ')).toBe('http://saved-backend:5000')
   })
 })

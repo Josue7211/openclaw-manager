@@ -60,23 +60,28 @@ describe('type exports', () => {
     expect(form.is_default).toBe(false)
   })
 
-  it('Folder type covers both values', () => {
-    const folders: Folder[] = ['INBOX', 'Sent']
-    expect(folders).toHaveLength(2)
+  it('Folder type covers inbox and system values', () => {
+    const folders: Folder[] = ['INBOX', 'All', 'Unread', 'Starred', 'Archive', 'Sent', 'Drafts', 'Spam', 'Trash']
+    expect(folders).toHaveLength(9)
   })
 })
 
 /* ─── FOLDERS ────────────────────────────────────────────────────────── */
 
 describe('FOLDERS', () => {
-  it('has exactly 2 entries', () => {
-    expect(FOLDERS).toHaveLength(2)
+  it('has full inbox navigation entries', () => {
+    expect(FOLDERS).toHaveLength(9)
   })
 
-  it('contains INBOX and Sent', () => {
+  it('contains primary Proton-style folders', () => {
     const ids = FOLDERS.map(f => f.id)
     expect(ids).toContain('INBOX')
+    expect(ids).toContain('All')
+    expect(ids).toContain('Unread')
+    expect(ids).toContain('Starred')
     expect(ids).toContain('Sent')
+    expect(ids).toContain('Drafts')
+    expect(ids).toContain('Trash')
   })
 
   it('each entry has id and label', () => {

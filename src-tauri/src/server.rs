@@ -1364,6 +1364,7 @@ mod tests {
         // Simulates the logout path: `*session.write() = None` drops
         // the inner `Some(UserSession)`, triggering our `Drop` impl.
         let mut slot: Option<UserSession> = Some(make_session());
+        assert!(slot.is_some());
         slot = None;
         assert!(slot.is_none());
     }
@@ -1372,6 +1373,7 @@ mod tests {
     fn user_session_replace_zeroizes_old() {
         // Simulates token refresh: replacing the session drops the old one.
         let mut slot: Option<UserSession> = Some(make_session());
+        assert!(slot.is_some());
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()

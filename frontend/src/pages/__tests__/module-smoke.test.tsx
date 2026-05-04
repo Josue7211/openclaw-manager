@@ -19,12 +19,34 @@ import { APP_MODULES } from '@/lib/modules'
 // api module — most pages use api.get/post
 vi.mock('@/lib/api', () => ({
   api: {
-    get: vi.fn(() => Promise.resolve({})),
+    get: vi.fn((path?: string) => {
+      if (path === '/api/homelab') {
+        return Promise.resolve({
+          proxmox: { nodes: [], vms: [], source: 'api' },
+          opnsense: {
+            status: 'offline',
+            cpu: 0,
+            mem_used: 0,
+            mem_total: 1,
+            uptime: 0,
+            wan_in: '0 B/s',
+            wan_out: '0 B/s',
+            source: 'api',
+          },
+          live: { proxmox: false, opnsense: false },
+          mock: false,
+        })
+      }
+      return Promise.resolve({})
+    }),
     post: vi.fn(() => Promise.resolve({})),
     put: vi.fn(() => Promise.resolve({})),
     patch: vi.fn(() => Promise.resolve({})),
     del: vi.fn(() => Promise.resolve({})),
   },
+  API_BASE: 'http://127.0.0.1:5000',
+  API_BASE_CHANGED_EVENT: 'backend-api-base-changed',
+  CONFIGURED_BACKEND_BASE_CHANGED_EVENT: 'configured-backend-base-changed',
   ApiError: class ApiError extends Error {
     status: number
     constructor(msg: string, status = 500) {
@@ -33,6 +55,11 @@ vi.mock('@/lib/api', () => ({
     }
   },
   setApiKey: vi.fn(),
+  setApiBase: vi.fn(),
+  setConfiguredBackendBase: vi.fn(),
+  getApiKey: vi.fn(() => undefined),
+  getLocalApiKey: vi.fn(() => undefined),
+  getConfiguredBackendBase: vi.fn(() => 'http://127.0.0.1:5000'),
 }))
 
 // Supabase client
@@ -423,6 +450,7 @@ vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
 // Stub jsdom-missing APIs
 // scrollIntoView is not implemented in jsdom
 Element.prototype.scrollIntoView = vi.fn()
+Element.prototype.scrollTo = vi.fn()
 
 // ResizeObserver is not available in jsdom
 vi.stubGlobal('ResizeObserver', class ResizeObserver {
@@ -531,6 +559,10 @@ describe('Sidebar module smoke tests', () => {
 
       // ErrorBoundary shows "Something went wrong"
       // PageErrorBoundary shows "This page crashed"
+      const boundary = screen.queryByText('Something went wrong')?.parentElement
+      if (boundary) {
+        throw new Error(boundary.textContent || 'Module rendered ErrorBoundary')
+      }
       expect(screen.queryByText('Something went wrong')).not.toBeInTheDocument()
       expect(screen.queryByText('This page crashed')).not.toBeInTheDocument()
     })

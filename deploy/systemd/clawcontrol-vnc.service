@@ -1,0 +1,14 @@
+[Unit]
+Description=ClawControl embedded VNC desktop
+After=network.target
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/tigervncserver -kill :1
+ExecStart=/usr/bin/tigervncserver :1 -fg -localhost yes -SecurityTypes None -geometry 1920x1080 -depth 24 -xstartup %h/.vnc/xstartup
+ExecStop=/usr/bin/tigervncserver -kill :1
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -38,7 +38,7 @@ export interface ServiceGroupDef {
 }
 
 export interface ConnectionSettingDef {
-  id: 'bluebubbles' | 'openclaw' | 'sunshine' | 'agentsecrets' | 'agentshell'
+  id: 'bluebubbles' | 'openclaw' | 'sunshine' | 'vnc' | 'agentsecrets' | 'agentshell'
   label: string
   description: string
   urlKeychainKey: string
@@ -123,6 +123,31 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
       { label: 'Lidarr API Key', keychainKey: 'lidarr.api-key', placeholder: 'API key', secret: true },
       { label: 'Prowlarr URL', keychainKey: 'prowlarr.url', placeholder: 'http://100.x.x.x:9696' },
       { label: 'Prowlarr API Key', keychainKey: 'prowlarr.api-key', placeholder: 'API key', secret: true },
+      { label: 'Bazarr URL', keychainKey: 'bazarr.url', placeholder: 'http://100.x.x.x:6767' },
+      { label: 'Bazarr API Key', keychainKey: 'bazarr.api-key', placeholder: 'API key', secret: true },
+      { label: 'Overseerr URL', keychainKey: 'overseerr.url', placeholder: 'http://100.x.x.x:5055' },
+      { label: 'Overseerr API Key', keychainKey: 'overseerr.api-key', placeholder: 'API key', secret: true },
+      { label: 'Jellyseerr URL', keychainKey: 'jellyseerr.url', placeholder: 'http://100.x.x.x:5055' },
+      { label: 'Jellyseerr API Key', keychainKey: 'jellyseerr.api-key', placeholder: 'API key', secret: true },
+      { label: 'Tautulli URL', keychainKey: 'tautulli.url', placeholder: 'http://100.x.x.x:8181' },
+      { label: 'Tautulli API Key', keychainKey: 'tautulli.api-key', placeholder: 'API key', secret: true },
+      { label: 'qBittorrent URL', keychainKey: 'qbittorrent.url', placeholder: 'http://100.x.x.x:8080' },
+      { label: 'qBittorrent Username', keychainKey: 'qbittorrent.username', placeholder: 'username' },
+      { label: 'qBittorrent Password', keychainKey: 'qbittorrent.password', placeholder: 'password', secret: true },
+      { label: 'SABnzbd URL', keychainKey: 'sabnzbd.url', placeholder: 'http://100.x.x.x:8080' },
+      { label: 'SABnzbd API Key', keychainKey: 'sabnzbd.api-key', placeholder: 'API key', secret: true },
+      { label: 'NZBGet URL', keychainKey: 'nzbget.url', placeholder: 'http://100.x.x.x:6789' },
+      { label: 'NZBGet Username', keychainKey: 'nzbget.username', placeholder: 'username' },
+      { label: 'NZBGet Password', keychainKey: 'nzbget.password', placeholder: 'password', secret: true },
+      { label: 'Transmission URL', keychainKey: 'transmission.url', placeholder: 'http://100.x.x.x:9091' },
+      { label: 'Transmission Username', keychainKey: 'transmission.username', placeholder: 'username' },
+      { label: 'Transmission Password', keychainKey: 'transmission.password', placeholder: 'password', secret: true },
+      { label: 'Deluge URL', keychainKey: 'deluge.url', placeholder: 'http://100.x.x.x:8112' },
+      { label: 'Deluge Password', keychainKey: 'deluge.password', placeholder: 'password', secret: true },
+      { label: 'Unraid URL', keychainKey: 'unraid.url', placeholder: 'http://100.x.x.x' },
+      { label: 'Unraid API Key', keychainKey: 'unraid.api-key', placeholder: 'API key', secret: true },
+      { label: 'Wizarr URL', keychainKey: 'wizarr.url', placeholder: 'http://100.x.x.x:5690' },
+      { label: 'Wizarr API Key', keychainKey: 'wizarr.api-key', placeholder: 'API key', secret: true },
     ],
     services: [
       { name: 'plex', fieldKeys: ['plex.url', 'plex.token'] },
@@ -130,6 +155,17 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
       { name: 'radarr', fieldKeys: ['radarr.url', 'radarr.api-key'] },
       { name: 'lidarr', fieldKeys: ['lidarr.url', 'lidarr.api-key'] },
       { name: 'prowlarr', fieldKeys: ['prowlarr.url', 'prowlarr.api-key'] },
+      { name: 'bazarr', fieldKeys: ['bazarr.url', 'bazarr.api-key'] },
+      { name: 'overseerr', fieldKeys: ['overseerr.url', 'overseerr.api-key'] },
+      { name: 'jellyseerr', fieldKeys: ['jellyseerr.url', 'jellyseerr.api-key'] },
+      { name: 'tautulli', fieldKeys: ['tautulli.url', 'tautulli.api-key'] },
+      { name: 'qbittorrent', fieldKeys: ['qbittorrent.url', 'qbittorrent.username', 'qbittorrent.password'] },
+      { name: 'sabnzbd', fieldKeys: ['sabnzbd.url', 'sabnzbd.api-key'] },
+      { name: 'nzbget', fieldKeys: ['nzbget.url', 'nzbget.username', 'nzbget.password'] },
+      { name: 'transmission', fieldKeys: ['transmission.url', 'transmission.username', 'transmission.password'] },
+      { name: 'deluge', fieldKeys: ['deluge.url', 'deluge.password'] },
+      { name: 'unraid', fieldKeys: ['unraid.url', 'unraid.api-key'] },
+      { name: 'wizarr', fieldKeys: ['wizarr.url', 'wizarr.api-key'] },
     ],
   },
   {

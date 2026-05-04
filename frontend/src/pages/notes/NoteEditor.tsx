@@ -380,7 +380,7 @@ export default memo(function NoteEditor({ note, onChange, onWikilinkClick, allNo
     noteIdRef.current = note._id
 
     return () => { view.destroy(); viewRef.current = null }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [note._id])
 
   useEffect(() => {

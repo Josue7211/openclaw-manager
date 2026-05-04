@@ -21,14 +21,14 @@ function isSafeUrl(url: string): boolean {
 /* ─── LinkPreviewCard — rich OG preview like iMessage ────────────────── */
 
 function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
-  // Block dangerous URL schemes
-  if (!isSafeUrl(url)) return null
+  const safeUrl = isSafeUrl(url)
   const [meta, setMeta] = useState<{ title: string; description: string; image: string; siteName: string } | null>(
-    linkPreviewCache.get(url) || null
+    safeUrl ? linkPreviewCache.get(url) || null : null
   )
   const [imgError, setImgError] = useState(false)
 
   useEffect(() => {
+    if (!safeUrl) return
     if (linkPreviewCache.has(url)) { setMeta(linkPreviewCache.get(url)!); return }
     let cancelled = false
     api.get<{ title: string; description: string; image: string; siteName: string; error?: string }>(`/api/messages/link-preview?url=${encodeURIComponent(url)}`)
@@ -39,7 +39,10 @@ function LinkPreviewCard({ url, fromMe }: { url: string; fromMe: boolean }) {
       })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [url])
+  }, [safeUrl, url])
+
+  // Block dangerous URL schemes
+  if (!safeUrl) return null
 
   if (!meta) {
     // Fallback: just show domain

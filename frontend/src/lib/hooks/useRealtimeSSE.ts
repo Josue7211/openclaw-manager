@@ -99,7 +99,7 @@ export function useRealtimeSSE(
       // Use setTimeout to avoid closing during React re-renders
       setTimeout(closeEventSourceIfUnused, 1000)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [tables.join(','), queryClient])
 }
 

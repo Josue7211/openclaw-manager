@@ -14,6 +14,6 @@
 - intent: `current_task`
 - bundle: `/home/josue/Documents/projects/clawcontrol/.memd`
 
-- lane=working | index=5
-- id=d829f074 record="id=d829f074-9cb1-4025-b8ce-58015ae7b16e | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | lane=design | cf=0.70 | upd=17777398..."
+- lane=working | index=4
+- id=ca1a2941 record="id=ca1a2941-4343-48de-b154-96ac4207f1cb | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777738324 | c=User ex..."
 - budget=1540/1600 | pressure=high | refresh=true

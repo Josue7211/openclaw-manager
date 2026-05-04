@@ -8,7 +8,7 @@
 
 ## Live
 
-- file_edited: .cargo/config.toml
+- file_edited: .env.example
 
 ## Durable Truth
 

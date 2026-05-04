@@ -27,14 +27,21 @@ vi.mock('@/components/Skeleton', () => ({
 
 vi.mock('@phosphor-icons/react', () => ({
   Envelope: () => <svg data-testid="icon-envelope" />,
+  Archive: () => <svg data-testid="icon-archive" />,
   ArrowsClockwise: () => <svg data-testid="icon-refresh" />,
+  Clock: () => <svg data-testid="icon-clock" />,
   WarningCircle: () => <svg data-testid="icon-warning" />,
   Gear: () => <svg data-testid="icon-gear" />,
+  MagnifyingGlass: () => <svg data-testid="icon-search" />,
+  PaperPlaneTilt: () => <svg data-testid="icon-send" />,
+  PencilSimple: () => <svg data-testid="icon-compose" />,
   CaretDown: () => <svg data-testid="icon-caret-down" />,
   CaretUp: () => <svg data-testid="icon-caret-up" />,
   Star: () => <svg data-testid="icon-star" />,
   Trash: () => <svg data-testid="icon-trash" />,
   X: () => <svg data-testid="icon-x" />,
+  ArrowBendUpLeft: () => <svg data-testid="icon-reply" />,
+  ArrowBendUpRight: () => <svg data-testid="icon-forward" />,
   EnvelopeSimple: () => <svg data-testid="icon-envelope-simple" />,
 }))
 
@@ -120,14 +127,14 @@ describe('EmailPage multi-account threads', () => {
     render(<EmailPage />, { wrapper: createWrapper() })
 
     await waitFor(() => {
-      expect(mockGet).toHaveBeenCalledWith('/api/email?folder=INBOX&account_id=acct_gmail_personal')
+      expect(mockGet).toHaveBeenCalledWith('/api/email?folder=INBOX&limit=100&account_id=acct_gmail_personal')
     })
 
     expect(await screen.findByText('Replying as Personal Gmail')).toBeInTheDocument()
-    expect(screen.getByText('Draft Queue')).toBeInTheDocument()
-    expect(screen.getByText('No drafts yet')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Prepare draft' }))
+
+    fireEvent.click(screen.getByRole('button', { name: /Drafts/i }))
 
     expect(await screen.findByText('needs human send')).toBeInTheDocument()
     expect(mockGet).toHaveBeenCalledWith('/api/mail-accounts')

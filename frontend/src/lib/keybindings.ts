@@ -62,7 +62,9 @@ let _modList: ModifierKey[] = (() => {
   try {
     const stored = localStorage.getItem(MOD_LIST_STORAGE)
     if (stored) { const parsed = JSON.parse(stored); if (Array.isArray(parsed)) return parsed }
-  } catch {}
+  } catch {
+    // Ignore malformed persisted modifier lists.
+  }
   return [_defaultMod]
 })()
 const _listeners = new Set<() => void>()

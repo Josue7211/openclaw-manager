@@ -150,6 +150,6 @@ export function useGatewaySSE(options: UseGatewaySSEOptions = {}) {
       // Close connection if no more subscribers (with delay to avoid flicker)
       setTimeout(closeGatewayEventSourceIfUnused, 1000)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [(options.events ?? GATEWAY_EVENT_NAMES).join(','), queryClient])
 }

@@ -250,7 +250,7 @@ export const TourTooltip = React.memo(function TourTooltip({
     if (visible && tooltipRef.current) {
       recalculate()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [visible])
 
   const tooltipId = `tour-tooltip-${stop.id}`

@@ -248,11 +248,11 @@ export default function LayoutShell() {
     return cleanup
   }, [themeState.schedule])
 
+  const iconContextValue = useMemo(() => ({ size: 20, weight: 'bold' as const }), [])
+
   if (isLogin) {
     return <div><Outlet /></div>
   }
-
-  const iconContextValue = useMemo(() => ({ size: 20, weight: 'bold' as const }), [])
 
   return (
     <IconContext.Provider value={iconContextValue}>

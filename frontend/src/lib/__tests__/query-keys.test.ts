@@ -31,8 +31,8 @@ describe('queryKeys', () => {
       expect(queryKeys.authUser).toEqual(['auth-user'])
     })
 
-    it('emailAccounts returns ["email-accounts"]', () => {
-      expect(queryKeys.emailAccounts).toEqual(['email-accounts'])
+    it('emailAccounts returns ["mail-accounts"]', () => {
+      expect(queryKeys.emailAccounts).toEqual(['mail-accounts'])
     })
 
     it('capture returns ["capture"]', () => {
@@ -73,12 +73,12 @@ describe('queryKeys', () => {
   })
 
   describe('dynamic key factories', () => {
-    it('emails() returns ["emails", accountId]', () => {
-      expect(queryKeys.emails('acct-1')).toEqual(['emails', 'acct-1'])
+    it('emails() returns ["emails", folder, accountId]', () => {
+      expect(queryKeys.emails('inbox', 'acct-1')).toEqual(['emails', 'inbox', 'acct-1'])
     })
 
-    it('emails() without arg returns ["emails", undefined]', () => {
-      expect(queryKeys.emails()).toEqual(['emails', undefined])
+    it('emails() without arg returns ["emails", undefined, undefined]', () => {
+      expect(queryKeys.emails()).toEqual(['emails', undefined, undefined])
     })
 
     it('search() returns ["search", query]', () => {

@@ -1,11 +1,17 @@
 use keyring::Entry;
 use rand::Rng;
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::path::PathBuf;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    mpsc, OnceLock,
+};
+use std::time::Duration;
 
 const SERVICE: &str = "com.clawcontrol.desktop";
 const LEGACY_SERVICE: &str = "com.mission-control";
 static PROCESS_API_KEY: OnceLock<String> = OnceLock::new();
+static KEYRING_DISABLED: AtomicBool = AtomicBool::new(false);
 
 /// Mapping of keyring key names to environment variable names.
 pub(crate) const KEY_ENV_MAP: &[(&str, &str)] = &[
@@ -59,6 +65,27 @@ pub(crate) const KEY_ENV_MAP: &[(&str, &str)] = &[
     ("tautulli.api-key", "TAUTULLI_API_KEY"),
     ("bazarr.url", "BAZARR_URL"),
     ("bazarr.api-key", "BAZARR_API_KEY"),
+    ("jellyseerr.url", "JELLYSEERR_URL"),
+    ("jellyseerr.api-key", "JELLYSEERR_API_KEY"),
+    ("jellystat.url", "JELLYSTAT_URL"),
+    ("jellystat.api-key", "JELLYSTAT_API_KEY"),
+    ("qbittorrent.url", "QBITTORRENT_URL"),
+    ("qbittorrent.username", "QBITTORRENT_USERNAME"),
+    ("qbittorrent.password", "QBITTORRENT_PASSWORD"),
+    ("sabnzbd.url", "SABNZBD_URL"),
+    ("sabnzbd.api-key", "SABNZBD_API_KEY"),
+    ("nzbget.url", "NZBGET_URL"),
+    ("nzbget.username", "NZBGET_USERNAME"),
+    ("nzbget.password", "NZBGET_PASSWORD"),
+    ("transmission.url", "TRANSMISSION_URL"),
+    ("transmission.username", "TRANSMISSION_USERNAME"),
+    ("transmission.password", "TRANSMISSION_PASSWORD"),
+    ("deluge.url", "DELUGE_URL"),
+    ("deluge.password", "DELUGE_PASSWORD"),
+    ("unraid.url", "UNRAID_URL"),
+    ("unraid.api-key", "UNRAID_API_KEY"),
+    ("wizarr.url", "WIZARR_URL"),
+    ("wizarr.api-key", "WIZARR_API_KEY"),
     ("email.host", "EMAIL_HOST"),
     ("email.port", "EMAIL_PORT"),
     ("email.user", "EMAIL_USER"),
@@ -139,6 +166,27 @@ const USER_KEYS: &[&str] = &[
     "tautulli.api-key",
     "bazarr.url",
     "bazarr.api-key",
+    "jellyseerr.url",
+    "jellyseerr.api-key",
+    "jellystat.url",
+    "jellystat.api-key",
+    "qbittorrent.url",
+    "qbittorrent.username",
+    "qbittorrent.password",
+    "sabnzbd.url",
+    "sabnzbd.api-key",
+    "nzbget.url",
+    "nzbget.username",
+    "nzbget.password",
+    "transmission.url",
+    "transmission.username",
+    "transmission.password",
+    "deluge.url",
+    "deluge.password",
+    "unraid.url",
+    "unraid.api-key",
+    "wizarr.url",
+    "wizarr.api-key",
     "email.host",
     "email.port",
     "email.user",
@@ -159,7 +207,7 @@ const USER_KEYS: &[&str] = &[
     "mc-agent.key",
 ];
 
-fn get_entry(key: &str) -> Option<String> {
+fn get_entry_raw(key: &str) -> Option<String> {
     Entry::new(SERVICE, key)
         .ok()
         .and_then(|entry| entry.get_password().ok())
@@ -170,11 +218,58 @@ fn get_entry(key: &str) -> Option<String> {
         })
 }
 
-pub(crate) fn set_entry(key: &str, value: &str) -> Result<(), String> {
+fn set_entry_raw(key: &str, value: &str) -> Result<(), String> {
     Entry::new(SERVICE, key)
         .map_err(|e| e.to_string())?
         .set_password(value)
         .map_err(|e| e.to_string())
+}
+
+fn get_entry(key: &str) -> Option<String> {
+    if KEYRING_DISABLED.load(Ordering::Relaxed) {
+        return None;
+    }
+
+    let key = key.to_string();
+    let (tx, rx) = mpsc::channel();
+    let _ = std::thread::Builder::new()
+        .name("keyring-get".into())
+        .spawn(move || {
+            let _ = tx.send(get_entry_raw(&key));
+        });
+
+    match rx.recv_timeout(Duration::from_secs(2)) {
+        Ok(value) => value,
+        Err(_) => {
+            KEYRING_DISABLED.store(true, Ordering::Relaxed);
+            tracing::warn!("OS keychain lookup timed out; using env/.env.local secrets only");
+            None
+        }
+    }
+}
+
+pub(crate) fn set_entry(key: &str, value: &str) -> Result<(), String> {
+    if KEYRING_DISABLED.load(Ordering::Relaxed) {
+        return Err("OS keychain is disabled after a timeout".into());
+    }
+
+    let key = key.to_string();
+    let value = value.to_string();
+    let (tx, rx) = mpsc::channel();
+    let _ = std::thread::Builder::new()
+        .name("keyring-set".into())
+        .spawn(move || {
+            let _ = tx.send(set_entry_raw(&key, &value));
+        });
+
+    match rx.recv_timeout(Duration::from_secs(2)) {
+        Ok(result) => result,
+        Err(_) => {
+            KEYRING_DISABLED.store(true, Ordering::Relaxed);
+            tracing::warn!("OS keychain save timed out; using env/.env.local secrets only");
+            Err("OS keychain save timed out".into())
+        }
+    }
 }
 
 /// Generate a fresh MC_API_KEY on every app start.
@@ -245,9 +340,16 @@ pub fn load_secrets() -> HashMap<String, String> {
     // Load .env.local as a dev-mode fallback.
     // Only merge keys that correspond to known secrets and that the
     // keychain didn't already provide (keychain takes precedence).
-    for path in &[".env.local", "../.env.local"] {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let paths = [
+        PathBuf::from(".env.local"),
+        PathBuf::from("../.env.local"),
+        manifest_dir.join(".env.local"),
+        manifest_dir.join("../.env.local"),
+    ];
+    for path in &paths {
         if let Ok(iter) = dotenvy::from_filename_iter(path) {
-            tracing::info!("Merging dev secrets from {}", path);
+            tracing::info!("Merging dev secrets from {}", path.display());
             for (key, value) in iter.flatten() {
                 if known.contains(key.as_str()) && !secrets.contains_key(&key) {
                     secrets.insert(key, value);
@@ -301,12 +403,26 @@ const FRONTEND_BLOCKED_KEYS: &[&str] = &[
     "opnsense.host",
     "opnsense.key",
     "opnsense.secret",
-    "plex.url",
     "plex.token",
-    "sonarr.url",
     "sonarr.api-key",
-    "radarr.url",
     "radarr.api-key",
+    "lidarr.api-key",
+    "prowlarr.api-key",
+    "overseerr.api-key",
+    "tautulli.api-key",
+    "bazarr.api-key",
+    "jellyseerr.api-key",
+    "jellystat.api-key",
+    "qbittorrent.username",
+    "qbittorrent.password",
+    "sabnzbd.api-key",
+    "nzbget.username",
+    "nzbget.password",
+    "transmission.username",
+    "transmission.password",
+    "deluge.password",
+    "unraid.api-key",
+    "wizarr.api-key",
     "email.host",
     "email.port",
     "email.user",
@@ -353,6 +469,37 @@ const FRONTEND_WRITABLE_KEYS: &[&str] = &[
     "sonarr.api-key",
     "radarr.url",
     "radarr.api-key",
+    "lidarr.url",
+    "lidarr.api-key",
+    "prowlarr.url",
+    "prowlarr.api-key",
+    "overseerr.url",
+    "overseerr.api-key",
+    "tautulli.url",
+    "tautulli.api-key",
+    "bazarr.url",
+    "bazarr.api-key",
+    "jellyseerr.url",
+    "jellyseerr.api-key",
+    "jellystat.url",
+    "jellystat.api-key",
+    "qbittorrent.url",
+    "qbittorrent.username",
+    "qbittorrent.password",
+    "sabnzbd.url",
+    "sabnzbd.api-key",
+    "nzbget.url",
+    "nzbget.username",
+    "nzbget.password",
+    "transmission.url",
+    "transmission.username",
+    "transmission.password",
+    "deluge.url",
+    "deluge.password",
+    "unraid.url",
+    "unraid.api-key",
+    "wizarr.url",
+    "wizarr.api-key",
     "email.host",
     "email.port",
     "email.user",
@@ -389,6 +536,9 @@ pub fn get_secret(key: String) -> Option<String> {
     if !is_allowed_key(&key) {
         return None;
     }
+    if key == "mc-api-key" {
+        return Some(ensure_api_key());
+    }
     if FRONTEND_BLOCKED_KEYS.contains(&key.as_str()) {
         return None;
     }
@@ -420,28 +570,42 @@ pub fn set_secret(key: String, value: String) -> Result<(), String> {
 #[tauri::command]
 pub fn get_modules() -> HashMap<String, bool> {
     let mut modules = HashMap::new();
+    let loaded = load_secrets();
+    let has_secret = |env_name: &str| {
+        loaded
+            .get(env_name)
+            .is_some_and(|value| !value.trim().is_empty())
+    };
 
-    modules.insert(
-        "messages".to_string(),
-        get_entry("bluebubbles.host").is_some(),
-    );
-    modules.insert("calendar".to_string(), get_entry("caldav.url").is_some());
+    modules.insert("messages".to_string(), has_secret("BLUEBUBBLES_HOST"));
+    modules.insert("calendar".to_string(), has_secret("CALDAV_URL"));
     modules.insert(
         "homelab".to_string(),
-        get_entry("proxmox.host").is_some() || get_entry("opnsense.host").is_some(),
+        has_secret("PROXMOX_HOST") || has_secret("OPNSENSE_HOST"),
     );
     modules.insert(
         "media".to_string(),
-        get_entry("plex.url").is_some()
-            || get_entry("sonarr.url").is_some()
-            || get_entry("radarr.url").is_some(),
+        has_secret("PLEX_URL")
+            || has_secret("SONARR_URL")
+            || has_secret("RADARR_URL")
+            || has_secret("LIDARR_URL")
+            || has_secret("PROWLARR_URL")
+            || has_secret("OVERSEERR_URL")
+            || has_secret("JELLYSEERR_URL")
+            || has_secret("TAUTULLI_URL")
+            || has_secret("BAZARR_URL")
+            || has_secret("JELLYSTAT_URL")
+            || has_secret("QBITTORRENT_URL")
+            || has_secret("SABNZBD_URL")
+            || has_secret("NZBGET_URL")
+            || has_secret("TRANSMISSION_URL")
+            || has_secret("DELUGE_URL")
+            || has_secret("UNRAID_URL")
+            || has_secret("WIZARR_URL"),
     );
-    modules.insert("email".to_string(), get_entry("email.host").is_some());
-    modules.insert("chat".to_string(), get_entry("openclaw.ws").is_some());
-    modules.insert(
-        "agents".to_string(),
-        get_entry("anthropic.api-key").is_some(),
-    );
+    modules.insert("email".to_string(), has_secret("EMAIL_HOST"));
+    modules.insert("chat".to_string(), has_secret("OPENCLAW_WS"));
+    modules.insert("agents".to_string(), has_secret("ANTHROPIC_API_KEY"));
 
     modules
 }

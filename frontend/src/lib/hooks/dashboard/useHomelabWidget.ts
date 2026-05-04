@@ -114,6 +114,14 @@ function normalizeVM(vm: ProxmoxVM): ProxmoxVM {
   }
 }
 
+function normalizeOPNsense(opnsense: OPNsenseData | null): OPNsenseData | null {
+  if (!opnsense) return null
+  return {
+    ...opnsense,
+    cpu: opnsense.cpu <= 1 ? Math.round(opnsense.cpu * 100) : Math.round(opnsense.cpu),
+  }
+}
+
 export function useHomelabWidget() {
   const _demo = isDemoMode()
 
@@ -126,7 +134,7 @@ export function useHomelabWidget() {
 
   const vms: ProxmoxVM[] = _demo ? toDemoVMs() : (data?.proxmox?.vms ?? []).map(normalizeVM)
   const nodes: ProxmoxNode[] = _demo ? toDemoNodes() : (data?.proxmox?.nodes ?? []).map(normalizeNode)
-  const opnsense: OPNsenseData | null = _demo ? DEMO_OPNSENSE_FULL : (data?.opnsense ?? null)
+  const opnsense: OPNsenseData | null = _demo ? DEMO_OPNSENSE_FULL : normalizeOPNsense(data?.opnsense ?? null)
 
   const runningCount = useMemo(
     () => vms.filter(v => v.status === 'running').length,

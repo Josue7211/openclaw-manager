@@ -13,7 +13,7 @@ function extractField(patterns: RegExp[], text: string): string {
 
 function inferRole(description: string): string {
   const explicit = extractField(
-    [/(?:role|position|title)\s*[:\-]\s*([^\n.]+)/i, /hiring\s+(?:for|an?)\s+([^\n.]+)/i],
+    [/(?:role|position|title)\s*[:-]\s*([^\n.]+)/i, /hiring\s+(?:for|an?)\s+([^\n.]+)/i],
     description,
   )
   if (explicit) return explicit
@@ -29,14 +29,14 @@ function inferRole(description: string): string {
 }
 
 function inferCompany(description: string): string {
-  const explicit = extractField([/company\s*[:\-]\s*([^\n.]+)/i, /at\s+([A-Z][A-Za-z0-9& .-]{1,40})/i], description)
+  const explicit = extractField([/company\s*[:-]\s*([^\n.]+)/i, /at\s+([A-Z][A-Za-z0-9& .-]{1,40})/i], description)
   return explicit
 }
 
 function inferLocation(description: string): string {
   const explicit = extractField(
     [
-      /location\s*[:\-]\s*([^\n.]+)/i,
+      /location\s*[:-]\s*([^\n.]+)/i,
       /\b(?:in|based in|located in)\s+([A-Z][A-Za-z]+(?:,\s*[A-Z]{2})?)\b/i,
       /(remote(?:\s*-\s*[A-Z]{2,})?)/i,
       /(hybrid(?:\s+in\s+[^\n.]+)?)/i,

@@ -95,7 +95,7 @@ const TimerCountdown = React.memo(function TimerCountdown({ config }: WidgetProp
     if (autoStart && !isRunning && elapsed === 0) {
       startTimer()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [])
 
   const startTimer = useCallback(() => {

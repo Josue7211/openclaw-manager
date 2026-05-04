@@ -105,7 +105,6 @@ export const DashboardGrid = React.memo(function DashboardGrid({
 
   // Debounced layout change handler
   const layoutUpdater = onLayoutChangeProp ?? updatePageLayouts
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleLayoutChange = useCallback(
     (_layout: any, allLayouts: any) => {
       if (debounceRef.current) {

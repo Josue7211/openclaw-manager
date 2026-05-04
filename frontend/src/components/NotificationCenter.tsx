@@ -34,7 +34,7 @@ interface NotificationGroup {
 const MAX_NOTIFICATIONS = 50
 
 let notifications: Notification[] = []
-let listeners: Set<() => void> = new Set()
+const listeners: Set<() => void> = new Set()
 
 function emitChange() {
   for (const listener of listeners) listener()

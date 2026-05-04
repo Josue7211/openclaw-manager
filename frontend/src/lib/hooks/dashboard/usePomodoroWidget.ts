@@ -83,7 +83,7 @@ export function usePomodoroWidget(options?: PomodoroWidgetOptions) {
     if (!running) {
       setSecondsLeft(durations[mode] * 60)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [mode, running, durations.work, durations.short, durations.long])
 
   const toggle = useCallback(() => setRunning(r => !r), [])

@@ -204,6 +204,17 @@ const NavSection = React.memo(function NavSection({
                   title={!collapsed && navCharsVisible < itemLabel.length ? itemLabel : undefined}
                   aria-label={collapsed ? itemLabel : undefined}
                   aria-describedby={tooltipId}
+                  draggable={!!categoryId}
+                  onDragStart={categoryId ? () => onItemDragStart?.(href, categoryId) : undefined}
+                  onDragOver={categoryId ? (e) => {
+                    e.preventDefault()
+                    onItemDragOver?.(categoryId, idx)
+                  } : undefined}
+                  onDrop={categoryId ? (e) => {
+                    e.preventDefault()
+                    onItemDrop?.(categoryId, idx)
+                  } : undefined}
+                  onDragEnd={onItemDragEnd}
                   onClick={() => {
                     markRead(href)
                     onHoverItem(href)

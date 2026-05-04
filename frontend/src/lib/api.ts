@@ -9,6 +9,8 @@ const LOCAL_DESKTOP_ONLY_PATH_PREFIXES = [
   '/api/email',
   '/api/mail-accounts',
   '/api/generated-modules',
+  '/api/homelab',
+  '/api/media',
   '/api/module-proposals',
   '/api/rag',
   '/api/remote',
@@ -149,6 +151,7 @@ export class ApiError extends Error {
 let _apiKey: string | undefined
 let _localApiKey: string | undefined
 let _remoteApiKey: string | undefined
+let _localApiKeyRefresh: Promise<string | undefined> | undefined
 
 /** Set the API key used for X-API-Key headers. Call once at startup. */
 export function setApiKey(key: string) {
@@ -183,12 +186,33 @@ function requestBaseForPath(path: string): string {
 
 function requestApiKeyForPath(path: string): string | undefined {
   if (isTauriDesktop() && isLocalDesktopOnlyPath(path)) {
-    return _localApiKey ?? _apiKey
+    return _localApiKey
   }
   if (isTauriDesktop()) {
     return _remoteApiKey ?? _apiKey
   }
   return _apiKey
+}
+
+async function refreshLocalApiKey(): Promise<string | undefined> {
+  if (!isTauriDesktop()) return undefined
+  if (!_localApiKeyRefresh) {
+    _localApiKeyRefresh = import('@tauri-apps/api/core')
+      .then(({ invoke }) => invoke<string | null>('get_secret', { key: 'mc-api-key' }))
+      .then(key => {
+        const nextKey = key?.trim() || undefined
+        if (nextKey) {
+          _localApiKey = nextKey
+          _apiKey = _remoteApiKey ?? _localApiKey
+        }
+        return nextKey
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        _localApiKeyRefresh = undefined
+      })
+  }
+  return _localApiKeyRefresh
 }
 
 export function setApiBase(nextBase: string) {
@@ -229,7 +253,7 @@ export function getConfiguredBackendBase(): string {
   return CONFIGURED_BACKEND_BASE
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown, retriedAuth = false): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   const apiKey = requestApiKeyForPath(path)
   if (apiKey) {
@@ -245,14 +269,24 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   try {
     const res = await fetch(`${requestBaseForPath(path)}${path}`, { ...opts, signal: controller.signal })
     if (!res.ok) {
-      const text = await res.text().catch(() => '')
-      let body: unknown = text
-      try {
-        body = text ? JSON.parse(text) : text
-      } catch {
-        body = text
+      if (
+        res.status === 401 &&
+        !retriedAuth &&
+        isTauriDesktop() &&
+        isLocalDesktopOnlyPath(path) &&
+        await refreshLocalApiKey()
+      ) {
+        return request<T>(method, path, body, true)
       }
-      const apiErr = new ApiError(res.status, body, path)
+
+      const text = await res.text().catch(() => '')
+      let parsedBody: unknown = text
+      try {
+        parsedBody = text ? JSON.parse(text) : text
+      } catch {
+        parsedBody = text
+      }
+      const apiErr = new ApiError(res.status, parsedBody, path)
       reportError(apiErr, 'api-request')
       throw apiErr
     }

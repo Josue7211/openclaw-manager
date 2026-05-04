@@ -6,7 +6,7 @@
  * for generated module composition.
  */
 
-import React, { useState, useCallback } from 'react'
+import React, { useState } from 'react'
 import { ChartBar } from '@phosphor-icons/react'
 import { EmptyState } from '@/components/ui/EmptyState'
 import {
@@ -173,9 +173,9 @@ const BarChart = React.memo(function BarChart({
   const barRegion = categorySize * (1 - barGapRatio)
   const gapSize = categorySize * barGapRatio
 
-  const handleMouseLeave = useCallback(() => {
+  const handleMouseLeave = () => {
     setHoveredBar(null)
-  }, [])
+  }
 
   // Build bar rects
   const bars: React.ReactNode[] = []

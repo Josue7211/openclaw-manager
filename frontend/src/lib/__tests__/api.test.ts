@@ -9,15 +9,25 @@ import {
   serviceForPath,
   serviceErrorLabel,
   setApiBase,
+  setDesktopApiKeys,
 } from '../api'
+
+const mockInvoke = vi.hoisted(() => vi.fn())
+
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: mockInvoke,
+}))
 
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn())
+  mockInvoke.mockReset()
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
+  setDesktopApiKeys({})
   localStorage.clear()
+  delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
 })
 
 function mockFetch(response: {
@@ -95,6 +105,56 @@ describe('api', () => {
         body: JSON.stringify(body),
       }),
     )
+  })
+
+  it('routes homelab through the local desktop backend in Tauri', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      value: {},
+      configurable: true,
+    })
+    setApiBase('http://remote-backend.test')
+    setDesktopApiKeys({ localApiKey: 'local-key', remoteApiKey: 'remote-key' })
+    mockFetch({ ok: true, json: () => Promise.resolve({ ok: true }) })
+
+    await api.get('/api/homelab')
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:5000/api/homelab',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ 'X-API-Key': 'local-key' }),
+      }),
+    )
+  })
+
+  it('refreshes the local desktop API key once after a 401 from local-only routes', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      value: {},
+      configurable: true,
+    })
+    setDesktopApiKeys({ localApiKey: 'stale-local-key', remoteApiKey: 'remote-key' })
+    mockInvoke.mockResolvedValueOnce('fresh-local-key')
+    ;(globalThis.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: () => Promise.resolve('Unauthorized'),
+        headers: new Headers({ 'content-type': 'text/plain' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ ok: true }),
+        text: () => Promise.resolve(''),
+        headers: new Headers({ 'content-type': 'application/json' }),
+      })
+
+    await expect(api.get('/api/vnc/status')).resolves.toEqual({ ok: true })
+
+    expect(mockInvoke).toHaveBeenCalledWith('get_secret', { key: 'mc-api-key' })
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2)
+    expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].headers['X-API-Key']).toBe('stale-local-key')
+    expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[1][1].headers['X-API-Key']).toBe('fresh-local-key')
   })
 
   it('returns undefined for non-JSON responses', async () => {
@@ -343,13 +403,14 @@ describe('resolveDesktopApiBootstrap', () => {
   })
 
   it('falls back to the local embedded backend when no remote target is selected', () => {
+    const configuredBackendBase = import.meta.env.VITE_API_BASE?.replace(/\/+$/, '') || 'http://127.0.0.1:5000'
     expect(resolveDesktopApiBootstrap({
       savedApiBase: null,
       localApiKey: 'local-key',
       remoteApiKey: 'remote-key',
     })).toEqual({
       apiBase: 'http://127.0.0.1:5000',
-      configuredBackendBase: 'http://127.0.0.1:5000',
+      configuredBackendBase,
       apiKey: 'local-key',
     })
   })

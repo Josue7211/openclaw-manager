@@ -103,7 +103,7 @@ interface RecentConversation {
 }
 
 let _recentConversations: RecentConversation[] = []
-let _recentListeners: Set<() => void> = new Set()
+const _recentListeners: Set<() => void> = new Set()
 
 function emitRecentChange() {
   for (const l of _recentListeners) l()

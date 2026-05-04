@@ -14,5 +14,5 @@
 - intent: `current_task`
 - bundle: `/home/josue/Documents/projects/clawcontrol/.memd`
 
-- lane=context | index=8
-- id=05774941 record="id=05774941-65f4-4b1e-b1a1-8360ff823e26 | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777736379 | c=Correction: For clawcontrol..."
+- lane=context | index=1
+- id=c4c3b560 record="id=c4c3b560-39b6-4a4c-9f07-f4def21b5442 | stage=canonical | scope=local | kind=live_truth | status=active | project=memd | ns=main | vis=private | agent=memd | tags=live_truth,repo_changes | cf=0.98 | upd=1777822832 | c=repo_state: clean"

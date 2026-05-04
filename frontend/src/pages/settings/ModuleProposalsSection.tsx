@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { ClipboardText, Sparkle } from '@phosphor-icons/react'
+import { Sparkle } from '@phosphor-icons/react'
 import { useQuery } from '@tanstack/react-query'
 import { listModuleProposals, type StoredModuleProposal } from '@/lib/module-proposal-store'
 import { queryKeys } from '@/lib/query-keys'

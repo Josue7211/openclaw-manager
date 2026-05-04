@@ -5,7 +5,7 @@
  * for AI-generated module composition. Colors resolve through CSS variables.
  */
 
-import React, { useState, useCallback, useRef } from 'react'
+import React, { useState, useRef } from 'react'
 import { ChartLine } from '@phosphor-icons/react'
 import { EmptyState } from '@/components/ui/EmptyState'
 import {
@@ -127,28 +127,25 @@ const LineChart = React.memo(function LineChart({
   const polylinePoints = points.map((p) => `${p.x},${p.y}`).join(' ')
   const color = resolveColor(lineColor)
 
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent<SVGSVGElement>) => {
-      const svg = e.currentTarget
-      const rect = svg.getBoundingClientRect()
-      const mouseX = ((e.clientX - rect.left) / rect.width) * VB_W
-      let closest = 0
-      let closestDist = Infinity
-      for (let i = 0; i < points.length; i++) {
-        const dist = Math.abs(points[i].x - mouseX)
-        if (dist < closestDist) {
-          closestDist = dist
-          closest = i
-        }
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const svg = e.currentTarget
+    const rect = svg.getBoundingClientRect()
+    const mouseX = ((e.clientX - rect.left) / rect.width) * VB_W
+    let closest = 0
+    let closestDist = Infinity
+    for (let i = 0; i < points.length; i++) {
+      const dist = Math.abs(points[i].x - mouseX)
+      if (dist < closestDist) {
+        closestDist = dist
+        closest = i
       }
-      setHoveredIdx(closest)
-    },
-    [points],
-  )
+    }
+    setHoveredIdx(closest)
+  }
 
-  const handleMouseLeave = useCallback(() => {
+  const handleMouseLeave = () => {
     setHoveredIdx(null)
-  }, [])
+  }
 
   return (
     <div

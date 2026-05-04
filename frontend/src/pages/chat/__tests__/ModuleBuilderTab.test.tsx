@@ -284,6 +284,8 @@ describe('ModuleBuilderTab', () => {
       status: 'draft',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      userId: 'test-user',
+      userIntent: 'Show revenue.',
       title: 'Revenue Widget',
       description: 'Revenue snapshot.',
       category: 'finance',

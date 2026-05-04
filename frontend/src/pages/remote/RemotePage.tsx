@@ -8,16 +8,12 @@ import {
   Desktop,
   Plugs,
   PlugsConnected,
+  Wrench,
 } from '@phosphor-icons/react'
 import { api, getLocalApiKey } from '@/lib/api'
+import { queryKeys } from '@/lib/query-keys'
 import { PageHeader } from '@/components/PageHeader'
-
-interface RemoteStatus {
-  configured: boolean
-  reachable: boolean
-  host?: string
-  message: string
-}
+import type { RemoteViewerRepairResult, RemoteViewerStatus } from '@/lib/remote-viewer'
 
 type ViewerState = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error'
 
@@ -35,32 +31,40 @@ export default function RemotePage() {
   const [viewerError, setViewerError] = useState<string | null>(null)
   const [clipboardText, setClipboardText] = useState('')
   const [connectNonce, setConnectNonce] = useState(0)
+  const [repairing, setRepairing] = useState(false)
+  const [repairMessage, setRepairMessage] = useState<string | null>(null)
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['vnc', 'status'],
-    queryFn: () => api.get<RemoteStatus>('/api/vnc/status'),
+    queryKey: queryKeys.vncStatus,
+    queryFn: () => api.get<RemoteViewerStatus>('/api/vnc/status'),
     refetchInterval: 10_000,
   })
 
   const reachable = data?.reachable ?? false
-  const canConnect = reachable && !isLoading
+  const canConnect = (data?.available ?? reachable) && !isLoading
+  const isBlocked = data?.available === false
 
   const statusLabel = useMemo(() => {
     if (isLoading) return 'Checking'
     if (!reachable) return data?.message ?? 'Offline'
+    if (data?.available === false) return data.message
     if (viewerState === 'connected') return 'Connected'
     if (viewerState === 'connecting') return 'Connecting'
     if (viewerState === 'error') return 'Error'
     return 'Ready'
-  }, [data?.message, isLoading, reachable, viewerState])
+  }, [data?.available, data?.message, isLoading, reachable, viewerState])
 
   useEffect(() => {
     if (!canConnect || !containerRef.current) return
 
     let connected = false
     let timedOut = false
-    setViewerState('connecting')
-    setViewerError(null)
+    const stateTimerId = window.setTimeout(() => {
+      if (!connected) {
+        setViewerState('connecting')
+        setViewerError(null)
+      }
+    }, 0)
 
     let rfb: RFB
     try {
@@ -68,9 +72,13 @@ export default function RemotePage() {
         shared: true,
       })
     } catch (error) {
-      setViewerState('error')
-      setViewerError(error instanceof Error ? error.message : 'Viewer failed to start')
-      return
+      window.clearTimeout(stateTimerId)
+      const errorMessage = error instanceof Error ? error.message : 'Viewer failed to start'
+      const errorTimerId = window.setTimeout(() => {
+        setViewerState('error')
+        setViewerError(errorMessage)
+      }, 0)
+      return () => window.clearTimeout(errorTimerId)
     }
 
     rfb.scaleViewport = true
@@ -90,12 +98,14 @@ export default function RemotePage() {
 
     const onConnect = () => {
       connected = true
+      window.clearTimeout(stateTimerId)
       window.clearTimeout(timeoutId)
       setViewerState('connected')
       setViewerError(null)
     }
 
     const onDisconnect = (event: Event) => {
+      window.clearTimeout(stateTimerId)
       window.clearTimeout(timeoutId)
       if (timedOut) {
         setViewerState('error')
@@ -109,12 +119,14 @@ export default function RemotePage() {
 
     const onSecurityFailure = (event: Event) => {
       const detail = (event as CustomEvent<{ reason?: string }>).detail
+      window.clearTimeout(stateTimerId)
       window.clearTimeout(timeoutId)
       setViewerState('error')
       setViewerError(detail?.reason || 'VNC security handshake failed')
     }
 
     const onCredentialsRequired = () => {
+      window.clearTimeout(stateTimerId)
       window.clearTimeout(timeoutId)
       setViewerState('error')
       setViewerError('VNC credentials required')
@@ -127,6 +139,7 @@ export default function RemotePage() {
     rfbRef.current = rfb
 
     return () => {
+      window.clearTimeout(stateTimerId)
       window.clearTimeout(timeoutId)
       rfb.removeEventListener('connect', onConnect)
       rfb.removeEventListener('disconnect', onDisconnect)
@@ -140,8 +153,27 @@ export default function RemotePage() {
   const reconnect = () => {
     setViewerState('connecting')
     setViewerError(null)
+    setRepairMessage(null)
     void refetch()
     setConnectNonce(value => value + 1)
+  }
+
+  const repairViewer = async () => {
+    setRepairing(true)
+    setRepairMessage(null)
+    try {
+      await api.post<RemoteViewerRepairResult>('/api/vnc/repair', { target: 'all' })
+      setRepairMessage('Repair complete')
+      await refetch()
+      setConnectNonce(value => value + 1)
+    } catch (error) {
+      setViewerState('error')
+      setViewerError(error instanceof Error ? error.message : 'Repair failed')
+      setRepairMessage('Repair failed')
+      void refetch()
+    } finally {
+      setRepairing(false)
+    }
   }
 
   const fullscreen = () => {
@@ -187,11 +219,14 @@ export default function RemotePage() {
           {statusLabel}
         </div>
 
-        <button type="button" onClick={reconnect} disabled={!reachable} className="icon-button" aria-label="Reconnect viewer">
+        <button type="button" onClick={reconnect} disabled={!reachable || isBlocked} className="icon-button" aria-label="Reconnect viewer">
           <ArrowsClockwise size={16} />
         </button>
         <button type="button" onClick={fullscreen} disabled={!reachable} className="icon-button" aria-label="Fullscreen viewer">
           <ArrowsOut size={16} />
+        </button>
+        <button type="button" onClick={repairViewer} disabled={repairing} className="icon-button" aria-label="Repair viewer">
+          <Wrench size={16} />
         </button>
 
         <div style={{ flex: 1 }} />
@@ -235,7 +270,7 @@ export default function RemotePage() {
           }}
         />
 
-        {(!reachable || viewerState === 'connecting' || viewerState === 'error') && (
+        {(!reachable || isBlocked || viewerState === 'connecting' || viewerState === 'error') && (
           <div style={{
             position: 'absolute',
             inset: 0,
@@ -249,7 +284,27 @@ export default function RemotePage() {
               <div style={{ fontSize: 14, fontWeight: 600 }}>
                 {viewerState === 'connecting' ? 'Connecting' : viewerError || data?.message || 'Viewer offline'}
               </div>
-              {(reachable || viewerState === 'connecting') && (
+              {viewerState !== 'connecting' && data?.reason && (
+                <div style={{ maxWidth: 520, color: 'var(--text-tertiary)', fontSize: 12, textAlign: 'center' }}>
+                  {data.reason}
+                </div>
+              )}
+              {repairMessage && (
+                <div style={{ maxWidth: 520, color: 'var(--text-tertiary)', fontSize: 12, textAlign: 'center' }}>
+                  {repairMessage}
+                </div>
+              )}
+              {reachable && data && (
+                <div style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>
+                  {data.active}/{data.max} sessions
+                </div>
+              )}
+              {(!reachable || viewerState === 'error') && (
+                <button type="button" onClick={repairViewer} disabled={repairing} className="icon-button" aria-label="Repair viewer">
+                  <Wrench size={16} />
+                </button>
+              )}
+              {((reachable && !isBlocked) || viewerState === 'connecting') && (
                 <button type="button" onClick={reconnect} className="icon-button" aria-label="Reconnect viewer">
                   <ArrowsClockwise size={16} />
                 </button>

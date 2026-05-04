@@ -138,13 +138,14 @@ describe('isSlashCommand', () => {
 /* ── SLASH_CMDS ───────────────────────────────────────────────────────── */
 
 describe('SLASH_CMDS', () => {
-  it('contains /new and /reset', () => {
+  it('contains the chat reset commands', () => {
     expect(SLASH_CMDS).toContain('/new')
     expect(SLASH_CMDS).toContain('/reset')
+    expect(SLASH_CMDS).toContain('/clear')
   })
 
-  it('has exactly 2 entries', () => {
-    expect(SLASH_CMDS).toHaveLength(2)
+  it('has exactly 3 entries', () => {
+    expect(SLASH_CMDS).toHaveLength(3)
   })
 })
 

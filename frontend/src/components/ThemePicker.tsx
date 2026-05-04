@@ -59,7 +59,7 @@ export default function ThemePicker({ open, onClose }: ThemePickerProps) {
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [open])
 
   const handleClose = useCallback(() => {

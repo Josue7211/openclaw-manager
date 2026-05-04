@@ -58,8 +58,8 @@ function saveMetaCache(meta: Map<string, NoteMeta>) {
 }
 
 // In-memory note cache (includes content)
-let notesCache: Map<string, VaultNote> = new Map()
-let metaCache: Map<string, NoteMeta> = loadMetaCache()
+const notesCache: Map<string, VaultNote> = new Map()
+const metaCache: Map<string, NoteMeta> = loadMetaCache()
 let syncInterval: ReturnType<typeof setInterval> | null = null
 let hasFetchedFromBackend = false
 

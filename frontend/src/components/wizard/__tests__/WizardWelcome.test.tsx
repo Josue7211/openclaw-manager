@@ -22,13 +22,15 @@ vi.mock('@/lib/setup', () => ({
 
 vi.mock('@/lib/api', () => ({
   getApiBase: vi.fn(() => 'http://127.0.0.1:5000'),
+  getConfiguredBackendBase: vi.fn(() => 'http://127.0.0.1:5000'),
   setApiBase: vi.fn(),
+  setConfiguredBackendBase: vi.fn(),
 }))
 
 import WizardWelcome from '../WizardWelcome'
 import { completeWizard, updateWizardField } from '@/lib/wizard-store'
 import { getSetupStatus } from '@/lib/setup'
-import { setApiBase } from '@/lib/api'
+import { setApiBase, setConfiguredBackendBase } from '@/lib/api'
 
 describe('WizardWelcome', () => {
   beforeEach(() => {
@@ -64,6 +66,7 @@ describe('WizardWelcome', () => {
     const button = await screen.findByRole('button', { name: 'Use Current Backend' })
     await user.click(button)
 
+    expect(setConfiguredBackendBase).toHaveBeenCalledWith('http://backend.test:3000')
     expect(setApiBase).toHaveBeenCalledWith('http://backend.test:3000')
     expect(updateWizardField).toHaveBeenCalledWith('backendUrl', 'http://backend.test:3000')
     expect(completeWizard).toHaveBeenCalled()

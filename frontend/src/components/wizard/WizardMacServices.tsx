@@ -220,7 +220,7 @@ const WizardMacServices = React.memo(function WizardMacServices() {
       }
     }
     // Run only on unmount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [])
 
   return (

@@ -8,8 +8,11 @@ vi.mock('@/lib/api', () => ({
     patch: vi.fn(),
   },
   API_BASE_CHANGED_EVENT: 'backend-api-base-changed',
+  CONFIGURED_BACKEND_BASE_CHANGED_EVENT: 'configured-backend-base-changed',
   getApiBase: vi.fn(() => 'http://127.0.0.1:5000'),
+  getConfiguredBackendBase: vi.fn(() => 'http://127.0.0.1:5000'),
   setApiBase: vi.fn(),
+  setConfiguredBackendBase: vi.fn(),
 }))
 
 vi.mock('@/lib/demo-data', () => ({
@@ -33,7 +36,7 @@ vi.mock('@/lib/wizard-store', () => ({
 }))
 
 import SettingsConnections from '../SettingsConnections'
-import { api, setApiBase } from '@/lib/api'
+import { api, setApiBase, setConfiguredBackendBase } from '@/lib/api'
 import { getSetupStatus, pairWithBackend } from '@/lib/setup'
 
 describe('SettingsConnections', () => {
@@ -93,7 +96,8 @@ describe('SettingsConnections', () => {
 
     await waitFor(() => {
       expect(getSetupStatus).toHaveBeenCalledWith('http://server.test:3000')
-      expect(setApiBase).toHaveBeenCalledWith('http://server.test:3000')
+      expect(setConfiguredBackendBase).toHaveBeenCalledWith('http://server.test:3000')
+      expect(setApiBase).not.toHaveBeenCalledWith('http://server.test:3000')
       expect(screen.getByText('Backend target saved')).toBeInTheDocument()
     })
   })

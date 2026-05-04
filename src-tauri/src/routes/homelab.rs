@@ -1,13 +1,18 @@
-use axum::{extract::State, routing::get, Json, Router};
+use axum::{extract::State, routing::get, routing::post, Json, Router};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::sync::OnceLock;
+use std::path::PathBuf;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    OnceLock,
+};
 use tokio::process::Command;
 use tracing::warn;
 
-use crate::error::AppError;
+use crate::error::{success_json, AppError};
 use crate::server::{AppState, RequireAuth};
+use crate::supabase::SupabaseClient;
 
 // ── Mock data (matches TypeScript MOCK_DATA) ────────────────────────────────
 
@@ -22,9 +27,9 @@ fn mock_proxmox() -> Value {
             "uptime": 864_000
         }],
         "vms": [
-            { "vmid": 100, "name": "media-vm",     "node": "pve", "status": "running", "cpu": 0.05, "mem": 4_294_967_296_u64, "maxmem": 25_769_803_776_u64 },
-            { "vmid": 400, "name": "nextcloud-vm", "node": "pve", "status": "running", "cpu": 0.02, "mem": 2_147_483_648_u64, "maxmem": 8_589_934_592_u64 },
-            { "vmid": 200, "name": "ai-gateway",  "node": "pve", "status": "running", "cpu": 0.08, "mem": 4_294_967_296_u64, "maxmem": 17_179_869_184_u64 },
+            { "vmid": 100, "name": "media-vm",     "node": "pve", "status": "running", "cpu": 0.05, "mem": 4_294_967_296_u64, "maxmem": 25_769_803_776_u64, "kind": "qemu" },
+            { "vmid": 400, "name": "nextcloud-vm", "node": "pve", "status": "running", "cpu": 0.02, "mem": 2_147_483_648_u64, "maxmem": 8_589_934_592_u64, "kind": "qemu" },
+            { "vmid": 200, "name": "ai-gateway",  "node": "pve", "status": "running", "cpu": 0.08, "mem": 4_294_967_296_u64, "maxmem": 17_179_869_184_u64, "kind": "qemu" },
         ]
     })
 }
@@ -90,6 +95,7 @@ struct ProxmoxVM {
     cpu: f64,
     mem: u64,
     maxmem: u64,
+    kind: String,
 }
 
 // ── Serde types for OPNsense API responses ──────────────────────────────────
@@ -116,6 +122,16 @@ struct OPNsenseInterfaceStats {
     statistics: Option<serde_json::Map<String, Value>>,
 }
 
+#[derive(Debug, Deserialize)]
+struct HomelabConfigInput {
+    proxmox_host: Option<String>,
+    proxmox_token_id: Option<String>,
+    proxmox_token_secret: Option<String>,
+    opnsense_host: Option<String>,
+    opnsense_key: Option<String>,
+    opnsense_secret: Option<String>,
+}
+
 // ── Insecure reqwest client (for self-signed TLS) ───────────────────────────
 
 fn insecure_client() -> &'static Client {
@@ -129,10 +145,70 @@ fn insecure_client() -> &'static Client {
     })
 }
 
+static HOMELAB_KEYCHAIN_DISABLED: AtomicBool = AtomicBool::new(false);
+
+fn homelab_env_path() -> PathBuf {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    manifest_dir
+        .parent()
+        .map(|parent| parent.join(".env.local"))
+        .unwrap_or_else(|| PathBuf::from(".env.local"))
+}
+
+fn persist_homelab_env_value(env_key: &str, value: &str) -> Result<(), AppError> {
+    if value.contains('\n') || value.contains('\r') {
+        return Err(AppError::BadRequest(format!(
+            "{env_key} cannot contain newlines"
+        )));
+    }
+
+    let path = homelab_env_path();
+    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut lines = Vec::new();
+    let mut updated = false;
+
+    for line in existing.lines() {
+        let Some((key, _)) = line.split_once('=') else {
+            lines.push(line.to_string());
+            continue;
+        };
+        if key.trim() == env_key {
+            if !updated {
+                lines.push(format!("{env_key}={value}"));
+                updated = true;
+            }
+        } else {
+            lines.push(line.to_string());
+        }
+    }
+
+    if !updated {
+        lines.push(format!("{env_key}={value}"));
+    }
+
+    std::fs::write(&path, format!("{}\n", lines.join("\n"))).map_err(|e| {
+        AppError::Internal(anyhow::anyhow!(
+            "failed to persist homelab fallback config: {e}"
+        ))
+    })?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
+
+    Ok(())
+}
+
+fn normalize_base_url(raw: &str) -> String {
+    raw.trim().trim_end_matches('/').to_string()
+}
+
 // ── Proxmox fetcher ─────────────────────────────────────────────────────────
 
 async fn fetch_proxmox(state: &AppState) -> Option<Value> {
-    let url = state.secret_or_default("PROXMOX_HOST");
+    let url = normalize_base_url(&state.secret_or_default("PROXMOX_HOST"));
     let token_id = state.secret_or_default("PROXMOX_TOKEN_ID");
     let token_secret = state.secret_or_default("PROXMOX_TOKEN_SECRET");
 
@@ -229,6 +305,7 @@ async fn fetch_proxmox(state: &AppState) -> Option<Value> {
     Some(json!({
         "nodes": nodes,
         "vms": vms,
+        "source": "api",
     }))
 }
 
@@ -257,10 +334,12 @@ async fn ssh_output(host: &str, command: &str) -> Option<String> {
 
 async fn fetch_proxmox_ssh() -> Option<Value> {
     let nodes_raw = ssh_output("proxmox", "pvesh get /nodes --output-format json").await?;
-    let resources_raw =
-        ssh_output("proxmox", "pvesh get /cluster/resources --type vm --output-format json")
-            .await
-            .unwrap_or_else(|| "[]".to_string());
+    let resources_raw = ssh_output(
+        "proxmox",
+        "pvesh get /cluster/resources --type vm --output-format json",
+    )
+    .await
+    .unwrap_or_else(|| "[]".to_string());
 
     let raw_nodes: Vec<ProxmoxNodeRaw> = serde_json::from_str(&nodes_raw).ok()?;
     let raw_resources: Vec<ProxmoxResourceRaw> =
@@ -303,6 +382,10 @@ fn to_vm(r: &ProxmoxResourceRaw) -> ProxmoxVM {
         cpu: r.cpu.unwrap_or(0.0),
         mem: r.mem.unwrap_or(0),
         maxmem: r.maxmem.unwrap_or(0),
+        kind: r
+            .resource_type
+            .clone()
+            .unwrap_or_else(|| "qemu".to_string()),
     }
 }
 
@@ -324,7 +407,17 @@ async fn fetch_node_vms(
     };
 
     match res.json::<ProxmoxResponse<Vec<ProxmoxResourceRaw>>>().await {
-        Ok(data) => data.data.unwrap_or_default().iter().map(to_vm).collect(),
+        Ok(data) => data
+            .data
+            .unwrap_or_default()
+            .into_iter()
+            .map(|mut r| {
+                if r.resource_type.is_none() {
+                    r.resource_type = Some(vm_type.to_string());
+                }
+                to_vm(&r)
+            })
+            .collect(),
         Err(_) => Vec::new(),
     }
 }
@@ -332,7 +425,7 @@ async fn fetch_node_vms(
 // ── OPNsense fetcher ────────────────────────────────────────────────────────
 
 async fn fetch_opnsense(state: &AppState) -> Option<Value> {
-    let mut url = state
+    let url = state
         .secret("OPNSENSE_HOST")
         .or_else(|| state.secret("OPNSENSE_URL"))
         .filter(|s| !s.is_empty())
@@ -344,11 +437,7 @@ async fn fetch_opnsense(state: &AppState) -> Option<Value> {
     if url.is_empty() {
         return fetch_opnsense_ssh().await;
     }
-
-    // Force HTTPS (matching TS behavior)
-    if url.starts_with("http://") {
-        url = format!("https://{}", &url[7..]);
-    }
+    let url = normalize_base_url(&url);
 
     let key = state
         .secret("OPNSENSE_API_KEY")
@@ -365,23 +454,51 @@ async fn fetch_opnsense(state: &AppState) -> Option<Value> {
 
     let client = insecure_client();
 
-    // Fire all three diagnostic requests concurrently
-    let sys_fut = client
-        .get(format!("{url}/api/diagnostics/system/systemResources"))
-        .basic_auth(&key, Some(&secret))
-        .send();
-    let time_fut = client
-        .get(format!("{url}/api/diagnostics/system/systemTime"))
-        .basic_auth(&key, Some(&secret))
-        .send();
-    let iface_fut = client
-        .get(format!(
-            "{url}/api/diagnostics/interface/getInterfaceStatistics"
-        ))
-        .basic_auth(&key, Some(&secret))
-        .send();
+    let sys_fut = opnsense_get_json(
+        client,
+        &url,
+        &key,
+        &secret,
+        &[
+            "/api/diagnostics/system/system_resources",
+            "/api/diagnostics/system/systemResources",
+        ],
+    );
+    let time_fut = opnsense_get_json(
+        client,
+        &url,
+        &key,
+        &secret,
+        &[
+            "/api/diagnostics/system/system_time",
+            "/api/diagnostics/system/systemTime",
+        ],
+    );
+    let iface_fut = opnsense_get_json(
+        client,
+        &url,
+        &key,
+        &secret,
+        &[
+            "/api/diagnostics/interface/get_interface_statistics",
+            "/api/diagnostics/interface/getInterfaceStatistics",
+        ],
+    );
+    let traffic_fut = opnsense_get_json(
+        client,
+        &url,
+        &key,
+        &secret,
+        &["/api/diagnostics/traffic/_interface"],
+    );
 
-    let (sys_res, time_res, iface_res) = tokio::join!(sys_fut, time_fut, iface_fut);
+    let (sys_res, time_res, iface_res, traffic_res) =
+        tokio::join!(sys_fut, time_fut, iface_fut, traffic_fut);
+
+    if sys_res.is_none() && time_res.is_none() && iface_res.is_none() && traffic_res.is_none() {
+        warn!("OPNsense API credentials are configured but all diagnostics endpoints failed");
+        return fetch_opnsense_ssh().await;
+    }
 
     let mut cpu: f64 = 0.0;
     let mut mem_used: u64 = 0;
@@ -391,68 +508,64 @@ async fn fetch_opnsense(state: &AppState) -> Option<Value> {
     let mut wan_out = "N/A".to_string();
 
     // ── System resources (memory) ───────────────────────────────────────
-    if let Ok(res) = sys_res {
-        if res.status().is_success() {
-            if let Ok(d) = res.json::<OPNsenseSystemResources>().await {
-                if let Some(mem) = d.memory {
-                    mem_total = mem
-                        .total
-                        .as_deref()
-                        .unwrap_or("0")
-                        .parse::<u64>()
-                        .unwrap_or(0);
-                    mem_used = mem
-                        .used
-                        .as_deref()
-                        .unwrap_or("0")
-                        .parse::<u64>()
-                        .unwrap_or(0);
-                }
+    if let Some(d) = sys_res {
+        if let Ok(resources) = serde_json::from_value::<OPNsenseSystemResources>(d.clone()) {
+            if let Some(mem) = resources.memory {
+                mem_total = mem.total.as_deref().and_then(parse_u64_loose).unwrap_or(0);
+                mem_used = mem.used.as_deref().and_then(parse_u64_loose).unwrap_or(0);
             }
         }
+
+        mem_total = mem_total.max(find_number_for_keys(
+            &d,
+            &["mem_total", "memory_total", "total"],
+        ));
+        mem_used = mem_used.max(find_number_for_keys(
+            &d,
+            &["mem_used", "memory_used", "used"],
+        ));
     }
 
     // ── System time (uptime + CPU from load average) ────────────────────
-    if let Ok(res) = time_res {
-        if res.status().is_success() {
-            if let Ok(d) = res.json::<OPNsenseSystemTime>().await {
-                // Parse uptime: "3 days, 03:58:11" → seconds
-                if let Some(raw) = &d.uptime {
-                    uptime = parse_opnsense_uptime(raw);
-                }
-                // CPU estimate from load average (1-min / 4 CPUs)
-                if let Some(loadavg) = &d.loadavg {
-                    if let Some(first) = loadavg
-                        .split_whitespace()
-                        .next()
-                        .or_else(|| loadavg.split(',').next())
-                    {
-                        // Strip any non-numeric trailing chars
-                        let cleaned: String = first
-                            .chars()
-                            .take_while(|c| *c == '.' || c.is_ascii_digit())
-                            .collect();
-                        if let Ok(load) = cleaned.parse::<f64>() {
-                            cpu = (load / 4.0).min(1.0);
-                        }
+    if let Some(d) = time_res {
+        if let Ok(time) = serde_json::from_value::<OPNsenseSystemTime>(d.clone()) {
+            if let Some(raw) = &time.uptime {
+                uptime = parse_opnsense_uptime(raw);
+            }
+            if let Some(loadavg) = &time.loadavg {
+                if let Some(first) = loadavg
+                    .split_whitespace()
+                    .next()
+                    .or_else(|| loadavg.split(',').next())
+                {
+                    let cleaned: String = first
+                        .chars()
+                        .take_while(|c| *c == '.' || c.is_ascii_digit())
+                        .collect();
+                    if let Ok(load) = cleaned.parse::<f64>() {
+                        cpu = (load / 4.0).min(1.0);
                     }
                 }
             }
         }
+        if uptime == 0 {
+            uptime = find_number_for_keys(&d, &["uptime", "uptime_seconds"]);
+        }
     }
 
     // ── Interface statistics (WAN bandwidth) ────────────────────────────
-    if let Ok(res) = iface_res {
-        if res.status().is_success() {
-            if let Ok(d) = res.json::<OPNsenseInterfaceStats>().await {
-                if let Some(stats) = d.statistics {
-                    // Find WAN entry — key contains "[WAN]"
-                    let wan_entry = stats.iter().find(|(k, _)| {
-                        let upper = k.to_uppercase();
-                        upper.contains("[WAN]") || upper.contains("WAN")
-                    });
+    if let Some(d) = traffic_res {
+        if let Some((in_rate, out_rate)) = parse_wan_rates(&d) {
+            wan_in = format_bitrate_human(in_rate);
+            wan_out = format_bitrate_human(out_rate);
+        }
+    }
 
-                    if let Some((_, iface_val)) = wan_entry {
+    if (wan_in == "N/A" || wan_out == "N/A") && iface_res.is_some() {
+        if let Some(d) = iface_res {
+            if let Ok(stats_resp) = serde_json::from_value::<OPNsenseInterfaceStats>(d.clone()) {
+                if let Some(stats) = stats_resp.statistics {
+                    if let Some((_, iface_val)) = find_wan_entry(&stats) {
                         let bytes_in = parse_stat_value(iface_val, "received-bytes");
                         let bytes_out = parse_stat_value(iface_val, "sent-bytes");
                         wan_in = format_bytes_human(bytes_in);
@@ -471,7 +584,152 @@ async fn fetch_opnsense(state: &AppState) -> Option<Value> {
         "uptime": uptime,
         "wan_in": wan_in,
         "wan_out": wan_out,
+        "source": "api",
     }))
+}
+
+async fn opnsense_get_json(
+    client: &Client,
+    base_url: &str,
+    key: &str,
+    secret: &str,
+    paths: &[&str],
+) -> Option<Value> {
+    for path in paths {
+        match client
+            .get(format!("{base_url}{path}"))
+            .basic_auth(key, Some(secret))
+            .send()
+            .await
+        {
+            Ok(res) if res.status().is_success() => match res.json::<Value>().await {
+                Ok(value) => return Some(value),
+                Err(err) => warn!(path, error = %err, "OPNsense JSON parse failed"),
+            },
+            Ok(res) => warn!(path, status = %res.status(), "OPNsense endpoint failed"),
+            Err(err) => warn!(path, error = %err, "OPNsense endpoint unavailable"),
+        }
+    }
+    None
+}
+
+fn parse_u64_loose(raw: &str) -> Option<u64> {
+    let cleaned: String = raw
+        .chars()
+        .filter(|c| c.is_ascii_digit() || *c == '.')
+        .collect();
+    if cleaned.is_empty() {
+        return None;
+    }
+    let number = cleaned.parse::<f64>().ok()?;
+    let lower = raw.to_ascii_lowercase();
+    let multiplier = if lower.contains("tb") || lower.contains("tib") {
+        1_000_000_000_000_f64
+    } else if lower.contains("gb") || lower.contains("gib") {
+        1_000_000_000_f64
+    } else if lower.contains("mb") || lower.contains("mib") {
+        1_000_000_f64
+    } else if lower.contains("kb") || lower.contains("kib") {
+        1_000_f64
+    } else {
+        1_f64
+    };
+    Some((number * multiplier) as u64)
+}
+
+fn value_as_u64(value: &Value) -> Option<u64> {
+    match value {
+        Value::Number(n) => n.as_u64().or_else(|| n.as_f64().map(|f| f as u64)),
+        Value::String(s) => parse_u64_loose(s),
+        _ => None,
+    }
+}
+
+fn find_number_for_keys(value: &Value, keys: &[&str]) -> u64 {
+    match value {
+        Value::Object(map) => {
+            for (key, child) in map {
+                let normalized = key.replace(['-', ' '], "_").to_ascii_lowercase();
+                if keys.iter().any(|wanted| normalized == *wanted) {
+                    if let Some(number) = value_as_u64(child) {
+                        return number;
+                    }
+                }
+                let nested = find_number_for_keys(child, keys);
+                if nested > 0 {
+                    return nested;
+                }
+            }
+            0
+        }
+        Value::Array(items) => items
+            .iter()
+            .map(|item| find_number_for_keys(item, keys))
+            .find(|number| *number > 0)
+            .unwrap_or(0),
+        _ => 0,
+    }
+}
+
+fn find_wan_entry(stats: &serde_json::Map<String, Value>) -> Option<(&String, &Value)> {
+    stats.iter().find(|(key, value)| {
+        let key_upper = key.to_uppercase();
+        let value_text = value.to_string().to_uppercase();
+        key_upper.contains("[WAN]")
+            || key_upper == "WAN"
+            || key_upper.contains(" WAN")
+            || value_text.contains("\"WAN\"")
+    })
+}
+
+fn parse_wan_rates(value: &Value) -> Option<(f64, f64)> {
+    let Value::Object(map) = value else {
+        return None;
+    };
+
+    let candidates: Vec<&Value> = if let Some(Value::Object(interfaces)) = map.get("interfaces") {
+        interfaces.values().collect()
+    } else if let Some(Value::Object(interfaces)) = map.get("data") {
+        interfaces.values().collect()
+    } else {
+        map.values().collect()
+    };
+
+    for candidate in candidates {
+        let text = candidate.to_string().to_uppercase();
+        if !text.contains("WAN") {
+            continue;
+        }
+        let in_rate = find_number_for_keys(
+            candidate,
+            &[
+                "rate_bits_in",
+                "rate_in",
+                "bits_in",
+                "bps_in",
+                "inbps",
+                "rx_rate",
+                "rx_bps",
+            ],
+        );
+        let out_rate = find_number_for_keys(
+            candidate,
+            &[
+                "rate_bits_out",
+                "rate_out",
+                "bits_out",
+                "bps_out",
+                "outbps",
+                "tx_rate",
+                "tx_bps",
+            ],
+        );
+        if in_rate > 0 || out_rate > 0 {
+            return Some((in_rate as f64, out_rate as f64));
+        }
+    }
+
+    None
 }
 
 async fn fetch_opnsense_ssh() -> Option<Value> {
@@ -538,44 +796,274 @@ fn format_bytes_human(bytes: u64) -> String {
     }
 }
 
+fn format_bitrate_human(bits_per_second: f64) -> String {
+    if bits_per_second >= 1e9 {
+        format!("{:.1} Gbps", bits_per_second / 1e9)
+    } else if bits_per_second >= 1e6 {
+        format!("{:.1} Mbps", bits_per_second / 1e6)
+    } else if bits_per_second >= 1e3 {
+        format!("{:.1} Kbps", bits_per_second / 1e3)
+    } else {
+        format!("{:.0} bps", bits_per_second)
+    }
+}
+
 // ── Router ──────────────────────────────────────────────────────────────────
 
 /// Build the homelab router (Proxmox nodes/VMs + OPNsense firewall status).
 pub fn router() -> Router<AppState> {
-    Router::new().route("/homelab", get(get_homelab))
+    Router::new()
+        .route("/homelab", get(get_homelab))
+        .route("/homelab/config", get(get_config).put(put_config))
+        .route("/homelab/sync", post(sync_config))
+        .route("/proxmox", get(get_proxmox))
+        .route("/opnsense", get(get_opnsense))
+}
+
+fn secret_is_set(state: &AppState, key: &str) -> bool {
+    state
+        .secret(key)
+        .is_some_and(|value| !value.trim().is_empty())
+}
+
+fn homelab_config_value(state: &AppState) -> Value {
+    let proxmox_host = state.secret_or_default("PROXMOX_HOST");
+    let proxmox_token_id = state.secret_or_default("PROXMOX_TOKEN_ID");
+    let opnsense_host = state
+        .secret("OPNSENSE_HOST")
+        .or_else(|| state.secret("OPNSENSE_URL"))
+        .unwrap_or_default();
+
+    let proxmox_configured = !proxmox_host.trim().is_empty()
+        && !proxmox_token_id.trim().is_empty()
+        && secret_is_set(state, "PROXMOX_TOKEN_SECRET");
+    let opnsense_configured = !opnsense_host.trim().is_empty()
+        && (secret_is_set(state, "OPNSENSE_API_KEY") || secret_is_set(state, "OPNSENSE_KEY"))
+        && (secret_is_set(state, "OPNSENSE_API_SECRET") || secret_is_set(state, "OPNSENSE_SECRET"));
+
+    json!({
+        "api_configured": {
+            "proxmox": proxmox_configured,
+            "opnsense": opnsense_configured,
+        },
+        "local": {
+            "proxmox_host": proxmox_host,
+            "proxmox_token_id": proxmox_token_id,
+            "proxmox_token_secret_set": secret_is_set(state, "PROXMOX_TOKEN_SECRET"),
+            "opnsense_host": opnsense_host,
+            "opnsense_key_set": secret_is_set(state, "OPNSENSE_API_KEY") || secret_is_set(state, "OPNSENSE_KEY"),
+            "opnsense_secret_set": secret_is_set(state, "OPNSENSE_API_SECRET") || secret_is_set(state, "OPNSENSE_SECRET"),
+        }
+    })
+}
+
+async fn save_config_value(
+    state: &AppState,
+    keyring_key: &str,
+    env_key: &str,
+    value: String,
+) -> Result<(), AppError> {
+    let value = value.trim().to_string();
+    state.merge_secrets(std::collections::HashMap::from([(
+        env_key.to_string(),
+        value.clone(),
+    )]));
+
+    if HOMELAB_KEYCHAIN_DISABLED.load(Ordering::Relaxed) {
+        persist_homelab_env_value(env_key, &value)?;
+        return Ok(());
+    }
+
+    let keyring_key = keyring_key.to_string();
+    let keyring_value = value.clone();
+    let keyring_key_for_save = keyring_key.clone();
+    let save = tokio::task::spawn_blocking(move || {
+        crate::secrets::set_entry(&keyring_key_for_save, &keyring_value)
+    });
+
+    match tokio::time::timeout(std::time::Duration::from_secs(5), save).await {
+        Ok(Ok(Ok(()))) => {}
+        Ok(Ok(Err(e))) => {
+            HOMELAB_KEYCHAIN_DISABLED.store(true, Ordering::Relaxed);
+            warn!(key = keyring_key, error = %e, "homelab keychain save failed; using .env.local fallback");
+            persist_homelab_env_value(env_key, &value)?;
+        }
+        Ok(Err(e)) => {
+            HOMELAB_KEYCHAIN_DISABLED.store(true, Ordering::Relaxed);
+            warn!(key = keyring_key, error = %e, "homelab keychain save task failed; using .env.local fallback");
+            persist_homelab_env_value(env_key, &value)?;
+        }
+        Err(_) => {
+            HOMELAB_KEYCHAIN_DISABLED.store(true, Ordering::Relaxed);
+            warn!(
+                key = keyring_key,
+                "homelab keychain save timed out; using .env.local fallback"
+            );
+            persist_homelab_env_value(env_key, &value)?;
+        }
+    }
+
+    Ok(())
+}
+
+async fn save_secret_value_if_present(
+    state: &AppState,
+    keyring_key: &str,
+    env_key: &str,
+    value: Option<String>,
+) -> Result<(), AppError> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+    if value.trim().is_empty() {
+        return Ok(());
+    }
+    save_config_value(state, keyring_key, env_key, value).await
+}
+
+async fn get_config(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    Ok(success_json(homelab_config_value(&state)))
+}
+
+async fn put_config(
+    State(state): State<AppState>,
+    Json(body): Json<HomelabConfigInput>,
+) -> Result<Json<Value>, AppError> {
+    if let Some(value) = body.proxmox_host {
+        save_config_value(&state, "proxmox.host", "PROXMOX_HOST", value).await?;
+    }
+    if let Some(value) = body.proxmox_token_id {
+        save_config_value(&state, "proxmox.token-id", "PROXMOX_TOKEN_ID", value).await?;
+    }
+    save_secret_value_if_present(
+        &state,
+        "proxmox.token-secret",
+        "PROXMOX_TOKEN_SECRET",
+        body.proxmox_token_secret,
+    )
+    .await?;
+
+    if let Some(value) = body.opnsense_host {
+        save_config_value(&state, "opnsense.host", "OPNSENSE_HOST", value).await?;
+    }
+    save_secret_value_if_present(&state, "opnsense.key", "OPNSENSE_KEY", body.opnsense_key).await?;
+    save_secret_value_if_present(
+        &state,
+        "opnsense.secret",
+        "OPNSENSE_SECRET",
+        body.opnsense_secret,
+    )
+    .await?;
+
+    Ok(success_json(homelab_config_value(&state)))
+}
+
+async fn sync_config(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    if session.encryption_key.is_empty() {
+        return Err(AppError::BadRequest(
+            "Encryption key not available. Log in with email/password to sync homelab secrets."
+                .into(),
+        ));
+    }
+
+    let sb = SupabaseClient::from_state(&state)?;
+    let services = [
+        (
+            "proxmox",
+            vec![
+                ("host", state.secret_or_default("PROXMOX_HOST")),
+                ("token_id", state.secret_or_default("PROXMOX_TOKEN_ID")),
+                (
+                    "token_secret",
+                    state.secret_or_default("PROXMOX_TOKEN_SECRET"),
+                ),
+            ],
+        ),
+        (
+            "opnsense",
+            vec![
+                (
+                    "host",
+                    state
+                        .secret("OPNSENSE_HOST")
+                        .or_else(|| state.secret("OPNSENSE_URL"))
+                        .unwrap_or_default(),
+                ),
+                (
+                    "key",
+                    state
+                        .secret("OPNSENSE_API_KEY")
+                        .or_else(|| state.secret("OPNSENSE_KEY"))
+                        .unwrap_or_default(),
+                ),
+                (
+                    "secret",
+                    state
+                        .secret("OPNSENSE_API_SECRET")
+                        .or_else(|| state.secret("OPNSENSE_SECRET"))
+                        .unwrap_or_default(),
+                ),
+            ],
+        ),
+    ];
+
+    let mut synced = Vec::new();
+    let mut skipped = Vec::new();
+
+    for (service, pairs) in services {
+        let mut credentials = serde_json::Map::new();
+        let mut complete = true;
+        for (key, value) in pairs {
+            let value = value.trim().to_string();
+            if value.is_empty() {
+                complete = false;
+            } else {
+                credentials.insert(key.to_string(), Value::String(value));
+            }
+        }
+
+        if !complete {
+            skipped.push(service);
+            continue;
+        }
+
+        let json_bytes = serde_json::to_vec(&Value::Object(credentials)).map_err(|e| {
+            AppError::Internal(anyhow::anyhow!(
+                "failed to serialize {service} credentials: {e}"
+            ))
+        })?;
+        let (ciphertext, nonce) = crate::crypto::encrypt(&json_bytes, &session.encryption_key)
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("encryption failed: {e}")))?;
+        let row = json!({
+            "user_id": session.user_id,
+            "service": service,
+            "encrypted_credentials": ciphertext,
+            "nonce": nonce,
+        });
+        sb.upsert_as_user("user_secrets", row, &session.access_token)
+            .await?;
+        synced.push(service);
+    }
+
+    Ok(success_json(json!({
+        "synced": synced,
+        "skipped": skipped,
+    })))
 }
 
 // ── GET /homelab ────────────────────────────────────────────────────────────
 
-async fn get_homelab(
-    State(state): State<AppState>,
-    RequireAuth(_session): RequireAuth,
-) -> Result<Json<Value>, AppError> {
-    let proxmox_configured = state
-        .secret("PROXMOX_TOKEN_ID")
-        .filter(|s| !s.is_empty())
-        .is_some()
-        && state
-            .secret("PROXMOX_TOKEN_SECRET")
-            .filter(|s| !s.is_empty())
-            .is_some();
-
-    let opnsense_configured = (state
-        .secret("OPNSENSE_API_KEY")
-        .filter(|s| !s.is_empty())
-        .is_some()
-        || state
-            .secret("OPNSENSE_KEY")
-            .filter(|s| !s.is_empty())
-            .is_some())
-        && (state
-            .secret("OPNSENSE_API_SECRET")
-            .filter(|s| !s.is_empty())
-            .is_some()
-            || state
-                .secret("OPNSENSE_SECRET")
-                .filter(|s| !s.is_empty())
-                .is_some());
+async fn get_homelab(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    let config = homelab_config_value(&state);
+    let proxmox_configured = config["api_configured"]["proxmox"]
+        .as_bool()
+        .unwrap_or(false);
+    let opnsense_configured = config["api_configured"]["opnsense"]
+        .as_bool()
+        .unwrap_or(false);
 
     // Fetch both concurrently; each returns None on failure. When API credentials
     // are missing, each fetcher tries the local SSH host alias before giving up.
@@ -591,6 +1079,14 @@ async fn get_homelab(
     let mut response = json!({
         "proxmox": proxmox,
         "opnsense": opnsense,
+        "live": {
+            "proxmox": proxmox_live,
+            "opnsense": opnsense_live,
+        },
+        "mock_services": {
+            "proxmox": !proxmox_live,
+            "opnsense": !opnsense_live,
+        },
     });
 
     // Only include mock flag when at least one service fell back to mock data.
@@ -605,6 +1101,28 @@ async fn get_homelab(
     }
 
     Ok(Json(response))
+}
+
+async fn get_proxmox(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    match fetch_proxmox(&state).await {
+        Some(value) => Ok(Json(json!({ "proxmox": value, "live": true }))),
+        None => Ok(Json(json!({
+            "proxmox": mock_proxmox(),
+            "live": false,
+            "mock": true,
+        }))),
+    }
+}
+
+async fn get_opnsense(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    match fetch_opnsense(&state).await {
+        Some(value) => Ok(Json(json!({ "opnsense": value, "live": true }))),
+        None => Ok(Json(json!({
+            "opnsense": mock_opnsense(),
+            "live": false,
+            "mock": true,
+        }))),
+    }
 }
 
 #[cfg(test)]
@@ -716,12 +1234,17 @@ mod tests {
             status: Some("running".into()),
             cpu: Some(0.25),
             mem: Some(4_000_000_000),
+            maxmem: Some(8_000_000_000),
+            node: Some("pve".into()),
         };
         let vm = to_vm(&raw);
         assert_eq!(vm.name, "my-vm");
         assert_eq!(vm.status, "running");
         assert!((vm.cpu - 0.25).abs() < f64::EPSILON);
         assert_eq!(vm.mem, 4_000_000_000);
+        assert_eq!(vm.maxmem, 8_000_000_000);
+        assert_eq!(vm.node, "pve");
+        assert_eq!(vm.kind, "qemu");
     }
 
     #[test]
@@ -733,11 +1256,14 @@ mod tests {
             status: None,
             cpu: None,
             mem: None,
+            maxmem: None,
+            node: None,
         };
         let vm = to_vm(&raw);
         assert_eq!(vm.name, "VM 200");
         assert_eq!(vm.status, "");
         assert!((vm.cpu - 0.0).abs() < f64::EPSILON);
         assert_eq!(vm.mem, 0);
+        assert_eq!(vm.kind, "lxc");
     }
 }

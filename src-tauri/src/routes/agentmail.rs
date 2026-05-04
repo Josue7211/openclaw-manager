@@ -1,6 +1,6 @@
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use crate::error::AppError;
 use crate::server::AppState;
@@ -15,6 +15,8 @@ pub struct MailThread {
     pub from: String,
     pub preview: String,
     pub unread: bool,
+    pub timestamp: Option<String>,
+    pub message_count: Option<u32>,
 }
 
 impl MailThread {
@@ -35,6 +37,22 @@ pub struct AgentMailInbox {
     pub client_id: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SendMessageRequest {
+    pub to: Vec<String>,
+    pub cc: Vec<String>,
+    pub bcc: Vec<String>,
+    pub subject: String,
+    pub text: String,
+    pub labels: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SendMessageResult {
+    pub message_id: String,
+    pub thread_id: String,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 struct AgentMailThread {
     #[serde(default)]
@@ -51,11 +69,28 @@ struct AgentMailThread {
     senders: Vec<String>,
     #[serde(default)]
     unread: Option<bool>,
+    #[serde(default)]
+    timestamp: Option<String>,
+    #[serde(default)]
+    received_timestamp: Option<String>,
+    #[serde(default)]
+    sent_timestamp: Option<String>,
+    #[serde(default)]
+    updated_at: Option<String>,
+    #[serde(default)]
+    created_at: Option<String>,
+    #[serde(default)]
+    message_count: Option<u32>,
 }
 
 impl AgentMailThread {
     fn into_mail_thread(self, fallback_inbox_id: &str) -> Option<MailThread> {
         let id = self.thread_id.or(self.id)?;
+        let subject = self.subject.unwrap_or_else(|| "(no subject)".to_string());
+        let preview = self.preview.unwrap_or_default();
+        if is_clawcontrol_route_test(&subject, &preview) {
+            return None;
+        }
         let from = self
             .senders
             .first()
@@ -67,12 +102,85 @@ impl AgentMailThread {
                 self.inbox_id
                     .unwrap_or_else(|| fallback_inbox_id.to_string()),
             ),
-            subject: self.subject.unwrap_or_else(|| "(no subject)".to_string()),
+            subject,
             from,
-            preview: self.preview.unwrap_or_default(),
+            preview,
             unread: self.unread.unwrap_or(false),
+            timestamp: self
+                .timestamp
+                .or(self.received_timestamp)
+                .or(self.sent_timestamp)
+                .or(self.updated_at)
+                .or(self.created_at),
+            message_count: self.message_count,
         })
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AgentMailMessage {
+    #[serde(default)]
+    message_id: Option<String>,
+    #[serde(default)]
+    thread_id: Option<String>,
+    #[serde(default)]
+    inbox_id: Option<String>,
+    #[serde(default)]
+    from: Option<String>,
+    #[serde(default)]
+    subject: Option<String>,
+    #[serde(default)]
+    preview: Option<String>,
+    #[serde(default)]
+    labels: Vec<String>,
+    #[serde(default)]
+    timestamp: Option<String>,
+    #[serde(default)]
+    updated_at: Option<String>,
+    #[serde(default)]
+    created_at: Option<String>,
+}
+
+impl AgentMailMessage {
+    fn into_mail_thread(self, fallback_inbox_id: &str) -> Option<MailThread> {
+        let message_id = self.message_id?;
+        let id = self.thread_id.unwrap_or_else(|| message_id.clone());
+        let subject = self.subject.unwrap_or_else(|| "(no subject)".to_string());
+        let preview = self.preview.unwrap_or_default();
+        if is_clawcontrol_route_test(&subject, &preview)
+            || self
+                .labels
+                .iter()
+                .any(|label| label.eq_ignore_ascii_case("clawcontrol-test"))
+        {
+            return None;
+        }
+        let unread = self
+            .labels
+            .iter()
+            .any(|label| label.eq_ignore_ascii_case("unread"));
+
+        Some(MailThread {
+            id,
+            account_id: Some(
+                self.inbox_id
+                    .unwrap_or_else(|| fallback_inbox_id.to_string()),
+            ),
+            subject,
+            from: self.from.unwrap_or_else(|| "Unknown".to_string()),
+            preview,
+            unread,
+            timestamp: self.timestamp.or(self.updated_at).or(self.created_at),
+            message_count: Some(1),
+        })
+    }
+}
+
+fn is_clawcontrol_route_test(subject: &str, preview: &str) -> bool {
+    subject
+        .trim()
+        .eq_ignore_ascii_case("ClawControl route test")
+        || preview.contains("Testing AgentMail delivery into ClawControl.")
 }
 
 fn agentmail_base_url(state: &AppState) -> String {
@@ -99,8 +207,39 @@ fn thread_list_url(base_url: &str, inbox_id: &str, limit: usize) -> String {
     )
 }
 
+fn message_list_url(base_url: &str, inbox_id: &str, limit: usize) -> String {
+    format!(
+        "{}/inboxes/{}/messages?limit={}",
+        base_url,
+        urlencoding::encode(inbox_id),
+        limit
+    )
+}
+
+fn inbox_list_url(base_url: &str, limit: usize) -> String {
+    format!("{base_url}/inboxes?limit={limit}")
+}
+
+fn message_send_url(base_url: &str, inbox_id: &str) -> String {
+    format!(
+        "{}/inboxes/{}/messages/send",
+        base_url,
+        urlencoding::encode(inbox_id)
+    )
+}
+
 fn inbox_create_url(base_url: &str) -> String {
     format!("{base_url}/inboxes")
+}
+
+fn parse_inboxes(value: Value) -> Result<Vec<AgentMailInbox>, AppError> {
+    let raw_inboxes = if let Some(inboxes) = value.get("inboxes") {
+        inboxes.clone()
+    } else {
+        value
+    };
+    serde_json::from_value::<Vec<AgentMailInbox>>(raw_inboxes)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("failed to parse AgentMail inboxes: {e}")))
 }
 
 fn parse_threads(value: Value, inbox_id: &str) -> Result<Vec<MailThread>, AppError> {
@@ -116,6 +255,22 @@ fn parse_threads(value: Value, inbox_id: &str) -> Result<Vec<MailThread>, AppErr
     Ok(threads
         .into_iter()
         .filter_map(|thread| thread.into_mail_thread(inbox_id))
+        .collect())
+}
+
+fn parse_messages_as_threads(value: Value, inbox_id: &str) -> Result<Vec<MailThread>, AppError> {
+    let raw_messages = if let Some(messages) = value.get("messages") {
+        messages.clone()
+    } else {
+        value
+    };
+    let messages = serde_json::from_value::<Vec<AgentMailMessage>>(raw_messages).map_err(|e| {
+        AppError::Internal(anyhow::anyhow!("failed to parse AgentMail messages: {e}"))
+    })?;
+
+    Ok(messages
+        .into_iter()
+        .filter_map(|message| message.into_mail_thread(inbox_id))
         .collect())
 }
 
@@ -156,6 +311,69 @@ pub async fn list_threads_for_account(
         .map_err(|e| AppError::Internal(anyhow::anyhow!("AgentMail response parse failed: {e}")))?;
 
     parse_threads(value, inbox_id).map(Some)
+}
+
+pub async fn list_inboxes(
+    state: &AppState,
+    limit: usize,
+) -> Result<Option<Vec<AgentMailInbox>>, AppError> {
+    let Some(api_key) = agentmail_api_key(state) else {
+        return Ok(None);
+    };
+
+    let base_url = agentmail_base_url(state);
+    let response = state
+        .http
+        .get(inbox_list_url(&base_url, limit))
+        .bearer_auth(api_key)
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("AgentMail inbox request failed: {e}")))?;
+
+    if !response.status().is_success() {
+        return Err(agentmail_upstream_status_error(response.status()));
+    }
+
+    let value = response.json::<Value>().await.map_err(|e| {
+        AppError::Internal(anyhow::anyhow!(
+            "AgentMail inbox response parse failed: {e}"
+        ))
+    })?;
+
+    parse_inboxes(value).map(Some)
+}
+
+pub async fn list_messages_as_threads_for_account(
+    state: &AppState,
+    inbox_id: &str,
+    limit: usize,
+) -> Result<Option<Vec<MailThread>>, AppError> {
+    let Some(api_key) = agentmail_api_key(state) else {
+        return Ok(None);
+    };
+
+    let base_url = agentmail_base_url(state);
+    let url = message_list_url(&base_url, inbox_id, limit);
+    let response = state
+        .http
+        .get(&url)
+        .bearer_auth(api_key)
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("AgentMail request failed: {e}")))?;
+
+    if !response.status().is_success() {
+        return Err(agentmail_upstream_status_error(response.status()));
+    }
+
+    let value = response
+        .json::<Value>()
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("AgentMail response parse failed: {e}")))?;
+
+    parse_messages_as_threads(value, inbox_id).map(Some)
 }
 
 pub async fn create_inbox(
@@ -204,6 +422,50 @@ pub async fn create_inbox(
         .await
         .map(Some)
         .map_err(|e| AppError::Internal(anyhow::anyhow!("AgentMail response parse failed: {e}")))
+}
+
+pub async fn send_message_for_account(
+    state: &AppState,
+    inbox_id: &str,
+    body: &SendMessageRequest,
+) -> Result<SendMessageResult, AppError> {
+    let Some(api_key) = agentmail_api_key(state) else {
+        return Err(AppError::BadRequest(
+            "Missing AgentMail API key for sending mail".into(),
+        ));
+    };
+
+    let mut payload = json!({
+        "to": body.to,
+        "subject": body.subject,
+        "text": body.text,
+        "labels": body.labels,
+    });
+
+    if !body.cc.is_empty() {
+        payload["cc"] = json!(body.cc);
+    }
+    if !body.bcc.is_empty() {
+        payload["bcc"] = json!(body.bcc);
+    }
+
+    let response = state
+        .http
+        .post(message_send_url(&agentmail_base_url(state), inbox_id))
+        .bearer_auth(api_key)
+        .json(&payload)
+        .timeout(std::time::Duration::from_secs(20))
+        .send()
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("AgentMail send request failed: {e}")))?;
+
+    if !response.status().is_success() {
+        return Err(agentmail_upstream_status_error(response.status()));
+    }
+
+    response.json::<SendMessageResult>().await.map_err(|e| {
+        AppError::Internal(anyhow::anyhow!("AgentMail send response parse failed: {e}"))
+    })
 }
 
 #[cfg(test)]
@@ -287,6 +549,39 @@ mod tests {
         assert_eq!(
             url,
             "https://api.agentmail.to/v0/inboxes/inbox%40example.com/threads?limit=20"
+        );
+    }
+
+    #[test]
+    fn parses_wrapped_inboxes_payload() {
+        let value = json!({
+            "inboxes": [
+                {
+                    "inbox_id": "inbox@example.com",
+                    "email": "inbox@example.com",
+                    "display_name": "Inbox"
+                }
+            ]
+        });
+
+        let inboxes = parse_inboxes(value).unwrap();
+
+        assert_eq!(inboxes.len(), 1);
+        assert_eq!(inboxes[0].inbox_id, "inbox@example.com");
+    }
+
+    #[test]
+    fn builds_current_agentmail_inbox_list_url() {
+        let url = inbox_list_url("https://api.agentmail.to/v0", 100);
+        assert_eq!(url, "https://api.agentmail.to/v0/inboxes?limit=100");
+    }
+
+    #[test]
+    fn builds_current_agentmail_send_url() {
+        let url = message_send_url("https://api.agentmail.to/v0", "inbox@example.com");
+        assert_eq!(
+            url,
+            "https://api.agentmail.to/v0/inboxes/inbox%40example.com/messages/send"
         );
     }
 }

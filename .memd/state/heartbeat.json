@@ -5,7 +5,7 @@
   "tab_id": null,
   "hive_system": null,
   "hive_role": null,
-  "worker_name": "Clawcontrol Codex 008f3488",
+  "worker_name": "Clawcontrol Codex 9d8c0073",
   "display_name": null,
   "role": null,
   "capabilities": [],
@@ -30,7 +30,7 @@
   "base_url": "http://100.104.154.24:8787",
   "base_url_healthy": null,
   "host": null,
-  "pid": 493199,
+  "pid": 191046,
   "topic_claim": "c=LightRA...",
   "scope_claims": [
     "project"
@@ -38,7 +38,7 @@
   "task_id": null,
   "focus": "id=ecadde11-93bd-4f29-8f09-b000e2ef8c28 | stage=canonical | scope=project | kind=fact | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777736236 | c=LightRA...",
   "pressure": "On 2026-04-18, user corrected that repo edits did not change the running OpenClaw VM; do not claim Hermes/live model fixes are applied unless the deploy/runtime has actually been updated and verified.",
-  "next_recovery": "preference: id=5966b9c1-6c36-4aca-acf7-a543362923b0 | stage=canonical | scope=project | kind=preference | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | cf=0.70 | upd=1777747937 | c=U...",
+  "next_recovery": "evicted working-set item: id=160d447d-2194-4add-b690-900b7190e23c | stage=canonical | scope=project | kind=status | status=active | project=clawcontrol | ns=main | vis=private | agent=codex@session-008f3488 | tags=checkpoint,current-task,auto-short-term,bundle-refresh,wake | cf=0.72 | upd=1777823094 | c=status: wake project=clawcontrol namespace=main agent=codex@session-008f3488 working=7 inbox=1 spine=7 tokens=1622 core=1163 focus=\"id=ecadde11-93bd-4f29-8f09-b000e2ef8c28 / stage=canonical / scope=project / kind=fact...",
   "next_action": "c=LightRA...",
   "working": "c=LightRA...",
   "touches": [
@@ -54,5 +54,5 @@
   "confidence": null,
   "risk": null,
   "status": "live",
-  "last_seen": "2026-05-02T23:06:37.190312012Z"
+  "last_seen": "2026-05-03T15:47:24.102716859Z"
 }
