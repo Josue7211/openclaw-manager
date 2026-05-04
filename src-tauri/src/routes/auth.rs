@@ -122,6 +122,34 @@ fn epoch_secs() -> i64 {
         .as_secs() as i64
 }
 
+fn account_sync_key_name(user_id: &str) -> String {
+    format!("account-sync-key.{user_id}")
+}
+
+fn load_cached_account_sync_key(user_id: &str) -> Option<Vec<u8>> {
+    use base64::Engine as _;
+
+    let encoded = crate::secrets::get_internal_entry(&account_sync_key_name(user_id))?;
+    let key = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .ok()?;
+    (key.len() == 32).then_some(key)
+}
+
+fn cache_account_sync_key(user_id: &str, key: &[u8]) {
+    use base64::Engine as _;
+
+    if key.len() != 32 {
+        tracing::warn!("not caching account sync key: invalid key length");
+        return;
+    }
+
+    let encoded = base64::engine::general_purpose::STANDARD.encode(key);
+    if let Err(e) = crate::secrets::set_entry(&account_sync_key_name(user_id), &encoded) {
+        tracing::warn!("failed to cache account sync key in OS keychain: {e}");
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers: load user_secrets from Supabase after login
 // ---------------------------------------------------------------------------
@@ -575,6 +603,7 @@ async fn login(
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("salt retrieval failed: {e}")))?;
     let encryption_key = crate::crypto::derive_key(&body.password, &salt);
+    cache_account_sync_key(&user_id, encryption_key.as_ref());
 
     let now = epoch_secs();
 
@@ -713,7 +742,16 @@ async fn signup(
 // ---------------------------------------------------------------------------
 
 async fn get_session(State(state): State<AppState>) -> Json<Value> {
-    let session = state.session.read().await.clone();
+    let mut session = state.session.read().await.clone();
+    if let Some(ref mut s) = session {
+        if s.mfa_verified && s.encryption_key.is_empty() {
+            if let Some(key) = load_cached_account_sync_key(&s.user_id) {
+                s.encryption_key = key;
+                *state.session.write().await = Some(s.clone());
+                load_user_secrets(&state, s).await;
+            }
+        }
+    }
     match session.as_ref() {
         Some(s) => {
             // Backfill synced user_secrets for already-authenticated sessions when
@@ -1340,6 +1378,11 @@ async fn mfa_verify(
         s.refresh_token = auth.refresh_token;
         s.expires_at = now + auth.expires_in;
         s.mfa_verified = true; // GATE OPENS — user can now access all data
+        if s.encryption_key.is_empty() {
+            if let Some(key) = load_cached_account_sync_key(&s.user_id) {
+                s.encryption_key = key;
+            }
+        }
     }
     // Read the updated session back for load_user_secrets
     let upgraded_session = write.clone();
@@ -1589,7 +1632,8 @@ async fn get_tauri_session(
                                     user_id: user_id.clone(),
                                     email: email.clone(),
                                     expires_at: now + auth.expires_in,
-                                    encryption_key: Vec::new(),
+                                    encryption_key: load_cached_account_sync_key(&user_id)
+                                        .unwrap_or_default(),
                                     mfa_verified: false,
                                     factor_id,
                                     factor_type,
@@ -1896,7 +1940,8 @@ async fn oauth_callback(
                                 user_id: user_id.clone(),
                                 email: email.clone(),
                                 expires_at: now + auth.expires_in,
-                                encryption_key: Vec::new(),
+                                encryption_key: load_cached_account_sync_key(&user_id)
+                                    .unwrap_or_default(),
                                 mfa_verified: false,
                                 factor_id: oauth_factor_id,
                                 factor_type: oauth_factor_type,

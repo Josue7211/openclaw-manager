@@ -248,6 +248,10 @@ fn get_entry(key: &str) -> Option<String> {
     }
 }
 
+pub(crate) fn get_internal_entry(key: &str) -> Option<String> {
+    get_entry(key)
+}
+
 pub(crate) fn set_entry(key: &str, value: &str) -> Result<(), String> {
     if KEYRING_DISABLED.load(Ordering::Relaxed) {
         return Err("OS keychain is disabled after a timeout".into());
