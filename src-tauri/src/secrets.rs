@@ -323,6 +323,30 @@ fn known_secret_keys() -> std::collections::HashSet<&'static str> {
     KEY_ENV_MAP.iter().map(|&(_, env_name)| env_name).collect()
 }
 
+fn load_env_file(path: PathBuf) -> Option<Vec<(String, String)>> {
+    let display_path = path.display().to_string();
+    let (tx, rx) = mpsc::channel();
+    let _ = std::thread::Builder::new()
+        .name("dotenv-load".into())
+        .spawn(move || {
+            let values = dotenvy::from_path_iter(&path)
+                .ok()
+                .map(|iter| iter.flatten().collect::<Vec<_>>());
+            let _ = tx.send(values);
+        });
+
+    match rx.recv_timeout(Duration::from_secs(2)) {
+        Ok(values) => values,
+        Err(_) => {
+            tracing::warn!(
+                "Timed out reading dev secrets from {}; continuing without it",
+                display_path
+            );
+            None
+        }
+    }
+}
+
 /// Load secrets from the OS keychain, then merge in any `.env.local`
 /// values as a dev-mode fallback. Returns the merged `HashMap` without
 /// ever calling `std::env::set_var`, so secrets stay out of
@@ -342,8 +366,6 @@ pub fn load_secrets() -> HashMap<String, String> {
     // keychain didn't already provide (keychain takes precedence).
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let paths = [
-        PathBuf::from(".env.local"),
-        PathBuf::from("../.env.local"),
         manifest_dir.join(".env.local"),
         manifest_dir.join("../.env.local"),
     ];
@@ -351,9 +373,9 @@ pub fn load_secrets() -> HashMap<String, String> {
         if !path.is_file() {
             continue;
         }
-        if let Ok(iter) = dotenvy::from_path_iter(path) {
+        if let Some(values) = load_env_file(path.clone()) {
             tracing::info!("Merging dev secrets from {}", path.display());
-            for (key, value) in iter.flatten() {
+            for (key, value) in values {
                 if known.contains(key.as_str()) && !secrets.contains_key(&key) {
                     secrets.insert(key, value);
                 }

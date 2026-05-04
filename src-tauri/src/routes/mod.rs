@@ -101,6 +101,7 @@ pub fn router() -> Router<AppState> {
         .merge(rag::router())
         .merge(reminders::router())
         .merge(reviews::router())
+        .merge(setup::router())
         .merge(stale::router())
         .merge(status::router())
         .merge(todos::router())
