@@ -11,6 +11,7 @@ import { getSetupStatus } from '@/lib/setup'
 import { queryKeys } from '@/lib/query-keys'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useGatewayStatus } from '@/hooks/sessions/useGatewayStatus'
+import { approveTrustedDeviceHandoff, listTrustedDeviceHandoffs, type HandoffRequest } from '@/lib/account-sync'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -279,6 +280,14 @@ export default memo(function SettingsStatus() {
     staleTime: 8_000,
   })
 
+  const { data: handoffs } = useQuery<{ ok: boolean; requests: HandoffRequest[] }>({
+    queryKey: ['account-sync-handoffs'],
+    queryFn: () => listTrustedDeviceHandoffs(),
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+    retry: false,
+  })
+
   useEffect(() => {
     const onBackendChanged = () => {
       const nextBase = getConfiguredBackendBase()
@@ -323,6 +332,7 @@ export default memo(function SettingsStatus() {
     { key: 'openclaw', label: 'Harness', data: services?.openclaw },
     { key: 'supabase', label: 'Supabase', data: services?.supabase },
   ]
+  const pendingHandoffs = handoffs?.requests ?? []
 
   const peers = tailscale?.peers ?? []
   const uniquePeers = peers.reduce<TailscalePeer[]>((acc, p) => {
@@ -446,6 +456,47 @@ export default memo(function SettingsStatus() {
             </div>
           )}
         </div>
+
+        {pendingHandoffs.length > 0 && (
+          <div style={statusCard}>
+            <div style={statusSectionTitle}>
+              <Desktop size={14} />
+              Account Sync Requests
+            </div>
+            {pendingHandoffs.map((request, i) => {
+              const isLast = i === pendingHandoffs.length - 1
+              return (
+                <div key={request.id} style={isLast ? statusRowLast : statusRow}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontWeight: 500 }}>{request.requesting_device_name}</span>
+                    <span style={{ ...statusVal, fontSize: '11px' }}>
+                      Code {request.verification_code || '------'} • Expires {new Date(request.expires_at).toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await approveTrustedDeviceHandoff(request.id)
+                      await queryClient.invalidateQueries({ queryKey: ['account-sync-handoffs'] })
+                    }}
+                    style={{
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      background: 'var(--accent-solid)',
+                      color: 'var(--text-on-color)',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      padding: '7px 10px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Approve
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
 
         {/* Gateway WebSocket */}
         <div style={statusCard}>

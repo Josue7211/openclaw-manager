@@ -14,7 +14,13 @@ import { MfaVerifyForm } from './login/MfaVerifyForm'
 import { WaitingView } from './login/WaitingView'
 import { MfaEnrollView } from './login/MfaEnrollView'
 import { SyncUnlockView } from './login/SyncUnlockView'
-import { getAccountSyncStatus, hydrateAccountSync, unlockAccountSync } from '@/lib/account-sync'
+import {
+  claimTrustedDeviceHandoff,
+  getAccountSyncStatus,
+  hydrateAccountSync,
+  requestTrustedDeviceHandoff,
+  unlockAccountSync,
+} from '@/lib/account-sync'
 import { markSetupCompleteForAccount } from '@/lib/wizard-store'
 
 function formatLoginError(err: unknown, fallback: string): string {
@@ -34,6 +40,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [mfaCode, setMfaCode] = useState('')
   const [syncPassword, setSyncPassword] = useState('')
+  const [handoffRequestId, setHandoffRequestId] = useState('')
+  const [handoffCode, setHandoffCode] = useState('')
+  const [handoffStatus, setHandoffStatus] = useState('')
+  const [handoffLoading, setHandoffLoading] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [sessionProbeFailed, setSessionProbeFailed] = useState(false)
@@ -130,6 +140,32 @@ export default function LoginPage() {
     }, 5000)
     return () => clearTimeout(timeout)
   }, [sessionProbeFailed, next])
+
+  useEffect(() => {
+    if (view !== 'sync-unlock' || !handoffRequestId) return
+
+    const interval = setInterval(async () => {
+      try {
+        const result = await claimTrustedDeviceHandoff(handoffRequestId)
+        if (result.claimed && result.sync?.ready) {
+          markSetupCompleteForAccount()
+          window.location.href = next
+          return
+        }
+        if (result.status === 'pending') {
+          setHandoffStatus('Waiting for approval from an unlocked device.')
+        } else if (result.status === 'approved') {
+          setHandoffStatus('Approval received. Unlocking this Mac...')
+        } else {
+          setHandoffStatus(`Request is ${result.status}.`)
+        }
+      } catch {
+        setHandoffStatus('Still waiting for approval.')
+      }
+    }, 4000)
+
+    return () => clearInterval(interval)
+  }, [view, handoffRequestId, next])
 
   // Poll for OAuth completion — backend exchanges the code in the callback
   useEffect(() => {
@@ -294,6 +330,23 @@ export default function LoginPage() {
       setError(formatLoginError(err, 'Could not unlock synced services.'))
       setSyncPassword('')
       setLoading(false)
+    }
+  }
+
+  async function handleHandoffRequest() {
+    setError('')
+    setHandoffLoading(true)
+    setHandoffStatus('')
+
+    try {
+      const request = await requestTrustedDeviceHandoff()
+      setHandoffRequestId(request.request_id)
+      setHandoffCode(request.code)
+      setHandoffStatus('Waiting for approval from an unlocked device.')
+    } catch (err) {
+      setError(formatLoginError(err, 'Could not create a trusted-device request.'))
+    } finally {
+      setHandoffLoading(false)
     }
   }
 
@@ -511,11 +564,18 @@ export default function LoginPage() {
           <SyncUnlockView
             password={syncPassword}
             loading={loading}
+            handoffCode={handoffCode}
+            handoffLoading={handoffLoading}
+            handoffStatus={handoffStatus}
             onPasswordChange={setSyncPassword}
             onSubmit={handleSyncUnlock}
+            onRequestHandoff={handleHandoffRequest}
             onSignOut={async () => {
               await api.post('/api/auth/logout').catch(() => {})
               setSyncPassword('')
+              setHandoffRequestId('')
+              setHandoffCode('')
+              setHandoffStatus('')
               setError('')
               dispatch({ type: 'SHOW_MAIN' })
               setLoading(false)

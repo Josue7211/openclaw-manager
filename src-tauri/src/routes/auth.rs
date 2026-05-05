@@ -8,6 +8,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -99,6 +100,10 @@ pub fn router() -> Router<AppState> {
         .route("/sync/status", get(account_sync_status))
         .route("/sync/hydrate", post(account_sync_hydrate))
         .route("/sync/unlock", post(account_sync_unlock))
+        .route("/sync/handoff/request", post(account_sync_handoff_request))
+        .route("/sync/handoff/requests", get(account_sync_handoff_requests))
+        .route("/sync/handoff/approve", post(account_sync_handoff_approve))
+        .route("/sync/handoff/claim", post(account_sync_handoff_claim))
         .route("/logout", post(logout))
         .route("/refresh", post(refresh))
         .route("/password", post(change_password))
@@ -158,6 +163,80 @@ struct AccountSyncUnlockBody {
     password: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct HandoffRequestBody {
+    device_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct HandoffIdBody {
+    request_id: String,
+}
+
+fn account_sync_handoff_private_key_name(user_id: &str, request_id: &str) -> String {
+    format!("account-sync-handoff-private.{user_id}.{request_id}")
+}
+
+fn local_device_name() -> String {
+    std::env::var("COMPUTERNAME")
+        .ok()
+        .or_else(|| std::env::var("HOSTNAME").ok())
+        .or_else(|| {
+            std::fs::read_to_string("/etc/hostname")
+                .ok()
+                .map(|value| value.trim().to_string())
+        })
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "ClawControl device".to_string())
+}
+
+fn random_handoff_code() -> String {
+    use rand::Rng;
+    const ALPHABET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let mut rng = rand::thread_rng();
+    (0..6)
+        .map(|_| {
+            let idx = rng.gen_range(0..ALPHABET.len());
+            ALPHABET[idx] as char
+        })
+        .collect()
+}
+
+fn base64_32(value: &str, field: &str) -> Result<[u8; 32], AppError> {
+    use base64::Engine as _;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(value)
+        .map_err(|_| AppError::BadRequest(format!("{field} is not valid base64")))?;
+    bytes
+        .try_into()
+        .map_err(|_| AppError::BadRequest(format!("{field} must be 32 bytes")))
+}
+
+fn derive_handoff_envelope_key(
+    shared_secret: &[u8; 32],
+    request_public_key: &[u8; 32],
+    approver_public_key: &[u8; 32],
+) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"clawcontrol-account-sync-handoff-v1");
+    hasher.update(shared_secret);
+    hasher.update(request_public_key);
+    hasher.update(approver_public_key);
+    hasher.finalize().into()
+}
+
+fn handoff_row_json(row: &Value) -> Value {
+    json!({
+        "id": row.get("id").and_then(|v| v.as_str()).unwrap_or_default(),
+        "requesting_device_name": row.get("requesting_device_name").and_then(|v| v.as_str()).unwrap_or("Unknown device"),
+        "verification_code": row.get("verification_code").and_then(|v| v.as_str()).unwrap_or_default(),
+        "approver_device_name": row.get("approver_device_name").and_then(|v| v.as_str()),
+        "status": row.get("status").and_then(|v| v.as_str()).unwrap_or("pending"),
+        "expires_at": row.get("expires_at").and_then(|v| v.as_str()).unwrap_or_default(),
+        "created_at": row.get("created_at").and_then(|v| v.as_str()).unwrap_or_default(),
+    })
+}
+
 async fn synced_service_names(
     state: &AppState,
     session: &UserSession,
@@ -213,6 +292,274 @@ async fn account_sync_status(
     RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
     Ok(Json(account_sync_status_payload(&state, &session).await))
+}
+
+async fn account_sync_handoff_request(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+    Json(body): Json<HandoffRequestBody>,
+) -> Result<Json<Value>, AppError> {
+    if !session.mfa_verified {
+        return Err(AppError::Forbidden(
+            "Verify MFA before requesting account sync handoff.".into(),
+        ));
+    }
+
+    use base64::Engine as _;
+    use rand::RngCore;
+
+    let mut private_bytes = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut private_bytes);
+    let private_key = x25519_dalek::StaticSecret::from(private_bytes);
+    let public_key = x25519_dalek::PublicKey::from(&private_key);
+    let public_key_b64 = base64::engine::general_purpose::STANDARD.encode(public_key.as_bytes());
+
+    let request_id = random_uuid();
+    let code = random_handoff_code();
+    let expires_at = (chrono::Utc::now() + chrono::Duration::minutes(10)).to_rfc3339();
+    let requested_device_name = body
+        .device_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(local_device_name);
+    let device_name = requested_device_name.chars().take(80).collect::<String>();
+
+    crate::secrets::set_entry(
+        &account_sync_handoff_private_key_name(&session.user_id, &request_id),
+        &base64::engine::general_purpose::STANDARD.encode(private_bytes),
+    )
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("failed to store handoff key: {e}")))?;
+
+    let sb = SupabaseClient::from_state(&state)?;
+    sb.insert_as_user(
+        "account_sync_handoffs",
+        json!({
+            "id": request_id,
+            "user_id": session.user_id,
+            "requesting_device_name": device_name,
+            "verification_code": code,
+            "request_public_key": public_key_b64,
+            "status": "pending",
+            "expires_at": expires_at,
+        }),
+        &session.access_token,
+    )
+    .await?;
+
+    Ok(Json(json!({
+        "ok": true,
+        "request_id": request_id,
+        "code": code,
+        "expires_at": expires_at,
+    })))
+}
+
+async fn account_sync_handoff_requests(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    if session.encryption_key.is_empty() {
+        return Err(AppError::BadRequest(
+            "Unlock this device before approving account sync handoffs.".into(),
+        ));
+    }
+
+    let sb = SupabaseClient::from_state(&state)?;
+    let rows = sb
+        .select_as_user(
+            "account_sync_handoffs",
+            "select=id,requesting_device_name,verification_code,approver_device_name,status,expires_at,created_at&status=eq.pending&order=created_at.desc",
+            &session.access_token,
+        )
+        .await?;
+
+    let requests = rows
+        .as_array()
+        .map(|rows| rows.iter().map(handoff_row_json).collect::<Vec<_>>())
+        .unwrap_or_default();
+
+    Ok(Json(json!({ "ok": true, "requests": requests })))
+}
+
+async fn account_sync_handoff_approve(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+    Json(body): Json<HandoffIdBody>,
+) -> Result<Json<Value>, AppError> {
+    if session.encryption_key.is_empty() {
+        return Err(AppError::BadRequest(
+            "Unlock this device before approving account sync handoffs.".into(),
+        ));
+    }
+    crate::validation::validate_uuid(&body.request_id)?;
+
+    let sb = SupabaseClient::from_state(&state)?;
+    let rows = sb
+        .select_as_user(
+            "account_sync_handoffs",
+            &format!(
+                "select=id,request_public_key,status,expires_at&status=eq.pending&id=eq.{}&limit=1",
+                body.request_id
+            ),
+            &session.access_token,
+        )
+        .await?;
+    let row = rows
+        .as_array()
+        .and_then(|arr| arr.first())
+        .ok_or_else(|| AppError::NotFound("No pending handoff request found.".into()))?;
+
+    let request_public_key_b64 = row["request_public_key"]
+        .as_str()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("missing request_public_key")))?;
+    let request_public_key = base64_32(request_public_key_b64, "request_public_key")?;
+    let request_public = x25519_dalek::PublicKey::from(request_public_key);
+
+    use base64::Engine as _;
+    use rand::RngCore;
+
+    let mut approver_private_bytes = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut approver_private_bytes);
+    let approver_private = x25519_dalek::StaticSecret::from(approver_private_bytes);
+    let approver_public = x25519_dalek::PublicKey::from(&approver_private);
+    let shared = approver_private.diffie_hellman(&request_public);
+    let envelope_key = derive_handoff_envelope_key(
+        shared.as_bytes(),
+        &request_public_key,
+        approver_public.as_bytes(),
+    );
+    let (encrypted_key, nonce) = crate::crypto::encrypt(&session.encryption_key, &envelope_key)?;
+    let now = chrono::Utc::now().to_rfc3339();
+
+    sb.update_as_user(
+        "account_sync_handoffs",
+        &format!("id=eq.{}", body.request_id),
+        json!({
+            "status": "approved",
+            "approver_device_name": local_device_name(),
+            "approver_public_key": base64::engine::general_purpose::STANDARD.encode(approver_public.as_bytes()),
+            "encrypted_key": encrypted_key,
+            "nonce": nonce,
+            "updated_at": now,
+        }),
+        &session.access_token,
+    )
+    .await?;
+
+    log_security_event(
+        &state.db,
+        "account_sync_handoff_approved",
+        Some(&session.user_id),
+        &json!({ "request_id": body.request_id }),
+    )
+    .await;
+
+    Ok(Json(json!({ "ok": true, "request_id": body.request_id })))
+}
+
+async fn account_sync_handoff_claim(
+    State(state): State<AppState>,
+    RequireAuth(mut session): RequireAuth,
+    Json(body): Json<HandoffIdBody>,
+) -> Result<Json<Value>, AppError> {
+    crate::validation::validate_uuid(&body.request_id)?;
+
+    let sb = SupabaseClient::from_state(&state)?;
+    let rows = sb
+        .select_as_user(
+            "account_sync_handoffs",
+            &format!(
+                "select=id,status,request_public_key,approver_public_key,encrypted_key,nonce&id=eq.{}&limit=1",
+                body.request_id
+            ),
+            &session.access_token,
+        )
+        .await?;
+    let row = rows
+        .as_array()
+        .and_then(|arr| arr.first())
+        .ok_or_else(|| AppError::NotFound("No handoff request found.".into()))?;
+
+    let status = row["status"].as_str().unwrap_or("pending");
+    if status != "approved" {
+        return Ok(Json(json!({
+            "ok": true,
+            "claimed": false,
+            "status": status,
+        })));
+    }
+
+    let private_key_b64 = crate::secrets::get_internal_entry(
+        &account_sync_handoff_private_key_name(&session.user_id, &body.request_id),
+    )
+    .ok_or_else(|| AppError::BadRequest("This device cannot claim that handoff.".into()))?;
+    let private_key_bytes = base64_32(&private_key_b64, "private_key")?;
+    let private_key = x25519_dalek::StaticSecret::from(private_key_bytes);
+
+    let request_public_key_b64 = row["request_public_key"]
+        .as_str()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("missing request_public_key")))?;
+    let approver_public_key_b64 = row["approver_public_key"]
+        .as_str()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("missing approver_public_key")))?;
+    let request_public_key = base64_32(request_public_key_b64, "request_public_key")?;
+    let approver_public_key = base64_32(approver_public_key_b64, "approver_public_key")?;
+    let approver_public = x25519_dalek::PublicKey::from(approver_public_key);
+    let shared = private_key.diffie_hellman(&approver_public);
+    let envelope_key =
+        derive_handoff_envelope_key(shared.as_bytes(), &request_public_key, &approver_public_key);
+
+    let encrypted_key = row["encrypted_key"]
+        .as_str()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("missing encrypted_key")))?;
+    let nonce = row["nonce"]
+        .as_str()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("missing nonce")))?;
+    let account_key = crate::crypto::decrypt(encrypted_key, nonce, &envelope_key)
+        .map_err(|_| AppError::BadRequest("Approved handoff could not be decrypted.".into()))?;
+    if account_key.len() != 32 {
+        return Err(AppError::BadRequest(
+            "Approved handoff returned an invalid account key.".into(),
+        ));
+    }
+
+    cache_account_sync_key(&session.user_id, &account_key);
+    session.encryption_key = account_key;
+    *state.session.write().await = Some(session.clone());
+    load_user_secrets(&state, &session).await;
+
+    #[cfg(debug_assertions)]
+    crate::server::save_dev_session(&state.db, &session).await;
+
+    let now = chrono::Utc::now().to_rfc3339();
+    sb.update_as_user(
+        "account_sync_handoffs",
+        &format!("id=eq.{}", body.request_id),
+        json!({
+            "status": "claimed",
+            "claimed_at": now,
+            "updated_at": now,
+        }),
+        &session.access_token,
+    )
+    .await?;
+
+    log_security_event(
+        &state.db,
+        "account_sync_handoff_claimed",
+        Some(&session.user_id),
+        &json!({ "request_id": body.request_id }),
+    )
+    .await;
+
+    Ok(Json(json!({
+        "ok": true,
+        "claimed": true,
+        "status": "claimed",
+        "sync": account_sync_status_payload(&state, &session).await,
+    })))
 }
 
 async fn account_sync_hydrate(

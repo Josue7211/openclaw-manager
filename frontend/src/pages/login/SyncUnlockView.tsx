@@ -3,16 +3,24 @@ import { inputStyle, primaryBtnStyle, disabledBtnStyle } from './shared'
 interface SyncUnlockViewProps {
   password: string
   loading: boolean
+  handoffCode: string
+  handoffLoading: boolean
+  handoffStatus: string
   onPasswordChange: (value: string) => void
   onSubmit: (event: React.FormEvent) => void
+  onRequestHandoff: () => void
   onSignOut: () => void
 }
 
 export function SyncUnlockView({
   password,
   loading,
+  handoffCode,
+  handoffLoading,
+  handoffStatus,
   onPasswordChange,
   onSubmit,
+  onRequestHandoff,
   onSignOut,
 }: SyncUnlockViewProps) {
   return (
@@ -37,6 +45,40 @@ export function SyncUnlockView({
       }}>
         Your account is synced. Unlock it once on this Mac so Connected Services can hydrate locally.
       </div>
+      {handoffCode ? (
+        <div style={{
+          padding: '10px 12px',
+          borderRadius: '10px',
+          border: '1px solid var(--accent-a20)',
+          background: 'var(--accent-a10)',
+          color: 'var(--text-primary)',
+          fontSize: '12px',
+          lineHeight: 1.5,
+          textAlign: 'center',
+        }}>
+          <div style={{ color: 'var(--text-secondary)', marginBottom: '6px' }}>Approval code</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '22px', letterSpacing: '0.08em', fontWeight: 700 }}>
+            {handoffCode}
+          </div>
+          <div style={{ color: 'var(--text-muted)', marginTop: '6px' }}>
+            {handoffStatus || 'Waiting for an unlocked device to approve this Mac.'}
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onRequestHandoff}
+          disabled={handoffLoading}
+          style={handoffLoading ? disabledBtnStyle : {
+            ...primaryBtnStyle,
+            background: 'var(--bg-white-04)',
+            border: '1px solid var(--border)',
+            color: 'var(--text-primary)',
+          }}
+        >
+          {handoffLoading ? 'Creating request...' : 'Request Trusted Device Approval'}
+        </button>
+      )}
       <input
         type="password"
         value={password}
