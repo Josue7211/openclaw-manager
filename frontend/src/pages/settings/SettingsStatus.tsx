@@ -1,6 +1,6 @@
 import { memo, useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Desktop, WifiHigh, Database, Info, ArrowsClockwise, Clock, HardDrive, Stack, Monitor, Plugs } from '@phosphor-icons/react'
+import { Desktop, WifiHigh, Database, Info, ArrowsClockwise, Clock, HardDrive, Stack, Monitor, Plugs, Key } from '@phosphor-icons/react'
 
 import {
   api,
@@ -11,7 +11,14 @@ import { getSetupStatus } from '@/lib/setup'
 import { queryKeys } from '@/lib/query-keys'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useGatewayStatus } from '@/hooks/sessions/useGatewayStatus'
-import { approveTrustedDeviceHandoff, listTrustedDeviceHandoffs, type HandoffRequest } from '@/lib/account-sync'
+import {
+  approveTrustedDeviceHandoff,
+  generateRecoveryKey,
+  getRecoveryKeyStatus,
+  listTrustedDeviceHandoffs,
+  type HandoffRequest,
+  type RecoveryStatus,
+} from '@/lib/account-sync'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -258,6 +265,9 @@ function StatusLoadingSkeleton({ rows }: { rows: number }) {
 export default memo(function SettingsStatus() {
   const queryClient = useQueryClient()
   const [backendBase, setBackendBase] = useState(getConfiguredBackendBase())
+  const [generatedRecoveryKey, setGeneratedRecoveryKey] = useState('')
+  const [recoveryBusy, setRecoveryBusy] = useState(false)
+  const [recoveryError, setRecoveryError] = useState('')
 
   const { data: health, isLoading: healthLoading, isError: healthError, dataUpdatedAt: healthUpdatedAt } = useQuery<HealthData>({
     queryKey: queryKeys.health,
@@ -285,6 +295,14 @@ export default memo(function SettingsStatus() {
     queryFn: () => listTrustedDeviceHandoffs(),
     refetchInterval: 15_000,
     staleTime: 10_000,
+    retry: false,
+  })
+
+  const { data: recoveryStatus } = useQuery<RecoveryStatus>({
+    queryKey: ['account-sync-recovery-status'],
+    queryFn: () => getRecoveryKeyStatus(),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
     retry: false,
   })
 
@@ -333,6 +351,22 @@ export default memo(function SettingsStatus() {
     { key: 'supabase', label: 'Supabase', data: services?.supabase },
   ]
   const pendingHandoffs = handoffs?.requests ?? []
+
+  async function handleGenerateRecoveryKey() {
+    setRecoveryBusy(true)
+    setRecoveryError('')
+
+    try {
+      const result = await generateRecoveryKey()
+      setGeneratedRecoveryKey(result.recovery_key)
+      await queryClient.invalidateQueries({ queryKey: ['account-sync-recovery-status'] })
+    } catch (err) {
+      const message = err instanceof Error && err.message ? err.message : 'Could not generate a recovery key.'
+      setRecoveryError(message)
+    } finally {
+      setRecoveryBusy(false)
+    }
+  }
 
   const peers = tailscale?.peers ?? []
   const uniquePeers = peers.reduce<TailscalePeer[]>((acc, p) => {
@@ -497,6 +531,90 @@ export default memo(function SettingsStatus() {
             })}
           </div>
         )}
+
+        <div style={statusCard}>
+          <div style={statusSectionTitle}>
+            <Key size={14} />
+            Account Sync Recovery
+          </div>
+          <div style={statusRow}>
+            <span>Status</span>
+            <span style={{
+              ...statusVal,
+              color: recoveryStatus?.configured ? 'var(--secondary-dim)' : 'var(--amber)',
+            }}>
+              {recoveryStatus?.configured ? 'Recovery key configured' : 'No recovery key'}
+            </span>
+          </div>
+          <div style={statusRowLast}>
+            <span>Last generated</span>
+            <span style={statusVal}>
+              {recoveryStatus?.latest?.created_at
+                ? new Date(recoveryStatus.latest.created_at).toLocaleString()
+                : '--'}
+            </span>
+          </div>
+          {generatedRecoveryKey && (
+            <div style={{
+              marginTop: '14px',
+              padding: '12px',
+              border: '1px solid var(--accent-a20)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--accent-a10)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                New recovery key
+              </span>
+              <code style={{
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontFamily: "'JetBrains Mono', monospace",
+                overflowWrap: 'anywhere',
+                userSelect: 'all',
+              }}>
+                {generatedRecoveryKey}
+              </code>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                Shown once. Generate a new key if this one is misplaced.
+              </span>
+            </div>
+          )}
+          {recoveryError && (
+            <div style={{
+              marginTop: '12px',
+              padding: '9px 10px',
+              borderRadius: '8px',
+              border: '1px solid var(--red-a15)',
+              background: 'var(--red-a08)',
+              color: 'var(--red)',
+              fontSize: '12px',
+            }}>
+              {recoveryError}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => { void handleGenerateRecoveryKey() }}
+            disabled={recoveryBusy}
+            style={{
+              marginTop: '14px',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              background: recoveryBusy ? 'var(--bg-white-04)' : 'var(--accent-solid)',
+              color: recoveryBusy ? 'var(--text-muted)' : 'var(--text-on-color)',
+              fontSize: '12px',
+              fontWeight: 700,
+              padding: '9px 12px',
+              cursor: recoveryBusy ? 'default' : 'pointer',
+              width: '100%',
+            }}
+          >
+            {recoveryBusy ? 'Generating...' : 'Generate Recovery Key'}
+          </button>
+        </div>
 
         {/* Gateway WebSocket */}
         <div style={statusCard}>

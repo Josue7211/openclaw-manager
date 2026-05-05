@@ -36,6 +36,27 @@ export interface HandoffClaimResult {
   sync?: AccountSyncStatus
 }
 
+export interface RecoveryStatus {
+  ok: boolean
+  configured: boolean
+  latest?: {
+    id: string
+    created_at: string
+    last_used_at?: string | null
+  } | null
+}
+
+export interface RecoveryGenerated {
+  ok: boolean
+  recovery_key: string
+  record?: unknown
+}
+
+export interface RecoveryUnlockResult {
+  ok: boolean
+  sync: AccountSyncStatus
+}
+
 export async function getAccountSyncStatus(): Promise<AccountSyncStatus> {
   return api.get<AccountSyncStatus>('/api/auth/sync/status')
 }
@@ -62,4 +83,16 @@ export async function approveTrustedDeviceHandoff(requestId: string): Promise<{ 
 
 export async function claimTrustedDeviceHandoff(requestId: string): Promise<HandoffClaimResult> {
   return api.post<HandoffClaimResult>('/api/auth/sync/handoff/claim', { request_id: requestId })
+}
+
+export async function getRecoveryKeyStatus(): Promise<RecoveryStatus> {
+  return api.get<RecoveryStatus>('/api/auth/sync/recovery/status')
+}
+
+export async function generateRecoveryKey(): Promise<RecoveryGenerated> {
+  return api.post<RecoveryGenerated>('/api/auth/sync/recovery/generate')
+}
+
+export async function unlockWithRecoveryKey(recoveryKey: string): Promise<RecoveryUnlockResult> {
+  return api.post<RecoveryUnlockResult>('/api/auth/sync/recovery/unlock', { recovery_key: recoveryKey })
 }

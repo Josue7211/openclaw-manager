@@ -2,30 +2,35 @@ import { inputStyle, primaryBtnStyle, disabledBtnStyle } from './shared'
 
 interface SyncUnlockViewProps {
   password: string
+  recoveryKey: string
   loading: boolean
   handoffCode: string
   handoffLoading: boolean
   handoffStatus: string
   onPasswordChange: (value: string) => void
+  onRecoveryKeyChange: (value: string) => void
   onSubmit: (event: React.FormEvent) => void
+  onRecoverySubmit: (event: React.FormEvent) => void
   onRequestHandoff: () => void
   onSignOut: () => void
 }
 
 export function SyncUnlockView({
   password,
+  recoveryKey,
   loading,
   handoffCode,
   handoffLoading,
   handoffStatus,
   onPasswordChange,
+  onRecoveryKeyChange,
   onSubmit,
+  onRecoverySubmit,
   onRequestHandoff,
   onSignOut,
 }: SyncUnlockViewProps) {
   return (
-    <form
-      onSubmit={onSubmit}
+    <div
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -79,23 +84,64 @@ export function SyncUnlockView({
           {handoffLoading ? 'Creating request...' : 'Request Trusted Device Approval'}
         </button>
       )}
-      <input
-        type="password"
-        value={password}
-        onChange={event => onPasswordChange(event.target.value)}
-        placeholder="Account password"
-        autoFocus
-        autoComplete="current-password"
-        aria-label="Account password"
-        style={inputStyle}
-      />
-      <button
-        type="submit"
-        disabled={loading || !password}
-        style={loading || !password ? disabledBtnStyle : primaryBtnStyle}
-      >
-        {loading ? 'Unlocking sync...' : 'Unlock Synced Account'}
-      </button>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        color: 'var(--text-muted)',
+        fontSize: '11px',
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+      }}>
+        <span style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+        Recovery key
+        <span style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+      </div>
+      <form onSubmit={onRecoverySubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <input
+          type="password"
+          value={recoveryKey}
+          onChange={event => onRecoveryKeyChange(event.target.value)}
+          placeholder="ccrk_v1_..."
+          autoComplete="off"
+          aria-label="Recovery key"
+          style={inputStyle}
+        />
+        <button
+          type="submit"
+          disabled={loading || !recoveryKey}
+          style={loading || !recoveryKey ? disabledBtnStyle : primaryBtnStyle}
+        >
+          {loading ? 'Unlocking sync...' : 'Unlock with Recovery Key'}
+        </button>
+      </form>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        color: 'var(--text-muted)',
+        fontSize: '11px',
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+      }}>
+        <span style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+        Password fallback
+        <span style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+      </div>
+      <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <input
+          type="password"
+          value={password}
+          onChange={event => onPasswordChange(event.target.value)}
+          placeholder="Account password"
+          autoComplete="current-password"
+          aria-label="Account password"
+          style={inputStyle}
+        />
+        <button type="submit" disabled={loading || !password} style={loading || !password ? disabledBtnStyle : primaryBtnStyle}>
+          {loading ? 'Unlocking sync...' : 'Unlock with Password'}
+        </button>
+      </form>
       <button
         type="button"
         onClick={onSignOut}
@@ -112,6 +158,6 @@ export function SyncUnlockView({
       >
         Use a different account
       </button>
-    </form>
+    </div>
   )
 }

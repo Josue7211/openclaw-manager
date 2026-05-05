@@ -20,6 +20,7 @@ import {
   hydrateAccountSync,
   requestTrustedDeviceHandoff,
   unlockAccountSync,
+  unlockWithRecoveryKey,
 } from '@/lib/account-sync'
 import { markSetupCompleteForAccount } from '@/lib/wizard-store'
 
@@ -40,6 +41,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [mfaCode, setMfaCode] = useState('')
   const [syncPassword, setSyncPassword] = useState('')
+  const [recoveryKey, setRecoveryKey] = useState('')
   const [handoffRequestId, setHandoffRequestId] = useState('')
   const [handoffCode, setHandoffCode] = useState('')
   const [handoffStatus, setHandoffStatus] = useState('')
@@ -333,6 +335,27 @@ export default function LoginPage() {
     }
   }
 
+  async function handleRecoveryUnlock(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+
+    try {
+      const result = await unlockWithRecoveryKey(recoveryKey)
+      if (result.sync.ready) {
+        markSetupCompleteForAccount()
+        window.location.href = next
+        return
+      }
+      setError('Recovery key unlocked, but synced services are still unavailable.')
+      setLoading(false)
+    } catch (err) {
+      setError(formatLoginError(err, 'Could not unlock with that recovery key.'))
+      setRecoveryKey('')
+      setLoading(false)
+    }
+  }
+
   async function handleHandoffRequest() {
     setError('')
     setHandoffLoading(true)
@@ -563,16 +586,20 @@ export default function LoginPage() {
         {view === 'sync-unlock' && (
           <SyncUnlockView
             password={syncPassword}
+            recoveryKey={recoveryKey}
             loading={loading}
             handoffCode={handoffCode}
             handoffLoading={handoffLoading}
             handoffStatus={handoffStatus}
             onPasswordChange={setSyncPassword}
+            onRecoveryKeyChange={setRecoveryKey}
             onSubmit={handleSyncUnlock}
+            onRecoverySubmit={handleRecoveryUnlock}
             onRequestHandoff={handleHandoffRequest}
             onSignOut={async () => {
               await api.post('/api/auth/logout').catch(() => {})
               setSyncPassword('')
+              setRecoveryKey('')
               setHandoffRequestId('')
               setHandoffCode('')
               setHandoffStatus('')

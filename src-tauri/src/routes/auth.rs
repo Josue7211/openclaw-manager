@@ -104,6 +104,12 @@ pub fn router() -> Router<AppState> {
         .route("/sync/handoff/requests", get(account_sync_handoff_requests))
         .route("/sync/handoff/approve", post(account_sync_handoff_approve))
         .route("/sync/handoff/claim", post(account_sync_handoff_claim))
+        .route("/sync/recovery/status", get(account_sync_recovery_status))
+        .route(
+            "/sync/recovery/generate",
+            post(account_sync_recovery_generate),
+        )
+        .route("/sync/recovery/unlock", post(account_sync_recovery_unlock))
         .route("/logout", post(logout))
         .route("/refresh", post(refresh))
         .route("/password", post(change_password))
@@ -173,6 +179,11 @@ struct HandoffIdBody {
     request_id: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct RecoveryUnlockBody {
+    recovery_key: String,
+}
+
 fn account_sync_handoff_private_key_name(user_id: &str, request_id: &str) -> String {
     format!("account-sync-handoff-private.{user_id}.{request_id}")
 }
@@ -200,6 +211,51 @@ fn random_handoff_code() -> String {
             ALPHABET[idx] as char
         })
         .collect()
+}
+
+fn normalize_recovery_key(input: &str) -> String {
+    input
+        .trim()
+        .strip_prefix("ccrk_v1_")
+        .unwrap_or(input.trim())
+        .chars()
+        .filter(|ch| !ch.is_whitespace() && *ch != '-')
+        .collect::<String>()
+}
+
+fn random_recovery_key() -> (String, [u8; 32]) {
+    use base64::Engine as _;
+    use rand::RngCore;
+
+    let mut bytes = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut bytes);
+    let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
+    (format!("ccrk_v1_{encoded}"), bytes)
+}
+
+fn parse_recovery_key(input: &str) -> Result<[u8; 32], AppError> {
+    use base64::Engine as _;
+    let normalized = normalize_recovery_key(input);
+    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(normalized.as_bytes())
+        .map_err(|_| AppError::BadRequest("Recovery key is not valid.".into()))?;
+    bytes
+        .try_into()
+        .map_err(|_| AppError::BadRequest("Recovery key is not valid.".into()))
+}
+
+fn recovery_key_hash(key: &[u8; 32]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"clawcontrol-account-sync-recovery-key-hash-v1");
+    hasher.update(key);
+    hex::encode(hasher.finalize())
+}
+
+fn recovery_wrap_key(key: &[u8; 32]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"clawcontrol-account-sync-recovery-wrap-v1");
+    hasher.update(key);
+    hasher.finalize().into()
 }
 
 fn base64_32(value: &str, field: &str) -> Result<[u8; 32], AppError> {
@@ -292,6 +348,148 @@ async fn account_sync_status(
     RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
     Ok(Json(account_sync_status_payload(&state, &session).await))
+}
+
+async fn account_sync_recovery_status(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let sb = SupabaseClient::from_state(&state)?;
+    let rows = sb
+        .select_as_user(
+            "account_sync_recovery_keys",
+            "select=id,created_at,last_used_at&revoked_at=is.null&order=created_at.desc&limit=1",
+            &session.access_token,
+        )
+        .await?;
+    let latest = rows.as_array().and_then(|arr| arr.first()).cloned();
+    Ok(Json(json!({
+        "ok": true,
+        "configured": latest.is_some(),
+        "latest": latest,
+    })))
+}
+
+async fn account_sync_recovery_generate(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    if session.encryption_key.is_empty() {
+        return Err(AppError::BadRequest(
+            "Unlock this device before generating a recovery key.".into(),
+        ));
+    }
+
+    let (display_key, recovery_key) = random_recovery_key();
+    let key_hash = recovery_key_hash(&recovery_key);
+    let wrap_key = recovery_wrap_key(&recovery_key);
+    let (encrypted_key, nonce) = crate::crypto::encrypt(&session.encryption_key, &wrap_key)?;
+
+    let sb = SupabaseClient::from_state(&state)?;
+    let row = sb
+        .upsert_as_user(
+            "account_sync_recovery_keys",
+            json!({
+                "user_id": session.user_id,
+                "key_hash": key_hash,
+                "encrypted_key": encrypted_key,
+                "nonce": nonce,
+                "label": "Recovery key",
+                "revoked_at": Value::Null,
+            }),
+            &session.access_token,
+        )
+        .await?;
+
+    log_security_event(
+        &state.db,
+        "account_sync_recovery_generated",
+        Some(&session.user_id),
+        &json!({}),
+    )
+    .await;
+
+    Ok(Json(json!({
+        "ok": true,
+        "recovery_key": display_key,
+        "record": row.as_array().and_then(|arr| arr.first()).cloned().unwrap_or(Value::Null),
+    })))
+}
+
+async fn account_sync_recovery_unlock(
+    State(state): State<AppState>,
+    RequireAuth(mut session): RequireAuth,
+    Json(body): Json<RecoveryUnlockBody>,
+) -> Result<Json<Value>, AppError> {
+    if !session.mfa_verified {
+        return Err(AppError::Forbidden(
+            "Verify MFA before unlocking synced account data.".into(),
+        ));
+    }
+
+    let recovery_key = parse_recovery_key(&body.recovery_key)?;
+    let key_hash = recovery_key_hash(&recovery_key);
+    let wrap_key = recovery_wrap_key(&recovery_key);
+
+    let sb = SupabaseClient::from_state(&state)?;
+    let rows = sb
+        .select_as_user(
+            "account_sync_recovery_keys",
+            &format!(
+                "select=id,encrypted_key,nonce&revoked_at=is.null&key_hash=eq.{key_hash}&limit=1"
+            ),
+            &session.access_token,
+        )
+        .await?;
+    let row = rows
+        .as_array()
+        .and_then(|arr| arr.first())
+        .ok_or_else(|| AppError::BadRequest("Recovery key was not accepted.".into()))?;
+    let encrypted_key = row["encrypted_key"]
+        .as_str()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("missing encrypted_key")))?;
+    let nonce = row["nonce"]
+        .as_str()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("missing nonce")))?;
+    let account_key = crate::crypto::decrypt(encrypted_key, nonce, &wrap_key)
+        .map_err(|_| AppError::BadRequest("Recovery key was not accepted.".into()))?;
+    if account_key.len() != 32 {
+        return Err(AppError::BadRequest(
+            "Recovery key returned an invalid account key.".into(),
+        ));
+    }
+
+    cache_account_sync_key(&session.user_id, &account_key);
+    session.encryption_key = account_key;
+    *state.session.write().await = Some(session.clone());
+    load_user_secrets(&state, &session).await;
+
+    #[cfg(debug_assertions)]
+    crate::server::save_dev_session(&state.db, &session).await;
+
+    if let Some(id) = row["id"].as_str() {
+        let _ = sb
+            .update_as_user(
+                "account_sync_recovery_keys",
+                &format!("id=eq.{id}"),
+                json!({ "last_used_at": chrono::Utc::now().to_rfc3339() }),
+                &session.access_token,
+            )
+            .await;
+    }
+
+    log_security_event(
+        &state.db,
+        "account_sync_recovery_unlocked",
+        Some(&session.user_id),
+        &json!({}),
+    )
+    .await;
+
+    Ok(Json(json!({
+        "ok": true,
+        "sync": account_sync_status_payload(&state, &session).await,
+    })))
 }
 
 async fn account_sync_handoff_request(
