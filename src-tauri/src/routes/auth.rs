@@ -2416,6 +2416,38 @@ async fn clear_pending_oauth_snapshot() {
     let _ = tokio::fs::remove_file(pending_oauth_file_path()).await;
 }
 
+fn escape_html_attr(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+fn same_origin(left: &url::Url, right: &url::Url) -> bool {
+    left.scheme() == right.scheme()
+        && left.host_str() == right.host_str()
+        && left.port_or_known_default() == right.port_or_known_default()
+}
+
+fn is_allowed_oauth_redirect(candidate: &str, public_base: &str) -> bool {
+    let Ok(redirect) = url::Url::parse(candidate) else {
+        return false;
+    };
+    if !matches!(redirect.scheme(), "http" | "https") {
+        return false;
+    }
+
+    if matches!(redirect.host_str(), Some("localhost" | "127.0.0.1" | "::1")) {
+        return true;
+    }
+
+    url::Url::parse(public_base)
+        .ok()
+        .is_some_and(|base| same_origin(&redirect, &base))
+}
+
 async fn start_oauth(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -2431,13 +2463,11 @@ async fn start_oauth(
 
     let public_base = backend_public_base_url(&state, &headers);
 
-    // Validate redirect_to — only allow localhost URLs or this backend's base
-    // to prevent open redirect.
-    let validated_redirect = query.redirect_to.filter(|url| {
-        url.starts_with("http://localhost:")
-            || url.starts_with("http://127.0.0.1:")
-            || url.starts_with(&public_base)
-    });
+    // Validate redirect_to with URL parsing instead of prefix checks. Prefix
+    // checks accept lookalikes such as `http://localhost:5000.evil.test`.
+    let validated_redirect = query
+        .redirect_to
+        .filter(|url| is_allowed_oauth_redirect(url, &public_base));
 
     // If an OAuth flow was initiated recently (< 120s), return the same URL
     // instead of generating a new PKCE pair. This prevents double-click or
@@ -2504,7 +2534,7 @@ fn backend_public_base_url(state: &AppState, headers: &HeaderMap) -> String {
         .filter(|s| !s.is_empty())
         .unwrap_or("http");
 
-    if let Some(host) = host.as_deref() {
+    if let Some(host) = host {
         if host.starts_with("127.0.0.1:") || host.starts_with("localhost:") {
             return format!("{proto}://{host}")
                 .trim_end_matches('/')
@@ -3333,6 +3363,7 @@ async fn oauth_callback(
         // If a redirect_to URL was stored (browser-mode OAuth), redirect
         // back to the frontend instead of showing the "close this tab" page.
         if let Some(redirect_url) = browser_redirect {
+            let redirect_url = escape_html_attr(&redirect_url);
             return Ok(Html(format!(
                 r#"<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url={url}"></head><body>Redirecting...</body></html>"#,
                 url = redirect_url,
@@ -3477,6 +3508,46 @@ mod tests {
             now < 4_102_444_800,
             "epoch_secs should not be in the far future"
         );
+    }
+
+    #[test]
+    fn oauth_redirect_allows_loopback_and_same_origin() {
+        assert!(is_allowed_oauth_redirect(
+            "http://localhost:5173/auth/callback",
+            "http://127.0.0.1:5000"
+        ));
+        assert!(is_allowed_oauth_redirect(
+            "http://127.0.0.1:5173/auth/callback",
+            "http://127.0.0.1:5000"
+        ));
+        assert!(is_allowed_oauth_redirect(
+            "https://app.example.test/auth/callback",
+            "https://app.example.test"
+        ));
+    }
+
+    #[test]
+    fn oauth_redirect_rejects_prefix_lookalikes() {
+        assert!(!is_allowed_oauth_redirect(
+            "http://localhost:5000.evil.test/auth/callback",
+            "http://localhost:5000"
+        ));
+        assert!(!is_allowed_oauth_redirect(
+            "https://app.example.test.evil.test/auth/callback",
+            "https://app.example.test"
+        ));
+        assert!(!is_allowed_oauth_redirect(
+            "javascript:alert(1)",
+            "http://localhost:5000"
+        ));
+    }
+
+    #[test]
+    fn html_attribute_escape_blocks_redirect_markup_breakout() {
+        let escaped = escape_html_attr(r#"http://localhost:5173/"><script>alert(1)</script>"#);
+        assert!(!escaped.contains('"'));
+        assert!(!escaped.contains("<script>"));
+        assert!(escaped.contains("&quot;&gt;&lt;script&gt;"));
     }
 
     // ---- service_credential_to_env_var ----
