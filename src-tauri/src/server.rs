@@ -934,12 +934,14 @@ const AUTH_EXEMPT_PATHS: &[&str] = &["/api/health"];
 /// but not RequireAuth (no user session needed during setup wizard).
 const AUTH_EXEMPT_PREFIXES: &[&str] = &["/api/auth/", "/api/setup/"];
 
-fn is_dev_agentmail_read(req: &Request<Body>) -> bool {
-    if !cfg!(debug_assertions) || req.method() != axum::http::Method::GET {
-        return false;
-    }
-
-    matches!(req.uri().path(), "/api/mail-accounts" | "/api/email")
+#[cfg(debug_assertions)]
+fn insecure_dev_api_key_bypass_enabled() -> bool {
+    matches!(
+        std::env::var("ALLOW_INSECURE_DEV_API_KEY_BYPASS")
+            .ok()
+            .as_deref(),
+        Some("1" | "true" | "TRUE" | "True")
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -1064,7 +1066,6 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
         || AUTH_EXEMPT_PREFIXES
             .iter()
             .any(|prefix| path.starts_with(prefix))
-        || is_dev_agentmail_read(&req)
     {
         return next.run(req).await;
     }
@@ -1152,17 +1153,21 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
         }
     }
 
-    // Browser dev mode: allow requests from localhost origins
-    // (CORS limits origins; API key provides defense-in-depth for Tauri production)
+    // Browser dev mode can opt into API-key bypass for manual localhost testing.
+    // It is off by default because the desktop backend stores a process-wide
+    // user session; a broad localhost bypass would let another local origin
+    // read private data while the app is signed in.
     #[cfg(debug_assertions)]
-    if let Some(origin) = req.headers().get("origin").and_then(|v| v.to_str().ok()) {
-        if origin.starts_with("http://localhost:")
-            || origin.starts_with("http://127.0.0.1:")
-            || origin.starts_with("tauri://")
-            || origin.starts_with("http://tauri.localhost")
-            || origin.starts_with("https://tauri.localhost")
-        {
-            return next.run(req).await;
+    if insecure_dev_api_key_bypass_enabled() {
+        if let Some(origin) = req.headers().get("origin").and_then(|v| v.to_str().ok()) {
+            if origin.starts_with("http://localhost:")
+                || origin.starts_with("http://127.0.0.1:")
+                || origin.starts_with("tauri://")
+                || origin.starts_with("http://tauri.localhost")
+                || origin.starts_with("https://tauri.localhost")
+            {
+                return next.run(req).await;
+            }
         }
     }
 

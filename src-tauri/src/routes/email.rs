@@ -1,7 +1,7 @@
 use axum::{
     extract::{Query, State},
     routing::{get, post},
-    Extension, Json, Router,
+    Json, Router,
 };
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
@@ -396,15 +396,6 @@ fn resolve_agentmail_inbox_id(
         .map(str::to_string)
 }
 
-async fn resolve_linked_agentmail_inbox_id(
-    state: &AppState,
-    session: &crate::server::UserSession,
-    selected_account_id: &str,
-) -> Result<Option<String>, AppError> {
-    let accounts = mail_accounts::load_mail_accounts(state, session).await?;
-    Ok(resolve_agentmail_inbox_id(&accounts, selected_account_id))
-}
-
 async fn list_all_agentmail_threads(
     state: &AppState,
     selected_inbox_id: Option<&str>,
@@ -533,29 +524,23 @@ fn build_draft_reply(
 
 async fn get_emails(
     State(state): State<AppState>,
-    session: Option<Extension<crate::server::UserSession>>,
+    RequireAuth(session): RequireAuth,
     Query(params): Query<GetEmailsQuery>,
 ) -> Result<Json<Value>, AppError> {
     let raw_folder = params.folder.as_deref().unwrap_or("INBOX");
     let folder = sanitize_folder(raw_folder);
     let limit = sanitize_limit(params.limit);
+    let accounts = mail_accounts::load_mail_accounts(&state, &session).await?;
     let selected_account_id = params
         .account_id
         .as_deref()
         .map(str::trim)
         .filter(|account_id| !account_id.is_empty())
         .map(str::to_string)
-        .or_else(|| default_account_id_for_email_request(&state, session.as_ref()));
+        .or_else(|| default_account_id_from_accounts(&accounts));
 
     if let Some(account_id) = selected_account_id.as_deref() {
-        let agentmail_inbox_id = if let Some(Extension(session)) = session.as_ref() {
-            resolve_linked_agentmail_inbox_id(&state, session, account_id).await?
-        } else {
-            resolve_agentmail_inbox_id(
-                &mail_accounts::default_agentmail_accounts(&state),
-                account_id,
-            )
-        };
+        let agentmail_inbox_id = resolve_agentmail_inbox_id(&accounts, account_id);
 
         let mut agentmail_checked = false;
         let mut agentmail_available = false;
@@ -636,23 +621,12 @@ async fn get_emails(
     }
 }
 
-fn default_account_id_for_email_request(
-    state: &AppState,
-    session: Option<&Extension<crate::server::UserSession>>,
-) -> Option<String> {
-    if session.is_some() {
-        return None;
-    }
-
-    mail_accounts::default_agentmail_accounts(state)
-        .into_iter()
+fn default_account_id_from_accounts(accounts: &[MailAccountRecord]) -> Option<String> {
+    accounts
+        .iter()
         .find(|account| account.is_default)
-        .or_else(|| {
-            mail_accounts::default_agentmail_accounts(state)
-                .into_iter()
-                .next()
-        })
-        .map(|account| account.id)
+        .or_else(|| accounts.first())
+        .map(|account| account.id.clone())
 }
 
 // ── PATCH /api/email ────────────────────────────────────────────────────────

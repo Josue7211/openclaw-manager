@@ -1,6 +1,6 @@
 use axum::extract::{Query, State};
 use axum::routing::get;
-use axum::{Extension, Json, Router};
+use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -233,13 +233,12 @@ fn ensure_single_default(accounts: &mut [MailAccountRecord], preferred_id: Optio
 
 async fn list_mail_accounts(
     State(state): State<AppState>,
-    session: Option<Extension<crate::server::UserSession>>,
+    RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let accounts = if let Some(Extension(session)) = session {
-        load_mail_accounts(&state, &session).await?
-    } else {
-        default_agentmail_accounts(&state)
-    };
+    let mut accounts = load_mail_accounts(&state, &session).await?;
+    if accounts.is_empty() {
+        accounts = default_agentmail_accounts(&state);
+    }
     Ok(Json(json!({ "accounts": accounts })))
 }
 
