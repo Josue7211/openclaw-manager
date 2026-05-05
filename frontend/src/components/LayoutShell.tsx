@@ -20,6 +20,8 @@ import { DemoModeBanner } from '@/components/DemoModeBanner'
 import { IconContext } from '@phosphor-icons/react'
 import { ToastProvider } from '@/components/ui/Toast'
 import { NavigationProgressBar } from '@/components/ui/ProgressBar'
+import { api } from '@/lib/api'
+import { getAccountSyncStatus } from '@/lib/account-sync'
 import { useThemeState } from '@/lib/theme-store'
 import { getThemeById } from '@/lib/theme-definitions'
 import { getSidebarConfig } from '@/lib/sidebar-config'
@@ -53,6 +55,7 @@ export default function LayoutShell() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [themePickerOpen, setThemePickerOpen] = useState(false)
+  const [recoveryReminderKey, setRecoveryReminderKey] = useState<string | null>(null)
   const [sidebarWidth, setSidebarWidth] = useLocalStorageState('sidebar-width', 260)
   const sidebarDraggingRef = useRef(false)
   const mainRef = useRef<HTMLElement>(null)
@@ -70,6 +73,34 @@ export default function LayoutShell() {
   useEffect(() => {
     if (!shouldShowSetupWizard) setShowWizard(false)
   }, [shouldShowSetupWizard])
+
+  useEffect(() => {
+    if (isLogin || isDemo) return
+    let cancelled = false
+
+    async function checkRecoveryReminder() {
+      try {
+        const [session, sync] = await Promise.all([
+          api.get<{ authenticated: boolean; user?: { id?: string } }>('/api/auth/session'),
+          getAccountSyncStatus(),
+        ])
+        const userId = session.user?.id ?? 'current'
+        const key = `account-sync-recovery-reminder:${userId}`
+        if (!cancelled && sync.needs_recovery_key && !localStorage.getItem(key)) {
+          setRecoveryReminderKey(key)
+        }
+      } catch {
+        // Keep the shell quiet if auth/sync probing is unavailable.
+      }
+    }
+
+    void checkRecoveryReminder()
+    const timeout = setTimeout(() => { void checkRecoveryReminder() }, 8000)
+    return () => {
+      cancelled = true
+      clearTimeout(timeout)
+    }
+  }, [isLogin, isDemo])
 
   // Sync sidebar width from settings store changes
   useEffect(() => {
@@ -411,6 +442,59 @@ export default function LayoutShell() {
           </div>
         )}
         {isDemo && <DemoModeBanner />}
+        {recoveryReminderKey && (
+          <div role="status" aria-live="polite" style={{
+            background: 'var(--accent-a10)',
+            border: '1px solid var(--accent-a25)',
+            borderRadius: '6px',
+            padding: '9px 12px',
+            fontSize: '12px',
+            color: 'var(--text-secondary)',
+            marginBottom: 16,
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+          }}>
+            <span>Account sync is unlocked. Add a recovery key for this account.</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => navigate('/settings?section=status')}
+                style={{
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  background: 'var(--accent-solid)',
+                  color: 'var(--text-on-color)',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  padding: '6px 10px',
+                  cursor: 'pointer',
+                }}
+              >
+                Open Sync
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.setItem(recoveryReminderKey, 'dismissed')
+                  setRecoveryReminderKey(null)
+                }}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'var(--text-muted)',
+                  fontSize: '12px',
+                  padding: '6px 4px',
+                  cursor: 'pointer',
+                }}
+              >
+                Later
+              </button>
+            </div>
+          </div>
+        )}
         <PageErrorBoundary key={pathname}>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%', minWidth: 0, minHeight: 0, position: 'relative', animation: 'pageEnter 0.15s ease-out both' }}>
             <Outlet />

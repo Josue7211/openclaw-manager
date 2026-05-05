@@ -14,8 +14,12 @@ import { useGatewayStatus } from '@/hooks/sessions/useGatewayStatus'
 import {
   approveTrustedDeviceHandoff,
   generateRecoveryKey,
+  getAccountSyncStatus,
   getRecoveryKeyStatus,
+  hydrateAccountSync,
   listTrustedDeviceHandoffs,
+  type AccountSyncStatus,
+  type AccountSyncServiceDetail,
   type HandoffRequest,
   type RecoveryStatus,
 } from '@/lib/account-sync'
@@ -260,6 +264,39 @@ function StatusLoadingSkeleton({ rows }: { rows: number }) {
   )
 }
 
+function syncStatusColor(status: AccountSyncServiceDetail['status']): string {
+  switch (status) {
+    case 'ready': return 'var(--secondary-dim)'
+    case 'synced': return 'var(--blue)'
+    case 'local_only': return 'var(--amber)'
+    case 'partial': return 'var(--amber)'
+    case 'locked': return 'var(--yellow)'
+    case 'needs_repair': return 'var(--red-500)'
+    default: return 'var(--text-muted)'
+  }
+}
+
+function syncStatusLabel(service: AccountSyncServiceDetail): string {
+  switch (service.status) {
+    case 'ready': return 'Ready'
+    case 'synced': return 'Synced'
+    case 'local_only': return 'Local only'
+    case 'partial': return 'Missing fields'
+    case 'locked': return 'Locked'
+    case 'needs_repair': return 'Needs repair'
+    default: return 'Unknown'
+  }
+}
+
+function formatServiceDetail(service: AccountSyncServiceDetail): string {
+  if (service.status === 'locked') return 'Unlock account sync to hydrate locally'
+  if (service.missing_fields.length > 0) return `Missing ${service.missing_fields.join(', ')}`
+  if (service.synced && service.hydrated) return service.updated_at ? `Synced ${new Date(service.updated_at).toLocaleString()}` : 'Synced and hydrated'
+  if (service.status === 'local_only') return 'Available locally, not saved to account yet'
+  if (service.configured_fields.length > 0) return `${service.configured_fields.length} fields synced`
+  return 'No synced credential fields detected'
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default memo(function SettingsStatus() {
@@ -294,6 +331,19 @@ export default memo(function SettingsStatus() {
     queryKey: ['account-sync-handoffs'],
     queryFn: () => listTrustedDeviceHandoffs(),
     refetchInterval: 15_000,
+    staleTime: 10_000,
+    retry: false,
+  })
+
+  const {
+    data: accountSync,
+    isLoading: syncLoading,
+    isError: syncError,
+    refetch: refetchAccountSync,
+  } = useQuery<AccountSyncStatus>({
+    queryKey: ['account-sync-status'],
+    queryFn: () => getAccountSyncStatus(),
+    refetchInterval: 30_000,
     staleTime: 10_000,
     retry: false,
   })
@@ -362,6 +412,25 @@ export default memo(function SettingsStatus() {
       await queryClient.invalidateQueries({ queryKey: ['account-sync-recovery-status'] })
     } catch (err) {
       const message = err instanceof Error && err.message ? err.message : 'Could not generate a recovery key.'
+      setRecoveryError(message)
+    } finally {
+      setRecoveryBusy(false)
+    }
+  }
+
+  async function handleHydrateAccountSync() {
+    setRecoveryBusy(true)
+    setRecoveryError('')
+
+    try {
+      await hydrateAccountSync()
+      await Promise.all([
+        refetchAccountSync(),
+        queryClient.invalidateQueries({ queryKey: queryKeys.health }),
+        queryClient.invalidateQueries({ queryKey: ['setup-status'] }),
+      ])
+    } catch (err) {
+      const message = err instanceof Error && err.message ? err.message : 'Could not hydrate synced services.'
       setRecoveryError(message)
     } finally {
       setRecoveryBusy(false)
@@ -531,6 +600,119 @@ export default memo(function SettingsStatus() {
             })}
           </div>
         )}
+
+        <div style={statusCard}>
+          <div style={statusSectionTitle}>
+            <Plugs size={14} />
+            Connected Services Sync
+          </div>
+          {syncLoading ? (
+            <StatusLoadingSkeleton rows={4} />
+          ) : syncError || !accountSync ? (
+            <div style={{ padding: '12px 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+              Account sync status unavailable.
+            </div>
+          ) : (
+            <>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '12px',
+                marginBottom: '14px',
+              }}>
+                <StatusStatCard label="Synced" value={accountSync.synced_service_count} />
+                <StatusStatCard label="Hydrated" value={accountSync.hydrated_service_count ?? 0} accent="var(--secondary-dim)" />
+                <StatusStatCard label="Needs Action" value={(accountSync.service_details ?? []).filter(s => s.status === 'locked' || s.status === 'partial' || s.status === 'needs_repair' || s.status === 'local_only').length} accent="var(--amber)" />
+              </div>
+              <div style={{
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                overflow: 'hidden',
+              }}>
+                {(accountSync.service_details ?? []).length === 0 ? (
+                  <div style={{ padding: '14px', color: 'var(--text-muted)', fontSize: '12px' }}>
+                    No account-synced services yet.
+                  </div>
+                ) : (
+                  (accountSync.service_details ?? []).map((service, index, arr) => {
+                    const color = syncStatusColor(service.status)
+                    return (
+                      <div
+                        key={`${service.service}-${index}`}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'minmax(120px, 1fr) minmax(90px, auto)',
+                          gap: '12px',
+                          padding: '11px 12px',
+                          borderBottom: index === arr.length - 1 ? 'none' : '1px solid var(--border)',
+                          background: service.status === 'local_only' ? 'var(--warning-a08)' : 'transparent',
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                            <span style={{
+                              display: 'inline-block',
+                              width: '8px',
+                              height: '8px',
+                              borderRadius: '50%',
+                              background: color,
+                              boxShadow: service.status === 'ready' ? `0 0 6px ${color}60` : 'none',
+                              flexShrink: 0,
+                            }} />
+                            <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '13px' }}>
+                              {service.label}
+                            </span>
+                          </div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '11px', lineHeight: 1.45 }}>
+                            {formatServiceDetail(service)}
+                          </div>
+                        </div>
+                        <div style={{ color, fontSize: '11px', fontWeight: 700, alignSelf: 'center', textAlign: 'right' }}>
+                          {syncStatusLabel(service)}
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '14px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => { void handleHydrateAccountSync() }}
+                  disabled={recoveryBusy || accountSync.requires_unlock}
+                  style={{
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    background: recoveryBusy || accountSync.requires_unlock ? 'var(--bg-white-04)' : 'var(--accent-solid)',
+                    color: recoveryBusy || accountSync.requires_unlock ? 'var(--text-muted)' : 'var(--text-on-color)',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    padding: '9px 12px',
+                    cursor: recoveryBusy || accountSync.requires_unlock ? 'default' : 'pointer',
+                  }}
+                >
+                  {recoveryBusy ? 'Syncing...' : 'Hydrate Now'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void refetchAccountSync() }}
+                  style={{
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    background: 'var(--bg-white-04)',
+                    color: 'var(--text-primary)',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    padding: '9px 12px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Refresh
+                </button>
+              </div>
+            </>
+          )}
+        </div>
 
         <div style={statusCard}>
           <div style={statusSectionTitle}>

@@ -174,6 +174,13 @@ export default function SettingsPage() {
   })
 
   useEffect(() => {
+    const section = searchParams.get('section') as SettingsSection | null
+    if (section && SECTIONS.some(item => item.key === section)) {
+      setSelected(section)
+    }
+  }, [searchParams])
+
+  useEffect(() => {
     if (authUserData?.user) {
       setUserEmail(authUserData.user.email ?? null)
       setHasPassword(authUserData.user.identities?.some(i => i.provider === 'email') ?? false)

@@ -8,6 +8,8 @@ set -uo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 FRONTEND="$ROOT/frontend"
 FRONTEND_SRC="$FRONTEND/src"
+export PATH="/opt/homebrew/bin:/usr/local/bin:/Applications/Codex.app/Contents/Resources:$PATH"
+export NODE_OPTIONS="${NODE_OPTIONS:-} --no-experimental-webstorage"
 FAILED=0
 TOTAL_START=$(date +%s%N 2>/dev/null || python3 -c 'import time; print(int(time.time()*1e9))')
 
@@ -77,9 +79,9 @@ if [ -n "$staged_files" ]; then
   leaks=$(echo "$staged_files" | while read -r f; do
     [ -f "$ROOT/$f" ] || continue
     # skip binary files and lockfiles
-    case "$f" in
-      *.lock|*.png|*.jpg|*.ico|*.woff*|*.ttf|*.wasm|*pre-commit*) continue ;;
-    esac
+    if [[ "$f" == *.lock || "$f" == *.png || "$f" == *.jpg || "$f" == *.ico || "$f" == *.woff* || "$f" == *.ttf || "$f" == *.wasm || "$f" == *pre-commit* ]]; then
+      continue
+    fi
     git diff --cached -- "$ROOT/$f" 2>/dev/null | grep -En "$secret_patterns" || true
   done)
 

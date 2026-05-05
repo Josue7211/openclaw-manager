@@ -9,7 +9,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use subtle::ConstantTimeEq;
@@ -293,42 +293,655 @@ fn handoff_row_json(row: &Value) -> Value {
     })
 }
 
-async fn synced_service_names(
-    state: &AppState,
-    session: &UserSession,
-) -> anyhow::Result<Vec<String>> {
-    let sb = SupabaseClient::from_state(state)?;
-    let rows = sb
-        .select_as_user(
-            "user_secrets",
-            "select=service&order=service.asc",
-            &session.access_token,
-        )
-        .await?;
+#[derive(Clone, Copy)]
+struct SyncFieldSpec {
+    keys: &'static [&'static str],
+    env_var: &'static str,
+    label: &'static str,
+    required: bool,
+}
 
-    let mut services = Vec::new();
-    if let Some(arr) = rows.as_array() {
-        for row in arr {
-            if let Some(service) = row.get("service").and_then(|value| value.as_str()) {
-                services.push(service.to_string());
-            }
+#[derive(Clone, Copy)]
+struct SyncServiceSpec {
+    service: &'static str,
+    label: &'static str,
+    fields: &'static [SyncFieldSpec],
+}
+
+const BLUEBUBBLES_FIELDS: &[SyncFieldSpec] = &[
+    SyncFieldSpec {
+        keys: &["host"],
+        env_var: "BLUEBUBBLES_HOST",
+        label: "Host URL",
+        required: true,
+    },
+    SyncFieldSpec {
+        keys: &["password"],
+        env_var: "BLUEBUBBLES_PASSWORD",
+        label: "Password",
+        required: true,
+    },
+];
+const HARNESS_FIELDS: &[SyncFieldSpec] = &[
+    SyncFieldSpec {
+        keys: &["url", "api_url", "api-url"],
+        env_var: "OPENCLAW_API_URL",
+        label: "API URL",
+        required: true,
+    },
+    SyncFieldSpec {
+        keys: &["api_key", "api-key"],
+        env_var: "OPENCLAW_API_KEY",
+        label: "API key",
+        required: false,
+    },
+    SyncFieldSpec {
+        keys: &["ws"],
+        env_var: "OPENCLAW_WS",
+        label: "WebSocket URL",
+        required: false,
+    },
+    SyncFieldSpec {
+        keys: &["password"],
+        env_var: "OPENCLAW_PASSWORD",
+        label: "Password",
+        required: false,
+    },
+];
+const AGENTSECRETS_FIELDS: &[SyncFieldSpec] = &[
+    SyncFieldSpec {
+        keys: &["url", "base_url", "base-url"],
+        env_var: "AGENTSECRETS_URL",
+        label: "URL",
+        required: false,
+    },
+    SyncFieldSpec {
+        keys: &["client_api_key", "client-api-key", "api_key", "api-key"],
+        env_var: "AGENTSECRETS_CLIENT_API_KEY",
+        label: "Client API key",
+        required: true,
+    },
+];
+const SUNSHINE_FIELDS: &[SyncFieldSpec] = &[SyncFieldSpec {
+    keys: &["url", "host"],
+    env_var: "SUNSHINE_HOST",
+    label: "Host",
+    required: true,
+}];
+const VNC_FIELDS: &[SyncFieldSpec] = &[SyncFieldSpec {
+    keys: &["url", "host"],
+    env_var: "VNC_HOST",
+    label: "Host",
+    required: true,
+}];
+const PROXMOX_FIELDS: &[SyncFieldSpec] = &[
+    SyncFieldSpec {
+        keys: &["host"],
+        env_var: "PROXMOX_HOST",
+        label: "Host URL",
+        required: true,
+    },
+    SyncFieldSpec {
+        keys: &["token_id", "token-id"],
+        env_var: "PROXMOX_TOKEN_ID",
+        label: "Token ID",
+        required: true,
+    },
+    SyncFieldSpec {
+        keys: &["token_secret", "token-secret"],
+        env_var: "PROXMOX_TOKEN_SECRET",
+        label: "Token secret",
+        required: true,
+    },
+];
+const OPNSENSE_FIELDS: &[SyncFieldSpec] = &[
+    SyncFieldSpec {
+        keys: &["host"],
+        env_var: "OPNSENSE_HOST",
+        label: "Host URL",
+        required: true,
+    },
+    SyncFieldSpec {
+        keys: &["key"],
+        env_var: "OPNSENSE_KEY",
+        label: "API key",
+        required: true,
+    },
+    SyncFieldSpec {
+        keys: &["secret"],
+        env_var: "OPNSENSE_SECRET",
+        label: "API secret",
+        required: true,
+    },
+];
+const PLEX_FIELDS: &[SyncFieldSpec] = &[
+    SyncFieldSpec {
+        keys: &["url"],
+        env_var: "PLEX_URL",
+        label: "URL",
+        required: true,
+    },
+    SyncFieldSpec {
+        keys: &["token"],
+        env_var: "PLEX_TOKEN",
+        label: "Token",
+        required: true,
+    },
+];
+const ARR_FIELDS: &[SyncFieldSpec] = &[
+    SyncFieldSpec {
+        keys: &["url"],
+        env_var: "",
+        label: "URL",
+        required: true,
+    },
+    SyncFieldSpec {
+        keys: &["api_key", "api-key"],
+        env_var: "",
+        label: "API key",
+        required: true,
+    },
+];
+const EMAIL_FIELDS: &[SyncFieldSpec] = &[
+    SyncFieldSpec {
+        keys: &["host"],
+        env_var: "EMAIL_HOST",
+        label: "Host",
+        required: true,
+    },
+    SyncFieldSpec {
+        keys: &["port"],
+        env_var: "EMAIL_PORT",
+        label: "Port",
+        required: true,
+    },
+    SyncFieldSpec {
+        keys: &["user"],
+        env_var: "EMAIL_USER",
+        label: "Username",
+        required: true,
+    },
+    SyncFieldSpec {
+        keys: &["password"],
+        env_var: "EMAIL_PASSWORD",
+        label: "Password",
+        required: true,
+    },
+];
+const AGENTMAIL_FIELDS: &[SyncFieldSpec] = &[
+    SyncFieldSpec {
+        keys: &["url", "base_url", "base-url"],
+        env_var: "AGENTMAIL_URL",
+        label: "URL",
+        required: false,
+    },
+    SyncFieldSpec {
+        keys: &["api_key", "api-key"],
+        env_var: "AGENTMAIL_API_KEY",
+        label: "API key",
+        required: true,
+    },
+];
+const COUCHDB_FIELDS: &[SyncFieldSpec] = &[
+    SyncFieldSpec {
+        keys: &["url"],
+        env_var: "COUCHDB_URL",
+        label: "URL",
+        required: true,
+    },
+    SyncFieldSpec {
+        keys: &["user", "username"],
+        env_var: "COUCHDB_USER",
+        label: "Username",
+        required: true,
+    },
+    SyncFieldSpec {
+        keys: &["password"],
+        env_var: "COUCHDB_PASSWORD",
+        label: "Password",
+        required: true,
+    },
+    SyncFieldSpec {
+        keys: &["database"],
+        env_var: "COUCHDB_DATABASE",
+        label: "Database",
+        required: true,
+    },
+];
+const MAC_BRIDGE_FIELDS: &[SyncFieldSpec] = &[
+    SyncFieldSpec {
+        keys: &["host"],
+        env_var: "MAC_BRIDGE_HOST",
+        label: "Host URL",
+        required: true,
+    },
+    SyncFieldSpec {
+        keys: &["api_key", "api-key"],
+        env_var: "MAC_BRIDGE_API_KEY",
+        label: "API key",
+        required: true,
+    },
+];
+const CALDAV_FIELDS: &[SyncFieldSpec] = &[
+    SyncFieldSpec {
+        keys: &["url"],
+        env_var: "CALDAV_URL",
+        label: "URL",
+        required: true,
+    },
+    SyncFieldSpec {
+        keys: &["username"],
+        env_var: "CALDAV_USERNAME",
+        label: "Username",
+        required: true,
+    },
+    SyncFieldSpec {
+        keys: &["password"],
+        env_var: "CALDAV_PASSWORD",
+        label: "Password",
+        required: true,
+    },
+];
+const LIGHTRAG_FIELDS: &[SyncFieldSpec] = &[
+    SyncFieldSpec {
+        keys: &["url", "base_url", "base-url"],
+        env_var: "LIGHTRAG_BASE_URL",
+        label: "Base URL",
+        required: true,
+    },
+    SyncFieldSpec {
+        keys: &["api_key", "api-key"],
+        env_var: "LIGHTRAG_API_KEY",
+        label: "API key",
+        required: false,
+    },
+];
+const MEMD_FIELDS: &[SyncFieldSpec] = &[SyncFieldSpec {
+    keys: &["rag_url", "rag-url"],
+    env_var: "MEMD_RAG_URL",
+    label: "RAG URL",
+    required: false,
+}];
+const RAG_FIELDS: &[SyncFieldSpec] = &[SyncFieldSpec {
+    keys: &["url"],
+    env_var: "RAG_URL",
+    label: "URL",
+    required: false,
+}];
+const ANTHROPIC_FIELDS: &[SyncFieldSpec] = &[SyncFieldSpec {
+    keys: &["api_key", "api-key"],
+    env_var: "ANTHROPIC_API_KEY",
+    label: "API key",
+    required: true,
+}];
+
+const SYNC_SERVICE_SPECS: &[SyncServiceSpec] = &[
+    SyncServiceSpec {
+        service: "bluebubbles",
+        label: "BlueBubbles",
+        fields: BLUEBUBBLES_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "openclaw",
+        label: "Harness",
+        fields: HARNESS_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "agentsecrets",
+        label: "AgentSecrets",
+        fields: AGENTSECRETS_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "sunshine",
+        label: "Sunshine",
+        fields: SUNSHINE_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "vnc",
+        label: "Embedded Viewer",
+        fields: VNC_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "proxmox",
+        label: "Proxmox",
+        fields: PROXMOX_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "opnsense",
+        label: "OPNsense",
+        fields: OPNSENSE_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "plex",
+        label: "Plex",
+        fields: PLEX_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "sonarr",
+        label: "Sonarr",
+        fields: ARR_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "radarr",
+        label: "Radarr",
+        fields: ARR_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "lidarr",
+        label: "Lidarr",
+        fields: ARR_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "prowlarr",
+        label: "Prowlarr",
+        fields: ARR_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "bazarr",
+        label: "Bazarr",
+        fields: ARR_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "overseerr",
+        label: "Overseerr",
+        fields: ARR_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "jellyseerr",
+        label: "Jellyseerr",
+        fields: ARR_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "tautulli",
+        label: "Tautulli",
+        fields: ARR_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "email",
+        label: "Email",
+        fields: EMAIL_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "agentmail",
+        label: "AgentMail",
+        fields: AGENTMAIL_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "couchdb",
+        label: "Obsidian Notes",
+        fields: COUCHDB_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "mac-bridge",
+        label: "Mac Bridge",
+        fields: MAC_BRIDGE_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "caldav",
+        label: "Calendar",
+        fields: CALDAV_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "lightrag",
+        label: "LightRAG",
+        fields: LIGHTRAG_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "memd",
+        label: "memd",
+        fields: MEMD_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "rag",
+        label: "RAG",
+        fields: RAG_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "anthropic",
+        label: "Anthropic",
+        fields: ANTHROPIC_FIELDS,
+    },
+];
+
+fn sync_service_spec(service: &str) -> Option<SyncServiceSpec> {
+    match service {
+        "harness" => {
+            return Some(SyncServiceSpec {
+                service: "harness",
+                label: "Harness",
+                fields: HARNESS_FIELDS,
+            })
         }
+        "agent-secrets" => {
+            return Some(SyncServiceSpec {
+                service: "agent-secrets",
+                label: "AgentSecrets",
+                fields: AGENTSECRETS_FIELDS,
+            })
+        }
+        "mac_bridge" => {
+            return Some(SyncServiceSpec {
+                service: "mac_bridge",
+                label: "Mac Bridge",
+                fields: MAC_BRIDGE_FIELDS,
+            })
+        }
+        _ => {}
     }
-    Ok(services)
+    SYNC_SERVICE_SPECS
+        .iter()
+        .find(|spec| spec.service == service)
+        .copied()
+}
+
+fn env_var_for_service_field(
+    service: &str,
+    key: &str,
+    fallback: &'static str,
+) -> Option<&'static str> {
+    if !fallback.is_empty() {
+        return Some(fallback);
+    }
+    service_credential_to_env_var(service, key)
 }
 
 async fn account_sync_status_payload(state: &AppState, session: &UserSession) -> Value {
-    let services = match synced_service_names(state, session).await {
-        Ok(services) => services,
+    let sb = match SupabaseClient::from_state(state) {
+        Ok(sb) => Some(sb),
         Err(e) => {
-            tracing::warn!("failed to inspect synced services: {e}");
-            Vec::new()
+            tracing::warn!("failed to build Supabase client for account sync status: {e}");
+            None
         }
     };
+
+    let rows = if let Some(sb) = &sb {
+        match sb
+            .select_as_user(
+                "user_secrets",
+                "select=service,encrypted_credentials,nonce,created_at,updated_at&order=service.asc",
+                &session.access_token,
+            )
+            .await
+        {
+            Ok(rows) => rows.as_array().cloned().unwrap_or_default(),
+            Err(e) => {
+                tracing::warn!("failed to inspect synced services: {e}");
+                Vec::new()
+            }
+        }
+    } else {
+        Vec::new()
+    };
+
+    let services = rows
+        .iter()
+        .filter_map(|row| {
+            row.get("service")
+                .and_then(|value| value.as_str())
+                .map(str::to_string)
+        })
+        .collect::<Vec<_>>();
     let has_cached_key = !session.encryption_key.is_empty()
         || load_cached_account_sync_key(&session.user_id).is_some();
     let has_synced_services = !services.is_empty();
     let requires_unlock = session.mfa_verified && has_synced_services && !has_cached_key;
+    let recovery_key_configured = if let Some(sb) = &sb {
+        sb.select_as_user(
+            "account_sync_recovery_keys",
+            "select=id&revoked_at=is.null&limit=1",
+            &session.access_token,
+        )
+        .await
+        .ok()
+        .and_then(|rows| rows.as_array().map(|arr| !arr.is_empty()))
+        .unwrap_or(false)
+    } else {
+        false
+    };
+
+    let can_inspect_credentials = !session.encryption_key.is_empty();
+    let mut seen = HashSet::new();
+    let mut service_details = Vec::new();
+    let mut hydrated_service_count = 0usize;
+
+    for row in &rows {
+        let Some(service) = row.get("service").and_then(|value| value.as_str()) else {
+            continue;
+        };
+        seen.insert(service.to_string());
+        let spec = sync_service_spec(service);
+        let label = spec.map(|spec| spec.label).unwrap_or(service);
+        let updated_at = row.get("updated_at").and_then(|value| value.as_str());
+        let created_at = row.get("created_at").and_then(|value| value.as_str());
+        let mut credential_keys = HashSet::new();
+        let mut decryptable = false;
+
+        if can_inspect_credentials {
+            if let (Some(ciphertext), Some(nonce)) = (
+                row.get("encrypted_credentials")
+                    .and_then(|value| value.as_str()),
+                row.get("nonce").and_then(|value| value.as_str()),
+            ) {
+                if let Ok(plaintext) =
+                    crate::crypto::decrypt(ciphertext, nonce, &session.encryption_key)
+                {
+                    if let Ok(creds) = serde_json::from_slice::<HashMap<String, Value>>(&plaintext)
+                    {
+                        decryptable = true;
+                        credential_keys.extend(
+                            creds
+                                .iter()
+                                .filter(|(_, value)| {
+                                    value.as_str().is_some_and(|v| !v.trim().is_empty())
+                                })
+                                .map(|(key, _)| key.to_string()),
+                        );
+                    }
+                }
+            }
+        }
+
+        let mut configured_fields = Vec::new();
+        let mut missing_fields = Vec::new();
+        let mut hydrated_fields = Vec::new();
+        let mut expected_count = 0usize;
+
+        if let Some(spec) = spec {
+            for field in spec.fields {
+                expected_count += 1;
+                let configured = !can_inspect_credentials
+                    || field.keys.iter().any(|key| credential_keys.contains(*key));
+                let hydrated = field.keys.iter().any(|key| {
+                    env_var_for_service_field(service, key, field.env_var)
+                        .and_then(|env_var| state.secret(env_var))
+                        .is_some_and(|value| !value.trim().is_empty())
+                });
+                if configured {
+                    configured_fields.push(field.label);
+                }
+                if hydrated {
+                    hydrated_fields.push(field.label);
+                }
+                if can_inspect_credentials && field.required && !configured {
+                    missing_fields.push(field.label);
+                }
+            }
+        }
+
+        let hydrated = expected_count == 0
+            || (can_inspect_credentials
+                && !credential_keys.is_empty()
+                && missing_fields.is_empty())
+            || (!hydrated_fields.is_empty() && missing_fields.is_empty());
+        if hydrated {
+            hydrated_service_count += 1;
+        }
+        let status = if requires_unlock {
+            "locked"
+        } else if !can_inspect_credentials {
+            "unknown"
+        } else if !decryptable {
+            "needs_repair"
+        } else if !missing_fields.is_empty() {
+            "partial"
+        } else if hydrated {
+            "ready"
+        } else {
+            "synced"
+        };
+
+        service_details.push(json!({
+            "service": service,
+            "label": label,
+            "status": status,
+            "synced": true,
+            "hydrated": hydrated,
+            "decryptable": decryptable || !can_inspect_credentials,
+            "configured_fields": configured_fields,
+            "hydrated_fields": hydrated_fields,
+            "missing_fields": missing_fields,
+            "updated_at": updated_at,
+            "created_at": created_at,
+        }));
+    }
+
+    for spec in SYNC_SERVICE_SPECS {
+        if seen.contains(spec.service) {
+            continue;
+        }
+        let hydrated_fields = spec
+            .fields
+            .iter()
+            .filter_map(|field| {
+                field
+                    .keys
+                    .iter()
+                    .find_map(|key| {
+                        env_var_for_service_field(spec.service, key, field.env_var)
+                            .and_then(|env_var| state.secret(env_var))
+                    })
+                    .filter(|value| !value.trim().is_empty())
+                    .map(|_| field.label)
+            })
+            .collect::<Vec<_>>();
+        if hydrated_fields.is_empty() {
+            continue;
+        }
+        hydrated_service_count += 1;
+        service_details.push(json!({
+            "service": spec.service,
+            "label": spec.label,
+            "status": "local_only",
+            "synced": false,
+            "hydrated": true,
+            "decryptable": false,
+            "configured_fields": [],
+            "hydrated_fields": hydrated_fields,
+            "missing_fields": [],
+            "updated_at": Value::Null,
+            "created_at": Value::Null,
+        }));
+    }
 
     json!({
         "authenticated": true,
@@ -336,9 +949,13 @@ async fn account_sync_status_payload(state: &AppState, session: &UserSession) ->
         "has_cached_key": has_cached_key,
         "has_synced_services": has_synced_services,
         "synced_service_count": services.len(),
+        "hydrated_service_count": hydrated_service_count,
         "services": services,
+        "service_details": service_details,
         "requires_unlock": requires_unlock,
         "ready": session.mfa_verified && (!has_synced_services || has_cached_key),
+        "recovery_key_configured": recovery_key_configured,
+        "needs_recovery_key": session.mfa_verified && has_synced_services && has_cached_key && !recovery_key_configured,
         "setup_doctor_required": session.mfa_verified && !has_synced_services,
     })
 }
@@ -1106,6 +1723,7 @@ async fn auto_migrate_keychain_secrets(
             "agentsecrets",
             "client_api_key",
         ),
+        ("AGENTSHELL_URL", "agentshell", "url"),
         ("SUNSHINE_HOST", "sunshine", "url"),
         ("VNC_HOST", "vnc", "url"),
         ("PROXMOX_HOST", "proxmox", "host"),
@@ -1170,6 +1788,10 @@ async fn auto_migrate_keychain_secrets(
         ("MAC_BRIDGE_HOST", "mac-bridge", "host"),
         ("MAC_BRIDGE_API_KEY", "mac-bridge", "api_key"),
         ("ANTHROPIC_API_KEY", "anthropic", "api_key"),
+        ("LIGHTRAG_BASE_URL", "lightrag", "base_url"),
+        ("LIGHTRAG_API_KEY", "lightrag", "api_key"),
+        ("MEMD_RAG_URL", "memd", "rag_url"),
+        ("RAG_URL", "rag", "url"),
     ];
 
     // Group by service

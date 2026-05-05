@@ -6,10 +6,28 @@ export interface AccountSyncStatus {
   has_cached_key: boolean
   has_synced_services: boolean
   synced_service_count: number
+  hydrated_service_count?: number
   services: string[]
+  service_details?: AccountSyncServiceDetail[]
   requires_unlock: boolean
   ready: boolean
+  recovery_key_configured?: boolean
+  needs_recovery_key?: boolean
   setup_doctor_required: boolean
+}
+
+export interface AccountSyncServiceDetail {
+  service: string
+  label: string
+  status: 'locked' | 'unknown' | 'needs_repair' | 'partial' | 'ready' | 'synced' | 'local_only'
+  synced: boolean
+  hydrated: boolean
+  decryptable: boolean
+  configured_fields: string[]
+  hydrated_fields: string[]
+  missing_fields: string[]
+  updated_at?: string | null
+  created_at?: string | null
 }
 
 export interface HandoffRequest {
