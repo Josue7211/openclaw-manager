@@ -21,7 +21,7 @@ axum = { version = "0.7", features = ["ws", "macros"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "fs", "io-util", "process"] }
 tower-http = { version = "0.5", features = ["cors", "trace", "timeout"] }
 reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"], default-features = false }
-sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "chrono"] }
+sqlx = { path = "vendor/sqlx-sqlite-only", features = ["runtime-tokio", "sqlite", "chrono", "migrate"], default-features = false }
 chrono = { version = "0.4", features = ["serde"] }
 dirs = "5"
 anyhow = "1"

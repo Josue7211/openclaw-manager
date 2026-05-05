@@ -1,10 +1,11 @@
 use sqlx::SqlitePool;
 
-const MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
-
 #[cfg(debug_assertions)]
-async fn repair_dev_migration_checksums(pool: &SqlitePool) -> anyhow::Result<()> {
-    for migration in MIGRATOR.iter() {
+async fn repair_dev_migration_checksums(
+    pool: &SqlitePool,
+    migrator: &sqlx::migrate::Migrator,
+) -> anyhow::Result<()> {
+    for migration in migrator.iter() {
         let result = sqlx::query(
             "UPDATE _sqlx_migrations SET description = ?, checksum = ? WHERE version = ? AND success = 1 AND checksum != ?",
         )
@@ -148,6 +149,8 @@ pub async fn init() -> anyhow::Result<SqlitePool> {
 
     let url = format!("sqlite://{}?mode=rwc", db_path.display());
     let pool = SqlitePool::connect(&url).await?;
+    let migrations_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations");
+    let migrator = sqlx::migrate::Migrator::new(migrations_path.as_path()).await?;
 
     // Enable WAL mode for concurrent reads + busy timeout
     sqlx::query("PRAGMA journal_mode=WAL")
@@ -162,12 +165,12 @@ pub async fn init() -> anyhow::Result<SqlitePool> {
     sqlx::query("PRAGMA foreign_keys=ON").execute(&pool).await?;
 
     #[cfg(debug_assertions)]
-    repair_dev_migration_checksums(&pool).await?;
+    repair_dev_migration_checksums(&pool, &migrator).await?;
 
     ensure_generated_module_table_names(&pool).await?;
     ensure_module_proposal_backend_contract_columns(&pool).await?;
 
-    MIGRATOR.run(&pool).await?;
+    migrator.run(&pool).await?;
 
     // Restrict database file permissions to owner only
     #[cfg(unix)]

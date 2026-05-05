@@ -5,13 +5,14 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
+use sqlx::{sqlite::SqliteRow, FromRow, Row};
 
 use crate::error::{success_json, AppError};
 use crate::server::AppState;
 
 const LOCAL_MODULE_PROPOSALS_OWNER_ID: &str = "__desktop_local__";
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug)]
 struct ProposalRow {
     id: String,
     user_id: String,
@@ -31,6 +32,31 @@ struct ProposalRow {
     installed_module_id: Option<String>,
     created_at: String,
     updated_at: String,
+}
+
+impl<'r> FromRow<'r, SqliteRow> for ProposalRow {
+    fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            id: row.try_get("id")?,
+            user_id: row.try_get("user_id")?,
+            title: row.try_get("title")?,
+            description: row.try_get("description")?,
+            user_intent: row.try_get("user_intent")?,
+            target_type: row.try_get("target_type")?,
+            install_target: row.try_get("install_target")?,
+            category: row.try_get("category")?,
+            status: row.try_get("status")?,
+            proposal_json: row.try_get("proposal_json")?,
+            backend_contract_requested: row.try_get("backend_contract_requested")?,
+            backend_contract_summary: row.try_get("backend_contract_summary")?,
+            backend_contract_json: row.try_get("backend_contract_json")?,
+            source_model: row.try_get("source_model")?,
+            generator: row.try_get("generator")?,
+            installed_module_id: row.try_get("installed_module_id")?,
+            created_at: row.try_get("created_at")?,
+            updated_at: row.try_get("updated_at")?,
+        })
+    }
 }
 
 fn proposal_row_to_json(row: &ProposalRow) -> Value {

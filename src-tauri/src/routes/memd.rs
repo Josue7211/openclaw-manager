@@ -5,6 +5,7 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
+use sqlx::{sqlite::SqliteRow, FromRow, Row};
 
 use crate::error::{success_json, AppError};
 use crate::server::{AppState, RequireAuth};
@@ -99,7 +100,7 @@ struct MemdScopeRecord {
     updated_at: String,
 }
 
-#[derive(Clone, sqlx::FromRow)]
+#[derive(Clone)]
 struct MemdEntryRecord {
     id: String,
     scope_id: String,
@@ -120,6 +121,32 @@ struct MemdEntryRecord {
     created_at: String,
     updated_at: String,
     archived_at: Option<String>,
+}
+
+impl<'r> FromRow<'r, SqliteRow> for MemdEntryRecord {
+    fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            id: row.try_get("id")?,
+            scope_id: row.try_get("scope_id")?,
+            scope_kind: row.try_get("scope_kind")?,
+            scope_name: row.try_get("scope_name")?,
+            scope_description: row.try_get("scope_description")?,
+            kind: row.try_get("kind")?,
+            title: row.try_get("title")?,
+            content: row.try_get("content")?,
+            summary: row.try_get("summary")?,
+            source: row.try_get("source")?,
+            confidence: row.try_get("confidence")?,
+            priority: row.try_get("priority")?,
+            retention_days: row.try_get("retention_days")?,
+            version: row.try_get("version")?,
+            status: row.try_get("status")?,
+            metadata: row.try_get("metadata")?,
+            created_at: row.try_get("created_at")?,
+            updated_at: row.try_get("updated_at")?,
+            archived_at: row.try_get("archived_at")?,
+        })
+    }
 }
 
 pub fn router() -> Router<AppState> {

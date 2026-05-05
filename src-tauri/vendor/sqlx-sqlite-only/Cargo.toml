@@ -1,0 +1,17 @@
+[package]
+name = "sqlx"
+version = "0.8.6"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[features]
+default = []
+runtime-tokio = ["sqlx-core/_rt-tokio"]
+sqlite = ["dep:sqlx-sqlite", "sqlx-sqlite/bundled"]
+chrono = ["sqlx-core/chrono", "sqlx-sqlite?/chrono"]
+migrate = ["sqlx-core/migrate", "sqlx-sqlite?/migrate"]
+
+[dependencies]
+sqlx-core = { version = "=0.8.6", default-features = false }
+sqlx-sqlite = { version = "=0.8.6", default-features = false, optional = true }
