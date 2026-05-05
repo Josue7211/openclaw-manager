@@ -96,6 +96,9 @@ pub fn router() -> Router<AppState> {
         .route("/login", post(login))
         .route("/signup", post(signup))
         .route("/session", get(get_session))
+        .route("/sync/status", get(account_sync_status))
+        .route("/sync/hydrate", post(account_sync_hydrate))
+        .route("/sync/unlock", post(account_sync_unlock))
         .route("/logout", post(logout))
         .route("/refresh", post(refresh))
         .route("/password", post(change_password))
@@ -148,6 +151,156 @@ fn cache_account_sync_key(user_id: &str, key: &[u8]) {
     if let Err(e) = crate::secrets::set_entry(&account_sync_key_name(user_id), &encoded) {
         tracing::warn!("failed to cache account sync key in OS keychain: {e}");
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct AccountSyncUnlockBody {
+    password: String,
+}
+
+async fn synced_service_names(
+    state: &AppState,
+    session: &UserSession,
+) -> anyhow::Result<Vec<String>> {
+    let sb = SupabaseClient::from_state(state)?;
+    let rows = sb
+        .select_as_user(
+            "user_secrets",
+            "select=service&order=service.asc",
+            &session.access_token,
+        )
+        .await?;
+
+    let mut services = Vec::new();
+    if let Some(arr) = rows.as_array() {
+        for row in arr {
+            if let Some(service) = row.get("service").and_then(|value| value.as_str()) {
+                services.push(service.to_string());
+            }
+        }
+    }
+    Ok(services)
+}
+
+async fn account_sync_status_payload(state: &AppState, session: &UserSession) -> Value {
+    let services = match synced_service_names(state, session).await {
+        Ok(services) => services,
+        Err(e) => {
+            tracing::warn!("failed to inspect synced services: {e}");
+            Vec::new()
+        }
+    };
+    let has_cached_key = !session.encryption_key.is_empty()
+        || load_cached_account_sync_key(&session.user_id).is_some();
+    let has_synced_services = !services.is_empty();
+    let requires_unlock = session.mfa_verified && has_synced_services && !has_cached_key;
+
+    json!({
+        "authenticated": true,
+        "mfa_verified": session.mfa_verified,
+        "has_cached_key": has_cached_key,
+        "has_synced_services": has_synced_services,
+        "synced_service_count": services.len(),
+        "services": services,
+        "requires_unlock": requires_unlock,
+        "ready": session.mfa_verified && (!has_synced_services || has_cached_key),
+        "setup_doctor_required": session.mfa_verified && !has_synced_services,
+    })
+}
+
+async fn account_sync_status(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    Ok(Json(account_sync_status_payload(&state, &session).await))
+}
+
+async fn account_sync_hydrate(
+    State(state): State<AppState>,
+    RequireAuth(mut session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    if session.encryption_key.is_empty() {
+        if let Some(key) = load_cached_account_sync_key(&session.user_id) {
+            session.encryption_key = key;
+            *state.session.write().await = Some(session.clone());
+        }
+    }
+
+    if session.encryption_key.is_empty() {
+        return Err(AppError::BadRequest(
+            "Account sync is locked on this device.".into(),
+        ));
+    }
+
+    load_user_secrets(&state, &session).await;
+
+    #[cfg(debug_assertions)]
+    crate::server::save_dev_session(&state.db, &session).await;
+
+    Ok(Json(account_sync_status_payload(&state, &session).await))
+}
+
+async fn account_sync_unlock(
+    State(state): State<AppState>,
+    RequireAuth(mut session): RequireAuth,
+    Json(body): Json<AccountSyncUnlockBody>,
+) -> Result<Json<Value>, AppError> {
+    if !session.mfa_verified {
+        return Err(AppError::Forbidden(
+            "Verify MFA before unlocking synced account data.".into(),
+        ));
+    }
+
+    let salt = get_or_create_salt(&state, &session.access_token, &session.user_id)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("salt retrieval failed: {e}")))?;
+    let encryption_key = crate::crypto::derive_key(&body.password, &salt);
+
+    let sb = SupabaseClient::from_state(&state)?;
+    let rows = sb
+        .select_as_user(
+            "user_secrets",
+            "select=service,encrypted_credentials,nonce&limit=1",
+            &session.access_token,
+        )
+        .await?;
+
+    let row = rows.as_array().and_then(|arr| arr.first());
+    if let Some(row) = row {
+        let ciphertext = row["encrypted_credentials"]
+            .as_str()
+            .ok_or_else(|| AppError::Internal(anyhow::anyhow!("missing encrypted_credentials")))?;
+        let nonce = row["nonce"]
+            .as_str()
+            .ok_or_else(|| AppError::Internal(anyhow::anyhow!("missing nonce")))?;
+
+        let plaintext =
+            crate::crypto::decrypt(ciphertext, nonce, &encryption_key).map_err(|_| {
+                AppError::BadRequest("That password did not unlock synced services.".into())
+            })?;
+        serde_json::from_slice::<Value>(&plaintext)
+            .map_err(|_| AppError::BadRequest("Synced services could not be decoded.".into()))?;
+    }
+
+    cache_account_sync_key(&session.user_id, encryption_key.as_ref());
+    session.encryption_key = encryption_key.to_vec();
+    drop(encryption_key);
+    *state.session.write().await = Some(session.clone());
+
+    load_user_secrets(&state, &session).await;
+
+    #[cfg(debug_assertions)]
+    crate::server::save_dev_session(&state.db, &session).await;
+
+    log_security_event(
+        &state.db,
+        "account_sync_unlocked",
+        Some(&session.user_id),
+        &json!({ "method": "password_fallback" }),
+    )
+    .await;
+
+    Ok(Json(account_sync_status_payload(&state, &session).await))
 }
 
 // ---------------------------------------------------------------------------

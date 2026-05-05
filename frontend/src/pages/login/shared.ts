@@ -1,5 +1,5 @@
 // ── Auth view state machine ──
-// Valid states: main, email, mfa, mfa-enroll, waiting
+// Valid states: main, email, mfa, mfa-enroll, waiting, sync-unlock
 // Transitions:
 //   main       -> email (user clicks "sign in with email")
 //   main       -> waiting (OAuth opened in browser)
@@ -12,16 +12,20 @@
 //   waiting    -> mfa (tauri poll exchange requires MFA verify)
 //   waiting    -> mfa-enroll (tauri poll exchange requires MFA enrollment)
 //   mfa        -> main (user clicks back / signs out)
+//   mfa        -> sync-unlock (MFA passed, synced services need local key)
+//   waiting    -> sync-unlock (OAuth completed on an existing synced account)
 //   mfa-enroll -> main (not reachable directly, but reset via SHOW_MAIN)
+//   sync-unlock -> main (user signs out)
 
 export type MfaMethod = 'totp' | 'webauthn'
 
-export type View = 'main' | 'email' | 'mfa' | 'mfa-enroll' | 'waiting'
+export type View = 'main' | 'email' | 'mfa' | 'mfa-enroll' | 'waiting' | 'sync-unlock'
 
 export type ViewAction =
   | { type: 'SHOW_EMAIL' }
   | { type: 'SHOW_MAIN' }
   | { type: 'SHOW_WAITING' }
+  | { type: 'SHOW_SYNC_UNLOCK' }
   | { type: 'SHOW_MFA'; factorId: string; availableMethods?: MfaMethod[] }
   | { type: 'SHOW_MFA_ENROLL'; factorId: string; qr: string; secret: string }
 
@@ -42,6 +46,8 @@ export function viewReducer(state: ViewState, action: ViewAction): ViewState {
       return { view: 'main', mfaFactorId: '', mfaQr: null, mfaSecret: null, availableMethods: [] }
     case 'SHOW_WAITING':
       return { ...state, view: 'waiting' }
+    case 'SHOW_SYNC_UNLOCK':
+      return { ...state, view: 'sync-unlock' }
     case 'SHOW_MFA':
       return { ...state, view: 'mfa', mfaFactorId: action.factorId, availableMethods: action.availableMethods ?? ['totp'] }
     case 'SHOW_MFA_ENROLL':

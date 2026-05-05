@@ -4,8 +4,9 @@ import { api, API_BASE_CHANGED_EVENT } from '@/lib/api'
 import { initOpenClawRuntimeConfig, initPreferencesSync } from '@/lib/preferences-sync'
 import { deactivateDemoMode, markSetupCompleteForAccount } from '@/lib/wizard-store'
 import { isDemoMode } from '@/lib/demo-data'
+import { getAccountSyncStatus, hydrateAccountSync } from '@/lib/account-sync'
 
-type AuthState = 'loading' | 'authenticated' | 'unauthenticated' | 'mfa_required'
+type AuthState = 'loading' | 'authenticated' | 'unauthenticated' | 'mfa_required' | 'sync_locked'
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>(isDemoMode() ? 'authenticated' : 'loading')
@@ -70,7 +71,19 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           }
         }
 
-        markSetupCompleteForAccount(res.user?.id)
+        const sync = await getAccountSyncStatus().catch(() => null)
+        if (sync?.has_synced_services) {
+          markSetupCompleteForAccount(res.user?.id)
+        } else if (!sync || !sync.setup_doctor_required) {
+          markSetupCompleteForAccount(res.user?.id)
+        }
+        if (sync?.requires_unlock) {
+          setState('sync_locked')
+          return
+        }
+        if (sync?.ready && sync.has_cached_key) {
+          void hydrateAccountSync()
+        }
         setState('authenticated')
 
         if (!syncInitRef.current) {
@@ -122,6 +135,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   if (state === 'mfa_required') {
     // Login handles MFA verification after redirect.
     return <Navigate to={`/login?mfa=verify&next=${encodeURIComponent(location.pathname)}`} replace />
+  }
+  if (state === 'sync_locked') {
+    return <Navigate to={`/login?sync=unlock&next=${encodeURIComponent(location.pathname)}`} replace />
   }
   return <>{children}</>
 }

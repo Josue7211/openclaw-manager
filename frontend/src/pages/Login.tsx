@@ -13,6 +13,9 @@ import { EmailForm } from './login/EmailForm'
 import { MfaVerifyForm } from './login/MfaVerifyForm'
 import { WaitingView } from './login/WaitingView'
 import { MfaEnrollView } from './login/MfaEnrollView'
+import { SyncUnlockView } from './login/SyncUnlockView'
+import { getAccountSyncStatus, hydrateAccountSync, unlockAccountSync } from '@/lib/account-sync'
+import { markSetupCompleteForAccount } from '@/lib/wizard-store'
 
 function formatLoginError(err: unknown, fallback: string): string {
   const message = err instanceof Error ? err.message.trim() : ''
@@ -30,6 +33,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [mfaCode, setMfaCode] = useState('')
+  const [syncPassword, setSyncPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [sessionProbeFailed, setSessionProbeFailed] = useState(false)
@@ -47,6 +51,26 @@ export default function LoginPage() {
     // Invalid URL — keep default '/'
   }
 
+  async function finishAuthenticatedSession() {
+    try {
+      const sync = await getAccountSyncStatus()
+      if (sync.has_synced_services) {
+        markSetupCompleteForAccount()
+      }
+      if (sync.requires_unlock) {
+        dispatch({ type: 'SHOW_SYNC_UNLOCK' })
+        setLoading(false)
+        return
+      }
+      if (sync.ready && sync.has_cached_key) {
+        await hydrateAccountSync().catch(() => sync)
+      }
+    } catch {
+      // Auth already succeeded; do not strand the user on a transient sync probe.
+    }
+    window.location.href = next
+  }
+
   async function checkSession() {
     try {
       const res = await api.get<{
@@ -62,7 +86,7 @@ export default function LoginPage() {
 
       if (!res.authenticated) return
       if (res.mfa_verified) {
-        window.location.href = next
+        await finishAuthenticatedSession()
         return
       }
       if (res.factor_id) {
@@ -150,7 +174,7 @@ export default function LoginPage() {
             }
           }
 
-          window.location.href = next
+          await finishAuthenticatedSession()
         }
       } catch { /* ignore fetch errors */ }
     }, 2000)
@@ -221,7 +245,7 @@ export default function LoginPage() {
         }
       }
 
-      window.location.href = next
+      await finishAuthenticatedSession()
     } catch (err) {
       setError(formatLoginError(err, 'Sign-in failed. Check your details and try again.'))
       setLoading(false)
@@ -244,10 +268,31 @@ export default function LoginPage() {
         code: mfaCode,
       })
 
-      window.location.href = next
+      await finishAuthenticatedSession()
     } catch (err) {
       setError(formatLoginError(err, 'Could not verify that code right now.'))
       setMfaCode('')
+      setLoading(false)
+    }
+  }
+
+  async function handleSyncUnlock(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+
+    try {
+      const sync = await unlockAccountSync(syncPassword)
+      if (sync.ready) {
+        markSetupCompleteForAccount()
+        window.location.href = next
+        return
+      }
+      setError('Synced services are still locked on this Mac.')
+      setLoading(false)
+    } catch (err) {
+      setError(formatLoginError(err, 'Could not unlock synced services.'))
+      setSyncPassword('')
       setLoading(false)
     }
   }
@@ -355,6 +400,7 @@ export default function LoginPage() {
             {view === 'mfa' && 'Verify your identity'}
             {view === 'mfa-enroll' && 'Set up two-factor authentication'}
             {view === 'waiting' && 'Complete sign-in in your browser'}
+            {view === 'sync-unlock' && 'Unlock synced services'}
           </p>
         </div>
 
@@ -441,7 +487,7 @@ export default function LoginPage() {
               dispatch({ type: 'SHOW_MAIN' })
             }}
             onWebAuthnSuccess={() => {
-              window.location.href = next
+              void finishAuthenticatedSession()
             }}
           />
         )}
@@ -458,6 +504,22 @@ export default function LoginPage() {
             mfaQr={mfaQr}
             mfaSecret={mfaSecret}
             next={next}
+          />
+        )}
+
+        {view === 'sync-unlock' && (
+          <SyncUnlockView
+            password={syncPassword}
+            loading={loading}
+            onPasswordChange={setSyncPassword}
+            onSubmit={handleSyncUnlock}
+            onSignOut={async () => {
+              await api.post('/api/auth/logout').catch(() => {})
+              setSyncPassword('')
+              setError('')
+              dispatch({ type: 'SHOW_MAIN' })
+              setLoading(false)
+            }}
           />
         )}
       </div>
