@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────
-# Mission Control — Pre-commit checks
+# clawctrl — Pre-commit checks
 # Run: ./scripts/pre-commit.sh   or install as .git/hooks/pre-commit
 # ─────────────────────────────────────────────────────────────
 set -uo pipefail
@@ -50,7 +50,7 @@ section() {
 }
 
 # ─────────────────────────────────────────────────────────────
-printf "${BOLD}Mission Control — Pre-commit Checks${RESET}\n"
+printf "${BOLD}clawctrl — Pre-commit Checks${RESET}\n"
 # ─────────────────────────────────────────────────────────────
 
 # ── 1. No Secrets Check (fastest — only scans staged files) ──
@@ -75,7 +75,7 @@ if [ -n "$staged_files" ]; then
 
   # Scan staged file contents for hardcoded secrets
   # Only check text files that are staged
-  secret_patterns='(sk-[a-zA-Z0-9]{20,}|sk-ant-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|AKIA[A-Z0-9]{16}|password\s*[:=]\s*"[^"]{8,}|100\.\d+\.\d+\.\d+)'
+  secret_patterns='(sk-[a-zA-Z0-9]{20,}|sk-ant-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|AKIA[A-Z0-9]{16}|password[[:space:]]*[:=][[:space:]]*"[^"]{8,}|100\.[0-9]+\.[0-9]+\.[0-9]+)'
   leaks=$(echo "$staged_files" | while read -r f; do
     [ -f "$ROOT/$f" ] || continue
     # skip binary files and lockfiles
@@ -141,7 +141,7 @@ section "TypeScript & Build"
 
 step_start=$(date +%s%N 2>/dev/null || python3 -c 'import time; print(int(time.time()*1e9))')
 
-tsc_output=$(cd "$FRONTEND" && npx tsc --noEmit 2>&1) || tsc_exit=$?
+tsc_output=$(cd "$FRONTEND" && node ./node_modules/typescript/bin/tsc --noEmit 2>&1) || tsc_exit=$?
 tsc_exit=${tsc_exit:-0}
 ms=$(elapsed_ms "$step_start")
 
@@ -159,7 +159,7 @@ section "Tests"
 
 step_start=$(date +%s%N 2>/dev/null || python3 -c 'import time; print(int(time.time()*1e9))')
 
-test_output=$(cd "$FRONTEND" && npx vitest run 2>&1) || test_exit=$?
+test_output=$(cd "$FRONTEND" && node ./node_modules/vitest/vitest.mjs run 2>&1) || test_exit=$?
 test_exit=${test_exit:-0}
 ms=$(elapsed_ms "$step_start")
 
@@ -178,7 +178,7 @@ section "Production Build"
 
 step_start=$(date +%s%N 2>/dev/null || python3 -c 'import time; print(int(time.time()*1e9))')
 
-build_output=$(cd "$FRONTEND" && npx vite build 2>&1) || build_exit=$?
+build_output=$(cd "$FRONTEND" && node ./node_modules/vite/bin/vite.js build 2>&1) || build_exit=$?
 build_exit=${build_exit:-0}
 ms=$(elapsed_ms "$step_start")
 
