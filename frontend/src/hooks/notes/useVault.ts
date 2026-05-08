@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { VaultNote } from '@/pages/notes/types'
+import type { VaultFolder, VaultNote } from '@/pages/notes/types'
 import {
   getAllNotes,
+  getAllFolders,
   createNote as vaultCreate,
+  createFolder as vaultCreateFolder,
   putNote,
+  deleteFolder as vaultDeleteFolder,
   deleteNote as vaultDelete,
   startSync,
   stopSync,
@@ -11,6 +14,7 @@ import {
 
 export function useVault() {
   const [notes, setNotes] = useState<VaultNote[]>([])
+  const [folders, setFolders] = useState<VaultFolder[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -18,9 +22,10 @@ export function useVault() {
 
   const refresh = useCallback(async () => {
     try {
-      const all = await getAllNotes()
+      const [all, allFolders] = await Promise.all([getAllNotes(), getAllFolders()])
       if (mountedRef.current) {
         setNotes(all)
+        setFolders(allFolders)
         setError(null)
       }
     } catch (err) {
@@ -67,6 +72,15 @@ export function useVault() {
     [refresh],
   )
 
+  const createFolder = useCallback(
+    async (path: string) => {
+      const folder = await vaultCreateFolder(path)
+      await refresh()
+      return folder
+    },
+    [refresh],
+  )
+
   const updateNote = useCallback(
     async (note: VaultNote) => {
       const updated = await putNote(note)
@@ -87,14 +101,25 @@ export function useVault() {
     [],
   )
 
+  const deleteFolder = useCallback(
+    async (path: string) => {
+      await vaultDeleteFolder(path)
+      setFolders((prev) => prev.filter((folder) => folder.path !== path))
+    },
+    [],
+  )
+
   return {
     notes,
+    folders,
     loading,
     syncing,
     error,
     refresh,
     createNote,
+    createFolder,
     updateNote,
     deleteNote,
+    deleteFolder,
   }
 }

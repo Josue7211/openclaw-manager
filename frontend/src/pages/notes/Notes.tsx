@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo, lazy, Suspense } from 'react'
 import { Trash, ShareNetwork, PenNib, Cloud, CloudSlash, GitBranch } from '@phosphor-icons/react'
 import { useVault } from '@/hooks/notes/useVault'
-import { noteIdFromTitle } from '@/lib/vault'
+import { noteIdFromTitle, normalizeFolderPath } from '@/lib/vault'
 import { api } from '@/lib/api'
 import FileTree from './FileTree'
 import NoteEditor from './NoteEditor'
@@ -12,7 +12,7 @@ const GraphView = lazy(() => import('./GraphView'))
 type ViewMode = 'editor' | 'graph'
 
 export default function NotesPage() {
-  const { notes, loading, syncing, error, refresh, createNote, updateNote, deleteNote } = useVault()
+  const { notes, folders, loading, syncing, error, refresh, createNote, createFolder, updateNote, deleteNote } = useVault()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('graph')
   const [searchQuery, setSearchQuery] = useState('')
@@ -48,6 +48,17 @@ export default function NotesPage() {
       }, 50)
     },
     [createNote],
+  )
+
+  const handleCreateFolder = useCallback(
+    async (parent?: string) => {
+      const name = window.prompt(parent ? `New folder in ${parent}` : 'New folder')
+      if (!name) return
+      const nextPath = normalizeFolderPath(parent ? `${parent}/${name}` : name)
+      if (!nextPath) return
+      await createFolder(nextPath)
+    },
+    [createFolder],
   )
 
   const handleDelete = useCallback(async () => {
@@ -184,9 +195,11 @@ export default function NotesPage() {
       }}>
         <FileTree
           notes={notes}
+          folders={folders}
           selectedId={selectedId}
           onSelect={(id) => { setSelectedId(id); setViewMode('editor') }}
           onCreate={handleCreate}
+          onCreateFolder={handleCreateFolder}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
         />

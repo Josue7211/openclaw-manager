@@ -15,6 +15,8 @@ use crate::error::{success_json, AppError};
 use crate::routes::auth::load_user_secrets;
 use crate::server::{AppState, RequireAuth};
 
+const FOLDER_DOC_PREFIX: &str = "cc:folder:";
+
 /// CouchDB proxy for the Obsidian-style vault.
 /// All requests are proxied through the Axum backend so CouchDB credentials
 /// never reach the frontend.
@@ -38,7 +40,7 @@ fn couch_config(state: &AppState) -> Result<Option<CouchConfig>, AppError> {
     };
     let db = state
         .secret("COUCHDB_DATABASE")
-        .unwrap_or_else(|| "clawcontrol-vault".to_string());
+        .unwrap_or_else(|| "clawctrl-vault".to_string());
     let headers = parse_custom_headers(
         state
             .secret("COUCHDB_CUSTOM_HEADERS")
@@ -94,6 +96,57 @@ fn insert_custom_header(headers: &mut HeaderMap, name: &str, value: &str) -> Res
 fn couch_request(req: RequestBuilder, config: &CouchConfig) -> RequestBuilder {
     req.basic_auth(&config.user, Some(&config.pass))
         .headers(config.headers.clone())
+}
+
+fn normalize_folder_path(path: &str) -> Result<String, AppError> {
+    let parts: Vec<String> = path
+        .split('/')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            part.chars()
+                .filter(|ch| !matches!(ch, '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '\0'))
+                .collect::<String>()
+        })
+        .filter(|part| !part.is_empty() && part != "." && part != "..")
+        .collect();
+
+    if parts.is_empty() {
+        return Err(AppError::BadRequest("Folder path required".into()));
+    }
+
+    let path = parts.join("/");
+    if path.contains("..") || path.starts_with('_') {
+        return Err(AppError::BadRequest("Invalid folder path".into()));
+    }
+    Ok(path)
+}
+
+fn folder_doc_id(path: &str) -> String {
+    format!("{FOLDER_DOC_PREFIX}{path}")
+}
+
+fn folder_path_from_doc_id(id: &str) -> Option<String> {
+    id.strip_prefix(FOLDER_DOC_PREFIX).map(str::to_string)
+}
+
+fn folder_json_from_doc(doc: &Value) -> Option<Value> {
+    let id = doc.get("_id")?.as_str()?;
+    let path = doc
+        .get("path")
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+        .or_else(|| folder_path_from_doc_id(id))?;
+    let name = path.rsplit('/').next().unwrap_or(&path);
+    Some(json!({
+        "_id": id,
+        "_rev": doc.get("_rev").cloned().unwrap_or(Value::Null),
+        "type": "folder",
+        "path": path,
+        "name": name,
+        "created_at": doc.get("created_at").cloned().unwrap_or_else(|| json!(0)),
+        "updated_at": doc.get("updated_at").cloned().unwrap_or_else(|| json!(0)),
+    }))
 }
 
 async fn couch_get(state: &AppState, path: &str) -> Result<Value, AppError> {
@@ -327,6 +380,136 @@ async fn list_notes(
     })))
 }
 
+/// GET /api/vault/folders — list clawctrl folder marker docs.
+async fn list_folders(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    ensure_couch_config(&state, &session).await;
+    let data = couch_get(&state, "_all_docs?include_docs=true").await?;
+    let rows = data.get("rows").and_then(|r| r.as_array());
+    let folders: Vec<Value> = rows
+        .map(|rows| {
+            rows.iter()
+                .filter_map(|row| row.get("doc"))
+                .filter(|doc| {
+                    doc.get("_id")
+                        .and_then(|v| v.as_str())
+                        .map(|id| id.starts_with(FOLDER_DOC_PREFIX))
+                        .unwrap_or(false)
+                })
+                .filter_map(folder_json_from_doc)
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok(success_json(json!({ "folders": folders })))
+}
+
+#[derive(Deserialize)]
+struct FolderQuery {
+    path: String,
+}
+
+async fn get_folder_by_query(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+    Query(q): Query<FolderQuery>,
+) -> Result<Json<Value>, AppError> {
+    ensure_couch_config(&state, &session).await;
+    let path = normalize_folder_path(&q.path)?;
+    let id = folder_doc_id(&path);
+    let encoded = urlencoding::encode(&id);
+    let doc = couch_get(&state, &encoded).await?;
+    Ok(success_json(
+        json!({ "folder": folder_json_from_doc(&doc) }),
+    ))
+}
+
+async fn put_folder_by_query(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+    Query(q): Query<FolderQuery>,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    ensure_couch_config(&state, &session).await;
+    let path = normalize_folder_path(&q.path)?;
+    let id = folder_doc_id(&path);
+    let encoded = urlencoding::encode(&id);
+    let now = chrono::Utc::now().timestamp_millis();
+
+    let mut doc = body.as_object().cloned().unwrap_or_default();
+    doc.insert("_id".to_string(), Value::String(id.clone()));
+    doc.insert("type".to_string(), Value::String("folder".to_string()));
+    doc.insert("path".to_string(), Value::String(path.clone()));
+    doc.insert(
+        "name".to_string(),
+        Value::String(path.rsplit('/').next().unwrap_or(&path).to_string()),
+    );
+    doc.insert("updated_at".to_string(), json!(now));
+    doc.entry("created_at".to_string())
+        .or_insert_with(|| json!(now));
+
+    if !doc.contains_key("_rev") {
+        if let Ok(existing) = couch_get(&state, &encoded).await {
+            if let Some(rev) = existing.get("_rev").cloned() {
+                doc.insert("_rev".to_string(), rev);
+            }
+            if let Some(created_at) = existing.get("created_at").cloned() {
+                doc.insert("created_at".to_string(), created_at);
+            }
+        }
+    }
+
+    let result = couch_put(&state, &encoded, Value::Object(doc)).await?;
+    let rev = result.get("rev").cloned();
+    let mut folder = json!({
+        "_id": id,
+        "type": "folder",
+        "path": path,
+        "name": path.rsplit('/').next().unwrap_or(&path),
+        "created_at": now,
+        "updated_at": now,
+    });
+    if let (Some(rev), Some(obj)) = (rev, folder.as_object_mut()) {
+        obj.insert("_rev".to_string(), rev);
+    }
+
+    Ok(success_json(json!({ "folder": folder })))
+}
+
+#[derive(Deserialize)]
+struct FolderDeleteQuery {
+    path: String,
+    rev: Option<String>,
+}
+
+async fn delete_folder_by_query(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+    Query(q): Query<FolderDeleteQuery>,
+) -> Result<Json<Value>, AppError> {
+    ensure_couch_config(&state, &session).await;
+    let path = normalize_folder_path(&q.path)?;
+    let id = folder_doc_id(&path);
+    let encoded = urlencoding::encode(&id);
+    let rev = match q.rev {
+        Some(rev) => rev,
+        None => couch_get(&state, &encoded)
+            .await?
+            .get("_rev")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| AppError::BadRequest("Folder revision required".into()))?
+            .to_string(),
+    };
+    let result = couch_delete(
+        &state,
+        &format!("{encoded}?rev={}", urlencoding::encode(&rev)),
+    )
+    .await?;
+    Ok(success_json(result))
+}
+
 /// GET /api/vault/notes/:id — get a single note with content reassembled
 async fn get_note(
     State(state): State<AppState>,
@@ -497,6 +680,13 @@ async fn delete_doc_by_query(
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/vault/notes", get(list_notes))
+        .route("/vault/folders", get(list_folders))
+        .route(
+            "/vault/folder",
+            get(get_folder_by_query)
+                .put(put_folder_by_query)
+                .delete(delete_folder_by_query),
+        )
         .route(
             "/vault/notes/{id}",
             get(get_note).put(put_note).delete(delete_note),
@@ -507,4 +697,27 @@ pub fn router() -> Router<AppState> {
                 .put(put_doc_by_query)
                 .delete(delete_doc_by_query),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_folder_path_preserves_obsidian_names() {
+        let path = normalize_folder_path(" Projects / Daily Notes ").unwrap();
+
+        assert_eq!(path, "Projects/Daily Notes");
+    }
+
+    #[test]
+    fn folder_doc_ids_use_internal_prefix() {
+        let id = folder_doc_id("Projects/Daily Notes");
+
+        assert_eq!(id, "cc:folder:Projects/Daily Notes");
+        assert_eq!(
+            folder_path_from_doc_id(&id).as_deref(),
+            Some("Projects/Daily Notes"),
+        );
+    }
 }

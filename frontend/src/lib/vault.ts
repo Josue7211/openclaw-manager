@@ -1,4 +1,4 @@
-import type { VaultNote } from '@/pages/notes/types'
+import type { VaultFolder, VaultNote } from '@/pages/notes/types'
 import { api } from '@/lib/api'
 
 /**
@@ -10,6 +10,8 @@ import { api } from '@/lib/api'
  */
 
 const META_STORAGE_KEY = 'mc-notes-meta'
+const FOLDER_STORAGE_KEY = 'mc-notes-folders'
+const FOLDER_DOC_PREFIX = 'cc:folder:'
 
 interface NoteMeta {
   _id: string
@@ -17,6 +19,16 @@ interface NoteMeta {
   folder: string
   tags: string[]
   links: string[]
+  created_at: number
+  updated_at: number
+}
+
+interface FolderMeta {
+  _id: string
+  _rev?: string
+  type: 'folder'
+  path: string
+  name: string
   created_at: number
   updated_at: number
 }
@@ -30,6 +42,18 @@ function toMeta(note: VaultNote): NoteMeta {
     links: note.links,
     created_at: note.created_at,
     updated_at: note.updated_at,
+  }
+}
+
+function toFolderMeta(folder: VaultFolder): FolderMeta {
+  return {
+    _id: folder._id,
+    _rev: folder._rev,
+    type: 'folder',
+    path: folder.path,
+    name: folder.name,
+    created_at: folder.created_at,
+    updated_at: folder.updated_at,
   }
 }
 
@@ -57,11 +81,28 @@ function saveMetaCache(meta: Map<string, NoteMeta>) {
   localStorage.setItem(META_STORAGE_KEY, JSON.stringify([...meta.values()]))
 }
 
+function loadFolderCache(): Map<string, VaultFolder> {
+  try {
+    const raw = localStorage.getItem(FOLDER_STORAGE_KEY)
+    if (!raw) return new Map()
+    const arr: FolderMeta[] = JSON.parse(raw)
+    return new Map(arr.map((f) => [f.path, f]))
+  } catch {
+    return new Map()
+  }
+}
+
+function saveFolderCache(folders: Map<string, VaultFolder>) {
+  localStorage.setItem(FOLDER_STORAGE_KEY, JSON.stringify([...folders.values()].map(toFolderMeta)))
+}
+
 // In-memory note cache (includes content)
 const notesCache: Map<string, VaultNote> = new Map()
+const foldersCache: Map<string, VaultFolder> = loadFolderCache()
 const metaCache: Map<string, NoteMeta> = loadMetaCache()
 let syncInterval: ReturnType<typeof setInterval> | null = null
 let hasFetchedFromBackend = false
+let hasFetchedFoldersFromBackend = false
 
 // Hydrate notes from meta cache on startup (content will be empty until fetched)
 for (const [id, meta] of metaCache) {
@@ -95,6 +136,23 @@ function docToNote(doc: Record<string, unknown>): VaultNote {
     links,
     created_at: created,
     updated_at: updated,
+  }
+}
+
+function docToFolder(doc: Record<string, unknown>): VaultFolder | null {
+  const id = (doc._id as string) || ''
+  const rawPath = (doc.path as string) || pathFromFolderDocId(id)
+  const path = normalizeFolderPath(rawPath)
+  if (!path) return null
+  const now = Date.now()
+  return {
+    _id: id || folderDocId(path),
+    _rev: doc._rev as string | undefined,
+    type: 'folder',
+    path,
+    name: path.split('/').pop() || path,
+    created_at: (doc.created_at as number) || now,
+    updated_at: (doc.updated_at as number) || now,
   }
 }
 
@@ -132,18 +190,40 @@ async function fetchAllFromBackend(): Promise<VaultNote[]> {
   return notes
 }
 
+async function fetchFoldersFromBackend(): Promise<VaultFolder[]> {
+  try {
+    const json = await api.get<any>('/api/vault/folders')
+    const payload = json?.data || json || {}
+    const rawFolders = Array.isArray(payload.folders) ? payload.folders : []
+    return rawFolders
+      .map(docToFolder)
+      .filter((folder: VaultFolder | null): folder is VaultFolder => !!folder)
+  } catch (err) {
+    console.warn('[vault] folder list failed, using local cache:', err)
+    return [...foldersCache.values()]
+  }
+}
+
 export function startSync(onChange?: () => void) {
   if (syncInterval) return
   syncInterval = setInterval(async () => {
-    const notes = await fetchAllFromBackend()
-    if (notes.length > 0) {
+    const [notes, folders] = await Promise.all([
+      fetchAllFromBackend(),
+      fetchFoldersFromBackend(),
+    ])
+    if (notes.length > 0 || folders.length > 0) {
       notesCache.clear()
       metaCache.clear()
       for (const note of notes) {
         notesCache.set(note._id, note)
         metaCache.set(note._id, toMeta(note))
       }
+      foldersCache.clear()
+      for (const folder of folders) {
+        foldersCache.set(folder.path, folder)
+      }
       saveMetaCache(metaCache)
+      saveFolderCache(foldersCache)
       onChange?.()
     }
   }, 30000)
@@ -174,6 +254,21 @@ export async function getAllNotes(): Promise<VaultNote[]> {
   return [...notesCache.values()]
     .filter((n) => n.type === 'note' || n.type === 'attachment')
     .sort((a, b) => b.updated_at - a.updated_at)
+}
+
+export async function getAllFolders(): Promise<VaultFolder[]> {
+  if (!hasFetchedFoldersFromBackend) {
+    const folders = await fetchFoldersFromBackend()
+    if (folders.length > 0) {
+      foldersCache.clear()
+      for (const folder of folders) {
+        foldersCache.set(folder.path, folder)
+      }
+      saveFolderCache(foldersCache)
+    }
+    hasFetchedFoldersFromBackend = true
+  }
+  return [...foldersCache.values()].sort((a, b) => a.path.localeCompare(b.path))
 }
 
 export async function putNote(note: VaultNote): Promise<VaultNote> {
@@ -243,7 +338,79 @@ export async function createNote(
   return putNote(note)
 }
 
+export async function createFolder(path: string): Promise<VaultFolder> {
+  const normalized = normalizeFolderPath(path)
+  if (!normalized) {
+    throw new Error('Folder name required')
+  }
+
+  const now = Date.now()
+  const existing = foldersCache.get(normalized)
+  const folder: VaultFolder = {
+    _id: existing?._id || folderDocId(normalized),
+    _rev: existing?._rev,
+    type: 'folder',
+    path: normalized,
+    name: normalized.split('/').pop() || normalized,
+    created_at: existing?.created_at || now,
+    updated_at: now,
+  }
+
+  try {
+    const result = await api.put<any>(
+      `/api/vault/folder?path=${encodeURIComponent(normalized)}`,
+      folder,
+    )
+    const data = result?.data || result
+    const saved = docToFolder(data?.folder || data)
+    if (saved) {
+      foldersCache.set(saved.path, saved)
+      saveFolderCache(foldersCache)
+      return saved
+    }
+  } catch (err) {
+    console.warn('[vault] create folder failed, saved locally:', err)
+  }
+
+  foldersCache.set(folder.path, folder)
+  saveFolderCache(foldersCache)
+  return folder
+}
+
+export async function deleteFolder(path: string): Promise<void> {
+  const normalized = normalizeFolderPath(path)
+  if (!normalized) return
+
+  const folder = foldersCache.get(normalized)
+  try {
+    const rev = folder?._rev ? `&rev=${encodeURIComponent(folder._rev)}` : ''
+    await api.del(`/api/vault/folder?path=${encodeURIComponent(normalized)}${rev}`)
+  } catch (err) {
+    console.warn('[vault] delete folder failed:', err)
+  }
+
+  foldersCache.delete(normalized)
+  saveFolderCache(foldersCache)
+}
+
 // --- Helpers ---
+
+export function normalizeFolderPath(path: string): string {
+  return path
+    .split('/')
+    .map((part) => part.trim().replace(/[\\:*?"<>|]/g, ''))
+    .filter((part) => part && part !== '.' && part !== '..')
+    .join('/')
+}
+
+function folderDocId(path: string): string {
+  return `${FOLDER_DOC_PREFIX}${path}`
+}
+
+function pathFromFolderDocId(id: string): string {
+  if (!id.startsWith(FOLDER_DOC_PREFIX)) return ''
+  return id.slice(FOLDER_DOC_PREFIX.length)
+}
 
 function slugify(text: string): string {
   return text

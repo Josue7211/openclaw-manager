@@ -1,38 +1,49 @@
 import { useState, useMemo, useCallback, memo } from 'react'
-import { CaretRight, CaretDown, FileText, FolderOpen, Folder, Plus, MagnifyingGlass, Image } from '@phosphor-icons/react'
-import type { VaultNote, FolderNode } from './types'
+import { CaretRight, CaretDown, FileText, FolderOpen, Folder, Plus, MagnifyingGlass, Image, FolderPlus } from '@phosphor-icons/react'
+import type { VaultFolder, VaultNote, FolderNode } from './types'
 
 interface FileTreeProps {
   notes: VaultNote[]
+  folders?: VaultFolder[]
   selectedId: string | null
   onSelect: (id: string) => void
   onCreate: (folder?: string) => void
+  onCreateFolder: (parent?: string) => void
   searchQuery: string
   onSearchChange: (q: string) => void
 }
 
-function buildTree(notes: VaultNote[]): FolderNode {
+function ensureFolder(root: FolderNode, path: string): FolderNode {
+  const parts = path.split('/').filter(Boolean)
+  let current = root
+  for (const part of parts) {
+    let child = current.children.find((c) => c.name === part)
+    if (!child) {
+      child = {
+        name: part,
+        path: current.path ? `${current.path}/${part}` : part,
+        children: [],
+        notes: [],
+        isExpanded: true,
+      }
+      current.children.push(child)
+    }
+    current = child
+  }
+  return current
+}
+
+function buildTree(notes: VaultNote[], folders: VaultFolder[]): FolderNode {
   const root: FolderNode = { name: 'vault', path: '', children: [], notes: [], isExpanded: true }
+
+  for (const folder of folders) {
+    ensureFolder(root, folder.path)
+  }
 
   for (const note of notes) {
     const parts = note._id.split('/')
     parts.pop()
-    let current = root
-
-    for (const part of parts) {
-      let child = current.children.find((c) => c.name === part)
-      if (!child) {
-        child = {
-          name: part,
-          path: current.path ? `${current.path}/${part}` : part,
-          children: [],
-          notes: [],
-          isExpanded: true,
-        }
-        current.children.push(child)
-      }
-      current = child
-    }
+    const current = ensureFolder(root, parts.join('/'))
 
     current.notes.push(note)
   }
@@ -53,6 +64,7 @@ const FolderItem = memo(function FolderItem({
   expandedFolders,
   onToggle,
   onSelect,
+  onCreateFolder,
 }: {
   node: FolderNode
   depth: number
@@ -60,6 +72,7 @@ const FolderItem = memo(function FolderItem({
   expandedFolders: Set<string>
   onToggle: (path: string) => void
   onSelect: (id: string) => void
+  onCreateFolder: (parent?: string) => void
 }) {
   const isExpanded = expandedFolders.has(node.path)
   const pl = 12 + depth * 14
@@ -67,44 +80,76 @@ const FolderItem = memo(function FolderItem({
   return (
     <>
       {depth > 0 && (
-        <button
-          onClick={() => onToggle(node.path)}
-          className="hover-bg"
-          aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${node.name}`}
-          aria-expanded={isExpanded}
+        <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
             width: '100%',
-            padding: '4px 8px',
-            paddingLeft: pl,
-            background: 'transparent',
-            border: 'none',
             borderRadius: 'var(--radius-sm)',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            fontSize: 11,
-            fontWeight: 600,
-            letterSpacing: '0.03em',
-            textTransform: 'uppercase',
-            textAlign: 'left',
+            paddingLeft: pl,
           }}
         >
-          {isExpanded ? (
-            <CaretDown size={10} style={{ opacity: 0.5 }} />
-          ) : (
-            <CaretRight size={10} style={{ opacity: 0.5 }} />
-          )}
-          {isExpanded ? (
-            <FolderOpen size={12} style={{ opacity: 0.6 }} />
-          ) : (
-            <Folder size={12} style={{ opacity: 0.6 }} />
-          )}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {node.name}
-          </span>
-        </button>
+          <button
+            onClick={() => onToggle(node.path)}
+            className="hover-bg"
+            aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${node.name}`}
+            aria-expanded={isExpanded}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              flex: 1,
+              minWidth: 0,
+              padding: '4px 0',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: '0.03em',
+              textTransform: 'uppercase',
+              textAlign: 'left',
+            }}
+          >
+            {isExpanded ? (
+              <CaretDown size={10} style={{ opacity: 0.5, flexShrink: 0 }} />
+            ) : (
+              <CaretRight size={10} style={{ opacity: 0.5, flexShrink: 0 }} />
+            )}
+            {isExpanded ? (
+              <FolderOpen size={12} style={{ opacity: 0.6, flexShrink: 0 }} />
+            ) : (
+              <Folder size={12} style={{ opacity: 0.6, flexShrink: 0 }} />
+            )}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {node.name}
+            </span>
+          </button>
+          <button
+            type="button"
+            title="New folder"
+            aria-label={`New folder in ${node.name}`}
+            onClick={() => onCreateFolder(node.path)}
+            className="hover-bg"
+            style={{
+              width: 24,
+              height: 24,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 'var(--radius-sm)',
+              flexShrink: 0,
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+            }}
+          >
+            <FolderPlus size={11} style={{ opacity: 0.45 }} />
+          </button>
+        </div>
       )}
 
       {(depth === 0 || isExpanded) && (
@@ -118,6 +163,7 @@ const FolderItem = memo(function FolderItem({
               expandedFolders={expandedFolders}
               onToggle={onToggle}
               onSelect={onSelect}
+              onCreateFolder={onCreateFolder}
             />
           ))}
           {node.notes.map((note) => (
@@ -225,9 +271,11 @@ const NoteItem = memo(function NoteItem({
 
 export default function FileTree({
   notes,
+  folders = [],
   selectedId,
   onSelect,
   onCreate,
+  onCreateFolder,
   searchQuery,
   onSearchChange,
 }: FileTreeProps) {
@@ -244,7 +292,13 @@ export default function FileTree({
     )
   }, [notes, searchQuery])
 
-  const tree = useMemo(() => buildTree(filteredNotes), [filteredNotes])
+  const visibleFolders = useMemo(() => {
+    if (!searchQuery.trim()) return folders
+    const q = searchQuery.toLowerCase()
+    return folders.filter((f) => f.path.toLowerCase().includes(q))
+  }, [folders, searchQuery])
+
+  const tree = useMemo(() => buildTree(filteredNotes, visibleFolders), [filteredNotes, visibleFolders])
 
   const toggleFolder = useCallback((path: string) => {
     setExpandedFolders((prev) => {
@@ -313,9 +367,10 @@ export default function FileTree({
           expandedFolders={expandedFolders}
           onToggle={toggleFolder}
           onSelect={onSelect}
+          onCreateFolder={onCreateFolder}
         />
 
-        {filteredNotes.length === 0 && (
+        {filteredNotes.length === 0 && visibleFolders.length === 0 && (
           <div
             style={{
               padding: '32px 16px',
@@ -356,6 +411,28 @@ export default function FileTree({
         >
           <Plus size={13} />
           New Note
+        </button>
+        <button
+          onClick={() => onCreateFolder()}
+          className="hover-bg"
+          aria-label="New folder"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            width: '100%',
+            padding: '6px 10px',
+            background: 'transparent',
+            border: 'none',
+            borderRadius: 'var(--radius-sm)',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            fontSize: 12,
+            transition: 'color var(--duration-fast)',
+          }}
+        >
+          <FolderPlus size={13} />
+          New Folder
         </button>
       </div>
     </div>

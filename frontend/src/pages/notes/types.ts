@@ -11,6 +11,16 @@ export interface VaultNote {
   updated_at: number
 }
 
+export interface VaultFolder {
+  _id: string
+  _rev?: string
+  type: 'folder'
+  path: string
+  name: string
+  created_at: number
+  updated_at: number
+}
+
 export interface FolderNode {
   name: string
   path: string
