@@ -575,9 +575,7 @@ async fn load_mail_accounts_for_email(
     session: &crate::server::UserSession,
 ) -> Result<Vec<MailAccountRecord>, AppError> {
     let accounts = mail_accounts::load_mail_accounts(state, session).await?;
-    Ok(mail_accounts::merge_configured_mail_accounts(
-        state, accounts,
-    ))
+    Ok(mail_accounts::merge_configured_mail_accounts_with_discovery(state, accounts).await)
 }
 
 async fn get_emails(

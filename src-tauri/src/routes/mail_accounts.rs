@@ -236,8 +236,11 @@ async fn list_mail_accounts(
     State(state): State<AppState>,
     RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let accounts =
-        merge_configured_mail_accounts(&state, load_mail_accounts(&state, &session).await?);
+    let accounts = merge_configured_mail_accounts_with_discovery(
+        &state,
+        load_mail_accounts(&state, &session).await?,
+    )
+    .await;
     Ok(Json(json!({ "accounts": accounts })))
 }
 
@@ -496,24 +499,82 @@ pub(crate) fn default_mail_accounts(state: &AppState) -> Vec<MailAccountRecord> 
     accounts
 }
 
-pub(crate) fn merge_configured_mail_accounts(
+fn account_from_agentmail_inbox(inbox: agentmail::AgentMailInbox) -> Option<MailAccountRecord> {
+    let inbox_id = inbox.inbox_id.trim().to_string();
+    if inbox_id.is_empty() {
+        return None;
+    }
+
+    let address = inbox
+        .email
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(inbox_id.as_str())
+        .to_string();
+    let label = inbox
+        .display_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(address.as_str())
+        .to_string();
+
+    Some(MailAccountRecord {
+        id: format!("agentmail:{inbox_id}"),
+        label,
+        provider: infer_provider_from_address_or_host(&address, ""),
+        address,
+        agentmail_inbox_id: inbox_id,
+        forwarding_status: "active".into(),
+        is_default: false,
+    })
+}
+
+async fn discovered_agentmail_accounts(state: &AppState) -> Vec<MailAccountRecord> {
+    match agentmail::list_inboxes(state, 100).await {
+        Ok(Some(inboxes)) => inboxes
+            .into_iter()
+            .filter_map(account_from_agentmail_inbox)
+            .collect(),
+        Ok(None) => Vec::new(),
+        Err(err) => {
+            tracing::warn!(error = ?err, "AgentMail inbox discovery failed");
+            Vec::new()
+        }
+    }
+}
+
+pub(crate) async fn merge_configured_mail_accounts_with_discovery(
     state: &AppState,
     saved_accounts: Vec<MailAccountRecord>,
 ) -> Vec<MailAccountRecord> {
-    let configured_accounts = default_mail_accounts(state);
+    let mut configured_accounts = default_mail_accounts(state);
+    configured_accounts.extend(discovered_agentmail_accounts(state).await);
+    merge_mail_account_sets(configured_accounts, saved_accounts)
+}
+
+fn merge_mail_account_sets(
+    configured_accounts: Vec<MailAccountRecord>,
+    saved_accounts: Vec<MailAccountRecord>,
+) -> Vec<MailAccountRecord> {
     if configured_accounts.is_empty() {
         return saved_accounts;
     }
 
-    let mut accounts = configured_accounts;
-    for account in saved_accounts {
-        if accounts.iter().any(|existing| existing.id == account.id) {
+    let mut accounts = Vec::new();
+    for account in configured_accounts.into_iter().chain(saved_accounts) {
+        if accounts.iter().any(|existing: &MailAccountRecord| {
+            existing.id == account.id
+                || (!account.agentmail_inbox_id.is_empty()
+                    && existing.agentmail_inbox_id == account.agentmail_inbox_id)
+        }) {
             continue;
         }
         accounts.push(account);
     }
 
-    let configured_default_id = accounts
+    let preferred_default_id = accounts
         .iter()
         .find(|account| account.id.starts_with("imap:") && account.is_default)
         .map(|account| account.id.clone())
@@ -523,7 +584,7 @@ pub(crate) fn merge_configured_mail_accounts(
                 .find(|account| account.is_default)
                 .map(|account| account.id.clone())
         });
-    ensure_single_default(&mut accounts, configured_default_id.as_deref());
+    ensure_single_default(&mut accounts, preferred_default_id.as_deref());
     accounts
 }
 
@@ -750,9 +811,63 @@ mod tests {
 
     #[test]
     fn infers_real_provider_from_address_for_agentmail_binding() {
-        assert_eq!(infer_provider_from_address_or_host("me@proton.me", ""), "proton");
-        assert_eq!(infer_provider_from_address_or_host("me@gmail.com", ""), "gmail");
-        assert_eq!(infer_provider_from_address_or_host("me@aparcedo.org", ""), "imap");
+        assert_eq!(
+            infer_provider_from_address_or_host("me@proton.me", ""),
+            "proton"
+        );
+        assert_eq!(
+            infer_provider_from_address_or_host("me@gmail.com", ""),
+            "gmail"
+        );
+        assert_eq!(
+            infer_provider_from_address_or_host("me@aparcedo.org", ""),
+            "imap"
+        );
+    }
+
+    #[test]
+    fn maps_agentmail_inbox_to_agent_access_account() {
+        let account = account_from_agentmail_inbox(agentmail::AgentMailInbox {
+            inbox_id: "inbox_123".into(),
+            email: Some("agent@aparcedo.org".into()),
+            display_name: Some("Agent Access".into()),
+            client_id: None,
+        })
+        .unwrap();
+
+        assert_eq!(account.id, "agentmail:inbox_123");
+        assert_eq!(account.label, "Agent Access");
+        assert_eq!(account.provider, "imap");
+        assert_eq!(account.address, "agent@aparcedo.org");
+        assert_eq!(account.agentmail_inbox_id, "inbox_123");
+        assert!(account.validate().is_ok());
+    }
+
+    #[test]
+    fn merge_mail_account_sets_deduplicates_agentmail_discovery() {
+        let configured = vec![MailAccountRecord {
+            id: "agentmail:inbox_123".into(),
+            label: "Discovered".into(),
+            provider: "imap".into(),
+            address: "agent@aparcedo.org".into(),
+            agentmail_inbox_id: "inbox_123".into(),
+            forwarding_status: "active".into(),
+            is_default: false,
+        }];
+        let saved = vec![MailAccountRecord {
+            id: "saved-agent".into(),
+            label: "Saved".into(),
+            provider: "proton".into(),
+            address: "agent@aparcedo.org".into(),
+            agentmail_inbox_id: "inbox_123".into(),
+            forwarding_status: "active".into(),
+            is_default: true,
+        }];
+
+        let accounts = merge_mail_account_sets(configured, saved);
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].label, "Discovered");
+        assert!(accounts[0].is_default);
     }
 
     #[test]
