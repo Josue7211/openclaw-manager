@@ -1,6 +1,6 @@
 ---
 created: 2026-03-22T17:45:00.000Z
-title: OpenClaw Gateway feature parity — features we're missing
+title: Harness Gateway feature parity — features we're missing
 area: general
 files:
   - frontend/src/pages/chat/
@@ -11,9 +11,11 @@ files:
 
 ## Problem
 
-OpenClaw Gateway (the web UI at openclaw.aparcedo.org) has features that Mission Control doesn't replicate yet. Since MC is supposed to be THE controller for OpenClaw, it needs feature parity + more.
+Common harness gateways have controller features that Mission Control does not replicate yet. Since MC is supposed to be the generic controller for user-selected harnesses, it needs feature parity across Harness, Hermes, OpenClaw compatibility, Agent Zero, Nanoclaw, and future providers.
 
-## OpenClaw Gateway Features (from CSS/JS analysis)
+OpenClaw Gateway was one analyzed compatibility target, not the product default or primary harness.
+
+## Harness Gateway Features (from compatibility analysis)
 
 ### Chat (we have basic, they have more)
 - **Chat split container** — side-by-side chat views
@@ -94,13 +96,13 @@ OpenClaw Gateway (the web UI at openclaw.aparcedo.org) has features that Mission
 2. **Cron job CRUD** — create/edit/delete cron jobs with form, not just read-only list
 3. **Chat improvements** — focus mode, attachments, tool cards, search, delete message, compaction indicator
 4. **Token usage tracking** — usage over time charts, read/write cache stats
-5. **Shell/terminal** — execute commands on OpenClaw VM from MC
+5. **Shell/terminal** — execute commands on the selected harness host from MC
 
 ### Important (parity)
 6. **Data table component** — reusable table with search, pagination, sort, actions
 7. **Agent file browser** — view/edit agent workspace files
 8. **Session management** — session keys, sharing, linking
-9. **Multi-account support** — switch between OpenClaw accounts/instances
+9. **Multi-account support** — switch between harness accounts/instances
 10. **Command palette improvements** — match their cmd+k functionality
 
 ### Nice-to-have
@@ -132,7 +134,7 @@ OpenClaw Gateway (the web UI at openclaw.aparcedo.org) has features that Mission
 
 ## Solution
 
-These should be a future milestone (v0.0.3 or v0.1.0) focused on "OpenClaw Controller Parity." Priority order:
+These should be a future milestone focused on "Harness Controller Parity." Priority order:
 1. Agent management CRUD (files, tools, skills, model config) — THE core controller feature
 2. Token usage + cost tracking — essential for monitoring AI spend
 3. Cron job CRUD with proper forms — scheduling is a power feature

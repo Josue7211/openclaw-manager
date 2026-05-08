@@ -1,13 +1,13 @@
-# OpenClaw Workspace API
+# Harness Workspace API
 
-A zero-dependency Node.js micro-server that exposes your [OpenClaw](https://openclaw.ai) workspace files over HTTP. ClawControl connects to it to read, edit, and delete workspace and memory files from the Memory page.
+A zero-dependency Node.js micro-server that exposes your selected harness workspace files over HTTP. ClawControl connects to it to read, edit, and delete workspace and memory files from the Memory page.
 
 ## Why
 
 ClawControl's Tauri backend can operate in two modes:
 
-- **Local mode** — reads `~/.openclaw/workspace` directly (works when ClawControl runs on the same machine as OpenClaw)
-- **Remote mode** — proxies requests to this API (when OpenClaw runs on a different machine, e.g. a homelab server)
+- **Local mode** — reads the configured harness workspace directly (works when ClawControl runs on the same machine as the harness)
+- **Remote mode** — proxies requests to this API (when the harness runs on a different machine, e.g. a homelab server)
 
 This script is the remote-mode server.
 
@@ -26,11 +26,11 @@ All endpoints return JSON. Auth is via `Authorization: Bearer <API_KEY>` header.
 ## Quick Start
 
 ```bash
-# 1. Copy the script to your OpenClaw host
-cp scripts/openclaw-api.mjs ~/openclaw-api.mjs
+# 1. Copy the script to your harness host
+cp scripts/harness-api.mjs ~/harness-api.mjs
 
 # 2. Run it
-API_KEY=$(openssl rand -hex 32) PORT=3939 node ~/openclaw-api.mjs
+API_KEY=$(openssl rand -hex 32) PORT=3939 node ~/harness-api.mjs
 ```
 
 That's it. No `npm install` needed — it uses only Node.js built-ins.
@@ -41,23 +41,24 @@ That's it. No `npm install` needed — it uses only Node.js built-ins.
 |----------|---------|-------------|
 | `PORT` | `3939` | Listen port |
 | `API_KEY` | *(empty — open)* | Bearer token for authentication. **Set this in production.** |
-| `OPENCLAW_WORKSPACE` | `~/.openclaw/workspace` | Path to the OpenClaw workspace directory |
+| `HARNESS_WORKSPACE` | `~/.harness/workspace` | Path to the harness workspace directory |
+| `OPENCLAW_WORKSPACE` | *(unset)* | Compatibility alias for older OpenClaw deployments |
 
 ## systemd Service (recommended)
 
-Create `~/.config/systemd/user/openclaw-api.service`:
+Create `~/.config/systemd/user/harness-api.service`:
 
 ```ini
 [Unit]
-Description=OpenClaw Workspace API
+Description=Harness Workspace API
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/node %h/openclaw-api.mjs
+ExecStart=/usr/bin/node %h/harness-api.mjs
 Environment=PORT=3939
 Environment=API_KEY=your-secret-key-here
-Environment=OPENCLAW_WORKSPACE=%h/.openclaw/workspace
+Environment=HARNESS_WORKSPACE=%h/.harness/workspace
 Restart=on-failure
 RestartSec=5
 
@@ -69,22 +70,22 @@ Then enable and start:
 
 ```bash
 systemctl --user daemon-reload
-systemctl --user enable --now openclaw-api.service
-systemctl --user status openclaw-api.service
+systemctl --user enable --now harness-api.service
+systemctl --user status harness-api.service
 ```
 
 ## Connecting ClawControl
 
 In ClawControl's Settings page, set:
 
-- **openclaw.ws** — `http://<your-host>:3939`
-- **openclaw.password** — your `API_KEY` value
+- **harness.api-url** — `http://<your-host>:3939`
+- **harness.api-key** — your `API_KEY` value
 
 Or set these environment variables before launching ClawControl:
 
 ```bash
-OPENCLAW_API_URL=http://<your-host>:3939
-OPENCLAW_API_KEY=your-secret-key-here
+HARNESS_API_URL=http://<your-host>:3939
+HARNESS_API_KEY=your-secret-key-here
 ```
 
 ## Security Notes

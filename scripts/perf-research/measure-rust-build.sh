@@ -29,7 +29,7 @@ CRATE_COUNT=$(grep -c "Compiling" /tmp/mc-rust-build.log || echo "unknown")
 echo ">>> Crates compiled: ${CRATE_COUNT}"
 
 # Binary size
-BINARY="$TAURI_DIR/target/debug/openclaw"
+BINARY="$TAURI_DIR/target/debug/clawctrl"
 if [ -f "$BINARY" ]; then
     SIZE=$(ls -lh "$BINARY" | awk '{print $5}')
     echo ">>> Debug binary size: $SIZE"
