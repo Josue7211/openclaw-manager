@@ -151,7 +151,7 @@ impl AgentMailMessage {
             || self
                 .labels
                 .iter()
-                .any(|label| label.eq_ignore_ascii_case("clawcontrol-test"))
+                .any(|label| label.eq_ignore_ascii_case("clawctrl-test"))
         {
             return None;
         }
@@ -177,10 +177,8 @@ impl AgentMailMessage {
 }
 
 fn is_clawcontrol_route_test(subject: &str, preview: &str) -> bool {
-    subject
-        .trim()
-        .eq_ignore_ascii_case("ClawControl route test")
-        || preview.contains("Testing AgentMail delivery into ClawControl.")
+    subject.trim().eq_ignore_ascii_case("clawctrl route test")
+        || preview.contains("Testing AgentMail delivery into clawctrl.")
 }
 
 fn agentmail_base_url(state: &AppState) -> String {

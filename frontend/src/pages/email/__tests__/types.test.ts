@@ -23,13 +23,13 @@ describe('type exports', () => {
     const account: EmailAccount = {
       id: 'acc-1',
       label: 'Work',
-      provider: 'gmail',
+      provider: 'agentmail',
       address: 'user@example.com',
       agentmail_inbox_id: 'am-work',
       forwarding_status: 'active',
       is_default: true,
     }
-    expect(account.provider).toBe('gmail')
+    expect(account.provider).toBe('agentmail')
     expect(account.forwarding_status).toBe('active')
   })
 
@@ -50,13 +50,13 @@ describe('type exports', () => {
   it('AccountForm type is structurally valid', () => {
     const form: AccountForm = {
       label: 'Personal',
-      provider: 'gmail',
-      address: 'user@gmail.com',
+      provider: 'agentmail',
+      address: 'user@example.com',
       agentmail_inbox_id: 'am-personal',
       forwarding_status: 'pending',
       is_default: false,
     }
-    expect(form.provider).toBe('gmail')
+    expect(form.provider).toBe('agentmail')
     expect(form.is_default).toBe(false)
   })
 
@@ -69,11 +69,11 @@ describe('type exports', () => {
 /* ─── FOLDERS ────────────────────────────────────────────────────────── */
 
 describe('FOLDERS', () => {
-  it('has full inbox navigation entries', () => {
+  it('has AgentMail navigation entries', () => {
     expect(FOLDERS).toHaveLength(9)
   })
 
-  it('contains primary Proton-style folders', () => {
+  it('contains primary AgentMail folders', () => {
     const ids = FOLDERS.map(f => f.id)
     expect(ids).toContain('INBOX')
     expect(ids).toContain('All')
@@ -109,8 +109,8 @@ describe('EMPTY_FORM', () => {
     expect(EMPTY_FORM.label).toBe('')
   })
 
-  it('has empty host', () => {
-    expect(EMPTY_FORM.provider).toBe('')
+  it('defaults provider to AgentMail', () => {
+    expect(EMPTY_FORM.provider).toBe('agentmail')
   })
 
   it('has empty address and inbox mapping', () => {

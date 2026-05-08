@@ -135,10 +135,7 @@ pub(crate) async fn load_mail_accounts(
     session: &crate::server::UserSession,
 ) -> Result<Vec<MailAccountRecord>, AppError> {
     if session.encryption_key.is_empty() {
-        return Err(AppError::BadRequest(
-            "Encryption key not available. Log in with email/password to manage mail accounts."
-                .into(),
-        ));
+        return Ok(default_mail_accounts(state));
     }
 
     let sb = SupabaseClient::from_state(state)?;
@@ -237,7 +234,7 @@ async fn list_mail_accounts(
 ) -> Result<Json<Value>, AppError> {
     let mut accounts = load_mail_accounts(&state, &session).await?;
     if accounts.is_empty() {
-        accounts = default_agentmail_accounts(&state);
+        accounts = default_mail_accounts(&state);
     }
     Ok(Json(json!({ "accounts": accounts })))
 }
@@ -354,7 +351,7 @@ async fn resolve_agentmail_inbox_for_create(
     }
 
     let username = agentmail_username_from_address(address);
-    let client_id = format!("clawcontrol-mail-account:{address}");
+    let client_id = format!("clawctrl-mail-account:{address}");
     let inbox = agentmail::create_inbox(state, Some(&username), Some(label), Some(&client_id))
         .await?
         .ok_or_else(|| {
@@ -382,7 +379,7 @@ fn agentmail_username_from_address(address: &str) -> String {
 
     let trimmed = username.trim_matches('-').to_string();
     if trimmed.is_empty() {
-        format!("clawcontrol-{}", random_uuid())
+        format!("clawctrl-{}", random_uuid())
     } else {
         trimmed
     }
@@ -424,6 +421,10 @@ pub(crate) fn default_agentmail_accounts(state: &AppState) -> Vec<MailAccountRec
     }]
 }
 
+pub(crate) fn default_mail_accounts(state: &AppState) -> Vec<MailAccountRecord> {
+    default_agentmail_accounts(state)
+}
+
 fn required_text(value: &Option<String>, field: &'static str) -> Result<String, AppError> {
     let text = value
         .as_deref()
@@ -452,9 +453,9 @@ mod tests {
     #[test]
     fn validates_mail_account_registry_entry() {
         let entry = MailAccountRecord {
-            id: "acct_gmail_personal".into(),
-            label: "Personal Gmail".into(),
-            provider: "gmail".into(),
+            id: "acct_agentmail_personal".into(),
+            label: "Aparcedo".into(),
+            provider: "agentmail".into(),
             address: "me@gmail.com".into(),
             agentmail_inbox_id: "me-at-agentmail".into(),
             forwarding_status: "active".into(),
@@ -482,8 +483,8 @@ mod tests {
     #[test]
     fn validates_create_mail_account_request() {
         let request = CreateMailAccountRequest {
-            label: Some("Personal Gmail".into()),
-            provider: Some("gmail".into()),
+            label: Some("Aparcedo".into()),
+            provider: Some("agentmail".into()),
             address: Some("me@gmail.com".into()),
             agentmail_inbox_id: Some("me-at-agentmail".into()),
             forwarding_status: Some("active".into()),
@@ -496,8 +497,8 @@ mod tests {
     #[test]
     fn validates_create_mail_account_request_without_id() {
         let request = CreateMailAccountRequest {
-            label: Some("Personal Gmail".into()),
-            provider: Some("gmail".into()),
+            label: Some("Aparcedo".into()),
+            provider: Some("agentmail".into()),
             address: Some("me@gmail.com".into()),
             agentmail_inbox_id: Some("me-at-agentmail".into()),
             forwarding_status: Some("active".into()),
@@ -510,8 +511,8 @@ mod tests {
     #[test]
     fn validates_create_mail_account_request_without_agentmail_inbox_id() {
         let request = CreateMailAccountRequest {
-            label: Some("Personal Gmail".into()),
-            provider: Some("gmail".into()),
+            label: Some("Aparcedo".into()),
+            provider: Some("agentmail".into()),
             address: Some("me@gmail.com".into()),
             agentmail_inbox_id: None,
             forwarding_status: Some("pending".into()),
@@ -536,8 +537,8 @@ mod tests {
     #[test]
     fn validates_partial_update_mail_account_request() {
         let request = UpdateMailAccountRequest {
-            id: Some("acct_gmail_personal".into()),
-            label: Some("Work Gmail".into()),
+            id: Some("acct_agentmail_personal".into()),
+            label: Some("Aparcedo Work".into()),
             provider: None,
             address: None,
             agentmail_inbox_id: None,
@@ -551,7 +552,7 @@ mod tests {
     #[test]
     fn rejects_partial_update_mail_account_request_without_changes() {
         let request = UpdateMailAccountRequest {
-            id: Some("acct_gmail_personal".into()),
+            id: Some("acct_agentmail_personal".into()),
             label: None,
             provider: None,
             address: None,
@@ -591,7 +592,7 @@ mod tests {
             MailAccountRecord {
                 id: "a".into(),
                 label: "A".into(),
-                provider: "gmail".into(),
+                provider: "agentmail".into(),
                 address: "a@example.com".into(),
                 agentmail_inbox_id: "am_a".into(),
                 forwarding_status: "active".into(),
@@ -600,7 +601,7 @@ mod tests {
             MailAccountRecord {
                 id: "b".into(),
                 label: "B".into(),
-                provider: "gmail".into(),
+                provider: "agentmail".into(),
                 address: "b@example.com".into(),
                 agentmail_inbox_id: "am_b".into(),
                 forwarding_status: "active".into(),

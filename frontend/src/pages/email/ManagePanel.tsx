@@ -158,23 +158,23 @@ export function ManagePanel({
               </div>
               <div>
                 <label style={labelStyle}>Provider</label>
-                <input style={inputStyle} placeholder="gmail, outlook, fastmail…" value={form.provider} onChange={e => onSetForm(f => ({ ...f, provider: e.target.value }))} aria-label="Mail provider" />
+                <input style={inputStyle} placeholder="agentmail" value={form.provider} onChange={e => onSetForm(f => ({ ...f, provider: e.target.value }))} aria-label="Mail provider" />
               </div>
               <div>
                 <label style={labelStyle}>Address</label>
-                <input style={inputStyle} placeholder="you@example.com" value={form.address} onChange={e => onSetForm(f => ({ ...f, address: e.target.value }))} aria-label="Mailbox address" />
+                <input style={inputStyle} placeholder="you@example.com" value={form.address} onChange={e => onSetForm(f => ({ ...f, address: e.target.value }))} aria-label="Account address" />
               </div>
               <div>
                 <label style={labelStyle}>AgentMail Inbox ID</label>
                 <input style={inputStyle} placeholder="leave blank to create through AgentMail" value={form.agentmail_inbox_id} onChange={e => onSetForm(f => ({ ...f, agentmail_inbox_id: e.target.value }))} aria-label="AgentMail inbox id" />
               </div>
               <div>
-                <label style={labelStyle}>Forwarding Status</label>
+                <label style={labelStyle}>AgentMail Status</label>
                 <select
                   style={inputStyle}
                   value={form.forwarding_status}
                   onChange={e => onSetForm(f => ({ ...f, forwarding_status: e.target.value as AccountForm['forwarding_status'] }))}
-                  aria-label="Forwarding status"
+                  aria-label="AgentMail status"
                 >
                   <option value="pending">Pending</option>
                   <option value="active">Active</option>

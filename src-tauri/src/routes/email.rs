@@ -379,10 +379,17 @@ fn agentmail_threads_to_emails(threads: &[agentmail::MailThread], folder: &str) 
         .collect()
 }
 
-fn resolve_agentmail_inbox_id(
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SelectedMailAccount {
+    id: String,
+    provider: String,
+    agentmail_inbox_id: String,
+}
+
+fn selected_mail_account(
     accounts: &[MailAccountRecord],
     selected_account_id: &str,
-) -> Option<String> {
+) -> Option<SelectedMailAccount> {
     let selected_account_id = selected_account_id.trim();
     if selected_account_id.is_empty() {
         return None;
@@ -391,47 +398,53 @@ fn resolve_agentmail_inbox_id(
     accounts
         .iter()
         .find(|account| account.id == selected_account_id)
-        .map(|account| account.agentmail_inbox_id.trim())
-        .filter(|inbox_id| !inbox_id.is_empty())
-        .map(str::to_string)
+        .map(|account| SelectedMailAccount {
+            id: account.id.trim().to_string(),
+            provider: account.provider.trim().to_string(),
+            agentmail_inbox_id: account.agentmail_inbox_id.trim().to_string(),
+        })
 }
 
-async fn list_all_agentmail_threads(
-    state: &AppState,
-    selected_inbox_id: Option<&str>,
-    limit: usize,
-) -> Result<Vec<agentmail::MailThread>, AppError> {
-    let Some(inboxes) = agentmail::list_inboxes(state, 100).await? else {
-        return Ok(Vec::new());
-    };
+fn is_explicit_imap_provider(provider: &str) -> bool {
+    provider.trim().eq_ignore_ascii_case("imap")
+}
 
-    let mut threads = Vec::new();
-    for inbox in inboxes {
-        let inbox_id = inbox.inbox_id.trim();
-        if inbox_id.is_empty() || Some(inbox_id) == selected_inbox_id {
-            continue;
-        }
+fn agentmail_ready_response(
+    threads: Vec<agentmail::MailThread>,
+    folder: &str,
+    inbox_id: &str,
+) -> Value {
+    let emails = agentmail_threads_to_emails(&threads, folder);
+    json!({
+        "source": "agentmail",
+        "state": "ready",
+        "agentmail_inbox_id": inbox_id,
+        "threads": threads,
+        "emails": emails
+    })
+}
 
-        if let Some(inbox_threads) =
-            agentmail::list_threads_for_account(state, inbox_id, limit).await?
-        {
-            threads.extend(inbox_threads);
-        }
+fn agentmail_empty_response(account_id: &str, inbox_id: &str) -> Value {
+    json!({
+        "source": "agentmail",
+        "state": "empty",
+        "account_id": account_id,
+        "agentmail_inbox_id": inbox_id,
+        "threads": [],
+        "emails": []
+    })
+}
 
-        if let Some(message_threads) =
-            agentmail::list_messages_as_threads_for_account(state, inbox_id, limit).await?
-        {
-            threads.extend(message_threads);
-        }
-
-        if threads.len() >= limit {
-            break;
-        }
-    }
-
-    threads.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-    threads.truncate(limit);
-    Ok(threads)
+fn agentmail_error_response(error: &str, account_id: &str, inbox_id: &str) -> Value {
+    json!({
+        "source": "agentmail",
+        "state": "error",
+        "error": error,
+        "account_id": account_id,
+        "agentmail_inbox_id": inbox_id,
+        "threads": [],
+        "emails": []
+    })
 }
 
 fn required_draft_text(value: Option<&str>, field: &str) -> Result<String, AppError> {
@@ -477,7 +490,7 @@ fn build_agentmail_send_request(
         bcc: split_recipients(body.bcc.as_deref()),
         subject,
         text,
-        labels: vec!["clawcontrol".into()],
+        labels: vec!["clawctrl".into()],
     })
 }
 
@@ -522,6 +535,17 @@ fn build_draft_reply(
     })
 }
 
+async fn load_mail_accounts_for_email(
+    state: &AppState,
+    session: &crate::server::UserSession,
+) -> Result<Vec<MailAccountRecord>, AppError> {
+    let mut accounts = mail_accounts::load_mail_accounts(state, session).await?;
+    if accounts.is_empty() {
+        accounts = mail_accounts::default_mail_accounts(state);
+    }
+    Ok(accounts)
+}
+
 async fn get_emails(
     State(state): State<AppState>,
     RequireAuth(session): RequireAuth,
@@ -530,7 +554,7 @@ async fn get_emails(
     let raw_folder = params.folder.as_deref().unwrap_or("INBOX");
     let folder = sanitize_folder(raw_folder);
     let limit = sanitize_limit(params.limit);
-    let accounts = mail_accounts::load_mail_accounts(&state, &session).await?;
+    let accounts = load_mail_accounts_for_email(&state, &session).await?;
     let selected_account_id = params
         .account_id
         .as_deref()
@@ -540,83 +564,113 @@ async fn get_emails(
         .or_else(|| default_account_id_from_accounts(&accounts));
 
     if let Some(account_id) = selected_account_id.as_deref() {
-        let agentmail_inbox_id = resolve_agentmail_inbox_id(&accounts, account_id);
-
-        let mut agentmail_checked = false;
-        let mut agentmail_available = false;
-        if let Some(agentmail_inbox_id) = agentmail_inbox_id {
-            agentmail_checked = true;
-            if let Some(threads) =
-                agentmail::list_threads_for_account(&state, &agentmail_inbox_id, limit as usize)
-                    .await?
-            {
-                agentmail_available = true;
-                if !threads.is_empty() {
-                    let emails = agentmail_threads_to_emails(&threads, folder);
-                    return Ok(Json(json!({ "threads": threads, "emails": emails })));
-                }
+        if let Some(account) = selected_mail_account(&accounts, account_id) {
+            if !is_explicit_imap_provider(&account.provider) {
+                return get_agentmail_emails_for_account(&state, &account, folder, limit).await;
             }
-
-            if let Some(message_threads) = agentmail::list_messages_as_threads_for_account(
-                &state,
-                &agentmail_inbox_id,
-                limit as usize,
-            )
-            .await?
-            {
-                agentmail_available = true;
-                if !message_threads.is_empty() {
-                    let emails = agentmail_threads_to_emails(&message_threads, folder);
-                    return Ok(Json(
-                        json!({ "threads": message_threads, "emails": emails }),
-                    ));
-                }
-            }
-
-            let all_inbox_threads =
-                list_all_agentmail_threads(&state, Some(&agentmail_inbox_id), limit as usize)
-                    .await?;
-            if !all_inbox_threads.is_empty() {
-                let emails = agentmail_threads_to_emails(&all_inbox_threads, folder);
-                return Ok(Json(json!({
-                    "threads": all_inbox_threads,
-                    "emails": emails,
-                    "source": "agentmail_all_inboxes"
-                })));
-            }
-
-            if agentmail_available {
-                return Ok(Json(json!({
-                    "threads": [],
-                    "emails": [],
-                    "source": "agentmail"
-                })));
-            }
+        } else {
+            return Ok(Json(agentmail_error_response(
+                "agentmail_inbox_unmapped",
+                account_id,
+                "",
+            )));
         }
-
-        tracing::info!(
-            account_id = %account_id,
-            agentmail_checked,
-            "AgentMail returned no mail; falling back to IMAP credentials"
-        );
+    } else {
+        return Ok(Json(agentmail_error_response(
+            "agentmail_inbox_unmapped",
+            "",
+            "",
+        )));
     }
 
     let creds = match get_credentials(&state) {
         Some(c) => c,
         None => {
-            // Match TS: return 200 with error key and empty array
-            return Ok(Json(
-                json!({ "error": "missing_credentials", "emails": [], "threads": [] }),
-            ));
+            return Ok(Json(json!({
+                "error": "missing_credentials",
+                "source": "imap",
+                "emails": [],
+                "threads": []
+            })));
         }
     };
 
     match fetch_emails(&creds, folder, limit).await {
-        Ok(emails) => Ok(Json(json!({ "emails": emails }))),
+        Ok(emails) => Ok(Json(json!({ "source": "imap", "emails": emails }))),
         Err(e) => {
             tracing::error!("[email] GET error: {:#}", e);
-            // Match TS: return 500 with error string
             Err(AppError::Internal(e))
+        }
+    }
+}
+
+async fn get_agentmail_emails_for_account(
+    state: &AppState,
+    account: &SelectedMailAccount,
+    folder: &str,
+    limit: u32,
+) -> Result<Json<Value>, AppError> {
+    let inbox_id = account.agentmail_inbox_id.as_str();
+    if inbox_id.is_empty() {
+        return Ok(Json(agentmail_error_response(
+            "agentmail_inbox_unmapped",
+            &account.id,
+            inbox_id,
+        )));
+    }
+
+    let thread_result = agentmail::list_threads_for_account(state, inbox_id, limit as usize).await;
+    match thread_result {
+        Ok(Some(threads)) if !threads.is_empty() => {
+            return Ok(Json(agentmail_ready_response(threads, folder, inbox_id)));
+        }
+        Ok(Some(_)) => {}
+        Ok(None) => {
+            return Ok(Json(agentmail_error_response(
+                "agentmail_not_configured",
+                &account.id,
+                inbox_id,
+            )));
+        }
+        Err(err) => {
+            tracing::error!(
+                account_id = %account.id,
+                agentmail_inbox_id = %inbox_id,
+                error = ?err,
+                "AgentMail threads request failed"
+            );
+            return Ok(Json(agentmail_error_response(
+                "agentmail_upstream_error",
+                &account.id,
+                inbox_id,
+            )));
+        }
+    }
+
+    let message_result =
+        agentmail::list_messages_as_threads_for_account(state, inbox_id, limit as usize).await;
+    match message_result {
+        Ok(Some(message_threads)) if !message_threads.is_empty() => Ok(Json(
+            agentmail_ready_response(message_threads, folder, inbox_id),
+        )),
+        Ok(Some(_)) => Ok(Json(agentmail_empty_response(&account.id, inbox_id))),
+        Ok(None) => Ok(Json(agentmail_error_response(
+            "agentmail_not_configured",
+            &account.id,
+            inbox_id,
+        ))),
+        Err(err) => {
+            tracing::error!(
+                account_id = %account.id,
+                agentmail_inbox_id = %inbox_id,
+                error = ?err,
+                "AgentMail messages request failed"
+            );
+            Ok(Json(agentmail_error_response(
+                "agentmail_upstream_error",
+                &account.id,
+                inbox_id,
+            )))
         }
     }
 }
@@ -696,7 +750,7 @@ async fn create_draft_reply(
     RequireAuth(session): RequireAuth,
     Json(body): Json<DraftReplyRequest>,
 ) -> Result<Json<Value>, AppError> {
-    let accounts = mail_accounts::load_mail_accounts(&state, &session).await?;
+    let accounts = load_mail_accounts_for_email(&state, &session).await?;
     let draft = build_draft_reply(&accounts, &body)?;
     Ok(Json(json!({ "draft": draft })))
 }
@@ -707,7 +761,7 @@ async fn send_email(
     Json(body): Json<SendEmailRequest>,
 ) -> Result<Json<Value>, AppError> {
     let account_id = required_send_text(body.account_id.as_deref(), "account_id")?;
-    let accounts = mail_accounts::load_mail_accounts(&state, &session).await?;
+    let accounts = load_mail_accounts_for_email(&state, &session).await?;
     let account = accounts
         .iter()
         .find(|account| account.id == account_id)
@@ -851,7 +905,7 @@ mod tests {
     }
 
     #[test]
-    fn resolves_agentmail_inbox_id_from_linked_account_id() {
+    fn selects_mail_account_from_linked_account_id() {
         let accounts = vec![
             MailAccountRecord {
                 id: "acct_personal".into(),
@@ -865,7 +919,7 @@ mod tests {
             MailAccountRecord {
                 id: "acct_work".into(),
                 label: "Work".into(),
-                provider: "google-workspace".into(),
+                provider: "agentmail".into(),
                 address: "me@work.com".into(),
                 agentmail_inbox_id: "am_inbox_work".into(),
                 forwarding_status: "active".into(),
@@ -873,9 +927,95 @@ mod tests {
             },
         ];
 
-        let resolved = resolve_agentmail_inbox_id(&accounts, "acct_work");
+        let resolved = selected_mail_account(&accounts, "acct_work").unwrap();
 
-        assert_eq!(resolved.as_deref(), Some("am_inbox_work"));
+        assert_eq!(resolved.provider, "agentmail");
+        assert_eq!(resolved.agentmail_inbox_id, "am_inbox_work");
+        assert!(!is_explicit_imap_provider(&resolved.provider));
+    }
+
+    #[test]
+    fn stale_non_imap_provider_still_uses_agentmail_path() {
+        assert!(!is_explicit_imap_provider("agentmail"));
+        assert!(!is_explicit_imap_provider("gmail"));
+        assert!(!is_explicit_imap_provider("google-workspace"));
+        assert!(is_explicit_imap_provider("imap"));
+    }
+
+    #[test]
+    fn linked_agentmail_account_with_threads_returns_ready_state() {
+        let threads = vec![crate::routes::agentmail::MailThread {
+            id: "thr_ready".into(),
+            account_id: Some("josue@aparcedo.org".into()),
+            subject: "Delivered".into(),
+            from: "sender@example.com".into(),
+            preview: "hello".into(),
+            unread: true,
+            timestamp: None,
+            message_count: Some(1),
+        }];
+
+        let response = agentmail_ready_response(threads, "INBOX", "clawcontrol-josue@agentmail.to");
+
+        assert_eq!(response["source"], "agentmail");
+        assert_eq!(response["state"], "ready");
+        assert_eq!(response["threads"].as_array().unwrap().len(), 1);
+        assert_eq!(response["emails"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn linked_agentmail_account_with_no_mail_returns_empty_state() {
+        let response =
+            agentmail_empty_response("josue@aparcedo.org", "clawcontrol-josue@agentmail.to");
+
+        assert_eq!(response["source"], "agentmail");
+        assert_eq!(response["state"], "empty");
+        assert_eq!(response["threads"].as_array().unwrap().len(), 0);
+        assert_eq!(response["emails"].as_array().unwrap().len(), 0);
+        assert!(response.get("error").is_none());
+    }
+
+    #[test]
+    fn linked_agentmail_account_with_missing_inbox_id_returns_unmapped() {
+        let response =
+            agentmail_error_response("agentmail_inbox_unmapped", "josue@aparcedo.org", "");
+
+        assert_eq!(response["source"], "agentmail");
+        assert_eq!(response["state"], "error");
+        assert_eq!(response["error"], "agentmail_inbox_unmapped");
+        assert_eq!(response["account_id"], "josue@aparcedo.org");
+        assert_eq!(response["agentmail_inbox_id"], "");
+    }
+
+    #[test]
+    fn missing_agentmail_api_key_returns_not_configured_state() {
+        let response = agentmail_error_response(
+            "agentmail_not_configured",
+            "josue@aparcedo.org",
+            "clawcontrol-josue@agentmail.to",
+        );
+
+        assert_eq!(response["source"], "agentmail");
+        assert_eq!(response["error"], "agentmail_not_configured");
+    }
+
+    #[test]
+    fn agentmail_account_states_never_return_missing_credentials() {
+        for response in [
+            agentmail_empty_response("josue@aparcedo.org", "clawcontrol-josue@agentmail.to"),
+            agentmail_error_response(
+                "agentmail_not_configured",
+                "josue@aparcedo.org",
+                "clawcontrol-josue@agentmail.to",
+            ),
+            agentmail_error_response(
+                "agentmail_upstream_error",
+                "josue@aparcedo.org",
+                "clawcontrol-josue@agentmail.to",
+            ),
+        ] {
+            assert_ne!(response["error"], "missing_credentials");
+        }
     }
 
     #[test]
@@ -912,9 +1052,9 @@ mod tests {
     fn builds_draft_reply_with_resolved_sender_identity() {
         let accounts = vec![MailAccountRecord {
             id: "acct_personal".into(),
-            label: "Personal Gmail".into(),
-            provider: "gmail".into(),
-            address: "me@gmail.com".into(),
+            label: "Aparcedo".into(),
+            provider: "agentmail".into(),
+            address: "josue@aparcedo.org".into(),
             agentmail_inbox_id: "am_1".into(),
             forwarding_status: "active".into(),
             is_default: true,
@@ -929,7 +1069,7 @@ mod tests {
 
         let draft = build_draft_reply(&accounts, &body).unwrap();
 
-        assert_eq!(draft.account_label, "Personal Gmail");
+        assert_eq!(draft.account_label, "Aparcedo");
         assert_eq!(draft.subject, "Re: Quarterly update");
         assert_eq!(draft.handoff_status, "needs_human_send");
     }
@@ -959,7 +1099,7 @@ mod tests {
         assert_eq!(request.cc, vec!["c@example.com"]);
         assert_eq!(request.subject, "Hello");
         assert_eq!(request.text, "Body text");
-        assert_eq!(request.labels, vec!["clawcontrol"]);
+        assert_eq!(request.labels, vec!["clawctrl"]);
     }
 
     #[test]
