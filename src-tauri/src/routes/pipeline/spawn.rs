@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use tracing::{debug, error};
 
 use crate::error::AppError;
+use crate::harness_paths;
 use crate::server::{AppState, RequireAuth};
 
 use super::agents::{route_agent, routing_table, status};
@@ -107,14 +108,9 @@ pub(super) async fn pipeline_spawn(
     };
 
     // Build image attachment section if images provided
-    let chat_images_dir = {
-        let openclaw_dir = state.secret("OPENCLAW_DIR").unwrap_or_else(|| {
-            dirs::home_dir()
-                .map(|h| h.join(".openclaw").to_string_lossy().into_owned())
-                .unwrap_or_else(|| ".openclaw".to_string())
-        });
-        format!("{openclaw_dir}/media/chat-images")
-    };
+    let chat_images_dir = harness_paths::media_dir(&state)
+        .to_string_lossy()
+        .into_owned();
 
     let img_paths: Vec<&str> = body
         .images

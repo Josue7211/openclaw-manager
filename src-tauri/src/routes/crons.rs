@@ -25,7 +25,7 @@ pub fn router() -> Router<AppState> {
 
 /// `GET /api/crons`
 ///
-/// Lists all cron jobs via the OpenClaw HTTP API.
+/// Lists all cron jobs via the Harness HTTP API.
 /// Response: `{ "jobs": [...] }`
 async fn list_crons(
     State(state): State<AppState>,
@@ -66,7 +66,7 @@ struct CreateCronBody {
 
 /// `POST /api/crons`
 ///
-/// Creates a cron job via the OpenClaw HTTP API.
+/// Creates a cron job via the Harness HTTP API.
 async fn create_cron(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
@@ -99,7 +99,7 @@ async fn create_cron(
 
 /// `PATCH /api/crons/update`
 ///
-/// Updates a cron job via the OpenClaw HTTP API.
+/// Updates a cron job via the Harness HTTP API.
 async fn update_cron(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
@@ -136,7 +136,7 @@ struct DeleteCronBody {
 
 /// `DELETE /api/crons/delete`
 ///
-/// Removes a cron job via the OpenClaw HTTP API.
+/// Removes a cron job via the Harness HTTP API.
 async fn delete_cron(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,

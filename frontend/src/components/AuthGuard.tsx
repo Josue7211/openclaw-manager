@@ -1,15 +1,24 @@
 import { useState, useEffect, useRef } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
-import { api, API_BASE_CHANGED_EVENT } from '@/lib/api'
-import { initOpenClawRuntimeConfig, initPreferencesSync } from '@/lib/preferences-sync'
+import { api, API_BASE_CHANGED_EVENT, AUTH_REQUIRED_EVENT } from '@/lib/api'
+import {
+  initHarnessRuntimeConfig,
+  initPreferencesSync,
+  setPreferencesSyncAuthenticated,
+} from '@/lib/preferences-sync'
+import { loadGeneratedModules } from '@/lib/generated-module-store'
 import { deactivateDemoMode, markSetupCompleteForAccount } from '@/lib/wizard-store'
 import { isDemoMode } from '@/lib/demo-data'
 import { getAccountSyncStatus, hydrateAccountSync } from '@/lib/account-sync'
 
 type AuthState = 'loading' | 'authenticated' | 'unauthenticated' | 'mfa_required' | 'sync_locked'
 
+interface SetupStatusResponse {
+  ok?: boolean
+}
+
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<AuthState>(isDemoMode() ? 'authenticated' : 'loading')
+  const [state, setState] = useState<AuthState>('loading')
   const location = useLocation()
   const syncInitRef = useRef(false)
 
@@ -18,14 +27,15 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       try {
         if (isDemoMode()) {
           try {
-            const setup = await api.get<{ ok: boolean }>('/api/setup/status')
+            const setup = await api.get<SetupStatusResponse>('/api/setup/status')
             if (!setup?.ok) {
               setState('authenticated')
               return
             }
             deactivateDemoMode()
           } catch {
-            setState('authenticated')
+            deactivateDemoMode()
+            setState('unauthenticated')
             return
           }
         }
@@ -39,15 +49,18 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         }>('/api/auth/session')
 
         if (!res.authenticated) {
+          setPreferencesSyncAuthenticated(false)
           setState('unauthenticated')
           return
         }
 
         if (res.mfa_required && !res.mfa_verified) {
+          setPreferencesSyncAuthenticated(false)
           setState('mfa_required')
           return
         }
         if (res.mfa_enroll_required) {
+          setPreferencesSyncAuthenticated(false)
           setState('mfa_required')
           return
         }
@@ -78,19 +91,26 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           markSetupCompleteForAccount(res.user?.id)
         }
         if (sync?.requires_unlock) {
+          setPreferencesSyncAuthenticated(false)
           setState('sync_locked')
           return
         }
         if (sync?.ready && sync.has_cached_key) {
           void hydrateAccountSync()
         }
+        setPreferencesSyncAuthenticated(true)
         setState('authenticated')
 
         if (!syncInitRef.current) {
           syncInitRef.current = true
-          void initPreferencesSync().then(() => initOpenClawRuntimeConfig())
+          void initPreferencesSync()
+            .then(() => Promise.all([
+              initHarnessRuntimeConfig(),
+              loadGeneratedModules(),
+            ]))
         }
       } catch {
+        setPreferencesSyncAuthenticated(false)
         setState('unauthenticated')
       }
     }
@@ -99,15 +119,23 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     const onBackendChanged = () => {
       syncInitRef.current = false
+      setPreferencesSyncAuthenticated(false)
       setState('loading')
       void checkAuth()
     }
+    const onAuthRequired = () => {
+      syncInitRef.current = false
+      setPreferencesSyncAuthenticated(false)
+      setState('unauthenticated')
+    }
 
     window.addEventListener(API_BASE_CHANGED_EVENT, onBackendChanged)
+    window.addEventListener(AUTH_REQUIRED_EVENT, onAuthRequired)
     const interval = setInterval(checkAuth, 30000)
     return () => {
       clearInterval(interval)
       window.removeEventListener(API_BASE_CHANGED_EVENT, onBackendChanged)
+      window.removeEventListener(AUTH_REQUIRED_EVENT, onAuthRequired)
     }
   }, [])
 
@@ -118,7 +146,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       background: 'var(--bg-primary, var(--bg-base))',
     }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', animation: 'fadeIn 0.3s ease' }}>
-        <img src="/logo-128.png" alt="ClawControl" width={48} height={48} style={{ borderRadius: '12px' }} />
+        <img src="/logo-128.png" alt="clawctrl" width={48} height={48} style={{ borderRadius: '12px' }} />
         <div style={{
           width: '24px', height: '24px',
           border: '2px solid var(--border, var(--border-hover))',

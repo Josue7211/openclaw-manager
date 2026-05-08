@@ -1,5 +1,7 @@
 import importlib.util
+import os
 import pathlib
+import tempfile
 import unittest
 
 
@@ -18,6 +20,53 @@ def load_module():
 class CompatHelpersTest(unittest.TestCase):
     def setUp(self):
         self.mod = load_module()
+
+    def test_password_falls_back_for_http_bearer(self):
+        old_api_key = os.environ.get("OPENCLAW_API_KEY")
+        old_password = os.environ.get("OPENCLAW_PASSWORD")
+        try:
+            os.environ.pop("OPENCLAW_API_KEY", None)
+            os.environ["OPENCLAW_PASSWORD"] = "legacy-token"
+            service = self.mod.CompatService()
+            self.assertTrue(service._compare_bearer("Bearer legacy-token"))
+            self.assertTrue(service._compare_ws_token("legacy-token"))
+            self.assertFalse(service._compare_bearer("Bearer wrong-token"))
+
+            os.environ["OPENCLAW_API_KEY"] = "api-token"
+            service = self.mod.CompatService()
+            self.assertTrue(service._compare_bearer("Bearer api-token"))
+            self.assertFalse(service._compare_bearer("Bearer legacy-token"))
+            self.assertTrue(service._compare_ws_token("legacy-token"))
+        finally:
+            if old_api_key is None:
+                os.environ.pop("OPENCLAW_API_KEY", None)
+            else:
+                os.environ["OPENCLAW_API_KEY"] = old_api_key
+            if old_password is None:
+                os.environ.pop("OPENCLAW_PASSWORD", None)
+            else:
+                os.environ["OPENCLAW_PASSWORD"] = old_password
+
+    def test_auth_fails_closed_when_public_tokens_missing(self):
+        old_api_key = os.environ.get("OPENCLAW_API_KEY")
+        old_password = os.environ.get("OPENCLAW_PASSWORD")
+        try:
+            os.environ.pop("OPENCLAW_API_KEY", None)
+            os.environ.pop("OPENCLAW_PASSWORD", None)
+            service = self.mod.CompatService()
+            self.assertFalse(service._compare_bearer(""))
+            self.assertFalse(service._compare_bearer("Bearer anything"))
+            self.assertFalse(service._compare_ws_token(""))
+            self.assertFalse(service._compare_ws_token("anything"))
+        finally:
+            if old_api_key is None:
+                os.environ.pop("OPENCLAW_API_KEY", None)
+            else:
+                os.environ["OPENCLAW_API_KEY"] = old_api_key
+            if old_password is None:
+                os.environ.pop("OPENCLAW_PASSWORD", None)
+            else:
+                os.environ["OPENCLAW_PASSWORD"] = old_password
 
     def test_convert_every_schedule_to_human_interval(self):
         self.assertEqual(
@@ -112,6 +161,96 @@ class CompatHelpersTest(unittest.TestCase):
         self.assertEqual(job["schedule"], {"kind": "every", "everyMs": 86400000})
         self.assertEqual(job["state"]["lastRunStatus"], "ok")
         self.assertEqual(job["createdAt"], "2026-04-17T12:00:00Z")
+
+    def test_workspace_files_include_hermes_memd_bundle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            old_home = os.environ.get("HERMES_HOME")
+            old_runtime = os.environ.get("COMPAT_RUNTIME_DIR")
+            os.environ["HERMES_HOME"] = str(root)
+            os.environ["COMPAT_RUNTIME_DIR"] = str(root / ".compat")
+            try:
+                (root / "SOUL.md").write_text("soul", encoding="utf-8")
+                (root / ".memd" / "compiled" / "memory").mkdir(parents=True)
+                (root / ".memd" / "wake.md").write_text("wake", encoding="utf-8")
+                (root / ".memd" / "mem.md").write_text("mem", encoding="utf-8")
+                (root / ".memd" / "compiled" / "memory" / "working.md").write_text("working", encoding="utf-8")
+
+                service = self.mod.CompatService()
+                files = service.list_workspace_files()
+
+                self.assertIn({"name": "SOUL.md", "path": "SOUL.md"}, files["coreFiles"])
+                self.assertIn({"name": "wake.md", "path": ".memd/wake.md"}, files["memoryFiles"])
+                self.assertIn({"name": "working.md", "path": ".memd/compiled/memory/working.md"}, files["memoryFiles"])
+            finally:
+                if old_home is None:
+                    os.environ.pop("HERMES_HOME", None)
+                else:
+                    os.environ["HERMES_HOME"] = old_home
+                if old_runtime is None:
+                    os.environ.pop("COMPAT_RUNTIME_DIR", None)
+                else:
+                    os.environ["COMPAT_RUNTIME_DIR"] = old_runtime
+
+    def test_workspace_files_can_use_hermes_parent_bundle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            hermes_code = root / ".hermes" / "hermes-agent"
+            workspace = root / ".hermes"
+            old_home = os.environ.get("HERMES_HOME")
+            old_workspace = os.environ.get("HERMES_WORKSPACE_HOME")
+            old_runtime = os.environ.get("COMPAT_RUNTIME_DIR")
+            os.environ["HERMES_HOME"] = str(hermes_code)
+            os.environ["COMPAT_RUNTIME_DIR"] = str(root / ".compat")
+            os.environ.pop("HERMES_WORKSPACE_HOME", None)
+            try:
+                hermes_code.mkdir(parents=True)
+                (workspace / ".memd").mkdir()
+                (workspace / "SOUL.md").write_text("soul", encoding="utf-8")
+                (workspace / ".memd" / "wake.md").write_text("wake", encoding="utf-8")
+
+                service = self.mod.CompatService()
+                files = service.list_workspace_files()
+
+                self.assertIn({"name": "SOUL.md", "path": "SOUL.md"}, files["coreFiles"])
+                self.assertIn({"name": "wake.md", "path": ".memd/wake.md"}, files["memoryFiles"])
+            finally:
+                if old_home is None:
+                    os.environ.pop("HERMES_HOME", None)
+                else:
+                    os.environ["HERMES_HOME"] = old_home
+                if old_workspace is None:
+                    os.environ.pop("HERMES_WORKSPACE_HOME", None)
+                else:
+                    os.environ["HERMES_WORKSPACE_HOME"] = old_workspace
+                if old_runtime is None:
+                    os.environ.pop("COMPAT_RUNTIME_DIR", None)
+                else:
+                    os.environ["COMPAT_RUNTIME_DIR"] = old_runtime
+
+    def test_workspace_file_read_write_rejects_traversal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            old_home = os.environ.get("HERMES_HOME")
+            old_runtime = os.environ.get("COMPAT_RUNTIME_DIR")
+            os.environ["HERMES_HOME"] = str(root)
+            os.environ["COMPAT_RUNTIME_DIR"] = str(root / ".compat")
+            try:
+                service = self.mod.CompatService()
+                service.write_workspace_file(".memd/mem.md", "memory")
+
+                self.assertEqual(service.read_workspace_file(".memd/mem.md"), "memory")
+                with self.assertRaises(ValueError):
+                    service.read_workspace_file("../outside.md")
+            finally:
+                if old_home is None:
+                    os.environ.pop("HERMES_HOME", None)
+                else:
+                    os.environ["HERMES_HOME"] = old_home
+                if old_runtime is None:
+                    os.environ.pop("COMPAT_RUNTIME_DIR", None)
+                else:
+                    os.environ["COMPAT_RUNTIME_DIR"] = old_runtime
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { API_BASE, API_BASE_CHANGED_EVENT } from '@/lib/api'
+import { API_BASE_CHANGED_EVENT, getRequestApiKeyForPath, getRequestBaseForPath } from '@/lib/api'
 
 /** API key getter — mirrors what api.ts uses internally */
 let _apiKey: string | undefined
@@ -20,7 +20,7 @@ interface UseChatSocketOptions {
   onStatusChange?: (connected: boolean) => void
   /** Whether the socket should be active (default: true) */
   enabled?: boolean
-  /** Optional OpenClaw session key to stream. Falls back to current chat session. */
+  /** Optional harness session key to stream. Falls back to current chat session. */
   sessionKey?: string | null
 }
 
@@ -64,12 +64,14 @@ export function useChatSocket(opts: UseChatSocketOptions): UseChatSocketReturn {
     if (!mountedRef.current) return
     if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) return
 
-    const wsBase = API_BASE.replace(/^http/, 'ws')
+    const path = '/api/chat/ws'
+    const wsBase = getRequestBaseForPath(path).replace(/^http/, 'ws')
     const params = new URLSearchParams()
-    if (_apiKey) params.set('apiKey', _apiKey)
+    const apiKey = getRequestApiKeyForPath(path) || _apiKey
+    if (apiKey) params.set('apiKey', apiKey)
     if (sessionKey) params.set('sessionKey', sessionKey)
     const query = params.toString()
-    const url = `${wsBase}/api/chat/ws${query ? `?${query}` : ''}`
+    const url = `${wsBase}${path}${query ? `?${query}` : ''}`
 
     let ws: WebSocket
     try {

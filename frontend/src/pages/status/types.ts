@@ -15,7 +15,9 @@ export interface HealthData {
   sqlite_db_size_bytes: number
   services: {
     bluebubbles: ServiceStatus
-    openclaw: ServiceStatus
+    harness?: ServiceStatus
+    hermes?: ServiceStatus
+    openclaw?: ServiceStatus
     supabase: ServiceStatus
   }
 }

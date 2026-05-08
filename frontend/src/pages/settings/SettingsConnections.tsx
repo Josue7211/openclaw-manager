@@ -25,6 +25,8 @@ export default function SettingsConnections() {
   const suppressNextBackendRefreshRef = useRef(false)
   const [connectionUrls, setConnectionUrls] = useState<Record<ConnectionSettingId, string>>({
     bluebubbles: '',
+    harness: '',
+    hermes: '',
     openclaw: '',
     sunshine: '',
     vnc: '',
@@ -33,6 +35,8 @@ export default function SettingsConnections() {
   })
   const [expectedHosts, setExpectedHosts] = useState<Record<ConnectionSettingId, string>>({
     bluebubbles: '',
+    harness: '',
+    hermes: '',
     openclaw: '',
     sunshine: '',
     vnc: '',
@@ -57,9 +61,32 @@ export default function SettingsConnections() {
     pairing_required: boolean
     services: {
       supabase: { configured: boolean; reachable: boolean }
-      harness?: { configured: boolean; reachable: boolean }
-      openclaw: { configured: boolean; reachable: boolean }
+      hermes?: {
+        configured: boolean
+        reachable: boolean
+        status?: string
+        auth_valid?: boolean
+        checked_path?: string | null
+        message?: string | null
+      }
+      harness?: {
+        configured: boolean
+        reachable: boolean
+        status?: string
+        auth_valid?: boolean
+        checked_path?: string | null
+        message?: string | null
+      }
+	      openclaw?: {
+        configured: boolean
+        reachable: boolean
+        status?: string
+        auth_valid?: boolean
+        checked_path?: string | null
+        message?: string | null
+      }
       memd: { configured: boolean; reachable: boolean }
+      agentsecrets: { configured: boolean; reachable: boolean }
     }
     missing: string[]
   }>(null)
@@ -106,6 +133,8 @@ export default function SettingsConnections() {
 
     const loadActiveConfig = api.get<{
       bluebubbles_url?: string
+      harness_url?: string
+      hermes_url?: string
       openclaw_url?: string
       sunshine_url?: string
       vnc_url?: string
@@ -116,6 +145,8 @@ export default function SettingsConnections() {
     Promise.all([loadKeychain, loadFromApi, loadActiveConfig]).then(([, apiSecrets, activeConfig]) => {
       const activeConfigMap: Record<ConnectionSettingId, string> = {
         bluebubbles: activeConfig?.bluebubbles_url || '',
+        harness: activeConfig?.harness_url || activeConfig?.hermes_url || activeConfig?.openclaw_url || '',
+        hermes: activeConfig?.hermes_url || '',
         openclaw: activeConfig?.openclaw_url || '',
         sunshine: activeConfig?.sunshine_url || '',
         vnc: activeConfig?.vnc_url || '',
@@ -232,7 +263,7 @@ export default function SettingsConnections() {
     setBackendPairing(true)
     setBackendStatusMessage(null)
     try {
-      const pairResult = await pairWithBackend(pairingToken.trim(), 'ClawControl Desktop', normalized)
+      const pairResult = await pairWithBackend(pairingToken.trim(), 'clawctrl Desktop', normalized)
       if (window.__TAURI_INTERNALS__) {
         const { invoke } = await import('@tauri-apps/api/core')
         await invoke('set_secret', { key: 'backend.public-base-url', value: normalized })
@@ -340,8 +371,9 @@ export default function SettingsConnections() {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '(not set)'
   const normalizedBackendUrl = backendUrl.trim().replace(/\/+$/, '')
   const activeBackendUrl = backendStatus?.backend_public_base_url || normalizedBackendUrl
-  const backendReady = !!backendStatus?.services.supabase.reachable
-  const harnessStatus = backendStatus?.services.harness ?? backendStatus?.services.openclaw
+  const harnessStatus = backendStatus?.services.harness ?? backendStatus?.services.hermes ?? backendStatus?.services.openclaw
+  const agentSecretsStatus = backendStatus?.services.agentsecrets
+  const backendReady = !!backendStatus?.services.supabase.reachable && harnessStatus?.reachable === true && agentSecretsStatus?.reachable === true
   const backendNeedsPairing = backendStatus?.pairing_required === true
   const backendSummary = backendStatus
     ? backendNeedsPairing
@@ -352,13 +384,28 @@ export default function SettingsConnections() {
     : backendChecking
       ? 'Checking backend...'
       : 'No backend status yet'
+  const harnessDetail = harnessStatus?.message
+    ? ` (${harnessStatus.message})`
+    : harnessStatus?.status
+      ? ` (${harnessStatus.status})`
+      : ''
   const backendDetails = backendStatus
-    ? `Supabase ${backendStatus.services.supabase.reachable ? 'online' : backendStatus.services.supabase.configured ? 'configured but offline' : 'not configured'} • Harness ${harnessStatus?.reachable ? 'online' : harnessStatus?.configured ? 'configured but offline' : 'not configured'} • MemD ${backendStatus.services.memd.reachable ? 'online' : backendStatus.services.memd.configured ? 'configured but offline' : 'offline'}`
+    ? `Supabase ${backendStatus.services.supabase.reachable ? 'online' : backendStatus.services.supabase.configured ? 'configured but offline' : 'not configured'} • Harness ${harnessStatus?.reachable ? 'online' : harnessStatus?.configured ? 'configured but offline' : 'not configured'}${harnessDetail} • Agent Secrets ${agentSecretsStatus?.reachable ? 'online' : agentSecretsStatus?.configured ? 'configured but offline' : 'not configured'} • MemD ${backendStatus.services.memd.reachable ? 'online' : backendStatus.services.memd.configured ? 'configured but offline' : 'offline'}`
     : 'Run a backend check to validate the selected server.'
+  const missingLabels: Record<string, string> = {
+    hermes: 'Hermes provider',
+    hermes_auth: 'Hermes provider auth',
+    harness: 'Harness',
+    harness_auth: 'Harness auth',
+    openclaw: 'OpenClaw compat',
+    agentsecrets: 'Agent Secrets',
+    supabase: 'Supabase',
+    memd: 'memd',
+  }
 
   return (
     <div>
-      {isDemoMode() && (<div style={{ background: 'var(--warning-a08)', border: '1px solid var(--warning-a25)', borderRadius: 'var(--radius-md)', padding: '16px 20px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Warning size={16} style={{ color: 'var(--warning)', flexShrink: 0 }} /><span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--warning)' }}>You're in demo mode</span></div><p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>No services are connected. The app is showing sample data so you can explore the interface. To use real data, set the following environment variables and restart:</p><div style={{ background: 'var(--overlay-light)', borderRadius: '6px', padding: '10px 14px', fontFamily: 'monospace', fontSize: '11px', color: 'var(--text-primary)', lineHeight: 1.8 }}><div><span style={{ color: 'var(--accent)' }}>VITE_SUPABASE_URL</span>=https://your-project.supabase.co</div><div><span style={{ color: 'var(--accent)' }}>VITE_SUPABASE_ANON_KEY</span>=your-anon-key</div></div><p style={{ margin: 0, fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5 }}>Then configure BlueBubbles and the harness URL below (saved to OS keychain).</p></div>)}
+      {isDemoMode() && (<div style={{ background: 'var(--warning-a08)', border: '1px solid var(--warning-a25)', borderRadius: 'var(--radius-md)', padding: '16px 20px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Warning size={16} style={{ color: 'var(--warning)', flexShrink: 0 }} /><span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--warning)' }}>You're in demo mode</span></div><p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>No services are connected. The app is showing sample data so you can explore the interface. To use real data, set the following environment variables and restart:</p><div style={{ background: 'var(--overlay-light)', borderRadius: '6px', padding: '10px 14px', fontFamily: 'monospace', fontSize: '11px', color: 'var(--text-primary)', lineHeight: 1.8 }}><div><span style={{ color: 'var(--accent)' }}>VITE_SUPABASE_URL</span>=https://your-project.supabase.co</div><div><span style={{ color: 'var(--accent)' }}>VITE_SUPABASE_ANON_KEY</span>=your-anon-key</div></div><p style={{ margin: 0, fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5 }}>Then configure BlueBubbles and Harness below (saved to OS keychain).</p></div>)}
       <div style={sectionLabel}>Service Connections</div>
       <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 16px' }}>
         Configure URLs for external services. Credentials are encrypted and stored in Supabase with a local keychain fallback.
@@ -373,7 +420,7 @@ export default function SettingsConnections() {
       <div style={row}>
         <div style={{ flex: 1 }}>
           <span>Backend URL</span>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>The server ClawControl will talk to.</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>The server clawctrl will talk to.</div>
         </div>
         <input
           style={inputStyle}
@@ -410,7 +457,7 @@ export default function SettingsConnections() {
           </div>
           {backendStatus?.missing?.length ? (
             <div style={{ fontSize: '11px', color: 'var(--gold)', marginTop: '4px' }}>
-              Missing: {backendStatus.missing.join(', ')}
+              Missing: {backendStatus.missing.map(key => missingLabels[key] ?? key).join(', ')}
             </div>
           ) : null}
         </div>
@@ -499,7 +546,7 @@ export default function SettingsConnections() {
 
       <div style={{ ...sectionLabel, marginTop: '24px' }}>Server Access</div>
       <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 16px' }}>
-        Allow external agents to reach the ClawControl API over Tailscale. Requires restart.
+        Allow external agents to reach the clawctrl API over Tailscale. Requires restart.
       </p>
 
       <div style={row}>

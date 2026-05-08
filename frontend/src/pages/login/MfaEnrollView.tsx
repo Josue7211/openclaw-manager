@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { inputStyle, primaryBtnStyle, disabledBtnStyle } from './shared'
 import { api } from '@/lib/api'
 
@@ -21,6 +22,7 @@ export function MfaEnrollView({ mfaFactorId, mfaQr, mfaSecret, next }: MfaEnroll
   const [mfaCode, setMfaCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const navigate = useNavigate()
 
   return (
     <div style={{
@@ -106,7 +108,7 @@ export function MfaEnrollView({ mfaFactorId, mfaQr, mfaSecret, next }: MfaEnroll
             code: mfaCode,
           })
 
-          window.location.href = next
+          navigate(next === '/login' ? '/' : next, { replace: true })
         } catch (err) {
           setError(formatMfaError(err, 'Could not verify that code right now.'))
           setMfaCode('')

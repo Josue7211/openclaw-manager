@@ -12,7 +12,7 @@ use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct OpenClawSessionRequest {
+pub struct HarnessSessionRequest {
     pub project: String,
     pub objective: String,
     pub profile: String,
@@ -21,7 +21,7 @@ pub struct OpenClawSessionRequest {
     pub needs_secrets: bool,
 }
 
-impl OpenClawSessionRequest {
+impl HarnessSessionRequest {
     fn validate(&self) -> Result<(), AppError> {
         if self.project.trim().is_empty() {
             return Err(AppError::BadRequest("project must not be empty".into()));
@@ -123,7 +123,7 @@ async fn get_health(
 async fn plan_session(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
-    Json(payload): Json<OpenClawSessionRequest>,
+    Json(payload): Json<HarnessSessionRequest>,
 ) -> Result<Json<Value>, AppError> {
     payload.validate()?;
     proxy_agent_shell_json(&state, Method::POST, "/v1/sessions/plan", &payload).await
@@ -132,7 +132,7 @@ async fn plan_session(
 async fn dispatch_session(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
-    Json(payload): Json<OpenClawSessionRequest>,
+    Json(payload): Json<HarnessSessionRequest>,
 ) -> Result<Json<Value>, AppError> {
     payload.validate()?;
     proxy_agent_shell_json(&state, Method::POST, "/v1/sessions", &payload).await
@@ -228,9 +228,9 @@ mod tests {
     }
 
     #[test]
-    fn validates_openclaw_session_request() {
-        let request = OpenClawSessionRequest {
-            project: "clawcontrol".into(),
+    fn validates_harness_session_request() {
+        let request = HarnessSessionRequest {
+            project: "clawctrl".into(),
             objective: "Do useful work".into(),
             profile: "default".into(),
             workspace: None,
@@ -242,8 +242,8 @@ mod tests {
     }
 
     #[test]
-    fn rejects_empty_openclaw_session_fields() {
-        let request = OpenClawSessionRequest {
+    fn rejects_empty_harness_session_fields() {
+        let request = HarnessSessionRequest {
             project: " ".into(),
             objective: "Do useful work".into(),
             profile: "default".into(),

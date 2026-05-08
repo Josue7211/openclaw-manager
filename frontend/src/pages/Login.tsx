@@ -3,7 +3,7 @@
 
 
 import { useState, useEffect, useReducer } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { openInBrowser } from '@/lib/tauri'
 
 import { api, CONFIGURED_BACKEND_BASE_CHANGED_EVENT, getConfiguredBackendBase } from '@/lib/api'
@@ -50,6 +50,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [sessionProbeFailed, setSessionProbeFailed] = useState(false)
   const [backendBase, setBackendBase] = useState(getConfiguredBackendBase())
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const rawNext = searchParams.get('next') || '/'
   let next = '/'
@@ -61,6 +62,9 @@ export default function LoginPage() {
     }
   } catch {
     // Invalid URL — keep default '/'
+  }
+  const goToNext = () => {
+    navigate(next === '/login' ? '/' : next, { replace: true })
   }
 
   async function finishAuthenticatedSession() {
@@ -80,7 +84,7 @@ export default function LoginPage() {
     } catch {
       // Auth already succeeded; do not strand the user on a transient sync probe.
     }
-    window.location.href = next
+    goToNext()
   }
 
   async function checkSession() {
@@ -151,7 +155,7 @@ export default function LoginPage() {
         const result = await claimTrustedDeviceHandoff(handoffRequestId)
         if (result.claimed && result.sync?.ready) {
           markSetupCompleteForAccount()
-          window.location.href = next
+          goToNext()
           return
         }
         if (result.status === 'pending') {
@@ -323,7 +327,7 @@ export default function LoginPage() {
       const sync = await unlockAccountSync(syncPassword)
       if (sync.ready) {
         markSetupCompleteForAccount()
-        window.location.href = next
+        goToNext()
         return
       }
       setError('Synced services are still locked on this Mac.')
@@ -344,7 +348,7 @@ export default function LoginPage() {
       const result = await unlockWithRecoveryKey(recoveryKey)
       if (result.sync.ready) {
         markSetupCompleteForAccount()
-        window.location.href = next
+        goToNext()
         return
       }
       setError('Recovery key unlocked, but synced services are still unavailable.')
@@ -424,7 +428,7 @@ export default function LoginPage() {
         <div style={{ textAlign: 'center' }}>
           <img
             src="/logo-128.png"
-            alt="ClawControl"
+            alt="clawctrl"
             width={64}
             height={64}
             style={{
@@ -463,7 +467,7 @@ export default function LoginPage() {
             textTransform: 'uppercase',
             transform: 'scaleY(1.3)',
           }}>
-            ClawControl
+            clawctrl
           </h1>
           <p style={{
             margin: '8px 0 0',

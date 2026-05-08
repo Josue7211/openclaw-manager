@@ -24,7 +24,7 @@ type SettingsSection = 'agent' | 'gateway' | 'app' | 'user' | 'connections' | 'd
 const SECTIONS: { key: SettingsSection; label: string; icon: React.ElementType; group: string }[] = [
   { key: 'agent', label: 'Agent', icon: Lightning, group: 'General' },
   { key: 'gateway', label: 'Gateway', icon: Desktop, group: 'General' },
-  { key: 'app', label: 'ClawControl', icon: Cpu, group: 'General' },
+  { key: 'app', label: 'clawctrl', icon: Cpu, group: 'General' },
   { key: 'user', label: 'User', icon: User, group: 'General' },
   { key: 'connections', label: 'Connections', icon: Plug, group: 'General' },
   { key: 'display', label: 'Personalization', icon: Palette, group: 'App Gear' },
@@ -38,7 +38,7 @@ const SECTIONS: { key: SettingsSection; label: string; icon: React.ElementType; 
 const SECTION_GROUPS = [...new Set(SECTIONS.map(s => s.group))]
 
 
-/** ClawControl app settings section with logging info */
+/** clawctrl app settings section with logging info */
 const AppSection = memo(function AppSection() {
   const [logDir, setLogDir] = useState<string | null>(null)
   const [opening, setOpening] = useState(false)
@@ -65,10 +65,10 @@ const AppSection = memo(function AppSection() {
 
   return (
     <div>
-      <div style={sectionLabel}>ClawControl</div>
+      <div style={sectionLabel}>clawctrl</div>
       <div style={row}><span>Host</span><span style={val}>{window.location.host}</span></div>
       <div style={row}><span>Poll interval</span><span style={val}>2s</span></div>
-      <div style={row}><span>Session file</span><span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace', fontSize: '11px' }}>~/.openclaw/agents/main/sessions/</span></div>
+      <div style={row}><span>Session file</span><span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace', fontSize: '11px' }}>HARNESS_DIR/agents/main/sessions/</span></div>
 
       <div style={{ ...sectionLabel, marginTop: '24px' }}>Logging</div>
       <div style={row}>
@@ -206,8 +206,8 @@ export default function SettingsPage() {
         return (
           <div>
             <div style={sectionLabel}>Gateway Connection</div>
-            <div style={row}><span>WebSocket</span><span style={val}>{import.meta.env.VITE_OPENCLAW_WS || 'not configured'}</span></div>
-            <div style={row}><span>HTTP</span><span style={val}>{import.meta.env.VITE_OPENCLAW_HTTP || 'not configured'}</span></div>
+            <div style={row}><span>WebSocket</span><span style={val}>{import.meta.env.VITE_HARNESS_WS || 'not configured'}</span></div>
+            <div style={row}><span>HTTP</span><span style={val}>{import.meta.env.VITE_HARNESS_HTTP || 'not configured'}</span></div>
             <div style={rowLast}><span>Auth</span><span style={val}>password</span></div>
           </div>
         )

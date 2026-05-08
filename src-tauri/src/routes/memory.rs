@@ -5,7 +5,7 @@ use std::path::Path;
 use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
 
-/// Build the memory router (list recent OpenClaw memory entries).
+/// Build the memory router (list recent harness memory entries).
 pub fn router() -> Router<AppState> {
     Router::new().route("/memory", get(get_memory))
 }
@@ -16,11 +16,16 @@ async fn get_memory(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    // Check for remote OpenClaw API first
-    if let Some(openclaw_url) = state.secret("OPENCLAW_API_URL").filter(|s| !s.is_empty()) {
+    // Check for remote Harness API first
+    if let Some(harness_url) = state
+        .secret_first(&["HARNESS_API_URL", "HERMES_API_URL", "OPENCLAW_API_URL"])
+        .filter(|s| !s.is_empty())
+    {
         let client = reqwest::Client::new();
-        let mut req = client.get(format!("{openclaw_url}/memory"));
-        if let Some(key) = state.secret("OPENCLAW_API_KEY") {
+        let mut req = client.get(format!("{harness_url}/memory"));
+        if let Some(key) =
+            state.secret_first(&["HARNESS_API_KEY", "HERMES_API_KEY", "OPENCLAW_API_KEY"])
+        {
             req = req.header("Authorization", format!("Bearer {key}"));
         }
         match req.send().await {

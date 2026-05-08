@@ -6,18 +6,27 @@ const ENV_API_BASE = import.meta.env.VITE_API_BASE?.trim()
 const DEFAULT_API_BASE = ENV_API_BASE || 'http://127.0.0.1:5000'
 const DEFAULT_LOCAL_API_BASE = 'http://127.0.0.1:5000'
 const LOCAL_DESKTOP_ONLY_PATH_PREFIXES = [
+  '/api/auth',
+  '/api/chat',
   '/api/email',
   '/api/mail-accounts',
+  '/api/agents',
+  '/api/crons',
   '/api/generated-modules',
+  '/api/gateway',
   '/api/homelab',
   '/api/media',
   '/api/module-proposals',
+  '/api/hermes',
+  '/api/harness',
+  '/api/openclaw',
   '/api/rag',
   '/api/remote',
   '/api/vnc',
 ]
 export const API_BASE_CHANGED_EVENT = 'backend-api-base-changed'
 export const CONFIGURED_BACKEND_BASE_CHANGED_EVENT = 'configured-backend-base-changed'
+export const AUTH_REQUIRED_EVENT = 'auth-required'
 
 export interface ApiBaseChangedDetail {
   previousBase: string
@@ -101,12 +110,12 @@ export function resolveDesktopApiBootstrap(config: DesktopApiBootstrapConfig): D
   }
 }
 
-export type ServiceName = 'BlueBubbles' | 'OpenClaw' | 'Backend'
+export type ServiceName = 'BlueBubbles' | 'Harness' | 'Backend'
 
 /** Determine which upstream service a path routes to */
 export function serviceForPath(path: string): ServiceName {
   if (path.startsWith('/api/messages')) return 'BlueBubbles'
-  if (path.startsWith('/api/chat'))     return 'OpenClaw'
+  if (path.startsWith('/api/chat'))     return 'Harness'
   return 'Backend'
 }
 
@@ -114,7 +123,7 @@ export function serviceForPath(path: string): ServiceName {
 export function serviceErrorLabel(service: ServiceName): string {
   switch (service) {
     case 'BlueBubbles': return 'BlueBubbles unreachable'
-    case 'OpenClaw':    return 'Harness unreachable'
+    case 'Harness':     return 'Harness unreachable'
     default:            return 'Service unavailable'
   }
 }
@@ -174,17 +183,18 @@ export function getLocalApiKey(): string | undefined {
 }
 
 function isLocalDesktopOnlyPath(path: string): boolean {
+  if (path.startsWith('/api/')) return true
   return LOCAL_DESKTOP_ONLY_PATH_PREFIXES.some(prefix => path.startsWith(prefix))
 }
 
-function requestBaseForPath(path: string): string {
+export function getRequestBaseForPath(path: string): string {
   if (isTauriDesktop() && isLocalDesktopOnlyPath(path)) {
     return normalizeApiBase(DEFAULT_LOCAL_API_BASE)
   }
   return API_BASE
 }
 
-function requestApiKeyForPath(path: string): string | undefined {
+export function getRequestApiKeyForPath(path: string): string | undefined {
   if (isTauriDesktop() && isLocalDesktopOnlyPath(path)) {
     return _localApiKey
   }
@@ -253,9 +263,24 @@ export function getConfiguredBackendBase(): string {
   return CONFIGURED_BACKEND_BASE
 }
 
+function isSessionAuthFailure(status: number, body: unknown): boolean {
+  if (status === 403) {
+    const text = typeof body === 'string' ? body : JSON.stringify(body)
+    return /MFA verification required/i.test(text)
+  }
+  if (status !== 401) return false
+
+  const text = typeof body === 'string' ? body : JSON.stringify(body)
+  return (
+    /Authentication required/i.test(text) ||
+    /Session expired/i.test(text) ||
+    /MFA verification required/i.test(text)
+  )
+}
+
 async function request<T>(method: string, path: string, body?: unknown, retriedAuth = false): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  const apiKey = requestApiKeyForPath(path)
+  const apiKey = getRequestApiKeyForPath(path)
   if (apiKey) {
     headers['X-API-Key'] = apiKey
   }
@@ -267,7 +292,7 @@ async function request<T>(method: string, path: string, body?: unknown, retriedA
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 30000)
   try {
-    const res = await fetch(`${requestBaseForPath(path)}${path}`, { ...opts, signal: controller.signal })
+    const res = await fetch(`${getRequestBaseForPath(path)}${path}`, { ...opts, signal: controller.signal })
     if (!res.ok) {
       if (
         res.status === 401 &&
@@ -285,6 +310,14 @@ async function request<T>(method: string, path: string, body?: unknown, retriedA
         parsedBody = text ? JSON.parse(text) : text
       } catch {
         parsedBody = text
+      }
+      if (
+        typeof window !== 'undefined' &&
+        path !== '/api/auth/session' &&
+        !path.startsWith('/api/auth/') &&
+        isSessionAuthFailure(res.status, parsedBody)
+      ) {
+        window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT, { detail: { path } }))
       }
       const apiErr = new ApiError(res.status, parsedBody, path)
       reportError(apiErr, 'api-request')

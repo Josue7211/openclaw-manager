@@ -3,11 +3,11 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
 use std::sync::OnceLock;
 use tokio::process::Command;
 
 use crate::error::AppError;
+use crate::harness_paths;
 use crate::redact::redact;
 use crate::server::{AppState, RequireAuth};
 
@@ -40,17 +40,13 @@ fn top_header_re() -> &'static Regex {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/// Resolve the openclaw base directory (~/.openclaw by default).
-fn openclaw_dir(state: &AppState) -> String {
-    state.secret("OPENCLAW_DIR").unwrap_or_else(|| {
-        dirs::home_dir()
-            .map(|h| h.join(".openclaw").to_string_lossy().into_owned())
-            .unwrap_or_else(|| ".openclaw".to_string())
-    })
-}
-
-fn openclaw_primary_model(state: &AppState) -> String {
-    let config_path = Path::new(&openclaw_dir(state)).join("openclaw.json");
+fn harness_primary_model(state: &AppState) -> String {
+    let Some(config_path) = harness_paths::model_config_candidates(state)
+        .into_iter()
+        .find(|path| path.exists())
+    else {
+        return String::new();
+    };
     let content = match std::fs::read_to_string(config_path) {
         Ok(content) => content,
         Err(_) => return String::new(),
@@ -151,8 +147,7 @@ async fn get_status(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let base = openclaw_dir(&state);
-    let identity_path = Path::new(&base).join("workspace").join("IDENTITY.md");
+    let identity_path = harness_paths::workspace_dir(&state).join("IDENTITY.md");
 
     let (name, emoji) = if identity_path.exists() {
         let content = tokio::fs::read_to_string(&identity_path)
@@ -191,7 +186,7 @@ async fn get_status(
     Ok(Json(json!({
         "name": name,
         "emoji": emoji,
-        "model": openclaw_primary_model(&state),
+        "model": harness_primary_model(&state),
         "status": "online",
         "lastActive": chrono::Utc::now().to_rfc3339(),
         "host": hostname(),
@@ -226,6 +221,8 @@ async fn get_active_config(
 ) -> Json<Value> {
     Json(json!({
         "bluebubbles_url": state.secret("BLUEBUBBLES_HOST").unwrap_or_default(),
+        "harness_url": state.secret_first(&["HARNESS_API_URL", "HERMES_API_URL", "OPENCLAW_API_URL"]).unwrap_or_default(),
+        "hermes_url": state.secret("HERMES_API_URL").unwrap_or_default(),
         "openclaw_url": state.secret("OPENCLAW_API_URL").unwrap_or_default(),
         "sunshine_url": state.secret("SUNSHINE_HOST").unwrap_or_default(),
         "vnc_url": state.secret("VNC_HOST").unwrap_or_default(),
@@ -283,7 +280,7 @@ async fn get_tailscale_peers(RequireAuth(_session): RequireAuth) -> Result<Json<
 
 // ── GET /api/status/connections ───────────────────────────────────────────────
 //
-// Tests connectivity to BlueBubbles, OpenClaw, AgentSecrets, AgentShell, and Supabase, returning latency
+// Tests connectivity to BlueBubbles, Harness, Agent Secrets, AgentShell, and Supabase, returning latency
 // or error info for each. Also verifies Tailscale peer identity when services
 // are accessed via Tailscale IPs.
 
@@ -295,21 +292,32 @@ async fn get_connections(
 
     let bb_host = state.secret("BLUEBUBBLES_HOST").unwrap_or_default();
     let bb_password = state.secret("BLUEBUBBLES_PASSWORD").unwrap_or_default();
-    let openclaw_url = state.secret("OPENCLAW_API_URL").unwrap_or_default();
-    let openclaw_key = state.secret("OPENCLAW_API_KEY").unwrap_or_default();
+    let harness_url = state
+        .secret_first(&["HARNESS_API_URL", "HERMES_API_URL", "OPENCLAW_API_URL"])
+        .unwrap_or_default();
+    let harness_key = state
+        .secret_first(&[
+            "HARNESS_API_KEY",
+            "HARNESS_PASSWORD",
+            "HERMES_API_KEY",
+            "HERMES_PASSWORD",
+            "OPENCLAW_API_KEY",
+            "OPENCLAW_PASSWORD",
+        ])
+        .unwrap_or_default();
     let agentsecrets_url = state.secret("AGENTSECRETS_URL").unwrap_or_default();
     let agentshell_url = state.secret("AGENTSHELL_URL").unwrap_or_default();
     let supabase_url = state.secret_or_default("SUPABASE_URL");
     let supabase_key = state.secret_or_default("SUPABASE_SERVICE_ROLE_KEY");
 
     // Load expected hostnames from user preferences (stored in Supabase)
-    let (bb_expected_host, oc_expected_host, as_expected_host, sh_expected_host) =
+    let (bb_expected_host, harness_expected_host, as_expected_host, sh_expected_host) =
         load_expected_hostnames(&state, &session.access_token).await;
 
     // Test all services concurrently
-    let (bb_result, oc_result, as_result, sh_result, sb_result) = tokio::join!(
+    let (bb_result, harness_result, as_result, sh_result, sb_result) = tokio::join!(
         test_bluebubbles(http, &bb_host, &bb_password),
-        test_openclaw(http, &openclaw_url, &openclaw_key),
+        test_harness(http, &harness_url, &harness_key),
         test_agentsecrets(http, &agentsecrets_url),
         test_agentshell(http, &agentshell_url),
         test_supabase(http, &supabase_url, &supabase_key),
@@ -317,20 +325,24 @@ async fn get_connections(
 
     // Run Tailscale peer verification on a blocking thread (calls CLI)
     let bb_url = bb_host.clone();
-    let oc_url = openclaw_url.clone();
+    let harness_url_for_peer = harness_url.clone();
     let as_url = agentsecrets_url.clone();
     let sh_url = agentshell_url.clone();
     let bb_exp = bb_expected_host.clone();
-    let oc_exp = oc_expected_host.clone();
+    let harness_exp = harness_expected_host.clone();
     let as_exp = as_expected_host.clone();
     let sh_exp = sh_expected_host.clone();
     let peer_results = tokio::task::spawn_blocking(move || {
         let peers = crate::tailscale::get_tailscale_peers().unwrap_or_default();
         let bb_peer = crate::tailscale::verify_service_peer(&bb_url, bb_exp.as_deref(), &peers);
-        let oc_peer = crate::tailscale::verify_service_peer(&oc_url, oc_exp.as_deref(), &peers);
+        let harness_peer = crate::tailscale::verify_service_peer(
+            &harness_url_for_peer,
+            harness_exp.as_deref(),
+            &peers,
+        );
         let as_peer = crate::tailscale::verify_service_peer(&as_url, as_exp.as_deref(), &peers);
         let sh_peer = crate::tailscale::verify_service_peer(&sh_url, sh_exp.as_deref(), &peers);
-        (bb_peer, oc_peer, as_peer, sh_peer)
+        (bb_peer, harness_peer, as_peer, sh_peer)
     })
     .await
     .unwrap_or_else(|_| {
@@ -350,12 +362,12 @@ async fn get_connections(
         bb_json["peer_verified"] = json!(verified);
     }
 
-    let mut oc_json = oc_result;
+    let mut harness_json = harness_result;
     if let Some(hostname) = &peer_results.1.peer_hostname {
-        oc_json["peer_hostname"] = json!(hostname);
+        harness_json["peer_hostname"] = json!(hostname);
     }
     if let Some(verified) = peer_results.1.peer_verified {
-        oc_json["peer_verified"] = json!(verified);
+        harness_json["peer_verified"] = json!(verified);
     }
 
     let mut as_json = as_result;
@@ -376,7 +388,9 @@ async fn get_connections(
 
     Ok(Json(json!({
         "bluebubbles": bb_json,
-        "openclaw": oc_json,
+        "harness": harness_json.clone(),
+        "hermes": harness_json.clone(),
+        "openclaw": harness_json,
         "agentsecrets": as_json,
         "agentshell": sh_json,
         "supabase": sb_result,
@@ -412,8 +426,10 @@ async fn load_expected_hostnames(
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty())
         .map(String::from);
-    let oc = prefs
-        .get("openclaw.expected-host")
+    let harness = prefs
+        .get("harness.expected-host")
+        .or_else(|| prefs.get("hermes.expected-host"))
+        .or_else(|| prefs.get("openclaw.expected-host"))
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty())
         .map(String::from);
@@ -428,7 +444,7 @@ async fn load_expected_hostnames(
         .filter(|s| !s.is_empty())
         .map(String::from);
 
-    (bb, oc, as_host, sh)
+    (bb, harness, as_host, sh)
 }
 
 async fn test_bluebubbles(http: &reqwest::Client, host: &str, password: &str) -> Value {
@@ -443,7 +459,7 @@ async fn test_bluebubbles(http: &reqwest::Client, host: &str, password: &str) ->
     ping_service(http, &url).await
 }
 
-async fn test_openclaw(http: &reqwest::Client, base_url: &str, api_key: &str) -> Value {
+async fn test_harness(http: &reqwest::Client, base_url: &str, api_key: &str) -> Value {
     if base_url.is_empty() {
         return json!({ "status": "not_configured" });
     }
@@ -556,8 +572,7 @@ async fn heartbeat(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let base = openclaw_dir(&state);
-    let heartbeat_path = Path::new(&base).join("workspace").join("HEARTBEAT.md");
+    let heartbeat_path = harness_paths::workspace_dir(&state).join("HEARTBEAT.md");
 
     if heartbeat_path.exists() {
         let last_check = match tokio::fs::metadata(&heartbeat_path).await {
@@ -579,15 +594,19 @@ async fn heartbeat(
         })));
     }
 
-    // No local file — try fetching HEARTBEAT.md from the remote OpenClaw API
-    let openclaw_url = state.secret_or_default("OPENCLAW_API_URL");
-    if !openclaw_url.is_empty() {
+    // No local file — try fetching HEARTBEAT.md from the remote harness API
+    let harness_url = state
+        .secret_first(&["HARNESS_API_URL", "HERMES_API_URL", "OPENCLAW_API_URL"])
+        .unwrap_or_default();
+    if !harness_url.is_empty() {
         let url = format!(
             "{}/file?path=HEARTBEAT.md",
-            openclaw_url.trim_end_matches('/')
+            harness_url.trim_end_matches('/')
         );
         let mut req = state.http.get(&url);
-        if let Some(key) = state.secret("OPENCLAW_API_KEY") {
+        if let Some(key) =
+            state.secret_first(&["HARNESS_API_KEY", "HERMES_API_KEY", "OPENCLAW_API_KEY"])
+        {
             req = req.header("Authorization", format!("Bearer {key}"));
         }
         if let Ok(resp) = req.send().await {
@@ -682,7 +701,7 @@ async fn get_processes(
     State(_state): State<AppState>,
     RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    // Run a provider-agnostic scan for common local AI / OpenClaw worker processes.
+    // Run a provider-agnostic scan for common local AI / harness worker processes.
     let ps_output = Command::new("bash")
         .arg("-c")
         .arg("ps aux | grep -E 'openclaw|litellm|ollama|codex|gpt|qwen|claude|gemini|kimi|llama' | grep -v grep | grep -v 'next-server'")

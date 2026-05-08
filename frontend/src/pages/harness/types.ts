@@ -1,4 +1,4 @@
-/** Usage data from GET /api/openclaw/usage */
+/** Usage data from GET /api/harness/usage */
 export interface UsageData {
   total_tokens?: number
   prompt_tokens?: number
@@ -17,7 +17,7 @@ export interface ModelUsage {
   requests?: number
 }
 
-/** Model info from GET /api/openclaw/models */
+/** Model info from GET /api/harness/models */
 export interface ModelInfo {
   id: string
   name?: string
@@ -34,7 +34,7 @@ export interface ModelsResponse {
   [key: string]: unknown
 }
 
-/** Tool info from GET /api/openclaw/tools */
+/** Tool info from GET /api/harness/tools */
 export interface ToolInfo {
   name: string
   description?: string
@@ -55,7 +55,7 @@ export interface ToolInvokeRequest {
   dryRun?: boolean
 }
 
-/** Skill info from GET /api/openclaw/skills */
+/** Skill info from GET /api/harness/skills */
 export interface SkillInfo {
   name: string
   description?: string

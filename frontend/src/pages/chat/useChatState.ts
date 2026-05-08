@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 import { useChatSocket, type WsMessage } from '@/lib/hooks/useChatSocket'
-import { api, ApiError, API_BASE, getApiKey } from '@/lib/api'
+import { api, ApiError, getRequestApiKeyForPath, getRequestBaseForPath } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode, DEMO_CHAT_MESSAGES } from '@/lib/demo-data'
 import { type LightboxData } from '@/components/Lightbox'
@@ -113,7 +113,7 @@ export function useChatState(sessionKey: string | null = null) {
       )
       setFavoriteModelIds(mergedFavorites)
       setFavoriteModelsVersion(CHAT_FAVORITE_MODELS_VERSION)
-      void api.patch('/api/openclaw/runtime-config', { favoriteModels: mergedFavorites }).catch(() => {})
+      void api.patch('/api/harness/runtime-config', { favoriteModels: mergedFavorites }).catch(() => {})
       return
     }
     const sanitizedFavorites = sanitizeFavoriteModelIds(favoriteModelIds)
@@ -182,7 +182,7 @@ export function useChatState(sessionKey: string | null = null) {
     setPrimaryModel(newModel)
     lastPostedModelRef.current = newModel
     if (!_demo) {
-      api.patch<{ appliedChatModel?: boolean }>('/api/openclaw/runtime-config', {
+      api.patch<{ appliedChatModel?: boolean }>('/api/harness/runtime-config', {
         chatPrimaryModel: newModel,
       }).then((result) => {
         if (result?.appliedChatModel) {
@@ -353,7 +353,11 @@ export function useChatState(sessionKey: string | null = null) {
     if (!historyData) return
     if (!mounted) setMounted(true)
 
-    if (historyData.error === 'openclaw_not_configured') {
+    if (
+      historyData.error === 'harness_not_configured'
+      || historyData.error === 'hermes_not_configured'
+      || historyData.error === 'openclaw_not_configured'
+    ) {
       setNotConfigured(true)
       setConnected(false)
       return
@@ -428,11 +432,12 @@ export function useChatState(sessionKey: string | null = null) {
   }, [])
 
   const postChatRequest = useCallback(async (payload: unknown, signal: AbortSignal) => {
+    const path = '/api/chat'
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    const apiKey = getApiKey()
+    const apiKey = getRequestApiKeyForPath(path)
     if (apiKey) headers['X-API-Key'] = apiKey
 
-    const res = await fetch(`${API_BASE}/api/chat`, {
+    const res = await fetch(`${getRequestBaseForPath(path)}${path}`, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),

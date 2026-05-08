@@ -1,5 +1,5 @@
 import './globals.css'
-import React, { Suspense, lazy } from 'react'
+import React, { Suspense } from 'react'
 import ReactDOM from 'react-dom/client'
 import { runMigrations } from './lib/migrations'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
@@ -12,37 +12,36 @@ import { setOsDarkPreference, setGtkThemeMapping, setWallbashState, isWallbashAc
 import type { WallbashColors } from './lib/theme-definitions'
 import { PersonalSkeleton, DashboardSkeleton, MessagesSkeleton, SettingsSkeleton, GenericPageSkeleton } from './components/Skeleton'
 import { registerPrimitives } from './components/primitives/register'
-import { exposePrimitivesAPI, loadGeneratedModules } from './lib/generated-module-store'
+import { exposePrimitivesAPI } from './lib/generated-module-store'
 import { API_BASE_CHANGED_EVENT } from './lib/api'
-
-const Dashboard = lazy(() => import('./pages/Dashboard'))
-const Personal = lazy(() => import('./pages/Personal'))
-const Chat = lazy(() => import('./pages/Chat'))
-const Todos = lazy(() => import('./pages/Todos'))
-const Calendar = lazy(() => import('./pages/Calendar'))
-const Reminders = lazy(() => import('./pages/Reminders'))
-const Messages = lazy(() => import('./pages/Messages'))
-const Pomodoro = lazy(() => import('./pages/Pomodoro'))
-const Email = lazy(() => import('./pages/Email'))
-const JobHunter = lazy(() => import('./pages/JobHunter'))
-const HomeLab = lazy(() => import('./pages/HomeLab'))
-const MediaRadar = lazy(() => import('./pages/MediaRadar'))
-const Missions = lazy(() => import('./pages/Missions'))
-const Memory = lazy(() => import('./pages/Memory'))
-const OpenClaw = lazy(() => import('./pages/OpenClaw'))
-const Pipeline = lazy(() => import('./pages/Pipeline'))
-const KnowledgeBase = lazy(() => import('./pages/KnowledgeBase'))
-const Notes = lazy(() => import('./pages/notes/Notes'))
-const RemoteViewer = lazy(() => import('./pages/remote/RemotePage'))
-const Approvals = lazy(() => import('./pages/approvals/ApprovalsPage'))
-const Activity = lazy(() => import('./pages/activity/ActivityPage'))
-const Ideas = lazy(() => import('./pages/Ideas'))
-const Capture = lazy(() => import('./pages/Capture'))
-const Settings = lazy(() => import('./pages/Settings'))
-const Search = lazy(() => import('./pages/Search'))
-const Login = lazy(() => import('./pages/Login'))
-const CustomPage = lazy(() => import('./pages/CustomPage'))
-const NotFound = lazy(() => import('./pages/NotFound'))
+import Dashboard from './pages/Dashboard'
+import Personal from './pages/Personal'
+import Chat from './pages/Chat'
+import Todos from './pages/Todos'
+import Calendar from './pages/Calendar'
+import Reminders from './pages/Reminders'
+import Messages from './pages/Messages'
+import Pomodoro from './pages/Pomodoro'
+import Email from './pages/Email'
+import JobHunter from './pages/JobHunter'
+import HomeLab from './pages/HomeLab'
+import MediaRadar from './pages/MediaRadar'
+import Missions from './pages/Missions'
+import Memory from './pages/Memory'
+import HarnessPage from './pages/Harness'
+import Pipeline from './pages/Pipeline'
+import KnowledgeBase from './pages/KnowledgeBase'
+import Notes from './pages/notes/Notes'
+import RemoteViewer from './pages/remote/RemotePage'
+import Approvals from './pages/approvals/ApprovalsPage'
+import Activity from './pages/activity/ActivityPage'
+import Ideas from './pages/Ideas'
+import Capture from './pages/Capture'
+import Settings from './pages/Settings'
+import Search from './pages/Search'
+import Login from './pages/Login'
+import CustomPage from './pages/CustomPage'
+import NotFound from './pages/NotFound'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -302,7 +301,6 @@ registerPrimitives()
 exposePrimitivesAPI()
 
 bootstrapApiKey().finally(() => {
-  void loadGeneratedModules()
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <ErrorBoundary>
@@ -337,10 +335,11 @@ bootstrapApiKey().finally(() => {
               <Route path="/homelab" element={<Suspense fallback={<GenericPageSkeleton />}><HomeLab /></Suspense>} />
               <Route path="/media" element={<Suspense fallback={<GenericPageSkeleton />}><MediaRadar /></Suspense>} />
               <Route path="/missions" element={<Suspense fallback={<GenericPageSkeleton />}><Missions /></Suspense>} />
-              <Route path="/openclaw" element={<Suspense fallback={<GenericPageSkeleton />}><OpenClaw /></Suspense>} />
-              <Route path="/agents" element={<Navigate to="/openclaw" replace />} />
+              <Route path="/harness" element={<Suspense fallback={<GenericPageSkeleton />}><HarnessPage /></Suspense>} />
+              <Route path="/openclaw" element={<Navigate to="/harness" replace />} />
+              <Route path="/agents" element={<Navigate to="/harness" replace />} />
               <Route path="/memory" element={<Suspense fallback={<GenericPageSkeleton />}><Memory /></Suspense>} />
-              <Route path="/crons" element={<Navigate to="/openclaw" replace />} />
+              <Route path="/crons" element={<Navigate to="/harness" replace />} />
               <Route path="/pipeline" element={<Suspense fallback={<GenericPageSkeleton />}><Pipeline /></Suspense>} />
               <Route path="/knowledge" element={<Suspense fallback={<GenericPageSkeleton />}><KnowledgeBase /></Suspense>} />
               <Route path="/notes" element={<Suspense fallback={<GenericPageSkeleton />}><Notes /></Suspense>} />

@@ -157,9 +157,9 @@ describe('getWidgetBundles', () => {
     expect(agentMonitor!.widgetIds).toEqual(['agent-status', 'agents', 'heartbeat'])
   })
 
-  it('has ClawControl bundle', () => {
+  it('has clawctrl bundle', () => {
     const bundles = getWidgetBundles()
-    const clawControl = bundles.find(b => b.name === 'ClawControl')
+    const clawControl = bundles.find(b => b.name === 'clawctrl')
     expect(clawControl).toBeDefined()
     expect(clawControl!.widgetIds).toEqual(['missions', 'idea-briefing', 'pipeline-status'])
   })

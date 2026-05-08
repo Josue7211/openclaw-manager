@@ -13,13 +13,13 @@ export function NotConfiguredBanner() {
         <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--blue-solid)' }}>Harness not configured</span>
       </div>
       <p style={{ margin: '0 0 12px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-        Chat needs a harness backend before it can send messages. Configure it in <code style={{ background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px' }}>Settings → Connections</code>, or add these values to <code style={{ background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px' }}>.env.local</code> and restart:
+        Chat needs a harness before it can send messages. Configure it in <code style={{ background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px' }}>Settings → Connections</code>, or add these values to <code style={{ background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px' }}>.env.local</code> and restart:
       </p>
       <pre style={{ margin: '0', padding: '12px 16px', background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px', fontFamily: 'monospace', color: 'var(--text-primary)', overflowX: 'auto', lineHeight: 1.8 }}>
-{`OPENCLAW_WS=ws://your-openclaw-host:18789
-OPENCLAW_PASSWORD=your-password
-OPENCLAW_API_URL=http://your-openclaw-host:3001
-OPENCLAW_API_KEY=your-api-key`}
+{`HARNESS_WS=ws://your-harness-host:18789
+HARNESS_PASSWORD=your-password
+HARNESS_API_URL=http://your-harness-host:3001
+HARNESS_API_KEY=your-api-key`}
       </pre>
     </div>
   )

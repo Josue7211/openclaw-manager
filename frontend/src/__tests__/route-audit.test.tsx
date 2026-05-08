@@ -43,7 +43,7 @@ vi.mock('@/pages/JobHunter', () => ({ default: () => <div data-testid="page-jobs
 vi.mock('@/pages/HomeLab', () => ({ default: () => <div data-testid="page-homelab">HomeLab</div> }))
 vi.mock('@/pages/MediaRadar', () => ({ default: () => <div data-testid="page-media">MediaRadar</div> }))
 vi.mock('@/pages/Missions', () => ({ default: () => <div data-testid="page-missions">Missions</div> }))
-vi.mock('@/pages/OpenClaw', () => ({ default: () => <div data-testid="page-openclaw">OpenClaw</div> }))
+vi.mock('@/pages/Harness', () => ({ default: () => <div data-testid="page-harness">Harness</div> }))
 vi.mock('@/pages/Agents', () => ({ default: () => <div data-testid="page-agents">Agents</div> }))
 vi.mock('@/pages/Memory', () => ({ default: () => <div data-testid="page-memory">Memory</div> }))
 vi.mock('@/pages/CronJobs', () => ({ default: () => <div data-testid="page-crons">CronJobs</div> }))
@@ -106,7 +106,7 @@ const JobHunter = lazy(() => import('@/pages/JobHunter'))
 const HomeLab = lazy(() => import('@/pages/HomeLab'))
 const MediaRadar = lazy(() => import('@/pages/MediaRadar'))
 const Missions = lazy(() => import('@/pages/Missions'))
-const OpenClaw = lazy(() => import('@/pages/OpenClaw'))
+const Harness = lazy(() => import('@/pages/Harness'))
 const Memory = lazy(() => import('@/pages/Memory'))
 const Pipeline = lazy(() => import('@/pages/Pipeline'))
 const KnowledgeBase = lazy(() => import('@/pages/KnowledgeBase'))
@@ -157,10 +157,11 @@ const ROUTES: RouteEntry[] = [
   { path: '/homelab', type: 'page', testId: 'page-homelab', guarded: true },
   { path: '/media', type: 'page', testId: 'page-media', guarded: true },
   { path: '/missions', type: 'page', testId: 'page-missions', guarded: true },
-  { path: '/openclaw', type: 'page', testId: 'page-openclaw', guarded: true },
-  { path: '/agents', type: 'redirect', target: '/openclaw', testId: 'page-openclaw', guarded: true },
+  { path: '/harness', type: 'page', testId: 'page-harness', guarded: true },
+  { path: '/openclaw', type: 'redirect', target: '/harness', testId: 'page-harness', guarded: true },
+  { path: '/agents', type: 'redirect', target: '/harness', testId: 'page-harness', guarded: true },
   { path: '/memory', type: 'page', testId: 'page-memory', guarded: true },
-  { path: '/crons', type: 'redirect', target: '/openclaw', testId: 'page-openclaw', guarded: true },
+  { path: '/crons', type: 'redirect', target: '/harness', testId: 'page-harness', guarded: true },
   { path: '/pipeline', type: 'page', testId: 'page-pipeline', guarded: true },
   { path: '/knowledge', type: 'page', testId: 'page-knowledge', guarded: true },
   { path: '/notes', type: 'page', testId: 'page-notes', guarded: true },
@@ -216,10 +217,11 @@ function renderRoute(routePath: string) {
               <Route path="/homelab" element={<Suspense fallback={null}><HomeLab /></Suspense>} />
               <Route path="/media" element={<Suspense fallback={null}><MediaRadar /></Suspense>} />
               <Route path="/missions" element={<Suspense fallback={null}><Missions /></Suspense>} />
-              <Route path="/openclaw" element={<Suspense fallback={null}><OpenClaw /></Suspense>} />
-              <Route path="/agents" element={<Navigate to="/openclaw" replace />} />
+              <Route path="/harness" element={<Suspense fallback={null}><Harness /></Suspense>} />
+              <Route path="/openclaw" element={<Navigate to="/harness" replace />} />
+              <Route path="/agents" element={<Navigate to="/harness" replace />} />
               <Route path="/memory" element={<Suspense fallback={null}><Memory /></Suspense>} />
-              <Route path="/crons" element={<Navigate to="/openclaw" replace />} />
+              <Route path="/crons" element={<Navigate to="/harness" replace />} />
               <Route path="/pipeline" element={<Suspense fallback={null}><Pipeline /></Suspense>} />
               <Route path="/knowledge" element={<Suspense fallback={null}><KnowledgeBase /></Suspense>} />
               <Route path="/notes" element={<Suspense fallback={null}><Notes /></Suspense>} />
@@ -388,7 +390,7 @@ describe('Route Audit', () => {
       ['HomeLab', () => import('@/pages/HomeLab')],
       ['MediaRadar', () => import('@/pages/MediaRadar')],
       ['Missions', () => import('@/pages/Missions')],
-      ['OpenClaw', () => import('@/pages/OpenClaw')],
+      ['Harness', () => import('@/pages/Harness')],
       ['Memory', () => import('@/pages/Memory')],
       ['Pipeline', () => import('@/pages/Pipeline')],
       ['KnowledgeBase', () => import('@/pages/KnowledgeBase')],

@@ -103,7 +103,7 @@ async fn send_notification(
         .ok_or_else(|| AppError::BadRequest("NTFY_URL not configured".into()))?;
     let topic = state
         .secret("NTFY_TOPIC")
-        .unwrap_or_else(|| "clawcontrol".into());
+        .unwrap_or_else(|| "clawctrl".into());
 
     // SSRF protection: comprehensive private/loopback/reserved IP check
     let full_url = format!("{url}/{topic}");

@@ -680,7 +680,7 @@ export default function MessagesPage() {
             <BellSlash size={32} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
             <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600 }}>Messages are temporarily unavailable</h2>
             <p style={{ margin: '0 0 20px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              ClawControl could not reach your BlueBubbles server. Check that your Mac is online and BlueBubbles is still running.
+              clawctrl could not reach your BlueBubbles server. Check that your Mac is online and BlueBubbles is still running.
             </p>
           </div>
         </div>

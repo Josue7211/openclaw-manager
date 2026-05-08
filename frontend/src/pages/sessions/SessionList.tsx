@@ -6,6 +6,7 @@ import { isDemoMode } from '@/lib/demo-data'
 import { useGatewaySessions } from '@/hooks/sessions/useGatewaySessions'
 import { useSessionMutations } from '@/hooks/sessions/useSessionMutations'
 import { GatewayStatusDot } from '@/components/GatewayStatusDot'
+import { useHarnessStatus } from '@/hooks/useHarnessStatus'
 import { SessionCard } from './SessionCard'
 
 interface SessionListProps {
@@ -19,6 +20,7 @@ interface SessionListProps {
 export function SessionList({ selectedId, onSelect, onDeleteSelected, title = 'Sessions', headerAction }: SessionListProps) {
   const demo = isDemoMode()
   const { sessions, available, isLoading } = useGatewaySessions()
+  const { providerLabel, detail } = useHarnessStatus()
   const { renameMutation, deleteMutation, compactMutation } = useSessionMutations()
   const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -131,7 +133,7 @@ export function SessionList({ selectedId, onSelect, onDeleteSelected, title = 'S
           >
             <span style={{ fontWeight: 600, color: 'var(--blue-solid)' }}>Sessions not configured</span>
             <br />
-            Connect a harness backend in Settings to manage Claude sessions.
+            Connect a harness in Settings to manage Claude sessions.
           </div>
         )}
 
@@ -150,7 +152,7 @@ export function SessionList({ selectedId, onSelect, onDeleteSelected, title = 'S
               textAlign: 'center',
             }}
           >
-            Harness is unreachable
+            {detail || `${providerLabel} is unreachable`}
           </div>
         )}
 

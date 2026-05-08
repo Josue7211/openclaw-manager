@@ -308,9 +308,9 @@ vi.mock('@/components/NotificationCenter', () => ({
   default: () => null,
 }))
 
-// OpenClaw models hook (used by ModelSelector in sessions)
-vi.mock('@/hooks/useOpenClawModels', () => ({
-  useOpenClawModels: vi.fn(() => ({
+// Harness models hook (used by ModelSelector in sessions)
+vi.mock('@/hooks/useHarnessModels', () => ({
+  useHarnessModels: vi.fn(() => ({
     models: [],
     isLoading: false,
     error: null,
@@ -474,7 +474,7 @@ const MODULE_PAGE_MAP: Record<string, () => Promise<{ default: React.ComponentTy
   '/media': () => import('../MediaRadar'),
   '/dashboard': () => import('../Dashboard'),
   '/missions': () => import('../Missions'),
-  '/openclaw': () => import('../OpenClaw'),
+  '/harness': () => import('../Harness'),
   '/memory': () => import('../Memory'),
   '/pipeline': () => import('../Pipeline'),
   '/knowledge': () => import('../KnowledgeBase'),

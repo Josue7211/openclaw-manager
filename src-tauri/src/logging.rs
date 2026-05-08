@@ -1,6 +1,6 @@
 //! Simple file-based logging with daily rotation (last 7 days) and size caps.
 //!
-//! Writes logs to `{data_local_dir}/clawcontrol/logs/clawcontrol-YYYY-MM-DD.log`.
+//! Writes logs to `{data_local_dir}/clawctrl/logs/clawctrl-YYYY-MM-DD.log`.
 //! On startup, deletes log files older than 7 days and removes any log file exceeding
 //! 100 MB. During runtime, if the current day's log exceeds 100 MB, writing stops
 //! until the next day's rotation.
@@ -19,7 +19,7 @@ use tracing::field::Visit;
 use tracing::Subscriber;
 use tracing_subscriber::Layer;
 
-/// Returns the log directory path: `{data_local_dir}/clawcontrol/logs/`
+/// Returns the log directory path: `{data_local_dir}/clawctrl/logs/`
 pub fn log_dir() -> PathBuf {
     crate::app_paths::resolve_app_data_dir().join("logs")
 }
@@ -53,7 +53,7 @@ pub fn cleanup_old_logs(keep_days: i64) {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
 
-        // Match pattern: clawcontrol-YYYY-MM-DD.log (or legacy mission-control-YYYY-MM-DD.log)
+        // Match pattern: clawctrl-YYYY-MM-DD.log (or legacy clawcontrol/mission-control logs)
         if let Some(date_part) = name_str
             .strip_prefix(crate::app_paths::APP_LOG_PREFIX)
             .or_else(|| name_str.strip_prefix(crate::app_paths::LEGACY_APP_LOG_PREFIX))
@@ -84,7 +84,7 @@ pub fn cap_log_files(log_dir: &Path, max_bytes: u64) {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
 
-        // Only touch our own log files (clawcontrol-YYYY-MM-DD.log or legacy mission-control-YYYY-MM-DD.log)
+        // Only touch our own log files (clawctrl-YYYY-MM-DD.log or legacy names)
         let valid_prefix = name_str.starts_with(&format!("{}-", crate::app_paths::APP_LOG_PREFIX))
             || name_str.starts_with(&format!("{}-", crate::app_paths::LEGACY_APP_LOG_PREFIX));
         if !valid_prefix || !name_str.ends_with(".log") {

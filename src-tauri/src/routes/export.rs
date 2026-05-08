@@ -93,7 +93,7 @@ async fn export_sqlite(
         .header(header::CONTENT_TYPE, "application/octet-stream")
         .header(
             header::CONTENT_DISPOSITION,
-            "attachment; filename=\"clawcontrol-backup.sqlite\"",
+            "attachment; filename=\"clawctrl-backup.sqlite\"",
         )
         .body(Body::from(bytes))
         .unwrap()
@@ -108,7 +108,7 @@ fn vault_config(state: &AppState) -> Option<(String, String, String, String)> {
     let pass = state.secret("COUCHDB_PASSWORD")?;
     let db = state
         .secret("COUCHDB_DATABASE")
-        .unwrap_or_else(|| "clawcontrol-vault".to_string());
+        .unwrap_or_else(|| "clawctrl-vault".to_string());
     Some((url, user, pass, db))
 }
 

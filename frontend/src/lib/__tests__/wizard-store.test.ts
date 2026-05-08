@@ -29,8 +29,8 @@ describe('wizard-store', () => {
     expect(state.stepStatus).toEqual({})
     expect(state.supabaseUrl).toBe('')
     expect(state.supabaseAnonKey).toBe('')
-    expect(state.openclawUrl).toBe('')
-    expect(state.openclawApiKey).toBe('')
+    expect(state.harnessUrl).toBe('')
+    expect(state.harnessApiKey).toBe('')
     expect(state.blueBubblesUrl).toBe('')
     expect(state.blueBubblesPassword).toBe('')
     expect(state.macBridgeUrl).toBe('')
@@ -38,7 +38,7 @@ describe('wizard-store', () => {
     expect(state.couchdbUrl).toBe('')
     expect(state.couchdbUsername).toBe('')
     expect(state.couchdbPassword).toBe('')
-    expect(state.couchdbDatabase).toBe('clawcontrol-vault')
+    expect(state.couchdbDatabase).toBe('clawctrl-vault')
     expect(state.testResults).toEqual({})
     expect(state.enabledModules).toEqual([])
     expect(state.activeBundle).toBe('essentials')
@@ -53,8 +53,8 @@ describe('wizard-store', () => {
       stepStatus: { 1: 'success', 2: 'success' },
       supabaseUrl: 'https://supabase.example.com',
       supabaseAnonKey: 'anon-key-123',
-      openclawUrl: '',
-      openclawApiKey: '',
+      harnessUrl: '',
+      harnessApiKey: '',
       blueBubblesUrl: '',
       blueBubblesPassword: '',
       macBridgeUrl: '',
@@ -90,8 +90,8 @@ describe('wizard-store', () => {
       stepStatus: {},
       supabaseUrl: 'https://old.example.com',
       supabaseAnonKey: '',
-      openclawUrl: '',
-      openclawApiKey: '',
+      harnessUrl: '',
+      harnessApiKey: '',
       blueBubblesUrl: '',
       blueBubblesPassword: '',
       macBridgeUrl: '',
@@ -99,7 +99,7 @@ describe('wizard-store', () => {
       couchdbUrl: '',
       couchdbUsername: '',
       couchdbPassword: '',
-      couchdbDatabase: 'clawcontrol-vault',
+      couchdbDatabase: 'clawctrl-vault',
       enabledModules: [],
       activeBundle: 'essentials',
       selectedThemeId: 'default-dark',

@@ -55,7 +55,7 @@ export function buildModuleBuilderSystemPrompt(): string {
 
   return `## Identity
 
-You are the OpenUI-style module builder for ClawControl. You help users create structured module proposals for widgets, modules, panels, and pages.
+You are the OpenUI-style module builder for clawctrl. You help users create structured module proposals for widgets, modules, panels, and pages.
 
 ## Task
 

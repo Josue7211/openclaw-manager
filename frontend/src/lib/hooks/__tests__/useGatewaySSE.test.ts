@@ -50,10 +50,15 @@ vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: invalidateQueriesMock }),
 }))
 
-// Mock API_BASE and getApiKey
+// Mock API token minting for the EventSource path. EventSource cannot send
+// headers, so production must never put the raw app API key in this URL.
+const { apiPostMock } = vi.hoisted(() => ({
+  apiPostMock: vi.fn(() => Promise.resolve({ token: 'scoped-token' })),
+}))
+
 vi.mock('@/lib/api', () => ({
-  API_BASE: 'http://127.0.0.1:5000',
-  getApiKey: () => 'test-key',
+  api: { post: apiPostMock },
+  getRequestBaseForPath: () => 'http://127.0.0.1:5000',
 }))
 
 // Mock event-bus emit
@@ -76,12 +81,22 @@ async function freshImport() {
   return import('../useGatewaySSE')
 }
 
+async function waitForEventSource() {
+  for (let i = 0; i < 10 && MockEventSource.instances.length === 0; i += 1) {
+    await act(async () => {})
+  }
+  expect(MockEventSource.instances.length).toBeGreaterThan(0)
+  return MockEventSource.instances[0]
+}
+
 describe('useGatewaySSE', () => {
   beforeEach(() => {
     MockEventSource.instances = []
     vi.stubGlobal('EventSource', MockEventSource)
     invalidateQueriesMock.mockClear()
     emitMock.mockClear()
+    apiPostMock.mockClear()
+    apiPostMock.mockResolvedValue({ token: 'scoped-token' })
     vi.useFakeTimers()
   })
 
@@ -94,15 +109,18 @@ describe('useGatewaySSE', () => {
     const { useGatewaySSE } = await freshImport()
     renderHook(() => useGatewaySSE())
 
-    expect(MockEventSource.instances.length).toBeGreaterThan(0)
-    expect(MockEventSource.instances[0].url).toContain('/api/gateway/events')
+    const es = await waitForEventSource()
+    expect(es.url).toContain('/api/gateway/events')
   })
 
-  it('includes API key in URL query param', async () => {
+  it('uses a scoped token instead of the raw API key in the URL', async () => {
     const { useGatewaySSE } = await freshImport()
     renderHook(() => useGatewaySSE())
 
-    expect(MockEventSource.instances[0].url).toContain('api_key=test-key')
+    const es = await waitForEventSource()
+    expect(apiPostMock).toHaveBeenCalledWith('/api/gateway/events-token', {})
+    expect(es.url).toContain('sseToken=scoped-token')
+    expect(es.url).not.toContain('api_key=')
   })
 
   it('gateway events are dispatched to registered listeners by event name', async () => {
@@ -110,7 +128,7 @@ describe('useGatewaySSE', () => {
     const onEvent = vi.fn()
     renderHook(() => useGatewaySSE({ events: ['agent'], onEvent }))
 
-    const es = MockEventSource.instances[0]
+    const es = await waitForEventSource()
     act(() => {
       es.simulateNamedEvent('agent', JSON.stringify({ id: 'a1', status: 'active' }))
     })
@@ -122,7 +140,7 @@ describe('useGatewaySSE', () => {
     const { useGatewaySSE } = await freshImport()
     renderHook(() => useGatewaySSE({ events: ['chat'] }))
 
-    const es = MockEventSource.instances[0]
+    const es = await waitForEventSource()
     act(() => {
       es.simulateNamedEvent('chat', JSON.stringify({ message: 'hello' }))
     })
@@ -139,7 +157,7 @@ describe('useGatewaySSE', () => {
       }),
     )
 
-    const es = MockEventSource.instances[0]
+    const es = await waitForEventSource()
     act(() => {
       es.simulateNamedEvent('agent', JSON.stringify({ id: 'a1' }))
     })
@@ -151,7 +169,7 @@ describe('useGatewaySSE', () => {
     const { useGatewaySSE } = await freshImport()
     const { unmount } = renderHook(() => useGatewaySSE())
 
-    const es = MockEventSource.instances[0]
+    const es = await waitForEventSource()
     expect(es.readyState).toBe(1) // OPEN
 
     unmount()
@@ -168,6 +186,7 @@ describe('useGatewaySSE', () => {
     renderHook(() => useGatewaySSE())
     renderHook(() => useGatewaySSE())
 
+    await waitForEventSource()
     // Only one EventSource should be created
     expect(MockEventSource.instances.length).toBe(1)
   })
@@ -177,7 +196,7 @@ describe('useGatewaySSE', () => {
     const { unmount: unmount1 } = renderHook(() => useGatewaySSE())
     renderHook(() => useGatewaySSE())
 
-    const es = MockEventSource.instances[0]
+    const es = await waitForEventSource()
 
     unmount1()
     act(() => {
@@ -193,7 +212,7 @@ describe('useGatewaySSE', () => {
     const onEvent = vi.fn()
     renderHook(() => useGatewaySSE({ events: ['agent', 'cron'], onEvent }))
 
-    const es = MockEventSource.instances[0]
+    const es = await waitForEventSource()
     act(() => {
       es.simulateNamedEvent('agent', JSON.stringify({ id: 'a1' }))
       es.simulateNamedEvent('cron', JSON.stringify({ job: 'backup' }))
@@ -209,7 +228,7 @@ describe('useGatewaySSE', () => {
     const onEvent = vi.fn()
     renderHook(() => useGatewaySSE({ events: ['agent'], onEvent }))
 
-    const es = MockEventSource.instances[0]
+    const es = await waitForEventSource()
     // Should not throw despite invalid JSON
     act(() => {
       es.simulateNamedEvent('agent', 'not-valid-json')

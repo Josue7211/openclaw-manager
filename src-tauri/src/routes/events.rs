@@ -13,8 +13,8 @@
 use axum::{
     extract::State,
     response::sse::{Event, KeepAlive, Sse},
-    routing::get,
-    Router,
+    routing::{get, post},
+    Json, Router,
 };
 use futures::StreamExt;
 use serde_json::{json, Value};
@@ -42,7 +42,26 @@ const REALTIME_TABLES: &[&str] = &[
 ];
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/events", get(sse_handler))
+    Router::new()
+        .route("/events-token", post(sse_token_handler))
+        .route("/events", get(sse_handler))
+}
+
+async fn sse_token_handler(RequireAuth(_session): RequireAuth) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    match crate::server::mint_scoped_sse_token("/api/events") {
+        Some((token, expires_at)) => Json(json!({
+            "token": token,
+            "expires_at": expires_at,
+        }))
+        .into_response(),
+        None => (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error": "SSE token minting is unavailable"})),
+        )
+            .into_response(),
+    }
 }
 
 /// SSE handler — requires authentication so we know the user_id for filtering.

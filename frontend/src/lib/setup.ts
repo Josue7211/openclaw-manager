@@ -1,5 +1,16 @@
 import { getConfiguredBackendBase } from './api'
 
+export interface SetupServiceState {
+  configured: boolean
+  reachable: boolean
+  status?: string
+  auth_configured?: boolean
+  auth_valid?: boolean
+  auth_source?: string
+  checked_path?: string | null
+  message?: string | null
+}
+
 export interface SetupStatus {
   ok: boolean
   backend_public_base_url: string
@@ -7,17 +18,19 @@ export interface SetupStatus {
   capabilities: {
     google_oauth: boolean
     github_oauth: boolean
+    hermes?: boolean
     harness?: boolean
-    openclaw: boolean
+    openclaw?: boolean
     agentsecrets: boolean
     memd: boolean
   }
   services: {
-    supabase: { configured: boolean; reachable: boolean }
-    harness?: { configured: boolean; reachable: boolean }
-    openclaw: { configured: boolean; reachable: boolean }
-    agentsecrets: { configured: boolean; reachable: boolean }
-    memd: { configured: boolean; reachable: boolean }
+    supabase: SetupServiceState
+    hermes?: SetupServiceState
+    harness?: SetupServiceState
+    openclaw?: SetupServiceState
+    agentsecrets: SetupServiceState
+    memd: SetupServiceState
   }
   missing: string[]
 }
@@ -30,7 +43,7 @@ export interface PairResponse {
   next: string[]
 }
 
-const DEVICE_ID_STORAGE_KEY = 'clawcontrol-device-id'
+const DEVICE_ID_STORAGE_KEY = 'clawctrl-device-id'
 
 export function getOrCreateDeviceId(): string {
   try {

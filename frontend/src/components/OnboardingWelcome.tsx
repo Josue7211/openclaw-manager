@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { CheckCircle, CaretLeft, CaretRight, SpinnerGap, SkipForward, Database, ChatText, Robot, Rocket, Desktop, FilmStrip, Envelope, CalendarDots, Eye, EyeSlash, MagnifyingGlass } from '@phosphor-icons/react'
+import { CheckCircle, CaretLeft, CaretRight, SpinnerGap, SkipForward, Database, ChatText, Robot, Rocket, Desktop, FilmStrip, Envelope, CalendarDots, Eye, EyeSlash, MagnifyingGlass, Key } from '@phosphor-icons/react'
 import { api, getApiBase } from '@/lib/api'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
@@ -77,7 +77,7 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '8px 0' }}>
       <img
         src="/logo-128.png"
-        alt="ClawControl"
+        alt="clawctrl"
         width={72}
         height={72}
         style={{ borderRadius: '18px' }}
@@ -87,7 +87,7 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
           margin: 0, fontSize: '22px', fontWeight: 700,
           color: 'var(--text-primary)', letterSpacing: '-0.02em',
         }}>
-          Welcome to ClawControl
+          Welcome to clawctrl
         </h2>
         <p style={{
           margin: '10px 0 0', fontSize: '13px',
@@ -103,7 +103,8 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
         background: 'var(--bg-white-03)', border: '1px solid var(--bg-white-04)',
       }}>
         <SetupFeature icon={Database} title="Supabase" desc="Database and authentication (required)" />
-        <SetupFeature icon={Robot} title="AI & Chat" desc="Harness backend, Anthropic (optional)" />
+        <SetupFeature icon={Key} title="Agent Secrets" desc="Safe secrets service (required)" />
+        <SetupFeature icon={Robot} title="AI & Chat" desc="Harness runtime, Anthropic (optional)" />
         <SetupFeature icon={ChatText} title="Messages" desc="iMessage via BlueBubbles (Mac only)" />
         <SetupFeature icon={Desktop} title="Services" desc="Homelab, Media, Email, Calendar, Notifications" />
       </div>

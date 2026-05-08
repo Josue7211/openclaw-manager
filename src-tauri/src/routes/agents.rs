@@ -13,7 +13,7 @@ use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
 use crate::validation::validate_uuid;
 
-use super::gateway::{gateway_forward, openclaw_api_key, openclaw_api_url};
+use super::gateway::{gateway_forward, harness_api_key, harness_api_url};
 
 /// Row type for agent queries (avoids clippy::type_complexity).
 type AgentRow = (
@@ -449,12 +449,12 @@ async fn update_agent(
         None => Value::Null,
     };
 
-    // Sync model change to OpenClaw via API (fire-and-forget)
+    // Sync model change to harness via API (fire-and-forget)
     if let Some(model) = &body.model {
         if !model.is_empty() {
-            if let Some(base) = openclaw_api_url(&state) {
+            if let Some(base) = harness_api_url(&state) {
                 let url = format!("{}/agents/model", base);
-                let key = openclaw_api_key(&state);
+                let key = harness_api_key(&state);
                 let agent_id = id.to_string();
                 let model_clone = model.clone();
                 tokio::spawn(async move {
@@ -470,7 +470,7 @@ async fn update_agent(
                             req = req.header("Authorization", format!("Bearer {}", key));
                         }
                         if let Err(e) = req.send().await {
-                            tracing::warn!("Failed to sync agent model to OpenClaw: {}", e);
+                            tracing::warn!("Failed to sync agent model to harness: {}", e);
                         }
                     }
                 });
@@ -527,7 +527,7 @@ async fn active_coders(
 // ── GET /subagents/active ────────────────────────────────────────────────────
 //
 // Detects active Claude processes with --dangerously-skip-permissions flag,
-// parses start times, and supplements with OpenClaw session data.
+// parses start times, and supplements with harness session data.
 
 #[derive(Debug, serde::Serialize)]
 struct ActiveTask {
@@ -570,8 +570,8 @@ async fn subagents_active(
         }
     }
 
-    // Supplement with OpenClaw sessions as fallback
-    match fetch_openclaw_sessions(&state.http).await {
+    // Supplement with harness sessions as fallback
+    match fetch_harness_sessions(&state.http).await {
         Ok(sessions) => {
             for session in sessions {
                 let agent_id = session
@@ -685,8 +685,8 @@ fn parse_ps_stime(stime: &str) -> String {
     (chrono::Utc::now() - chrono::Duration::minutes(5)).to_rfc3339()
 }
 
-/// Fetch active sessions from the local OpenClaw gateway.
-async fn fetch_openclaw_sessions(http: &reqwest::Client) -> anyhow::Result<Vec<Value>> {
+/// Fetch active sessions from the local harness gateway.
+async fn fetch_harness_sessions(http: &reqwest::Client) -> anyhow::Result<Vec<Value>> {
     let resp = http
         .get("http://localhost:18789/api/sessions")
         .header("x-openclaw-internal", "1")

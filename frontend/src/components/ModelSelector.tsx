@@ -1,7 +1,7 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { CaretDown } from '@phosphor-icons/react'
-import { useOpenClawModels } from '@/hooks/useOpenClawModels'
-import type { ModelInfo } from '@/pages/openclaw/types'
+import { useHarnessModels } from '@/hooks/useHarnessModels'
+import type { ModelInfo } from '@/pages/harness/types'
 
 interface ModelSelectorProps {
   value: string
@@ -36,7 +36,7 @@ function getProviderColor(provider: string): string {
 }
 
 export function ModelSelector({ value, onChange, disabled = false, placeholder, style }: ModelSelectorProps) {
-  const { models, loading } = useOpenClawModels()
+  const { models, loading } = useHarnessModels()
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)

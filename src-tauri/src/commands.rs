@@ -1,13 +1,17 @@
 use tauri::{AppHandle, Manager};
 
-/// Return the path to the OpenClaw data directory (`$OPENCLAW_DIR` or `~/.openclaw`).
+/// Return the configured harness data directory.
+#[tauri::command]
+pub fn get_harness_dir() -> String {
+    crate::harness_paths::generic_base_dir_from_env()
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// Compatibility alias for older frontend builds.
 #[tauri::command]
 pub fn get_openclaw_dir() -> String {
-    std::env::var("OPENCLAW_DIR").unwrap_or_else(|_| {
-        dirs::home_dir()
-            .map(|h| h.join(".openclaw").to_string_lossy().into_owned())
-            .unwrap_or_else(|| ".openclaw".to_string())
-    })
+    get_harness_dir()
 }
 
 /// Returns the absolute path to the log directory.

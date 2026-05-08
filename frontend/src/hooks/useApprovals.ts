@@ -9,13 +9,36 @@ import type { ApprovalsResponse } from '@/pages/approvals/types'
 export function useApprovals() {
   const demo = isDemoMode()
   const queryClient = useQueryClient()
+  const { data: setupStatus } = useQuery<{
+    services?: {
+      hermes?: { reachable?: boolean }
+      harness?: { reachable?: boolean }
+      openclaw?: { reachable?: boolean }
+    }
+  }>({
+    queryKey: queryKeys.harnessHealth,
+    queryFn: () =>
+      api.get<{
+        services?: {
+          hermes?: { reachable?: boolean }
+          harness?: { reachable?: boolean }
+          openclaw?: { reachable?: boolean }
+        }
+      }>('/api/setup/status'),
+    refetchInterval: demo ? false : 10_000,
+    staleTime: 10_000,
+    enabled: !demo,
+    retry: 1,
+  })
+  const harnessReachable = setupStatus?.services?.harness?.reachable ?? setupStatus?.services?.hermes?.reachable ?? setupStatus?.services?.openclaw?.reachable
+  const canPollApprovals = !demo && harnessReachable === true
 
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.approvals,
     queryFn: () => api.get<ApprovalsResponse>('/api/approvals'),
-    refetchInterval: demo ? false : 3_000,
+    refetchInterval: canPollApprovals ? 3_000 : false,
     staleTime: 3_000,
-    enabled: !demo,
+    enabled: canPollApprovals,
     retry: 1,
   })
 

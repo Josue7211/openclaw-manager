@@ -7,7 +7,7 @@ use tokio::process::Command;
 use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
 
-/// Build the OpenClaw CLI router (sessions, subagents).
+/// Build the OpenClaw CLI compatibility router (sessions, subagents).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/sessions", get(get_sessions))

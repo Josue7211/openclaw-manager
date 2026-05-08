@@ -1,33 +1,51 @@
 import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { API_BASE } from '@/lib/api'
+import { api, getRequestBaseForPath } from '@/lib/api'
 
 // Module-level singleton — shared across all components
 let eventSource: EventSource | null = null
+let eventSourceOpening: Promise<void> | null = null
 let refCount = 0
 const tableListeners = new Map<string, Set<() => void>>()
 
-function getEventSource(): EventSource {
+async function getEventSource(): Promise<EventSource | null> {
   if (!eventSource || eventSource.readyState === EventSource.CLOSED) {
-    eventSource = new EventSource(`${API_BASE}/api/events`)
+    if (eventSourceOpening) {
+      await eventSourceOpening
+      return eventSource
+    }
 
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        const { table } = data as { table: string; event: string; id?: string }
-        const listeners = tableListeners.get(table)
-        if (listeners) {
-          listeners.forEach(cb => cb())
+    eventSourceOpening = (async () => {
+      const path = '/api/events'
+      const tokenResponse = await api.post<{ token?: string }>('/api/events-token', {})
+      const token = tokenResponse.token?.trim()
+      if (!token) throw new Error('Realtime SSE token missing')
+      eventSource = new EventSource(`${getRequestBaseForPath(path)}${path}?sseToken=${encodeURIComponent(token)}`)
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          const { table } = data as { table: string; event: string; id?: string }
+          const listeners = tableListeners.get(table)
+          if (listeners) {
+            listeners.forEach(cb => cb())
+          }
+        } catch {
+          // Ignore parse errors (keepalive comments, etc.)
         }
-      } catch {
-        // Ignore parse errors (keepalive comments, etc.)
       }
-    }
 
-    eventSource.onerror = () => {
-      // EventSource auto-reconnects — just log
-      console.debug('[SSE] connection error, will auto-reconnect')
-    }
+      eventSource.onerror = () => {
+        // EventSource auto-reconnects — just log
+        console.debug('[SSE] connection error, will auto-reconnect')
+      }
+    })().catch((err) => {
+      console.debug('[SSE] failed to open connection:', err)
+      eventSource = null
+    }).finally(() => {
+      eventSourceOpening = null
+    })
+    await eventSourceOpening
   }
   return eventSource
 }
@@ -61,8 +79,8 @@ export function useRealtimeSSE(
 
   useEffect(() => {
     // Establish/reuse the SSE connection
-    getEventSource()
     refCount++
+    void getEventSource()
 
     // Register listeners for each table
     const callbacks = new Map<string, () => void>()

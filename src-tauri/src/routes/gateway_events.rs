@@ -1,4 +1,4 @@
-//! SSE endpoint that bridges OpenClaw gateway WebSocket events to the frontend.
+//! SSE endpoint that bridges Harness gateway WebSocket events to the frontend.
 //!
 //! `GET /gateway/events` returns a long-lived Server-Sent Events stream that
 //! subscribes to the `GatewayWsClient` broadcast channel and forwards all
@@ -10,7 +10,7 @@
 use axum::{
     extract::State,
     response::sse::{Event, KeepAlive, Sse},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use serde_json::{json, Value};
@@ -30,8 +30,23 @@ const FILTERED_EVENTS: &[&str] = &["connect.challenge", "tick", "heartbeat"];
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route("/gateway/events-token", post(gateway_sse_token_handler))
         .route("/gateway/events", get(gateway_sse_handler))
         .route("/gateway/status", get(gateway_status_handler))
+}
+
+async fn gateway_sse_token_handler(
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let Some((token, expires_at)) = crate::server::mint_gateway_sse_token() else {
+        return Err(AppError::Internal(anyhow::anyhow!(
+            "Gateway SSE token minting is unavailable"
+        )));
+    };
+    Ok(Json(json!({
+        "token": token,
+        "expires_at": expires_at,
+    })))
 }
 
 /// SSE handler — streams gateway WebSocket events to the frontend.

@@ -26,10 +26,10 @@ import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 
 // Lazy-load new read-only tabs (not needed until clicked)
-const UsageTab = lazy(() => import('./openclaw/UsageTab'))
-const ModelsTab = lazy(() => import('./openclaw/ModelsTab'))
-const ToolsTab = lazy(() => import('./openclaw/ToolsTab'))
-const SkillsTab = lazy(() => import('./openclaw/SkillsTab'))
+const UsageTab = lazy(() => import('./harness/UsageTab'))
+const ModelsTab = lazy(() => import('./harness/ModelsTab'))
+const ToolsTab = lazy(() => import('./harness/ToolsTab'))
+const SkillsTab = lazy(() => import('./harness/SkillsTab'))
 
 type TabKey = 'agents' | 'crons' | 'usage' | 'models' | 'tools' | 'skills'
 
@@ -50,7 +50,7 @@ function SectionFallback() {
   )
 }
 
-export type OpenClawHealthStatus = 'ok' | 'not_configured' | 'unreachable' | 'unknown'
+export type HarnessHealthStatus = 'ok' | 'not_configured' | 'unreachable' | 'unknown'
 
 // --- Agents Tab Content ---
 
@@ -353,13 +353,13 @@ function CronsTabContent() {
   )
 }
 
-// --- Main OpenClaw Page ---
+// --- Main Harness Page ---
 
-export default function OpenClawPage() {
+export default function HarnessPage() {
   const [tab, setTab] = useState<TabKey>('agents')
 
   const { connected: healthy, status: harnessStatus, providerLabel } = useHarnessStatus()
-  const openclawStatus: OpenClawHealthStatus =
+  const harnessStatusValue: HarnessHealthStatus =
     harnessStatus === 'connected' ? 'ok'
       : harnessStatus === 'not_configured' ? 'not_configured'
         : harnessStatus === 'disconnected' ? 'unreachable'
@@ -416,22 +416,22 @@ export default function OpenClawPage() {
         {tab === 'crons' && <CronsTabContent />}
         {tab === 'usage' && (
           <Suspense fallback={<SectionFallback />}>
-            <UsageTab healthy={healthy} status={openclawStatus} />
+            <UsageTab healthy={healthy} status={harnessStatusValue} />
           </Suspense>
         )}
         {tab === 'models' && (
           <Suspense fallback={<SectionFallback />}>
-            <ModelsTab healthy={healthy} status={openclawStatus} />
+            <ModelsTab healthy={healthy} status={harnessStatusValue} />
           </Suspense>
         )}
         {tab === 'tools' && (
           <Suspense fallback={<SectionFallback />}>
-            <ToolsTab healthy={healthy} status={openclawStatus} />
+            <ToolsTab healthy={healthy} status={harnessStatusValue} />
           </Suspense>
         )}
         {tab === 'skills' && (
           <Suspense fallback={<SectionFallback />}>
-            <SkillsTab healthy={healthy} status={openclawStatus} />
+            <SkillsTab healthy={healthy} status={harnessStatusValue} />
           </Suspense>
         )}
       </div>

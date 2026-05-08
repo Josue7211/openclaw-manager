@@ -8,6 +8,7 @@ import {
   CalendarDots,
   Bell,
   Brain,
+  Key,
 } from '@phosphor-icons/react'
 
 export interface FieldDef {
@@ -38,7 +39,7 @@ export interface ServiceGroupDef {
 }
 
 export interface ConnectionSettingDef {
-  id: 'bluebubbles' | 'openclaw' | 'sunshine' | 'vnc' | 'agentsecrets' | 'agentshell'
+  id: 'bluebubbles' | 'harness' | 'hermes' | 'openclaw' | 'sunshine' | 'vnc' | 'agentsecrets' | 'agentshell'
   label: string
   description: string
   urlKeychainKey: string
@@ -67,20 +68,35 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
     testKey: 'bluebubbles',
   },
   {
-    id: 'openclaw',
+    id: 'harness',
     title: 'Harness',
-    description: 'Remote AI harness that can be backed by Hermes compat or OpenClaw.',
+    description: 'Generic AI harness for chat, agents, usage, tools, and approvals.',
     icon: Robot,
     moduleIds: ['chat'],
     optional: false,
     fields: [
-      { label: 'Harness API URL', keychainKey: 'openclaw.api-url', placeholder: 'http://100.x.x.x:18789' },
-      { label: 'Harness API Key', keychainKey: 'openclaw.api-key', placeholder: 'API key', secret: true },
-      { label: 'Harness WebSocket URL', keychainKey: 'openclaw.ws', placeholder: 'ws://100.x.x.x:18789/ws' },
-      { label: 'Harness Password', keychainKey: 'openclaw.password', placeholder: 'Password', secret: true },
+      { label: 'Harness Provider', keychainKey: 'harness.provider', placeholder: 'hermes, openclaw, agent-zero, nanoclaw...' },
+      { label: 'Harness API URL', keychainKey: 'harness.api-url', placeholder: 'http://100.x.x.x:18789' },
+      { label: 'Harness API Key', keychainKey: 'harness.api-key', placeholder: 'API key', secret: true },
+      { label: 'Harness WebSocket URL', keychainKey: 'harness.ws', placeholder: 'ws://100.x.x.x:18789/ws' },
+      { label: 'Harness Password', keychainKey: 'harness.password', placeholder: 'Password', secret: true },
     ],
-    services: [{ name: 'openclaw', fieldKeys: ['openclaw.api-url', 'openclaw.api-key', 'openclaw.ws', 'openclaw.password'] }],
-    testKey: 'openclaw',
+    services: [{ name: 'harness', fieldKeys: ['harness.provider', 'harness.api-url', 'harness.api-key', 'harness.ws', 'harness.password'] }],
+    testKey: 'harness',
+  },
+  {
+    id: 'agentsecrets',
+    title: 'Agent Secrets',
+    description: 'Required safe-secrets service that ships with clawctrl.',
+    icon: Key,
+    moduleIds: [],
+    optional: false,
+    fields: [
+      { label: 'Agent Secrets URL', keychainKey: 'agentsecrets.url', placeholder: 'http://100.x.x.x:4815' },
+      { label: 'Agent Secrets Client API Key', keychainKey: 'agentsecrets.client-api-key', placeholder: 'Client API key', secret: true },
+    ],
+    services: [{ name: 'agentsecrets', fieldKeys: ['agentsecrets.url', 'agentsecrets.client-api-key'] }],
+    testKey: 'agentsecrets',
   },
   {
     id: 'homelab',
@@ -171,18 +187,22 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
   {
     id: 'email',
     title: 'Email',
-    description: 'IMAP email integration for inbox monitoring.',
+    description: 'AgentMail integration for product email.',
     icon: Envelope,
     moduleIds: ['email'],
     optional: true,
-    skipLabel: 'Skip — no email integration',
+    skipLabel: 'Skip — no AgentMail',
     fields: [
-      { label: 'IMAP Host', keychainKey: 'email.host', placeholder: 'imap.example.com' },
-      { label: 'IMAP Port', keychainKey: 'email.port', placeholder: '993', type: 'text' },
-      { label: 'Email Username', keychainKey: 'email.user', placeholder: 'you@example.com' },
-      { label: 'Email Password', keychainKey: 'email.password', placeholder: 'App password', secret: true },
+      { label: 'AgentMail API Key', keychainKey: 'agentmail.api-key', placeholder: 'API key', secret: true },
+      { label: 'Default AgentMail Inbox ID', keychainKey: 'agentmail.default-inbox-id', placeholder: 'inbox_xxx' },
+      { label: 'Default Account Address', keychainKey: 'agentmail.default-address', placeholder: 'josue@aparcedo.org' },
     ],
-    services: [{ name: 'email', fieldKeys: ['email.host', 'email.port', 'email.user', 'email.password'] }],
+    services: [
+      {
+        name: 'agentmail',
+        fieldKeys: ['agentmail.api-key', 'agentmail.default-inbox-id', 'agentmail.default-address'],
+      },
+    ],
   },
   {
     id: 'calendar',
@@ -209,7 +229,7 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
     skipLabel: 'Skip — no ntfy',
     fields: [
       { label: 'ntfy URL', keychainKey: 'ntfy.url', placeholder: 'https://ntfy.example.com' },
-      { label: 'ntfy Topic', keychainKey: 'ntfy.topic', placeholder: 'clawcontrol' },
+      { label: 'ntfy Topic', keychainKey: 'ntfy.topic', placeholder: 'clawctrl' },
     ],
     services: [{ name: 'ntfy', fieldKeys: ['ntfy.url', 'ntfy.topic'] }],
   },
@@ -258,13 +278,33 @@ export const CONNECTION_SETTINGS: ConnectionSettingDef[] = [
     apiSecretService: 'bluebubbles',
   },
   {
-    id: 'openclaw',
+    id: 'harness',
     label: 'Harness API',
-    description: 'Remote AI harness API',
+    description: 'Generic harness API used by chat, agents, usage, and approvals',
+    urlKeychainKey: 'harness.api-url',
+    urlPlaceholder: 'http://100.x.x.x:18789',
+    expectedHostPreferenceKey: 'harness.expected-host',
+    expectedHostPlaceholder: 'e.g. harness-host',
+    apiSecretService: 'harness',
+  },
+  {
+    id: 'hermes',
+    label: 'Hermes Provider',
+    description: 'Optional Hermes-specific provider config',
+    urlKeychainKey: 'hermes.api-url',
+    urlPlaceholder: 'http://100.x.x.x:18789',
+    expectedHostPreferenceKey: 'hermes.expected-host',
+    expectedHostPlaceholder: 'e.g. hermes-host',
+    apiSecretService: 'hermes',
+  },
+  {
+    id: 'openclaw',
+    label: 'OpenClaw Compat',
+    description: 'Optional OpenClaw compatibility provider config',
     urlKeychainKey: 'openclaw.api-url',
     urlPlaceholder: 'http://100.x.x.x:18789',
     expectedHostPreferenceKey: 'openclaw.expected-host',
-    expectedHostPlaceholder: 'e.g. ai-host',
+    expectedHostPlaceholder: 'e.g. openclaw-compat-host',
     apiSecretService: 'openclaw',
   },
   {
@@ -272,9 +312,9 @@ export const CONNECTION_SETTINGS: ConnectionSettingDef[] = [
     label: 'Sunshine Host',
     description: 'Harness VM remote desktop host for Moonlight',
     urlKeychainKey: 'sunshine.host',
-    urlPlaceholder: '100.x.x.x or openclaw.tailnet.ts.net',
+    urlPlaceholder: '100.x.x.x or harness.tailnet.ts.net',
     expectedHostPreferenceKey: 'sunshine.expected-host',
-    expectedHostPlaceholder: 'e.g. openclaw',
+    expectedHostPlaceholder: 'e.g. harness',
     apiSecretService: 'sunshine',
   },
   {
@@ -284,13 +324,13 @@ export const CONNECTION_SETTINGS: ConnectionSettingDef[] = [
     urlKeychainKey: 'vnc.host',
     urlPlaceholder: '127.0.0.1:5901',
     expectedHostPreferenceKey: 'vnc.expected-host',
-    expectedHostPlaceholder: 'e.g. openclaw-vnc',
+    expectedHostPlaceholder: 'e.g. harness-vnc',
     apiSecretService: 'vnc',
   },
   {
     id: 'agentsecrets',
-    label: 'AgentSecrets',
-    description: 'Zero-trust secret broker URL',
+    label: 'Agent Secrets',
+    description: 'Required safe-secrets service URL',
     urlKeychainKey: 'agentsecrets.url',
     urlPlaceholder: 'http://100.x.x.x:4815',
     expectedHostPreferenceKey: 'agentsecrets.expected-host',
@@ -304,7 +344,7 @@ export const CONNECTION_SETTINGS: ConnectionSettingDef[] = [
     urlKeychainKey: 'agentshell.url',
     urlPlaceholder: 'http://100.x.x.x:8077',
     expectedHostPreferenceKey: 'agentshell.expected-host',
-    expectedHostPlaceholder: 'e.g. clawcontrol-desktop',
+    expectedHostPlaceholder: 'e.g. clawctrl-desktop',
     apiSecretService: 'agentshell',
   },
 ]

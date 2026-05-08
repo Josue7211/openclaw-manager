@@ -7,6 +7,7 @@ pub mod error;
 pub mod fonts;
 pub mod gateway_ws;
 pub mod gotrue;
+pub mod harness_paths;
 pub mod logging;
 pub mod redact;
 pub mod routes;
@@ -106,6 +107,7 @@ pub fn run_desktop_app() {
             secrets::set_secret,
             secrets::get_modules,
             secrets::check_first_run,
+            commands::get_harness_dir,
             commands::get_openclaw_dir,
             commands::get_log_dir,
             commands::open_log_dir,
@@ -136,14 +138,14 @@ pub fn run_desktop_app() {
                 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
                 use tauri::Manager;
 
-                let show = MenuItemBuilder::with_id("show", "Show ClawControl").build(app)?;
+                let show = MenuItemBuilder::with_id("show", "Show clawctrl").build(app)?;
                 let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
                 let menu = MenuBuilder::new(app).items(&[&show, &quit]).build()?;
 
                 TrayIconBuilder::new()
                     .icon(app.default_window_icon().unwrap().clone())
                     .menu(&menu)
-                    .tooltip("ClawControl")
+                    .tooltip("clawctrl")
                     .on_menu_event(|app, event| match event.id().as_ref() {
                         "show" => {
                             if let Some(w) = app.get_webview_window("main") {

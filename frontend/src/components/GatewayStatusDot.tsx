@@ -10,14 +10,14 @@ interface GatewayStatusDotProps {
 
 /**
  * Small status indicator for the active harness connection.
- * Works for either OpenClaw or Hermes compat because it reads generic
- * harness HTTP health instead of the unfinished gateway WS status stub.
+ * Reads harness HTTP health instead of the unfinished
+ * gateway WS status stub.
  */
 export const GatewayStatusDot = React.memo(function GatewayStatusDot({
   showLabel = false,
   size = 8,
 }: GatewayStatusDotProps) {
-  const { status, isLoading, providerLabel } = useHarnessStatus()
+  const { status, isLoading, providerLabel, detail } = useHarnessStatus()
 
   if (isLoading) return null
 
@@ -32,11 +32,12 @@ export const GatewayStatusDot = React.memo(function GatewayStatusDot({
     disconnected: `${providerLabel} offline`,
     not_configured: `${providerLabel} not configured`,
   }[status]
+  const title = detail ? `${label}. ${detail}` : label
 
   return (
     <span
       aria-live="polite"
-      title={label}
+      title={title}
       style={{
         display: 'inline-flex',
         alignItems: 'center',

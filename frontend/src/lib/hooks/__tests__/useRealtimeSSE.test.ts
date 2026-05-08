@@ -43,9 +43,13 @@ vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: invalidateQueriesMock }),
 }))
 
-// Mock API_BASE
+const { apiPostMock } = vi.hoisted(() => ({
+  apiPostMock: vi.fn(() => Promise.resolve({ token: 'scoped-realtime-token' })),
+}))
+
 vi.mock('@/lib/api', () => ({
-  API_BASE: 'http://127.0.0.1:5000',
+  api: { post: apiPostMock },
+  getRequestBaseForPath: () => 'http://127.0.0.1:5000',
 }))
 
 // Helper: import a fresh copy of the hook after resetting modules.
@@ -56,11 +60,21 @@ async function freshImport() {
   return import('../useRealtimeSSE')
 }
 
+async function waitForEventSource() {
+  for (let i = 0; i < 10 && MockEventSource.instances.length === 0; i += 1) {
+    await act(async () => {})
+  }
+  expect(MockEventSource.instances.length).toBeGreaterThan(0)
+  return MockEventSource.instances[0]
+}
+
 describe('useRealtimeSSE', () => {
   beforeEach(() => {
     MockEventSource.instances = []
     vi.stubGlobal('EventSource', MockEventSource)
     invalidateQueriesMock.mockClear()
+    apiPostMock.mockClear()
+    apiPostMock.mockResolvedValue({ token: 'scoped-realtime-token' })
     vi.useFakeTimers()
   })
 
@@ -79,8 +93,10 @@ describe('useRealtimeSSE', () => {
     const { useRealtimeSSE } = await freshImport()
     renderHook(() => useRealtimeSSE(['todos'], {}))
 
-    expect(MockEventSource.instances.length).toBeGreaterThan(0)
-    expect(MockEventSource.instances[0].url).toBe('http://127.0.0.1:5000/api/events')
+    const es = await waitForEventSource()
+    expect(apiPostMock).toHaveBeenCalledWith('/api/events-token', {})
+    expect(es.url).toBe('http://127.0.0.1:5000/api/events?sseToken=scoped-realtime-token')
+    expect(es.url).not.toContain('api_key=')
   })
 
   it('invalidates query key when a matching table event arrives', async () => {
@@ -91,7 +107,7 @@ describe('useRealtimeSSE', () => {
       }),
     )
 
-    const es = MockEventSource.instances[0]
+    const es = await waitForEventSource()
     act(() => {
       es.simulateMessage(JSON.stringify({ table: 'todos', event: 'INSERT' }))
     })
@@ -104,7 +120,7 @@ describe('useRealtimeSSE', () => {
     const onEvent = vi.fn()
     renderHook(() => useRealtimeSSE(['agents'], { onEvent }))
 
-    const es = MockEventSource.instances[0]
+    const es = await waitForEventSource()
     act(() => {
       es.simulateMessage(JSON.stringify({ table: 'agents', event: 'UPDATE' }))
     })
@@ -122,7 +138,7 @@ describe('useRealtimeSSE', () => {
       }),
     )
 
-    const es = MockEventSource.instances[0]
+    const es = await waitForEventSource()
     act(() => {
       es.simulateMessage(JSON.stringify({ table: 'missions', event: 'DELETE' }))
     })
@@ -136,7 +152,7 @@ describe('useRealtimeSSE', () => {
     const onEvent = vi.fn()
     renderHook(() => useRealtimeSSE(['todos'], { onEvent }))
 
-    const es = MockEventSource.instances[0]
+    const es = await waitForEventSource()
     act(() => {
       es.simulateMessage(JSON.stringify({ table: 'agents', event: 'INSERT' }))
     })
@@ -150,7 +166,7 @@ describe('useRealtimeSSE', () => {
     const onEvent = vi.fn()
     renderHook(() => useRealtimeSSE(['todos'], { onEvent }))
 
-    const es = MockEventSource.instances[0]
+    const es = await waitForEventSource()
     // Should not throw despite invalid JSON
     act(() => {
       es.simulateMessage('not-valid-json')
@@ -169,7 +185,7 @@ describe('useRealtimeSSE', () => {
       }),
     )
 
-    const es = MockEventSource.instances[0]
+    const es = await waitForEventSource()
     act(() => {
       es.simulateMessage(JSON.stringify({ table: 'todos', event: 'INSERT' }))
       es.simulateMessage(JSON.stringify({ table: 'agents', event: 'UPDATE' }))
@@ -185,7 +201,7 @@ describe('useRealtimeSSE', () => {
     const onEvent = vi.fn()
     renderHook(() => useRealtimeSSE(['cache'], { onEvent }))
 
-    const es = MockEventSource.instances[0]
+    const es = await waitForEventSource()
     act(() => {
       es.simulateMessage(JSON.stringify({ table: 'cache', event: 'INSERT' }))
     })
@@ -200,6 +216,8 @@ describe('useTableRealtime', () => {
     MockEventSource.instances = []
     vi.stubGlobal('EventSource', MockEventSource)
     invalidateQueriesMock.mockClear()
+    apiPostMock.mockClear()
+    apiPostMock.mockResolvedValue({ token: 'scoped-realtime-token' })
     vi.useFakeTimers()
   })
 
@@ -214,7 +232,7 @@ describe('useTableRealtime', () => {
       useTableRealtime('todos', { queryKey: ['todos'] }),
     )
 
-    const es = MockEventSource.instances[0]
+    const es = await waitForEventSource()
     act(() => {
       es.simulateMessage(JSON.stringify({ table: 'todos', event: 'INSERT' }))
     })
@@ -227,7 +245,7 @@ describe('useTableRealtime', () => {
     const onEvent = vi.fn()
     renderHook(() => useTableRealtime('agents', { onEvent }))
 
-    const es = MockEventSource.instances[0]
+    const es = await waitForEventSource()
     act(() => {
       es.simulateMessage(JSON.stringify({ table: 'agents', event: 'UPDATE' }))
     })

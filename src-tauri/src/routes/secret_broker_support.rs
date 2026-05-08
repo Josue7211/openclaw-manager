@@ -32,14 +32,14 @@ fn secret_broker_client_key(state: &AppState) -> Option<String> {
 fn broker_headers(state: &AppState) -> Result<HeaderMap, AppError> {
     let client_key = secret_broker_client_key(state).ok_or_else(|| {
         AppError::BadRequest(
-            "AgentSecrets client key is not configured. Set AGENTSECRETS_CLIENT_API_KEY on the backend."
+            "Agent Secrets client key is not configured. Set AGENTSECRETS_CLIENT_API_KEY on the backend."
                 .into(),
         )
     })?;
 
     let mut headers = HeaderMap::new();
     let auth_value = HeaderValue::from_str(&format!("Bearer {client_key}"))
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("invalid AgentSecrets API key: {e}")))?;
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("invalid Agent Secrets API key: {e}")))?;
     headers.insert(reqwest::header::AUTHORIZATION, auth_value);
     Ok(headers)
 }
@@ -83,7 +83,7 @@ pub async fn proxy_json<T: Serialize>(
 ) -> Result<Json<Value>, AppError> {
     let Some(base) = secret_broker_base_url(state) else {
         return Err(AppError::BadRequest(
-            "AgentSecrets is not configured. Set AGENTSECRETS_URL on the backend.".into(),
+            "Agent Secrets is not configured. Set AGENTSECRETS_URL on the backend.".into(),
         ));
     };
     let headers = broker_headers(state)?;
@@ -97,20 +97,20 @@ pub async fn proxy_json<T: Serialize>(
         .timeout(std::time::Duration::from_secs(30))
         .send()
         .await
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("AgentSecrets request failed: {e}")))?;
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Agent Secrets request failed: {e}")))?;
 
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
         return Err(AppError::BadRequest(format!(
-            "AgentSecrets returned HTTP {}: {}",
+            "Agent Secrets returned HTTP {}: {}",
             status.as_u16(),
             body
         )));
     }
 
     let value = resp.json::<Value>().await.map_err(|e| {
-        AppError::Internal(anyhow::anyhow!("AgentSecrets response parse failed: {e}"))
+        AppError::Internal(anyhow::anyhow!("Agent Secrets response parse failed: {e}"))
     })?;
 
     Ok(Json(value))

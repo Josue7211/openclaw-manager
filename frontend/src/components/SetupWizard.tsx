@@ -24,7 +24,7 @@ import { Play, ArrowLeft, ArrowRight } from '@phosphor-icons/react'
 const WizardWelcome = React.lazy(() => import('@/components/wizard/WizardWelcome'))
 const WizardTailscale = React.lazy(() => import('@/components/wizard/WizardTailscale'))
 const WizardSupabase = React.lazy(() => import('@/components/wizard/WizardSupabase'))
-const WizardOpenClaw = React.lazy(() => import('@/components/wizard/WizardOpenClaw'))
+const WizardHarness = React.lazy(() => import('@/components/wizard/WizardHarness'))
 const WizardMacServices = React.lazy(() => import('@/components/wizard/WizardMacServices'))
 const WizardServerServices = React.lazy(() => import('@/components/wizard/WizardServerServices'))
 const WizardModules = React.lazy(() => import('@/components/wizard/WizardModules'))
@@ -142,8 +142,8 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
       const serviceCredentials: ServiceCredentialsEntry[] = [
         { service: 'supabase', keychainKey: 'supabase.url', value: wizard.supabaseUrl },
         { service: 'supabase', keychainKey: 'supabase.anon-key', value: wizard.supabaseAnonKey },
-        { service: 'openclaw', keychainKey: 'openclaw.api-url', value: wizard.openclawUrl },
-        { service: 'openclaw', keychainKey: 'openclaw.api-key', value: wizard.openclawApiKey },
+        { service: 'harness', keychainKey: 'harness.api-url', value: wizard.harnessUrl },
+        { service: 'harness', keychainKey: 'harness.api-key', value: wizard.harnessApiKey },
         { service: 'bluebubbles', keychainKey: 'bluebubbles.host', value: wizard.blueBubblesUrl },
         { service: 'bluebubbles', keychainKey: 'bluebubbles.password', value: wizard.blueBubblesPassword },
         { service: 'mac-bridge', keychainKey: 'mac-bridge.host', value: wizard.macBridgeUrl },
@@ -233,7 +233,7 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
       const serviceMap: Record<number, string> = {
         1: 'tailscale',
         2: 'supabase',
-        3: 'openclaw',
+        3: 'harness',
       }
       const key = serviceMap[step]
       if (key) {
@@ -292,7 +292,7 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
       case 3:
         return (
           <Suspense fallback={null}>
-            <WizardOpenClaw />
+            <WizardHarness />
           </Suspense>
         )
       case 4:

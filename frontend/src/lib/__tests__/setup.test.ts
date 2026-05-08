@@ -72,7 +72,7 @@ describe('pairWithBackend', () => {
       json: () => Promise.resolve({ ok: true, paired: true, next: [] }),
     })
 
-    await pairWithBackend('token-123', 'ClawControl Desktop', 'http://pairing.test:4000///')
+    await pairWithBackend('token-123', 'clawctrl Desktop', 'http://pairing.test:4000///')
     const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
     const parsed = JSON.parse(init.body as string) as {
       token: string
@@ -83,7 +83,7 @@ describe('pairWithBackend', () => {
     expect(parsed).toEqual(
       expect.objectContaining({
         token: 'token-123',
-        deviceName: 'ClawControl Desktop',
+        deviceName: 'clawctrl Desktop',
       }),
     )
     expect(parsed.deviceId).toEqual(expect.any(String))
@@ -104,6 +104,6 @@ describe('pairWithBackend', () => {
       new DOMException('The operation was aborted.', 'AbortError'),
     )
 
-    await expect(pairWithBackend('token-123', 'ClawControl Desktop')).rejects.toThrow('Backend request timed out')
+    await expect(pairWithBackend('token-123', 'clawctrl Desktop')).rejects.toThrow('Backend request timed out')
   })
 })

@@ -2,13 +2,16 @@ use keyring::Entry;
 use rand::Rng;
 use std::collections::HashMap;
 use std::path::PathBuf;
+#[cfg(target_os = "macos")]
+use std::process::Command;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     mpsc, OnceLock,
 };
 use std::time::Duration;
 
-const SERVICE: &str = "com.clawcontrol.desktop";
+const SERVICE: &str = "com.clawctrl.desktop";
+const LEGACY_CLAWCONTROL_SERVICE: &str = "com.clawcontrol.desktop";
 const LEGACY_SERVICE: &str = "com.mission-control";
 static PROCESS_API_KEY: OnceLock<String> = OnceLock::new();
 static KEYRING_DISABLED: AtomicBool = AtomicBool::new(false);
@@ -29,10 +32,22 @@ pub(crate) const KEY_ENV_MAP: &[(&str, &str)] = &[
     ("mc-api-key", "MC_API_KEY"),
     ("plex.url", "PLEX_URL"),
     ("plex.token", "PLEX_TOKEN"),
+    ("harness.ws", "HARNESS_WS"),
+    ("harness.password", "HARNESS_PASSWORD"),
+    ("harness.api-url", "HARNESS_API_URL"),
+    ("harness.api-key", "HARNESS_API_KEY"),
+    ("harness.provider", "HARNESS_PROVIDER"),
+    ("harness.dir", "HARNESS_DIR"),
+    ("hermes.ws", "HERMES_WS"),
+    ("hermes.password", "HERMES_PASSWORD"),
+    ("hermes.api-url", "HERMES_API_URL"),
+    ("hermes.api-key", "HERMES_API_KEY"),
+    ("hermes.dir", "HERMES_DIR"),
     ("openclaw.ws", "OPENCLAW_WS"),
     ("openclaw.password", "OPENCLAW_PASSWORD"),
     ("openclaw.api-url", "OPENCLAW_API_URL"),
     ("openclaw.api-key", "OPENCLAW_API_KEY"),
+    ("openclaw.dir", "OPENCLAW_DIR"),
     ("sunshine.host", "SUNSHINE_HOST"),
     ("vnc.host", "VNC_HOST"),
     ("agentsecrets.url", "AGENTSECRETS_URL"),
@@ -130,10 +145,22 @@ const USER_KEYS: &[&str] = &[
     "opnsense.secret",
     "plex.url",
     "plex.token",
+    "harness.ws",
+    "harness.password",
+    "harness.api-url",
+    "harness.api-key",
+    "harness.provider",
+    "harness.dir",
+    "hermes.ws",
+    "hermes.password",
+    "hermes.api-url",
+    "hermes.api-key",
+    "hermes.dir",
     "openclaw.ws",
     "openclaw.password",
     "openclaw.api-url",
     "openclaw.api-key",
+    "openclaw.dir",
     "sunshine.host",
     "vnc.host",
     "agentsecrets.url",
@@ -207,10 +234,58 @@ const USER_KEYS: &[&str] = &[
     "mc-agent.key",
 ];
 
+#[cfg(target_os = "macos")]
+fn get_entry_raw_security(service: &str, key: &str) -> Option<String> {
+    let output = Command::new("security")
+        .args(["find-generic-password", "-s", service, "-a", key, "-w"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let mut value = String::from_utf8(output.stdout).ok()?;
+    while value.ends_with('\n') || value.ends_with('\r') {
+        value.pop();
+    }
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn get_entry_raw(key: &str) -> Option<String> {
+    get_entry_raw_security(SERVICE, key)
+        .or_else(|| get_entry_raw_security(LEGACY_CLAWCONTROL_SERVICE, key))
+        .or_else(|| get_entry_raw_security(LEGACY_SERVICE, key))
+        .or_else(|| {
+            Entry::new(SERVICE, key)
+                .ok()
+                .and_then(|entry| entry.get_password().ok())
+        })
+        .or_else(|| {
+            Entry::new(LEGACY_CLAWCONTROL_SERVICE, key)
+                .ok()
+                .and_then(|entry| entry.get_password().ok())
+        })
+        .or_else(|| {
+            Entry::new(LEGACY_SERVICE, key)
+                .ok()
+                .and_then(|entry| entry.get_password().ok())
+        })
+}
+
+#[cfg(not(target_os = "macos"))]
 fn get_entry_raw(key: &str) -> Option<String> {
     Entry::new(SERVICE, key)
         .ok()
         .and_then(|entry| entry.get_password().ok())
+        .or_else(|| {
+            Entry::new(LEGACY_CLAWCONTROL_SERVICE, key)
+                .ok()
+                .and_then(|entry| entry.get_password().ok())
+        })
         .or_else(|| {
             Entry::new(LEGACY_SERVICE, key)
                 .ok()
@@ -269,8 +344,10 @@ pub(crate) fn set_entry(key: &str, value: &str) -> Result<(), String> {
     match rx.recv_timeout(Duration::from_secs(2)) {
         Ok(result) => result,
         Err(_) => {
-            KEYRING_DISABLED.store(true, Ordering::Relaxed);
-            tracing::warn!("OS keychain save timed out; using env/.env.local secrets only");
+            // A write can block while macOS is prompting or syncing Keychain.
+            // Do not disable reads for the whole process: startup still needs
+            // persisted user secrets such as Supabase/email credentials.
+            tracing::warn!("OS keychain save timed out; secret write skipped");
             Err("OS keychain save timed out".into())
         }
     }
@@ -278,20 +355,15 @@ pub(crate) fn set_entry(key: &str, value: &str) -> Result<(), String> {
 
 /// Generate a fresh MC_API_KEY on every app start.
 ///
-/// The key is regenerated each launch and overwritten in the keychain.
-/// This limits the window of exposure if a key is ever leaked — it only
-/// lives for the duration of one app process. The keychain store is
-/// best-effort (the in-memory key is what actually matters).
+/// The key is regenerated each launch and kept in-process. This limits the
+/// window of exposure if a key is ever leaked, and avoids blocking startup on
+/// macOS Keychain writes before persisted user secrets are loaded.
 fn ensure_api_key() -> String {
     PROCESS_API_KEY
         .get_or_init(|| {
             let mut bytes = [0u8; 32];
             rand::thread_rng().fill(&mut bytes);
             let key = hex::encode(bytes);
-
-            // Best-effort store in keychain so `get_secret("mc-api-key")` works
-            // for the frontend to read it during this session.
-            let _ = set_entry("mc-api-key", &key);
 
             key
         })
@@ -415,12 +487,18 @@ pub(crate) fn is_allowed_key(key: &str) -> bool {
 }
 
 /// Keys that must never be returned to the frontend via IPC.
-/// The frontend only needs: `mc-api-key`, `bluebubbles.host`, `openclaw.api-url`.
+/// The frontend only needs non-secret identifiers such as API base URLs.
 const FRONTEND_BLOCKED_KEYS: &[&str] = &[
     "supabase.service-role-key",
     "supabase.anon-key",
     "anthropic.api-key",
     "bluebubbles.password",
+    "harness.password",
+    "harness.api-key",
+    "harness.ws",
+    "hermes.password",
+    "hermes.api-key",
+    "hermes.ws",
     "openclaw.password",
     "openclaw.api-key",
     "openclaw.ws",
@@ -479,6 +557,15 @@ const FRONTEND_WRITABLE_KEYS: &[&str] = &[
     "backend.device-api-key",
     "bluebubbles.host",
     "bluebubbles.password",
+    "harness.api-url",
+    "harness.api-key",
+    "harness.ws",
+    "harness.password",
+    "harness.provider",
+    "hermes.api-url",
+    "hermes.api-key",
+    "hermes.ws",
+    "hermes.password",
     "openclaw.api-url",
     "openclaw.api-key",
     "openclaw.ws",
@@ -633,7 +720,10 @@ pub fn get_modules() -> HashMap<String, bool> {
             || has_secret("WIZARR_URL"),
     );
     modules.insert("email".to_string(), has_secret("EMAIL_HOST"));
-    modules.insert("chat".to_string(), has_secret("OPENCLAW_WS"));
+    modules.insert(
+        "chat".to_string(),
+        has_secret("HARNESS_WS") || has_secret("HERMES_WS") || has_secret("OPENCLAW_WS"),
+    );
     modules.insert("agents".to_string(), has_secret("ANTHROPIC_API_KEY"));
 
     modules

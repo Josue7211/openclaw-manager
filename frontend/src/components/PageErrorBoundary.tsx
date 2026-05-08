@@ -22,6 +22,10 @@ export default class PageErrorBoundary extends Component<Props, State> {
 
     // Best effort — verify server is reachable, don't crash if logging fails
     fetch('/api/health').catch(() => {})
+
+    if (isModuleImportError(error) && shouldRecoverChunkOnce()) {
+      window.location.reload()
+    }
   }
 
   render() {
@@ -115,4 +119,19 @@ export default class PageErrorBoundary extends Component<Props, State> {
     }
     return this.props.children
   }
+}
+
+function isModuleImportError(error: Error): boolean {
+  const message = error.message.toLowerCase()
+  return message.includes('importing a module script failed') ||
+    message.includes('failed to fetch dynamically imported module') ||
+    message.includes('error loading dynamically imported module')
+}
+
+function shouldRecoverChunkOnce(): boolean {
+  if (typeof window === 'undefined') return false
+  const key = `chunk-recovery:${window.location.pathname}`
+  if (window.sessionStorage.getItem(key) === '1') return false
+  window.sessionStorage.setItem(key, '1')
+  return true
 }

@@ -15,7 +15,7 @@ use crate::supabase::SupabaseClient;
 use crate::validation::validate_uuid;
 
 // Supabase client is still used for: mission-events WRITES (ingestion comes
-// from OpenClaw VM), agent_event, ingest_events, sync_agents, activity_log.
+// from harness host), agent_event, ingest_events, sync_agents, activity_log.
 // Mission-event READS now come from local SQLite (offline-first via sync engine).
 
 /// Row type for mission queries (avoids clippy::type_complexity).
@@ -362,7 +362,7 @@ async fn update_mission(
             let ntfy_url = state.secret("NTFY_URL").unwrap_or_default();
             let ntfy_topic = state
                 .secret("NTFY_TOPIC")
-                .unwrap_or_else(|| "clawcontrol".into());
+                .unwrap_or_else(|| "clawctrl".into());
             let http = state.http.clone();
             let label = label.to_string();
             let title_text = title_text.to_string();

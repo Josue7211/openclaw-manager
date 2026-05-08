@@ -25,6 +25,10 @@ function ProblemChild({ shouldThrow }: { shouldThrow: boolean }) {
   return <p>All good</p>
 }
 
+function ChunkErrorChild(): never {
+  throw new Error('Importing a module script failed.')
+}
+
 /**
  * Class component that throws on render until `shouldThrow` is set to false.
  * Using a class component avoids React 19 concurrent rendering recovery
@@ -118,5 +122,18 @@ describe('PageErrorBoundary', () => {
     )
     expect(screen.getByText('Try again')).toBeInTheDocument()
     expect(screen.getByText('Reload page')).toBeInTheDocument()
+  })
+
+  it('marks module import crashes for one-shot route recovery', () => {
+    expect(sessionStorage.getItem('chunk-recovery:/')).toBeNull()
+
+    render(
+      <PageErrorBoundary>
+        <ChunkErrorChild />
+      </PageErrorBoundary>,
+    )
+
+    expect(sessionStorage.getItem('chunk-recovery:/')).toBe('1')
+    expect(screen.getByText('Importing a module script failed.')).toBeInTheDocument()
   })
 })

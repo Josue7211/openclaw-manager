@@ -1,7 +1,7 @@
 /**
- * WizardOpenClaw -- harness URL + API key connection step (required).
+ * Harness connection step (required).
  *
- * Tests connectivity via POST /api/wizard/test-connection with service="openclaw".
+ * Tests connectivity via POST /api/wizard/test-connection with service="harness".
  * Secret field has show/hide toggle with Eye/EyeSlash icons.
  */
 
@@ -37,16 +37,16 @@ const labelStyle: React.CSSProperties = {
   marginBottom: 'var(--space-1)',
 }
 
-const WizardOpenClaw = React.memo(function WizardOpenClaw() {
+const WizardHarness = React.memo(function WizardHarness() {
   const wizard = useWizardState()
   const [showKey, setShowKey] = useState(false)
 
   const handleUrlChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    updateWizardField('openclawUrl', e.target.value)
+    updateWizardField('harnessUrl', e.target.value)
   }, [])
 
   const handleKeyChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    updateWizardField('openclawApiKey', e.target.value)
+    updateWizardField('harnessApiKey', e.target.value)
   }, [])
 
   const handleSuccess = useCallback((latencyMs: number) => {
@@ -65,41 +65,41 @@ const WizardOpenClaw = React.memo(function WizardOpenClaw() {
         Connect Harness
       </h2>
       <p style={{ fontSize: '15px', color: 'var(--text-secondary)', margin: 0, maxWidth: '520px' }}>
-        The AI harness that powers Chat, Agents, and ClawControl's intelligence.
+        Your selected harness powers Chat, Agents, approvals, usage, and tools.
       </p>
 
       <WizardGuidePanel>
         <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.8 }}>
-          <li>Deploy Hermes compat or OpenClaw on a VM accessible via Tailscale</li>
+          <li>Deploy your harness on a host accessible via Tailscale</li>
           <li>Note the API URL (e.g. http://100.x.x.x:18789)</li>
-          <li>Generate or copy the API key for that harness backend</li>
-          <li>Make sure the harness is reachable over your Tailscale network</li>
+          <li>Generate or copy the API key for that harness</li>
+          <li>Make sure it is reachable over your Tailscale network</li>
         </ol>
       </WizardGuidePanel>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-        <label htmlFor="wizard-openclaw-url" style={labelStyle}>
+        <label htmlFor="wizard-harness-url" style={labelStyle}>
           Harness URL
         </label>
         <input
-          id="wizard-openclaw-url"
+          id="wizard-harness-url"
           type="url"
-          value={wizard.openclawUrl}
+          value={wizard.harnessUrl}
           onChange={handleUrlChange}
-          placeholder="https://openclaw.example.com"
+          placeholder="http://100.x.x.x:18789"
           style={inputStyle}
         />
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-        <label htmlFor="wizard-openclaw-api-key" style={labelStyle}>
+        <label htmlFor="wizard-harness-api-key" style={labelStyle}>
           API Key
         </label>
         <div style={{ position: 'relative' }}>
           <input
-            id="wizard-openclaw-api-key"
+            id="wizard-harness-api-key"
             type={showKey ? 'text' : 'password'}
-            value={wizard.openclawApiKey}
+            value={wizard.harnessApiKey}
             onChange={handleKeyChange}
             placeholder="sk-..."
             style={{ ...inputStyle, paddingRight: '42px' }}
@@ -128,9 +128,9 @@ const WizardOpenClaw = React.memo(function WizardOpenClaw() {
       </div>
 
       <WizardConnectionTest
-        service="openclaw"
-        url={wizard.openclawUrl}
-        credentials={{ key: wizard.openclawApiKey }}
+        service="harness"
+        url={wizard.harnessUrl}
+        credentials={{ key: wizard.harnessApiKey }}
         onSuccess={handleSuccess}
         onError={handleError}
       />
@@ -138,4 +138,4 @@ const WizardOpenClaw = React.memo(function WizardOpenClaw() {
   )
 })
 
-export default WizardOpenClaw
+export default WizardHarness

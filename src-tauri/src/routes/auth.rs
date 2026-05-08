@@ -198,7 +198,7 @@ fn local_device_name() -> String {
                 .map(|value| value.trim().to_string())
         })
         .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| "ClawControl device".to_string())
+        .unwrap_or_else(|| "clawctrl device".to_string())
 }
 
 fn random_handoff_code() -> String {
@@ -325,25 +325,25 @@ const BLUEBUBBLES_FIELDS: &[SyncFieldSpec] = &[
 const HARNESS_FIELDS: &[SyncFieldSpec] = &[
     SyncFieldSpec {
         keys: &["url", "api_url", "api-url"],
-        env_var: "OPENCLAW_API_URL",
+        env_var: "HARNESS_API_URL",
         label: "API URL",
         required: true,
     },
     SyncFieldSpec {
         keys: &["api_key", "api-key"],
-        env_var: "OPENCLAW_API_KEY",
+        env_var: "HARNESS_API_KEY",
         label: "API key",
         required: false,
     },
     SyncFieldSpec {
         keys: &["ws"],
-        env_var: "OPENCLAW_WS",
+        env_var: "HARNESS_WS",
         label: "WebSocket URL",
         required: false,
     },
     SyncFieldSpec {
         keys: &["password"],
-        env_var: "OPENCLAW_PASSWORD",
+        env_var: "HARNESS_PASSWORD",
         label: "Password",
         required: false,
     },
@@ -582,13 +582,13 @@ const SYNC_SERVICE_SPECS: &[SyncServiceSpec] = &[
         fields: BLUEBUBBLES_FIELDS,
     },
     SyncServiceSpec {
-        service: "openclaw",
+        service: "harness",
         label: "Harness",
         fields: HARNESS_FIELDS,
     },
     SyncServiceSpec {
         service: "agentsecrets",
-        label: "AgentSecrets",
+        label: "Agent Secrets",
         fields: AGENTSECRETS_FIELDS,
     },
     SyncServiceSpec {
@@ -715,7 +715,7 @@ fn sync_service_spec(service: &str) -> Option<SyncServiceSpec> {
         "agent-secrets" => {
             return Some(SyncServiceSpec {
                 service: "agent-secrets",
-                label: "AgentSecrets",
+                label: "Agent Secrets",
                 fields: AGENTSECRETS_FIELDS,
             })
         }
@@ -1479,12 +1479,20 @@ pub(crate) fn service_credential_to_env_var(service: &str, key: &str) -> Option<
         // BlueBubbles
         ("bluebubbles", "host") => Some("BLUEBUBBLES_HOST"),
         ("bluebubbles", "password") => Some("BLUEBUBBLES_PASSWORD"),
-        // Harness (legacy env vars retain the OPENCLAW_* names)
-        ("openclaw" | "harness", "url" | "api_url" | "api-url") => Some("OPENCLAW_API_URL"),
-        ("openclaw" | "harness", "api_key" | "api-key") => Some("OPENCLAW_API_KEY"),
-        ("openclaw" | "harness", "ws") => Some("OPENCLAW_WS"),
-        ("openclaw" | "harness", "password") => Some("OPENCLAW_PASSWORD"),
-        // AgentSecrets
+        // Generic Harness is the app contract; provider names are aliases.
+        ("harness", "url" | "api_url" | "api-url") => Some("HARNESS_API_URL"),
+        ("harness", "api_key" | "api-key") => Some("HARNESS_API_KEY"),
+        ("harness", "ws") => Some("HARNESS_WS"),
+        ("harness", "password") => Some("HARNESS_PASSWORD"),
+        ("hermes", "url" | "api_url" | "api-url") => Some("HERMES_API_URL"),
+        ("hermes", "api_key" | "api-key") => Some("HERMES_API_KEY"),
+        ("hermes", "ws") => Some("HERMES_WS"),
+        ("hermes", "password") => Some("HERMES_PASSWORD"),
+        ("openclaw", "url" | "api_url" | "api-url") => Some("OPENCLAW_API_URL"),
+        ("openclaw", "api_key" | "api-key") => Some("OPENCLAW_API_KEY"),
+        ("openclaw", "ws") => Some("OPENCLAW_WS"),
+        ("openclaw", "password") => Some("OPENCLAW_PASSWORD"),
+        // Agent Secrets
         ("agentsecrets" | "agent-secrets", "url" | "base_url" | "base-url") => {
             Some("AGENTSECRETS_URL")
         }
@@ -1664,6 +1672,10 @@ pub async fn load_user_secrets(state: &AppState, session: &UserSession) {
             }
         };
 
+        if service == "mail_accounts" {
+            continue;
+        }
+
         // Parse as JSON map of credential key -> value
         let creds: HashMap<String, String> = match serde_json::from_slice(&plaintext) {
             Ok(map) => map,
@@ -1713,6 +1725,14 @@ async fn auto_migrate_keychain_secrets(
     let env_to_service: &[(&str, &str, &str)] = &[
         ("BLUEBUBBLES_HOST", "bluebubbles", "host"),
         ("BLUEBUBBLES_PASSWORD", "bluebubbles", "password"),
+        ("HARNESS_API_URL", "harness", "api_url"),
+        ("HARNESS_API_KEY", "harness", "api_key"),
+        ("HARNESS_WS", "harness", "ws"),
+        ("HARNESS_PASSWORD", "harness", "password"),
+        ("HERMES_API_URL", "hermes", "api_url"),
+        ("HERMES_API_KEY", "hermes", "api_key"),
+        ("HERMES_WS", "hermes", "ws"),
+        ("HERMES_PASSWORD", "hermes", "password"),
         ("OPENCLAW_API_URL", "openclaw", "api_url"),
         ("OPENCLAW_API_KEY", "openclaw", "api_key"),
         ("OPENCLAW_WS", "openclaw", "ws"),
@@ -2076,6 +2096,28 @@ async fn signup(
 // ---------------------------------------------------------------------------
 
 async fn get_session(State(state): State<AppState>) -> Json<Value> {
+    let existing_session = { state.session.read().await.clone() };
+    if let Some(existing) = existing_session {
+        if existing.expires_at - epoch_secs() < 60 {
+            let refreshed = tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                refresh(State(state.clone())),
+            )
+            .await
+            .ok()
+            .and_then(Result::ok)
+            .is_some();
+            if !refreshed {
+                *state.session.write().await = None;
+                return Json(json!({
+                    "authenticated": false,
+                    "mfa_required": false,
+                    "mfa_verified": false,
+                }));
+            }
+        }
+    }
+
     let mut session = state.session.read().await.clone();
     if let Some(ref mut s) = session {
         if s.mfa_verified && s.encryption_key.is_empty() {
@@ -2198,6 +2240,13 @@ async fn refresh(State(state): State<AppState>) -> Result<Json<Value>, AppError>
         s.access_token = auth.access_token;
         s.refresh_token = auth.refresh_token;
         s.expires_at = now + auth.expires_in;
+    }
+    let updated_session = write.clone();
+    drop(write);
+
+    if let Some(ref session) = updated_session {
+        #[cfg(debug_assertions)]
+        crate::server::save_dev_session(&state.db, session).await;
     }
 
     tracing::debug!("session refreshed, expires_at={}", now + auth.expires_in);
@@ -2595,7 +2644,7 @@ async fn mfa_enroll(State(state): State<AppState>) -> Result<Json<Value>, AppErr
     let gotrue = GoTrueClient::from_state(&state).map_err(AppError::Internal)?;
 
     let resp = gotrue
-        .mfa_enroll_totp(&session.access_token, "ClawControl")
+        .mfa_enroll_totp(&session.access_token, "clawctrl")
         .await
         .map_err(AppError::Internal)?;
 
@@ -3134,11 +3183,11 @@ fn callback_page(title: &str, heading: &str, msg: &str, is_error: bool) -> Strin
     let h1_class = if is_error { "err" } else { "ok" };
     format!(
         r##"<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>{title} — ClawControl</title>
+<html lang="en"><head><meta charset="utf-8"><title>{title} - clawctrl</title>
 <link rel="icon" type="image/png" href="/api/auth/favicon.png">
 <style>{style}</style></head>
 <body><div class="card">
-<img src="/api/auth/logo.png" width="64" height="64" alt="ClawControl" style="margin:0 auto 14px;display:block;filter:drop-shadow(0 2px 8px rgba(167,139,250,0.3))">
+<img src="/api/auth/logo.png" width="64" height="64" alt="clawctrl" style="margin:0 auto 14px;display:block;filter:drop-shadow(0 2px 8px rgba(167,139,250,0.3))">
 <h1 class="{h1_class}">{heading}</h1>
 <p>{msg}</p>
 </div>
@@ -3373,7 +3422,7 @@ async fn oauth_callback(
         Ok(Html(callback_page(
             "Signed In",
             "Signed in!",
-            "You\u{2019}re all set! You can close this tab and return to ClawControl.",
+            "You\u{2019}re all set! You can close this tab and return to clawctrl.",
             false,
         )))
     } else {

@@ -2,6 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Mock dependencies before any imports
 vi.mock('../api', () => ({
+  ApiError: class ApiError extends Error {
+    constructor(public status: number, public body: unknown) {
+      super(`API ${status}`)
+    }
+  },
   api: {
     get: vi.fn(),
     patch: vi.fn(),
@@ -34,6 +39,7 @@ afterEach(() => {
 
 async function loadModules() {
   const prefSync = await import('../preferences-sync')
+  prefSync.setPreferencesSyncAuthenticated(true)
   const apiModule = await import('../api')
 
   return {

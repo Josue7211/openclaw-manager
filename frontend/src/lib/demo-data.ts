@@ -11,7 +11,7 @@ export const DEMO_TODOS: Todo[] = [
   { id: 'demo-2', text: 'Configure BlueBubbles on Mac', done: false, due_date: new Date(Date.now() + 86400000).toISOString().slice(0, 10) },
   { id: 'demo-3', text: 'Connect a harness AI backend', done: false },
   { id: 'demo-4', text: 'Customize sidebar modules', done: false },
-  { id: 'demo-5', text: 'Explore ClawControl features', done: true },
+  { id: 'demo-5', text: 'Explore clawctrl features', done: true },
   { id: 'demo-6', text: 'Read the setup guide', done: true },
 ]
 
@@ -20,7 +20,7 @@ export const DEMO_TODOS: Todo[] = [
 export const DEMO_MISSIONS: Mission[] = [
   {
     id: 'demo-m1',
-    title: 'Welcome to ClawControl',
+    title: 'Welcome to clawctrl',
     status: 'active',
     assignee: 'primary-agent',
     progress: 50,
@@ -133,7 +133,7 @@ export const DEMO_CONVERSATIONS: DemoConversation[] = [
     displayName: 'Demo Contact',
     participants: [{ address: 'demo@example.com', service: 'iMessage' }],
     service: 'iMessage',
-    lastMessage: 'Welcome to ClawControl!',
+    lastMessage: 'Welcome to clawctrl!',
     lastDate: Date.now(),
     lastFromMe: 0,
   },
@@ -165,13 +165,13 @@ export const DEMO_CHAT_MESSAGES: DemoChatMessage[] = [
   {
     id: 'demo-chat-1',
     role: 'user',
-    text: 'What can ClawControl do?',
+    text: 'What can clawctrl do?',
     timestamp: new Date(Date.now() - 300000).toISOString(),
   },
   {
     id: 'demo-chat-2',
     role: 'assistant',
-    text: 'ClawControl is your personal command center. It brings together:\n\n- **iMessage** via BlueBubbles (requires a Mac)\n- **AI Chat** through a harness backend\n- **Task management** with real-time sync\n- **Homelab monitoring** (Proxmox, OPNsense)\n- **Agent orchestration** for automated workflows\n\nEach module is optional — enable only what you have set up. Head to **Settings > Connections** to configure your services.',
+    text: 'clawctrl is your personal command center. It brings together:\n\n- **iMessage** via BlueBubbles (requires a Mac)\n- **AI Chat** through a harness backend\n- **Task management** with real-time sync\n- **Homelab monitoring** (Proxmox, OPNsense)\n- **Agent orchestration** for automated workflows\n\nEach module is optional — enable only what you have set up. Head to **Settings > Connections** to configure your services.',
     timestamp: new Date(Date.now() - 290000).toISOString(),
   },
   {

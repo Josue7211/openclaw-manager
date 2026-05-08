@@ -12,7 +12,7 @@ interface UseGatewaySessionsReturn {
 }
 
 /**
- * Fetches all sessions from the OpenClaw gateway via GET /api/gateway/sessions.
+ * Fetches all sessions from the harness gateway via GET /api/gateway/sessions.
  * Sessions are sorted by lastActivity descending (newest first).
  * Real-time updates arrive via SSE 'chat' events which invalidate the query.
  *

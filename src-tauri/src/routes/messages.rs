@@ -20,7 +20,7 @@ use std::sync::Arc;
 use super::util::{base64_decode, percent_encode, random_uuid};
 use crate::server::{AppState, RequireAuth};
 
-const BLUEBUBBLES_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(4);
+const BLUEBUBBLES_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
 
 // ---------------------------------------------------------------------------
 // Environment / configuration helpers
@@ -2816,6 +2816,21 @@ impl Drop for MsgSseConnectionGuard {
     }
 }
 
+async fn stream_token_handler(RequireAuth(_session): RequireAuth) -> Response {
+    match crate::server::mint_scoped_sse_token("/api/messages/stream") {
+        Some((token, expires_at)) => Json(json!({
+            "token": token,
+            "expires_at": expires_at,
+        }))
+        .into_response(),
+        None => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error": "SSE token minting is unavailable"})),
+        )
+            .into_response(),
+    }
+}
+
 async fn get_stream(State(state): State<AppState>, RequireAuth(_session): RequireAuth) -> Response {
     use axum::response::sse::{Event, KeepAlive, Sse};
 
@@ -2987,6 +3002,7 @@ pub fn router() -> Router<AppState> {
         .route("/messages/react", post(post_react))
         .route("/messages/read", post(post_read))
         .route("/messages/send-attachment", post(post_send_attachment))
+        .route("/messages/stream-token", post(stream_token_handler))
         .route("/messages/stream", get(get_stream));
 
     #[cfg(debug_assertions)]

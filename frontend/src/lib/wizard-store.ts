@@ -31,8 +31,8 @@ export interface WizardState {
   tailscaleIp: string
   supabaseUrl: string
   supabaseAnonKey: string
-  openclawUrl: string
-  openclawApiKey: string
+  harnessUrl: string
+  harnessApiKey: string
   blueBubblesUrl: string
   blueBubblesPassword: string
   macBridgeUrl: string
@@ -99,8 +99,8 @@ function createDefaultState(): WizardState {
     tailscaleIp: '',
     supabaseUrl: '',
     supabaseAnonKey: '',
-    openclawUrl: '',
-    openclawApiKey: '',
+    harnessUrl: '',
+    harnessApiKey: '',
     blueBubblesUrl: '',
     blueBubblesPassword: '',
     macBridgeUrl: '',
@@ -108,7 +108,7 @@ function createDefaultState(): WizardState {
     couchdbUrl: '',
     couchdbUsername: '',
     couchdbPassword: '',
-    couchdbDatabase: 'clawcontrol-vault',
+    couchdbDatabase: 'clawctrl-vault',
     testResults: {},
     enabledModules: [],
     activeBundle: 'essentials',

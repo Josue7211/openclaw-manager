@@ -1,15 +1,15 @@
 import { useState, useCallback } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { useOpenClawTools } from '@/hooks/useOpenClawTools'
+import { useHarnessTools } from '@/hooks/useHarnessTools'
 import { api } from '@/lib/api'
 import type { ToolInfo, ToolInvokeRequest } from './types'
-import type { OpenClawHealthStatus } from '../OpenClaw'
+import type { HarnessHealthStatus } from '../Harness'
 
-function OfflineState({ status, noun }: { status: OpenClawHealthStatus; noun: string }) {
+function OfflineState({ status, noun }: { status: HarnessHealthStatus; noun: string }) {
   const title = status === 'not_configured' ? 'Harness not configured' : 'Harness offline'
   const detail = status === 'not_configured'
-    ? `Set OPENCLAW_API_URL in Settings > Connections to view ${noun}.`
-    : `ClawControl cannot reach the harness right now. Check the upstream service and try again.`
+    ? `Set HARNESS_API_URL in Settings > Connections to view ${noun}.`
+    : `clawctrl cannot reach the harness right now. Check the upstream service and try again.`
 
   return (
     <div style={{ padding: '40px 20px', textAlign: 'center' }}>
@@ -23,7 +23,7 @@ function OfflineState({ status, noun }: { status: OpenClawHealthStatus; noun: st
   )
 }
 
-export default function ToolsTab({ healthy, status = 'unknown' }: { healthy: boolean; status?: OpenClawHealthStatus }) {
+export default function ToolsTab({ healthy, status = 'unknown' }: { healthy: boolean; status?: HarnessHealthStatus }) {
   if (!healthy) {
     return <OfflineState status={status} noun="the tool registry" />
   }
@@ -32,7 +32,7 @@ export default function ToolsTab({ healthy, status = 'unknown' }: { healthy: boo
 }
 
 function ToolsContent() {
-  const { tools, loading } = useOpenClawTools()
+  const { tools, loading } = useHarnessTools()
 
   if (loading) {
     return (
@@ -144,7 +144,7 @@ function InvokeForm({ toolName }: { toolName: string }) {
 
   const invokeMutation = useMutation({
     mutationFn: (payload: ToolInvokeRequest) =>
-      api.post<Record<string, unknown>>('/api/openclaw/tools/invoke', payload),
+      api.post<Record<string, unknown>>('/api/harness/tools/invoke', payload),
   })
 
   const handleSubmit = useCallback(() => {

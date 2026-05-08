@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
-import type { UsageData } from '@/pages/openclaw/types'
+import type { UsageData } from '@/pages/harness/types'
 
 export interface BudgetConfig {
   dailyLimit: number | null
@@ -12,7 +12,7 @@ export interface BudgetAlert {
   message: string
 }
 
-const STORAGE_KEY = 'openclaw-budget'
+const STORAGE_KEY = 'harness-budget'
 
 const DEFAULT_BUDGET: BudgetConfig = {
   dailyLimit: null,

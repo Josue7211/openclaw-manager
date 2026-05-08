@@ -14,7 +14,7 @@ use crate::server::{AppState, RequireAuth};
 
 /// `GET /api/approvals`
 ///
-/// Lists pending execution approval requests via the OpenClaw HTTP API.
+/// Lists pending execution approval requests via the Harness HTTP API.
 /// Returns `{ approvals: [...] }` on success.
 async fn list_approvals(
     State(state): State<AppState>,
@@ -50,7 +50,7 @@ async fn list_approvals(
 
 /// `POST /api/approvals/:id/approve`
 ///
-/// Approves an execution request by forwarding to the OpenClaw HTTP API.
+/// Approves an execution request by forwarding to the Harness HTTP API.
 async fn approve_request(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,

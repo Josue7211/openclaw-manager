@@ -12,7 +12,7 @@
  *   sidebar-config, dashboard-state
  */
 
-import { api } from './api'
+import { api, ApiError } from './api'
 import { LOCAL_STORAGE_STATE_EVENT } from './hooks/useLocalStorageState'
 import { notifyModulesChanged } from './modules'
 import { applyThemeFromState } from './theme-store'
@@ -32,8 +32,8 @@ export const SYNCED_KEYS = [
   'chat-model',
   'chat-favorite-models',
   'chat-favorite-models-version',
-  'openclaw-chat-primary-model',
-  'openclaw-heartbeat-model',
+  'harness-chat-primary-model',
+  'harness-heartbeat-model',
 ] as const
 
 type SyncedKey = typeof SYNCED_KEYS[number]
@@ -46,6 +46,23 @@ let _initialized = false
 let _originalSetItem: typeof localStorage.setItem | null = null
 /** Guard: true while applying remote prefs to localStorage (skip re-pushing) */
 let _applyingRemote = false
+let _authenticated = false
+let _runtimeConfigInFlight = false
+
+function isAuthApiError(err: unknown): boolean {
+  return err instanceof ApiError && (err.status === 401 || err.status === 403)
+}
+
+export function setPreferencesSyncAuthenticated(authenticated: boolean): void {
+  _authenticated = authenticated
+  if (!authenticated) {
+    _initialized = false
+    if (_debounceTimer) {
+      clearTimeout(_debounceTimer)
+      _debounceTimer = null
+    }
+  }
+}
 
 /** Read all synced preferences from localStorage into a plain object */
 function collectLocal(): Record<string, unknown> {
@@ -126,22 +143,24 @@ function applySideEffects(remote: Record<string, unknown>) {
   }
 }
 
-export async function initOpenClawRuntimeConfig(): Promise<void> {
+export async function initHarnessRuntimeConfig(): Promise<void> {
+  if (!_authenticated || _runtimeConfigInFlight) return
+  _runtimeConfigInFlight = true
   try {
     const config = await api.get<{
       chatPrimaryModel?: string | null
       heartbeatModel?: string | null
       favoriteModels?: string[]
-    }>('/api/openclaw/runtime-config')
+    }>('/api/harness/runtime-config')
 
     _applyingRemote = true
     try {
       if (typeof config.chatPrimaryModel === 'string') {
-        localStorage.setItem('openclaw-chat-primary-model', JSON.stringify(config.chatPrimaryModel))
+        localStorage.setItem('harness-chat-primary-model', JSON.stringify(config.chatPrimaryModel))
         localStorage.setItem('chat-model', JSON.stringify(config.chatPrimaryModel))
       }
       if (typeof config.heartbeatModel === 'string') {
-        localStorage.setItem('openclaw-heartbeat-model', JSON.stringify(config.heartbeatModel))
+        localStorage.setItem('harness-heartbeat-model', JSON.stringify(config.heartbeatModel))
       }
       if (Array.isArray(config.favoriteModels)) {
         localStorage.setItem('chat-favorite-models', JSON.stringify(config.favoriteModels))
@@ -150,16 +169,28 @@ export async function initOpenClawRuntimeConfig(): Promise<void> {
       _applyingRemote = false
     }
   } catch (err) {
-    console.warn('[preferences-sync] failed to fetch openclaw runtime config:', err)
+    if (isAuthApiError(err)) {
+      setPreferencesSyncAuthenticated(false)
+      return
+    }
+    console.warn('[preferences-sync] failed to fetch harness runtime config:', err)
+  } finally {
+    _runtimeConfigInFlight = false
   }
 }
 
 /** Push current local preferences to Supabase (debounced) */
 function schedulePush() {
+  if (!_authenticated) return
   if (_debounceTimer) clearTimeout(_debounceTimer)
   _debounceTimer = setTimeout(() => {
+    if (!_authenticated) return
     const prefs = collectLocal()
     api.patch('/api/user-preferences', { preferences: prefs }).catch((err) => {
+      if (isAuthApiError(err)) {
+        setPreferencesSyncAuthenticated(false)
+        return
+      }
       console.warn('[preferences-sync] failed to push preferences:', err)
     })
   }, 2000)
@@ -179,6 +210,7 @@ function isSyncedKey(key: string): key is SyncedKey {
  * 3. Installs a localStorage interceptor to auto-push changes
  */
 export async function initPreferencesSync(): Promise<void> {
+  if (!_authenticated) return
   if (_initialized) return
   _initialized = true
 
@@ -196,11 +228,19 @@ export async function initPreferencesSync(): Promise<void> {
       const local = collectLocal()
       if (Object.keys(local).length > 0) {
         api.patch('/api/user-preferences', { preferences: local }).catch((err) => {
+          if (isAuthApiError(err)) {
+            setPreferencesSyncAuthenticated(false)
+            return
+          }
           console.warn('[preferences-sync] failed to seed remote preferences:', err)
         })
       }
     }
   } catch (err) {
+    if (isAuthApiError(err)) {
+      setPreferencesSyncAuthenticated(false)
+      return
+    }
     // Non-fatal — the app works fine with just localStorage
     console.warn('[preferences-sync] failed to fetch remote preferences:', err)
   }

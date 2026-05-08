@@ -8,7 +8,7 @@ const INBOX_KEY = ['emails', 'inbox'] as const
 
 const DEMO_EMAILS: EmailMessage[] = [
   { id: 'demo-e1', from: 'GitHub Notifications', subject: 'PR #42 merged: Add widget system', date: new Date(Date.now() - 1_800_000).toISOString(), read: false },
-  { id: 'demo-e2', from: 'Vercel', subject: 'Deployment successful — ClawControl', date: new Date(Date.now() - 7_200_000).toISOString(), read: false },
+  { id: 'demo-e2', from: 'Vercel', subject: 'Deployment successful — clawctrl', date: new Date(Date.now() - 7_200_000).toISOString(), read: false },
   { id: 'demo-e3', from: 'Security Ops', subject: 'Weekly security summary', date: new Date(Date.now() - 86_400_000).toISOString(), read: false },
 ]
 

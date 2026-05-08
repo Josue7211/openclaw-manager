@@ -41,9 +41,11 @@ interface HealthData {
   hostname: string
   sqlite_cache_entries: number
   sqlite_db_size_bytes: number
-  services: {
-    bluebubbles: ServiceStatus
-    openclaw: ServiceStatus
+	  services: {
+	    bluebubbles: ServiceStatus
+	    hermes?: ServiceStatus
+	    harness?: ServiceStatus
+	    openclaw?: ServiceStatus
     supabase: ServiceStatus
   }
 }
@@ -62,22 +64,35 @@ interface SetupStatusData {
   ok: boolean
   backend_public_base_url: string
   pairing_required: boolean
-  capabilities: {
-    google_oauth: boolean
-    github_oauth: boolean
-    harness?: boolean
-    openclaw: boolean
+	  capabilities: {
+	    google_oauth: boolean
+	    github_oauth: boolean
+	    hermes?: boolean
+	    harness?: boolean
+	    openclaw?: boolean
     agentsecrets?: boolean
     memd: boolean
   }
-  services: {
-    supabase: { configured: boolean; reachable: boolean }
-    harness?: { configured: boolean; reachable: boolean }
-    openclaw: { configured: boolean; reachable: boolean }
-    agentsecrets?: { configured: boolean; reachable: boolean }
-    memd: { configured: boolean; reachable: boolean }
+	  services: {
+	    supabase: SetupServiceState
+	    hermes?: SetupServiceState
+	    harness?: SetupServiceState
+	    openclaw?: SetupServiceState
+    agentsecrets?: SetupServiceState
+    memd: SetupServiceState
   }
   missing: string[]
+}
+
+interface SetupServiceState {
+  configured: boolean
+  reachable: boolean
+  status?: string
+  auth_configured?: boolean
+  auth_valid?: boolean
+  auth_source?: string
+  checked_path?: string | null
+  message?: string | null
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -136,9 +151,12 @@ function setupReadinessColor(setupStatus: SetupStatusData): string {
 function formatMissingSetup(missing: string[]): string {
   if (missing.length === 0) return 'Everything required is configured'
   const labels: Record<string, string> = {
-    harness: 'Harness',
-    openclaw: 'Harness',
-    agentsecrets: 'AgentSecrets',
+	    hermes: 'Hermes provider',
+	    hermes_auth: 'Hermes provider auth',
+	    harness: 'Harness',
+	    harness_auth: 'Harness auth',
+	    openclaw: 'OpenClaw compat',
+    agentsecrets: 'Agent Secrets',
     supabase: 'Supabase',
     memd: 'memd',
   }
@@ -397,7 +415,7 @@ export default memo(function SettingsStatus() {
   const services = health?.services
   const serviceEntries: { key: string; label: string; data: ServiceStatus | undefined }[] = [
     { key: 'bluebubbles', label: 'BlueBubbles', data: services?.bluebubbles },
-    { key: 'openclaw', label: 'Harness', data: services?.openclaw },
+	    { key: 'harness', label: 'Harness', data: services?.harness ?? services?.hermes ?? services?.openclaw },
     { key: 'supabase', label: 'Supabase', data: services?.supabase },
   ]
   const pendingHandoffs = handoffs?.requests ?? []
@@ -815,7 +833,7 @@ export default memo(function SettingsStatus() {
                     ? 'none'
                     : `0 0 6px var(--red-500-a25)`,
               }} />
-              <span style={{ fontWeight: 500 }}>Harness Gateway</span>
+	              <span style={{ fontWeight: 500 }}>Harness Gateway</span>
             </div>
             <span style={{
               fontSize: '11px', fontWeight: 500,

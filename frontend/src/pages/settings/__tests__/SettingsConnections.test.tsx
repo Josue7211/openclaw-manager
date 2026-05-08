@@ -79,7 +79,7 @@ describe('SettingsConnections', () => {
     vi.mocked(pairWithBackend).mockResolvedValue({
       ok: true,
       paired: true,
-      device_name: 'ClawControl Desktop',
+      device_name: 'clawctrl Desktop',
       next: [],
     })
   })
@@ -114,7 +114,7 @@ describe('SettingsConnections', () => {
     await waitFor(() => {
       expect(pairWithBackend).toHaveBeenCalledWith(
         'pair-token-123',
-        'ClawControl Desktop',
+        'clawctrl Desktop',
         'http://127.0.0.1:5000',
       )
       expect(pairWithBackend).toHaveBeenCalledTimes(1)

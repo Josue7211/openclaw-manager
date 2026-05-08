@@ -161,7 +161,7 @@ const WizardServerServices = React.memo(function WizardServerServices() {
             type="text"
             value={wizard.couchdbDatabase}
             onChange={e => updateWizardField('couchdbDatabase', e.target.value)}
-            placeholder="clawcontrol-vault"
+            placeholder="clawctrl-vault"
             style={inputStyle}
           />
         </div>

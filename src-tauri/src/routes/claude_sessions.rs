@@ -18,7 +18,7 @@ use tracing::{error, info};
 use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
 
-use super::gateway::{gateway_forward, openclaw_api_key, openclaw_api_url};
+use super::gateway::{gateway_forward, harness_api_key, harness_api_url};
 
 // ---------------------------------------------------------------------------
 // CAS connection guard (max 5 concurrent session WebSocket streams)
@@ -75,7 +75,7 @@ struct CreateSessionBody {
 ///
 /// Filters the gateway response to sessions where `kind == "claude-code"`
 /// or the `agentId` field is present. Returns `{ available: false }` envelope
-/// when OpenClaw VM is unreachable (instead of a hard error).
+/// when Harness VM is unreachable (instead of a hard error).
 async fn list_sessions(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
@@ -105,7 +105,7 @@ async fn list_sessions(
         Err(_) => {
             // 503-equivalent: return error envelope instead of propagating
             Ok(Json(json!({
-                "error": "OpenClaw VM unreachable",
+                "error": "Harness VM unreachable",
                 "available": false,
                 "sessions": []
             })))
@@ -182,7 +182,7 @@ async fn session_ws_status(RequireAuth(_session): RequireAuth) -> Json<Value> {
 // ---------------------------------------------------------------------------
 
 /// `GET /api/claude-sessions/:id/ws` -- upgrade to WebSocket and relay
-/// bidirectional frames to/from the upstream OpenClaw session stream.
+/// bidirectional frames to/from the upstream harness session stream.
 ///
 /// Returns bare `Response` (not `Result<Json<Value>, AppError>`) because
 /// `WebSocketUpgrade::on_upgrade` returns `Response`. This is the same
@@ -221,11 +221,11 @@ async fn ws_upgrade(
 }
 
 // ---------------------------------------------------------------------------
-// Bidirectional WebSocket relay (client <-> upstream OpenClaw)
+// Bidirectional WebSocket relay (client <-> upstream harness)
 // ---------------------------------------------------------------------------
 
 /// Relay frames between the client WebSocket (Axum) and an upstream
-/// WebSocket on the OpenClaw VM (tokio-tungstenite).
+/// WebSocket on the Harness VM (tokio-tungstenite).
 ///
 /// Both sides are async -- no OS threads needed (unlike terminal.rs PTY).
 /// The `_guard` is held for the lifetime of this function; on any exit
@@ -238,11 +238,11 @@ async fn handle_session_ws(
 ) {
     info!("claude-sessions: WS stream connecting for session {session_id}");
 
-    // 1. Build upstream URL from OPENCLAW_API_URL
-    let base_url = match openclaw_api_url(&state) {
+    // 1. Build upstream URL from the configured harness API URL.
+    let base_url = match harness_api_url(&state) {
         Some(url) => url,
         None => {
-            error!("claude-sessions: OPENCLAW_API_URL not configured");
+            error!("claude-sessions: harness API URL not configured");
             return;
         }
     };
@@ -252,7 +252,7 @@ async fn handle_session_ws(
     let upstream_url = format!("{ws_url}/sessions/{session_id}/stream");
 
     // 2. Build request with auth header
-    let api_key = openclaw_api_key(&state);
+    let api_key = harness_api_key(&state);
     let request = match tokio_tungstenite::tungstenite::http::Request::builder()
         .uri(&upstream_url)
         .header("Authorization", format!("Bearer {api_key}"))

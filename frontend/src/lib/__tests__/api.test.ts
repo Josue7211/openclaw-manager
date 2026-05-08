@@ -4,6 +4,7 @@ import {
   ApiError,
   API_BASE,
   API_BASE_CHANGED_EVENT,
+  AUTH_REQUIRED_EVENT,
   getApiBase,
   resolveDesktopApiBootstrap,
   serviceForPath,
@@ -127,6 +128,56 @@ describe('api', () => {
     )
   })
 
+  it('routes desktop auth through the same local backend as protected app modules', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      value: {},
+      configurable: true,
+    })
+    setApiBase('http://remote-backend.test')
+    setDesktopApiKeys({ localApiKey: 'local-key', remoteApiKey: 'remote-key' })
+    mockFetch({ ok: true, json: () => Promise.resolve({ authenticated: false }) })
+
+    await api.get('/api/auth/session')
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:5000/api/auth/session',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ 'X-API-Key': 'local-key' }),
+      }),
+    )
+  })
+
+  it('routes harness proxy endpoints through the local desktop backend in Tauri', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      value: {},
+      configurable: true,
+    })
+    setApiBase('http://remote-backend.test')
+    setDesktopApiKeys({ localApiKey: 'local-key', remoteApiKey: 'remote-key' })
+    mockFetch({ ok: true, json: () => Promise.resolve({ ok: true }) })
+
+    await api.get('/api/harness/health')
+    await api.get('/api/agents')
+
+    expect(globalThis.fetch).toHaveBeenNthCalledWith(
+      1,
+      'http://127.0.0.1:5000/api/harness/health',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ 'X-API-Key': 'local-key' }),
+      }),
+    )
+    expect(globalThis.fetch).toHaveBeenNthCalledWith(
+      2,
+      'http://127.0.0.1:5000/api/agents',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ 'X-API-Key': 'local-key' }),
+      }),
+    )
+  })
+
   it('refreshes the local desktop API key once after a 401 from local-only routes', async () => {
     Object.defineProperty(window, '__TAURI_INTERNALS__', {
       value: {},
@@ -157,6 +208,40 @@ describe('api', () => {
     expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[1][1].headers['X-API-Key']).toBe('fresh-local-key')
   })
 
+  it('dispatches auth-required when protected API returns 401', async () => {
+    const listener = vi.fn()
+    window.addEventListener(AUTH_REQUIRED_EVENT, listener)
+    mockFetch({ ok: false, status: 401, text: () => Promise.resolve('Authentication required') })
+
+    await expect(api.get('/api/todos')).rejects.toThrow(ApiError)
+
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(listener.mock.calls[0][0].detail).toEqual({ path: '/api/todos' })
+    window.removeEventListener(AUTH_REQUIRED_EVENT, listener)
+  })
+
+  it('does not dispatch auth-required for the session probe itself', async () => {
+    const listener = vi.fn()
+    window.addEventListener(AUTH_REQUIRED_EVENT, listener)
+    mockFetch({ ok: false, status: 401, text: () => Promise.resolve('Authentication required') })
+
+    await expect(api.get('/api/auth/session')).rejects.toThrow(ApiError)
+
+    expect(listener).not.toHaveBeenCalled()
+    window.removeEventListener(AUTH_REQUIRED_EVENT, listener)
+  })
+
+  it('does not dispatch auth-required for API-key failures', async () => {
+    const listener = vi.fn()
+    window.addEventListener(AUTH_REQUIRED_EVENT, listener)
+    mockFetch({ ok: false, status: 401, text: () => Promise.resolve('Unauthorized: invalid or missing API key') })
+
+    await expect(api.get('/api/todos')).rejects.toThrow(ApiError)
+
+    expect(listener).not.toHaveBeenCalled()
+    window.removeEventListener(AUTH_REQUIRED_EVENT, listener)
+  })
+
   it('returns undefined for non-JSON responses', async () => {
     mockFetch({
       ok: true,
@@ -174,7 +259,7 @@ describe('api', () => {
       await api.get('/api/chat/history')
     } catch (err) {
       expect(err).toBeInstanceOf(ApiError)
-      expect((err as ApiError).service).toBe('OpenClaw')
+      expect((err as ApiError).service).toBe('Harness')
       expect((err as ApiError).serviceLabel).toBe('Harness unreachable')
     }
   })
@@ -186,9 +271,9 @@ describe('serviceForPath', () => {
     expect(serviceForPath('/api/messages/chat/123')).toBe('BlueBubbles')
   })
 
-  it('maps chat routes to OpenClaw', () => {
-    expect(serviceForPath('/api/chat')).toBe('OpenClaw')
-    expect(serviceForPath('/api/chat/history')).toBe('OpenClaw')
+  it('maps chat routes to Harness', () => {
+    expect(serviceForPath('/api/chat')).toBe('Harness')
+    expect(serviceForPath('/api/chat/history')).toBe('Harness')
   })
 
   it('maps data routes to Backend', () => {
@@ -207,7 +292,7 @@ describe('serviceForPath', () => {
 describe('serviceErrorLabel', () => {
   it('returns human-readable labels', () => {
     expect(serviceErrorLabel('BlueBubbles')).toBe('BlueBubbles unreachable')
-    expect(serviceErrorLabel('OpenClaw')).toBe('Harness unreachable')
+    expect(serviceErrorLabel('Harness')).toBe('Harness unreachable')
     expect(serviceErrorLabel('Backend')).toBe('Service unavailable')
   })
 })

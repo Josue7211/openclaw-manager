@@ -77,7 +77,7 @@ function delay(ms: number): Promise<void> {
 
 function buildInlineModuleBuilderRequest(userText: string): string {
   return [
-    'You are the OpenUI module builder for ClawControl.',
+    'You are the OpenUI module builder for clawctrl.',
     'Return only one ```json code fence containing a valid ModuleProposal object, or an array of ModuleProposal objects when the user asks for multiple modules.',
     'Use only these primitives: StatCard, ProgressGauge, MarkdownDisplay, LineChart, BarChart, ListView, DataTable, FormWidget, KanbanBoard, TimerCountdown, ImageGallery.',
     'Keep capabilities read-only.',

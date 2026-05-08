@@ -16,7 +16,7 @@ type EventType =
   | 'pipeline-updated'
   | 'settings-changed'
   | 'connection-status'
-  // Gateway events (from OpenClaw WebSocket via SSE bridge)
+  // Gateway events (from harness WebSocket via SSE bridge)
   | 'gateway-agent'
   | 'gateway-chat'
   | 'gateway-presence'

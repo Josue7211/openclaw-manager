@@ -11,15 +11,15 @@ vi.mock('@/lib/api', () => ({
 }))
 
 /**
- * Mirrors the inline useQuery pattern from OpenClaw.tsx (line 361-365) and
- * Agents.tsx (line 23-28) that queries /api/openclaw/health.
+ * Mirrors the inline useQuery pattern from Harness.tsx (line 361-365) and
+ * Agents.tsx (line 23-28) that queries /api/harness/health.
  */
-function useOpenClawHealth() {
+function useHarnessHealth() {
   return useQuery({
-    queryKey: ['openclaw', 'health'],
+    queryKey: ['harness', 'health'],
     queryFn: () =>
       import('@/lib/api').then(({ api }) =>
-        api.get<{ ok: boolean; status: string; gateway?: boolean }>('/api/openclaw/health'),
+        api.get<{ ok: boolean; status: string; gateway?: boolean }>('/api/harness/health'),
       ),
     staleTime: 30_000,
   })
@@ -36,7 +36,7 @@ function createWrapper() {
   }
 }
 
-describe('OpenClaw health query (/api/openclaw/health)', () => {
+describe('Harness health query (/api/harness/health)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -49,7 +49,7 @@ describe('OpenClaw health query (/api/openclaw/health)', () => {
       gateway: true,
     })
 
-    const { result } = renderHook(() => useOpenClawHealth(), {
+    const { result } = renderHook(() => useHarnessHealth(), {
       wrapper: createWrapper(),
     })
 
@@ -70,7 +70,7 @@ describe('OpenClaw health query (/api/openclaw/health)', () => {
       gateway: false,
     })
 
-    const { result } = renderHook(() => useOpenClawHealth(), {
+    const { result } = renderHook(() => useHarnessHealth(), {
       wrapper: createWrapper(),
     })
 
@@ -90,7 +90,7 @@ describe('OpenClaw health query (/api/openclaw/health)', () => {
       status: 'unreachable',
     })
 
-    const { result } = renderHook(() => useOpenClawHealth(), {
+    const { result } = renderHook(() => useHarnessHealth(), {
       wrapper: createWrapper(),
     })
 
@@ -109,7 +109,7 @@ describe('OpenClaw health query (/api/openclaw/health)', () => {
       status: 'not_configured',
     })
 
-    const { result } = renderHook(() => useOpenClawHealth(), {
+    const { result } = renderHook(() => useHarnessHealth(), {
       wrapper: createWrapper(),
     })
 

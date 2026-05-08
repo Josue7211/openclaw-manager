@@ -25,7 +25,7 @@ export const personalDashboardItems: NavItem[] = [
 export const agentDashboardItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: SquaresFour, moduleId: 'dashboard' },
   { href: '/missions', label: 'Missions', icon: Target, moduleId: 'missions' },
-  { href: '/openclaw', label: 'Harness', icon: Robot, moduleId: 'openclaw' },
+  { href: '/harness', label: 'Harness', icon: Robot, moduleId: 'harness' },
   { href: '/memory', label: 'Memory', icon: Brain, moduleId: 'memory' },
   { href: '/pipeline', label: 'Pipeline', icon: GitBranch, moduleId: 'pipeline' },
   { href: '/knowledge', label: 'Knowledge', icon: BookOpen, moduleId: 'knowledge' },

@@ -45,6 +45,8 @@ export default function WizardWelcome({ onComplete }: { onComplete?: () => void 
   const [checkedBackendUrl, setCheckedBackendUrl] = useState<string | null>(null)
   const [pairingToken, setPairingToken] = useState('')
   const [pairingBusy, setPairingBusy] = useState(false)
+  const agentSecretsOnline = status?.services.agentsecrets.reachable ?? false
+  const requiredBackendReady = status ? status.missing.length === 0 : false
 
   // Stagger delays (ms from mount) -- only used when animations are on
   const delays = {
@@ -132,7 +134,7 @@ export default function WizardWelcome({ onComplete }: { onComplete?: () => void 
         {/* Logo image */}
         <img
           src="/logo-128.png"
-          alt="ClawControl logo"
+          alt="clawctrl logo"
           width={80}
           height={80}
           style={{
@@ -164,7 +166,7 @@ export default function WizardWelcome({ onComplete }: { onComplete?: () => void 
           ...itemStyle(delays.heading),
         }}
       >
-        Welcome to ClawControl
+        Welcome to clawctrl
       </h1>
 
       {/* Subheading */}
@@ -258,7 +260,9 @@ export default function WizardWelcome({ onComplete }: { onComplete?: () => void 
               {' '}
               Supabase {status.services.supabase.reachable ? 'online' : 'offline'}
               {' · '}
-              Harness {(status.services.harness ?? status.services.openclaw).reachable ? 'online' : 'offline'}
+              Harness {(status.services.harness ?? status.services.hermes ?? status.services.openclaw)?.reachable ? 'online' : 'offline'}
+              {' · '}
+              Agent Secrets {agentSecretsOnline ? 'online' : 'offline'}
               {' · '}
               MemD {status.services.memd.reachable ? 'online' : 'offline'}
             </div>
@@ -282,7 +286,7 @@ export default function WizardWelcome({ onComplete }: { onComplete?: () => void 
                     setPairingBusy(true)
                     setBackendError(null)
                   try {
-                      const result = await pairWithBackend(pairingToken, 'ClawControl desktop', normalized)
+                      const result = await pairWithBackend(pairingToken, 'clawctrl desktop', normalized)
                       if (window.__TAURI_INTERNALS__ && result.device_api_key) {
                         const { invoke } = await import('@tauri-apps/api/core')
                         await invoke('set_secret', { key: 'backend.device-api-key', value: result.device_api_key })
@@ -311,7 +315,7 @@ export default function WizardWelcome({ onComplete }: { onComplete?: () => void 
                 </Button>
               </>
             )}
-            {!status.pairing_required && status.services.supabase.reachable && (
+            {!status.pairing_required && requiredBackendReady && (
               <Button
                 variant="secondary"
                 onClick={() => {

@@ -20,7 +20,9 @@ interface HealthData {
   sqlite_db_size_bytes: number
   services: {
     bluebubbles: ServiceStatus
-    openclaw: ServiceStatus
+    harness?: ServiceStatus
+    hermes?: ServiceStatus
+    openclaw?: ServiceStatus
     agentshell: ServiceStatus
     supabase: ServiceStatus
   }
@@ -38,7 +40,7 @@ export interface SystemService {
 
 const DEMO_SERVICES: SystemService[] = [
   { name: 'BlueBubbles', key: 'bluebubbles', status: 'ok', latency_ms: 12 },
-  { name: 'Harness', key: 'openclaw', status: 'ok', latency_ms: 8 },
+  { name: 'Harness', key: 'harness', status: 'ok', latency_ms: 8 },
   { name: 'AgentShell', key: 'agentshell', status: 'ok', latency_ms: 10 },
   { name: 'Supabase', key: 'supabase', status: 'ok', latency_ms: 5 },
 ]
@@ -77,7 +79,7 @@ export function useSystemInfo() {
   if (source) {
     const entries: [string, string][] = [
       ['bluebubbles', 'BlueBubbles'],
-      ['openclaw', 'Harness'],
+      ['harness', 'Harness'],
       ['agentshell', 'AgentShell'],
       ['supabase', 'Supabase'],
     ]

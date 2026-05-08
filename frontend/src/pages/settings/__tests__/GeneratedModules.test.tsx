@@ -72,7 +72,7 @@ vi.mock('@/lib/sidebar-settings', () => ({
   setSidebarDefaultWidth: vi.fn(),
   getSidebarTitleLayout: () => 'left',
   setSidebarTitleLayout: vi.fn(),
-  getSidebarTitleText: () => 'ClawControl',
+  getSidebarTitleText: () => 'clawctrl',
   setSidebarTitleText: vi.fn(),
   getSidebarSearchVisible: () => true,
   setSidebarSearchVisible: vi.fn(),

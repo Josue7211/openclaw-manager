@@ -1,15 +1,15 @@
 import { useMemo } from 'react'
-import { useOpenClawUsage } from '@/hooks/useOpenClawUsage'
+import { useHarnessUsage } from '@/hooks/useHarnessUsage'
 import { useBudgetAlerts } from '@/hooks/useBudgetAlerts'
 import BudgetSection from './BudgetSection'
 import type { UsageData, ModelUsage } from './types'
-import type { OpenClawHealthStatus } from '../OpenClaw'
+import type { HarnessHealthStatus } from '../Harness'
 
-function OfflineState({ status, noun }: { status: OpenClawHealthStatus; noun: string }) {
+function OfflineState({ status, noun }: { status: HarnessHealthStatus; noun: string }) {
   const title = status === 'not_configured' ? 'Harness not configured' : 'Harness offline'
   const detail = status === 'not_configured'
-    ? `Set OPENCLAW_API_URL in Settings > Connections to view ${noun}.`
-    : `ClawControl cannot reach the harness right now. Check the upstream service and try again.`
+    ? `Set HARNESS_API_URL in Settings > Connections to view ${noun}.`
+    : `clawctrl cannot reach the harness right now. Check the upstream service and try again.`
 
   return (
     <div style={{ padding: '40px 20px', textAlign: 'center' }}>
@@ -23,7 +23,7 @@ function OfflineState({ status, noun }: { status: OpenClawHealthStatus; noun: st
   )
 }
 
-export default function UsageTab({ healthy, status = 'unknown' }: { healthy: boolean; status?: OpenClawHealthStatus }) {
+export default function UsageTab({ healthy, status = 'unknown' }: { healthy: boolean; status?: HarnessHealthStatus }) {
   if (!healthy) {
     return <OfflineState status={status} noun="usage data" />
   }
@@ -32,7 +32,7 @@ export default function UsageTab({ healthy, status = 'unknown' }: { healthy: boo
 }
 
 function UsageContent() {
-  const { usage, loading } = useOpenClawUsage()
+  const { usage, loading } = useHarnessUsage()
   const { alert } = useBudgetAlerts(usage ?? null)
 
   if (loading) {

@@ -58,7 +58,7 @@ async fn wizard_test_connection(
 
     let result = match body.service.as_str() {
         "supabase" => test_supabase(&http, url, &body.key).await,
-        "openclaw" => test_openclaw(&http, url, &body.key).await,
+        "hermes" | "harness" | "openclaw" => test_harness(&http, url, &body.key).await,
         "bluebubbles" => test_bluebubbles(&http, url, &body.password).await,
         "couchdb" => test_couchdb(&http, url, &body.username, &body.password).await,
         "mac-bridge" => test_mac_bridge(&http, url, &body.key).await,
@@ -135,7 +135,7 @@ async fn test_supabase(http: &reqwest::Client, url: &str, anon_key: &str) -> Res
     Err(format!("Supabase returned HTTP {status}"))
 }
 
-async fn test_openclaw(http: &reqwest::Client, url: &str, api_key: &str) -> Result<(), String> {
+async fn test_harness(http: &reqwest::Client, url: &str, api_key: &str) -> Result<(), String> {
     let endpoint = format!("{url}/v1/models");
     let mut req = http.get(&endpoint);
     if !api_key.is_empty() {
@@ -144,7 +144,7 @@ async fn test_openclaw(http: &reqwest::Client, url: &str, api_key: &str) -> Resu
     let resp = req
         .send()
         .await
-        .map_err(|e| connection_error_msg(&e, "OpenClaw"))?;
+        .map_err(|e| connection_error_msg(&e, "Harness"))?;
 
     let status = resp.status().as_u16();
     if status == 401 || status == 403 {
@@ -153,7 +153,7 @@ async fn test_openclaw(http: &reqwest::Client, url: &str, api_key: &str) -> Resu
     if resp.status().is_success() {
         return Ok(());
     }
-    Err(format!("OpenClaw returned HTTP {status}"))
+    Err(format!("Harness returned HTTP {status}"))
 }
 
 async fn test_bluebubbles(http: &reqwest::Client, url: &str, password: &str) -> Result<(), String> {
@@ -377,7 +377,7 @@ mod tests {
             "Connection refused on port 8000 -- is Supabase running?"
         ));
         assert!(is_connection_error(
-            "Connection timed out -- check that OpenClaw is reachable"
+            "Connection timed out -- check that the harness is reachable"
         ));
         assert!(is_connection_error(
             "Could not resolve hostname -- check the URL"

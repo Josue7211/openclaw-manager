@@ -536,7 +536,7 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     component: () => import('@/components/widgets/VncPreviewWidget').then(m => ({ default: m.VncPreviewWidget })),
   },
   {
-    id: 'openclaw-kpi',
+    id: 'harness-kpi',
     name: 'Harness KPI',
     description: 'Key metrics: agents, sessions, tokens, cost',
     icon: 'Robot',
@@ -545,8 +545,8 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     defaultSize: { w: 2, h: 2 },
     minSize: { w: 2, h: 2 },
     maxSize: { w: 3, h: 3 },
-    component: () => import('@/components/widgets/OpenClawKpiWidget').then(m => ({ default: m.OpenClawKpiWidget })),
-    metadata: { requiresService: 'openclaw' },
+    component: () => import('@/components/widgets/HarnessKpiWidget').then(m => ({ default: m.HarnessKpiWidget })),
+    metadata: { requiresService: 'harness' },
   },
 ]
 
@@ -587,8 +587,8 @@ export function getWidgetBundles(): WidgetBundle[] {
       widgetIds: ['agent-status', 'agents', 'heartbeat'],
     },
     {
-      id: 'clawcontrol',
-      name: 'ClawControl',
+      id: 'clawctrl',
+      name: 'clawctrl',
       description: 'Missions, idea pipeline, and pipeline status',
       widgetIds: ['missions', 'idea-briefing', 'pipeline-status'],
     },

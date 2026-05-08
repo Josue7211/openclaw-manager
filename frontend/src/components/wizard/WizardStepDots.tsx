@@ -13,7 +13,7 @@ interface WizardStepDotsProps {
 const SERVICE_STEP_MAP: Record<number, string> = {
   1: 'tailscale',
   2: 'supabase',
-  3: 'openclaw',
+  3: 'harness',
   4: 'bluebubbles', // also macbridge
   5: 'couchdb',
 }

@@ -22,6 +22,31 @@ DEFAULT_FAVORITE_MODELS = ["gpt-5.4", "gpt-5.4-mini"]
 DEFAULT_AGENT_LABEL = "Hermes Agent"
 AGENT_ALIAS_MODEL_IDS = {"hermes", "hermes-agent"}
 DEFAULT_RUNTIME_FILENAME = "runtime-config.json"
+MAX_WORKSPACE_FILE_SIZE = 5 * 1024 * 1024
+CORE_WORKSPACE_FILES = [
+    "SOUL.md",
+    "AGENTS.md",
+    "USER.md",
+    "IDENTITY.md",
+    "TOOLS.md",
+    "HEARTBEAT.md",
+    "RESEARCH.md",
+    "BOOTSTRAP.md",
+    "CLAUDE.md",
+    "GEMINI.md",
+    ".memd/README.md",
+    ".memd/COMMANDS.md",
+    ".memd/config.json",
+]
+MEMORY_WORKSPACE_FILES = [
+    ".memd/wake.md",
+    ".memd/mem.md",
+    ".memd/events.md",
+]
+MEMORY_WORKSPACE_DIRS = [
+    ".memd/compiled/memory",
+    ".memd/compiled/events",
+]
 
 
 def isoformat_utc(value: Any) -> str:
@@ -276,8 +301,10 @@ class CompatService:
         self.ws_port = int(os.environ.get("COMPAT_WS_PORT", "18789"))
         self.hermes_api_base = os.environ.get("HERMES_API_BASE", "http://127.0.0.1:8642").rstrip("/")
         self.hermes_api_key = os.environ.get("HERMES_API_KEY", "")
-        self.public_api_key = os.environ.get("OPENCLAW_API_KEY", "")
-        self.public_ws_token = os.environ.get("OPENCLAW_PASSWORD", "")
+        public_api_key = os.environ.get("OPENCLAW_API_KEY", "")
+        public_ws_token = os.environ.get("OPENCLAW_PASSWORD", "")
+        self.public_api_key = public_api_key or public_ws_token
+        self.public_ws_token = public_ws_token or public_api_key
         self.default_chat_session_id = os.environ.get("COMPAT_CHAT_SESSION_ID", DEFAULT_CHAT_SESSION_ID)
         self.runtime_dir = pathlib.Path(
             os.environ.get("COMPAT_RUNTIME_DIR", str(pathlib.Path.home() / ".hermes" / "openclaw-compat"))
@@ -295,15 +322,89 @@ class CompatService:
     @property
     def session_db(self):
         if self._session_db is None:
-            hermes_home = pathlib.Path(
-                os.environ.get("HERMES_HOME", str(pathlib.Path.home() / ".hermes" / "hermes-agent"))
-            )
+            hermes_home = self.hermes_home
             if str(hermes_home) not in sys.path:
                 sys.path.insert(0, str(hermes_home))
             from hermes_state import SessionDB  # type: ignore
 
             self._session_db = SessionDB()
         return self._session_db
+
+    @property
+    def hermes_home(self) -> pathlib.Path:
+        return pathlib.Path(os.environ.get("HERMES_HOME", str(pathlib.Path.home() / ".hermes" / "hermes-agent")))
+
+    @property
+    def workspace_home(self) -> pathlib.Path:
+        configured = os.environ.get("HERMES_WORKSPACE_HOME")
+        if configured:
+            return pathlib.Path(configured)
+        hermes_home = self.hermes_home
+        parent = hermes_home.parent
+        if (parent / "SOUL.md").exists() or (parent / ".memd").exists():
+            return parent
+        return hermes_home
+
+    def resolve_workspace_file(self, file_path: str) -> pathlib.Path:
+        if "\0" in file_path:
+            raise ValueError("invalid path")
+        relative = file_path.strip().lstrip("/")
+        if not relative or pathlib.PurePosixPath(relative).is_absolute() or ".." in pathlib.PurePosixPath(relative).parts:
+            raise ValueError("invalid path")
+
+        root = self.workspace_home.resolve(strict=False)
+        resolved = (root / relative).resolve(strict=False)
+        if resolved != root and root not in resolved.parents:
+            raise ValueError("invalid path")
+        return resolved
+
+    def list_workspace_files(self) -> dict[str, list[dict[str, str]]]:
+        root = self.workspace_home
+
+        def entry(path: str) -> dict[str, str]:
+            return {"name": pathlib.PurePosixPath(path).name, "path": path}
+
+        core_files = [entry(path) for path in CORE_WORKSPACE_FILES if (root / path).is_file()]
+
+        seen = set()
+        memory_paths: list[str] = []
+        for path in MEMORY_WORKSPACE_FILES:
+            if (root / path).is_file() and path not in seen:
+                memory_paths.append(path)
+                seen.add(path)
+        for rel_dir in MEMORY_WORKSPACE_DIRS:
+            directory = root / rel_dir
+            if not directory.is_dir():
+                continue
+            for file in sorted(directory.glob("*.md"), key=lambda p: p.name, reverse=True):
+                rel = f"{rel_dir}/{file.name}"
+                if rel not in seen:
+                    memory_paths.append(rel)
+                    seen.add(rel)
+
+        return {"coreFiles": core_files, "memoryFiles": [entry(path) for path in memory_paths]}
+
+    def read_workspace_file(self, file_path: str) -> str:
+        resolved = self.resolve_workspace_file(file_path)
+        if not resolved.is_file():
+            raise FileNotFoundError(file_path)
+        if resolved.stat().st_size > MAX_WORKSPACE_FILE_SIZE:
+            raise ValueError("file too large")
+        return resolved.read_text(encoding="utf-8")
+
+    def write_workspace_file(self, file_path: str, content: str) -> None:
+        if len(content.encode("utf-8")) > MAX_WORKSPACE_FILE_SIZE:
+            raise ValueError("content too large")
+        resolved = self.resolve_workspace_file(file_path)
+        resolved.parent.mkdir(parents=True, exist_ok=True)
+        resolved.write_text(content, encoding="utf-8")
+
+    def delete_workspace_file(self, file_path: str) -> None:
+        basename = pathlib.PurePosixPath(file_path).name
+        if any(pathlib.PurePosixPath(path).name == basename for path in CORE_WORKSPACE_FILES):
+            raise ValueError("cannot delete core workspace files")
+        resolved = self.resolve_workspace_file(file_path)
+        resolved.unlink()
 
     async def _http_client(self):
         if self._httpx is None:
@@ -319,13 +420,13 @@ class CompatService:
 
     def _compare_bearer(self, header: str) -> bool:
         if not self.public_api_key:
-            return True
+            return False
         expected = f"Bearer {self.public_api_key}"
         return hmac.compare_digest(header or "", expected)
 
     def _compare_ws_token(self, token: str) -> bool:
         if not self.public_ws_token:
-            return True
+            return False
         return hmac.compare_digest(token or "", self.public_ws_token)
 
     def log_path(self, session_id: str) -> pathlib.Path:
@@ -684,6 +785,50 @@ def create_app(service: CompatService):
     async def health(_request: web.Request) -> web.Response:
         return web.json_response({"status": "ok", "provider": "hermes-openclaw-compat"})
 
+    async def list_files(request: web.Request) -> web.Response:
+        if auth := require_auth(request):
+            return auth
+        return web.json_response(service.list_workspace_files())
+
+    async def read_file(request: web.Request) -> web.Response:
+        if auth := require_auth(request):
+            return auth
+        file_path = request.query.get("path", "")
+        try:
+            return web.json_response({"content": service.read_workspace_file(file_path)})
+        except FileNotFoundError:
+            return json_error("File not found", status=404)
+        except ValueError as exc:
+            return json_error(str(exc), status=400)
+
+    async def write_file(request: web.Request) -> web.Response:
+        if auth := require_auth(request):
+            return auth
+        try:
+            body = await read_json(request)
+            file_path = body.get("path")
+            content = body.get("content")
+            if not isinstance(file_path, str) or not isinstance(content, str):
+                return json_error("path and content required", status=400)
+            service.write_workspace_file(file_path, content)
+            return web.json_response({"ok": True})
+        except ValueError as exc:
+            return json_error(str(exc), status=400)
+        except Exception as exc:
+            return json_error(str(exc), status=500)
+
+    async def delete_file(request: web.Request) -> web.Response:
+        if auth := require_auth(request):
+            return auth
+        file_path = request.query.get("path", "")
+        try:
+            service.delete_workspace_file(file_path)
+            return web.json_response({"ok": True})
+        except FileNotFoundError:
+            return json_error("File not found", status=404)
+        except ValueError as exc:
+            return json_error(str(exc), status=400)
+
     async def chat_history(request: web.Request) -> web.Response:
         if auth := require_auth(request):
             return auth
@@ -953,6 +1098,10 @@ def create_app(service: CompatService):
 
     app = web.Application()
     app.router.add_get("/health", health)
+    app.router.add_get("/files", list_files)
+    app.router.add_get("/file", read_file)
+    app.router.add_post("/file", write_file)
+    app.router.add_delete("/file", delete_file)
     app.router.add_get("/chat/history", chat_history)
     app.router.add_get("/chat/history/{session_id}", chat_session_history)
     app.router.add_post("/chat/send", chat_send)

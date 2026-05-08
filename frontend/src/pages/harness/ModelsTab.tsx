@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useOpenClawModels } from '@/hooks/useOpenClawModels'
+import { useHarnessModels } from '@/hooks/useHarnessModels'
 import { Star } from '@phosphor-icons/react'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 import { ModelSelector } from '@/components/ModelSelector'
@@ -10,20 +10,20 @@ import {
   CHAT_FAVORITE_MODELS_VERSION,
   CHAT_FAVORITE_MODELS_VERSION_STORAGE_KEY,
   CHAT_PRIMARY_MODEL_STORAGE_KEY,
-  OPENCLAW_HEARTBEAT_MODEL_STORAGE_KEY,
-  getOpenClawModelList,
+  HARNESS_HEARTBEAT_MODEL_STORAGE_KEY,
+  getHarnessModelList,
   isFavoriteModel,
   mergeDefaultFavoriteModelIds,
   resolvePreferredModelId,
   sanitizeFavoriteModelIds,
 } from '@/lib/model-favorites'
-import type { OpenClawHealthStatus } from '../OpenClaw'
+import type { HarnessHealthStatus } from '../Harness'
 
-function OfflineState({ status, noun }: { status: OpenClawHealthStatus; noun: string }) {
+function OfflineState({ status, noun }: { status: HarnessHealthStatus; noun: string }) {
   const title = status === 'not_configured' ? 'Harness not configured' : 'Harness offline'
   const detail = status === 'not_configured'
-    ? `Set OPENCLAW_API_URL in Settings > Connections to view ${noun}.`
-    : `ClawControl cannot reach the harness right now. Check the upstream service and try again.`
+    ? `Set HARNESS_API_URL in Settings > Connections to view ${noun}.`
+    : `clawctrl cannot reach the harness right now. Check the upstream service and try again.`
 
   return (
     <div style={{ padding: '40px 20px', textAlign: 'center' }}>
@@ -37,7 +37,7 @@ function OfflineState({ status, noun }: { status: OpenClawHealthStatus; noun: st
   )
 }
 
-export default function ModelsTab({ healthy, status = 'unknown' }: { healthy: boolean; status?: OpenClawHealthStatus }) {
+export default function ModelsTab({ healthy, status = 'unknown' }: { healthy: boolean; status?: HarnessHealthStatus }) {
   if (!healthy) {
     return <OfflineState status={status} noun="available models" />
   }
@@ -46,12 +46,12 @@ export default function ModelsTab({ healthy, status = 'unknown' }: { healthy: bo
 }
 
 function ModelsContent() {
-  const { models, loading } = useOpenClawModels()
+  const { models, loading } = useHarnessModels()
   const [primaryModel, setPrimaryModel] = useLocalStorageState(CHAT_PRIMARY_MODEL_STORAGE_KEY, '')
-  const [heartbeatModel, setHeartbeatModel] = useLocalStorageState(OPENCLAW_HEARTBEAT_MODEL_STORAGE_KEY, '')
+  const [heartbeatModel, setHeartbeatModel] = useLocalStorageState(HARNESS_HEARTBEAT_MODEL_STORAGE_KEY, '')
   const [favoriteModelIds, setFavoriteModelIds] = useLocalStorageState<string[]>(CHAT_FAVORITE_MODELS_STORAGE_KEY, [])
   const [favoriteModelsVersion, setFavoriteModelsVersion] = useLocalStorageState<number>(CHAT_FAVORITE_MODELS_VERSION_STORAGE_KEY, 0)
-  const modelList = getOpenClawModelList(models)
+  const modelList = getHarnessModelList(models)
   const sanitizedFavoriteIds = sanitizeFavoriteModelIds(favoriteModelIds)
   const favoriteIds = sanitizedFavoriteIds.length === favoriteModelIds.length
     ? favoriteModelIds
@@ -65,7 +65,7 @@ function ModelsContent() {
       chatPrimaryModel?: string | null
       heartbeatModel?: string | null
       favoriteModels?: string[]
-    }>('/api/openclaw/runtime-config').then((config) => {
+    }>('/api/harness/runtime-config').then((config) => {
       if (cancelled) return
       if (typeof config.chatPrimaryModel === 'string' && config.chatPrimaryModel !== primaryModel) {
         setPrimaryModel(config.chatPrimaryModel)
@@ -89,7 +89,7 @@ function ModelsContent() {
     favoriteModels?: string[]
   }) => {
     try {
-      await api.patch('/api/openclaw/runtime-config', next)
+      await api.patch('/api/harness/runtime-config', next)
     } catch {
       // Local preferences remain authoritative while the backend is offline.
     }

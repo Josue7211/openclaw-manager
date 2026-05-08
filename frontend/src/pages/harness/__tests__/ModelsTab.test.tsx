@@ -7,10 +7,10 @@ import { createElement } from 'react'
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockUseOpenClawModels = vi.fn()
+const mockUseHarnessModels = vi.fn()
 
-vi.mock('@/hooks/useOpenClawModels', () => ({
-  useOpenClawModels: () => mockUseOpenClawModels(),
+vi.mock('@/hooks/useHarnessModels', () => ({
+  useHarnessModels: () => mockUseHarnessModels(),
 }))
 
 // ---------------------------------------------------------------------------
@@ -56,7 +56,7 @@ describe('ModelsTab', () => {
   })
 
   it('renders without throwing when healthy with model data', () => {
-    mockUseOpenClawModels.mockReturnValue({
+    mockUseHarnessModels.mockReturnValue({
       models: { models: [mockModel1, mockModel2] },
       loading: false,
       error: null,
@@ -69,7 +69,7 @@ describe('ModelsTab', () => {
   })
 
   it('shows provider badges', () => {
-    mockUseOpenClawModels.mockReturnValue({
+    mockUseHarnessModels.mockReturnValue({
       models: { models: [mockModel1, mockModel2] },
       loading: false,
       error: null,
@@ -82,7 +82,7 @@ describe('ModelsTab', () => {
   })
 
   it('shows max_tokens display', () => {
-    mockUseOpenClawModels.mockReturnValue({
+    mockUseHarnessModels.mockReturnValue({
       models: { models: [mockModel1] },
       loading: false,
       error: null,
@@ -94,7 +94,7 @@ describe('ModelsTab', () => {
   })
 
   it('shows cost info for models with pricing', () => {
-    mockUseOpenClawModels.mockReturnValue({
+    mockUseHarnessModels.mockReturnValue({
       models: { models: [mockModel1] },
       loading: false,
       error: null,
@@ -115,7 +115,7 @@ describe('ModelsTab', () => {
   })
 
   it('shows loading state', () => {
-    mockUseOpenClawModels.mockReturnValue({
+    mockUseHarnessModels.mockReturnValue({
       models: undefined,
       loading: true,
       error: null,
@@ -127,7 +127,7 @@ describe('ModelsTab', () => {
   })
 
   it('shows "No models available" when models list is empty', () => {
-    mockUseOpenClawModels.mockReturnValue({
+    mockUseHarnessModels.mockReturnValue({
       models: { models: [] },
       loading: false,
       error: null,
@@ -140,7 +140,7 @@ describe('ModelsTab', () => {
 
   it('handles LiteLLM format with data key instead of models key', () => {
     // LiteLLM returns { data: [...] } instead of { models: [...] }
-    mockUseOpenClawModels.mockReturnValue({
+    mockUseHarnessModels.mockReturnValue({
       models: { data: [mockModel1], models: undefined },
       loading: false,
       error: null,
@@ -155,7 +155,7 @@ describe('ModelsTab', () => {
 
   it('shows "Unknown" provider when provider is missing', () => {
     const modelNoProvider = { id: 'custom-model', name: 'Custom Model' }
-    mockUseOpenClawModels.mockReturnValue({
+    mockUseHarnessModels.mockReturnValue({
       models: { models: [modelNoProvider] },
       loading: false,
       error: null,
@@ -168,7 +168,7 @@ describe('ModelsTab', () => {
 
   it('falls back to model id when name is missing', () => {
     const modelNoName = { id: 'raw-model-id', provider: 'test' }
-    mockUseOpenClawModels.mockReturnValue({
+    mockUseHarnessModels.mockReturnValue({
       models: { models: [modelNoName] },
       loading: false,
       error: null,
@@ -180,7 +180,7 @@ describe('ModelsTab', () => {
   })
 
   it('shows "No models available" when models response is null', () => {
-    mockUseOpenClawModels.mockReturnValue({
+    mockUseHarnessModels.mockReturnValue({
       models: null,
       loading: false,
       error: null,

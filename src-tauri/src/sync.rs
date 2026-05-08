@@ -42,6 +42,13 @@ const SYNC_TABLES: &[&str] = &[
     GENERATED_MODULE_VERSION_TABLE,
 ];
 
+fn sync_cursor_column(table: &str) -> &'static str {
+    match table {
+        GENERATED_MODULE_VERSION_TABLE => "created_at",
+        _ => "updated_at",
+    }
+}
+
 /// Background sync engine that keeps local SQLite in sync with Supabase.
 pub struct SyncEngine {
     db: SqlitePool,
@@ -231,6 +238,7 @@ impl SyncEngine {
                 .await?
                 .flatten();
 
+        let cursor_column = sync_cursor_column(table);
         let query = match &last_synced {
             Some(ts) => {
                 // Validate timestamp format before interpolating into PostgREST query
@@ -240,15 +248,14 @@ impl SyncEngine {
                     .all(|c| c.is_ascii_digit() || "-T:.%BZ".contains(c))
                 {
                     warn!("sync: invalid last_synced_at for {table}: {ts}");
-                    "select=*&order=updated_at.asc&limit=500".to_string()
+                    format!("select=*&order={cursor_column}.asc&limit=500")
                 } else {
                     format!(
-                        "select=*&updated_at=gt.{}&order=updated_at.asc&limit=500",
-                        safe_ts
+                        "select=*&{cursor_column}=gt.{safe_ts}&order={cursor_column}.asc&limit=500",
                     )
                 }
             }
-            None => "select=*&order=updated_at.asc&limit=500".to_string(),
+            None => format!("select=*&order={cursor_column}.asc&limit=500"),
         };
 
         let rows = client.select_as_user(table, &query, jwt).await?;
@@ -278,8 +285,8 @@ impl SyncEngine {
             if has_pending {
                 // Conflict: local has unsynced changes. Log it, let local win.
                 let local_json: Option<String> = sqlx::query_scalar(&format!(
-                    "SELECT json_object('id', id, 'updated_at', updated_at) FROM {table} WHERE id = ?"
-                ))
+                "SELECT json_object('id', id, '{cursor_column}', {cursor_column}) FROM {table} WHERE id = ?"
+            ))
                 .bind(id)
                 .fetch_optional(&self.db)
                 .await?
@@ -322,7 +329,7 @@ impl SyncEngine {
         // Update sync cursor
         if let Some(last_row) = rows.last() {
             let ts = last_row
-                .get("updated_at")
+                .get(cursor_column)
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
             sqlx::query(

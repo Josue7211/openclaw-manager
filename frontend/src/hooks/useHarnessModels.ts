@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
-import type { ModelsResponse } from '@/pages/openclaw/types'
+import type { ModelsResponse } from '@/pages/harness/types'
 
-export function useOpenClawModels() {
+export function useHarnessModels() {
   const { data, isLoading, error } = useQuery<ModelsResponse>({
-    queryKey: queryKeys.openclawModels,
-    queryFn: () => api.get<ModelsResponse>('/api/openclaw/models'),
+    queryKey: queryKeys.harnessModels,
+    queryFn: () => api.get<ModelsResponse>('/api/harness/models'),
     refetchInterval: 30_000,
     staleTime: 30_000,
   })

@@ -1,4 +1,8 @@
-use axum::{extract::State, routing::get, Json, Router};
+use axum::{
+    extract::State,
+    routing::{get, post},
+    Json, Router,
+};
 use reqwest::Method;
 use serde::Deserialize;
 use serde_json::json;
@@ -7,23 +11,45 @@ use std::path::PathBuf;
 use tokio::time::Duration;
 
 use crate::error::AppError;
+use crate::harness_paths;
 use crate::server::{AppState, RequireAuth};
 
-use super::gateway::{gateway_forward, openclaw_api_key, openclaw_api_url};
+use super::gateway::{gateway_forward, harness_api_key, harness_api_url};
 
 // ── Router ──────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route("/hermes/usage", get(get_usage))
+        .route("/hermes/models", get(get_models))
+        .route("/hermes/tools", get(get_tools))
+        .route("/hermes/tools/invoke", post(invoke_tool))
+        .route("/hermes/skills", get(get_skills))
+        .route(
+            "/hermes/runtime-config",
+            get(get_runtime_config).patch(patch_runtime_config),
+        )
+        .route("/harness/usage", get(get_usage))
+        .route("/harness/models", get(get_models))
+        .route("/harness/tools", get(get_tools))
+        .route("/harness/tools/invoke", post(invoke_tool))
+        .route("/harness/skills", get(get_skills))
+        .route(
+            "/harness/runtime-config",
+            get(get_runtime_config).patch(patch_runtime_config),
+        )
         .route("/openclaw/usage", get(get_usage))
         .route("/openclaw/models", get(get_models))
+        .route("/openclaw/tools", get(get_tools))
+        .route("/openclaw/tools/invoke", post(invoke_tool))
+        .route("/openclaw/skills", get(get_skills))
         .route(
             "/openclaw/runtime-config",
             get(get_runtime_config).patch(patch_runtime_config),
         )
 }
 
-// ── GET /openclaw/usage ─────────────────────────────────────────────────────
+// ── GET /harness/usage ──────────────────────────────────────────────────────
 
 async fn get_usage(
     State(state): State<AppState>,
@@ -33,7 +59,7 @@ async fn get_usage(
     Ok(Json(result))
 }
 
-// ── GET /openclaw/models ────────────────────────────────────────────────────
+// ── GET /harness/models ─────────────────────────────────────────────────────
 
 async fn get_models(
     State(state): State<AppState>,
@@ -43,15 +69,40 @@ async fn get_models(
     Ok(Json(result))
 }
 
+async fn get_tools(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let result = gateway_forward(&state, Method::GET, "/tools", None).await?;
+    Ok(Json(result))
+}
+
+async fn get_skills(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let result = gateway_forward(&state, Method::GET, "/skills", None).await?;
+    Ok(Json(result))
+}
+
+async fn invoke_tool(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let result = gateway_forward(&state, Method::POST, "/tools/invoke", Some(body)).await?;
+    Ok(Json(result))
+}
+
 #[derive(Debug, Default)]
-struct OpenClawRuntimePrefs {
+struct HarnessRuntimePrefs {
     chat_primary_model: Option<String>,
     heartbeat_model: Option<String>,
     favorite_models: Option<Vec<String>>,
 }
 
-impl OpenClawRuntimePrefs {
-    fn overlay(&mut self, other: OpenClawRuntimePrefs) {
+impl HarnessRuntimePrefs {
+    fn overlay(&mut self, other: HarnessRuntimePrefs) {
         if other.chat_primary_model.is_some() {
             self.chat_primary_model = other.chat_primary_model;
         }
@@ -75,13 +126,8 @@ struct PatchRuntimeConfigBody {
     favorite_models: Option<Vec<String>>,
 }
 
-fn openclaw_workspace_dir(state: &AppState) -> PathBuf {
-    let base = state.secret("OPENCLAW_DIR").unwrap_or_else(|| {
-        dirs::home_dir()
-            .map(|h| h.join(".openclaw").to_string_lossy().into_owned())
-            .unwrap_or_else(|| ".openclaw".to_string())
-    });
-    PathBuf::from(base).join("workspace")
+fn harness_workspace_dir(state: &AppState) -> PathBuf {
+    harness_paths::runtime_preferences_dir(state)
 }
 
 fn normalize_model_id(value: Option<String>) -> Option<String> {
@@ -106,7 +152,7 @@ fn normalize_favorite_models(models: Option<Vec<String>>) -> Option<Vec<String>>
 async fn load_runtime_prefs(
     state: &AppState,
     user_id: &str,
-) -> Result<(String, serde_json::Map<String, Value>, OpenClawRuntimePrefs), AppError> {
+) -> Result<(String, serde_json::Map<String, Value>, HarnessRuntimePrefs), AppError> {
     let existing_row: Option<(String, String)> = sqlx::query_as(
         "SELECT id, preferences FROM user_preferences \
          WHERE user_id = ? AND deleted_at IS NULL \
@@ -127,13 +173,17 @@ async fn load_runtime_prefs(
         None => (crate::routes::util::random_uuid(), serde_json::Map::new()),
     };
 
-    let runtime = OpenClawRuntimePrefs {
+    let runtime = HarnessRuntimePrefs {
         chat_primary_model: prefs_map
-            .get("openclaw-chat-primary-model")
+            .get("harness-chat-primary-model")
+            .or_else(|| prefs_map.get("hermes-chat-primary-model"))
+            .or_else(|| prefs_map.get("openclaw-chat-primary-model"))
             .and_then(|v| v.as_str())
             .map(ToString::to_string),
         heartbeat_model: prefs_map
-            .get("openclaw-heartbeat-model")
+            .get("harness-heartbeat-model")
+            .or_else(|| prefs_map.get("hermes-heartbeat-model"))
+            .or_else(|| prefs_map.get("openclaw-heartbeat-model"))
             .and_then(|v| v.as_str())
             .map(ToString::to_string),
         favorite_models: prefs_map
@@ -150,10 +200,10 @@ async fn load_runtime_prefs(
     Ok((row_id, prefs_map, runtime))
 }
 
-async fn load_runtime_file(state: &AppState) -> OpenClawRuntimePrefs {
-    if let Some(base) = openclaw_api_url(state) {
+async fn load_runtime_file(state: &AppState) -> HarnessRuntimePrefs {
+    if let Some(base) = harness_api_url(state) {
         let url = format!("{}/runtime-config", base);
-        let key = openclaw_api_key(state);
+        let key = harness_api_key(state);
         let mut req = state.http.get(url);
         if !key.is_empty() {
             req = req.header("Authorization", format!("Bearer {key}"));
@@ -165,21 +215,30 @@ async fn load_runtime_file(state: &AppState) -> OpenClawRuntimePrefs {
                 .ok()
                 .map(parse_runtime_config_value)
                 .unwrap_or_default(),
-            _ => OpenClawRuntimePrefs::default(),
+            _ => HarnessRuntimePrefs::default(),
         };
     }
 
-    let path = openclaw_workspace_dir(state).join("OPENCLAW-PREFERENCES.json");
-    match tokio::fs::read_to_string(path).await.ok() {
+    let dir = harness_workspace_dir(state);
+    let content = match tokio::fs::read_to_string(dir.join("HARNESS-PREFERENCES.json")).await {
+        Ok(raw) => Some(raw),
+        Err(_) => match tokio::fs::read_to_string(dir.join("HERMES-PREFERENCES.json")).await {
+            Ok(raw) => Some(raw),
+            Err(_) => tokio::fs::read_to_string(dir.join("OPENCLAW-PREFERENCES.json"))
+                .await
+                .ok(),
+        },
+    };
+    match content {
         Some(raw) => {
             parse_runtime_config_value(serde_json::from_str::<Value>(&raw).unwrap_or(Value::Null))
         }
-        None => OpenClawRuntimePrefs::default(),
+        None => HarnessRuntimePrefs::default(),
     }
 }
 
-fn parse_runtime_config_value(parsed: Value) -> OpenClawRuntimePrefs {
-    OpenClawRuntimePrefs {
+fn parse_runtime_config_value(parsed: Value) -> HarnessRuntimePrefs {
+    HarnessRuntimePrefs {
         chat_primary_model: parsed
             .get("chatPrimaryModel")
             .and_then(|v| v.as_str())
@@ -243,18 +302,18 @@ async fn persist_runtime_prefs(
     Ok(())
 }
 
-async fn write_runtime_file(state: &AppState, runtime: &OpenClawRuntimePrefs) {
+async fn write_runtime_file(state: &AppState, runtime: &HarnessRuntimePrefs) {
     let payload = json!({
         "chatPrimaryModel": runtime.chat_primary_model,
         "heartbeatModel": runtime.heartbeat_model,
         "favoriteModels": runtime.favorite_models.clone().unwrap_or_default(),
         "updatedAt": chrono::Utc::now().to_rfc3339(),
-        "managedBy": "clawcontrol",
+        "managedBy": "clawctrl",
     });
 
-    if let Some(base) = openclaw_api_url(state) {
+    if let Some(base) = harness_api_url(state) {
         let url = format!("{}/runtime-config", base);
-        let key = openclaw_api_key(state);
+        let key = harness_api_key(state);
         let mut req = state.http.patch(url).json(&payload);
         if !key.is_empty() {
             req = req.header("Authorization", format!("Bearer {key}"));
@@ -264,7 +323,7 @@ async fn write_runtime_file(state: &AppState, runtime: &OpenClawRuntimePrefs) {
     }
 
     let content = payload.to_string();
-    let path = openclaw_workspace_dir(state).join("OPENCLAW-PREFERENCES.json");
+    let path = harness_workspace_dir(state).join("HARNESS-PREFERENCES.json");
     if let Some(parent) = path.parent() {
         let _ = tokio::fs::create_dir_all(parent).await;
     }
@@ -272,12 +331,12 @@ async fn write_runtime_file(state: &AppState, runtime: &OpenClawRuntimePrefs) {
 }
 
 async fn apply_primary_chat_model(state: &AppState, model: &str) -> bool {
-    let Some(base) = openclaw_api_url(state) else {
+    let Some(base) = harness_api_url(state) else {
         return false;
     };
 
     let url = format!("{}/chat/model", base);
-    let key = openclaw_api_key(state);
+    let key = harness_api_key(state);
     let mut req = state.http.post(url).json(&json!({ "model": model }));
     if !key.is_empty() {
         req = req.header("Authorization", format!("Bearer {key}"));
@@ -311,13 +370,13 @@ async fn patch_runtime_config(
     let (row_id, mut prefs_map, mut runtime) = load_runtime_prefs(&state, &session.user_id).await?;
 
     if let Some(value) = normalize_model_id(body.chat_primary_model) {
-        prefs_map.insert("openclaw-chat-primary-model".into(), json!(value.clone()));
+        prefs_map.insert("harness-chat-primary-model".into(), json!(value.clone()));
         prefs_map.insert("chat-model".into(), json!(value.clone()));
         runtime.chat_primary_model = Some(value);
     }
 
     if let Some(value) = normalize_model_id(body.heartbeat_model) {
-        prefs_map.insert("openclaw-heartbeat-model".into(), json!(value.clone()));
+        prefs_map.insert("harness-heartbeat-model".into(), json!(value.clone()));
         runtime.heartbeat_model = Some(value);
     }
 
@@ -368,12 +427,12 @@ mod tests {
 
     #[test]
     fn runtime_overlay_prefers_runtime_values() {
-        let mut prefs = OpenClawRuntimePrefs {
+        let mut prefs = HarnessRuntimePrefs {
             chat_primary_model: Some("openai/gpt-5".into()),
             heartbeat_model: Some("llama-desktop/qwen".into()),
             favorite_models: Some(vec!["openai/gpt-5".into()]),
         };
-        let runtime = OpenClawRuntimePrefs {
+        let runtime = HarnessRuntimePrefs {
             chat_primary_model: Some("openai-codex/gpt-5.4".into()),
             heartbeat_model: None,
             favorite_models: Some(vec![

@@ -26,6 +26,7 @@ pub mod homelab;
 pub mod ideas;
 pub mod jobs;
 // pub mod koel; // removed: file does not exist (stripped in prior phase)
+pub mod harness_data;
 pub mod knowledge;
 pub mod mail_accounts;
 pub mod mail_policy;
@@ -36,8 +37,7 @@ pub mod messages;
 pub mod missions;
 pub mod module_proposals;
 pub mod notify;
-pub mod openclaw_cli;
-pub mod openclaw_data;
+pub mod openclaw_cli_compat;
 pub mod pipeline;
 pub mod preferences;
 pub mod rag;
@@ -94,8 +94,8 @@ pub fn router() -> Router<AppState> {
         .merge(workflow_notes::router())
         .merge(missions::router())
         .merge(notify::router())
-        .merge(openclaw_cli::router())
-        .merge(openclaw_data::router())
+        .merge(openclaw_cli_compat::router())
+        .merge(harness_data::router())
         .merge(pipeline::router())
         .merge(preferences::router())
         .merge(rag::router())

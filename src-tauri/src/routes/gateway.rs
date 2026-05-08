@@ -15,16 +15,25 @@ use crate::server::{AppState, RequireAuth};
 
 // ── Credential helpers ──────────────────────────────────────────────────────
 
-/// Look up the OpenClaw API base URL from secrets.
-/// Returns `None` when the user has not configured OpenClaw.
-pub(crate) fn openclaw_api_url(state: &AppState) -> Option<String> {
-    state.secret("OPENCLAW_API_URL").filter(|s| !s.is_empty())
+/// Look up the active harness API base URL from secrets.
+/// Provider-specific env keys are fallback aliases.
+pub(crate) fn harness_api_url(state: &AppState) -> Option<String> {
+    state.secret_first(&["HARNESS_API_URL", "HERMES_API_URL", "OPENCLAW_API_URL"])
 }
 
-/// Look up the OpenClaw API key from secrets.
-/// Returns an empty string when not configured.
-pub(crate) fn openclaw_api_key(state: &AppState) -> String {
-    state.secret_or_default("OPENCLAW_API_KEY")
+/// Look up the active harness API key from secrets.
+/// Provider-specific env keys are fallback aliases.
+pub(crate) fn harness_api_key(state: &AppState) -> String {
+    state
+        .secret_first(&[
+            "HARNESS_API_KEY",
+            "HARNESS_PASSWORD",
+            "HERMES_API_KEY",
+            "HERMES_PASSWORD",
+            "OPENCLAW_API_KEY",
+            "OPENCLAW_PASSWORD",
+        ])
+        .unwrap_or_default()
 }
 
 // ── Path validation ─────────────────────────────────────────────────────────
@@ -100,11 +109,11 @@ pub(crate) fn sanitize_error_body(body: &str) -> String {
 
 // ── Gateway forward ─────────────────────────────────────────────────────────
 
-/// Forward an HTTP request to the OpenClaw API.
+/// Forward an HTTP request to the configured harness API.
 ///
-/// This is the single chokepoint for all OpenClaw API communication.
+/// This is the single chokepoint for harness API communication.
 /// Uses `state.http` (bare reqwest client with connection pooling) rather
-/// than `state.openclaw` (ServiceClient) because:
+/// than `state.harness` (ServiceClient) because:
 /// - ServiceClient retries on 5xx, which is dangerous for writes (POST/DELETE)
 /// - ServiceClient forces JSON parsing on all responses
 ///
@@ -120,13 +129,13 @@ pub(crate) async fn gateway_forward(
 ) -> Result<Value, AppError> {
     validate_gateway_path(path)?;
 
-    let base = openclaw_api_url(state).ok_or_else(|| {
+    let base = harness_api_url(state).ok_or_else(|| {
         AppError::BadRequest(
-            "OpenClaw API not configured. Set OPENCLAW_API_URL in Settings > Connections.".into(),
+            "Harness API not configured. Set HARNESS_API_URL in Settings > Connections.".into(),
         )
     })?;
 
-    let api_key = openclaw_api_key(state);
+    let api_key = harness_api_key(state);
     let url = format!("{base}{path}");
 
     let mut req = state
@@ -145,7 +154,7 @@ pub(crate) async fn gateway_forward(
 
     let res = req.send().await.map_err(|e| {
         tracing::error!("[gateway] request to {path} failed: {e}");
-        AppError::Internal(anyhow::anyhow!("Failed to reach OpenClaw API"))
+        AppError::Internal(anyhow::anyhow!("Failed to reach harness API"))
     })?;
 
     let status = res.status();
@@ -156,10 +165,10 @@ pub(crate) async fn gateway_forward(
         let safe_msg = sanitize_error_body(&text);
 
         if status.is_client_error() {
-            return Err(AppError::BadRequest(format!("OpenClaw: {safe_msg}")));
+            return Err(AppError::BadRequest(format!("Harness: {safe_msg}")));
         }
         // 5xx — hide from client
-        return Err(AppError::Internal(anyhow::anyhow!("OpenClaw API error")));
+        return Err(AppError::Internal(anyhow::anyhow!("Harness API error")));
     }
 
     res.json::<Value>()
@@ -169,54 +178,112 @@ pub(crate) async fn gateway_forward(
 
 // ── Health route ────────────────────────────────────────────────────────────
 
-/// `GET /api/openclaw/health`
+/// `GET /api/harness/health`
 ///
 /// Returns HTTP 200 always. The `ok` field indicates connectivity:
-/// - `{ "ok": false, "status": "not_configured" }` — no OPENCLAW_API_URL set
+/// - `{ "ok": false, "status": "not_configured" }` — no harness API URL set
 /// - `{ "ok": true,  "status": "connected" }`      — upstream /health returned 2xx
 /// - `{ "ok": false, "status": "unreachable" }`     — upstream unreachable or non-2xx
-async fn openclaw_health(
+async fn harness_health(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let base = match openclaw_api_url(&state) {
+    let base = match harness_api_url(&state) {
         Some(b) => b,
         None => {
             return Ok(Json(json!({"ok": false, "status": "not_configured"})));
         }
     };
 
-    let url = format!("{base}/health");
-    match state
+    let api_key = harness_api_key(&state);
+    let health_url = format!("{base}/health");
+    let health_res = state
         .http
-        .get(&url)
+        .get(&health_url)
         .timeout(Duration::from_secs(5))
         .send()
-        .await
-    {
-        Ok(r) if r.status().is_success() => {
-            let body = r.json::<Value>().await.unwrap_or_else(|_| json!({}));
-            let provider = body
+        .await;
+
+    let body = match health_res {
+        Ok(r) if r.status().is_success() => r.json::<Value>().await.unwrap_or_else(|_| json!({})),
+        _ => return Ok(Json(json!({"ok": false, "status": "unreachable"}))),
+    };
+
+    if api_key.is_empty() {
+        return Ok(Json(json!({
+            "ok": false,
+            "status": "auth_missing",
+            "provider": body
                 .get("provider")
                 .or_else(|| body.get("platform"))
                 .and_then(Value::as_str)
-                .filter(|value| !value.trim().is_empty())
-                .unwrap_or("OpenClaw");
-            Ok(Json(json!({
-                "ok": true,
-                "status": "connected",
-                "provider": provider,
-            })))
-        }
-        _ => Ok(Json(json!({"ok": false, "status": "unreachable"}))),
+                .unwrap_or("Harness"),
+        })));
     }
+
+    let mut verified_authenticated = false;
+    if !api_key.is_empty() {
+        for auth_path in ["/sessions", "/files"] {
+            let auth_url = format!("{base}{auth_path}");
+            match state
+                .http
+                .get(&auth_url)
+                .header("Authorization", format!("Bearer {api_key}"))
+                .timeout(Duration::from_secs(5))
+                .send()
+                .await
+            {
+                Ok(r) if r.status().is_success() => {
+                    verified_authenticated = true;
+                    break;
+                }
+                Ok(r) if r.status().as_u16() == 404 => continue,
+                Ok(r) if r.status().as_u16() == 401 => {
+                    return Ok(Json(json!({
+                        "ok": false,
+                        "status": "unauthorized",
+                        "provider": body
+                            .get("provider")
+                            .or_else(|| body.get("platform"))
+                            .and_then(Value::as_str)
+                            .unwrap_or("Harness"),
+                    })));
+                }
+                _ => return Ok(Json(json!({"ok": false, "status": "unreachable"}))),
+            }
+        }
+    }
+
+    if !verified_authenticated {
+        return Ok(Json(json!({
+            "ok": false,
+            "status": "auth_probe_missing",
+            "provider": body
+                .get("provider")
+                .or_else(|| body.get("platform"))
+                .and_then(Value::as_str)
+                .unwrap_or("Harness"),
+        })));
+    }
+
+    let provider = body
+        .get("provider")
+        .or_else(|| body.get("platform"))
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or("Harness");
+    Ok(Json(json!({
+        "ok": true,
+        "status": "connected",
+        "provider": provider,
+    })))
 }
 
 // ── Activity route ──────────────────────────────────────────────────────────
 
 /// `GET /api/gateway/activity`
 ///
-/// Returns the latest activity log entries from the OpenClaw gateway.
+/// Returns the latest activity log entries from the configured harness gateway.
 async fn gateway_activity(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
@@ -237,7 +304,7 @@ async fn gateway_activity(
 
 /// `GET /api/gateway/sessions`
 ///
-/// Proxies `sessions.list` through the OpenClaw API.
+/// Proxies `sessions.list` through the configured harness API.
 /// Returns the full sessions list without filtering (unlike /api/claude-sessions
 /// which filters by kind). Wraps the payload in a standard ok envelope.
 async fn gateway_sessions(
@@ -272,7 +339,7 @@ struct HistoryQueryParams {
 
 /// `GET /api/gateway/sessions/:key/history`
 ///
-/// Fetches the conversation history for a specific session from the OpenClaw gateway.
+/// Fetches the conversation history for a specific session from the configured harness gateway.
 /// Uses `state.http` directly (not `gateway_forward`) because the upstream URL
 /// requires query parameters which `validate_gateway_path` would reject.
 async fn gateway_session_history(
@@ -287,13 +354,13 @@ async fn gateway_session_history(
 
     let encoded_key = crate::routes::util::percent_encode(&key);
 
-    let base = openclaw_api_url(&state).ok_or_else(|| {
+    let base = harness_api_url(&state).ok_or_else(|| {
         AppError::BadRequest(
-            "OpenClaw API not configured. Set OPENCLAW_API_URL in Settings > Connections.".into(),
+            "Harness API not configured. Set HARNESS_API_URL in Settings > Connections.".into(),
         )
     })?;
 
-    let api_key = openclaw_api_key(&state);
+    let api_key = harness_api_key(&state);
     let limit = params.limit.unwrap_or(50).min(200);
     let url = format!("{base}/chat/history/{encoded_key}?limit={limit}");
 
@@ -309,7 +376,7 @@ async fn gateway_session_history(
 
     let res = req.send().await.map_err(|e| {
         tracing::error!("[gateway] session history for {key} failed: {e}");
-        AppError::Internal(anyhow::anyhow!("Failed to reach OpenClaw API"))
+        AppError::Internal(anyhow::anyhow!("Failed to reach harness API"))
     })?;
 
     let status = res.status();
@@ -320,9 +387,9 @@ async fn gateway_session_history(
         let safe_msg = sanitize_error_body(&text);
 
         if status.is_client_error() {
-            return Err(AppError::BadRequest(format!("OpenClaw: {safe_msg}")));
+            return Err(AppError::BadRequest(format!("Harness: {safe_msg}")));
         }
-        return Err(AppError::Internal(anyhow::anyhow!("OpenClaw API error")));
+        return Err(AppError::Internal(anyhow::anyhow!("Harness API error")));
     }
 
     let value: Value = res.json().await.map_err(|e| AppError::Internal(e.into()))?;
@@ -339,7 +406,7 @@ struct PatchSessionBody {
 
 /// `PATCH /api/gateway/sessions/:key`
 ///
-/// Rename a session by updating its label via the OpenClaw gateway.
+/// Rename a session by updating its label via the configured harness gateway.
 async fn patch_session(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
@@ -372,7 +439,7 @@ async fn patch_session(
 
 /// `DELETE /api/gateway/sessions/:key`
 ///
-/// Delete a session via the OpenClaw gateway.
+/// Delete a session via the configured harness gateway.
 async fn delete_session(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
@@ -397,7 +464,7 @@ async fn delete_session(
 
 /// `POST /api/gateway/sessions/:key/compact`
 ///
-/// Compact a session to reduce token usage via the OpenClaw gateway.
+/// Compact a session to reduce token usage via the configured harness gateway.
 async fn compact_session(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
@@ -429,7 +496,9 @@ async fn compact_session(
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/openclaw/health", get(openclaw_health))
+        .route("/hermes/health", get(harness_health))
+        .route("/harness/health", get(harness_health))
+        .route("/openclaw/health", get(harness_health))
         .route("/gateway/activity", get(gateway_activity))
         .route("/gateway/sessions", get(gateway_sessions))
         .route(

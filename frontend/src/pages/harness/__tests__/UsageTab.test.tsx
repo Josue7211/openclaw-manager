@@ -7,10 +7,10 @@ import { createElement } from 'react'
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockUseOpenClawUsage = vi.fn()
+const mockUseHarnessUsage = vi.fn()
 
-vi.mock('@/hooks/useOpenClawUsage', () => ({
-  useOpenClawUsage: () => mockUseOpenClawUsage(),
+vi.mock('@/hooks/useHarnessUsage', () => ({
+  useHarnessUsage: () => mockUseHarnessUsage(),
 }))
 
 // ---------------------------------------------------------------------------
@@ -40,7 +40,7 @@ describe('UsageTab', () => {
   })
 
   it('renders without throwing when healthy with usage data', () => {
-    mockUseOpenClawUsage.mockReturnValue({
+    mockUseHarnessUsage.mockReturnValue({
       usage: {
         total_tokens: 150000,
         total_cost: 2.5,
@@ -67,7 +67,7 @@ describe('UsageTab', () => {
   })
 
   it('shows loading state', () => {
-    mockUseOpenClawUsage.mockReturnValue({
+    mockUseHarnessUsage.mockReturnValue({
       usage: undefined,
       loading: true,
       error: null,
@@ -79,7 +79,7 @@ describe('UsageTab', () => {
   })
 
   it('shows "No usage data available" when usage is null', () => {
-    mockUseOpenClawUsage.mockReturnValue({
+    mockUseHarnessUsage.mockReturnValue({
       usage: null,
       loading: false,
       error: null,
@@ -91,7 +91,7 @@ describe('UsageTab', () => {
   })
 
   it('renders model breakdown table when models present', () => {
-    mockUseOpenClawUsage.mockReturnValue({
+    mockUseHarnessUsage.mockReturnValue({
       usage: {
         total_tokens: 200000,
         total_cost: 3.0,
@@ -112,7 +112,7 @@ describe('UsageTab', () => {
   })
 
   it('renders stat cards with fallback values for missing fields', () => {
-    mockUseOpenClawUsage.mockReturnValue({
+    mockUseHarnessUsage.mockReturnValue({
       usage: { total_tokens: undefined, total_cost: undefined },
       loading: false,
       error: null,

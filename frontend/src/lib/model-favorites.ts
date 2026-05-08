@@ -1,17 +1,17 @@
-import type { ModelInfo, ModelsResponse as OpenClawModelsResponse } from '@/pages/openclaw/types'
+import type { ModelInfo, ModelsResponse as HarnessModelsResponse } from '@/pages/harness/types'
 import type { ModelOption } from '@/pages/chat/types'
 
 export const CHAT_FAVORITE_MODELS_STORAGE_KEY = 'chat-favorite-models'
 export const CHAT_FAVORITE_MODELS_VERSION_STORAGE_KEY = 'chat-favorite-models-version'
-export const CHAT_PRIMARY_MODEL_STORAGE_KEY = 'openclaw-chat-primary-model'
-export const OPENCLAW_HEARTBEAT_MODEL_STORAGE_KEY = 'openclaw-heartbeat-model'
+export const CHAT_PRIMARY_MODEL_STORAGE_KEY = 'harness-chat-primary-model'
+export const HARNESS_HEARTBEAT_MODEL_STORAGE_KEY = 'harness-heartbeat-model'
 export const CHAT_FAVORITE_MODELS_VERSION = 3
 export const CHAT_DEFAULT_FAVORITE_MODELS: string[] = [
   'openai-codex/gpt-5.4',
   'openai-codex/gpt-5.4-mini',
 ]
 
-export function getOpenClawModelList(models?: OpenClawModelsResponse | null): ModelInfo[] {
+export function getHarnessModelList(models?: HarnessModelsResponse | null): ModelInfo[] {
   return models?.models ?? models?.data ?? []
 }
 

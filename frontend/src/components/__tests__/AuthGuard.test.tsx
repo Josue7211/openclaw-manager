@@ -12,13 +12,18 @@ const __dirname = resolve(fileURLToPath(import.meta.url), '..')
 vi.mock('@/lib/api', () => ({
   api: { get: vi.fn() },
   API_BASE_CHANGED_EVENT: 'backend-api-base-changed',
+  AUTH_REQUIRED_EVENT: 'auth-required',
 }))
 vi.mock('@/lib/demo-data', () => ({
   isDemoMode: vi.fn(() => false),
 }))
 vi.mock('@/lib/preferences-sync', () => ({
   initPreferencesSync: vi.fn(),
-  initOpenClawRuntimeConfig: vi.fn(),
+  initHarnessRuntimeConfig: vi.fn(),
+  setPreferencesSyncAuthenticated: vi.fn(),
+}))
+vi.mock('@/lib/generated-module-store', () => ({
+  loadGeneratedModules: vi.fn(),
 }))
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
@@ -27,7 +32,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 import AuthGuard from '../AuthGuard'
 import { api } from '@/lib/api'
 import { isDemoMode } from '@/lib/demo-data'
-import { initPreferencesSync, initOpenClawRuntimeConfig } from '@/lib/preferences-sync'
+import { initPreferencesSync, initHarnessRuntimeConfig } from '@/lib/preferences-sync'
 import { invoke } from '@tauri-apps/api/core'
 
 function renderWithRouter(initialEntries = ['/']) {
@@ -53,7 +58,7 @@ describe('AuthGuard', () => {
     vi.clearAllMocks()
     vi.mocked(isDemoMode).mockReturnValue(false)
     vi.mocked(initPreferencesSync).mockResolvedValue(undefined)
-    vi.mocked(initOpenClawRuntimeConfig).mockResolvedValue(undefined)
+    vi.mocked(initHarnessRuntimeConfig).mockResolvedValue(undefined)
     Object.defineProperty(window, '__TAURI_INTERNALS__', {
       configurable: true,
       value: undefined,
@@ -73,6 +78,34 @@ describe('AuthGuard', () => {
     await waitFor(() => {
       expect(screen.getByText('Protected Content')).toBeInTheDocument()
     })
+  })
+
+  it('keeps protected content hidden while demo mode is being validated', () => {
+    vi.mocked(isDemoMode).mockReturnValue(true)
+    vi.mocked(api.get).mockImplementation(() => new Promise(() => {}))
+
+    renderWithRouter()
+
+    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument()
+    expect(screen.queryByText('Login Page')).not.toBeInTheDocument()
+  })
+
+  it('clears demo mode and requires login when a real backend is reachable', async () => {
+    localStorage.setItem('demo-mode', 'true')
+    vi.mocked(isDemoMode).mockReturnValue(true)
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/api/setup/status') return { ok: true } as never
+      if (path === '/api/auth/session') return { authenticated: false } as never
+      throw new Error(`unexpected path: ${path}`)
+    })
+
+    renderWithRouter()
+
+    await waitFor(() => {
+      expect(screen.getByText('Login Page')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument()
+    expect(localStorage.getItem('demo-mode')).toBeNull()
   })
 
   it('renders children when api.get returns authenticated: true', async () => {
@@ -120,6 +153,23 @@ describe('AuthGuard', () => {
     expect(screen.queryByText('Protected Content')).not.toBeInTheDocument()
   })
 
+  it('locks the shell immediately when a protected API reports auth required', async () => {
+    vi.mocked(api.get).mockResolvedValue({ authenticated: true, user: { id: 'user-1', email: 'user@example.com' } })
+
+    renderWithRouter()
+
+    await waitFor(() => {
+      expect(screen.getByText('Protected Content')).toBeInTheDocument()
+    })
+
+    window.dispatchEvent(new CustomEvent('auth-required'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Login Page')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument()
+  })
+
   it('navigates to /login when api.get throws a network error (non-demo)', async () => {
     vi.mocked(isDemoMode).mockReturnValue(false)
     vi.mocked(api.get).mockRejectedValue(new Error('Network error'))
@@ -132,7 +182,8 @@ describe('AuthGuard', () => {
     expect(screen.queryByText('Protected Content')).not.toBeInTheDocument()
   })
 
-  it('renders children when api.get throws but isDemoMode() returns true (demo fallback)', async () => {
+  it('clears demo mode and navigates to login when demo validation fails', async () => {
+    localStorage.setItem('demo-mode', 'true')
     vi.mocked(isDemoMode).mockReturnValue(true)
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/api/setup/status') throw new Error('Network error')
@@ -142,8 +193,10 @@ describe('AuthGuard', () => {
     renderWithRouter()
 
     await waitFor(() => {
-      expect(screen.getByText('Protected Content')).toBeInTheDocument()
+      expect(screen.getByText('Login Page')).toBeInTheDocument()
     })
+    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument()
+    expect(localStorage.getItem('demo-mode')).toBeNull()
   })
 
   it('does not contain devNoBackend bypass (regression guard)', () => {

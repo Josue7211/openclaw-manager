@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { API_BASE } from '@/lib/api'
+import { api, getRequestBaseForPath } from '@/lib/api'
 import { playNotificationChime } from '@/lib/audio'
 import { addNotification } from '@/components/NotificationCenter'
 import { emit } from '@/lib/event-bus'
@@ -74,14 +74,27 @@ export function useMessagesSSE({
     let retryDelay = 3000
     let connected = false
     let debounceTimer: ReturnType<typeof setTimeout> | null = null
+    let disposed = false
 
     function debouncedRefreshConvos() {
       if (debounceTimer) clearTimeout(debounceTimer)
       debounceTimer = setTimeout(() => onRefreshConvosRef.current(), 2000)
     }
 
-    function connect() {
-      es = new EventSource(`${API_BASE}/api/messages/stream`)
+    async function connect() {
+      try {
+        const path = '/api/messages/stream'
+        const tokenResponse = await api.post<{ token?: string }>('/api/messages/stream-token', {})
+        const token = tokenResponse.token?.trim()
+        if (!token) throw new Error('Messages SSE token missing')
+        if (disposed) return
+        es = new EventSource(`${getRequestBaseForPath(path)}${path}?sseToken=${encodeURIComponent(token)}`)
+      } catch {
+        if (disposed) return
+        retryTimeout = setTimeout(connect, retryDelay)
+        retryDelay = Math.min(retryDelay * 2, 30000)
+        return
+      }
       es.onmessage = async (ev) => {
         try {
           const event: SSEEvent = JSON.parse(ev.data)
@@ -168,12 +181,13 @@ export function useMessagesSSE({
       }
     }
 
-    connect()
+    void connect()
     const convPoll = setInterval(() => {
       if (!connected) onRefreshConvosRef.current()
     }, 60000)
 
     return () => {
+      disposed = true
       es?.close()
       if (retryTimeout) clearTimeout(retryTimeout)
       if (debounceTimer) clearTimeout(debounceTimer)

@@ -2,15 +2,15 @@ import React from 'react'
 import { Robot, ArrowRight } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { SkeletonRows } from '@/components/Skeleton'
-import { useOpenClawModels } from '@/hooks/useOpenClawModels'
+import { useHarnessModels } from '@/hooks/useHarnessModels'
 import { useGatewaySessions } from '@/hooks/sessions/useGatewaySessions'
-import { useOpenClawUsage } from '@/hooks/useOpenClawUsage'
+import { useHarnessUsage } from '@/hooks/useHarnessUsage'
 import type { WidgetProps } from '@/lib/widget-registry'
 
-export const OpenClawKpiWidget = React.memo(function OpenClawKpiWidget(_props: WidgetProps) {
-  const { models, loading: modelsLoading } = useOpenClawModels()
+export const HarnessKpiWidget = React.memo(function HarnessKpiWidget(_props: WidgetProps) {
+  const { models, loading: modelsLoading } = useHarnessModels()
   const { sessions, isLoading: sessionsLoading } = useGatewaySessions()
-  const { usage, loading: usageLoading } = useOpenClawUsage()
+  const { usage, loading: usageLoading } = useHarnessUsage()
   const navigate = useNavigate()
 
   const loading = modelsLoading || sessionsLoading || usageLoading
@@ -45,9 +45,7 @@ export const OpenClawKpiWidget = React.memo(function OpenClawKpiWidget(_props: W
         <span style={{
           fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)',
           letterSpacing: '0.1em', textTransform: 'uppercase', flex: 1,
-        }}>
-          Harness
-        </span>
+        }}>Harness</span>
         {activeSessions > 0 && (
           <span style={{
             fontSize: '10px', padding: '2px 6px', borderRadius: '8px',
@@ -104,8 +102,8 @@ export const OpenClawKpiWidget = React.memo(function OpenClawKpiWidget(_props: W
 
       {/* View all link */}
       <button
-        onClick={() => navigate('/openclaw')}
-        aria-label="View harness details"
+        onClick={() => navigate('/harness')}
+        aria-label="View Harness details"
         style={{
           display: 'flex', alignItems: 'center', gap: '4px', marginTop: '8px',
           paddingTop: '8px', fontSize: '11px', color: 'var(--accent)',

@@ -39,7 +39,7 @@ export default function Status() {
   const services = health?.services
   const serviceEntries: { key: string; label: string; data: import('./status/types').ServiceStatus | undefined }[] = [
     { key: 'bluebubbles', label: 'BlueBubbles', data: services?.bluebubbles },
-    { key: 'openclaw', label: 'Harness', data: services?.openclaw },
+    { key: 'harness', label: 'Harness', data: services?.harness ?? services?.hermes ?? services?.openclaw },
     { key: 'supabase', label: 'Supabase', data: services?.supabase },
   ]
 

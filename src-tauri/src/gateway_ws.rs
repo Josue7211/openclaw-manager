@@ -1,5 +1,5 @@
 //! Gateway WebSocket client — maintains a persistent connection to the
-//! OpenClaw gateway and broadcasts received events to local subscribers.
+//! Harness gateway and broadcasts received events to local subscribers.
 //!
 //! The client connects to the gateway's WebSocket endpoint, authenticates
 //! with the configured API key, and re-broadcasts all received event frames
@@ -45,7 +45,7 @@ struct Inner {
     reconnect_attempt: u64,
 }
 
-/// Client that maintains a WebSocket connection to the OpenClaw gateway
+/// Client that maintains a WebSocket connection to the Harness gateway
 /// and broadcasts events to local subscribers.
 pub struct GatewayWsClient {
     event_tx: broadcast::Sender<Value>,

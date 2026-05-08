@@ -33,7 +33,6 @@ struct SetupCapabilities {
     google_oauth: bool,
     github_oauth: bool,
     harness: bool,
-    openclaw: bool,
     agentsecrets: bool,
     memd: bool,
 }
@@ -42,7 +41,6 @@ struct SetupCapabilities {
 struct SetupServices {
     supabase: SetupServiceState,
     harness: SetupServiceState,
-    openclaw: SetupServiceState,
     agentsecrets: SetupServiceState,
     memd: SetupServiceState,
 }
@@ -51,6 +49,64 @@ struct SetupServices {
 struct SetupServiceState {
     configured: bool,
     reachable: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    status: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    auth_configured: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    auth_valid: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    auth_source: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    checked_path: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<&'static str>,
+}
+
+impl SetupServiceState {
+    fn simple(configured: bool, reachable: bool) -> Self {
+        Self {
+            configured,
+            reachable,
+            status: None,
+            auth_configured: None,
+            auth_valid: None,
+            auth_source: None,
+            checked_path: None,
+            message: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HarnessAuthSource {
+    ApiKey,
+    PasswordFallback,
+    Missing,
+}
+
+impl HarnessAuthSource {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::ApiKey => "api_key",
+            Self::PasswordFallback => "password_fallback",
+            Self::Missing => "missing",
+        }
+    }
+}
+
+struct HarnessAuth {
+    key: String,
+    source: HarnessAuthSource,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct HarnessHealth {
+    reachable: bool,
+    status: &'static str,
+    auth_valid: bool,
+    checked_path: Option<&'static str>,
+    message: &'static str,
 }
 
 #[derive(Debug, Deserialize)]
@@ -78,11 +134,10 @@ async fn get_setup_status(
 ) -> Json<SetupStatusResponse> {
     let supabase_url = state.secret_or_default("SUPABASE_URL");
     let supabase_service_key = state.secret_or_default("SUPABASE_SERVICE_ROLE_KEY");
-    // The persisted key names are still OPENCLAW_* for compatibility with the
-    // older API contract, but the active runtime may be Hermes behind that
-    // compatibility layer. Expose it to setup as the product "harness".
-    let harness_url = state.secret_or_default("OPENCLAW_API_URL");
-    let harness_api_key = state.secret_or_default("OPENCLAW_API_KEY");
+    let harness_url = state
+        .secret_first(&["HARNESS_API_URL", "HERMES_API_URL", "OPENCLAW_API_URL"])
+        .unwrap_or_default();
+    let harness_auth = harness_auth(&state);
     let agentsecrets_url = state.secret_or_default("AGENTSECRETS_URL");
     let agentsecrets_key = state.secret_or_default("AGENTSECRETS_CLIENT_API_KEY");
 
@@ -94,10 +149,16 @@ async fn get_setup_status(
     };
 
     let harness_configured = !harness_url.is_empty();
-    let harness_reachable = if harness_configured {
-        harness_health(&state, &harness_url, &harness_api_key).await
+    let harness_health = if harness_configured {
+        harness_health(&state, &harness_url, &harness_auth.key).await
     } else {
-        false
+        HarnessHealth {
+            reachable: false,
+            status: "not_configured",
+            auth_valid: false,
+            checked_path: None,
+            message: "Harness URL is not configured.",
+        }
     };
     let agentsecrets_configured = !agentsecrets_url.is_empty() && !agentsecrets_key.is_empty();
     let agentsecrets_reachable = if agentsecrets_configured {
@@ -121,6 +182,8 @@ async fn get_setup_status(
     }
     if !harness_configured {
         missing.push("harness".to_string());
+    } else if !harness_health.auth_valid {
+        missing.push("harness_auth".to_string());
     }
     if !agentsecrets_configured {
         missing.push("agentsecrets".to_string());
@@ -134,31 +197,26 @@ async fn get_setup_status(
             google_oauth: env_or_secret_bool(&state, "GOTRUE_EXTERNAL_GOOGLE_ENABLED"),
             github_oauth: env_or_secret_bool(&state, "GOTRUE_EXTERNAL_GITHUB_ENABLED"),
             harness: harness_configured,
-            openclaw: harness_configured,
             agentsecrets: agentsecrets_configured,
             memd: true,
         },
         services: SetupServices {
-            supabase: SetupServiceState {
-                configured: supabase_configured,
-                reachable: supabase_reachable,
-            },
+            supabase: SetupServiceState::simple(supabase_configured, supabase_reachable),
             harness: SetupServiceState {
                 configured: harness_configured,
-                reachable: harness_reachable,
+                reachable: harness_health.reachable,
+                status: Some(harness_health.status),
+                auth_configured: Some(harness_auth.source != HarnessAuthSource::Missing),
+                auth_valid: Some(harness_health.auth_valid),
+                auth_source: Some(harness_auth.source.as_str()),
+                checked_path: harness_health.checked_path,
+                message: Some(harness_health.message),
             },
-            openclaw: SetupServiceState {
-                configured: harness_configured,
-                reachable: harness_reachable,
-            },
-            agentsecrets: SetupServiceState {
-                configured: agentsecrets_configured,
-                reachable: agentsecrets_reachable,
-            },
-            memd: SetupServiceState {
-                configured: true,
-                reachable: true,
-            },
+            agentsecrets: SetupServiceState::simple(
+                agentsecrets_configured,
+                agentsecrets_reachable,
+            ),
+            memd: SetupServiceState::simple(true, true),
         },
         missing,
     })
@@ -218,20 +276,69 @@ async fn post_pair(
     }))
 }
 
-async fn harness_health(state: &AppState, base_url: &str, api_key: &str) -> bool {
-    for path in ["/health", "/files"] {
+fn harness_auth(state: &AppState) -> HarnessAuth {
+    let api_key = state.secret_first(&["HARNESS_API_KEY", "HERMES_API_KEY", "OPENCLAW_API_KEY"]);
+    if let Some(key) = api_key {
+        return HarnessAuth {
+            key,
+            source: HarnessAuthSource::ApiKey,
+        };
+    }
+
+    let password =
+        state.secret_first(&["HARNESS_PASSWORD", "HERMES_PASSWORD", "OPENCLAW_PASSWORD"]);
+    if let Some(key) = password {
+        return HarnessAuth {
+            key,
+            source: HarnessAuthSource::PasswordFallback,
+        };
+    }
+
+    HarnessAuth {
+        key: String::new(),
+        source: HarnessAuthSource::Missing,
+    }
+}
+
+async fn harness_health(state: &AppState, base_url: &str, api_key: &str) -> HarnessHealth {
+    if api_key.trim().is_empty() {
+        return HarnessHealth {
+            reachable: false,
+            status: "auth_missing",
+            auth_valid: false,
+            checked_path: Some("/sessions"),
+            message: "Harness auth is missing. Public health is not enough for agents, chat, or approvals.",
+        };
+    }
+
+    for path in ["/sessions", "/files"] {
         let url = format!("{}{}", base_url.trim_end_matches('/'), path);
-        let mut req = state
+        let req = state
             .http
             .get(&url)
-            .timeout(std::time::Duration::from_secs(5));
-        if !api_key.is_empty() {
-            req = req.header("Authorization", format!("Bearer {api_key}"));
-        }
+            .timeout(std::time::Duration::from_secs(5))
+            .header("Authorization", format!("Bearer {api_key}"));
 
         match req.send().await {
-            Ok(resp) if resp.status().is_success() => return true,
-            Ok(resp) if resp.status().as_u16() == 404 && path == "/health" => continue,
+            Ok(resp) if resp.status().is_success() => {
+                return HarnessHealth {
+                    reachable: true,
+                    status: "connected",
+                    auth_valid: true,
+                    checked_path: Some(path),
+                    message: "Authenticated harness preflight passed.",
+                }
+            }
+            Ok(resp) if resp.status().as_u16() == 404 => continue,
+            Ok(resp) if resp.status().as_u16() == 401 || resp.status().as_u16() == 403 => {
+                return HarnessHealth {
+                    reachable: false,
+                    status: "auth_invalid",
+                    auth_valid: false,
+                    checked_path: Some(path),
+                    message: "Harness rejected the configured auth token.",
+                }
+            }
             Ok(resp) => {
                 warn!(
                     harness_url = %base_url,
@@ -239,7 +346,13 @@ async fn harness_health(state: &AppState, base_url: &str, api_key: &str) -> bool
                     status = resp.status().as_u16(),
                     "harness health check returned non-success"
                 );
-                return false;
+                return HarnessHealth {
+                    reachable: false,
+                    status: "unreachable",
+                    auth_valid: false,
+                    checked_path: Some(path),
+                    message: "Authenticated harness preflight returned an unexpected status.",
+                };
             }
             Err(err) => {
                 warn!(
@@ -250,11 +363,24 @@ async fn harness_health(state: &AppState, base_url: &str, api_key: &str) -> bool
                     is_connect = err.is_connect(),
                     "harness health check failed"
                 );
-                return false;
+                return HarnessHealth {
+                    reachable: false,
+                    status: "unreachable",
+                    auth_valid: false,
+                    checked_path: Some(path),
+                    message: "Authenticated harness preflight could not reach the service.",
+                };
             }
         }
     }
-    false
+
+    HarnessHealth {
+        reachable: false,
+        status: "auth_probe_missing",
+        auth_valid: false,
+        checked_path: Some("/sessions"),
+        message: "No authenticated harness capability route was available to verify.",
+    }
 }
 
 fn backend_public_base_url(state: &AppState, headers: &HeaderMap) -> String {

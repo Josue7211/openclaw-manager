@@ -4,6 +4,8 @@ use axum::http::{HeaderValue, Request, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::Router;
+use rand::RngCore;
+use sha2::{Digest, Sha256};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::OnceLock;
@@ -18,10 +20,12 @@ use zeroize::Zeroize;
 /// without touching process environment variables.
 pub static MC_API_KEY: OnceLock<String> = OnceLock::new();
 
-/// MC_AGENT_KEY — optional stable key for external agents on OpenClaw VM.
+/// MC_AGENT_KEY — optional stable key for external agents on the harness VM.
 /// Unlike MC_API_KEY which rotates every launch, this is user-configured and persistent.
 pub static MC_AGENT_KEY: OnceLock<String> = OnceLock::new();
 pub static PAIRING_TOKEN: OnceLock<String> = OnceLock::new();
+const SCOPED_SSE_TOKEN_TTL_SECS: u64 = 60;
+const SCOPED_SSE_PATHS: &[&str] = &["/api/events", "/api/gateway/events", "/api/messages/stream"];
 use crate::routes;
 use crate::service_client::ServiceClient;
 use tokio::net::TcpListener;
@@ -208,11 +212,10 @@ pub struct AppState {
     /// Pre-configured BlueBubbles service client. `None` when BLUEBUBBLES_HOST
     /// is not set (module disabled).
     pub bb: Option<ServiceClient>,
-    /// Pre-configured OpenClaw API service client. `None` when OPENCLAW_API_URL
-    /// is not set (module disabled).
-    pub openclaw: Option<ServiceClient>,
-    /// Gateway WebSocket client for receiving real-time events from the OpenClaw
-    /// gateway. `None` when OPENCLAW_API_URL is not configured.
+    /// Pre-configured harness API service client. `None` when no harness URL
+    /// is set. Field name stays for older route code.
+    pub harness: Option<ServiceClient>,
+    /// Gateway WebSocket client for receiving real-time harness events.
     pub gateway_ws: Option<Arc<crate::gateway_ws::GatewayWsClient>>,
     // Supabase already has its own SupabaseClient in `crate::supabase`.
     /// Current user session (JWT tokens + derived encryption key).
@@ -255,6 +258,17 @@ impl AppState {
             .unwrap_or_else(|e| e.into_inner())
             .get(key)
             .cloned()
+    }
+
+    /// Look up the first configured secret from a list of env-var names.
+    pub fn secret_first(&self, keys: &[&str]) -> Option<String> {
+        let guard = self.secrets.read().unwrap_or_else(|e| e.into_inner());
+        keys.iter().find_map(|key| {
+            guard
+                .get(*key)
+                .filter(|value| !value.trim().is_empty())
+                .cloned()
+        })
     }
 
     /// Convenience: look up a secret or return an empty string.
@@ -520,7 +534,7 @@ async fn verify_connection_security(secrets: &std::collections::HashMap<String, 
     let service_urls: &[(&str, &str)] = &[
         ("Supabase", "SUPABASE_URL"),
         ("BlueBubbles", "BLUEBUBBLES_HOST"),
-        ("OpenClaw", "OPENCLAW_API_URL"),
+        ("Harness", "HARNESS_API_URL"),
         ("Proxmox", "PROXMOX_HOST"),
         ("OPNsense", "OPNSENSE_HOST"),
         ("CalDAV", "CALDAV_URL"),
@@ -586,13 +600,15 @@ pub async fn start(
         ServiceClient::new("BlueBubbles", &host, 30)
     });
 
-    let openclaw_url = secrets
-        .get("OPENCLAW_API_URL")
+    let harness_url = secrets
+        .get("HARNESS_API_URL")
+        .or_else(|| secrets.get("HERMES_API_URL"))
+        .or_else(|| secrets.get("OPENCLAW_API_URL"))
         .cloned()
         .filter(|s| !s.is_empty());
-    let openclaw = openclaw_url.map(|url| {
-        tracing::info!("OpenClaw service client configured");
-        ServiceClient::new("OpenClaw", &url, 60)
+    let harness = harness_url.map(|url| {
+        tracing::info!("Harness service client configured");
+        ServiceClient::new("Harness", &url, 60)
     });
 
     let db = crate::db::init().await?;
@@ -641,8 +657,8 @@ pub async fn start(
     #[cfg(debug_assertions)]
     let restored_session = restored_session;
 
-    // Create gateway WS client if OpenClaw is configured
-    let gateway_ws = openclaw
+    // Create gateway WS client if a compatible harness is configured.
+    let gateway_ws = harness
         .as_ref()
         .map(|_| crate::gateway_ws::GatewayWsClient::new());
 
@@ -655,7 +671,7 @@ pub async fn start(
             .unwrap_or_default(),
         secrets: Arc::new(std::sync::RwLock::new(secrets)),
         bb,
-        openclaw,
+        harness,
         gateway_ws,
         session: Arc::new(RwLock::new(restored_session)),
         refresh_mutex: Arc::new(tokio::sync::Mutex::new(())),
@@ -848,7 +864,12 @@ async fn inject_session(
                                     s.refresh_token = auth_resp.refresh_token;
                                     s.expires_at = now + auth_resp.expires_in;
                                 }
+                                let updated_session = write.clone();
                                 drop(write);
+                                if let Some(ref session) = updated_session {
+                                    #[cfg(debug_assertions)]
+                                    save_dev_session(&state.db, session).await;
+                                }
                             }
                             Err(e) => {
                                 tracing::warn!("token refresh failed: {e}");
@@ -1057,6 +1078,91 @@ async fn rate_limit(req: Request<Body>, next: Next) -> Response {
     next.run(req).await
 }
 
+fn scoped_sse_signature(secret: &str, path: &str, expires_at: u64, nonce: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"scoped-sse-v1:");
+    hasher.update(path.as_bytes());
+    hasher.update(b":");
+    hasher.update(expires_at.to_string().as_bytes());
+    hasher.update(b":");
+    hasher.update(nonce.as_bytes());
+    hasher.update(b":");
+    hasher.update(secret.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
+pub(crate) fn mint_scoped_sse_token(path: &str) -> Option<(String, u64)> {
+    if !SCOPED_SSE_PATHS.contains(&path) {
+        return None;
+    }
+    let secret = MC_API_KEY.get()?.as_str();
+    if secret.is_empty() {
+        return None;
+    }
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let expires_at = now + SCOPED_SSE_TOKEN_TTL_SECS;
+    let mut nonce_bytes = [0u8; 16];
+    rand::thread_rng().fill_bytes(&mut nonce_bytes);
+    let nonce = hex::encode(nonce_bytes);
+    let sig = scoped_sse_signature(secret, path, expires_at, &nonce);
+    Some((format!("sse_v1.{expires_at}.{nonce}.{sig}"), expires_at))
+}
+
+pub(crate) fn mint_gateway_sse_token() -> Option<(String, u64)> {
+    mint_scoped_sse_token("/api/gateway/events")
+}
+
+fn validate_scoped_sse_token(path: &str, token: &str) -> bool {
+    if !SCOPED_SSE_PATHS.contains(&path) {
+        return false;
+    }
+    let Some(secret) = MC_API_KEY.get().filter(|value| !value.is_empty()) else {
+        return false;
+    };
+    let Some(rest) = token.strip_prefix("sse_v1.") else {
+        return false;
+    };
+    let mut parts = rest.split('.');
+    let Some(exp_raw) = parts.next() else {
+        return false;
+    };
+    let Some(nonce) = parts.next() else {
+        return false;
+    };
+    let Some(sig) = parts.next() else {
+        return false;
+    };
+    if parts.next().is_some() || nonce.len() != 32 || sig.len() != 64 {
+        return false;
+    }
+    let Ok(expires_at) = exp_raw.parse::<u64>() else {
+        return false;
+    };
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    if expires_at < now {
+        return false;
+    }
+    let expected = scoped_sse_signature(secret, path, expires_at, nonce);
+    sig.as_bytes().ct_eq(expected.as_bytes()).into()
+}
+
+fn query_param(query: &str, key: &str) -> Option<String> {
+    let prefix = format!("{key}=");
+    query.split('&').find_map(|pair| {
+        pair.strip_prefix(&prefix).map(|val| {
+            urlencoding::decode(val)
+                .map(|v| v.into_owned())
+                .unwrap_or_else(|_| val.to_string())
+        })
+    })
+}
+
 /// Middleware that validates the `X-API-Key` header against `MC_API_KEY`.
 async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
     let path = req.uri().path();
@@ -1094,6 +1200,16 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
                 .into_response();
         }
     };
+
+    if SCOPED_SSE_PATHS.contains(&path) {
+        if let Some(query) = req.uri().query() {
+            if let Some(token) = query_param(query, "sseToken") {
+                if validate_scoped_sse_token(path, &token) {
+                    return next.run(req).await;
+                }
+            }
+        }
+    }
 
     // Check X-API-Key header (Tauri app path) — constant-time comparison
     if let Some(provided) = req.headers().get("x-api-key").and_then(|v| v.to_str().ok()) {

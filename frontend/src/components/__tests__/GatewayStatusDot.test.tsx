@@ -55,6 +55,19 @@ describe('GatewayStatusDot', () => {
     expect(screen.getByTitle('Harness offline')).toBeInTheDocument()
   })
 
+  it('includes the diagnostic detail in the tooltip when auth fails', () => {
+    vi.mocked(useHarnessStatus).mockReturnValue({
+      status: 'disconnected',
+      connected: false,
+      isLoading: false,
+      providerLabel: 'Harness',
+      detail: 'Harness rejected the configured auth token. Checked /sessions.',
+    })
+
+    render(<GatewayStatusDot />)
+    expect(screen.getByTitle('Harness offline. Harness rejected the configured auth token. Checked /sessions.')).toBeInTheDocument()
+  })
+
   it('renders a dot with title "Harness not configured" when status is not_configured', () => {
     vi.mocked(useHarnessStatus).mockReturnValue({
       status: 'not_configured',
