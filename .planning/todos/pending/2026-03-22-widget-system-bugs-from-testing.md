@@ -67,6 +67,12 @@ Multiple bugs found during live testing of the widget system:
 
 ## Solution
 
+Progress 2026-05-08:
+- Bug 1: resize handle stacking hardened with a named widget shell and higher handle z-index/hit area.
+- Bug 2/5: duplicate widgets stay supported; picker now says "On page" and "Add another" instead of implying the widget is blocked.
+- Bug 6: Dashboard and Home now use shared first-open-slot placement instead of persisting `y: Infinity`.
+- Regression coverage added for responsive placement, duplicate placement, picker copy, and grid rendering.
+
 Priority order:
 1. Fix resize (Bug 1) — critical, blocks all customization
 2. Fix widgets disappearing on tab switch (Bug 8) — critical, broken navigation

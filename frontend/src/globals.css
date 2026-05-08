@@ -1405,8 +1405,18 @@ input[type="checkbox"]:checked::before {
 }
 
 /* ── Resize handles above widget content ── */
+.dashboard-widget-shell {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+}
+
 .react-grid-item > .react-resizable-handle {
-  z-index: 20;
+  z-index: 60;
+  width: 24px;
+  height: 24px;
+  pointer-events: auto;
 }
 
 /* ── Widget edit chrome ── */

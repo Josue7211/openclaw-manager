@@ -95,7 +95,6 @@ export const WidgetPickerCard = React.memo(function WidgetPickerCard({
         flexDirection: 'column',
         gap: '10px',
         transition: 'border-color 150ms ease, opacity 150ms ease',
-        opacity: isPlaced ? 0.7 : 1,
         position: 'relative',
       }}
     >
@@ -110,7 +109,7 @@ export const WidgetPickerCard = React.memo(function WidgetPickerCard({
             alignItems: 'center',
             zIndex: 1,
           }}
-          title="Already on dashboard"
+          title="On this page. Add another copy if needed."
         >
           <CheckCircle size={18} weight="fill" style={{ color: 'var(--green-500)' }} />
         </div>
@@ -162,7 +161,7 @@ export const WidgetPickerCard = React.memo(function WidgetPickerCard({
                 marginTop: '2px',
               }}
             >
-              Already placed
+              On page
             </div>
           )}
         </div>
@@ -224,7 +223,7 @@ export const WidgetPickerCard = React.memo(function WidgetPickerCard({
             transition: 'all 150ms ease',
           }}
         >
-          Add
+          {isPlaced ? 'Add another' : 'Add'}
         </button>
       </div>
     </div>

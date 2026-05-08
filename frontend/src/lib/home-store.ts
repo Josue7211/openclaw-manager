@@ -7,6 +7,7 @@
  */
 
 import { useSyncExternalStore } from 'react'
+import { addLayoutItemAcrossBreakpoints } from './dashboard-layout'
 import type { DashboardState, LayoutItem } from './dashboard-store'
 
 // Types imported for internal use (no re-export -- consumers import directly from dashboard-store)
@@ -156,13 +157,7 @@ export function addHomeWidgetToPage(pageId: string, pluginId: string, layout: La
     ..._cached,
     pages: _cached.pages.map(p => {
       if (p.id !== pageId) return p
-      const breakpoints = Object.keys(p.layouts).length > 0
-        ? Object.keys(p.layouts)
-        : ['lg']
-      const newLayouts = { ...p.layouts }
-      for (const bp of breakpoints) {
-        newLayouts[bp] = [...(newLayouts[bp] || []), layout]
-      }
+      const newLayouts = addLayoutItemAcrossBreakpoints(p.layouts, layout)
       const newConfigs = {
         ...p.widgetConfigs,
         [layout.i]: { ...p.widgetConfigs[layout.i], _pluginId: pluginId },
@@ -248,13 +243,7 @@ export function restoreHomeWidget(recycleBinIndex: number): void {
     ..._cached,
     pages: _cached.pages.map(p => {
       if (p.id !== targetPageId) return p
-      const breakpoints = Object.keys(p.layouts).length > 0
-        ? Object.keys(p.layouts)
-        : ['lg']
-      const newLayouts = { ...p.layouts }
-      for (const bp of breakpoints) {
-        newLayouts[bp] = [...(newLayouts[bp] || []), item.previousPosition]
-      }
+      const newLayouts = addLayoutItemAcrossBreakpoints(p.layouts, item.previousPosition)
       return { ...p, layouts: newLayouts }
     }),
     recycleBin: newRecycleBin,

@@ -159,7 +159,7 @@ export const DashboardGrid = React.memo(function DashboardGrid({
         >
           {widgetItems.map(item => (
             <div key={item.i} {...longPressHandlers}>
-              <div className={editMode && wobbleEnabled ? 'widget-wobble' : ''} style={{ width: '100%', height: '100%' }}>
+              <div className={`dashboard-widget-shell${editMode && wobbleEnabled ? ' widget-wobble' : ''}`}>
                 <WidgetWrapper
                   widgetId={item.i}
                   pluginId={String(page.widgetConfigs[item.i]?._pluginId ?? item.i)}

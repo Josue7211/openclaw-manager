@@ -332,6 +332,36 @@ describe('setWobbleEnabled', () => {
 })
 
 describe('addWidgetToPage _pluginId', () => {
+  it('places widgets on concrete responsive layouts instead of Infinity', () => {
+    const state = getDashboardState()
+    const pageId = state.pages[0].id
+
+    addWidgetToPage(pageId, 'heartbeat', {
+      i: 'heartbeat-1', x: 0, y: Infinity, w: 4, h: 2,
+    })
+
+    const page = getDashboardState().pages.find(p => p.id === pageId)
+    expect(Object.keys(page!.layouts).sort()).toEqual(['lg', 'md', 'sm', 'xl'])
+    expect(page!.layouts.lg[0]).toMatchObject({ i: 'heartbeat-1', x: 0, y: 0 })
+    expect(Number.isFinite(page!.layouts.lg[0].y)).toBe(true)
+  })
+
+  it('places duplicate widgets into the next open grid slot', () => {
+    const state = getDashboardState()
+    const pageId = state.pages[0].id
+
+    addWidgetToPage(pageId, 'heartbeat', {
+      i: 'heartbeat-1', x: 0, y: Infinity, w: 4, h: 2,
+    })
+    addWidgetToPage(pageId, 'heartbeat', {
+      i: 'heartbeat-2', x: 0, y: Infinity, w: 4, h: 2,
+    })
+
+    const page = getDashboardState().pages.find(p => p.id === pageId)
+    expect(page!.layouts.lg[1]).toMatchObject({ i: 'heartbeat-2', x: 4, y: 0 })
+    expect(page!.layouts.sm[1]).toMatchObject({ i: 'heartbeat-2', x: 0, y: 2 })
+  })
+
   it('stores pluginId in widgetConfigs[instanceId]._pluginId', () => {
     const state = getDashboardState()
     const pageId = state.pages[0].id

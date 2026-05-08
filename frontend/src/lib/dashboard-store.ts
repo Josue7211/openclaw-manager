@@ -7,6 +7,7 @@
  */
 
 import { useSyncExternalStore } from 'react'
+import { addLayoutItemAcrossBreakpoints } from './dashboard-layout'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -117,22 +118,6 @@ function _pushUndo(): void {
   if (_undoStack.length > MAX_UNDO) _undoStack.shift()
   // New edit invalidates redo history
   _redoStack.length = 0
-}
-
-function getPageBreakpoints(page: DashboardPage): string[] {
-  return Object.keys(page.layouts).length > 0 ? Object.keys(page.layouts) : ['lg']
-}
-
-function addLayoutItemToBreakpoints(
-  layouts: Record<string, LayoutItem[]>,
-  breakpoints: string[],
-  item: LayoutItem,
-): Record<string, LayoutItem[]> {
-  const nextLayouts = { ...layouts }
-  for (const bp of breakpoints) {
-    nextLayouts[bp] = [...(nextLayouts[bp] || []), { ...item }]
-  }
-  return nextLayouts
 }
 
 function resolveWidgetPluginId(page: DashboardPage, widgetId: string): string {
@@ -314,7 +299,7 @@ export function addWidgetToPage(pageId: string, pluginId: string, layout: Layout
     ..._cached,
     pages: _cached.pages.map(p => {
       if (p.id !== pageId) return p
-      const newLayouts = addLayoutItemToBreakpoints(p.layouts, getPageBreakpoints(p), layout)
+      const newLayouts = addLayoutItemAcrossBreakpoints(p.layouts, layout)
       // Store pluginId in widgetConfigs so DashboardGrid can resolve the registry ID
       const newConfigs = {
         ...p.widgetConfigs,
@@ -406,11 +391,7 @@ export function restoreWidget(recycleBinIndex: number): void {
     ..._cached,
     pages: _cached.pages.map(p => {
       if (p.id !== targetPageId) return p
-      const newLayouts = addLayoutItemToBreakpoints(
-        p.layouts,
-        getPageBreakpoints(p),
-        item.previousPosition,
-      )
+      const newLayouts = addLayoutItemAcrossBreakpoints(p.layouts, item.previousPosition)
       const restoredConfig = item.previousConfig ?? { _pluginId: item.pluginId }
       return {
         ...p,

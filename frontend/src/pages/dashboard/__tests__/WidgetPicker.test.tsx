@@ -232,9 +232,8 @@ describe('WidgetPicker', () => {
 
   it('allows adding duplicate widgets (no "Added" disabled state)', () => {
     renderPicker({ placedWidgetIds: ['agent-status'] })
-    // All widgets should still show "Add" buttons, never "Added"
-    const addButtons = screen.getAllByText('Add')
-    expect(addButtons.length).toBeGreaterThan(0)
+    expect(screen.getByText('On page')).toBeInTheDocument()
+    expect(screen.getByText('Add another')).toBeInTheDocument()
     expect(screen.queryByText('Added')).not.toBeInTheDocument()
   })
 
@@ -421,5 +420,17 @@ describe('WidgetPickerCard', () => {
     expect(btn.closest('button')).not.toBeDisabled()
     fireEvent.click(btn)
     expect(onAdd).toHaveBeenCalledTimes(1)
+  })
+
+  it('makes duplicate placement explicit without disabling the card', () => {
+    const onAdd = vi.fn()
+    render(
+      <WidgetPickerCard widget={widget} isPlaced onAdd={onAdd} />,
+    )
+    expect(screen.getByText('On page')).toBeInTheDocument()
+    const btn = screen.getByText('Add another')
+    expect(btn.closest('button')).not.toBeDisabled()
+    fireEvent.click(btn)
+    expect(onAdd).toHaveBeenCalledWith({ w: 1, h: 2 })
   })
 })
