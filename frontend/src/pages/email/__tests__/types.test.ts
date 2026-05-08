@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { formatDate, FOLDERS, EMPTY_FORM } from '../types'
+import { formatDate, FOLDERS, EMPTY_FORM, providerNeedsAgentMailAccess } from '../types'
 import type { Email, EmailAccount, AccountForm, Folder, MailThread } from '../types'
 
 /* ─── Type structural validation ─────────────────────────────────────── */
@@ -124,6 +124,22 @@ describe('EMPTY_FORM', () => {
 
   it('defaults is_default to false', () => {
     expect(EMPTY_FORM.is_default).toBe(false)
+  })
+})
+
+/* ─── providerNeedsAgentMailAccess ───────────────────────────────────── */
+
+describe('providerNeedsAgentMailAccess', () => {
+  it('requires AgentMail access for Gmail provider identities', () => {
+    expect(providerNeedsAgentMailAccess('gmail')).toBe(true)
+    expect(providerNeedsAgentMailAccess(' Google ')).toBe(true)
+    expect(providerNeedsAgentMailAccess('google-workspace')).toBe(true)
+  })
+
+  it('keeps Custom IMAP as an explicit direct-mail path', () => {
+    expect(providerNeedsAgentMailAccess('imap')).toBe(false)
+    expect(providerNeedsAgentMailAccess('proton')).toBe(false)
+    expect(providerNeedsAgentMailAccess('icloud')).toBe(false)
   })
 })
 

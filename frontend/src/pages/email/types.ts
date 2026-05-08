@@ -85,6 +85,10 @@ export const EMPTY_FORM: AccountForm = {
   is_default: false,
 }
 
+export function providerNeedsAgentMailAccess(provider: string): boolean {
+  return ['gmail', 'google', 'google-workspace'].includes(provider.trim().toLowerCase())
+}
+
 export function formatDate(iso: string): string {
   const d = new Date(iso)
   if (isNaN(d.getTime())) return ''

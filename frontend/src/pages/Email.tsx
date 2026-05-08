@@ -19,8 +19,17 @@ import { SkeletonList } from '@/components/Skeleton'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { PageHeader } from '@/components/PageHeader'
-import type { ComposeState, Email, EmailAccount, AccountForm, DraftItem, Folder, MailThread, SendEmailResponse } from './email/types'
-import { FOLDERS, EMPTY_FORM } from './email/types'
+import type {
+  ComposeState,
+  Email,
+  EmailAccount,
+  AccountForm,
+  DraftItem,
+  Folder,
+  MailThread,
+  SendEmailResponse,
+} from './email/types'
+import { FOLDERS, EMPTY_FORM, providerNeedsAgentMailAccess } from './email/types'
 import { ManagePanel } from './email/ManagePanel'
 import { AccountSwitcher } from './email/AccountSwitcher'
 import { EmailList } from './email/EmailList'
@@ -158,7 +167,7 @@ export default function EmailPage() {
       }),
     [threads, search, unreadOnly, folder, starredIds, archivedIds, trashedIds],
   )
-  const agentmailError = emailsData?.source === 'agentmail' ? emailsData.error ?? null : null
+  const agentmailError = emailsData?.source === 'agentmail' ? (emailsData.error ?? null) : null
   const imapSource = emailsData?.source === 'imap'
   const missingCreds = emailsData?.source !== 'agentmail' && emailsData?.error === 'missing_credentials'
   const agentmailConnectedEmpty =
@@ -212,6 +221,10 @@ export default function EmailPage() {
   const handleFormSave = async () => {
     if (!form.label || !form.provider || !form.address) {
       setFormError('Label, provider, and address are required')
+      return
+    }
+    if (providerNeedsAgentMailAccess(form.provider) && !form.agentmail_inbox_id.trim()) {
+      setFormError('Gmail accounts require an AgentMail access inbox id')
       return
     }
     setFormSaving(true)
@@ -490,7 +503,8 @@ export default function EmailPage() {
             Email not configured
           </h2>
           <p style={{ margin: '0 0 20px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            Add a mailbox account via <strong>Manage Accounts</strong>. Link AgentMail access only for accounts agents should use.
+            Add a mailbox account via <strong>Manage Accounts</strong>. Link AgentMail access only for accounts agents
+            should use.
           </p>
           <button
             onClick={() => {
@@ -526,7 +540,11 @@ export default function EmailPage() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <AccountSwitcher accounts={accounts} selectedAccountId={effectiveSelectedAccountId} onSelectAccount={selectAccount} />
+          <AccountSwitcher
+            accounts={accounts}
+            selectedAccountId={effectiveSelectedAccountId}
+            onSelectAccount={selectAccount}
+          />
           <button onClick={() => openComposer()} style={topButtonStyle}>
             <PencilSimple size={13} />
             Compose
@@ -628,7 +646,9 @@ export default function EmailPage() {
                     background: account.id === effectiveSelectedAccountId ? 'var(--purple-a08)' : 'var(--bg-elevated)',
                   }}
                 >
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{account.label}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {account.label}
+                  </span>
                   <small style={{ color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {account.address}
                   </small>
@@ -778,7 +798,9 @@ export default function EmailPage() {
               onTrash={trashSelectedThread}
             />
           )}
-          {!loading && !error && !agentmailError && !missingCreds && folder === 'Drafts' && <DraftQueue drafts={drafts} />}
+          {!loading && !error && !agentmailError && !missingCreds && folder === 'Drafts' && (
+            <DraftQueue drafts={drafts} />
+          )}
         </section>
       </div>
 
@@ -823,7 +845,10 @@ function AgentAccessEmptyList({
         <button onClick={onCopyAddress} style={topButtonStyle}>
           Copy address
         </button>
-        <button onClick={onSendTest} style={{ ...topButtonStyle, background: 'var(--accent)', color: 'var(--text-on-color)' }}>
+        <button
+          onClick={onSendTest}
+          style={{ ...topButtonStyle, background: 'var(--accent)', color: 'var(--text-on-color)' }}
+        >
           Send test
         </button>
       </div>
@@ -855,9 +880,7 @@ function AgentAccessPanel({
         <div style={{ color: 'var(--text-muted)', fontSize: '11px', fontWeight: 850, textTransform: 'uppercase' }}>
           Inbox online
         </div>
-        <h2 style={{ margin: '8px 0 8px', fontSize: '24px', color: 'var(--text-primary)' }}>
-          Mailbox access is ready
-        </h2>
+        <h2 style={{ margin: '8px 0 8px', fontSize: '24px', color: 'var(--text-primary)' }}>Mailbox access is ready</h2>
         <p style={{ margin: 0, maxWidth: '620px', color: 'var(--text-secondary)', fontSize: '13px', lineHeight: 1.7 }}>
           This mailbox has no messages through AgentMail yet. Send a test message to prove the path end-to-end.
         </p>
@@ -877,7 +900,10 @@ function AgentAccessPanel({
           <h3 style={setupCardTitleStyle}>Validate delivery</h3>
           <p style={setupCardBodyStyle}>Send a test message through the access address, then refresh the inbox.</p>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <button onClick={onSendTest} style={{ ...topButtonStyle, background: 'var(--accent)', color: 'var(--text-on-color)' }}>
+            <button
+              onClick={onSendTest}
+              style={{ ...topButtonStyle, background: 'var(--accent)', color: 'var(--text-on-color)' }}
+            >
               Send test
             </button>
             <button onClick={onCompose} style={topButtonStyle}>
@@ -890,7 +916,8 @@ function AgentAccessPanel({
           <div style={setupStepStyle}>3</div>
           <h3 style={setupCardTitleStyle}>Keep access mapped</h3>
           <p style={setupCardBodyStyle}>
-            Agent-visible mail loads from the linked AgentMail access inbox id. If that id changes, update the account mapping here.
+            Agent-visible mail loads from the linked AgentMail access inbox id. If that id changes, update the account
+            mapping here.
           </p>
         </div>
       </div>
@@ -909,6 +936,15 @@ function getAgentMailStatusCopy(data: EmailQueryResponse | undefined, account: E
       body: `${inboxText} Open Accounts and set the linked AgentMail access inbox id.`,
       panelTitle: 'Fix AgentMail access mapping',
       panelBody: `${inboxText} This account cannot load agent-visible mail until the AgentMail access inbox id is mapped.`,
+    }
+  }
+
+  if (data?.error === 'agentmail_access_required') {
+    return {
+      title: 'AgentMail access required',
+      body: 'Gmail accounts must be linked through AgentMail access before agents can use them.',
+      panelTitle: 'Link Gmail through AgentMail',
+      panelBody: 'Open Accounts and set the AgentMail access inbox id for this Gmail account.',
     }
   }
 
@@ -945,7 +981,15 @@ function MailSourceState({ title, body, onRetry }: { title: string; body: string
         <WarningCircle size={24} />
       </div>
       <div style={{ fontSize: '16px', fontWeight: 850, color: 'var(--text-primary)' }}>{title}</div>
-      <p style={{ maxWidth: '480px', margin: '8px auto 18px', color: 'var(--text-secondary)', fontSize: '13px', lineHeight: 1.6 }}>
+      <p
+        style={{
+          maxWidth: '480px',
+          margin: '8px auto 18px',
+          color: 'var(--text-secondary)',
+          fontSize: '13px',
+          lineHeight: 1.6,
+        }}
+      >
         {body}
       </p>
       <button onClick={onRetry} style={topButtonStyle}>

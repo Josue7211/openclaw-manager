@@ -53,9 +53,7 @@ function createWrapper() {
   return function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={['/email']}>
-          {children}
-        </MemoryRouter>
+        <MemoryRouter initialEntries={['/email']}>{children}</MemoryRouter>
       </QueryClientProvider>
     )
   }
@@ -296,5 +294,47 @@ describe('EmailPage multi-account threads', () => {
 
     expect(await screen.findByText('AgentMail request failed')).toBeInTheDocument()
     expect(container.textContent).toContain('the failing hop is AgentMail fetch')
+  })
+
+  it('shows Gmail AgentMail access requirement when Gmail is not linked', async () => {
+    mockGet.mockImplementation(async (path: string) => {
+      if (path === '/api/mail-accounts') {
+        return {
+          accounts: [
+            {
+              id: 'personal-gmail',
+              label: 'Personal Gmail',
+              provider: 'gmail',
+              address: 'josue@gmail.com',
+              agentmail_inbox_id: '',
+              forwarding_status: 'pending',
+              is_default: true,
+            },
+          ],
+        }
+      }
+
+      if (path.startsWith('/api/email?')) {
+        return {
+          source: 'agentmail',
+          state: 'error',
+          error: 'agentmail_access_required',
+          account_id: 'personal-gmail',
+          agentmail_inbox_id: '',
+          threads: [],
+          emails: [],
+        }
+      }
+
+      throw new Error(`Unexpected GET ${path}`)
+    })
+
+    const EmailPage = await getEmailPage()
+    render(<EmailPage />, { wrapper: createWrapper() })
+
+    expect(await screen.findByText('AgentMail access required')).toBeInTheDocument()
+    expect(
+      screen.getByText('Gmail accounts must be linked through AgentMail access before agents can use them.'),
+    ).toBeInTheDocument()
   })
 })

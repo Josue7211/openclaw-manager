@@ -2,7 +2,7 @@ use axum::extract::{Query, State};
 use axum::routing::get;
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::error::AppError;
 use crate::routes::agentmail;
@@ -51,6 +51,25 @@ impl MailAccountRecord {
 
 fn is_agentmail_provider(provider: &str) -> bool {
     provider.trim().eq_ignore_ascii_case("agentmail")
+}
+
+fn provider_requires_agentmail_access(provider: &str) -> bool {
+    matches!(
+        provider.trim().to_ascii_lowercase().as_str(),
+        "gmail" | "google" | "google-workspace"
+    )
+}
+
+fn validate_agentmail_access_policy(
+    provider: &str,
+    agentmail_inbox_id: &str,
+) -> Result<(), AppError> {
+    if provider_requires_agentmail_access(provider) && agentmail_inbox_id.trim().is_empty() {
+        return Err(AppError::BadRequest(
+            "Gmail accounts require an AgentMail access inbox id".into(),
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]
@@ -266,6 +285,7 @@ async fn create_mail_account(
     } else {
         String::new()
     };
+    validate_agentmail_access_policy(&provider, &agentmail_inbox_id)?;
     let account = MailAccountRecord {
         id: random_uuid(),
         label,
@@ -320,6 +340,7 @@ async fn update_mail_account(
         account.is_default = value;
     }
 
+    validate_agentmail_access_policy(&account.provider, &account.agentmail_inbox_id)?;
     account.validate()?;
     let preferred_default = accounts
         .iter()
@@ -776,6 +797,24 @@ mod tests {
         };
 
         assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn gmail_requires_agentmail_access_mapping() {
+        let err = validate_agentmail_access_policy("gmail", " ").unwrap_err();
+
+        assert!(matches!(err, AppError::BadRequest(_)));
+        assert!(format!("{err:?}").contains("Gmail accounts require an AgentMail access inbox id"));
+    }
+
+    #[test]
+    fn gmail_with_agentmail_access_mapping_is_allowed() {
+        assert!(validate_agentmail_access_policy("google-workspace", "am_inbox_personal").is_ok());
+    }
+
+    #[test]
+    fn custom_imap_allows_gmail_address_without_agentmail_mapping() {
+        assert!(validate_agentmail_access_policy("imap", "").is_ok());
     }
 
     #[test]

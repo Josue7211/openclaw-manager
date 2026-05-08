@@ -1,11 +1,11 @@
 use axum::{
+    Json, Router,
     extract::{Query, State},
     routing::{get, post},
-    Json, Router,
 };
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
 use crate::error::AppError;
@@ -428,6 +428,13 @@ fn is_imap_provider(provider: &str) -> bool {
     )
 }
 
+fn provider_requires_agentmail_access(provider: &str) -> bool {
+    matches!(
+        provider.trim().to_ascii_lowercase().as_str(),
+        "gmail" | "google" | "google-workspace"
+    )
+}
+
 fn should_fetch_via_agentmail(account: &SelectedMailAccount) -> bool {
     account.provider.trim().eq_ignore_ascii_case("agentmail")
         || !account.agentmail_inbox_id.trim().is_empty()
@@ -613,6 +620,14 @@ async fn get_emails(
 
     if should_fetch_via_agentmail(&account) {
         return get_agentmail_emails_for_account(&state, &account, folder, limit).await;
+    }
+
+    if provider_requires_agentmail_access(&account.provider) {
+        return Ok(Json(agentmail_error_response(
+            "agentmail_access_required",
+            &account.id,
+            "",
+        )));
     }
 
     if !is_imap_provider(&account.provider) {
@@ -989,6 +1004,20 @@ mod tests {
         assert!(is_imap_provider("proton"));
         assert!(is_imap_provider("icloud"));
         assert!(is_imap_provider("imap"));
+    }
+
+    #[test]
+    fn gmail_providers_require_agentmail_access_for_agent_fetch() {
+        assert!(provider_requires_agentmail_access("gmail"));
+        assert!(provider_requires_agentmail_access("google"));
+        assert!(provider_requires_agentmail_access("google-workspace"));
+        assert!(!provider_requires_agentmail_access("imap"));
+        assert!(!provider_requires_agentmail_access("proton"));
+
+        let response = agentmail_error_response("agentmail_access_required", "acct_gmail", "");
+        assert_eq!(response["source"], "agentmail");
+        assert_eq!(response["state"], "error");
+        assert_eq!(response["error"], "agentmail_access_required");
     }
 
     #[test]
