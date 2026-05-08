@@ -3,6 +3,13 @@ created: 2026-05-05T19:50:00.000-04:00
 title: Runtime module bugs from screenshots
 area: app-runtime
 severity: high
+status: completed
+completed: 2026-05-07T22:00:00.000-04:00
+completed_by_commits:
+  - f2977b0
+  - 5d5948f
+  - 092dbac
+  - c4c628c
 files:
   - frontend/src/pages/Email.tsx
   - frontend/src/pages/HomeLab.tsx
@@ -110,3 +117,11 @@ Priority order:
 - Remote Viewer shows reachable embedded desktop or a precise target/service repair state.
 - Memory lists memory and soul files for the selected harness provider.
 - Notes supports folder creation at minimum, with a follow-up phase plan for broader Obsidian parity.
+
+## Completion Notes
+
+- Email now shows explicit AgentMail states instead of crashing or falling back to misleading IMAP copy.
+- Home Lab has a module import smoke test and no longer pulls demo state through the chunk path that caused desktop import failures.
+- Remote Viewer now resolves local desktop routing correctly and exposes target/repair details.
+- Memory now reads local entries from the active harness workspace, including generic memory files and Hermes `.memd`/`SOUL.md` files.
+- Notes now supports folder CRUD at the vault layer and folder creation in the UI; broader Obsidian parity remains tracked by the dedicated rich-editor backlog.
