@@ -723,6 +723,56 @@ dependencies = [
 ]
 
 [[package]]
+name = "clawctrl"
+version = "0.0.1"
+dependencies = [
+ "aes-gcm",
+ "anyhow",
+ "argon2",
+ "async-imap",
+ "async-native-tls",
+ "async-stream",
+ "axum",
+ "base64 0.22.1",
+ "chrono",
+ "dirs 5.0.1",
+ "dotenvy",
+ "font-kit",
+ "futures",
+ "hex",
+ "ical",
+ "image",
+ "keyring",
+ "libc",
+ "notify",
+ "portable-pty",
+ "rand 0.8.6",
+ "regex",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "sha2",
+ "sqlx",
+ "subtle",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-notification",
+ "tauri-plugin-shell",
+ "tempfile",
+ "tokio",
+ "tokio-tungstenite 0.21.0",
+ "tokio-util",
+ "tower-http 0.5.2",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "urlencoding",
+ "x25519-dalek",
+ "zeroize",
+]
+
+[[package]]
 name = "combine"
 version = "4.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3179,56 +3229,6 @@ dependencies = [
  "is-wsl",
  "libc",
  "pathdiff",
-]
-
-[[package]]
-name = "openclaw"
-version = "0.0.1"
-dependencies = [
- "aes-gcm",
- "anyhow",
- "argon2",
- "async-imap",
- "async-native-tls",
- "async-stream",
- "axum",
- "base64 0.22.1",
- "chrono",
- "dirs 5.0.1",
- "dotenvy",
- "font-kit",
- "futures",
- "hex",
- "ical",
- "image",
- "keyring",
- "libc",
- "notify",
- "portable-pty",
- "rand 0.8.6",
- "regex",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "sha2",
- "sqlx",
- "subtle",
- "tauri",
- "tauri-build",
- "tauri-plugin-notification",
- "tauri-plugin-shell",
- "tempfile",
- "tokio",
- "tokio-tungstenite 0.21.0",
- "tokio-util",
- "tower-http 0.5.2",
- "tracing",
- "tracing-subscriber",
- "url",
- "urlencoding",
- "x25519-dalek",
- "zeroize",
 ]
 
 [[package]]

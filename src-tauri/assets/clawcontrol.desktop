@@ -1,8 +1,8 @@
 [Desktop Entry]
-Name=ClawControl
+Name=clawctrl
 Comment=Personal AI OS
-Exec=env GDK_BACKEND=wayland clawcontrol
-Icon=clawcontrol
+Exec=env GDK_BACKEND=wayland clawctrl
+Icon=clawctrl
 Type=Application
 Categories=Utility;
-StartupWMClass=clawcontrol
+StartupWMClass=clawctrl

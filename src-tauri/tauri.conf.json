@@ -1,18 +1,18 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
-  "productName": "ClawControl",
+  "productName": "clawctrl",
   "version": "0.0.1",
-  "identifier": "com.clawcontrol.desktop",
+  "identifier": "com.clawctrl.desktop",
   "build": {
-    "beforeDevCommand": "cd frontend && npm run dev",
-    "beforeBuildCommand": "cd frontend && npm run build",
+    "beforeDevCommand": "cd frontend && PATH=\"/opt/homebrew/bin:/opt/homebrew/sbin:$PATH\" npm run dev",
+    "beforeBuildCommand": "cd frontend && PATH=\"/opt/homebrew/bin:/opt/homebrew/sbin:$PATH\" npm run build",
     "devUrl": "http://127.0.0.1:5174",
     "frontendDist": "../frontend/dist"
   },
   "app": {
     "windows": [
       {
-        "title": "ClawControl",
+        "title": "clawctrl",
         "width": 1280,
         "height": 800,
         "minWidth": 900,

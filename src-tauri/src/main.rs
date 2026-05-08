@@ -1,3 +1,3 @@
 fn main() {
-    openclaw::run_desktop_app();
+    clawctrl::run_desktop_app();
 }

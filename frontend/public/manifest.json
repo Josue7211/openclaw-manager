@@ -1,5 +1,5 @@
 {
-  "name": "ClawControl",
+  "name": "clawctrl",
   "short_name": "ClawCtrl",
   "description": "Personal command center — iMessage, AI chat, tasks, homelab",
   "start_url": "/",

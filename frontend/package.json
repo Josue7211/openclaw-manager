@@ -8,10 +8,10 @@
     "npm": ">=10.0.0"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "node ./node_modules/vite/bin/vite.js",
+    "build": "node ./node_modules/typescript/bin/tsc -b && node ./node_modules/vite/bin/vite.js build",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
