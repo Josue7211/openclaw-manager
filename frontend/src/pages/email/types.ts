@@ -78,7 +78,7 @@ export const FOLDERS: { id: Folder; label: string; section: 'mailbox' | 'system'
 
 export const EMPTY_FORM: AccountForm = {
   label: '',
-  provider: 'agentmail',
+  provider: 'proton',
   address: '',
   agentmail_inbox_id: '',
   forwarding_status: 'pending',

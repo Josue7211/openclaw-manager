@@ -35,7 +35,7 @@ impl MailAccountRecord {
         if self.address.trim().is_empty() {
             return Err(AppError::BadRequest("address must not be empty".into()));
         }
-        if self.agentmail_inbox_id.trim().is_empty() {
+        if is_agentmail_provider(&self.provider) && self.agentmail_inbox_id.trim().is_empty() {
             return Err(AppError::BadRequest(
                 "agentmail_inbox_id must not be empty".into(),
             ));
@@ -47,6 +47,10 @@ impl MailAccountRecord {
         }
         Ok(())
     }
+}
+
+fn is_agentmail_provider(provider: &str) -> bool {
+    provider.trim().eq_ignore_ascii_case("agentmail")
 }
 
 #[derive(Debug, Deserialize)]
@@ -66,7 +70,7 @@ impl CreateMailAccountRequest {
         required_text(&self.provider, "provider")?;
         required_text(&self.address, "address")?;
         required_text(&self.forwarding_status, "forwarding_status")?;
-        optional_text(&self.agentmail_inbox_id, "agentmail_inbox_id")?;
+        let _ = optional_text_blank_as_none(&self.agentmail_inbox_id);
         Ok(())
     }
 }
@@ -100,7 +104,7 @@ impl UpdateMailAccountRequest {
         optional_text(&self.label, "label")?;
         optional_text(&self.provider, "provider")?;
         optional_text(&self.address, "address")?;
-        optional_text(&self.agentmail_inbox_id, "agentmail_inbox_id")?;
+        let _ = optional_text_blank_as_none(&self.agentmail_inbox_id);
         optional_text(&self.forwarding_status, "forwarding_status")?;
         Ok(())
     }
@@ -232,10 +236,8 @@ async fn list_mail_accounts(
     State(state): State<AppState>,
     RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let mut accounts = load_mail_accounts(&state, &session).await?;
-    if accounts.is_empty() {
-        accounts = default_mail_accounts(&state);
-    }
+    let accounts =
+        merge_configured_mail_accounts(&state, load_mail_accounts(&state, &session).await?);
     Ok(Json(json!({ "accounts": accounts })))
 }
 
@@ -249,12 +251,22 @@ async fn create_mail_account(
     let mut accounts = load_mail_accounts(&state, &session).await?;
     let label = required_text(&body.label, "label")?;
     let address = required_text(&body.address, "address")?;
-    let agentmail_inbox_id =
-        resolve_agentmail_inbox_for_create(&state, &label, &address, &body).await?;
+    let mut provider = required_text(&body.provider, "provider")?;
+    let requested_agentmail_provider = is_agentmail_provider(&provider);
+    if requested_agentmail_provider {
+        provider = infer_provider_from_address_or_host(&address, "");
+    }
+    let agentmail_inbox_id = if optional_text_blank_as_none(&body.agentmail_inbox_id).is_some() {
+        optional_text_blank_as_none(&body.agentmail_inbox_id).unwrap_or_default()
+    } else if requested_agentmail_provider {
+        resolve_agentmail_inbox_for_create(&state, &label, &address, &body).await?
+    } else {
+        String::new()
+    };
     let account = MailAccountRecord {
         id: random_uuid(),
         label,
-        provider: required_text(&body.provider, "provider")?,
+        provider,
         address,
         agentmail_inbox_id,
         forwarding_status: required_text(&body.forwarding_status, "forwarding_status")?,
@@ -295,7 +307,7 @@ async fn update_mail_account(
     if let Some(value) = optional_text(&body.address, "address")? {
         account.address = value;
     }
-    if let Some(value) = optional_text(&body.agentmail_inbox_id, "agentmail_inbox_id")? {
+    if let Some(value) = optional_text_allow_blank(&body.agentmail_inbox_id) {
         account.agentmail_inbox_id = value;
     }
     if let Some(value) = optional_text(&body.forwarding_status, "forwarding_status")? {
@@ -408,7 +420,7 @@ pub(crate) fn default_agentmail_accounts(state: &AppState) -> Vec<MailAccountRec
         .secret("AGENTMAIL_DEFAULT_PROVIDER")
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "agentmail".to_string());
+        .unwrap_or_else(|| infer_provider_from_address_or_host(&address, ""));
 
     vec![MailAccountRecord {
         id: address.clone(),
@@ -421,8 +433,150 @@ pub(crate) fn default_agentmail_accounts(state: &AppState) -> Vec<MailAccountRec
     }]
 }
 
+pub(crate) fn default_imap_accounts(state: &AppState) -> Vec<MailAccountRecord> {
+    let Some(host) = state
+        .secret("EMAIL_HOST")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    else {
+        return Vec::new();
+    };
+
+    let Some(address) = state
+        .secret("EMAIL_USER")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    else {
+        return Vec::new();
+    };
+
+    if state
+        .secret("EMAIL_PASSWORD")
+        .map(|value| value.trim().is_empty())
+        .unwrap_or(true)
+    {
+        return Vec::new();
+    }
+
+    let provider = state
+        .secret("EMAIL_PROVIDER")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| infer_imap_provider(&host));
+    let label = state
+        .secret("EMAIL_LABEL")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| title_case_provider(&provider));
+
+    vec![MailAccountRecord {
+        id: format!("imap:{address}"),
+        label,
+        provider,
+        address,
+        agentmail_inbox_id: String::new(),
+        forwarding_status: "active".into(),
+        is_default: true,
+    }]
+}
+
 pub(crate) fn default_mail_accounts(state: &AppState) -> Vec<MailAccountRecord> {
-    default_agentmail_accounts(state)
+    let mut accounts = default_imap_accounts(state);
+    let has_imap_default = !accounts.is_empty();
+    accounts.extend(
+        default_agentmail_accounts(state)
+            .into_iter()
+            .map(|mut account| {
+                if has_imap_default {
+                    account.is_default = false;
+                }
+                account
+            }),
+    );
+    accounts
+}
+
+pub(crate) fn merge_configured_mail_accounts(
+    state: &AppState,
+    saved_accounts: Vec<MailAccountRecord>,
+) -> Vec<MailAccountRecord> {
+    let configured_accounts = default_mail_accounts(state);
+    if configured_accounts.is_empty() {
+        return saved_accounts;
+    }
+
+    let mut accounts = configured_accounts;
+    for account in saved_accounts {
+        if accounts.iter().any(|existing| existing.id == account.id) {
+            continue;
+        }
+        accounts.push(account);
+    }
+
+    let configured_default_id = accounts
+        .iter()
+        .find(|account| account.id.starts_with("imap:") && account.is_default)
+        .map(|account| account.id.clone())
+        .or_else(|| {
+            accounts
+                .iter()
+                .find(|account| account.is_default)
+                .map(|account| account.id.clone())
+        });
+    ensure_single_default(&mut accounts, configured_default_id.as_deref());
+    accounts
+}
+
+fn infer_imap_provider(host: &str) -> String {
+    let normalized = host.to_ascii_lowercase();
+    if normalized.contains("proton") || normalized == "127.0.0.1" || normalized == "localhost" {
+        "proton".into()
+    } else if normalized.contains("gmail") || normalized.contains("google") {
+        "gmail".into()
+    } else if normalized.contains("icloud")
+        || normalized.contains("me.com")
+        || normalized.contains("apple")
+    {
+        "icloud".into()
+    } else if normalized.contains("outlook") || normalized.contains("office365") {
+        "outlook".into()
+    } else if normalized.contains("fastmail") {
+        "fastmail".into()
+    } else {
+        "imap".into()
+    }
+}
+
+fn infer_provider_from_address_or_host(address: &str, host: &str) -> String {
+    let normalized_address = address.to_ascii_lowercase();
+    if normalized_address.contains("proton") {
+        "proton".into()
+    } else if normalized_address.contains("gmail") {
+        "gmail".into()
+    } else if normalized_address.contains("icloud")
+        || normalized_address.contains("@me.com")
+        || normalized_address.contains("@mac.com")
+    {
+        "icloud".into()
+    } else if normalized_address.contains("outlook") || normalized_address.contains("hotmail") {
+        "outlook".into()
+    } else if normalized_address.contains("fastmail") {
+        "fastmail".into()
+    } else {
+        infer_imap_provider(host)
+    }
+}
+
+fn title_case_provider(provider: &str) -> String {
+    match provider.trim().to_ascii_lowercase().as_str() {
+        "proton" | "protonmail" => "Proton".into(),
+        "gmail" | "google" | "google-workspace" => "Gmail".into(),
+        "icloud" | "apple" => "iCloud".into(),
+        "outlook" | "office365" => "Outlook".into(),
+        "fastmail" => "Fastmail".into(),
+        "agentmail" => "AgentMail".into(),
+        _ => "IMAP".into(),
+    }
 }
 
 fn required_text(value: &Option<String>, field: &'static str) -> Result<String, AppError> {
@@ -444,6 +598,18 @@ fn optional_text(value: &Option<String>, field: &'static str) -> Result<Option<S
         Some(text) => Ok(Some(text.trim().to_string())),
         None => Ok(None),
     }
+}
+
+fn optional_text_blank_as_none(value: &Option<String>) -> Option<String> {
+    value
+        .as_deref()
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .map(str::to_string)
+}
+
+fn optional_text_allow_blank(value: &Option<String>) -> Option<String> {
+    value.as_deref().map(str::trim).map(str::to_string)
 }
 
 #[cfg(test)]
@@ -481,6 +647,21 @@ mod tests {
     }
 
     #[test]
+    fn allows_imap_account_without_agentmail_inbox_id() {
+        let entry = MailAccountRecord {
+            id: "acct_proton".into(),
+            label: "Proton".into(),
+            provider: "proton".into(),
+            address: "me@proton.me".into(),
+            agentmail_inbox_id: "".into(),
+            forwarding_status: "active".into(),
+            is_default: true,
+        };
+
+        assert!(entry.validate().is_ok());
+    }
+
+    #[test]
     fn validates_create_mail_account_request() {
         let request = CreateMailAccountRequest {
             label: Some("Aparcedo".into()),
@@ -511,15 +692,48 @@ mod tests {
     #[test]
     fn validates_create_mail_account_request_without_agentmail_inbox_id() {
         let request = CreateMailAccountRequest {
-            label: Some("Aparcedo".into()),
-            provider: Some("agentmail".into()),
-            address: Some("me@gmail.com".into()),
+            label: Some("Proton".into()),
+            provider: Some("proton".into()),
+            address: Some("me@proton.me".into()),
             agentmail_inbox_id: None,
             forwarding_status: Some("pending".into()),
             is_default: None,
         };
 
         assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn validates_imap_create_mail_account_request_with_blank_agentmail_id() {
+        let request = CreateMailAccountRequest {
+            label: Some("Proton".into()),
+            provider: Some("proton".into()),
+            address: Some("me@proton.me".into()),
+            agentmail_inbox_id: Some(" ".into()),
+            forwarding_status: Some("active".into()),
+            is_default: None,
+        };
+
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn update_mail_account_can_clear_agentmail_access_mapping() {
+        let request = UpdateMailAccountRequest {
+            id: Some("acct_proton".into()),
+            label: None,
+            provider: None,
+            address: None,
+            agentmail_inbox_id: Some(" ".into()),
+            forwarding_status: None,
+            is_default: None,
+        };
+
+        assert!(request.validate().is_ok());
+        assert_eq!(
+            optional_text_allow_blank(&request.agentmail_inbox_id),
+            Some(String::new())
+        );
     }
 
     #[test]
@@ -532,6 +746,13 @@ mod tests {
             agentmail_username_from_address("alerts+prod@example.com"),
             "alerts-prod-example-com"
         );
+    }
+
+    #[test]
+    fn infers_real_provider_from_address_for_agentmail_binding() {
+        assert_eq!(infer_provider_from_address_or_host("me@proton.me", ""), "proton");
+        assert_eq!(infer_provider_from_address_or_host("me@gmail.com", ""), "gmail");
+        assert_eq!(infer_provider_from_address_or_host("me@aparcedo.org", ""), "imap");
     }
 
     #[test]

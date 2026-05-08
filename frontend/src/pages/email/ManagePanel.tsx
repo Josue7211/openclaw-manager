@@ -101,7 +101,7 @@ export function ManagePanel({
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{acc.label}</div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {acc.address} · {acc.provider} · {acc.forwarding_status}
+                      {acc.address} · {acc.provider} · AgentMail {acc.agentmail_inbox_id ? 'linked' : 'not linked'}
                     </div>
                   </div>
                   {acc.is_default && (
@@ -158,23 +158,35 @@ export function ManagePanel({
               </div>
               <div>
                 <label style={labelStyle}>Provider</label>
-                <input style={inputStyle} placeholder="agentmail" value={form.provider} onChange={e => onSetForm(f => ({ ...f, provider: e.target.value }))} aria-label="Mail provider" />
+                <select
+                  style={inputStyle}
+                  value={form.provider}
+                  onChange={e => onSetForm(f => ({ ...f, provider: e.target.value }))}
+                  aria-label="Mail provider"
+                >
+                  <option value="proton">Proton</option>
+                  <option value="gmail">Gmail</option>
+                  <option value="icloud">iCloud</option>
+                  <option value="outlook">Outlook</option>
+                  <option value="fastmail">Fastmail</option>
+                  <option value="imap">Custom IMAP</option>
+                </select>
               </div>
               <div>
                 <label style={labelStyle}>Address</label>
                 <input style={inputStyle} placeholder="you@example.com" value={form.address} onChange={e => onSetForm(f => ({ ...f, address: e.target.value }))} aria-label="Account address" />
               </div>
               <div>
-                <label style={labelStyle}>AgentMail Inbox ID</label>
-                <input style={inputStyle} placeholder="leave blank to create through AgentMail" value={form.agentmail_inbox_id} onChange={e => onSetForm(f => ({ ...f, agentmail_inbox_id: e.target.value }))} aria-label="AgentMail inbox id" />
+                <label style={labelStyle}>AgentMail Access Inbox ID</label>
+                <input style={inputStyle} placeholder="AgentMail inbox that brokers agent access" value={form.agentmail_inbox_id} onChange={e => onSetForm(f => ({ ...f, agentmail_inbox_id: e.target.value }))} aria-label="AgentMail access inbox id" />
               </div>
               <div>
-                <label style={labelStyle}>AgentMail Status</label>
+                <label style={labelStyle}>Agent Access Status</label>
                 <select
                   style={inputStyle}
                   value={form.forwarding_status}
                   onChange={e => onSetForm(f => ({ ...f, forwarding_status: e.target.value as AccountForm['forwarding_status'] }))}
-                  aria-label="AgentMail status"
+                  aria-label="AgentMail access status"
                 >
                   <option value="pending">Pending</option>
                   <option value="active">Active</option>

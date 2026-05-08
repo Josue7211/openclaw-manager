@@ -95,7 +95,7 @@ describe('EmailPage multi-account threads', () => {
             {
               id: 'josue@aparcedo.org',
               label: 'Aparcedo',
-              provider: 'agentmail',
+              provider: 'proton',
               address: 'josue@aparcedo.org',
               agentmail_inbox_id: 'clawcontrol-josue-aparcedo@agentmail.to',
               forwarding_status: 'active',
@@ -142,7 +142,7 @@ describe('EmailPage multi-account threads', () => {
     expect(mockGet).toHaveBeenCalledWith('/api/mail-accounts')
   })
 
-  it('shows connected empty copy for an empty linked AgentMail inbox', async () => {
+  it('shows connected empty copy for an empty mailbox linked through AgentMail access', async () => {
     mockGet.mockImplementation(async (path: string) => {
       if (path === '/api/mail-accounts') {
         return {
@@ -150,7 +150,7 @@ describe('EmailPage multi-account threads', () => {
             {
               id: 'josue@aparcedo.org',
               label: 'Aparcedo',
-              provider: 'agentmail',
+              provider: 'proton',
               address: 'josue@aparcedo.org',
               agentmail_inbox_id: 'clawcontrol-josue-aparcedo@agentmail.to',
               forwarding_status: 'active',
@@ -174,12 +174,11 @@ describe('EmailPage multi-account threads', () => {
     })
 
     const EmailPage = await getEmailPage()
-    const { container } = render(<EmailPage />, { wrapper: createWrapper() })
+    render(<EmailPage />, { wrapper: createWrapper() })
 
     expect(await screen.findByText('AgentMail connected. No messages received yet.')).toBeInTheDocument()
     expect(screen.getAllByText('Aparcedo').length).toBeGreaterThan(0)
     expect(screen.getByText('josue@aparcedo.org')).toBeInTheDocument()
-    expect(container.textContent).not.toMatch(/IMAP|Gmail|iCloud|Proton/)
   })
 
   it('shows AgentMail API key copy for missing AgentMail config', async () => {
@@ -190,7 +189,7 @@ describe('EmailPage multi-account threads', () => {
             {
               id: 'josue@aparcedo.org',
               label: 'Aparcedo',
-              provider: 'agentmail',
+              provider: 'proton',
               address: 'josue@aparcedo.org',
               agentmail_inbox_id: 'clawcontrol-josue-aparcedo@agentmail.to',
               forwarding_status: 'active',
@@ -215,13 +214,12 @@ describe('EmailPage multi-account threads', () => {
     })
 
     const EmailPage = await getEmailPage()
-    const { container } = render(<EmailPage />, { wrapper: createWrapper() })
+    render(<EmailPage />, { wrapper: createWrapper() })
 
     expect(await screen.findByText('AgentMail API key missing')).toBeInTheDocument()
-    expect(container.textContent).not.toMatch(/IMAP|Gmail|iCloud|Proton/)
   })
 
-  it('shows unmapped AgentMail inbox id when mapping is missing', async () => {
+  it('shows unmapped AgentMail access inbox id when mapping is missing', async () => {
     mockGet.mockImplementation(async (path: string) => {
       if (path === '/api/mail-accounts') {
         return {
@@ -229,7 +227,7 @@ describe('EmailPage multi-account threads', () => {
             {
               id: 'josue@aparcedo.org',
               label: 'Aparcedo',
-              provider: 'agentmail',
+              provider: 'proton',
               address: 'josue@aparcedo.org',
               agentmail_inbox_id: '',
               forwarding_status: 'active',
@@ -257,9 +255,8 @@ describe('EmailPage multi-account threads', () => {
     const EmailPage = await getEmailPage()
     const { container } = render(<EmailPage />, { wrapper: createWrapper() })
 
-    expect(await screen.findByText('AgentMail inbox not mapped')).toBeInTheDocument()
+    expect(await screen.findByText('AgentMail access not mapped')).toBeInTheDocument()
     expect(container.textContent).toContain('agentmail_inbox_id is empty for josue@aparcedo.org')
-    expect(container.textContent).not.toMatch(/IMAP|Gmail|iCloud|Proton/)
   })
 
   it('shows AgentMail upstream failure copy', async () => {
@@ -270,7 +267,7 @@ describe('EmailPage multi-account threads', () => {
             {
               id: 'josue@aparcedo.org',
               label: 'Aparcedo',
-              provider: 'agentmail',
+              provider: 'proton',
               address: 'josue@aparcedo.org',
               agentmail_inbox_id: 'clawcontrol-josue-aparcedo@agentmail.to',
               forwarding_status: 'active',
@@ -299,6 +296,5 @@ describe('EmailPage multi-account threads', () => {
 
     expect(await screen.findByText('AgentMail request failed')).toBeInTheDocument()
     expect(container.textContent).toContain('the failing hop is AgentMail fetch')
-    expect(container.textContent).not.toMatch(/IMAP|Gmail|iCloud|Proton/)
   })
 })

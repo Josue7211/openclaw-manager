@@ -39,11 +39,12 @@ export interface ServiceGroupDef {
 }
 
 export interface ConnectionSettingDef {
-  id: 'bluebubbles' | 'harness' | 'hermes' | 'openclaw' | 'sunshine' | 'vnc' | 'agentsecrets' | 'agentshell'
+  id: 'bluebubbles' | 'harness' | 'sunshine' | 'vnc' | 'agentsecrets' | 'agentshell'
   label: string
   description: string
   urlKeychainKey: string
   urlPlaceholder: string
+  credentialFields?: FieldDef[]
   expectedHostPreferenceKey: string
   expectedHostPlaceholder: string
   apiSecretService: string
@@ -75,13 +76,12 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
     moduleIds: ['chat'],
     optional: false,
     fields: [
-      { label: 'Harness Provider', keychainKey: 'harness.provider', placeholder: 'hermes, openclaw, agent-zero, nanoclaw...' },
       { label: 'Harness API URL', keychainKey: 'harness.api-url', placeholder: 'http://100.x.x.x:18789' },
       { label: 'Harness API Key', keychainKey: 'harness.api-key', placeholder: 'API key', secret: true },
       { label: 'Harness WebSocket URL', keychainKey: 'harness.ws', placeholder: 'ws://100.x.x.x:18789/ws' },
       { label: 'Harness Password', keychainKey: 'harness.password', placeholder: 'Password', secret: true },
     ],
-    services: [{ name: 'harness', fieldKeys: ['harness.provider', 'harness.api-url', 'harness.api-key', 'harness.ws', 'harness.password'] }],
+    services: [{ name: 'harness', fieldKeys: ['harness.api-url', 'harness.api-key', 'harness.ws', 'harness.password'] }],
     testKey: 'harness',
   },
   {
@@ -187,17 +187,27 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
   {
     id: 'email',
     title: 'Email',
-    description: 'AgentMail integration for product email.',
+    description: 'Mail client credentials plus AgentMail agent access.',
     icon: Envelope,
     moduleIds: ['email'],
     optional: true,
-    skipLabel: 'Skip — no AgentMail',
+    skipLabel: 'Skip — no email',
     fields: [
-      { label: 'AgentMail API Key', keychainKey: 'agentmail.api-key', placeholder: 'API key', secret: true },
-      { label: 'Default AgentMail Inbox ID', keychainKey: 'agentmail.default-inbox-id', placeholder: 'inbox_xxx' },
+      { label: 'IMAP Host', keychainKey: 'email.host', placeholder: '127.0.0.1 or imap.example.com' },
+      { label: 'IMAP Port', keychainKey: 'email.port', placeholder: '993' },
+      { label: 'IMAP Username', keychainKey: 'email.user', placeholder: 'you@example.com' },
+      { label: 'IMAP Password', keychainKey: 'email.password', placeholder: 'App password or bridge password', secret: true },
+      { label: 'Mailbox Provider', keychainKey: 'email.provider', placeholder: 'proton, gmail, icloud, outlook, imap' },
+      { label: 'Mailbox Label', keychainKey: 'email.label', placeholder: 'Personal, Work, Aparcedo' },
+      { label: 'AgentMail API Key', keychainKey: 'agentmail.api-key', placeholder: 'Agent access API key', secret: true },
+      { label: 'Default AgentMail Access Inbox ID', keychainKey: 'agentmail.default-inbox-id', placeholder: 'inbox_xxx' },
       { label: 'Default Account Address', keychainKey: 'agentmail.default-address', placeholder: 'josue@aparcedo.org' },
     ],
     services: [
+      {
+        name: 'email',
+        fieldKeys: ['email.host', 'email.user', 'email.password'],
+      },
       {
         name: 'agentmail',
         fieldKeys: ['agentmail.api-key', 'agentmail.default-inbox-id', 'agentmail.default-address'],
@@ -273,6 +283,9 @@ export const CONNECTION_SETTINGS: ConnectionSettingDef[] = [
     description: 'iMessage bridge server URL',
     urlKeychainKey: 'bluebubbles.host',
     urlPlaceholder: 'http://100.x.x.x:1234',
+    credentialFields: [
+      { label: 'Password', keychainKey: 'bluebubbles.password', placeholder: 'Desktop password', secret: true },
+    ],
     expectedHostPreferenceKey: 'bluebubbles.expected-host',
     expectedHostPlaceholder: 'e.g. macbook',
     apiSecretService: 'bluebubbles',
@@ -283,29 +296,14 @@ export const CONNECTION_SETTINGS: ConnectionSettingDef[] = [
     description: 'Generic harness API used by chat, agents, usage, and approvals',
     urlKeychainKey: 'harness.api-url',
     urlPlaceholder: 'http://100.x.x.x:18789',
+    credentialFields: [
+      { label: 'API Key', keychainKey: 'harness.api-key', placeholder: 'Bearer token', secret: true },
+      { label: 'Password Fallback', keychainKey: 'harness.password', placeholder: 'Password', secret: true },
+      { label: 'WebSocket URL', keychainKey: 'harness.ws', placeholder: 'ws://100.x.x.x:18789/ws' },
+    ],
     expectedHostPreferenceKey: 'harness.expected-host',
     expectedHostPlaceholder: 'e.g. harness-host',
     apiSecretService: 'harness',
-  },
-  {
-    id: 'hermes',
-    label: 'Hermes Provider',
-    description: 'Optional Hermes-specific provider config',
-    urlKeychainKey: 'hermes.api-url',
-    urlPlaceholder: 'http://100.x.x.x:18789',
-    expectedHostPreferenceKey: 'hermes.expected-host',
-    expectedHostPlaceholder: 'e.g. hermes-host',
-    apiSecretService: 'hermes',
-  },
-  {
-    id: 'openclaw',
-    label: 'OpenClaw Compat',
-    description: 'Optional OpenClaw compatibility provider config',
-    urlKeychainKey: 'openclaw.api-url',
-    urlPlaceholder: 'http://100.x.x.x:18789',
-    expectedHostPreferenceKey: 'openclaw.expected-host',
-    expectedHostPlaceholder: 'e.g. openclaw-compat-host',
-    apiSecretService: 'openclaw',
   },
   {
     id: 'sunshine',
@@ -333,6 +331,9 @@ export const CONNECTION_SETTINGS: ConnectionSettingDef[] = [
     description: 'Required safe-secrets service URL',
     urlKeychainKey: 'agentsecrets.url',
     urlPlaceholder: 'http://100.x.x.x:4815',
+    credentialFields: [
+      { label: 'Client API Key', keychainKey: 'agentsecrets.client-api-key', placeholder: 'Client API key', secret: true },
+    ],
     expectedHostPreferenceKey: 'agentsecrets.expected-host',
     expectedHostPlaceholder: 'e.g. secrets-host',
     apiSecretService: 'agentsecrets',

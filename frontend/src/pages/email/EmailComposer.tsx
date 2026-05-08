@@ -130,7 +130,7 @@ export function EmailComposer({
         }}
       >
         <div style={{ color: sendError ? 'var(--danger, #ef4444)' : 'var(--text-muted)', fontSize: '12px', lineHeight: 1.4 }}>
-          {sendError ?? 'Human send uses the selected AgentMail identity.'}
+          {sendError ?? 'Send uses the selected account identity through AgentMail access.'}
         </div>
         <button
           onClick={onSend}

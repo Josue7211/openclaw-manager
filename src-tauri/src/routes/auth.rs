@@ -1560,9 +1560,21 @@ pub(crate) fn service_credential_to_env_var(service: &str, key: &str) -> Option<
         ("email", "port") => Some("EMAIL_PORT"),
         ("email", "user") => Some("EMAIL_USER"),
         ("email", "password") => Some("EMAIL_PASSWORD"),
+        ("email", "provider") => Some("EMAIL_PROVIDER"),
+        ("email", "label") => Some("EMAIL_LABEL"),
         // AgentMail
         ("agentmail", "url" | "base_url" | "base-url") => Some("AGENTMAIL_URL"),
         ("agentmail", "api_key" | "api-key") => Some("AGENTMAIL_API_KEY"),
+        ("agentmail", "default_inbox_id" | "default-inbox-id") => {
+            Some("AGENTMAIL_DEFAULT_INBOX_ID")
+        }
+        ("agentmail", "default_address" | "default-address") => {
+            Some("AGENTMAIL_DEFAULT_ADDRESS")
+        }
+        ("agentmail", "default_label" | "default-label") => Some("AGENTMAIL_DEFAULT_LABEL"),
+        ("agentmail", "default_provider" | "default-provider") => {
+            Some("AGENTMAIL_DEFAULT_PROVIDER")
+        }
         // CalDAV
         ("caldav", "url") => Some("CALDAV_URL"),
         ("caldav", "username") => Some("CALDAV_USERNAME"),
@@ -3641,15 +3653,15 @@ mod tests {
     fn service_credential_mapping_harness_alias() {
         assert_eq!(
             service_credential_to_env_var("harness", "url"),
-            Some("OPENCLAW_API_URL")
+            Some("HARNESS_API_URL")
         );
         assert_eq!(
             service_credential_to_env_var("harness", "api-key"),
-            Some("OPENCLAW_API_KEY")
+            Some("HARNESS_API_KEY")
         );
         assert_eq!(
             service_credential_to_env_var("harness", "ws"),
-            Some("OPENCLAW_WS")
+            Some("HARNESS_WS")
         );
     }
 
@@ -3748,6 +3760,26 @@ mod tests {
         assert_eq!(
             service_credential_to_env_var("agentmail", "api-key"),
             Some("AGENTMAIL_API_KEY")
+        );
+        assert_eq!(
+            service_credential_to_env_var("agentmail", "default-inbox-id"),
+            Some("AGENTMAIL_DEFAULT_INBOX_ID")
+        );
+        assert_eq!(
+            service_credential_to_env_var("agentmail", "default-address"),
+            Some("AGENTMAIL_DEFAULT_ADDRESS")
+        );
+    }
+
+    #[test]
+    fn service_credential_mapping_email_metadata() {
+        assert_eq!(
+            service_credential_to_env_var("email", "provider"),
+            Some("EMAIL_PROVIDER")
+        );
+        assert_eq!(
+            service_credential_to_env_var("email", "label"),
+            Some("EMAIL_LABEL")
         );
     }
 

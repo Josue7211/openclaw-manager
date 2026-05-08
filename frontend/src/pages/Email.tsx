@@ -159,6 +159,7 @@ export default function EmailPage() {
     [threads, search, unreadOnly, folder, starredIds, archivedIds, trashedIds],
   )
   const agentmailError = emailsData?.source === 'agentmail' ? emailsData.error ?? null : null
+  const imapSource = emailsData?.source === 'imap'
   const missingCreds = emailsData?.source !== 'agentmail' && emailsData?.error === 'missing_credentials'
   const agentmailConnectedEmpty =
     emailsData?.source === 'agentmail' &&
@@ -166,7 +167,7 @@ export default function EmailPage() {
     (emailsData.state === 'empty' || emailsData.state === undefined) &&
     threads.length === 0 &&
     (folder === 'INBOX' || folder === 'All')
-  const noAgentMailAccounts = !accountsData ? false : accounts.length === 0
+  const noMailAccounts = !accountsData ? false : accounts.length === 0
   const error = emailsError
     ? emailsError instanceof Error
       ? emailsError.message
@@ -415,7 +416,7 @@ export default function EmailPage() {
     const address = selectedAccount?.agentmail_inbox_id || selectedAccount?.address
     if (!address) return
     void navigator.clipboard?.writeText(address)
-    setSetupNotice('AgentMail address copied.')
+    setSetupNotice('AgentMail access address copied.')
   }, [selectedAccount])
 
   const handleSendAgentMailTest = useCallback(() => {
@@ -489,7 +490,7 @@ export default function EmailPage() {
             Email not configured
           </h2>
           <p style={{ margin: '0 0 20px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            Link an AgentMail account via <strong>Manage Accounts</strong> using its address and AgentMail inbox ID.
+            Add a mailbox account via <strong>Manage Accounts</strong>. Link AgentMail access only for accounts agents should use.
           </p>
           <button
             onClick={() => {
@@ -674,38 +675,38 @@ export default function EmailPage() {
 
           {loading && <SkeletonList count={5} lines={2} />}
           {error && <ErrorState resource="emails" onRetry={() => refetchEmails()} />}
-          {noAgentMailAccounts && (
+          {noMailAccounts && (
             <MailSourceState
-              title="AgentMail account missing"
-              body="No AgentMail account is saved for this user. Add the AgentMail API key and account mapping, then refresh."
+              title="No mail account"
+              body="Add a mailbox account, then refresh."
               onRetry={() => {
                 void invalidateAccounts()
                 void refetchEmails()
               }}
             />
           )}
-          {!noAgentMailAccounts && !loading && !error && agentmailError && (
+          {!noMailAccounts && !loading && !error && agentmailError && (
             <MailSourceState
               title={agentmailStatusCopy.title}
               body={agentmailStatusCopy.body}
               onRetry={() => refetchEmails()}
             />
           )}
-          {!noAgentMailAccounts && !loading && !error && !agentmailError && missingCreds && (
+          {!noMailAccounts && !loading && !error && !agentmailError && missingCreds && (
             <MailSourceState
-              title="AgentMail account not ready"
-              body="This account is not mapped to an AgentMail inbox yet."
+              title="Mail account not ready"
+              body="This account needs IMAP host, user, and password credentials in Settings."
               onRetry={() => refetchEmails()}
             />
           )}
-          {!noAgentMailAccounts && !loading && !error && agentmailConnectedEmpty && (
-            <AgentMailEmptyList
+          {!noMailAccounts && !loading && !error && agentmailConnectedEmpty && (
+            <AgentAccessEmptyList
               account={selectedAccount}
               onCopyAddress={handleCopyAgentMailAddress}
               onSendTest={handleSendAgentMailTest}
             />
           )}
-          {!noAgentMailAccounts && !loading && !error && !agentmailError && !missingCreds && !agentmailConnectedEmpty && (
+          {!noMailAccounts && !loading && !error && !agentmailError && !missingCreds && !agentmailConnectedEmpty && (
             <EmailList
               threads={visibleThreads}
               selectedAccountId={effectiveSelectedAccountId}
@@ -719,15 +720,17 @@ export default function EmailPage() {
               emptyDescription={
                 search || unreadOnly || folder === 'Starred'
                   ? 'Clear filters to see the rest of this view.'
-                  : 'AgentMail is connected, but this view has no messages yet.'
+                  : imapSource
+                    ? 'No messages returned from this mailbox yet.'
+                    : 'AgentMail is connected, but this view has no messages yet.'
               }
             />
           )}
         </section>
 
         <section style={{ minWidth: 0 }}>
-          {noAgentMailAccounts && (
-            <AgentMailSetupPanel
+          {noMailAccounts && (
+            <AgentAccessPanel
               account={null}
               notice={setupNotice}
               onCopyAddress={handleCopyAgentMailAddress}
@@ -735,22 +738,22 @@ export default function EmailPage() {
               onCompose={() => setManageOpen(true)}
             />
           )}
-          {!noAgentMailAccounts && !loading && !error && agentmailError && (
+          {!noMailAccounts && !loading && !error && agentmailError && (
             <MailSourceState
               title={agentmailStatusCopy.panelTitle}
               body={agentmailStatusCopy.panelBody}
               onRetry={() => refetchEmails()}
             />
           )}
-          {!noAgentMailAccounts && !loading && !error && !agentmailError && missingCreds && (
+          {!noMailAccounts && !loading && !error && !agentmailError && missingCreds && (
             <MailSourceState
               title="No emails loaded"
-              body="Choose or create an AgentMail account, then retry."
+              body="Choose a configured mailbox account, then retry."
               onRetry={() => refetchEmails()}
             />
           )}
-          {!noAgentMailAccounts && !loading && !error && agentmailConnectedEmpty && (
-            <AgentMailSetupPanel
+          {!noMailAccounts && !loading && !error && agentmailConnectedEmpty && (
+            <AgentAccessPanel
               account={selectedAccount}
               notice={setupNotice}
               onCopyAddress={handleCopyAgentMailAddress}
@@ -764,7 +767,7 @@ export default function EmailPage() {
               }
             />
           )}
-          {!noAgentMailAccounts && !loading && !error && !agentmailError && !missingCreds && !agentmailConnectedEmpty && (
+          {!noMailAccounts && !loading && !error && !agentmailError && !missingCreds && !agentmailConnectedEmpty && (
             <ThreadPanel
               thread={selectedThread}
               accountLabel={selectedThreadAccount?.label ?? null}
@@ -795,7 +798,7 @@ export default function EmailPage() {
   )
 }
 
-function AgentMailEmptyList({
+function AgentAccessEmptyList({
   account,
   onCopyAddress,
   onSendTest,
@@ -804,16 +807,16 @@ function AgentMailEmptyList({
   onCopyAddress: () => void
   onSendTest: () => void
 }) {
-  const agentmailAddress = account?.agentmail_inbox_id || account?.address || 'No AgentMail inbox mapped'
+  const agentmailAddress = account?.agentmail_inbox_id || account?.address || 'No AgentMail access inbox mapped'
 
   return (
     <div style={agentmailEmptyListStyle}>
-      <div style={connectedPillStyle}>Connected AgentMail inbox</div>
+      <div style={connectedPillStyle}>AgentMail access linked</div>
       <div style={{ fontSize: '18px', fontWeight: 850, color: 'var(--text-primary)' }}>
         AgentMail connected. No messages received yet.
       </div>
       <p style={{ margin: '8px 0 18px', color: 'var(--text-secondary)', fontSize: '13px', lineHeight: 1.6 }}>
-        This AgentMail inbox is linked and ready. Send a message to the address below, then refresh.
+        This mailbox is linked for agent access. Send a message to the access address below, then refresh.
       </p>
       <div style={forwardAddressBoxStyle}>{agentmailAddress}</div>
       <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap', marginTop: '14px' }}>
@@ -828,7 +831,7 @@ function AgentMailEmptyList({
   )
 }
 
-function AgentMailSetupPanel({
+function AgentAccessPanel({
   account,
   notice,
   onCopyAddress,
@@ -853,26 +856,26 @@ function AgentMailSetupPanel({
           Inbox online
         </div>
         <h2 style={{ margin: '8px 0 8px', fontSize: '24px', color: 'var(--text-primary)' }}>
-          AgentMail inbox is ready
+          Mailbox access is ready
         </h2>
         <p style={{ margin: 0, maxWidth: '620px', color: 'var(--text-secondary)', fontSize: '13px', lineHeight: 1.7 }}>
-          This AgentMail inbox has no messages yet. Send a test message to prove the pipe end-to-end.
+          This mailbox has no messages through AgentMail yet. Send a test message to prove the path end-to-end.
         </p>
       </div>
 
       <div style={setupGridStyle}>
         <div style={setupCardStyle}>
           <div style={setupStepStyle}>1</div>
-          <h3 style={setupCardTitleStyle}>Use this AgentMail address</h3>
-          <div style={forwardAddressBoxStyle}>{agentmailAddress || 'No AgentMail inbox mapped'}</div>
+          <h3 style={setupCardTitleStyle}>Use this access address</h3>
+          <div style={forwardAddressBoxStyle}>{agentmailAddress || 'No AgentMail access inbox mapped'}</div>
           <button onClick={onCopyAddress} style={{ ...topButtonStyle, marginTop: '12px' }}>
-            Copy AgentMail address
+            Copy access address
           </button>
         </div>
         <div style={setupCardStyle}>
           <div style={setupStepStyle}>2</div>
           <h3 style={setupCardTitleStyle}>Validate delivery</h3>
-          <p style={setupCardBodyStyle}>Send a test message to this AgentMail address, then refresh the inbox.</p>
+          <p style={setupCardBodyStyle}>Send a test message through the access address, then refresh the inbox.</p>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button onClick={onSendTest} style={{ ...topButtonStyle, background: 'var(--accent)', color: 'var(--text-on-color)' }}>
               Send test
@@ -885,9 +888,9 @@ function AgentMailSetupPanel({
         </div>
         <div style={setupCardStyle}>
           <div style={setupStepStyle}>3</div>
-          <h3 style={setupCardTitleStyle}>Keep this inbox mapped</h3>
+          <h3 style={setupCardTitleStyle}>Keep access mapped</h3>
           <p style={setupCardBodyStyle}>
-            Account mail loads from the linked AgentMail inbox id. If that id changes, update the account mapping here.
+            Agent-visible mail loads from the linked AgentMail access inbox id. If that id changes, update the account mapping here.
           </p>
         </div>
       </div>
@@ -902,10 +905,10 @@ function getAgentMailStatusCopy(data: EmailQueryResponse | undefined, account: E
   if (data?.error === 'agentmail_inbox_unmapped') {
     const inboxText = inboxId ? `Bad AgentMail inbox id: ${inboxId}.` : `agentmail_inbox_id is empty for ${accountId}.`
     return {
-      title: 'AgentMail inbox not mapped',
-      body: `${inboxText} Open Accounts and set the linked AgentMail inbox id.`,
-      panelTitle: 'Fix AgentMail account mapping',
-      panelBody: `${inboxText} This account cannot load mail until the AgentMail inbox id is mapped.`,
+      title: 'AgentMail access not mapped',
+      body: `${inboxText} Open Accounts and set the linked AgentMail access inbox id.`,
+      panelTitle: 'Fix AgentMail access mapping',
+      panelBody: `${inboxText} This account cannot load agent-visible mail until the AgentMail access inbox id is mapped.`,
     }
   }
 
@@ -923,7 +926,7 @@ function getAgentMailStatusCopy(data: EmailQueryResponse | undefined, account: E
       title: 'AgentMail request failed',
       body: `AgentMail did not return threads or messages cleanly for ${inboxId || accountId}. Retry, then check the AgentMail API status if it repeats.`,
       panelTitle: 'AgentMail upstream failed',
-      panelBody: `The linked AgentMail inbox ${inboxId || accountId} returned an upstream error. The account is linked; the failing hop is AgentMail fetch.`,
+      panelBody: `The linked AgentMail access inbox ${inboxId || accountId} returned an upstream error. The account is linked; the failing hop is AgentMail fetch.`,
     }
   }
 
@@ -931,7 +934,7 @@ function getAgentMailStatusCopy(data: EmailQueryResponse | undefined, account: E
     title: 'AgentMail unavailable',
     body: 'AgentMail did not return a usable response for this inbox.',
     panelTitle: 'AgentMail unavailable',
-    panelBody: 'Retry the linked AgentMail inbox.',
+    panelBody: 'Retry the linked AgentMail access inbox.',
   }
 }
 

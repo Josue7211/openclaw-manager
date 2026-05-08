@@ -38,7 +38,7 @@ fn get_credentials(state: &AppState) -> Option<Credentials> {
     let user = normalized_secret_text(state.secret("EMAIL_USER"));
     let password = normalized_secret_text(state.secret("EMAIL_PASSWORD"));
 
-    if host.is_empty() || user.is_empty() || password.is_empty() {
+    if host.is_empty() || password.is_empty() {
         return None;
     }
 
@@ -383,6 +383,7 @@ fn agentmail_threads_to_emails(threads: &[agentmail::MailThread], folder: &str) 
 struct SelectedMailAccount {
     id: String,
     provider: String,
+    address: String,
     agentmail_inbox_id: String,
 }
 
@@ -401,12 +402,46 @@ fn selected_mail_account(
         .map(|account| SelectedMailAccount {
             id: account.id.trim().to_string(),
             provider: account.provider.trim().to_string(),
+            address: account.address.trim().to_string(),
             agentmail_inbox_id: account.agentmail_inbox_id.trim().to_string(),
         })
 }
 
-fn is_explicit_imap_provider(provider: &str) -> bool {
-    provider.trim().eq_ignore_ascii_case("imap")
+fn is_imap_provider(provider: &str) -> bool {
+    matches!(
+        provider.trim().to_ascii_lowercase().as_str(),
+        "imap"
+            | "proton"
+            | "protonmail"
+            | "gmail"
+            | "google"
+            | "google-workspace"
+            | "icloud"
+            | "apple"
+            | "outlook"
+            | "office365"
+            | "exchange"
+            | "fastmail"
+            | "yahoo"
+            | "zoho"
+            | "custom"
+    )
+}
+
+fn should_fetch_via_agentmail(account: &SelectedMailAccount) -> bool {
+    account.provider.trim().eq_ignore_ascii_case("agentmail")
+        || !account.agentmail_inbox_id.trim().is_empty()
+}
+
+fn get_credentials_for_account(
+    state: &AppState,
+    account: &SelectedMailAccount,
+) -> Option<Credentials> {
+    let mut creds = get_credentials(state)?;
+    if creds.user.is_empty() && !account.address.is_empty() {
+        creds.user = account.address.clone();
+    }
+    Some(creds)
 }
 
 fn agentmail_ready_response(
@@ -539,11 +574,10 @@ async fn load_mail_accounts_for_email(
     state: &AppState,
     session: &crate::server::UserSession,
 ) -> Result<Vec<MailAccountRecord>, AppError> {
-    let mut accounts = mail_accounts::load_mail_accounts(state, session).await?;
-    if accounts.is_empty() {
-        accounts = mail_accounts::default_mail_accounts(state);
-    }
-    Ok(accounts)
+    let accounts = mail_accounts::load_mail_accounts(state, session).await?;
+    Ok(mail_accounts::merge_configured_mail_accounts(
+        state, accounts,
+    ))
 }
 
 async fn get_emails(
@@ -563,32 +597,43 @@ async fn get_emails(
         .map(str::to_string)
         .or_else(|| default_account_id_from_accounts(&accounts));
 
-    if let Some(account_id) = selected_account_id.as_deref() {
-        if let Some(account) = selected_mail_account(&accounts, account_id) {
-            if !is_explicit_imap_provider(&account.provider) {
-                return get_agentmail_emails_for_account(&state, &account, folder, limit).await;
-            }
-        } else {
-            return Ok(Json(agentmail_error_response(
-                "agentmail_inbox_unmapped",
-                account_id,
-                "",
-            )));
-        }
-    } else {
+    let Some(account_id) = selected_account_id.as_deref() else {
         return Ok(Json(agentmail_error_response(
             "agentmail_inbox_unmapped",
             "",
             "",
         )));
+    };
+
+    let Some(account) = selected_mail_account(&accounts, account_id) else {
+        return Ok(Json(agentmail_error_response(
+            "agentmail_inbox_unmapped",
+            account_id,
+            "",
+        )));
+    };
+
+    if should_fetch_via_agentmail(&account) {
+        return get_agentmail_emails_for_account(&state, &account, folder, limit).await;
     }
 
-    let creds = match get_credentials(&state) {
+    if !is_imap_provider(&account.provider) {
+        return Ok(Json(json!({
+            "error": "unsupported_provider",
+            "source": "imap",
+            "account_id": account.id,
+            "emails": [],
+            "threads": []
+        })));
+    }
+
+    let creds = match get_credentials_for_account(&state, &account) {
         Some(c) => c,
         None => {
             return Ok(Json(json!({
                 "error": "missing_credentials",
                 "source": "imap",
+                "account_id": account.id,
                 "emails": [],
                 "threads": []
             })));
@@ -596,7 +641,11 @@ async fn get_emails(
     };
 
     match fetch_emails(&creds, folder, limit).await {
-        Ok(emails) => Ok(Json(json!({ "source": "imap", "emails": emails }))),
+        Ok(emails) => Ok(Json(json!({
+            "source": "imap",
+            "account_id": account.id,
+            "emails": emails
+        }))),
         Err(e) => {
             tracing::error!("[email] GET error: {:#}", e);
             Err(AppError::Internal(e))
@@ -931,15 +980,41 @@ mod tests {
 
         assert_eq!(resolved.provider, "agentmail");
         assert_eq!(resolved.agentmail_inbox_id, "am_inbox_work");
-        assert!(!is_explicit_imap_provider(&resolved.provider));
+        assert!(!is_imap_provider(&resolved.provider));
     }
 
     #[test]
-    fn stale_non_imap_provider_still_uses_agentmail_path() {
-        assert!(!is_explicit_imap_provider("agentmail"));
-        assert!(!is_explicit_imap_provider("gmail"));
-        assert!(!is_explicit_imap_provider("google-workspace"));
-        assert!(is_explicit_imap_provider("imap"));
+    fn real_mail_providers_use_imap_path() {
+        assert!(!is_imap_provider("agentmail"));
+        assert!(is_imap_provider("gmail"));
+        assert!(is_imap_provider("google-workspace"));
+        assert!(is_imap_provider("proton"));
+        assert!(is_imap_provider("icloud"));
+        assert!(is_imap_provider("imap"));
+    }
+
+    #[test]
+    fn real_provider_with_agentmail_binding_uses_agentmail_transport() {
+        let account = SelectedMailAccount {
+            id: "acct_proton".into(),
+            provider: "proton".into(),
+            address: "josue@aparcedo.org".into(),
+            agentmail_inbox_id: "clawcontrol-josue-aparcedo@agentmail.to".into(),
+        };
+
+        assert!(should_fetch_via_agentmail(&account));
+    }
+
+    #[test]
+    fn unbound_real_provider_uses_direct_imap_transport() {
+        let account = SelectedMailAccount {
+            id: "acct_proton".into(),
+            provider: "proton".into(),
+            address: "josue@aparcedo.org".into(),
+            agentmail_inbox_id: "".into(),
+        };
+
+        assert!(!should_fetch_via_agentmail(&account));
     }
 
     #[test]

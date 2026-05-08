@@ -16,28 +16,72 @@ import { Button } from '@/components/ui/Button'
 import {
   CONNECTION_SETTINGS,
   type ConnectionSettingId,
+  keychainKeyToCredKey,
 } from '@/lib/service-registry'
 import { row, rowLast, val, inputStyle, sectionLabel } from './shared'
 
 const OnboardingWelcome = lazy(() => import('@/components/OnboardingWelcome'))
+
+type CredentialMap = Record<string, string>
+
+type SecretResponse =
+  | {
+      ok?: boolean
+      data?: {
+        credentials?: Record<string, unknown>
+      }
+      credentials?: Record<string, unknown>
+    }
+  | Record<string, unknown>
+  | null
+
+function emptyConnectionRecord(): Record<ConnectionSettingId, CredentialMap> {
+  return Object.fromEntries(
+    CONNECTION_SETTINGS.map(setting => [setting.id, {}])
+  ) as Record<ConnectionSettingId, CredentialMap>
+}
+
+function extractCredentials(response: SecretResponse): CredentialMap {
+  const source =
+    response &&
+    typeof response === 'object' &&
+    'data' in response &&
+    response.data &&
+    typeof response.data === 'object' &&
+    'credentials' in response.data &&
+    response.data.credentials &&
+    typeof response.data.credentials === 'object'
+      ? response.data.credentials
+      : response &&
+        typeof response === 'object' &&
+        'credentials' in response &&
+        response.credentials &&
+        typeof response.credentials === 'object'
+        ? response.credentials
+        : response && typeof response === 'object'
+          ? response
+          : {}
+
+  return Object.fromEntries(
+    Object.entries(source).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+  )
+}
 
 export default function SettingsConnections() {
   const suppressNextBackendRefreshRef = useRef(false)
   const [connectionUrls, setConnectionUrls] = useState<Record<ConnectionSettingId, string>>({
     bluebubbles: '',
     harness: '',
-    hermes: '',
-    openclaw: '',
     sunshine: '',
     vnc: '',
     agentsecrets: '',
     agentshell: '',
   })
+  const [connectionCredentials, setConnectionCredentials] = useState<Record<ConnectionSettingId, CredentialMap>>(emptyConnectionRecord)
+  const [savedCredentials, setSavedCredentials] = useState<Record<ConnectionSettingId, CredentialMap>>(emptyConnectionRecord)
   const [expectedHosts, setExpectedHosts] = useState<Record<ConnectionSettingId, string>>({
     bluebubbles: '',
     harness: '',
-    hermes: '',
-    openclaw: '',
     sunshine: '',
     vnc: '',
     agentsecrets: '',
@@ -61,23 +105,7 @@ export default function SettingsConnections() {
     pairing_required: boolean
     services: {
       supabase: { configured: boolean; reachable: boolean }
-      hermes?: {
-        configured: boolean
-        reachable: boolean
-        status?: string
-        auth_valid?: boolean
-        checked_path?: string | null
-        message?: string | null
-      }
       harness?: {
-        configured: boolean
-        reachable: boolean
-        status?: string
-        auth_valid?: boolean
-        checked_path?: string | null
-        message?: string | null
-      }
-	      openclaw?: {
         configured: boolean
         reachable: boolean
         status?: string
@@ -100,6 +128,16 @@ export default function SettingsConnections() {
 
   const updateExpectedHost = useCallback((id: ConnectionSettingId, value: string) => {
     setExpectedHosts(prev => ({ ...prev, [id]: value }))
+  }, [])
+
+  const updateConnectionCredential = useCallback((id: ConnectionSettingId, keychainKey: string, value: string) => {
+    setConnectionCredentials(prev => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        [keychainKey]: value,
+      },
+    }))
   }, [])
 
   // Load saved connection URLs from the backend API first (Supabase-encrypted),
@@ -127,15 +165,13 @@ export default function SettingsConnections() {
 
     const loadFromApi = Promise.all(
       CONNECTION_SETTINGS.map(setting =>
-        api.get<Record<string, string>>(`/api/secrets/${setting.apiSecretService}`).catch(() => null)
+        api.get<SecretResponse>(`/api/secrets/${setting.apiSecretService}`).catch(() => null)
       )
     )
 
     const loadActiveConfig = api.get<{
       bluebubbles_url?: string
       harness_url?: string
-      hermes_url?: string
-      openclaw_url?: string
       sunshine_url?: string
       vnc_url?: string
       agentsecrets_url?: string
@@ -145,9 +181,7 @@ export default function SettingsConnections() {
     Promise.all([loadKeychain, loadFromApi, loadActiveConfig]).then(([, apiSecrets, activeConfig]) => {
       const activeConfigMap: Record<ConnectionSettingId, string> = {
         bluebubbles: activeConfig?.bluebubbles_url || '',
-        harness: activeConfig?.harness_url || activeConfig?.hermes_url || activeConfig?.openclaw_url || '',
-        hermes: activeConfig?.hermes_url || '',
-        openclaw: activeConfig?.openclaw_url || '',
+        harness: activeConfig?.harness_url || '',
         sunshine: activeConfig?.sunshine_url || '',
         vnc: activeConfig?.vnc_url || '',
         agentsecrets: activeConfig?.agentsecrets_url || '',
@@ -155,11 +189,23 @@ export default function SettingsConnections() {
       }
 
       const loadedUrls: Partial<Record<ConnectionSettingId, string>> = {}
+      const loadedCredentials: Partial<Record<ConnectionSettingId, CredentialMap>> = {}
+      const loadedFieldValues: Partial<Record<ConnectionSettingId, CredentialMap>> = {}
       CONNECTION_SETTINGS.forEach((setting, index) => {
-        const apiUrl = apiSecrets?.[index]?.url
+        const credentials = extractCredentials(apiSecrets?.[index] ?? null)
+        const apiUrl = credentials.url
         loadedUrls[setting.id] = apiUrl || activeConfigMap[setting.id] || ''
+        loadedCredentials[setting.id] = credentials
+        loadedFieldValues[setting.id] = Object.fromEntries(
+          (setting.credentialFields ?? []).map(field => {
+            const credKey = keychainKeyToCredKey(field.keychainKey)
+            return [field.keychainKey, field.secret ? '' : credentials[credKey] || '']
+          })
+        )
       })
       setConnectionUrls(prev => ({ ...prev, ...loadedUrls }))
+      setSavedCredentials(prev => ({ ...prev, ...loadedCredentials }))
+      setConnectionCredentials(prev => ({ ...prev, ...loadedFieldValues }))
 
       if (keychainBindHost) setBindHost(keychainBindHost)
       if (keychainAgentKey) setAgentKey(keychainAgentKey)
@@ -296,12 +342,27 @@ export default function SettingsConnections() {
     try {
       // Save to Supabase (encrypted) via backend API
       await Promise.all([
-        ...CONNECTION_SETTINGS.map(setting =>
-          saveSecretMutation.mutateAsync({
+        ...CONNECTION_SETTINGS.map(setting => {
+          const credentials: Record<string, string> = {
+            ...(savedCredentials[setting.id] ?? {}),
+            url: connectionUrls[setting.id],
+          }
+
+          for (const field of setting.credentialFields ?? []) {
+            const credKey = keychainKeyToCredKey(field.keychainKey)
+            const value = connectionCredentials[setting.id]?.[field.keychainKey]?.trim() ?? ''
+            if (value) {
+              credentials[credKey] = value
+            } else if (!field.secret) {
+              delete credentials[credKey]
+            }
+          }
+
+          return saveSecretMutation.mutateAsync({
             service: setting.apiSecretService,
-            credentials: { url: connectionUrls[setting.id] },
+            credentials,
           })
-        ),
+        }),
       ])
 
       // Also save to OS keychain as local cache/fallback (for startup before login)
@@ -310,6 +371,12 @@ export default function SettingsConnections() {
         await Promise.all([
           ...CONNECTION_SETTINGS.map(setting =>
             invoke('set_secret', { key: setting.urlKeychainKey, value: connectionUrls[setting.id] })
+          ),
+          ...CONNECTION_SETTINGS.flatMap(setting =>
+            (setting.credentialFields ?? [])
+              .map(field => ({ field, value: connectionCredentials[setting.id]?.[field.keychainKey]?.trim() ?? '' }))
+              .filter(({ field, value }) => value || !field.secret)
+              .map(({ field, value }) => invoke('set_secret', { key: field.keychainKey, value }))
           ),
           bindHost ? invoke('set_secret', { key: 'mc-bind.host', value: bindHost }) : Promise.resolve(),
           agentKey ? invoke('set_secret', { key: 'mc-agent.key', value: agentKey }) : Promise.resolve(),
@@ -332,7 +399,7 @@ export default function SettingsConnections() {
     } finally {
       setConnSaving(false)
     }
-  }, [agentKey, bindHost, connectionUrls, expectedHosts, saveSecretMutation])
+  }, [agentKey, bindHost, connectionCredentials, connectionUrls, expectedHosts, saveSecretMutation, savedCredentials])
 
   const testConnections = useCallback(async () => {
     setConnTesting(true)
@@ -371,7 +438,7 @@ export default function SettingsConnections() {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '(not set)'
   const normalizedBackendUrl = backendUrl.trim().replace(/\/+$/, '')
   const activeBackendUrl = backendStatus?.backend_public_base_url || normalizedBackendUrl
-  const harnessStatus = backendStatus?.services.harness ?? backendStatus?.services.hermes ?? backendStatus?.services.openclaw
+  const harnessStatus = backendStatus?.services.harness
   const agentSecretsStatus = backendStatus?.services.agentsecrets
   const backendReady = !!backendStatus?.services.supabase.reachable && harnessStatus?.reachable === true && agentSecretsStatus?.reachable === true
   const backendNeedsPairing = backendStatus?.pairing_required === true
@@ -393,11 +460,8 @@ export default function SettingsConnections() {
     ? `Supabase ${backendStatus.services.supabase.reachable ? 'online' : backendStatus.services.supabase.configured ? 'configured but offline' : 'not configured'} • Harness ${harnessStatus?.reachable ? 'online' : harnessStatus?.configured ? 'configured but offline' : 'not configured'}${harnessDetail} • Agent Secrets ${agentSecretsStatus?.reachable ? 'online' : agentSecretsStatus?.configured ? 'configured but offline' : 'not configured'} • MemD ${backendStatus.services.memd.reachable ? 'online' : backendStatus.services.memd.configured ? 'configured but offline' : 'offline'}`
     : 'Run a backend check to validate the selected server.'
   const missingLabels: Record<string, string> = {
-    hermes: 'Hermes provider',
-    hermes_auth: 'Hermes provider auth',
     harness: 'Harness',
     harness_auth: 'Harness auth',
-    openclaw: 'OpenClaw compat',
     agentsecrets: 'Agent Secrets',
     supabase: 'Supabase',
     memd: 'memd',
@@ -504,6 +568,21 @@ export default function SettingsConnections() {
               placeholder={setting.urlPlaceholder}
               aria-label={`${setting.label} URL`}
             />
+            {(setting.credentialFields ?? []).map(field => {
+              const credKey = keychainKeyToCredKey(field.keychainKey)
+              const hasSavedSecret = field.secret && !!savedCredentials[setting.id]?.[credKey]
+              return (
+                <input
+                  key={field.keychainKey}
+                  type={field.secret ? 'password' : field.type || 'text'}
+                  style={{ ...inputStyle, fontFamily: field.secret ? 'monospace' : inputStyle.fontFamily, fontSize: '11px' }}
+                  value={connectionCredentials[setting.id]?.[field.keychainKey] ?? ''}
+                  onChange={e => updateConnectionCredential(setting.id, field.keychainKey, e.target.value)}
+                  placeholder={hasSavedSecret ? `${field.label} saved; paste new value to replace` : field.placeholder}
+                  aria-label={`${setting.label} ${field.label}`}
+                />
+              )
+            })}
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Expected host:</span>
               <input

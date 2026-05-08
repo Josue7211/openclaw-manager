@@ -14,7 +14,7 @@ export const APP_MODULES: AppModule[] = [
   { id: 'todos', name: 'Todos', description: 'Task management', icon: 'CheckSquare', route: '/todos' },
   { id: 'calendar', name: 'Calendar', description: 'Calendar (CalDAV)', icon: 'CalendarDays', route: '/calendar' },
   { id: 'reminders', name: 'Reminders', description: 'Apple Reminders (CalDAV)', icon: 'Bell', route: '/reminders' },
-  { id: 'email', name: 'Email', description: 'AgentMail inbox', icon: 'Mail', route: '/email' },
+  { id: 'email', name: 'Email', description: 'Mail client for real accounts with AgentMail access', icon: 'Mail', route: '/email' },
   { id: 'job-hunter', name: 'Career Ops', description: 'Opportunity dossiers and search operations', icon: 'MagnifyingGlass', route: '/jobs' },
   { id: 'pomodoro', name: 'Pomodoro', description: 'Focus timer', icon: 'Timer', route: '/pomodoro' },
   { id: 'homelab', name: 'Home Lab', description: 'Proxmox + OPNsense', icon: 'Server', route: '/homelab' },
