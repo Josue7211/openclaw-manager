@@ -165,7 +165,7 @@ ms=$(elapsed_ms "$step_start")
 
 if [ "$test_exit" -eq 0 ]; then
   # Extract test count from vitest output
-  test_summary=$(echo "$test_output" | grep -E 'Tests\s+\d+' | tail -1 || echo "")
+  test_summary=$(echo "$test_output" | grep -E 'Tests[[:space:]]+[0-9]+' | tail -1 || echo "")
   pass "$ms" "Vitest tests${test_summary:+ — $test_summary}"
 else
   fail "$ms" "Vitest tests"
