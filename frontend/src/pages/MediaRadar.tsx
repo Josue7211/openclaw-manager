@@ -854,7 +854,7 @@ QBITTORRENT_PASSWORD=...`}
               <option key={service.id} value={service.id}>{service.name}</option>
             ))}
           </select>
-          <input value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void search() }} placeholder="Search movie, series, or artist" style={{ background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px 10px' }} />
+          <input aria-label="Media search query" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void search() }} placeholder="Search movie, series, or artist" style={{ background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px 10px' }} />
           <button onClick={search} disabled={busy === 'search'} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--accent)', color: 'var(--text-on-accent)', border: 'none', borderRadius: '8px', padding: '8px 12px', fontWeight: 700, cursor: 'pointer' }}>
             <MagnifyingGlass size={14} />
             Search

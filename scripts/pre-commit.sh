@@ -119,21 +119,34 @@ else
   pass "$ms" "No div/span onClick"
 fi
 
-# 2b. Inputs without aria-label
+# 2b. Inputs without accessible label
 step_start=$(date +%s%N 2>/dev/null || python3 -c 'import time; print(int(time.time()*1e9))')
 
-# Count <input elements that lack aria-label, aria-labelledby, or id (for <label htmlFor>)
-input_total=$(grep -rn '<input' "$FRONTEND_SRC" --include="*.tsx" 2>/dev/null | wc -l || echo 0)
-input_labeled=$(grep -rn '<input' "$FRONTEND_SRC" --include="*.tsx" 2>/dev/null | grep -c 'aria-label\|aria-labelledby\|id=' || echo 0)
-input_unlabeled=$((input_total - input_labeled))
+# Parse full JSX input tags so multi-line attributes are counted correctly.
+input_report=$(find "$FRONTEND_SRC" -name '*.tsx' -type f -print0 | xargs -0 perl -0ne '
+  while (/<input\b(?:(?!\/>).)*\/>/gis) {
+    $tag = $&;
+    next if $tag =~ /\b(aria-label|aria-labelledby|id)=/i;
+    next if $tag =~ /type=["'\'']file["'\'']/i && $tag =~ /display:\s*["'\'']none["'\'']/i;
+    $prefix = substr($_, 0, $-[0]);
+    $last_open = rindex($prefix, "<label");
+    $last_close = rindex($prefix, "</label>");
+    next if $last_open > $last_close;
+    $line = 1 + ($prefix =~ tr/\n//);
+    print "$ARGV:$line\n";
+  }
+' 2>/dev/null || true)
+input_unlabeled=$(printf '%s\n' "$input_report" | grep -c . 2>/dev/null || true)
 
 ms=$(elapsed_ms "$step_start")
 if [ "$input_unlabeled" -gt 10 ]; then
-  warn "$ms" "Inputs without aria-label ($input_unlabeled of $input_total)"
+  warn "$ms" "Inputs without accessible label ($input_unlabeled)"
+  echo "$input_report" | head -10 | while read -r line; do printf "      %s\n" "$line"; done
+  [ "$input_unlabeled" -gt 10 ] && printf "      ... and %d more\n" $((input_unlabeled - 10))
 elif [ "$input_unlabeled" -gt 0 ]; then
-  pass "$ms" "Inputs without aria-label ($input_unlabeled of $input_total — OK)"
+  pass "$ms" "Inputs without accessible label ($input_unlabeled — OK)"
 else
-  pass "$ms" "All inputs have aria-label"
+  pass "$ms" "All inputs have accessible labels"
 fi
 
 # ── 3. TypeScript Type-check ─────────────────────────────────

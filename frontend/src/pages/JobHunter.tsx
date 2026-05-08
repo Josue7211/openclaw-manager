@@ -1010,6 +1010,7 @@ export default function JobHunterPage() {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: '8px' }}>
                   <input
+                    aria-label="Saved search name"
                     value={savedSearchName}
                     onChange={e => setSavedSearchName(e.target.value)}
                     placeholder="Name this search"

@@ -226,6 +226,7 @@ export default function RemotePage() {
         <div style={{ flex: 1 }} />
 
         <input
+          aria-label="Remote clipboard text"
           value={clipboardText}
           onChange={event => setClipboardText(event.target.value)}
           placeholder="Clipboard"

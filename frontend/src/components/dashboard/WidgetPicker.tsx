@@ -262,6 +262,7 @@ export const WidgetPicker = React.memo(function WidgetPicker({
             />
             <input
               type="text"
+              aria-label="Search widgets"
               placeholder="Search widgets..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}

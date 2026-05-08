@@ -221,6 +221,7 @@ export default function WizardWelcome({ onComplete }: { onComplete?: () => void 
             </div>
             <input
               type="text"
+              aria-label="Backend URL"
               value={backendUrl}
               onChange={(e) => {
                 const value = e.target.value
@@ -270,6 +271,7 @@ export default function WizardWelcome({ onComplete }: { onComplete?: () => void 
               <>
                 <input
                   type="password"
+                  aria-label="Pairing token"
                   value={pairingToken}
                   onChange={(e) => {
                     const value = e.target.value
