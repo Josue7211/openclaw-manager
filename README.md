@@ -172,12 +172,12 @@ For release-path planning, use:
 
 | Variable | Description |
 |---|---|
-| `OPENCLAW_WS` | OpenClaw WebSocket URL (AI chat streaming) |
-| `OPENCLAW_API_URL` | OpenClaw HTTP API URL |
-| `OPENCLAW_API_KEY` | OpenClaw API key |
+| `HARNESS_WS` | Generic harness WebSocket URL (AI chat streaming) |
+| `HARNESS_API_URL` | Generic harness HTTP API URL |
+| `HARNESS_API_KEY` | Generic harness API key |
 | `AGENTSHELL_URL` | AgentShell adapter URL (launch/approval bridge) |
 
-OpenClaw powers AI Chat, Agents, Crons, Missions, and the OpenClaw control plane experience. ClawControl can add extra safe wrappers and UX around that gateway, but without OpenClaw the app loses the centerpiece that makes ClawControl ClawControl.
+The harness gateway powers AI Chat, Agents, Crons, Missions, and control-plane workflows. Users can point it at Hermes, OpenClaw compatibility, Agent Zero, NanoClaw, or another compatible harness. `OPENCLAW_*` remains a legacy compatibility alias only.
 
 ### Optional (per module)
 

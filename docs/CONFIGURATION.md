@@ -109,14 +109,16 @@ For now:
 | `BAZARR_URL` | Bazarr API URL |
 | `BAZARR_API_KEY` | Bazarr API key |
 
-## Optional -- OpenClaw AI Workspace
+## Optional -- Harness AI Workspace
 
 | Variable | Description |
 |----------|-------------|
-| `OPENCLAW_WS` | OpenClaw WebSocket URL |
-| `OPENCLAW_PASSWORD` | OpenClaw authentication password |
-| `OPENCLAW_API_URL` | OpenClaw API server URL (enables proxied workspace routes) |
-| `OPENCLAW_API_KEY` | OpenClaw API key |
+| `HARNESS_WS` | Generic harness WebSocket URL |
+| `HARNESS_PASSWORD` | Generic harness authentication password |
+| `HARNESS_API_URL` | Generic harness API server URL (enables proxied workspace routes) |
+| `HARNESS_API_KEY` | Generic harness API key |
+
+`HERMES_*` and `OPENCLAW_*` are supported as provider-specific compatibility aliases. Prefer `HARNESS_*` for new configuration so the app stays provider-neutral.
 
 ## Optional -- LightRAG / memd RAG
 
