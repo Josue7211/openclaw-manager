@@ -17,6 +17,7 @@ vi.mock('@/lib/api', () => ({
     get: mockApiGet,
     post: mockApiPost,
   },
+  getApiBase: () => 'http://127.0.0.1:5000',
   getLocalApiKey: () => 'local-key',
 }))
 

@@ -6,7 +6,6 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { Button } from '@/components/ui/Button'
 import { api } from '@/lib/api'
-import { isDemoMode } from '@/lib/demo-data'
 
 import type { ApiSuccess, HomelabConfigData, HomelabData } from './homelab/types'
 import { formatUptime, formatBytes, cpuColor } from './homelab/helpers'
@@ -48,8 +47,16 @@ function sourceLabel(source?: string): string {
   return source ? source.toUpperCase() : 'fallback'
 }
 
+function isHomeLabDemoMode(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.localStorage.getItem('demo-mode') === 'true'
+  } catch {
+    return false
+  }
+}
+
 export default function HomelabPage() {
-  const demo = isDemoMode()
+  const demo = isHomeLabDemoMode()
   const { data, isLoading: loading, error, refetch, dataUpdatedAt } = useTauriQuery<HomelabData>(
     ['homelab'],
     '/api/homelab',

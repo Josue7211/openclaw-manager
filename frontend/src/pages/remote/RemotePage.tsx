@@ -10,19 +10,13 @@ import {
   PlugsConnected,
   Wrench,
 } from '@phosphor-icons/react'
-import { api, getLocalApiKey } from '@/lib/api'
+import { api, getApiBase, getLocalApiKey } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { PageHeader } from '@/components/PageHeader'
+import { buildRemoteViewerWsUrl } from '@/lib/remote-viewer'
 import type { RemoteViewerRepairResult, RemoteViewerStatus } from '@/lib/remote-viewer'
 
 type ViewerState = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error'
-
-function buildWsUrl() {
-  const base = 'ws://127.0.0.1:5000'
-  const key = getLocalApiKey()
-  const query = key ? `?apiKey=${encodeURIComponent(key)}` : ''
-  return `${base}/api/vnc/ws${query}`
-}
 
 export default function RemotePage() {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -68,7 +62,7 @@ export default function RemotePage() {
 
     let rfb: RFB
     try {
-      rfb = new RFB(containerRef.current, buildWsUrl(), {
+      rfb = new RFB(containerRef.current, buildRemoteViewerWsUrl(getApiBase(), getLocalApiKey()), {
         shared: true,
       })
     } catch (error) {
@@ -194,7 +188,7 @@ export default function RemotePage() {
 
   return (
     <div style={{ height: '100%', minHeight: 'calc(100vh - 72px)', display: 'flex', flexDirection: 'column' }}>
-      <PageHeader defaultTitle="Remote Viewer" defaultSubtitle="OpenClaw VM desktop" />
+      <PageHeader defaultTitle="Remote Viewer" defaultSubtitle="Harness VM desktop" />
 
       <div style={{
         display: 'flex',

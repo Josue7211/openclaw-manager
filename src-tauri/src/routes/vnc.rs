@@ -26,6 +26,9 @@ const VNC_SECURITY_NONE: u8 = 1;
 const LOCAL_TUNNEL_SERVICE: &str = "openclaw-sunshine-tunnel.service";
 const REMOTE_VNC_SERVICE: &str = "clawcontrol-vnc.service";
 const REMOTE_VNC_HOST: &str = "openclaw-vm";
+const DEFAULT_VNC_HOST: &str = "127.0.0.1";
+const DEFAULT_VNC_PORT: u16 = 5901;
+const DEFAULT_SUNSHINE_PORT: u16 = 47990;
 
 struct VncConnectionGuard;
 
@@ -52,11 +55,103 @@ impl Drop for VncConnectionGuard {
     }
 }
 
-fn vnc_host(state: &AppState) -> String {
-    state
-        .secret("VNC_HOST")
-        .filter(|h| !h.is_empty())
-        .unwrap_or_else(|| "127.0.0.1:5901".to_string())
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct VncTarget {
+    raw: Option<String>,
+    host: String,
+    port: u16,
+    address: String,
+    configured: bool,
+    repair_host: String,
+}
+
+impl VncTarget {
+    #[cfg(test)]
+    fn from_raw(raw: Option<String>) -> Self {
+        Self::from_raw_with_repair_host(raw, None)
+    }
+
+    fn from_raw_with_repair_host(raw: Option<String>, repair_host: Option<String>) -> Self {
+        let raw = raw
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        let configured = raw.is_some();
+        let value = raw.as_deref().unwrap_or(DEFAULT_VNC_HOST);
+        let parsed = parse_vnc_target(value);
+        let host = parsed
+            .as_ref()
+            .map(|(host, _)| host.clone())
+            .unwrap_or_else(|| value.trim_matches('/').to_string());
+        let port = parsed.map(|(_, port)| port).unwrap_or(DEFAULT_VNC_PORT);
+        let address = format_socket_address(&host, port);
+
+        Self {
+            raw,
+            host,
+            port,
+            address,
+            configured,
+            repair_host: repair_host.unwrap_or_else(|| REMOTE_VNC_HOST.to_string()),
+        }
+    }
+
+    fn is_loopback(&self) -> bool {
+        matches!(self.host.as_str(), "127.0.0.1" | "localhost" | "::1")
+    }
+
+    fn repair_host(&self) -> String {
+        if self.is_loopback() {
+            self.repair_host.clone()
+        } else {
+            self.host.clone()
+        }
+    }
+}
+
+fn parse_vnc_target(value: &str) -> Option<(String, u16)> {
+    let candidate = if value.contains("://") {
+        value.to_string()
+    } else {
+        format!("vnc://{value}")
+    };
+    let url = url::Url::parse(&candidate).ok()?;
+    let host = url.host_str()?.to_string();
+    let port = url.port().unwrap_or(DEFAULT_VNC_PORT);
+    Some((host, port))
+}
+
+fn format_socket_address(host: &str, port: u16) -> String {
+    if host.contains(':') && !host.starts_with('[') {
+        format!("[{host}]:{port}")
+    } else {
+        format!("{host}:{port}")
+    }
+}
+
+fn harness_host_from_url(value: Option<String>) -> Option<String> {
+    let raw = value?.trim().to_string();
+    if raw.is_empty() {
+        return None;
+    }
+    let candidate = if raw.contains("://") {
+        raw
+    } else {
+        format!("http://{raw}")
+    };
+    url::Url::parse(&candidate)
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_string))
+}
+
+fn vnc_target(state: &AppState) -> VncTarget {
+    VncTarget::from_raw_with_repair_host(
+        state.secret("VNC_HOST"),
+        harness_host_from_url(state.secret_first(&[
+            "HARNESS_API_URL",
+            "HERMES_API_URL",
+            "OPENCLAW_API_URL",
+        ])),
+    )
 }
 
 async fn probe_vnc(host: &str) -> Result<(), String> {
@@ -128,35 +223,254 @@ async fn probe_vnc(host: &str) -> Result<(), String> {
     .map_err(|_| "probe timed out".to_string())?
 }
 
-/// Check if the embedded VNC desktop is reachable.
-async fn remote_status(State(state): State<AppState>) -> Json<Value> {
-    let host = vnc_host(&state);
+fn status_message(
+    target: &VncTarget,
+    reachable: bool,
+    available: bool,
+    reason: Option<&str>,
+) -> String {
+    if reachable {
+        return if available {
+            format!("VNC target {} is online", target.address)
+        } else {
+            "Viewer connection limit reached".to_string()
+        };
+    }
 
-    let probe_result = probe_vnc(&host).await;
+    let reason = reason.unwrap_or("probe failed");
+    if reason.contains("Connection refused") || reason.contains("connection refused") {
+        format!("VNC target {} refused the connection", target.address)
+    } else if reason.contains("timed out") {
+        format!("VNC target {} timed out", target.address)
+    } else if reason.contains("credentials") {
+        format!("VNC target {} requires VNC credentials", target.address)
+    } else {
+        format!("VNC target {} is not reachable", target.address)
+    }
+}
+
+fn repair_guidance(target: &VncTarget, reason: Option<&str>) -> Value {
+    let repair_host = target.repair_host();
+    let mut steps = vec![
+        format!(
+            "Verify VNC_HOST is set to the reachable VNC endpoint, currently {}.",
+            target.address
+        ),
+        format!(
+            "Restart remote VNC: ssh {repair_host} systemctl --user restart {REMOTE_VNC_SERVICE}."
+        ),
+    ];
+
+    if target.is_loopback() {
+        #[cfg(target_os = "macos")]
+        steps.push(format!(
+            "Restart local tunnel: ssh -f -N -L 5901:127.0.0.1:5901 {repair_host}."
+        ));
+        #[cfg(not(target_os = "macos"))]
+        steps.push(format!(
+            "Restart local tunnel: systemctl --user restart {LOCAL_TUNNEL_SERVICE}."
+        ));
+        steps.push(format!(
+            "The tunnel must forward local {} to VNC on {repair_host}.",
+            target.address
+        ));
+    } else {
+        steps.push(format!(
+            "Confirm TCP {} is reachable from this clawctrl backend.",
+            target.address
+        ));
+    }
+
+    json!({
+        "summary": match reason {
+            Some(reason) if reason.contains("Connection refused") || reason.contains("connection refused") =>
+                format!("Nothing is accepting VNC on {}.", target.address),
+            Some(reason) if reason.contains("timed out") =>
+                format!("TCP connect to {} timed out.", target.address),
+            Some(reason) if reason.contains("credentials") =>
+                format!("{} requires credentials, but the embedded viewer expects no-auth VNC.", target.address),
+            Some(_) => format!("The VNC probe failed for {}.", target.address),
+            None => format!("Repair target is {}.", target.address),
+        },
+        "steps": steps,
+        "services": {
+            "remoteVnc": REMOTE_VNC_SERVICE,
+            "localTunnel": LOCAL_TUNNEL_SERVICE,
+        },
+        "repairHost": repair_host,
+    })
+}
+
+/// Check if the legacy embedded VNC desktop is reachable.
+async fn vnc_status(State(state): State<AppState>) -> Json<Value> {
+    let target = vnc_target(&state);
+
+    let probe_result = probe_vnc(&target.address).await;
     let reachable = probe_result.is_ok();
     let active = VNC_CONNECTIONS.load(Ordering::Acquire);
     let available = reachable && active < MAX_VNC_CONNECTIONS;
     let probe_error = probe_result.as_ref().err().cloned();
+    let message = status_message(&target, reachable, available, probe_error.as_deref());
+    let guidance = repair_guidance(&target, probe_error.as_deref());
 
     debug!(
-        "remote: VNC at {host} reachable={reachable} probe={:?}",
-        probe_error
+        "remote: VNC at {} reachable={reachable} probe={:?}",
+        target.address, probe_error
     );
 
     Json(json!({
-        "configured": true,
+        "configured": target.configured,
         "reachable": reachable,
         "available": available,
         "active": active,
         "max": MAX_VNC_CONNECTIONS,
-        "host": host,
+        "host": &target.address,
+        "target": {
+            "raw": &target.raw,
+            "host": &target.host,
+            "port": target.port,
+            "address": &target.address,
+            "configured": target.configured,
+            "repairHost": target.repair_host(),
+            "vncService": REMOTE_VNC_SERVICE,
+            "tunnelService": LOCAL_TUNNEL_SERVICE,
+        },
         "reason": probe_error,
-        "message": if reachable {
-            if available { "Embedded viewer is online" } else { "Viewer connection limit reached" }
-        } else {
-            "Embedded viewer is not reachable"
-        }
+        "message": message,
+        "guidance": guidance,
     }))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SunshineTarget {
+    raw: Option<String>,
+    host: String,
+    port: u16,
+    address: String,
+    configured: bool,
+}
+
+impl SunshineTarget {
+    fn from_raw(raw: Option<String>) -> Self {
+        let raw = raw
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        let configured = raw.is_some();
+        let value = raw.as_deref().unwrap_or("127.0.0.1");
+        let parsed = parse_service_target(value, DEFAULT_SUNSHINE_PORT);
+        let host = parsed
+            .as_ref()
+            .map(|(host, _)| host.clone())
+            .unwrap_or_else(|| value.trim_matches('/').to_string());
+        let port = parsed
+            .map(|(_, port)| port)
+            .unwrap_or(DEFAULT_SUNSHINE_PORT);
+        let address = format_socket_address(&host, port);
+
+        Self {
+            raw,
+            host,
+            port,
+            address,
+            configured,
+        }
+    }
+}
+
+fn parse_service_target(value: &str, default_port: u16) -> Option<(String, u16)> {
+    let candidate = if value.contains("://") {
+        value.to_string()
+    } else {
+        format!("tcp://{value}")
+    };
+    let url = url::Url::parse(&candidate).ok()?;
+    let host = url.host_str()?.to_string();
+    let port = url.port().unwrap_or(default_port);
+    Some((host, port))
+}
+
+fn sunshine_target(state: &AppState) -> SunshineTarget {
+    SunshineTarget::from_raw(state.secret("SUNSHINE_HOST"))
+}
+
+fn moonlight_url(host: &str) -> String {
+    format!("moonlight://{host}")
+}
+
+fn sunshine_admin_url(target: &SunshineTarget) -> String {
+    format!("https://{}", target.address)
+}
+
+async fn probe_tcp(host: &str) -> Result<(), String> {
+    tokio::time::timeout(Duration::from_secs(3), TcpStream::connect(host))
+        .await
+        .map_err(|_| "probe timed out".to_string())?
+        .map(|_| ())
+        .map_err(|e| format!("connect failed: {e}"))
+}
+
+/// Check if Sunshine is reachable for native Moonlight streaming.
+async fn remote_status(State(state): State<AppState>) -> Json<Value> {
+    let target = sunshine_target(&state);
+    let probe_result = probe_tcp(&target.address).await;
+    let reachable = probe_result.is_ok();
+    let reason = probe_result.as_ref().err().cloned();
+
+    Json(json!({
+        "configured": target.configured,
+        "reachable": reachable,
+        "host": &target.address,
+        "target": {
+            "raw": &target.raw,
+            "host": &target.host,
+            "port": target.port,
+            "address": &target.address,
+            "configured": target.configured,
+        },
+        "mode": "moonlight",
+        "moonlightUrl": moonlight_url(&target.host),
+        "sunshineUrl": sunshine_admin_url(&target),
+        "reason": reason,
+        "message": if reachable {
+            format!("Sunshine is reachable at {}", target.address)
+        } else if target.configured {
+            format!("Sunshine is not reachable at {}", target.address)
+        } else {
+            "Sunshine host is not configured".to_string()
+        },
+    }))
+}
+
+async fn launch_remote(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    let target = sunshine_target(&state);
+    if !target.configured {
+        return Err(AppError::BadRequest(
+            "SUNSHINE_HOST is not configured".into(),
+        ));
+    }
+
+    let uri = moonlight_url(&target.host);
+    let output = tokio::time::timeout(
+        Duration::from_secs(5),
+        Command::new("open").arg(&uri).output(),
+    )
+    .await
+    .map_err(|_| AppError::BadRequest("Moonlight launch timed out".into()))?
+    .map_err(|e| AppError::BadRequest(format!("Moonlight launch failed: {e}")))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(AppError::BadRequest(if stderr.is_empty() {
+            "Moonlight launch failed".into()
+        } else {
+            stderr
+        }));
+    }
+
+    Ok(Json(json!({
+        "ok": true,
+        "moonlightUrl": uri,
+    })))
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -200,11 +514,47 @@ async fn run_repair_command(program: &str, args: &[&str]) -> Result<Value, Strin
     }))
 }
 
-async fn restart_local_tunnel() -> Result<Value, String> {
+#[cfg(target_os = "macos")]
+async fn restart_local_tunnel(repair_host: &str) -> Result<Value, String> {
+    run_repair_command(
+        "ssh",
+        &[
+            "-f",
+            "-N",
+            "-L",
+            "47984:127.0.0.1:47984",
+            "-L",
+            "47989:127.0.0.1:47989",
+            "-L",
+            "47990:127.0.0.1:47990",
+            "-L",
+            "48010:127.0.0.1:48010",
+            "-L",
+            "5901:127.0.0.1:5901",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=10",
+            "-o",
+            "TCPKeepAlive=yes",
+            "-o",
+            "ServerAliveInterval=15",
+            "-o",
+            "ServerAliveCountMax=2",
+            "-o",
+            "ExitOnForwardFailure=yes",
+            repair_host,
+        ],
+    )
+    .await
+}
+
+#[cfg(not(target_os = "macos"))]
+async fn restart_local_tunnel(_repair_host: &str) -> Result<Value, String> {
     run_repair_command("systemctl", &["--user", "restart", LOCAL_TUNNEL_SERVICE]).await
 }
 
-async fn restart_remote_vnc() -> Result<Value, String> {
+async fn restart_remote_vnc(host: &str) -> Result<Value, String> {
     run_repair_command(
         "ssh",
         &[
@@ -212,7 +562,7 @@ async fn restart_remote_vnc() -> Result<Value, String> {
             "BatchMode=yes",
             "-o",
             "ConnectTimeout=10",
-            REMOTE_VNC_HOST,
+            host,
             "systemctl",
             "--user",
             "restart",
@@ -222,20 +572,25 @@ async fn restart_remote_vnc() -> Result<Value, String> {
     .await
 }
 
-async fn repair_vnc(Json(body): Json<VncRepairRequest>) -> Result<Json<Value>, AppError> {
+async fn repair_vnc(
+    State(state): State<AppState>,
+    Json(body): Json<VncRepairRequest>,
+) -> Result<Json<Value>, AppError> {
     let mut steps = Vec::new();
+    let target = vnc_target(&state);
+    let repair_host = target.repair_host();
 
     if matches!(body.target, VncRepairTarget::Vnc | VncRepairTarget::All) {
-        match restart_remote_vnc().await {
-            Ok(result) => steps.push(json!({ "target": "vnc", "ok": true, "result": result })),
-            Err(error) => steps.push(json!({ "target": "vnc", "ok": false, "error": error })),
+        match restart_remote_vnc(&repair_host).await {
+            Ok(result) => steps.push(json!({ "target": "vnc", "host": repair_host, "service": REMOTE_VNC_SERVICE, "ok": true, "result": result })),
+            Err(error) => steps.push(json!({ "target": "vnc", "host": repair_host, "service": REMOTE_VNC_SERVICE, "ok": false, "error": error })),
         }
     }
 
     if matches!(body.target, VncRepairTarget::Tunnel | VncRepairTarget::All) {
-        match restart_local_tunnel().await {
-            Ok(result) => steps.push(json!({ "target": "tunnel", "ok": true, "result": result })),
-            Err(error) => steps.push(json!({ "target": "tunnel", "ok": false, "error": error })),
+        match restart_local_tunnel(&repair_host).await {
+            Ok(result) => steps.push(json!({ "target": "tunnel", "host": "127.0.0.1", "service": LOCAL_TUNNEL_SERVICE, "ok": true, "result": result })),
+            Err(error) => steps.push(json!({ "target": "tunnel", "host": "127.0.0.1", "service": LOCAL_TUNNEL_SERVICE, "ok": false, "error": error })),
         }
     }
 
@@ -266,21 +621,24 @@ async fn vnc_ws(State(state): State<AppState>, ws: WebSocketUpgrade) -> Response
 }
 
 async fn handle_vnc_ws(socket: WebSocket, state: AppState, _guard: VncConnectionGuard) {
-    let host = vnc_host(&state);
-    let tcp = match tokio::time::timeout(Duration::from_secs(5), TcpStream::connect(&host)).await {
-        Ok(Ok(tcp)) => tcp,
-        Ok(Err(e)) => {
-            error!("vnc: TCP connect to {host} failed: {e}");
-            return;
-        }
-        Err(_) => {
-            error!("vnc: TCP connect to {host} timed out");
-            return;
-        }
-    };
+    let target = vnc_target(&state);
+    let tcp =
+        match tokio::time::timeout(Duration::from_secs(5), TcpStream::connect(&target.address))
+            .await
+        {
+            Ok(Ok(tcp)) => tcp,
+            Ok(Err(e)) => {
+                error!("vnc: TCP connect to {} failed: {e}", target.address);
+                return;
+            }
+            Err(_) => {
+                error!("vnc: TCP connect to {} timed out", target.address);
+                return;
+            }
+        };
 
-    info!("vnc: connected to {host}");
-    eprintln!("vnc: connected to {host}");
+    info!("vnc: connected to {}", target.address);
+    eprintln!("vnc: connected to {}", target.address);
 
     let (mut ws_sender, mut ws_receiver) = socket.split();
     let (mut tcp_reader, mut tcp_writer) = tcp.into_split();
@@ -362,7 +720,8 @@ async fn handle_vnc_ws(socket: WebSocket, state: AppState, _guard: VncConnection
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/remote/status", get(remote_status))
-        .route("/vnc/status", get(remote_status))
+        .route("/remote/launch", post(launch_remote))
+        .route("/vnc/status", get(vnc_status))
         .route("/vnc/repair", post(repair_vnc))
         .route("/vnc/ws", get(vnc_ws))
 }
@@ -375,20 +734,113 @@ mod tests {
     #[test]
     fn remote_status_response_shape() {
         let val = json!({
-            "configured": true,
+            "configured": false,
             "reachable": false,
             "available": false,
             "active": 0,
             "max": MAX_VNC_CONNECTIONS,
             "host": "127.0.0.1:5901",
-            "reason": "probe timed out",
-            "message": "Embedded viewer is not reachable"
+            "target": {
+                "host": "127.0.0.1",
+                "port": 5901,
+                "address": "127.0.0.1:5901",
+                "configured": false,
+                "repairHost": "openclaw-vm",
+                "vncService": "clawcontrol-vnc.service",
+                "tunnelService": "openclaw-sunshine-tunnel.service"
+            },
+            "reason": "connect failed: Connection refused (os error 61)",
+            "message": "VNC target 127.0.0.1:5901 refused the connection",
+            "guidance": {
+                "summary": "Nothing is accepting VNC on 127.0.0.1:5901."
+            }
         });
-        assert_eq!(val["configured"], true);
+        assert_eq!(val["configured"], false);
         assert_eq!(val["reachable"], false);
         assert_eq!(val["available"], false);
         assert_eq!(val["active"], 0);
         assert_eq!(val["max"], MAX_VNC_CONNECTIONS);
+        assert_eq!(val["target"]["address"], "127.0.0.1:5901");
+        assert_eq!(val["target"]["repairHost"], REMOTE_VNC_HOST);
+    }
+
+    #[test]
+    fn vnc_target_defaults_to_local_tunnel_endpoint() {
+        let target = VncTarget::from_raw(None);
+
+        assert_eq!(target.host, DEFAULT_VNC_HOST);
+        assert_eq!(target.port, DEFAULT_VNC_PORT);
+        assert_eq!(target.address, "127.0.0.1:5901");
+        assert!(!target.configured);
+        assert_eq!(target.repair_host(), REMOTE_VNC_HOST);
+    }
+
+    #[test]
+    fn vnc_target_uses_openclaw_host_for_loopback_repair() {
+        let target = VncTarget::from_raw_with_repair_host(
+            Some("127.0.0.1:5901".to_string()),
+            Some("100.104.154.24".to_string()),
+        );
+
+        assert_eq!(target.address, "127.0.0.1:5901");
+        assert_eq!(target.repair_host(), "100.104.154.24");
+    }
+
+    #[test]
+    fn vnc_target_accepts_configured_host_and_port() {
+        let target = VncTarget::from_raw(Some("vnc://openclaw-vm:5902".to_string()));
+
+        assert_eq!(target.host, "openclaw-vm");
+        assert_eq!(target.port, 5902);
+        assert_eq!(target.address, "openclaw-vm:5902");
+        assert!(target.configured);
+        assert_eq!(target.repair_host(), "openclaw-vm");
+    }
+
+    #[test]
+    fn harness_host_from_url_accepts_url_and_bare_host() {
+        assert_eq!(
+            harness_host_from_url(Some("http://100.104.154.24:3939".to_string())),
+            Some("100.104.154.24".to_string())
+        );
+        assert_eq!(
+            harness_host_from_url(Some("openclaw.tail8fd5f4.ts.net:3939".to_string())),
+            Some("openclaw.tail8fd5f4.ts.net".to_string())
+        );
+    }
+
+    #[test]
+    fn sunshine_target_accepts_host_and_default_port() {
+        let target = SunshineTarget::from_raw(Some("100.104.154.24".to_string()));
+
+        assert_eq!(target.host, "100.104.154.24");
+        assert_eq!(target.port, DEFAULT_SUNSHINE_PORT);
+        assert_eq!(target.address, "100.104.154.24:47990");
+        assert!(target.configured);
+    }
+
+    #[test]
+    fn sunshine_target_accepts_url_and_custom_port() {
+        let target = SunshineTarget::from_raw(Some("https://openclaw.local:47991".to_string()));
+
+        assert_eq!(target.host, "openclaw.local");
+        assert_eq!(target.port, 47991);
+        assert_eq!(target.address, "openclaw.local:47991");
+    }
+
+    #[test]
+    fn status_message_names_refused_target() {
+        let target = VncTarget::from_raw(None);
+
+        assert_eq!(
+            status_message(
+                &target,
+                false,
+                false,
+                Some("connect failed: Connection refused (os error 61)")
+            ),
+            "VNC target 127.0.0.1:5901 refused the connection"
+        );
     }
 
     #[tokio::test]
