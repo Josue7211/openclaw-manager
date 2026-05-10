@@ -17,7 +17,10 @@ frontend/dist
 ._*
 .AppleDouble/
 *.pem
-.memd/
+# Match both the real bundle dir in the main repo and any worktree
+# symlinks pointing at it. Trailing slash would only match directories,
+# missing the symlink case.
+.memd
 .superpowers/
 dogfood-output/
 
