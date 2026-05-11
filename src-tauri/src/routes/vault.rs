@@ -1,5 +1,8 @@
 use axum::{
+    body::Body,
     extract::{Path, Query, State},
+    http::header,
+    response::Response,
     routing::get,
     Json, Router,
 };
@@ -252,6 +255,35 @@ fn is_binary_note(doc: &Value) -> bool {
         .and_then(|v| v.as_str())
         .map(|t| t == "newnote")
         .unwrap_or(false)
+}
+
+fn attachment_content_type(id: &str) -> &'static str {
+    let id = id.to_lowercase();
+    if id.ends_with(".png") {
+        "image/png"
+    } else if id.ends_with(".jpg") || id.ends_with(".jpeg") {
+        "image/jpeg"
+    } else if id.ends_with(".gif") {
+        "image/gif"
+    } else if id.ends_with(".webp") {
+        "image/webp"
+    } else if id.ends_with(".svg") {
+        "image/svg+xml"
+    } else if id.ends_with(".bmp") {
+        "image/bmp"
+    } else if id.ends_with(".pdf") {
+        "application/pdf"
+    } else if id.ends_with(".mp3") {
+        "audio/mpeg"
+    } else if id.ends_with(".wav") {
+        "audio/wav"
+    } else if id.ends_with(".mp4") {
+        "video/mp4"
+    } else if id.ends_with(".webm") {
+        "video/webm"
+    } else {
+        "application/octet-stream"
+    }
 }
 
 /// GET /api/vault/notes — list all notes (with content reassembled from LiveSync chunks)
@@ -582,6 +614,91 @@ async fn get_note(
     Ok(success_json(doc))
 }
 
+async fn attachment_bytes(state: &AppState, id: &str) -> Result<Vec<u8>, AppError> {
+    if id.contains("..") || id.starts_with('_') {
+        return Err(AppError::BadRequest("Invalid document ID".into()));
+    }
+    let encoded = urlencoding::encode(id);
+    let doc = couch_get(state, &encoded).await?;
+    let eden = doc.get("eden").and_then(|e| e.as_object()).cloned();
+
+    if let Some(children) = doc.get("children").and_then(|c| c.as_array()).cloned() {
+        let mut bytes = Vec::new();
+        for child_id in &children {
+            let Some(chunk_id) = child_id.as_str() else {
+                continue;
+            };
+            let raw = eden
+                .as_ref()
+                .and_then(|e| e.get(chunk_id))
+                .and_then(|v| v.get("data"))
+                .and_then(|d| d.as_str())
+                .map(str::to_string);
+            let raw = match raw {
+                Some(raw) => Some(raw),
+                None => couch_get(state, chunk_id).await.ok().and_then(|chunk| {
+                    chunk
+                        .get("data")
+                        .and_then(|d| d.as_str())
+                        .map(str::to_string)
+                }),
+            };
+
+            if let Some(raw) = raw {
+                if let Ok(decoded) = BASE64.decode(raw.as_bytes()) {
+                    bytes.extend_from_slice(&decoded);
+                }
+            }
+        }
+        if !bytes.is_empty() {
+            return Ok(bytes);
+        }
+    }
+
+    let content = doc
+        .get("content")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| AppError::NotFound("Attachment content not found".into()))?;
+    let content = content
+        .split_once(";base64,")
+        .map(|(_, data)| data)
+        .unwrap_or(content);
+    let clean = content
+        .chars()
+        .filter(|ch| !ch.is_whitespace())
+        .collect::<String>();
+    BASE64
+        .decode(clean.as_bytes())
+        .map_err(|_| AppError::BadRequest("Attachment content is not valid base64".into()))
+}
+
+async fn get_media_by_id(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+    Path(id): Path<String>,
+) -> Result<Response, AppError> {
+    ensure_couch_config(&state, &session).await;
+    media_response(&state, &id).await
+}
+
+async fn get_media_by_query(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+    Query(q): Query<DocQuery>,
+) -> Result<Response, AppError> {
+    ensure_couch_config(&state, &session).await;
+    media_response(&state, &q.id).await
+}
+
+async fn media_response(state: &AppState, id: &str) -> Result<Response, AppError> {
+    let bytes = attachment_bytes(state, id).await?;
+    Response::builder()
+        .header(header::CONTENT_TYPE, attachment_content_type(id))
+        .header(header::CACHE_CONTROL, "private, max-age=3600")
+        .body(Body::from(bytes))
+        .map_err(|e| AppError::Internal(e.into()))
+}
+
 /// PUT /api/vault/notes/:id — create or update a note
 async fn put_note(
     State(state): State<AppState>,
@@ -646,6 +763,15 @@ struct DocDeleteQuery {
     rev: String,
 }
 
+#[derive(Deserialize)]
+struct AttachmentBody {
+    id: Option<String>,
+    name: String,
+    mime: Option<String>,
+    data: String,
+    folder: Option<String>,
+}
+
 async fn get_doc_by_query(
     State(state): State<AppState>,
     RequireAuth(session): RequireAuth,
@@ -677,6 +803,94 @@ async fn delete_doc_by_query(
     .await
 }
 
+async fn post_attachment(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+    Json(body): Json<AttachmentBody>,
+) -> Result<Json<Value>, AppError> {
+    ensure_couch_config(&state, &session).await;
+    let id = attachment_doc_id(&body)?;
+    let data = body
+        .data
+        .split_once(";base64,")
+        .map(|(_, data)| data)
+        .unwrap_or(&body.data)
+        .chars()
+        .filter(|ch| !ch.is_whitespace())
+        .collect::<String>();
+    let bytes = BASE64
+        .decode(data.as_bytes())
+        .map_err(|_| AppError::BadRequest("Attachment data is not valid base64".into()))?;
+    let now = chrono::Utc::now().timestamp_millis();
+    let encoded = urlencoding::encode(&id);
+    let mut doc = json!({
+        "_id": id,
+        "type": "newnote",
+        "content": data,
+        "mime": body.mime.unwrap_or_else(|| attachment_content_type(&body.name).to_string()),
+        "created_at": now,
+        "updated_at": now,
+    });
+    if let Ok(existing) = couch_get(&state, &encoded).await {
+        if let Some(rev) = existing.get("_rev").cloned() {
+            doc.as_object_mut()
+                .expect("attachment doc object")
+                .insert("_rev".to_string(), rev);
+        }
+        if let Some(created_at) = existing.get("created_at").cloned() {
+            doc.as_object_mut()
+                .expect("attachment doc object")
+                .insert("created_at".to_string(), created_at);
+        }
+    }
+    let result = couch_put(&state, &encoded, doc).await?;
+    Ok(success_json(json!({
+        "id": id,
+        "rev": result.get("rev").cloned().unwrap_or(Value::Null),
+        "mime": attachment_content_type(&body.name),
+        "size": bytes.len(),
+        "created_at": now,
+    })))
+}
+
+fn attachment_doc_id(body: &AttachmentBody) -> Result<String, AppError> {
+    let id = body.id.as_deref().unwrap_or("").trim();
+    if !id.is_empty() {
+        if id.contains("..") || id.starts_with('_') || id.contains('\0') {
+            return Err(AppError::BadRequest("Invalid attachment ID".into()));
+        }
+        return Ok(id.to_string());
+    }
+    let file_name = body
+        .name
+        .split('/')
+        .next_back()
+        .unwrap_or("attachment")
+        .chars()
+        .filter(|ch| {
+            !matches!(
+                ch,
+                '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '\0'
+            )
+        })
+        .collect::<String>();
+    let file_name = if file_name.trim().is_empty() {
+        "attachment".to_string()
+    } else {
+        file_name
+    };
+    let folder = body
+        .folder
+        .as_deref()
+        .map(normalize_folder_path)
+        .transpose()?
+        .unwrap_or_else(|| "attachments".to_string());
+    Ok(format!(
+        "{folder}/{}-{file_name}",
+        chrono::Utc::now().timestamp_millis()
+    ))
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/vault/notes", get(list_notes))
@@ -691,6 +905,9 @@ pub fn router() -> Router<AppState> {
             "/vault/notes/{id}",
             get(get_note).put(put_note).delete(delete_note),
         )
+        .route("/vault/media/{id}", get(get_media_by_id))
+        .route("/vault/media", get(get_media_by_query))
+        .route("/vault/attachment", axum::routing::post(post_attachment))
         .route(
             "/vault/doc",
             get(get_doc_by_query)

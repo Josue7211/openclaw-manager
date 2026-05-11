@@ -5,6 +5,16 @@ async fn repair_dev_migration_checksums(
     pool: &SqlitePool,
     migrator: &sqlx::migrate::Migrator,
 ) -> anyhow::Result<()> {
+    let migrations_table_exists: Option<String> = sqlx::query_scalar(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = '_sqlx_migrations'",
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    if migrations_table_exists.is_none() {
+        return Ok(());
+    }
+
     for migration in migrator.iter() {
         let result = sqlx::query(
             "UPDATE _sqlx_migrations SET description = ?, checksum = ? WHERE version = ? AND success = 1 AND checksum != ?",
@@ -133,6 +143,19 @@ async fn ensure_generated_module_table_names(pool: &SqlitePool) -> anyhow::Resul
     Ok(())
 }
 
+fn remove_appledouble_migration_files(migrations_path: &std::path::Path) -> anyhow::Result<()> {
+    for entry in std::fs::read_dir(migrations_path)? {
+        let entry = entry?;
+        let file_name = entry.file_name();
+        let file_name = file_name.to_string_lossy();
+        if file_name.starts_with("._") {
+            std::fs::remove_file(entry.path())?;
+            tracing::warn!(file = %file_name, "removed AppleDouble metadata from migrations");
+        }
+    }
+    Ok(())
+}
+
 /// Initialize the local SQLite database, running pending migrations.
 pub async fn init() -> anyhow::Result<SqlitePool> {
     let db_path = crate::app_paths::resolve_app_data_dir().join("local.db");
@@ -150,6 +173,7 @@ pub async fn init() -> anyhow::Result<SqlitePool> {
     let url = format!("sqlite://{}?mode=rwc", db_path.display());
     let pool = SqlitePool::connect(&url).await?;
     let migrations_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations");
+    remove_appledouble_migration_files(&migrations_path)?;
     let migrator = sqlx::migrate::Migrator::new(migrations_path.as_path()).await?;
 
     // Enable WAL mode for concurrent reads + busy timeout
@@ -167,10 +191,10 @@ pub async fn init() -> anyhow::Result<SqlitePool> {
     #[cfg(debug_assertions)]
     repair_dev_migration_checksums(&pool, &migrator).await?;
 
+    migrator.run(&pool).await?;
+
     ensure_generated_module_table_names(&pool).await?;
     ensure_module_proposal_backend_contract_columns(&pool).await?;
-
-    migrator.run(&pool).await?;
 
     // Restrict database file permissions to owner only
     #[cfg(unix)]

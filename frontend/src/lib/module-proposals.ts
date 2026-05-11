@@ -1,4 +1,5 @@
 import type { GeneratedModule } from './generated-module-types'
+import { compileOpenUiLangWidgetSource } from './openui'
 
 export type ProposalTarget = 'widget' | 'module' | 'panel' | 'page'
 export type InstallTarget = 'dashboard' | 'module-studio' | 'category' | 'app-shell'
@@ -110,6 +111,7 @@ export interface ModuleProposal {
   actions: ModuleAction[]
   layout: ModuleLayoutHint
   tree: PrimitiveNode
+  openUiLang?: string
   backendContract?: BackendContract
   fallbackMessage?: string
   sourceModel?: string
@@ -137,6 +139,10 @@ function compilePrimitiveNode(node: PrimitiveNode): string {
 }
 
 export function compileOpenUiProposalSource(proposal: ModuleProposal): string {
+  if (proposal.openUiLang?.trim()) {
+    return compileOpenUiLangWidgetSource(proposal.openUiLang)
+  }
+
   const rootTree = compilePrimitiveNode(proposal.tree)
   return `function GeneratedWidget({ widgetId, config, isEditMode, size }) {
   const runtime = window.__generatedModuleAPI || {}

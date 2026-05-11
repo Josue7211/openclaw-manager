@@ -5,6 +5,13 @@ const TITLE_TEXT_KEY = 'sidebar-title-text'
 const SEARCH_KEY = 'sidebar-search-visible'
 const LOGO_KEY = 'sidebar-logo-visible'
 const TITLE_SIZE_KEY = 'sidebar-title-size'
+const DEFAULT_TITLE_TEXT = 'clawctrl'
+const LEGACY_TITLE_TEXT = 'CLAWCONTROL'
+
+const storedTitleText = localStorage.getItem(TITLE_TEXT_KEY)
+if (!storedTitleText || storedTitleText === LEGACY_TITLE_TEXT) {
+  localStorage.setItem(TITLE_TEXT_KEY, DEFAULT_TITLE_TEXT)
+}
 
 let _visible = localStorage.getItem(STORAGE_KEY) !== 'false'
 let _searchVisible = localStorage.getItem(SEARCH_KEY) !== 'false'
@@ -15,7 +22,7 @@ let _defaultWidth = (() => {
 })()
 let _titleLayout: 'one-line' | 'two-line' = (localStorage.getItem(TITLE_LAYOUT_KEY) as 'one-line' | 'two-line') || 'one-line'
 let _titleSize = parseInt(localStorage.getItem(TITLE_SIZE_KEY) || '22', 10)
-let _titleText = localStorage.getItem(TITLE_TEXT_KEY) || 'CLAWCONTROL'
+let _titleText = localStorage.getItem(TITLE_TEXT_KEY) || DEFAULT_TITLE_TEXT
 const _listeners = new Set<() => void>()
 
 export function getSidebarHeaderVisible(): boolean {

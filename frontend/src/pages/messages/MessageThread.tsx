@@ -30,6 +30,7 @@ interface MessageThreadProps {
   loadingMore: boolean
   contactLookup: Record<string, string>
   sseConnected: boolean
+  isTyping: boolean
   deliveryMarkers: Record<string, string>
 
   // Scroll
@@ -88,6 +89,7 @@ export default function MessageThread({
   loadingMore,
   contactLookup,
   sseConnected,
+  isTyping,
   deliveryMarkers,
   scrollContainerRef,
   handleScroll,
@@ -736,6 +738,37 @@ export default function MessageThread({
         </div>
         )}
         <div style={{ height: '1px', flexShrink: 0 }} />
+        {isTyping && (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'flex-start',
+            padding: '4px 0 8px',
+          }}>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '9px 13px',
+              borderRadius: '18px',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border)',
+            }}>
+              {[0, 1, 2].map(i => (
+                <span
+                  key={i}
+                  style={{
+                    width: '5px',
+                    height: '5px',
+                    borderRadius: '50%',
+                    background: 'var(--text-muted)',
+                    animation: 'typingBounce 1.2s ease-in-out infinite',
+                    animationDelay: `${i * 0.16}s`,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Scroll FAB */}

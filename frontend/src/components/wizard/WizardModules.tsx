@@ -25,6 +25,9 @@ import {
   GitBranch,
   BookOpen,
   FileText,
+  Barbell,
+  UsersThree,
+  ClipboardText,
 } from '@phosphor-icons/react'
 import {
   useWizardState,
@@ -47,6 +50,10 @@ const ICON_MAP: Record<string, React.ElementType> = {
   'job-hunter': MagnifyingGlass,
   pomodoro: Timer,
   notes: FileText,
+  training: Barbell,
+  'training-clients': UsersThree,
+  'training-calendar': CalendarDots,
+  'training-forms': ClipboardText,
   dashboard: SquaresFour,
   homelab: Desktop,
   media: FilmStrip,
@@ -71,6 +78,10 @@ const CATEGORIES: CategoryDef[] = [
   {
     label: 'Personal',
     moduleIds: ['messages', 'chat', 'todos', 'calendar', 'reminders', 'email', 'job-hunter', 'pomodoro', 'notes'],
+  },
+  {
+    label: 'Training',
+    moduleIds: ['training', 'training-clients', 'training-calendar', 'training-forms'],
   },
   {
     label: 'Infrastructure',

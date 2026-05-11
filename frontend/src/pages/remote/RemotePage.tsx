@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import RFB from '@novnc/novnc'
 import {
@@ -10,7 +10,7 @@ import {
   PlugsConnected,
   Wrench,
 } from '@phosphor-icons/react'
-import { api, getApiBase, getLocalApiKey } from '@/lib/api'
+import { ApiError, api, getApiBase, getLocalApiKey } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { PageHeader } from '@/components/PageHeader'
 import { buildRemoteViewerWsUrl } from '@/lib/remote-viewer'
@@ -18,9 +18,32 @@ import type { RemoteViewerRepairResult, RemoteViewerStatus } from '@/lib/remote-
 
 type ViewerState = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error'
 
+function repairErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    const body = error.body
+    const text = typeof body === 'string'
+      ? body
+      : body && typeof body === 'object' && 'error' in body && typeof (body as { error?: unknown }).error === 'string'
+        ? (body as { error: string }).error
+        : error.message
+
+    try {
+      const parsed = JSON.parse(text) as { message?: string, steps?: Array<{ target?: string, error?: string }> }
+      const failedStep = parsed.steps?.find(step => step.error)
+      if (failedStep?.error) return `${parsed.message || 'Repair failed'}: ${failedStep.error}`
+      if (parsed.message) return parsed.message
+    } catch {
+      // Keep the original API error text below.
+    }
+    return text
+  }
+  return error instanceof Error ? error.message : 'Repair failed'
+}
+
 export default function RemotePage() {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const rfbRef = useRef<RFB | null>(null)
+  const autoRepairKeyRef = useRef<string | null>(null)
   const [viewerState, setViewerState] = useState<ViewerState>('idle')
   const [viewerError, setViewerError] = useState<string | null>(null)
   const [clipboardText, setClipboardText] = useState('')
@@ -152,9 +175,9 @@ export default function RemotePage() {
     setConnectNonce(value => value + 1)
   }
 
-  const repairViewer = async () => {
+  const repairViewer = useCallback(async (mode: 'manual' | 'auto' = 'manual') => {
     setRepairing(true)
-    setRepairMessage(null)
+    setRepairMessage(mode === 'auto' ? 'Repairing viewer connection' : null)
     try {
       await api.post<RemoteViewerRepairResult>('/api/vnc/repair', { target: 'all' })
       setRepairMessage('Repair complete')
@@ -162,13 +185,24 @@ export default function RemotePage() {
       setConnectNonce(value => value + 1)
     } catch (error) {
       setViewerState('error')
-      setViewerError(error instanceof Error ? error.message : 'Repair failed')
+      setViewerError(repairErrorMessage(error))
       setRepairMessage('Repair failed')
       void refetch()
     } finally {
       setRepairing(false)
     }
-  }
+  }, [refetch])
+
+  useEffect(() => {
+    if (isLoading || reachable || repairing || !data?.guidance?.repairHost) return
+    const reason = `${data.reason || ''} ${data.message || ''}`.toLowerCase()
+    if (!reason.includes('refused') && !reason.includes('timed out') && !reason.includes('not reachable')) return
+
+    const repairKey = data.target?.address || data.host || 'default'
+    if (autoRepairKeyRef.current === repairKey) return
+    autoRepairKeyRef.current = repairKey
+    void repairViewer('auto')
+  }, [data, isLoading, reachable, repairViewer, repairing])
 
   const fullscreen = () => {
     void containerRef.current?.parentElement?.requestFullscreen?.()
@@ -219,7 +253,7 @@ export default function RemotePage() {
         <button type="button" onClick={fullscreen} disabled={!reachable} className="icon-button" aria-label="Fullscreen viewer">
           <ArrowsOut size={16} />
         </button>
-        <button type="button" onClick={repairViewer} disabled={repairing} className="icon-button" aria-label="Repair viewer">
+        <button type="button" onClick={() => repairViewer()} disabled={repairing} className="icon-button" aria-label="Repair viewer">
           <Wrench size={16} />
         </button>
 
@@ -295,7 +329,7 @@ export default function RemotePage() {
                 </div>
               )}
               {(!reachable || viewerState === 'error') && (
-                <button type="button" onClick={repairViewer} disabled={repairing} className="icon-button" aria-label="Repair viewer">
+                <button type="button" onClick={() => repairViewer()} disabled={repairing} className="icon-button" aria-label="Repair viewer">
                   <Wrench size={16} />
                 </button>
               )}

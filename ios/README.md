@@ -60,6 +60,13 @@ The API key is stored in the iPad keychain. The app calls:
 - `GET /api/missions`
 - `GET /api/agents`
 - `GET /api/pipeline-events`
+- `GET/POST/PATCH/DELETE /api/todos`
+- `GET/POST /api/chat`
+- `GET/POST /api/messages`
+- `GET/POST /api/approvals`
+- `GET /api/remote/status`
+- `GET /api/vnc/status`
+- `POST /api/vnc/repair`
 - `POST /api/quick-capture`
 - `POST /api/pipeline/spawn`
 
@@ -69,5 +76,10 @@ The API key is stored in the iPad keychain. The app calls:
 - Dashboard with backend, service, mission, and agent status
 - Mission list and pipeline launcher
 - Agent registry view
+- Todos with add, complete, and delete
+- Chat send/history against the harness backend
+- Messages conversation list, thread view, and send
+- Approval review with approve/reject
+- Remote status with Moonlight deep link and VNC repair
 - Quick capture for Task, Note, Idea, and Decision
 - Settings with backend URL and keychain-backed API key

@@ -130,17 +130,17 @@ class CompatHelpersTest(unittest.TestCase):
             {
                 "data": [
                     {"id": "hermes-agent", "name": "Hermes Agent"},
-                    {"id": "gpt-5.3-codex"},
+                    {"id": "gpt-5.5"},
                 ]
             },
-            current_model="gpt-5.4",
-            favorite_models=["gpt-5.4", "gpt-5.4-mini"],
+            current_model="gpt-5.5",
+            favorite_models=["gpt-5.5", "gpt-5.4"],
         )
-        self.assertEqual(payload["currentModel"], "gpt-5.4")
+        self.assertEqual(payload["currentModel"], "gpt-5.5")
         self.assertEqual(payload["agentLabel"], "Hermes Agent")
         self.assertEqual(
             [item["id"] for item in payload["models"]],
-            ["gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex"],
+            ["gpt-5.4", "gpt-5.5"],
         )
         self.assertEqual(payload["models"][0]["provider"], "hermes")
         self.assertFalse(payload["models"][0]["local"])
@@ -171,6 +171,12 @@ class CompatHelpersTest(unittest.TestCase):
             os.environ["COMPAT_RUNTIME_DIR"] = str(root / ".compat")
             try:
                 (root / "SOUL.md").write_text("soul", encoding="utf-8")
+                (root / "memories").mkdir()
+                (root / "memories" / "MEMORY.md").write_text("memory", encoding="utf-8")
+                (root / "memories" / "USER.md").write_text("user", encoding="utf-8")
+                (root / "AGENTS.md").write_text("agents", encoding="utf-8")
+                (root / "hermes-agent").mkdir()
+                (root / "hermes-agent" / "README.md").write_text("readme", encoding="utf-8")
                 (root / ".memd" / "compiled" / "memory").mkdir(parents=True)
                 (root / ".memd" / "wake.md").write_text("wake", encoding="utf-8")
                 (root / ".memd" / "mem.md").write_text("mem", encoding="utf-8")
@@ -180,8 +186,13 @@ class CompatHelpersTest(unittest.TestCase):
                 files = service.list_workspace_files()
 
                 self.assertIn({"name": "SOUL.md", "path": "SOUL.md"}, files["coreFiles"])
-                self.assertIn({"name": "wake.md", "path": ".memd/wake.md"}, files["memoryFiles"])
-                self.assertIn({"name": "working.md", "path": ".memd/compiled/memory/working.md"}, files["memoryFiles"])
+                self.assertIn({"name": "MEMORY.md", "path": "memories/MEMORY.md"}, files["coreFiles"])
+                self.assertIn({"name": "USER.md", "path": "memories/USER.md"}, files["coreFiles"])
+                self.assertIn({"name": "AGENTS.md", "path": "AGENTS.md"}, files["coreFiles"])
+                self.assertNotIn({"name": "README.md", "path": "hermes-agent/README.md"}, files["coreFiles"])
+                self.assertIn({"name": "wake.md", "path": ".memd/wake.md"}, files["memdFiles"])
+                self.assertIn({"name": "working.md", "path": ".memd/compiled/memory/working.md"}, files["memdFiles"])
+                self.assertEqual(files["memoryFiles"], [])
             finally:
                 if old_home is None:
                     os.environ.pop("HERMES_HOME", None)
@@ -207,13 +218,18 @@ class CompatHelpersTest(unittest.TestCase):
                 hermes_code.mkdir(parents=True)
                 (workspace / ".memd").mkdir()
                 (workspace / "SOUL.md").write_text("soul", encoding="utf-8")
+                (workspace / "memories").mkdir()
+                (workspace / "memories" / "MEMORY.md").write_text("memory", encoding="utf-8")
+                (workspace / "memories" / "USER.md").write_text("user", encoding="utf-8")
                 (workspace / ".memd" / "wake.md").write_text("wake", encoding="utf-8")
 
                 service = self.mod.CompatService()
                 files = service.list_workspace_files()
 
                 self.assertIn({"name": "SOUL.md", "path": "SOUL.md"}, files["coreFiles"])
-                self.assertIn({"name": "wake.md", "path": ".memd/wake.md"}, files["memoryFiles"])
+                self.assertIn({"name": "MEMORY.md", "path": "memories/MEMORY.md"}, files["coreFiles"])
+                self.assertIn({"name": "USER.md", "path": "memories/USER.md"}, files["coreFiles"])
+                self.assertIn({"name": "wake.md", "path": ".memd/wake.md"}, files["memdFiles"])
             finally:
                 if old_home is None:
                     os.environ.pop("HERMES_HOME", None)
@@ -223,6 +239,34 @@ class CompatHelpersTest(unittest.TestCase):
                     os.environ.pop("HERMES_WORKSPACE_HOME", None)
                 else:
                     os.environ["HERMES_WORKSPACE_HOME"] = old_workspace
+                if old_runtime is None:
+                    os.environ.pop("COMPAT_RUNTIME_DIR", None)
+                else:
+                    os.environ["COMPAT_RUNTIME_DIR"] = old_runtime
+
+    def test_legacy_hermes_home_keeps_code_root_separate_from_workspace(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            hermes_code = root / ".hermes" / "hermes-agent"
+            workspace = root / ".hermes"
+            old_home = os.environ.get("HERMES_HOME")
+            old_runtime = os.environ.get("COMPAT_RUNTIME_DIR")
+            os.environ["HERMES_HOME"] = str(hermes_code)
+            os.environ["COMPAT_RUNTIME_DIR"] = str(root / ".compat")
+            try:
+                hermes_code.mkdir(parents=True)
+                (workspace / "SOUL.md").write_text("soul", encoding="utf-8")
+
+                service = self.mod.CompatService()
+
+                self.assertEqual(service.hermes_code_home, hermes_code)
+                self.assertEqual(service.hermes_home, workspace)
+                self.assertEqual(service.workspace_home, workspace)
+            finally:
+                if old_home is None:
+                    os.environ.pop("HERMES_HOME", None)
+                else:
+                    os.environ["HERMES_HOME"] = old_home
                 if old_runtime is None:
                     os.environ.pop("COMPAT_RUNTIME_DIR", None)
                 else:

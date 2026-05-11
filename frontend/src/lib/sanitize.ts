@@ -9,15 +9,15 @@ const PURIFY_CONFIG: Config = {
     'b', 'i', 'em', 'strong', 'a', 'p', 'br',
     'ul', 'ol', 'li', 'code', 'pre', 'blockquote',
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-    'span', 'div', 'img',
+    'span', 'div', 'img', 'input',
     'table', 'thead', 'tbody', 'tr', 'th', 'td',
-    'hr', 'del', 's', 'sub', 'sup',
+    'hr', 'del', 's', 'sub', 'sup', 'mark', 'font',
     'button',
   ],
   ALLOWED_ATTR: [
     'href', 'target', 'rel', 'src', 'alt', 'title',
     'class', 'id', 'width', 'height', 'colspan', 'rowspan',
-    'aria-label',
+    'aria-label', 'type', 'checked', 'disabled', 'style', 'color', 'face', 'size',
   ],
   ALLOW_DATA_ATTR: false,
   ADD_ATTR: ['target'],
@@ -36,6 +36,20 @@ DOMPurify.addHook('afterSanitizeAttributes', (node: Element) => {
       // OK - backend proxy
     } else {
       node.removeAttribute('src');
+    }
+  }
+  const style = node.getAttribute('style');
+  if (style) {
+    const allowed = style
+      .split(';')
+      .map((part) => part.trim())
+      .filter((part) => /^(color|background-color|font-size|font-family|text-align|line-height|margin-left)\s*:/i.test(part))
+      .filter((part) => !/url\s*\(|expression\s*\(/i.test(part))
+      .join('; ');
+    if (allowed) {
+      node.setAttribute('style', allowed);
+    } else {
+      node.removeAttribute('style');
     }
   }
 });

@@ -1,4 +1,4 @@
-import { personalDashboardItems, agentDashboardItems } from './nav-items'
+import { personalDashboardItems, trainingItems, agentDashboardItems } from './nav-items'
 
 interface SidebarCategory {
   id: string
@@ -40,6 +40,11 @@ function getDefaultConfig(): SidebarConfig {
         items: personalDashboardItems.map(i => i.href),
       },
       {
+        id: 'training',
+        name: 'Training',
+        items: trainingItems.map(i => i.href),
+      },
+      {
         id: 'agent',
         name: 'Agent Dashboard',
         items: agentDashboardItems.map(i => i.href),
@@ -54,6 +59,7 @@ function getDefaultConfig(): SidebarConfig {
 function getBuiltinHrefs(): Set<string> {
   return new Set([
     ...personalDashboardItems.map(i => i.href),
+    ...trainingItems.map(i => i.href),
     ...agentDashboardItems.map(i => i.href),
   ])
 }
@@ -63,13 +69,22 @@ function ensureComplete(config: SidebarConfig): SidebarConfig {
   const builtinHrefs = getBuiltinHrefs()
   const customHrefs = new Set((config.customModules || []).map(m => `/custom/${m.id}`))
   const allValidHrefs = new Set([...builtinHrefs, ...customHrefs])
-  const configuredHrefs = new Set(config.categories.flatMap(c => c.items))
+  const deletedHrefs = new Set((config.deletedItems || []).map(d => d.href))
+  const accountedHrefs = new Set([
+    ...config.categories.flatMap(c => c.items),
+    ...(config.unusedCategories || []).flatMap(c => c.items),
+    ...(config.recycledCategories || []).flatMap(c => c.items),
+    ...(config.deletedItems || []).map(d => d.href),
+  ])
 
   const missingPersonal = personalDashboardItems
-    .filter(i => !configuredHrefs.has(i.href))
+    .filter(i => !accountedHrefs.has(i.href))
     .map(i => i.href)
   const missingAgent = agentDashboardItems
-    .filter(i => !configuredHrefs.has(i.href))
+    .filter(i => !accountedHrefs.has(i.href))
+    .map(i => i.href)
+  const missingTraining = trainingItems
+    .filter(i => !accountedHrefs.has(i.href))
     .map(i => i.href)
 
   // Check if cleanup is needed: removed items or duplicates
@@ -77,9 +92,9 @@ function ensureComplete(config: SidebarConfig): SidebarConfig {
   const hasDupes = new Set(allItems).size !== allItems.length
   let hasInvalid = false
   for (const cat of config.categories) {
-    if (cat.items.some(h => !allValidHrefs.has(h))) { hasInvalid = true; break }
+    if (cat.items.some(h => !allValidHrefs.has(h) || deletedHrefs.has(h))) { hasInvalid = true; break }
   }
-  if (missingPersonal.length === 0 && missingAgent.length === 0 && !hasDupes && !hasInvalid) {
+  if (missingPersonal.length === 0 && missingTraining.length === 0 && missingAgent.length === 0 && !hasDupes && !hasInvalid) {
     return config
   }
 
@@ -91,7 +106,7 @@ function ensureComplete(config: SidebarConfig): SidebarConfig {
     categories: config.categories.map(c => ({
       ...c,
       items: c.items.filter(h => {
-        if (!allValidHrefs.has(h) || seen.has(h)) return false
+        if (!allValidHrefs.has(h) || deletedHrefs.has(h) || seen.has(h)) return false
         seen.add(h)
         return true
       }),
@@ -101,6 +116,20 @@ function ensureComplete(config: SidebarConfig): SidebarConfig {
   if (missingPersonal.length > 0) {
     const target = updated.categories.find(c => c.id === 'personal') || updated.categories[0]
     if (target) target.items = [...target.items, ...missingPersonal]
+  }
+  if (missingTraining.length > 0) {
+    const target = updated.categories.find(c => c.id === 'training' || c.name.toLowerCase() === 'training')
+    if (target) {
+      target.items = [...target.items, ...missingTraining]
+    } else {
+      const agentIndex = updated.categories.findIndex(c => c.id === 'agent')
+      const trainingCategory = { id: 'training', name: 'Training', items: missingTraining }
+      if (agentIndex >= 0) {
+        updated.categories.splice(agentIndex, 0, trainingCategory)
+      } else {
+        updated.categories.push(trainingCategory)
+      }
+    }
   }
   if (missingAgent.length > 0) {
     const target = updated.categories.find(c => c.id === 'agent') || updated.categories[updated.categories.length - 1]

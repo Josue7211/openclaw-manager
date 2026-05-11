@@ -25,6 +25,7 @@ pub struct SupabaseClient {
     http: Client,
     url: String,
     service_key: String,
+    anon_key: Option<String>,
 }
 
 impl SupabaseClient {
@@ -36,6 +37,7 @@ impl SupabaseClient {
             http: Client::new(),
             url: url.trim_end_matches('/').to_string(),
             service_key: service_key.to_string(),
+            anon_key: None,
         }
     }
 
@@ -49,11 +51,15 @@ impl SupabaseClient {
         let service_key = state
             .secret("SUPABASE_SERVICE_ROLE_KEY")
             .context("SUPABASE_SERVICE_ROLE_KEY not set")?;
+        let anon_key = state
+            .secret("SUPABASE_ANON_KEY")
+            .filter(|value| !value.trim().is_empty());
 
         Ok(Self {
             http: Client::new(),
             url,
             service_key,
+            anon_key,
         })
     }
 
@@ -66,11 +72,13 @@ impl SupabaseClient {
             .to_string();
         let service_key = std::env::var("SUPABASE_SERVICE_ROLE_KEY")
             .context("SUPABASE_SERVICE_ROLE_KEY not set")?;
+        let anon_key = std::env::var("SUPABASE_ANON_KEY").ok();
 
         Ok(Self {
             http: Client::new(),
             url,
             service_key,
+            anon_key,
         })
     }
 
@@ -83,11 +91,13 @@ impl SupabaseClient {
             .to_string();
         let service_key = std::env::var("SUPABASE_SERVICE_ROLE_KEY")
             .context("SUPABASE_SERVICE_ROLE_KEY not set")?;
+        let anon_key = std::env::var("SUPABASE_ANON_KEY").ok();
 
         Ok(Self {
             http,
             url,
             service_key,
+            anon_key,
         })
     }
 
@@ -109,16 +119,18 @@ impl SupabaseClient {
     }
 
     /// Like `auth_headers` but uses the caller's JWT instead of the service role key.
-    /// The `apikey` header still carries the service key (required by PostgREST to
-    /// identify the project), while the `Authorization` header carries the user JWT so
-    /// that RLS policies see the authenticated user's `auth.uid()`.
+    /// The `apikey` header carries the anon project key when available, while
+    /// the `Authorization` header carries the user JWT so RLS policies see the
+    /// authenticated user's `auth.uid()`. This avoids coupling user-scoped
+    /// desktop sync to the service-role key.
     fn auth_headers_as_user(
         &self,
         builder: reqwest::RequestBuilder,
         jwt: &str,
     ) -> reqwest::RequestBuilder {
+        let project_key = self.anon_key.as_ref().unwrap_or(&self.service_key);
         builder
-            .header("apikey", &self.service_key)
+            .header("apikey", project_key)
             .header("Authorization", format!("Bearer {}", jwt))
     }
 
@@ -388,8 +400,13 @@ impl SupabaseClient {
         body: Value,
         jwt: &str,
     ) -> anyhow::Result<Value> {
+        let mut url = self.rest_url(table);
+        if table == "user_secrets" {
+            url.push_str("?on_conflict=user_id,service");
+        }
+
         let resp = self
-            .auth_headers_as_user(self.http.post(self.rest_url(table)), jwt)
+            .auth_headers_as_user(self.http.post(url), jwt)
             .header("Content-Type", "application/json")
             .header(
                 "Prefer",
@@ -536,10 +553,24 @@ mod tests {
     }
 
     #[test]
-    fn test_as_user_header_uses_jwt() {
-        let client = SupabaseClient::new("https://test.supabase.co", "service-key-123");
-        assert_eq!(client.service_key, "service-key-123");
-        assert_eq!(client.url, "https://test.supabase.co");
+    fn test_as_user_header_uses_anon_key_with_jwt() {
+        let client = SupabaseClient {
+            http: Client::new(),
+            url: "https://test.supabase.co".to_string(),
+            service_key: "service-key-123".to_string(),
+            anon_key: Some("anon-key-456".to_string()),
+        };
+
+        let req = client
+            .auth_headers_as_user(
+                client.http.get("https://test.supabase.co/rest/v1/cache"),
+                "user-jwt",
+            )
+            .build()
+            .unwrap();
+
+        assert_eq!(req.headers()["apikey"], "anon-key-456");
+        assert_eq!(req.headers()["authorization"], "Bearer user-jwt");
     }
 
     #[test]

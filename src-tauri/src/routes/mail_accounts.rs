@@ -2,7 +2,7 @@ use axum::extract::{Query, State};
 use axum::routing::get;
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use crate::error::AppError;
 use crate::routes::agentmail;
@@ -19,6 +19,32 @@ pub struct MailAccountRecord {
     pub agentmail_inbox_id: String,
     pub forwarding_status: String,
     pub is_default: bool,
+    #[serde(default)]
+    pub imap_host: String,
+    #[serde(default = "default_imap_port")]
+    pub imap_port: u16,
+    #[serde(default)]
+    pub imap_username: String,
+    #[serde(default)]
+    pub imap_password: String,
+}
+
+impl Default for MailAccountRecord {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            label: String::new(),
+            provider: String::new(),
+            address: String::new(),
+            agentmail_inbox_id: String::new(),
+            forwarding_status: "pending".into(),
+            is_default: false,
+            imap_host: String::new(),
+            imap_port: 993,
+            imap_username: String::new(),
+            imap_password: String::new(),
+        }
+    }
 }
 
 impl MailAccountRecord {
@@ -49,26 +75,70 @@ impl MailAccountRecord {
     }
 }
 
-fn is_agentmail_provider(provider: &str) -> bool {
-    provider.trim().eq_ignore_ascii_case("agentmail")
+fn default_imap_port() -> u16 {
+    993
 }
 
-fn provider_requires_agentmail_access(provider: &str) -> bool {
-    matches!(
-        provider.trim().to_ascii_lowercase().as_str(),
-        "gmail" | "google" | "google-workspace"
-    )
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PublicMailAccountRecord {
+    pub id: String,
+    pub label: String,
+    pub provider: String,
+    pub address: String,
+    pub agentmail_inbox_id: String,
+    pub forwarding_status: String,
+    pub is_default: bool,
+    pub imap_host: String,
+    pub imap_port: u16,
+    pub imap_username: String,
+    pub imap_configured: bool,
+}
+
+impl From<&MailAccountRecord> for PublicMailAccountRecord {
+    fn from(account: &MailAccountRecord) -> Self {
+        Self {
+            id: account.id.clone(),
+            label: account.label.clone(),
+            provider: account.provider.clone(),
+            address: account.address.clone(),
+            agentmail_inbox_id: account.agentmail_inbox_id.clone(),
+            forwarding_status: account.forwarding_status.clone(),
+            is_default: account.is_default,
+            imap_host: account.imap_host.clone(),
+            imap_port: normalized_imap_port(account.imap_port),
+            imap_username: account.imap_username.clone(),
+            imap_configured: account.has_direct_imap_credentials(),
+        }
+    }
+}
+
+impl MailAccountRecord {
+    pub fn has_direct_imap_credentials(&self) -> bool {
+        !self.imap_host.trim().is_empty() && !self.imap_password.trim().is_empty()
+    }
+}
+
+fn public_mail_accounts(accounts: &[MailAccountRecord]) -> Vec<PublicMailAccountRecord> {
+    accounts.iter().map(PublicMailAccountRecord::from).collect()
+}
+
+fn normalized_imap_port(port: u16) -> u16 {
+    if port == 0 {
+        993
+    } else {
+        port
+    }
+}
+
+fn is_agentmail_provider(provider: &str) -> bool {
+    provider.trim().eq_ignore_ascii_case("agentmail")
 }
 
 fn validate_agentmail_access_policy(
     provider: &str,
     agentmail_inbox_id: &str,
 ) -> Result<(), AppError> {
-    if provider_requires_agentmail_access(provider) && agentmail_inbox_id.trim().is_empty() {
-        return Err(AppError::BadRequest(
-            "Gmail accounts require an AgentMail access inbox id".into(),
-        ));
-    }
+    let _ = (provider, agentmail_inbox_id);
     Ok(())
 }
 
@@ -80,6 +150,10 @@ struct CreateMailAccountRequest {
     agentmail_inbox_id: Option<String>,
     forwarding_status: Option<String>,
     is_default: Option<bool>,
+    imap_host: Option<String>,
+    imap_port: Option<u16>,
+    imap_username: Option<String>,
+    imap_password: Option<String>,
 }
 
 impl CreateMailAccountRequest {
@@ -90,6 +164,9 @@ impl CreateMailAccountRequest {
         required_text(&self.address, "address")?;
         required_text(&self.forwarding_status, "forwarding_status")?;
         let _ = optional_text_blank_as_none(&self.agentmail_inbox_id);
+        let _ = optional_text_blank_as_none(&self.imap_host);
+        let _ = optional_text_blank_as_none(&self.imap_username);
+        let _ = optional_text_blank_as_none(&self.imap_password);
         Ok(())
     }
 }
@@ -103,6 +180,10 @@ struct UpdateMailAccountRequest {
     agentmail_inbox_id: Option<String>,
     forwarding_status: Option<String>,
     is_default: Option<bool>,
+    imap_host: Option<String>,
+    imap_port: Option<u16>,
+    imap_username: Option<String>,
+    imap_password: Option<String>,
 }
 
 impl UpdateMailAccountRequest {
@@ -115,6 +196,10 @@ impl UpdateMailAccountRequest {
             && self.agentmail_inbox_id.is_none()
             && self.forwarding_status.is_none()
             && self.is_default.is_none()
+            && self.imap_host.is_none()
+            && self.imap_port.is_none()
+            && self.imap_username.is_none()
+            && self.imap_password.is_none()
         {
             return Err(AppError::BadRequest(
                 "at least one field must be provided for update".into(),
@@ -125,6 +210,9 @@ impl UpdateMailAccountRequest {
         optional_text(&self.address, "address")?;
         let _ = optional_text_blank_as_none(&self.agentmail_inbox_id);
         optional_text(&self.forwarding_status, "forwarding_status")?;
+        let _ = optional_text_allow_blank(&self.imap_host);
+        let _ = optional_text_allow_blank(&self.imap_username);
+        let _ = optional_text_blank_as_none(&self.imap_password);
         Ok(())
     }
 }
@@ -152,17 +240,54 @@ pub fn router() -> Router<AppState> {
 }
 
 const MAIL_ACCOUNTS_SERVICE: &str = "mail_accounts";
+const LOCAL_MAIL_ACCOUNTS_KEY: &str = "mail_accounts.local";
+
+fn load_local_mail_accounts() -> Vec<MailAccountRecord> {
+    let Some(json) = crate::secrets::get_internal_entry(LOCAL_MAIL_ACCOUNTS_KEY) else {
+        return Vec::new();
+    };
+
+    match serde_json::from_str::<Vec<MailAccountRecord>>(&json) {
+        Ok(accounts) => accounts,
+        Err(err) => {
+            tracing::warn!("failed to parse local mail account registry: {err}");
+            Vec::new()
+        }
+    }
+}
+
+fn save_local_mail_accounts(accounts: &[MailAccountRecord]) -> Result<(), AppError> {
+    let json = serde_json::to_string(accounts).map_err(|err| {
+        AppError::Internal(anyhow::anyhow!(
+            "failed to serialize local mail accounts: {err}"
+        ))
+    })?;
+
+    crate::secrets::set_entry(LOCAL_MAIL_ACCOUNTS_KEY, &json).map_err(|err| {
+        AppError::Internal(anyhow::anyhow!(
+            "failed to save local mail account registry: {err}"
+        ))
+    })
+}
 
 pub(crate) async fn load_mail_accounts(
     state: &AppState,
     session: &crate::server::UserSession,
 ) -> Result<Vec<MailAccountRecord>, AppError> {
+    let local_accounts = load_local_mail_accounts();
+
     if session.encryption_key.is_empty() {
-        return Ok(default_mail_accounts(state));
+        return Ok(local_accounts);
     }
 
-    let sb = SupabaseClient::from_state(state)?;
-    let rows = sb
+    let sb = match SupabaseClient::from_state(state) {
+        Ok(sb) => sb,
+        Err(err) => {
+            tracing::warn!("mail account cloud registry unavailable: {err}");
+            return Ok(local_accounts);
+        }
+    };
+    let rows = match sb
         .select_as_user(
             "user_secrets",
             &format!(
@@ -171,36 +296,83 @@ pub(crate) async fn load_mail_accounts(
             ),
             &session.access_token,
         )
-        .await?;
-
-    let Some(row) = rows.as_array().and_then(|arr| arr.first()) else {
-        return Ok(Vec::new());
+        .await
+    {
+        Ok(rows) => rows,
+        Err(err) => {
+            tracing::warn!("mail account cloud registry load failed: {err}");
+            return Ok(local_accounts);
+        }
     };
 
-    let ciphertext = row["encrypted_credentials"]
-        .as_str()
-        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("missing encrypted_credentials")))?;
-    let nonce = row["nonce"]
-        .as_str()
-        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("missing nonce")))?;
+    let Some(row) = rows.as_array().and_then(|arr| arr.first()) else {
+        if !local_accounts.is_empty() {
+            if let Err(err) = save_cloud_mail_accounts(state, session, &local_accounts).await {
+                tracing::warn!("failed to promote local mail accounts to cloud registry: {err:?}");
+            }
+        }
+        return Ok(local_accounts);
+    };
 
-    let plaintext = crate::crypto::decrypt(ciphertext, nonce, &session.encryption_key)
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("decryption failed: {e}")))?;
+    let Some(ciphertext) = row["encrypted_credentials"].as_str() else {
+        tracing::warn!("mail account cloud registry row missing encrypted_credentials");
+        return Ok(local_accounts);
+    };
+    let Some(nonce) = row["nonce"].as_str() else {
+        tracing::warn!("mail account cloud registry row missing nonce");
+        return Ok(local_accounts);
+    };
 
-    serde_json::from_slice::<Vec<MailAccountRecord>>(&plaintext)
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("invalid mail_accounts JSON: {e}")))
+    let plaintext = match crate::crypto::decrypt(ciphertext, nonce, &session.encryption_key) {
+        Ok(plaintext) => plaintext,
+        Err(err) => {
+            tracing::warn!(
+                "mail account cloud registry decrypt failed; using local fallback: {err}"
+            );
+            return Ok(local_accounts);
+        }
+    };
+
+    let cloud_accounts = match serde_json::from_slice::<Vec<MailAccountRecord>>(&plaintext) {
+        Ok(accounts) => accounts,
+        Err(err) => {
+            tracing::warn!("mail account cloud registry JSON invalid; using local fallback: {err}");
+            return Ok(local_accounts);
+        }
+    };
+
+    if local_accounts.is_empty() && !cloud_accounts.is_empty() {
+        if let Err(err) = save_local_mail_accounts(&cloud_accounts) {
+            tracing::warn!("failed to mirror cloud mail accounts locally: {err:?}");
+        }
+        return Ok(cloud_accounts);
+    }
+
+    let merged = merge_mail_account_sets(local_accounts.clone(), cloud_accounts.clone());
+
+    if merged != local_accounts {
+        if let Err(err) = save_local_mail_accounts(&merged) {
+            tracing::warn!("failed to update local mail account registry from merge: {err:?}");
+        }
+    }
+
+    if merged != cloud_accounts {
+        if let Err(err) = save_cloud_mail_accounts(state, session, &merged).await {
+            tracing::warn!("failed to update cloud mail account registry from merge: {err:?}");
+        }
+    }
+
+    Ok(merged)
 }
 
-async fn save_mail_accounts(
+pub(crate) async fn save_cloud_mail_accounts(
     state: &AppState,
     session: &crate::server::UserSession,
     accounts: &[MailAccountRecord],
 ) -> Result<(), AppError> {
     if session.encryption_key.is_empty() {
-        return Err(AppError::BadRequest(
-            "Encryption key not available. Log in with email/password to manage mail accounts."
-                .into(),
-        ));
+        tracing::warn!("mail account cloud sync skipped: encryption key unavailable");
+        return Ok(());
     }
 
     let json_bytes = serde_json::to_vec(accounts).map_err(|e| {
@@ -209,7 +381,13 @@ async fn save_mail_accounts(
     let (ciphertext, nonce) = crate::crypto::encrypt(&json_bytes, &session.encryption_key)
         .map_err(|e| AppError::Internal(anyhow::anyhow!("encryption failed: {e}")))?;
 
-    let sb = SupabaseClient::from_state(state)?;
+    let sb = match SupabaseClient::from_state(state) {
+        Ok(sb) => sb,
+        Err(err) => {
+            tracing::warn!("mail account saved locally only: cloud registry unavailable: {err}");
+            return Ok(());
+        }
+    };
     let row = json!({
         "user_id": session.user_id,
         "service": MAIL_ACCOUNTS_SERVICE,
@@ -219,6 +397,34 @@ async fn save_mail_accounts(
 
     sb.upsert_as_user("user_secrets", row, &session.access_token)
         .await?;
+
+    Ok(())
+}
+
+pub(crate) async fn repair_cloud_mail_accounts_from_local(
+    state: &AppState,
+    session: &crate::server::UserSession,
+) -> Result<bool, AppError> {
+    let local_accounts = load_local_mail_accounts();
+    if local_accounts.is_empty() {
+        return Ok(false);
+    }
+
+    save_cloud_mail_accounts(state, session, &local_accounts).await?;
+    Ok(true)
+}
+
+async fn save_mail_accounts(
+    state: &AppState,
+    session: &crate::server::UserSession,
+    accounts: &[MailAccountRecord],
+) -> Result<(), AppError> {
+    save_local_mail_accounts(accounts)?;
+
+    if let Err(err) = save_cloud_mail_accounts(state, session, accounts).await {
+        tracing::warn!("mail account cloud registry save failed after local save: {err:?}");
+    }
+
     Ok(())
 }
 
@@ -260,7 +466,7 @@ async fn list_mail_accounts(
         load_mail_accounts(&state, &session).await?,
     )
     .await;
-    Ok(Json(json!({ "accounts": accounts })))
+    Ok(Json(json!({ "accounts": public_mail_accounts(&accounts) })))
 }
 
 async fn create_mail_account(
@@ -290,10 +496,14 @@ async fn create_mail_account(
         id: random_uuid(),
         label,
         provider,
-        address,
+        address: address.clone(),
         agentmail_inbox_id,
         forwarding_status: required_text(&body.forwarding_status, "forwarding_status")?,
         is_default: body.is_default.unwrap_or(accounts.is_empty()),
+        imap_host: optional_text_blank_as_none(&body.imap_host).unwrap_or_default(),
+        imap_port: normalized_imap_port(body.imap_port.unwrap_or(993)),
+        imap_username: optional_text_blank_as_none(&body.imap_username).unwrap_or_default(),
+        imap_password: optional_text_blank_as_none(&body.imap_password).unwrap_or_default(),
     };
     account.validate()?;
     accounts.push(account.clone());
@@ -305,7 +515,10 @@ async fn create_mail_account(
     }
 
     save_mail_accounts(&state, &session, &accounts).await?;
-    Ok(Json(json!({ "account": account, "accounts": accounts })))
+    Ok(Json(json!({
+        "account": PublicMailAccountRecord::from(&account),
+        "accounts": public_mail_accounts(&accounts)
+    })))
 }
 
 async fn update_mail_account(
@@ -339,6 +552,18 @@ async fn update_mail_account(
     if let Some(value) = body.is_default {
         account.is_default = value;
     }
+    if let Some(value) = optional_text_allow_blank(&body.imap_host) {
+        account.imap_host = value;
+    }
+    if let Some(value) = body.imap_port {
+        account.imap_port = normalized_imap_port(value);
+    }
+    if let Some(value) = optional_text_allow_blank(&body.imap_username) {
+        account.imap_username = value;
+    }
+    if let Some(value) = optional_text_blank_as_none(&body.imap_password) {
+        account.imap_password = value;
+    }
 
     validate_agentmail_access_policy(&account.provider, &account.agentmail_inbox_id)?;
     account.validate()?;
@@ -355,7 +580,10 @@ async fn update_mail_account(
         .cloned()
         .ok_or_else(|| AppError::Internal(anyhow::anyhow!("updated account missing after save")))?;
 
-    Ok(Json(json!({ "account": updated, "accounts": accounts })))
+    Ok(Json(json!({
+        "account": PublicMailAccountRecord::from(&updated),
+        "accounts": public_mail_accounts(&accounts)
+    })))
 }
 
 async fn delete_mail_account(
@@ -373,7 +601,10 @@ async fn delete_mail_account(
     }
     ensure_single_default(&mut accounts, None);
     save_mail_accounts(&state, &session, &accounts).await?;
-    Ok(Json(json!({ "deleted": true, "accounts": accounts })))
+    Ok(Json(json!({
+        "deleted": true,
+        "accounts": public_mail_accounts(&accounts)
+    })))
 }
 
 async fn resolve_agentmail_inbox_for_create(
@@ -421,42 +652,6 @@ fn agentmail_username_from_address(address: &str) -> String {
     }
 }
 
-pub(crate) fn default_agentmail_accounts(state: &AppState) -> Vec<MailAccountRecord> {
-    let Some(inbox_id) = state
-        .secret("AGENTMAIL_DEFAULT_INBOX_ID")
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-    else {
-        return Vec::new();
-    };
-
-    let address = state
-        .secret("AGENTMAIL_DEFAULT_ADDRESS")
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| inbox_id.clone());
-    let label = state
-        .secret("AGENTMAIL_DEFAULT_LABEL")
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| address.clone());
-    let provider = state
-        .secret("AGENTMAIL_DEFAULT_PROVIDER")
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| infer_provider_from_address_or_host(&address, ""));
-
-    vec![MailAccountRecord {
-        id: address.clone(),
-        label,
-        provider,
-        address,
-        agentmail_inbox_id: inbox_id,
-        forwarding_status: "active".into(),
-        is_default: true,
-    }]
-}
-
 pub(crate) fn default_imap_accounts(state: &AppState) -> Vec<MailAccountRecord> {
     let Some(host) = state
         .secret("EMAIL_HOST")
@@ -474,14 +669,6 @@ pub(crate) fn default_imap_accounts(state: &AppState) -> Vec<MailAccountRecord> 
         return Vec::new();
     };
 
-    if state
-        .secret("EMAIL_PASSWORD")
-        .map(|value| value.trim().is_empty())
-        .unwrap_or(true)
-    {
-        return Vec::new();
-    }
-
     let provider = state
         .secret("EMAIL_PROVIDER")
         .map(|value| value.trim().to_string())
@@ -497,29 +684,50 @@ pub(crate) fn default_imap_accounts(state: &AppState) -> Vec<MailAccountRecord> 
         id: format!("imap:{address}"),
         label,
         provider,
-        address,
-        agentmail_inbox_id: String::new(),
+        address: address.clone(),
+        agentmail_inbox_id: default_agentmail_inbox_for_address(state, &address),
         forwarding_status: "active".into(),
         is_default: true,
+        imap_host: host,
+        imap_port: state
+            .secret("EMAIL_PORT")
+            .and_then(|value| value.trim().parse::<u16>().ok())
+            .map(normalized_imap_port)
+            .unwrap_or(993),
+        imap_username: address.clone(),
+        imap_password: state
+            .secret("EMAIL_PASSWORD")
+            .map(|value| value.trim().to_string())
+            .unwrap_or_default(),
     }]
 }
 
 pub(crate) fn default_mail_accounts(state: &AppState) -> Vec<MailAccountRecord> {
-    let mut accounts = default_imap_accounts(state);
-    let has_imap_default = !accounts.is_empty();
-    accounts.extend(
-        default_agentmail_accounts(state)
-            .into_iter()
-            .map(|mut account| {
-                if has_imap_default {
-                    account.is_default = false;
-                }
-                account
-            }),
-    );
-    accounts
+    default_imap_accounts(state)
 }
 
+fn default_agentmail_inbox_for_address(state: &AppState, address: &str) -> String {
+    let Some(inbox_id) = state
+        .secret("AGENTMAIL_DEFAULT_INBOX_ID")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    else {
+        return String::new();
+    };
+
+    let default_address = state
+        .secret("AGENTMAIL_DEFAULT_ADDRESS")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    match default_address {
+        Some(default_address) if default_address.eq_ignore_ascii_case(address) => inbox_id,
+        None => inbox_id,
+        Some(_) => String::new(),
+    }
+}
+
+#[cfg(test)]
 fn account_from_agentmail_inbox(inbox: agentmail::AgentMailInbox) -> Option<MailAccountRecord> {
     let inbox_id = inbox.inbox_id.trim().to_string();
     if inbox_id.is_empty() {
@@ -549,29 +757,18 @@ fn account_from_agentmail_inbox(inbox: agentmail::AgentMailInbox) -> Option<Mail
         agentmail_inbox_id: inbox_id,
         forwarding_status: "active".into(),
         is_default: false,
+        imap_host: String::new(),
+        imap_port: 993,
+        imap_username: String::new(),
+        imap_password: String::new(),
     })
-}
-
-async fn discovered_agentmail_accounts(state: &AppState) -> Vec<MailAccountRecord> {
-    match agentmail::list_inboxes(state, 100).await {
-        Ok(Some(inboxes)) => inboxes
-            .into_iter()
-            .filter_map(account_from_agentmail_inbox)
-            .collect(),
-        Ok(None) => Vec::new(),
-        Err(err) => {
-            tracing::warn!(error = ?err, "AgentMail inbox discovery failed");
-            Vec::new()
-        }
-    }
 }
 
 pub(crate) async fn merge_configured_mail_accounts_with_discovery(
     state: &AppState,
     saved_accounts: Vec<MailAccountRecord>,
 ) -> Vec<MailAccountRecord> {
-    let mut configured_accounts = default_mail_accounts(state);
-    configured_accounts.extend(discovered_agentmail_accounts(state).await);
+    let configured_accounts = default_mail_accounts(state);
     merge_mail_account_sets(configured_accounts, saved_accounts)
 }
 
@@ -583,13 +780,22 @@ fn merge_mail_account_sets(
         return saved_accounts;
     }
 
-    let mut accounts = Vec::new();
-    for account in configured_accounts.into_iter().chain(saved_accounts) {
-        if accounts.iter().any(|existing: &MailAccountRecord| {
+    let mut accounts: Vec<MailAccountRecord> = Vec::new();
+    for account in saved_accounts.into_iter().chain(configured_accounts) {
+        if let Some(existing) = accounts.iter_mut().find(|existing| {
             existing.id == account.id
                 || (!account.agentmail_inbox_id.is_empty()
                     && existing.agentmail_inbox_id == account.agentmail_inbox_id)
         }) {
+            if !existing.is_default && account.is_default {
+                existing.is_default = true;
+            }
+            if existing.imap_password.trim().is_empty() && account.has_direct_imap_credentials() {
+                existing.imap_host = account.imap_host;
+                existing.imap_port = account.imap_port;
+                existing.imap_username = account.imap_username;
+                existing.imap_password = account.imap_password;
+            }
             continue;
         }
         accounts.push(account);
@@ -708,6 +914,7 @@ mod tests {
             agentmail_inbox_id: "me-at-agentmail".into(),
             forwarding_status: "active".into(),
             is_default: true,
+            ..MailAccountRecord::default()
         };
 
         assert!(entry.validate().is_ok());
@@ -723,6 +930,7 @@ mod tests {
             agentmail_inbox_id: "broken".into(),
             forwarding_status: "pending".into(),
             is_default: false,
+            ..MailAccountRecord::default()
         };
 
         assert!(entry.validate().is_err());
@@ -738,9 +946,34 @@ mod tests {
             agentmail_inbox_id: "".into(),
             forwarding_status: "active".into(),
             is_default: true,
+            ..MailAccountRecord::default()
         };
 
         assert!(entry.validate().is_ok());
+    }
+
+    #[test]
+    fn public_mail_account_never_serializes_imap_password() {
+        let entry = MailAccountRecord {
+            id: "acct_proton".into(),
+            label: "Proton".into(),
+            provider: "proton".into(),
+            address: "me@proton.me".into(),
+            forwarding_status: "active".into(),
+            is_default: true,
+            imap_host: "127.0.0.1".into(),
+            imap_port: 1143,
+            imap_username: "me@proton.me".into(),
+            imap_password: "bridge-secret".into(),
+            ..MailAccountRecord::default()
+        };
+
+        let public = PublicMailAccountRecord::from(&entry);
+        let serialized = serde_json::to_string(&public).unwrap();
+
+        assert!(public.imap_configured);
+        assert!(!serialized.contains("bridge-secret"));
+        assert!(!serialized.contains("imap_password"));
     }
 
     #[test]
@@ -752,6 +985,10 @@ mod tests {
             agentmail_inbox_id: Some("me-at-agentmail".into()),
             forwarding_status: Some("active".into()),
             is_default: Some(true),
+            imap_host: None,
+            imap_port: None,
+            imap_username: None,
+            imap_password: None,
         };
 
         assert!(request.validate().is_ok());
@@ -766,6 +1003,10 @@ mod tests {
             agentmail_inbox_id: Some("me-at-agentmail".into()),
             forwarding_status: Some("active".into()),
             is_default: None,
+            imap_host: None,
+            imap_port: None,
+            imap_username: None,
+            imap_password: None,
         };
 
         assert!(request.validate().is_ok());
@@ -780,6 +1021,10 @@ mod tests {
             agentmail_inbox_id: None,
             forwarding_status: Some("pending".into()),
             is_default: None,
+            imap_host: None,
+            imap_port: None,
+            imap_username: None,
+            imap_password: None,
         };
 
         assert!(request.validate().is_ok());
@@ -794,21 +1039,22 @@ mod tests {
             agentmail_inbox_id: Some(" ".into()),
             forwarding_status: Some("active".into()),
             is_default: None,
+            imap_host: None,
+            imap_port: None,
+            imap_username: None,
+            imap_password: None,
         };
 
         assert!(request.validate().is_ok());
     }
 
     #[test]
-    fn gmail_requires_agentmail_access_mapping() {
-        let err = validate_agentmail_access_policy("gmail", " ").unwrap_err();
-
-        assert!(matches!(err, AppError::BadRequest(_)));
-        assert!(format!("{err:?}").contains("Gmail accounts require an AgentMail access inbox id"));
+    fn gmail_allows_direct_imap_without_agentmail_mapping() {
+        assert!(validate_agentmail_access_policy("gmail", " ").is_ok());
     }
 
     #[test]
-    fn gmail_with_agentmail_access_mapping_is_allowed() {
+    fn gmail_with_agentmail_access_mapping_is_still_allowed() {
         assert!(validate_agentmail_access_policy("google-workspace", "am_inbox_personal").is_ok());
     }
 
@@ -827,6 +1073,10 @@ mod tests {
             agentmail_inbox_id: Some(" ".into()),
             forwarding_status: None,
             is_default: None,
+            imap_host: None,
+            imap_port: None,
+            imap_username: None,
+            imap_password: None,
         };
 
         assert!(request.validate().is_ok());
@@ -892,6 +1142,7 @@ mod tests {
             agentmail_inbox_id: "inbox_123".into(),
             forwarding_status: "active".into(),
             is_default: false,
+            ..MailAccountRecord::default()
         }];
         let saved = vec![MailAccountRecord {
             id: "saved-agent".into(),
@@ -901,12 +1152,49 @@ mod tests {
             agentmail_inbox_id: "inbox_123".into(),
             forwarding_status: "active".into(),
             is_default: true,
+            ..MailAccountRecord::default()
         }];
 
         let accounts = merge_mail_account_sets(configured, saved);
         assert_eq!(accounts.len(), 1);
-        assert_eq!(accounts[0].label, "Discovered");
+        assert_eq!(accounts[0].label, "Saved");
         assert!(accounts[0].is_default);
+    }
+
+    #[test]
+    fn merge_mail_account_sets_prefers_saved_imap_bridge_settings() {
+        let configured = vec![MailAccountRecord {
+            id: "imap:me@proton.me".into(),
+            label: "Proton".into(),
+            provider: "proton".into(),
+            address: "me@proton.me".into(),
+            forwarding_status: "active".into(),
+            is_default: true,
+            imap_host: "127.0.0.1".into(),
+            imap_port: 993,
+            imap_username: "me@proton.me".into(),
+            imap_password: "configured-secret".into(),
+            ..MailAccountRecord::default()
+        }];
+        let saved = vec![MailAccountRecord {
+            id: "imap:me@proton.me".into(),
+            label: "Proton Mail".into(),
+            provider: "proton".into(),
+            address: "me@proton.me".into(),
+            forwarding_status: "active".into(),
+            is_default: true,
+            imap_host: "127.0.0.1".into(),
+            imap_port: 1143,
+            imap_username: "me@proton.me".into(),
+            imap_password: "bridge-secret".into(),
+            ..MailAccountRecord::default()
+        }];
+
+        let accounts = merge_mail_account_sets(configured, saved);
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].label, "Proton Mail");
+        assert_eq!(accounts[0].imap_port, 1143);
+        assert_eq!(accounts[0].imap_password, "bridge-secret");
     }
 
     #[test]
@@ -919,6 +1207,10 @@ mod tests {
             agentmail_inbox_id: None,
             forwarding_status: None,
             is_default: None,
+            imap_host: None,
+            imap_port: None,
+            imap_username: None,
+            imap_password: None,
         };
 
         assert!(request.validate().is_ok());
@@ -934,6 +1226,10 @@ mod tests {
             agentmail_inbox_id: None,
             forwarding_status: None,
             is_default: None,
+            imap_host: None,
+            imap_port: None,
+            imap_username: None,
+            imap_password: None,
         };
 
         assert!(request.validate().is_err());
@@ -949,6 +1245,10 @@ mod tests {
             agentmail_inbox_id: None,
             forwarding_status: None,
             is_default: None,
+            imap_host: None,
+            imap_port: None,
+            imap_username: None,
+            imap_password: None,
         };
 
         assert!(request.validate().is_err());
@@ -972,6 +1272,7 @@ mod tests {
                 agentmail_inbox_id: "am_a".into(),
                 forwarding_status: "active".into(),
                 is_default: false,
+                ..MailAccountRecord::default()
             },
             MailAccountRecord {
                 id: "b".into(),
@@ -981,6 +1282,7 @@ mod tests {
                 agentmail_inbox_id: "am_b".into(),
                 forwarding_status: "active".into(),
                 is_default: true,
+                ..MailAccountRecord::default()
             },
         ];
 

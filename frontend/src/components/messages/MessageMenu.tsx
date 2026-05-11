@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { ArrowBendUpLeft, Copy } from '@phosphor-icons/react'
+import { ArrowBendUpLeft, ArrowCounterClockwise, Copy, Trash } from '@phosphor-icons/react'
 import type { Message } from '@/pages/messages/types'
 
 /* ─── Types ────────────────────────────────────────────────────────────── */
@@ -23,9 +23,40 @@ const REACTION_NAMES: { key: string; emoji: string; type: number }[] = [
   { key: 'question', emoji: '❓', type: 2005 },
 ]
 
+const MENU_WIDTH = 280
+const MENU_PAD = 8
+const REACTION_BAR_HEIGHT = 50
+const MENU_GAP = 6
+const ACTION_ROW_HEIGHT = 40
+const ACTION_MENU_PAD = 8
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), Math.max(min, max))
+}
+
+function getMenuBounds() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 }
+  }
+
+  const rect = document.querySelector<HTMLElement>('[data-messages-menu-bounds]')?.getBoundingClientRect()
+  if (rect && rect.width > 0 && rect.height > 0) {
+    return rect
+  }
+
+  return {
+    left: 0,
+    top: 0,
+    right: window.innerWidth,
+    bottom: window.innerHeight,
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }
+}
+
 /* ─── MButton ────────────────────────────────────────────────────────── */
 
-export function MButton({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+export function MButton({ icon, label, onClick, danger = false }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) {
   return (
     <button
       onClick={onClick}
@@ -33,14 +64,14 @@ export function MButton({ icon, label, onClick }: { icon: React.ReactNode; label
         display: 'flex', alignItems: 'center', gap: '10px',
         width: '100%', padding: '10px 14px',
         background: 'transparent', border: 'none',
-        color: 'var(--text-primary)', fontSize: '13px', fontWeight: 500,
+        color: danger ? 'var(--danger, var(--red))' : 'var(--text-primary)', fontSize: '13px', fontWeight: 500,
         cursor: 'pointer', borderRadius: '8px',
         transition: 'background 0.1s',
       }}
       onMouseEnter={e => { e.currentTarget.style.background = 'var(--active-bg)' }}
       onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
     >
-      <span style={{ color: 'var(--text-secondary)', display: 'flex' }}>{icon}</span>
+      <span style={{ color: danger ? 'var(--danger, var(--red))' : 'var(--text-secondary)', display: 'flex' }}>{icon}</span>
       {label}
     </button>
   )
@@ -48,12 +79,15 @@ export function MButton({ icon, label, onClick }: { icon: React.ReactNode; label
 
 /* ─── MessageMenu ────────────────────────────────────────────────────────── */
 
-function MessageMenu({ x, y, msg, onReact, onReply, onCopy, onClose }: {
+function MessageMenu({ x, y, msg, fromMe, onReact, onReply, onCopy, onDelete, onUnsend, onClose }: {
   x: number; y: number
   msg: Message
+  fromMe: boolean
   onReact: (reaction: string) => void
   onReply: () => void
   onCopy: () => void
+  onDelete: () => void
+  onUnsend: () => void
   onClose: () => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -71,14 +105,29 @@ function MessageMenu({ x, y, msg, onReact, onReply, onCopy, onClose }: {
     }
   }, [onClose])
 
-  const menuW = 280
-  const clampedX = Math.max(8, Math.min(x - menuW / 2, window.innerWidth - menuW - 8))
-  const clampedY = Math.max(8, y - 108)
+  const bounds = getMenuBounds()
+  const actionCount = 2 + (msg.text ? 1 : 0) + (fromMe ? 1 : 0)
+  const menuHeight = REACTION_BAR_HEIGHT + MENU_GAP + ACTION_MENU_PAD + actionCount * ACTION_ROW_HEIGHT
+  const clampedX = clamp(
+    x - MENU_WIDTH / 2,
+    bounds.left + MENU_PAD,
+    bounds.right - MENU_WIDTH - MENU_PAD,
+  )
+  const clampedY = clamp(
+    y - 108,
+    bounds.top + MENU_PAD,
+    bounds.bottom - menuHeight - MENU_PAD,
+  )
 
   return (
     <>
       <div role="presentation" onClick={onClose} style={{
-        position: 'fixed', inset: 0, zIndex: 998,
+        position: 'fixed',
+        left: bounds.left,
+        top: bounds.top,
+        width: bounds.width,
+        height: bounds.height,
+        zIndex: 998,
         background: 'var(--overlay-light)',
         backdropFilter: 'blur(2px)',
         WebkitBackdropFilter: 'blur(2px)',
@@ -132,6 +181,8 @@ function MessageMenu({ x, y, msg, onReact, onReply, onCopy, onClose }: {
         }}>
           <MButton icon={<ArrowBendUpLeft size={16} />} label="Reply" onClick={onReply} />
           {msg.text && <MButton icon={<Copy size={16} />} label="Copy" onClick={onCopy} />}
+          {fromMe && <MButton icon={<ArrowCounterClockwise size={16} />} label="Undo Send" onClick={onUnsend} />}
+          <MButton icon={<Trash size={16} />} label="Delete" onClick={onDelete} danger />
         </div>
       </div>
     </>

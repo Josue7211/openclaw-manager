@@ -54,7 +54,6 @@ interface ConversationListProps {
   onContextMenu: (ctx: ConvContextMenu) => void
   onBatchMarkRead: () => void
   onBatchMarkUnread: () => void
-  onBatchDelete: () => void
 
   // Messages (for refresh)
   fetchMessages: (conv: Conversation) => void
@@ -92,7 +91,6 @@ export default function ConversationList({
   onContextMenu,
   onBatchMarkRead,
   onBatchMarkUnread,
-  onBatchDelete,
   fetchMessages,
 }: ConversationListProps) {
 
@@ -512,13 +510,6 @@ export default function ConversationList({
             borderRadius: '8px', color: 'var(--accent-bright)', cursor: 'pointer',
           }}>
             Mark Unread ({selectedConvs.size})
-          </button>
-          <button onClick={onBatchDelete} style={{
-            flex: 1, padding: '8px', fontSize: '12px', fontWeight: 600,
-            background: 'var(--red-500-a12)', border: '1px solid var(--red-500-a20)',
-            borderRadius: '8px', color: 'var(--red)', cursor: 'pointer',
-          }}>
-            Delete ({selectedConvs.size})
           </button>
         </div>
       )}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { formatDate, FOLDERS, EMPTY_FORM, providerNeedsAgentMailAccess } from '../types'
+import { formatDate, FOLDERS, EMPTY_FORM, providerImapDefaults, providerNeedsAgentMailAccess } from '../types'
 import type { Email, EmailAccount, AccountForm, Folder, MailThread } from '../types'
 
 /* ─── Type structural validation ─────────────────────────────────────── */
@@ -28,6 +28,10 @@ describe('type exports', () => {
       agentmail_inbox_id: 'am-work',
       forwarding_status: 'active',
       is_default: true,
+      imap_host: '127.0.0.1',
+      imap_port: 1143,
+      imap_username: 'user@example.com',
+      imap_configured: true,
     }
     expect(account.provider).toBe('proton')
     expect(account.forwarding_status).toBe('active')
@@ -55,6 +59,10 @@ describe('type exports', () => {
       agentmail_inbox_id: 'am-personal',
       forwarding_status: 'pending',
       is_default: false,
+      imap_host: 'imap.gmail.com',
+      imap_port: '993',
+      imap_username: 'user@example.com',
+      imap_password: 'app-password',
     }
     expect(form.provider).toBe('gmail')
     expect(form.is_default).toBe(false)
@@ -125,21 +133,38 @@ describe('EMPTY_FORM', () => {
   it('defaults is_default to false', () => {
     expect(EMPTY_FORM.is_default).toBe(false)
   })
+
+  it('defaults Proton to local Bridge IMAP', () => {
+    expect(EMPTY_FORM.imap_host).toBe('127.0.0.1')
+    expect(EMPTY_FORM.imap_port).toBe('1143')
+  })
 })
 
 /* ─── providerNeedsAgentMailAccess ───────────────────────────────────── */
 
 describe('providerNeedsAgentMailAccess', () => {
-  it('requires AgentMail access for Gmail provider identities', () => {
-    expect(providerNeedsAgentMailAccess('gmail')).toBe(true)
-    expect(providerNeedsAgentMailAccess(' Google ')).toBe(true)
-    expect(providerNeedsAgentMailAccess('google-workspace')).toBe(true)
+  it('keeps AgentMail optional for direct-mail providers', () => {
+    expect(providerNeedsAgentMailAccess('gmail')).toBe(false)
+    expect(providerNeedsAgentMailAccess(' Google ')).toBe(false)
+    expect(providerNeedsAgentMailAccess('google-workspace')).toBe(false)
   })
 
   it('keeps Custom IMAP as an explicit direct-mail path', () => {
     expect(providerNeedsAgentMailAccess('imap')).toBe(false)
     expect(providerNeedsAgentMailAccess('proton')).toBe(false)
     expect(providerNeedsAgentMailAccess('icloud')).toBe(false)
+  })
+})
+
+/* ─── providerImapDefaults ───────────────────────────────────────────── */
+
+describe('providerImapDefaults', () => {
+  it('uses Proton Bridge defaults for Proton', () => {
+    expect(providerImapDefaults('proton')).toEqual({ imap_host: '127.0.0.1', imap_port: '1143' })
+  })
+
+  it('uses Microsoft IMAP for Hotmail', () => {
+    expect(providerImapDefaults('hotmail')).toEqual({ imap_host: 'outlook.office365.com', imap_port: '993' })
   })
 })
 

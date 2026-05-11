@@ -39,26 +39,42 @@ pub fn generic_base_dir(state: &AppState) -> PathBuf {
 
 pub fn hermes_workspace_dir_from_env() -> PathBuf {
     if let Ok(value) = std::env::var("HERMES_HOME") {
-        return PathBuf::from(value);
+        return normalize_hermes_home_path(PathBuf::from(value));
     }
     if let Ok(value) = std::env::var("HERMES_DIR") {
-        let path = PathBuf::from(value);
-        let nested = path.join("hermes-agent");
-        return if nested.exists() { nested } else { path };
+        return normalize_hermes_home_path(PathBuf::from(value));
     }
-    home_dir().join(".hermes/hermes-agent")
+    home_dir().join(".hermes")
 }
 
 pub fn hermes_workspace_dir(state: &AppState) -> PathBuf {
     if let Some(value) = state.secret("HERMES_HOME") {
-        return PathBuf::from(value);
+        return normalize_hermes_home_path(PathBuf::from(value));
     }
     if let Some(value) = state.secret("HERMES_DIR") {
-        let path = PathBuf::from(value);
-        let nested = path.join("hermes-agent");
-        return if nested.exists() { nested } else { path };
+        return normalize_hermes_home_path(PathBuf::from(value));
     }
     hermes_workspace_dir_from_env()
+}
+
+fn normalize_hermes_home_path(path: PathBuf) -> PathBuf {
+    if path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name == "hermes-agent")
+        .unwrap_or(false)
+    {
+        if let Some(parent) = path.parent() {
+            let parent = parent.to_path_buf();
+            if parent.join("SOUL.md").exists()
+                || parent.join("memories").exists()
+                || parent.join(".memd").exists()
+            {
+                return parent;
+            }
+        }
+    }
+    path
 }
 
 pub fn provider_layout(state: &AppState) -> HarnessProviderLayout {

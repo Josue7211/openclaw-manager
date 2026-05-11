@@ -53,12 +53,15 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuState & { onClo
       top: adjustedY,
       zIndex: 10000,
       background: 'var(--bg-panel)',
+      backdropFilter: 'blur(32px)',
+      WebkitBackdropFilter: 'blur(32px)',
       border: '1px solid var(--border)',
       borderRadius: '8px',
       padding: '4px',
       minWidth: '160px',
       boxShadow: '0 8px 32px var(--overlay)',
       animation: 'fadeInUp 0.1s ease',
+      isolation: 'isolate',
     }}>
       {items.map((item, i) => {
         const Icon = item.icon

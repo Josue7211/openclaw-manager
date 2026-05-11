@@ -74,6 +74,7 @@ async fn get_todos(
 #[derive(Debug, Deserialize)]
 struct PostTodoBody {
     text: Option<String>,
+    due_date: Option<String>,
 }
 
 async fn post_todo(
@@ -85,17 +86,23 @@ async fn post_todo(
     if text.is_empty() {
         return Err(AppError::BadRequest("text required".into()));
     }
+    let due_date = body
+        .due_date
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
 
     let id = crate::routes::util::random_uuid();
     let now = chrono::Utc::now().to_rfc3339();
 
     sqlx::query(
-        "INSERT INTO todos (id, user_id, text, done, created_at, updated_at) \
-         VALUES (?, ?, ?, 0, ?, ?)",
+        "INSERT INTO todos (id, user_id, text, done, due_date, created_at, updated_at) \
+         VALUES (?, ?, ?, 0, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&session.user_id)
     .bind(text)
+    .bind(due_date)
     .bind(&now)
     .bind(&now)
     .execute(&state.db)
@@ -107,6 +114,7 @@ async fn post_todo(
         "user_id": session.user_id,
         "text": text,
         "done": false,
+        "due_date": due_date,
         "created_at": now,
         "updated_at": now,
     }))
@@ -132,6 +140,7 @@ async fn post_todo(
             "id": id,
             "text": text,
             "done": false,
+            "due_date": due_date,
             "created_at": now,
             "updated_at": now,
         }]
@@ -286,9 +295,10 @@ async fn delete_todo(
 mod tests {
     #[test]
     fn post_todo_body_deserializes() {
-        let json = r#"{"text": "buy milk"}"#;
+        let json = r#"{"text": "buy milk", "due_date": "2026-05-08"}"#;
         let body: super::PostTodoBody = serde_json::from_str(json).unwrap();
         assert_eq!(body.text.as_deref(), Some("buy milk"));
+        assert_eq!(body.due_date.as_deref(), Some("2026-05-08"));
     }
 
     #[test]

@@ -47,7 +47,7 @@ describe('SettingsConnections', () => {
       if (path === '/api/status/active-config') {
         return {
           bluebubbles_url: '',
-          openclaw_url: '',
+          harness_url: '',
           agentshell_url: '',
         }
       }
@@ -64,13 +64,13 @@ describe('SettingsConnections', () => {
       capabilities: {
         google_oauth: true,
         github_oauth: true,
-        openclaw: true,
+        harness: true,
         agentsecrets: true,
         memd: true,
       },
       services: {
         supabase: { configured: true, reachable: true },
-        openclaw: { configured: true, reachable: true },
+        harness: { configured: true, reachable: true },
         agentsecrets: { configured: true, reachable: true },
         memd: { configured: true, reachable: true },
       },

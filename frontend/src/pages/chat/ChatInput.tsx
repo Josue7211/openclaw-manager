@@ -201,16 +201,23 @@ function ChatInputBox({
             Stop
           </button>
         ) : (
-          <button onClick={onSend} disabled={!canSend} aria-label="Send message"
+          <button onClick={onSend} disabled={!canSend} aria-label="Send message" title="Send"
             style={{
               flexShrink: 0,
-              background: !canSend ? 'var(--hover-bg)' : 'var(--accent)',
-              border: 'none', borderRadius: '10px',
-              color: !canSend ? 'var(--text-muted)' : 'var(--text-on-color)',
-              padding: '7px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all 0.25s var(--ease-spring)',
+              width: '34px',
+              height: '34px',
+              background: canSend ? 'var(--bg-elevated)' : 'transparent',
+              border: `1px solid ${canSend ? 'var(--accent)' : 'var(--border)'}`,
+              borderRadius: '50%',
+              color: canSend ? 'var(--accent-bright)' : 'var(--text-muted)',
+              cursor: canSend ? 'pointer' : 'not-allowed',
+              display: 'grid',
+              placeItems: 'center',
+              opacity: canSend ? 1 : 0.55,
+              transition: 'border-color 0.15s, color 0.15s, background 0.15s, opacity 0.15s',
             }}
           >
-            <PaperPlaneTilt size={15} />
+            <PaperPlaneTilt size={15} weight={canSend ? 'fill' : 'regular'} style={{ marginLeft: '-1px' }} />
           </button>
         )}
       </div>

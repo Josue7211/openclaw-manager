@@ -51,6 +51,10 @@ export interface EmailAccount {
   agentmail_inbox_id: string
   forwarding_status: 'active' | 'pending' | 'error'
   is_default: boolean
+  imap_host: string
+  imap_port: number
+  imap_username: string
+  imap_configured: boolean
 }
 
 export interface AccountForm {
@@ -60,6 +64,10 @@ export interface AccountForm {
   agentmail_inbox_id: string
   forwarding_status: 'active' | 'pending' | 'error'
   is_default: boolean
+  imap_host: string
+  imap_port: string
+  imap_username: string
+  imap_password: string
 }
 
 export type Folder = 'INBOX' | 'All' | 'Unread' | 'Starred' | 'Archive' | 'Sent' | 'Drafts' | 'Spam' | 'Trash'
@@ -83,10 +91,39 @@ export const EMPTY_FORM: AccountForm = {
   agentmail_inbox_id: '',
   forwarding_status: 'pending',
   is_default: false,
+  imap_host: '127.0.0.1',
+  imap_port: '1143',
+  imap_username: '',
+  imap_password: '',
 }
 
 export function providerNeedsAgentMailAccess(provider: string): boolean {
-  return ['gmail', 'google', 'google-workspace'].includes(provider.trim().toLowerCase())
+  void provider
+  return false
+}
+
+export function providerImapDefaults(provider: string): Pick<AccountForm, 'imap_host' | 'imap_port'> {
+  switch (provider.trim().toLowerCase()) {
+    case 'proton':
+    case 'protonmail':
+      return { imap_host: '127.0.0.1', imap_port: '1143' }
+    case 'gmail':
+    case 'google':
+    case 'google-workspace':
+      return { imap_host: 'imap.gmail.com', imap_port: '993' }
+    case 'outlook':
+    case 'hotmail':
+    case 'office365':
+    case 'exchange':
+      return { imap_host: 'outlook.office365.com', imap_port: '993' }
+    case 'icloud':
+    case 'apple':
+      return { imap_host: 'imap.mail.me.com', imap_port: '993' }
+    case 'fastmail':
+      return { imap_host: 'imap.fastmail.com', imap_port: '993' }
+    default:
+      return { imap_host: '', imap_port: '993' }
+  }
 }
 
 export function formatDate(iso: string): string {

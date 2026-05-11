@@ -9,7 +9,7 @@ default-run = "clawctrl"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
+tauri = { version = "2", features = ["macos-private-api", "tray-icon"] }
 tauri-plugin-shell = "2"
 tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
@@ -34,8 +34,10 @@ tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
 ical = "0.11"
 async-imap = "0.9"
 async-native-tls = "0.5"
+lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1-native-tls"] }
 tokio-util = { version = "0.7", features = ["compat"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+plist = "1"
 dotenvy = "0.15"
 url = "2"
 subtle = "2"

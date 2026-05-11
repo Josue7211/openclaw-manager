@@ -29,7 +29,7 @@ OpenClaw is the centerpiece. It already has a built-in gateway, and ClawControl 
 |--------|-------------|----------|
 | **Messages** | iMessage (read, send, search, reactions, attachments) | Mac + [BlueBubbles](https://bluebubbles.app) |
 | **AI Chat** | Streaming AI chat with model switching | [OpenClaw](https://github.com/Josue7211/openclaw) or any LLM gateway |
-| **Todos** | Task management with projects and labels | Supabase |
+| **Todos** | Task management with projects and labels | Built-in Supabase stack or external Supabase |
 | **Calendar** | CalDAV sync (iCloud, Nextcloud, etc.) | CalDAV server |
 | **Email** | IMAP client with folder navigation | IMAP server |
 | **Reminders** | Apple Reminders sync | Mac + [Mac Bridge](https://github.com/Josue7211/mac-bridge) |
@@ -37,13 +37,13 @@ OpenClaw is the centerpiece. It already has a built-in gateway, and ClawControl 
 | **Pomodoro** | Focus timer with activity heatmap | Local only |
 | **Home Lab** | VM/container status, firewall monitoring | Proxmox + OPNsense |
 | **Media Radar** | Track movies/TV shows | Plex + Sonarr + Radarr |
-| **Dashboard** | Agent status, missions, pipelines | OpenClaw + Supabase |
+| **Dashboard** | Agent status, missions, pipelines | OpenClaw + built-in Supabase stack |
 | **Agents** | AI agent management and monitoring | OpenClaw |
 | **Crons** | Scheduled jobs and recurring tasks | OpenClaw |
-| **Missions** | Autonomous agent task tracking and replay | OpenClaw + Supabase |
-| **Pipeline** | CI/CD pipeline management and ship log | Supabase |
-| **Knowledge** | Shared reference documents | Supabase |
-| **Personal** | Morning brief, daily review, habits | Supabase |
+| **Missions** | Autonomous agent task tracking and replay | OpenClaw + built-in Supabase stack |
+| **Pipeline** | CI/CD pipeline management and ship log | Built-in Supabase stack or external Supabase |
+| **Knowledge** | Shared reference documents and RAG search | Built-in memd, LightRAG, RAGAnything/MinerU, optional external Supabase |
+| **Personal** | Morning brief, daily review, habits | Built-in Supabase stack or external Supabase |
 
 **App-wide features:** Command palette (`Ctrl+K`), global search, configurable keyboard shortcuts, native notifications with per-conversation mute, dark/light theming, custom sidebar layout, offline-first with sync.
 
@@ -86,6 +86,7 @@ That flow is partially implemented, but it is not fully verified as a release ye
 
 Tracking docs:
 
+- [docs/SETUP.md](docs/SETUP.md)
 - [docs/release-package-plan.md](docs/release-package-plan.md)
 - [docs/backend-stack.md](docs/backend-stack.md)
 - [docs/CONFIGURATION.md](docs/CONFIGURATION.md)
@@ -94,25 +95,35 @@ Tracking docs:
 
 ## Quick Start
 
-### Planned self-hosted release path
+### Self-hosted release path
 
-The current release priority is a backend-first setup flow:
+New Docker installs use the batteries-included backend-first setup flow:
 
-1. copy one backend `.env`
-2. run one Docker Compose stack
-3. open the desktop app
-4. paste backend URL
-5. paste pairing token
+1. generate one full-stack `.env`
+2. validate the stack config
+3. run one Docker Compose stack
+4. open the desktop app
+5. paste backend URL
+6. paste pairing token
+
+```bash
+npm run stack:env -- --out .env.full
+npm run stack:check -- --env .env.full --no-docker
+docker compose --env-file .env.full -f deploy/portainer/clawcontrol-full.stack.yml up -d --build
+```
 
 Tracking docs:
 
+- [docs/SETUP.md](docs/SETUP.md)
 - [docs/release-package-plan.md](docs/release-package-plan.md)
 - [docs/backend-stack.md](docs/backend-stack.md)
 
 Current scaffold files:
 
-- [docker-compose.backend.yml](docker-compose.backend.yml)
-- [.env.backend.example](.env.backend.example)
+- [deploy/portainer/clawcontrol-full.stack.yml](deploy/portainer/clawcontrol-full.stack.yml)
+- [deploy/portainer/clawcontrol-full.env.example](deploy/portainer/clawcontrol-full.env.example)
+- [deploy/portainer/clawcontrol-backend.stack.yml](deploy/portainer/clawcontrol-backend.stack.yml)
+- [deploy/portainer/clawcontrol-backend.env.example](deploy/portainer/clawcontrol-backend.env.example)
 
 ### From source
 
@@ -137,7 +148,23 @@ cargo tauri build
 | **Node.js 20+** | [nodejs.org](https://nodejs.org) |
 | **Rust stable** | [rustup.rs](https://rustup.rs) |
 | **Tauri v2 system deps** | [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) |
-| **Supabase** | Self-hosted (Docker) or [Supabase Cloud](https://supabase.com) |
+| **Supabase** | Bundled in the full Docker stack, or external [Supabase Cloud](https://supabase.com) |
+
+### Built-in stack services
+
+Fresh Docker/Portainer installs ship these services by default:
+
+| Service | Role |
+|---|---|
+| **Supabase-compatible stack** | Postgres, PostgREST, GoTrue, Realtime, Storage, Meta, and gateway |
+| **Agent Secrets** | Secret broker and approval keys |
+| **AgentShell** | Launch/approval adapter |
+| **Harness API sidecar** | Workspace HTTP/WebSocket bridge |
+| **memd server** | Durable memory/bootstrap service |
+| **memd RAG sidecar** | Built-in retrieval for Memory and Knowledge |
+| **LightRAG** | Long-term semantic graph retrieval |
+| **RAGAnything/MinerU** | Multimodal extraction for PDFs, images, tables, equations, and Office docs |
+| **Mac Bridge** | Ships as an optional `macos` profile for hosts that can access Apple services |
 
 ---
 
@@ -146,7 +173,7 @@ cargo tauri build
 There are currently two configuration paths:
 
 1. current dev/local path: desktop app settings + `.env.local`
-2. in-progress release path: backend-first setup with `docker-compose.backend.yml`
+2. release path: backend-first setup with `deploy/portainer/clawcontrol-full.stack.yml`
 
 For local development, you can still use a `.env.local` file:
 
@@ -156,15 +183,16 @@ cp .env.example .env.local   # Edit with your values
 
 For release-path planning, use:
 
-- [docker-compose.backend.yml](docker-compose.backend.yml)
-- [.env.backend.example](.env.backend.example)
+- [docs/SETUP.md](docs/SETUP.md)
+- [deploy/portainer/clawcontrol-full.stack.yml](deploy/portainer/clawcontrol-full.stack.yml)
+- [deploy/portainer/clawcontrol-full.env.example](deploy/portainer/clawcontrol-full.env.example)
 - [docs/backend-stack.md](docs/backend-stack.md)
 
 ### Required (for full functionality)
 
 | Variable | Description |
 |---|---|
-| `SUPABASE_URL` | Your Supabase project URL |
+| `SUPABASE_URL` | Bundled Supabase gateway URL or your external Supabase project URL |
 | `SUPABASE_ANON_KEY` | Supabase anonymous key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) |
 
@@ -176,6 +204,10 @@ For release-path planning, use:
 | `HARNESS_API_URL` | Generic harness HTTP API URL |
 | `HARNESS_API_KEY` | Generic harness API key |
 | `AGENTSHELL_URL` | AgentShell adapter URL (launch/approval bridge) |
+| `AGENTSECRETS_URL` | Agent Secrets broker URL |
+| `MEMD_BASE_URL` / `MEMD_RAG_URL` | memd server and bundled RAG sidecar URLs |
+| `LIGHTRAG_BASE_URL` | Bundled or external LightRAG URL |
+| `RAGANYTHING_URL` / `MINERU_URL` | Bundled or external multimodal extraction URLs |
 
 The harness gateway powers AI Chat, Agents, Crons, Missions, and control-plane workflows. Users can point it at Hermes, OpenClaw compatibility, Agent Zero, NanoClaw, or another compatible harness. `OPENCLAW_*` remains a legacy compatibility alias only.
 

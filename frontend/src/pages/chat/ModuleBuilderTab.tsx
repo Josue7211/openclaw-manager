@@ -26,6 +26,7 @@ import {
   proposalToGeneratedModule,
   type ModuleProposal,
 } from '@/lib/module-proposals'
+import { extractOpenUiLangFromResponse } from '@/lib/openui'
 import { validateModuleProposal } from '@/lib/module-proposal-validator'
 import { ModulePreview } from './ModulePreview'
 import { ModuleApprovalBar } from './ModuleApprovalBar'
@@ -79,6 +80,7 @@ function buildInlineModuleBuilderRequest(userText: string): string {
   return [
     'You are the OpenUI module builder for clawctrl.',
     'Return only one ```json code fence containing a valid ModuleProposal object, or an array of ModuleProposal objects when the user asks for multiple modules.',
+    'When useful, include openUiLang with a valid OpenUI Lang snippet using positional arguments, for example: root = StatCard("Tasks", "7").',
     'Use only these primitives: StatCard, ProgressGauge, MarkdownDisplay, LineChart, BarChart, ListView, DataTable, FormWidget, KanbanBoard, TimerCountdown, ImageGallery.',
     'Keep capabilities read-only.',
     'Keep actions limited to navigate, refresh, or open.',
@@ -265,6 +267,30 @@ export default function ModuleBuilderTab() {
           timestamp: new Date().toISOString(),
         }
         setMessages(prev => [...prev, errorMsg])
+      }
+
+      // Fallback: raw OpenUI Lang response path
+      const openUiLang = extractOpenUiLangFromResponse(assistantText)
+      if (openUiLang) {
+        const openUiProposal: ModuleProposal = {
+          ...createFallbackProposal(assistantText),
+          title: 'OpenUI Module',
+          description: 'OpenUI Lang module generated from assistant output.',
+          openUiLang,
+          fallbackMessage: undefined,
+        }
+        setGeneratedProposal(openUiProposal)
+        setGeneratedSource(proposalToGeneratedModule(openUiProposal).source)
+        try {
+          const storedProposal = await createModuleProposal(openUiProposal, 'draft')
+          setSavedProposalId(storedProposal.id)
+          await refreshRecentProposals()
+        } catch {
+          setSavedProposalId(null)
+        }
+        setGenerationState('analyzing')
+        setTimeout(() => setGenerationState('previewing'), 400)
+        return
       }
 
       // Fallback: old code-fence path

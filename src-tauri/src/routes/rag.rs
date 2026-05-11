@@ -6,10 +6,11 @@ use axum::{
 use reqwest::StatusCode;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use sqlx::Row;
 use std::time::Duration;
 
 use crate::error::AppError;
-use crate::server::AppState;
+use crate::server::{AppState, RequireAuth};
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -104,10 +105,15 @@ async fn rag_status(State(state): State<AppState>) -> Result<Json<Value>, AppErr
     let Some(base_url) = rag_base_url(&state) else {
         return Ok(Json(json!({
             "ok": true,
-            "configured": false,
-            "reachable": false,
-            "backend": null,
+            "configured": true,
+            "reachable": true,
+            "backend": "memd-local",
             "baseUrl": null,
+            "health": {
+                "ok": true,
+                "provider": "local",
+                "storage": "memd",
+            },
         })));
     };
 
@@ -142,6 +148,7 @@ async fn rag_status(State(state): State<AppState>) -> Result<Json<Value>, AppErr
 
 async fn rag_search(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Json(body): Json<RagSearchBody>,
 ) -> Result<Json<Value>, AppError> {
     let query = body.query.trim();
@@ -150,13 +157,17 @@ async fn rag_search(
             "query must be at least 2 characters".into(),
         ));
     }
+    let limit = body.limit.unwrap_or(10).clamp(1, 50);
     let Some(base_url) = rag_base_url(&state) else {
-        return Err(AppError::BadRequest(
-            "LightRAG is not configured. Set LIGHTRAG_BASE_URL or MEMD_RAG_URL.".into(),
-        ));
+        let results = search_local_memd(&state, &session.user_id, query, limit).await?;
+        return Ok(Json(json!({
+            "ok": true,
+            "backend": "memd-local",
+            "results": results,
+            "data": { "results": results },
+        })));
     };
 
-    let limit = body.limit.unwrap_or(10).clamp(1, 50);
     if let Ok(results) = search_sidecar(&state, &base_url, &body, query, limit).await {
         return Ok(Json(json!({
             "ok": true,
@@ -166,10 +177,19 @@ async fn rag_search(
         })));
     }
 
-    let results = search_lightrag(&state, &base_url, query, limit).await?;
+    let (backend, results) = match search_lightrag(&state, &base_url, query, limit).await {
+        Ok(results) => ("lightrag", results),
+        Err(error) => {
+            tracing::warn!("External RAG failed, falling back to local memd: {error:?}");
+            (
+                "memd-local",
+                search_local_memd(&state, &session.user_id, query, limit).await?,
+            )
+        }
+    };
     Ok(Json(json!({
         "ok": true,
-        "backend": "lightrag",
+        "backend": backend,
         "results": results,
         "data": { "results": results },
     })))
@@ -177,12 +197,17 @@ async fn rag_search(
 
 async fn rag_graph_labels(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Query(params): Query<RagLabelsQuery>,
 ) -> Result<Json<Value>, AppError> {
     let Some(base_url) = rag_base_url(&state) else {
-        return Err(AppError::BadRequest(
-            "LightRAG is not configured. Set LIGHTRAG_BASE_URL or MEMD_RAG_URL.".into(),
-        ));
+        let labels =
+            local_memd_labels(&state, &session.user_id, params.q.as_deref(), params.limit).await?;
+        return Ok(Json(json!({
+            "ok": true,
+            "backend": "memd-local",
+            "labels": labels,
+        })));
     };
 
     let limit = params.limit.unwrap_or(50).clamp(1, 100);
@@ -194,19 +219,29 @@ async fn rag_graph_labels(
     } else {
         format!("{base_url}/graph/label/popular?limit={limit}")
     };
-    let labels = fetch_json(&state, url).await.map_err(|error| {
-        tracing::warn!(error = %error, "LightRAG graph labels request failed");
-        AppError::BadRequest("LightRAG graph labels are unreachable".into())
-    })?;
+    let (backend, labels) = match fetch_json(&state, url).await {
+        Ok(labels) => ("lightrag", labels),
+        Err(error) => {
+            tracing::warn!(error = %error, "LightRAG graph labels request failed; using local memd labels");
+            (
+                "memd-local",
+                json!(
+                    local_memd_labels(&state, &session.user_id, params.q.as_deref(), params.limit)
+                        .await?
+                ),
+            )
+        }
+    };
     Ok(Json(json!({
         "ok": true,
-        "backend": "lightrag",
+        "backend": backend,
         "labels": labels,
     })))
 }
 
 async fn rag_graph(
     State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
     Query(params): Query<RagGraphQuery>,
 ) -> Result<Json<Value>, AppError> {
     let label = params.label.trim();
@@ -214,9 +249,13 @@ async fn rag_graph(
         return Err(AppError::BadRequest("graph label required".into()));
     }
     let Some(base_url) = rag_base_url(&state) else {
-        return Err(AppError::BadRequest(
-            "LightRAG is not configured. Set LIGHTRAG_BASE_URL or MEMD_RAG_URL.".into(),
-        ));
+        let graph = local_memd_graph(&state, &session.user_id, label, params.max_nodes).await?;
+        return Ok(Json(json!({
+            "ok": true,
+            "backend": "memd-local",
+            "label": label,
+            "graph": graph,
+        })));
     };
 
     let max_depth = params.max_depth.unwrap_or(2).clamp(1, 5);
@@ -225,16 +264,251 @@ async fn rag_graph(
         "{base_url}/graphs?label={}&max_depth={max_depth}&max_nodes={max_nodes}",
         urlencoding::encode(label)
     );
-    let graph = fetch_json(&state, url).await.map_err(|error| {
-        tracing::warn!(error = %error, "LightRAG graph request failed");
-        AppError::BadRequest("LightRAG graph is unreachable".into())
-    })?;
+    let (backend, graph) = match fetch_json(&state, url).await {
+        Ok(graph) => ("lightrag", graph),
+        Err(error) => {
+            tracing::warn!(error = %error, "LightRAG graph request failed; using local memd graph");
+            (
+                "memd-local",
+                local_memd_graph(&state, &session.user_id, label, params.max_nodes).await?,
+            )
+        }
+    };
     Ok(Json(json!({
         "ok": true,
-        "backend": "lightrag",
+        "backend": backend,
         "label": label,
         "graph": graph,
     })))
+}
+
+async fn search_local_memd(
+    state: &AppState,
+    user_id: &str,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<Value>, AppError> {
+    let rows = sqlx::query(
+        "SELECT e.id, e.kind, e.title, e.content, e.summary, e.source, e.confidence, \
+         e.priority, e.updated_at, s.scope_kind, s.scope_name \
+         FROM memd_entries e \
+         JOIN memd_scopes s ON s.id = e.scope_id AND s.user_id = e.user_id \
+         WHERE e.user_id = ? AND e.status = 'active' \
+         ORDER BY e.priority DESC, e.updated_at DESC \
+         LIMIT 250",
+    )
+    .bind(user_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let needle = query.trim().to_lowercase();
+    let mut scored = Vec::new();
+    for row in rows {
+        let title: String = row.try_get("title")?;
+        let content: String = row.try_get("content")?;
+        let summary: String = row.try_get("summary")?;
+        let kind: String = row.try_get("kind")?;
+        let source: String = row.try_get("source")?;
+        let scope_kind: String = row.try_get("scope_kind")?;
+        let scope_name: String = row.try_get("scope_name")?;
+        let haystack =
+            format!("{title} {summary} {content} {kind} {source} {scope_kind} {scope_name}")
+                .to_lowercase();
+        if !haystack.contains(&needle) {
+            continue;
+        }
+
+        let priority: i64 = row.try_get("priority")?;
+        let confidence: i64 = row.try_get("confidence")?;
+        let mut score = priority.max(0) as f64 / 100.0 + confidence.max(0) as f64 / 100.0;
+        if title.to_lowercase().contains(&needle) {
+            score += 0.7;
+        }
+        if summary.to_lowercase().contains(&needle) {
+            score += 0.45;
+        }
+        if content.to_lowercase().contains(&needle) {
+            score += 0.25;
+        }
+        if kind.to_lowercase().contains(&needle) || scope_name.to_lowercase().contains(&needle) {
+            score += 0.15;
+        }
+
+        let id: String = row.try_get("id")?;
+        let body = if summary.trim().is_empty() {
+            content.clone()
+        } else {
+            summary.clone()
+        };
+        scored.push((
+            score,
+            json!({
+                "name": title,
+                "path": format!("memd/{scope_kind}/{scope_name}/{id}"),
+                "content": content,
+                "snippet": snippet(&body),
+                "score": score,
+                "backend": "memd-local",
+                "kind": kind,
+                "source": source,
+                "scope": {
+                    "kind": scope_kind,
+                    "name": scope_name,
+                },
+            }),
+        ));
+    }
+
+    scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    Ok(scored
+        .into_iter()
+        .take(limit)
+        .map(|(_, value)| value)
+        .collect())
+}
+
+async fn local_memd_labels(
+    state: &AppState,
+    user_id: &str,
+    query: Option<&str>,
+    limit: Option<usize>,
+) -> Result<Vec<String>, AppError> {
+    let limit = limit.unwrap_or(50).clamp(1, 100);
+    let rows = sqlx::query(
+        "SELECT e.title, e.kind, s.scope_name \
+         FROM memd_entries e \
+         JOIN memd_scopes s ON s.id = e.scope_id AND s.user_id = e.user_id \
+         WHERE e.user_id = ? AND e.status = 'active' \
+         ORDER BY e.priority DESC, e.updated_at DESC \
+         LIMIT 300",
+    )
+    .bind(user_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let needle = query.unwrap_or_default().trim().to_lowercase();
+    let mut labels: Vec<String> = Vec::new();
+    for row in rows {
+        for key in ["title", "kind", "scope_name"] {
+            let value: String = row.try_get(key)?;
+            let label = value.trim();
+            if label.is_empty() || labels.iter().any(|existing| existing == label) {
+                continue;
+            }
+            if !needle.is_empty() && !label.to_lowercase().contains(&needle) {
+                continue;
+            }
+            labels.push(label.to_string());
+            if labels.len() >= limit {
+                return Ok(labels);
+            }
+        }
+    }
+    Ok(labels)
+}
+
+async fn local_memd_graph(
+    state: &AppState,
+    user_id: &str,
+    label: &str,
+    max_nodes: Option<usize>,
+) -> Result<Value, AppError> {
+    let max_nodes = max_nodes.unwrap_or(120).clamp(1, 500);
+    let needle = label.trim().to_lowercase();
+    let rows = sqlx::query(
+        "SELECT e.id, e.kind, e.title, e.summary, e.content, s.scope_kind, s.scope_name \
+         FROM memd_entries e \
+         JOIN memd_scopes s ON s.id = e.scope_id AND s.user_id = e.user_id \
+         WHERE e.user_id = ? AND e.status = 'active' \
+         ORDER BY e.priority DESC, e.updated_at DESC \
+         LIMIT 300",
+    )
+    .bind(user_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let mut nodes = vec![json!({
+        "id": label,
+        "labels": [label],
+        "properties": {
+            "description": "Local memd graph seed",
+            "entity_type": "seed",
+        },
+    })];
+    let mut edges = Vec::new();
+    let mut is_truncated = false;
+
+    for row in rows {
+        if nodes.len() >= max_nodes {
+            is_truncated = true;
+            break;
+        }
+        let id: String = row.try_get("id")?;
+        let title: String = row.try_get("title")?;
+        let summary: String = row.try_get("summary")?;
+        let content: String = row.try_get("content")?;
+        let kind: String = row.try_get("kind")?;
+        let scope_kind: String = row.try_get("scope_kind")?;
+        let scope_name: String = row.try_get("scope_name")?;
+        let haystack =
+            format!("{title} {summary} {content} {kind} {scope_kind} {scope_name}").to_lowercase();
+        if !needle.is_empty() && !haystack.contains(&needle) {
+            continue;
+        }
+
+        let entry_node_id = format!("memd:{id}");
+        nodes.push(json!({
+            "id": entry_node_id,
+            "labels": [title],
+            "properties": {
+                "description": if summary.trim().is_empty() { snippet(&content) } else { summary },
+                "entity_type": kind,
+            },
+        }));
+        edges.push(json!({
+            "id": format!("seed:{id}"),
+            "source": label,
+            "target": entry_node_id,
+            "properties": {
+                "description": "matches",
+                "weight": 1.0,
+            },
+        }));
+
+        if nodes.len() >= max_nodes {
+            is_truncated = true;
+            break;
+        }
+        let scope_node_id = format!("scope:{scope_kind}:{scope_name}");
+        if !nodes
+            .iter()
+            .any(|node| node.get("id").and_then(Value::as_str) == Some(scope_node_id.as_str()))
+        {
+            nodes.push(json!({
+                "id": scope_node_id,
+                "labels": [scope_name],
+                "properties": {
+                    "description": scope_kind,
+                    "entity_type": "scope",
+                },
+            }));
+        }
+        edges.push(json!({
+            "id": format!("scope:{id}"),
+            "source": entry_node_id,
+            "target": scope_node_id,
+            "properties": {
+                "description": "stored in",
+                "weight": 0.6,
+            },
+        }));
+    }
+
+    Ok(json!({
+        "nodes": nodes,
+        "edges": edges,
+        "is_truncated": is_truncated,
+    }))
 }
 
 async fn search_sidecar(

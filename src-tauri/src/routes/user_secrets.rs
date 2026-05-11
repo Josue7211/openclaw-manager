@@ -269,6 +269,11 @@ async fn migrate_secrets(
             "agentsecrets",
             "client_api_key",
         ),
+        (
+            "SECRET_BROKER_APPROVER_API_KEY",
+            "agentsecrets",
+            "approver_api_key",
+        ),
         ("SUNSHINE_HOST", "sunshine", "url"),
         ("VNC_HOST", "vnc", "url"),
         ("AGENTSHELL_URL", "agentshell", "url"),
@@ -335,6 +340,8 @@ async fn migrate_secrets(
         ("LIGHTRAG_BASE_URL", "lightrag", "base_url"),
         ("LIGHTRAG_API_KEY", "lightrag", "api_key"),
         ("MEMD_RAG_URL", "memd", "rag_url"),
+        ("RAGANYTHING_URL", "raganything", "url"),
+        ("MINERU_URL", "mineru", "url"),
         ("RAG_URL", "rag", "url"),
     ];
 

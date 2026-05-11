@@ -120,7 +120,7 @@ describe('api', () => {
     await api.get('/api/homelab')
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      'http://127.0.0.1:5000/api/homelab',
+      'http://127.0.0.1:3010/api/homelab',
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({ 'X-API-Key': 'local-key' }),
@@ -140,7 +140,7 @@ describe('api', () => {
     await api.get('/api/auth/session')
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      'http://127.0.0.1:5000/api/auth/session',
+      'http://127.0.0.1:3010/api/auth/session',
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({ 'X-API-Key': 'local-key' }),
@@ -162,7 +162,7 @@ describe('api', () => {
 
     expect(globalThis.fetch).toHaveBeenNthCalledWith(
       1,
-      'http://127.0.0.1:5000/api/harness/health',
+      'http://127.0.0.1:3010/api/harness/health',
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({ 'X-API-Key': 'local-key' }),
@@ -170,7 +170,7 @@ describe('api', () => {
     )
     expect(globalThis.fetch).toHaveBeenNthCalledWith(
       2,
-      'http://127.0.0.1:5000/api/agents',
+      'http://127.0.0.1:3010/api/agents',
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({ 'X-API-Key': 'local-key' }),
@@ -488,13 +488,13 @@ describe('resolveDesktopApiBootstrap', () => {
   })
 
   it('falls back to the local embedded backend when no remote target is selected', () => {
-    const configuredBackendBase = import.meta.env.VITE_API_BASE?.replace(/\/+$/, '') || 'http://127.0.0.1:5000'
+    const configuredBackendBase = import.meta.env.VITE_API_BASE?.replace(/\/+$/, '') || 'http://127.0.0.1:3010'
     expect(resolveDesktopApiBootstrap({
       savedApiBase: null,
       localApiKey: 'local-key',
       remoteApiKey: 'remote-key',
     })).toEqual({
-      apiBase: 'http://127.0.0.1:5000',
+      apiBase: 'http://127.0.0.1:3010',
       configuredBackendBase,
       apiKey: 'local-key',
     })

@@ -2,7 +2,7 @@
 
 
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Bell, ArrowsClockwise, WarningCircle } from '@phosphor-icons/react'
+import { Bell, ArrowsClockwise, WarningCircle, Plus, Trash } from '@phosphor-icons/react'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { useTauriQuery } from '@/hooks/useTauriQuery'
@@ -25,13 +25,13 @@ type FilterTab = 'all' | 'today' | 'scheduled' | 'flagged'
 
 function priorityColor(p: number): string {
   if (p === 1) return 'var(--red-bright)'
-  if (p <= 4) return 'var(--amber-warm)'
+  if (p === 5) return 'var(--amber-warm)'
   return 'var(--text-muted)'
 }
 
 function priorityLabel(p: number): string {
   if (p === 1) return '!!'
-  if (p <= 4) return '!'
+  if (p === 5) return '!'
   return ''
 }
 
@@ -69,6 +69,7 @@ function dueColor(dateStr: string | null): string {
 interface RemindersResponse {
   reminders?: Reminder[]
   error?: string
+  message?: string
 }
 
 const DEMO_REMINDERS: Reminder[] = [
@@ -86,14 +87,22 @@ export default function RemindersPage() {
     { enabled: !demo },
   )
 
-  const reminders = demo ? DEMO_REMINDERS : (remindersData?.reminders ?? [])
+  const reminders = demo ? DEMO_REMINDERS : remindersData?.reminders ?? []
+  const bridgeNotConfigured = !demo && remindersData?.error === 'bridge_not_configured'
   const missingCreds = !demo && remindersData?.error === 'missing_credentials'
   const unreachable = !demo && (remindersData?.error === 'bridge_unreachable' || (queryError && !remindersData))
-  const errorMsg = !demo && remindersData?.error && remindersData.error !== 'missing_credentials' && remindersData.error !== 'bridge_unreachable' ? remindersData.error : null
+  const errorMsg = !demo && remindersData?.error && !['missing_credentials', 'bridge_not_configured', 'bridge_unreachable'].includes(remindersData.error) ? remindersData.error : null
 
   const [filter, setFilter] = useState<FilterTab>('all')
   const [secondsAgo, setSecondsAgo] = useState(0)
   const [optimistic, setOptimistic] = useState<Record<string, boolean>>({})
+  const [newTitle, setNewTitle] = useState('')
+  const [newDueDate, setNewDueDate] = useState('')
+  const [newList, setNewList] = useState('Reminders')
+  const [newPriority, setNewPriority] = useState(0)
+  const [newNotes, setNewNotes] = useState('')
+  const [mutationError, setMutationError] = useState<string | null>(null)
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(() => new Set())
 
   const lastRefresh = dataUpdatedAt ? new Date(dataUpdatedAt) : new Date()
 
@@ -108,16 +117,72 @@ export default function RemindersPage() {
     },
   })
 
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      await api.post('/api/reminders', {
+        title: newTitle.trim(),
+        dueDate: newDueDate || null,
+        list: newList.trim() || 'Reminders',
+        priority: newPriority,
+        notes: newNotes.trim(),
+      })
+    },
+    onSuccess: async () => {
+      setNewTitle('')
+      setNewDueDate('')
+      setNewPriority(0)
+      setNewNotes('')
+      setMutationError(null)
+      await refetch()
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.del(`/api/reminders?id=${encodeURIComponent(id)}`)
+    },
+    onSuccess: async () => {
+      setMutationError(null)
+      await refetch()
+    },
+  })
+
+  const createReminder = useCallback(async () => {
+    if (!newTitle.trim() || createMutation.isPending) return
+    try {
+      await createMutation.mutateAsync()
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Could not create Apple Reminder')
+    }
+  }, [createMutation, newDueDate, newList, newNotes, newPriority, newTitle])
+
   const toggle = useCallback(async (id: string, currentCompleted: boolean) => {
     const newVal = !currentCompleted
     setOptimistic(o => ({ ...o, [id]: newVal }))
     try {
       await toggleMutation.mutateAsync({ id, completed: newVal })
+      setMutationError(null)
     } catch {
       // revert on error
       setOptimistic(o => ({ ...o, [id]: currentCompleted }))
+      setMutationError('Could not update reminder')
     }
   }, [toggleMutation])
+
+  const deleteReminder = useCallback(async (id: string) => {
+    setDeletingIds(prev => new Set(prev).add(id))
+    try {
+      await deleteMutation.mutateAsync(id)
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Could not delete reminder')
+    } finally {
+      setDeletingIds(prev => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }
+  }, [deleteMutation])
 
   const displayReminders = useMemo(() => {
     return reminders.map(r => ({ ...r, completed: r.id in optimistic ? optimistic[r.id] : r.completed }))
@@ -147,7 +212,7 @@ export default function RemindersPage() {
     { id: 'flagged', label: 'Flagged', count: displayReminders.filter(r => !r.completed && r.priority === 1).length },
   ], [displayReminders])
 
-  if (missingCreds) {
+  if (missingCreds || bridgeNotConfigured) {
     return (
       <div style={{ maxWidth: '560px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px' }}>
@@ -156,23 +221,31 @@ export default function RemindersPage() {
         </div>
         <div className="card" style={{ padding: '32px', textAlign: 'center' }}>
           <WarningCircle size={32} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
-          <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>iCloud not configured</h2>
+          <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>
+            {bridgeNotConfigured ? 'Mac Bridge not connected' : 'iCloud not configured'}
+          </h2>
           <p style={{ margin: '0 0 20px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            To sync iCloud Reminders, add your credentials to your environment:
+            {bridgeNotConfigured
+              ? 'Connect Mac Bridge in Settings so clawctrl can create, update, and delete Apple Reminders.'
+              : 'To sync iCloud Reminders, add your credentials to your environment:'}
           </p>
-          <div style={{
-            background: 'var(--bg-base)', borderRadius: '8px', border: '1px solid var(--border)',
-            padding: '16px 20px', textAlign: 'left', fontFamily: 'monospace', fontSize: '12px',
-            color: 'var(--text-secondary)', lineHeight: 2,
-          }}>
-            <div><span style={{ color: 'var(--text-muted)' }}># .env.local</span></div>
-            <div>CALDAV_URL=https://caldav.icloud.com</div>
-            <div>CALDAV_USERNAME=your@icloud.com</div>
-            <div>CALDAV_PASSWORD=your-app-specific-password</div>
-          </div>
-          <p style={{ margin: '16px 0 0', fontSize: '11px', color: 'var(--text-muted)' }}>
-            Generate an app-specific password at appleid.apple.com
-          </p>
+          {!bridgeNotConfigured && (
+            <>
+              <div style={{
+                background: 'var(--bg-base)', borderRadius: '8px', border: '1px solid var(--border)',
+                padding: '16px 20px', textAlign: 'left', fontFamily: 'monospace', fontSize: '12px',
+                color: 'var(--text-secondary)', lineHeight: 2,
+              }}>
+                <div><span style={{ color: 'var(--text-muted)' }}># .env.local</span></div>
+                <div>CALDAV_URL=https://caldav.icloud.com</div>
+                <div>CALDAV_USERNAME=your@icloud.com</div>
+                <div>CALDAV_PASSWORD=your-app-specific-password</div>
+              </div>
+              <p style={{ margin: '16px 0 0', fontSize: '11px', color: 'var(--text-muted)' }}>
+                Generate an app-specific password at appleid.apple.com
+              </p>
+            </>
+          )}
         </div>
       </div>
     )
@@ -239,6 +312,139 @@ export default function RemindersPage() {
         ))}
       </div>
 
+      {!errorMsg && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(180px, 1fr) 130px 120px 96px auto',
+          gap: '8px',
+          alignItems: 'center',
+          marginBottom: '16px',
+          padding: '10px',
+          border: '1px solid var(--border)',
+          borderRadius: '8px',
+          background: 'var(--bg-panel)',
+        }}>
+          <input
+            value={newTitle}
+            onChange={e => setNewTitle(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && createReminder()}
+            placeholder="New reminder..."
+            aria-label="New reminder title"
+            style={{
+              minWidth: 0,
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              color: 'var(--text-primary)',
+              padding: '8px 10px',
+              fontSize: '13px',
+              outline: 'none',
+            }}
+          />
+          <input
+            type="date"
+            value={newDueDate}
+            onChange={e => setNewDueDate(e.target.value)}
+            aria-label="New reminder due date"
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              color: 'var(--text-secondary)',
+              padding: '7px 8px',
+              fontSize: '12px',
+              colorScheme: 'dark',
+              minWidth: 0,
+            }}
+          />
+          <input
+            value={newList}
+            onChange={e => setNewList(e.target.value)}
+            aria-label="New reminder list"
+            style={{
+              minWidth: 0,
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              color: 'var(--text-secondary)',
+              padding: '8px 10px',
+              fontSize: '12px',
+              outline: 'none',
+            }}
+          />
+          <select
+            value={newPriority}
+            onChange={e => setNewPriority(Number(e.target.value))}
+            aria-label="New reminder priority"
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              color: 'var(--text-secondary)',
+              padding: '8px 8px',
+              fontSize: '12px',
+              outline: 'none',
+            }}
+          >
+            <option value={0}>None</option>
+            <option value={1}>High</option>
+            <option value={5}>Medium</option>
+            <option value={9}>Low</option>
+          </select>
+          <button
+            type="button"
+            onClick={createReminder}
+            disabled={!newTitle.trim() || createMutation.isPending}
+            aria-label="Create reminder"
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '8px',
+              border: 'none',
+              background: !newTitle.trim() || createMutation.isPending ? 'var(--bg-elevated)' : 'var(--accent)',
+              color: !newTitle.trim() || createMutation.isPending ? 'var(--text-muted)' : 'var(--text-on-color)',
+              cursor: !newTitle.trim() || createMutation.isPending ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Plus size={16} />
+          </button>
+          <input
+            value={newNotes}
+            onChange={e => setNewNotes(e.target.value)}
+            placeholder="Notes"
+            aria-label="New reminder notes"
+            style={{
+              gridColumn: '1 / -1',
+              minWidth: 0,
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              color: 'var(--text-secondary)',
+              padding: '8px 10px',
+              fontSize: '12px',
+              outline: 'none',
+            }}
+          />
+        </div>
+      )}
+
+      {mutationError && (
+        <div style={{
+          marginBottom: '14px',
+          padding: '10px 12px',
+          border: '1px solid var(--red-500-a20)',
+          borderRadius: '8px',
+          background: 'var(--red-500-a12)',
+          color: 'var(--red)',
+          fontSize: '12px',
+        }}>
+          {mutationError}
+        </div>
+      )}
+
       {/* Error — body-level error from backend */}
       {errorMsg && (
         <ErrorState resource="reminders" onRetry={() => refetch()} />
@@ -246,12 +452,14 @@ export default function RemindersPage() {
 
       {/* Error — query failed (backend/Mac Bridge unreachable) */}
       {unreachable && (
-        <div className="card" style={{ padding: '32px', textAlign: 'center' }}>
+        <div className="card" style={{ padding: '32px', textAlign: 'center', marginBottom: '16px' }}>
           <WarningCircle size={32} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
-          <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>Reminders are temporarily unavailable</h2>
+          <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>
+            Reminders are temporarily unavailable
+          </h2>
           <p style={{ margin: '0 0 16px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
             clawctrl could not reach the Mac Bridge service that syncs Apple Reminders from your Mac.
-            Check that your Mac is online and the service is still connected in Settings.
+            New reminders are only created when Apple Reminders accepts them.
           </p>
           <button
             onClick={() => refetch()}
@@ -366,6 +574,27 @@ export default function RemindersPage() {
                               {dueFmt}
                             </span>
                           )}
+                          <button
+                            type="button"
+                            onClick={() => deleteReminder(reminder.id)}
+                            disabled={deletingIds.has(reminder.id)}
+                            aria-label={`Delete "${reminder.title}"`}
+                            style={{
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '6px',
+                              border: '1px solid var(--border)',
+                              background: 'transparent',
+                              color: deletingIds.has(reminder.id) ? 'var(--text-muted)' : 'var(--red)',
+                              cursor: deletingIds.has(reminder.id) ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <Trash size={13} />
+                          </button>
                         </div>
                       )
                     })}

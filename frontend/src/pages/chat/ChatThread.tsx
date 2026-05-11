@@ -7,11 +7,13 @@ import { addWidgetToPage, getDashboardState, setActivePage } from '@/lib/dashboa
 import { saveGeneratedModule } from '@/lib/generated-module-store'
 import { createGeneratedCustomModule } from '@/lib/sidebar-config'
 import {
+  createFallbackProposal,
   extractProposalsFromResponse,
   isInstallableModuleProposal,
   proposalToGeneratedModule,
   type ModuleProposal,
 } from '@/lib/module-proposals'
+import { extractFencedOpenUiLangFromResponse } from '@/lib/openui'
 import { validateModuleProposal } from '@/lib/module-proposal-validator'
 import { ModuleProposalPreview } from './ModuleProposalPreview'
 import { ModulePreview } from './ModulePreview'
@@ -21,10 +23,25 @@ const MarkdownBubble = lazy(() => import('@/components/MarkdownBubble'))
 
 function ChatProposalActions({ text }: { text: string }) {
   const proposals = useMemo<ModuleProposal[]>(() => {
-    return extractProposalsFromResponse(text)
+    const structured = extractProposalsFromResponse(text)
       .map(extracted => validateModuleProposal(extracted))
       .filter(validation => validation.ok && validation.normalized)
       .map(validation => validation.normalized!)
+
+    if (structured.length > 0) return structured
+
+    const openUiLang = extractFencedOpenUiLangFromResponse(text)
+    if (!openUiLang) return []
+
+    return [
+      {
+        ...createFallbackProposal(text),
+        title: 'OpenUI Module',
+        description: 'OpenUI Lang module generated from assistant output.',
+        openUiLang,
+        fallbackMessage: undefined,
+      },
+    ]
   }, [text])
 
   if (proposals.length === 0) return null

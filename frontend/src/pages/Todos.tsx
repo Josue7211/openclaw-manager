@@ -69,7 +69,9 @@ export default function TodosPage() {
 
   const todos = _demo ? localDemoTodos : (todosData?.todos ?? [])
   const [todoInput, setTodoInput] = useState('')
-  const [hasDueDateSupport, setHasDueDateSupport] = useState(_demo)
+  const [todoDueDate, setTodoDueDate] = useState('')
+  const [hasDueDateSupport, setHasDueDateSupport] = useState(true)
+  const [mutationError, setMutationError] = useState<string | null>(null)
 
   // Detect due_date column support
   useEffect(() => {
@@ -95,12 +97,24 @@ export default function TodosPage() {
   const addTodo = async () => {
     if (!todoInput.trim()) return
     if (_demo) {
-      setLocalDemoTodos(prev => [...prev, { id: `demo-${Date.now()}`, text: todoInput.trim(), done: false }])
+      setLocalDemoTodos(prev => [...prev, {
+        id: `demo-${Date.now()}`,
+        text: todoInput.trim(),
+        done: false,
+        due_date: todoDueDate || null,
+      }])
       setTodoInput('')
+      setTodoDueDate('')
       return
     }
-    await addMutation.mutateAsync(todoInput)
-    setTodoInput('')
+    try {
+      await addMutation.mutateAsync({ text: todoInput.trim(), due_date: todoDueDate || null })
+      setTodoInput('')
+      setTodoDueDate('')
+      setMutationError(null)
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Could not add todo')
+    }
   }
 
   const toggleTodo = async (id: string, done: boolean) => {
@@ -108,7 +122,12 @@ export default function TodosPage() {
       setLocalDemoTodos(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))
       return
     }
-    await toggleMutation.mutateAsync({ id, done })
+    try {
+      await toggleMutation.mutateAsync({ id, done })
+      setMutationError(null)
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Could not update todo')
+    }
   }
 
   const deleteTodo = async (id: string) => {
@@ -116,7 +135,12 @@ export default function TodosPage() {
       setLocalDemoTodos(prev => prev.filter(t => t.id !== id))
       return
     }
-    await deleteMutation.mutateAsync(id)
+    try {
+      await deleteMutation.mutateAsync(id)
+      setMutationError(null)
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Could not delete todo')
+    }
   }
 
   const updateDueDate = async (id: string, due_date: string | null) => {
@@ -124,7 +148,12 @@ export default function TodosPage() {
       setLocalDemoTodos(prev => prev.map(t => t.id === id ? { ...t, due_date } : t))
       return
     }
-    await updateDueDateMutation.mutateAsync({ id, due_date })
+    try {
+      await updateDueDateMutation.mutateAsync({ id, due_date })
+      setMutationError(null)
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Could not update due date')
+    }
   }
 
   const pending = todos.filter(t => !t.done)
@@ -168,7 +197,7 @@ export default function TodosPage() {
       </div>
 
       {/* Add input */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) 140px auto', gap: '8px', marginBottom: mutationError ? '10px' : '24px' }}>
         <input
           ref={addInputRef}
           value={todoInput}
@@ -182,10 +211,24 @@ export default function TodosPage() {
             color: 'var(--text-primary)', outline: 'none',
           }}
         />
+        <input
+          type="date"
+          value={todoDueDate}
+          onChange={e => setTodoDueDate(e.target.value)}
+          aria-label="New todo due date"
+          style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: '10px', padding: '9px 10px', fontSize: '12px',
+            color: 'var(--text-muted)', outline: 'none', colorScheme: 'dark',
+          }}
+        />
         <button
           onClick={addTodo}
+          disabled={!todoInput.trim() || addMutation.isPending}
           style={{
-            background: 'var(--secondary)', border: 'none', borderRadius: '10px', color: 'var(--text-on-color)',
+            background: !todoInput.trim() || addMutation.isPending ? 'var(--bg-elevated)' : 'var(--secondary)',
+            border: 'none', borderRadius: '10px',
+            color: !todoInput.trim() || addMutation.isPending ? 'var(--text-muted)' : 'var(--text-on-color)',
             padding: '10px 16px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: '6px',
           }}
@@ -194,6 +237,20 @@ export default function TodosPage() {
           Add
         </button>
       </div>
+
+      {mutationError && (
+        <div style={{
+          marginBottom: '18px',
+          padding: '10px 12px',
+          border: '1px solid var(--red-500-a20)',
+          borderRadius: '8px',
+          background: 'var(--red-500-a12)',
+          color: 'var(--red)',
+          fontSize: '12px',
+        }}>
+          {mutationError}
+        </div>
+      )}
 
       <div aria-live="polite" aria-busy={isLoading && !_demo}>
       {isLoading && !_demo ? (

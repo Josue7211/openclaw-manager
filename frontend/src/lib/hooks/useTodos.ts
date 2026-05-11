@@ -4,6 +4,11 @@ import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import type { Todo } from '@/lib/types'
 
+export interface AddTodoInput {
+  text: string
+  due_date?: string | null
+}
+
 /**
  * Shared todo mutations (add / toggle / delete) with optimistic updates.
  * Used by both Todos.tsx and Personal.tsx.
@@ -16,15 +21,25 @@ export function useTodos() {
   }, [queryClient])
 
   const addMutation = useMutation({
-    mutationFn: async (text: string) => {
-      await api.post('/api/todos', { text })
+    mutationFn: async (input: string | AddTodoInput) => {
+      const payload = typeof input === 'string' ? { text: input } : input
+      await api.post('/api/todos', payload)
     },
-    onMutate: async (text) => {
+    onMutate: async (input) => {
+      const payload = typeof input === 'string' ? { text: input } : input
       await queryClient.cancelQueries({ queryKey: queryKeys.todos })
       const prev = queryClient.getQueryData(queryKeys.todos)
       queryClient.setQueryData(queryKeys.todos, (old: { todos?: Todo[] } | undefined) => ({
         ...old,
-        todos: [...(old?.todos || []), { id: 'temp-' + Date.now(), text, done: false } as Todo],
+        todos: [
+          ...(old?.todos || []),
+          {
+            id: 'temp-' + Date.now(),
+            text: payload.text,
+            done: false,
+            due_date: payload.due_date || null,
+          } as Todo,
+        ],
       }))
       return { prev }
     },

@@ -19,7 +19,7 @@ describe('buildRemoteViewerWsUrl', () => {
     })
 
     expect(buildRemoteViewerWsUrl('https://backend.example.test:8443', 'local-key')).toBe(
-      'ws://127.0.0.1:5000/api/vnc/ws?apiKey=local-key',
+      'ws://127.0.0.1:3010/api/vnc/ws?apiKey=local-key',
     )
   })
 })

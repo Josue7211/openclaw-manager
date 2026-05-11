@@ -29,16 +29,13 @@ export function EmailComposer({
     <section
       aria-label="Compose email"
       style={{
-        position: 'fixed',
-        right: '26px',
-        bottom: '26px',
-        width: 'min(640px, calc(100vw - 52px))',
-        height: 'min(720px, calc(100vh - 90px))',
-        borderRadius: '12px',
-        border: '1px solid var(--border)',
-        background: 'var(--bg-panel)',
-        boxShadow: '0 24px 80px rgba(0,0,0,0.45)',
-        zIndex: 30,
+        flex: 1,
+        minHeight: 0,
+        width: '100%',
+        borderRadius: 0,
+        border: 'none',
+        borderLeft: '1px solid var(--border)',
+        background: 'var(--bg-card-solid)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -52,7 +49,7 @@ export function EmailComposer({
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: '12px',
-          background: 'var(--bg-elevated)',
+          background: 'var(--bg-card-solid)',
         }}
       >
         <div style={{ minWidth: 0 }}>
@@ -110,7 +107,7 @@ export function EmailComposer({
           resize: 'none',
           border: '1px solid var(--border)',
           borderRadius: '10px',
-          background: 'var(--bg-elevated)',
+          background: 'var(--bg-base)',
           color: 'var(--text-primary)',
           padding: '14px',
           fontSize: '14px',
@@ -129,8 +126,14 @@ export function EmailComposer({
           gap: '12px',
         }}
       >
-        <div style={{ color: sendError ? 'var(--danger, #ef4444)' : 'var(--text-muted)', fontSize: '12px', lineHeight: 1.4 }}>
-          {sendError ?? 'Send uses the selected account identity through AgentMail access.'}
+        <div
+          style={{
+            color: sendError ? 'var(--danger, #ef4444)' : 'var(--text-muted)',
+            fontSize: '12px',
+            lineHeight: 1.4,
+          }}
+        >
+          {sendError ?? 'Send uses the selected mailbox identity.'}
         </div>
         <button
           onClick={onSend}
@@ -161,10 +164,10 @@ export function EmailComposer({
 const inputStyle: CSSProperties = {
   width: '100%',
   minWidth: 0,
-  background: 'var(--bg-elevated)',
+  background: 'var(--bg-base)',
   border: '1px solid var(--border)',
   borderRadius: '8px',
-  color: 'var(--text-secondary)',
+  color: 'var(--text-primary)',
   padding: '9px 11px',
   fontSize: '13px',
   outline: 'none',
@@ -175,7 +178,7 @@ const iconButtonStyle: CSSProperties = {
   height: '30px',
   borderRadius: '7px',
   border: '1px solid var(--border)',
-  background: 'var(--bg-panel)',
+  background: 'var(--bg-base)',
   color: 'var(--text-secondary)',
   display: 'inline-flex',
   alignItems: 'center',

@@ -40,6 +40,72 @@ struct APIClient {
         return response.events
     }
 
+    func todos() async throws -> [TodoItem] {
+        let response: TodosResponse = try await request("GET", path: "/api/todos")
+        return response.todos
+    }
+
+    func createTodo(text: String, dueDate: String? = nil) async throws {
+        let _: EmptyResponse = try await request("POST", path: "/api/todos", body: TodoCreateBody(text: text, dueDate: dueDate))
+    }
+
+    func updateTodo(id: String, done: Bool) async throws {
+        let _: EmptyResponse = try await request("PATCH", path: "/api/todos", body: TodoPatchBody(id: id, done: done))
+    }
+
+    func deleteTodo(id: String) async throws {
+        let _: EmptyResponse = try await request("DELETE", path: "/api/todos", body: TodoDeleteBody(id: id))
+    }
+
+    func chatHistory(sessionKey: String) async throws -> [ChatMessage] {
+        let encoded = sessionKey.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? sessionKey
+        let response: ChatHistoryResponse = try await request("GET", path: "/api/chat/history?sessionKey=\(encoded)")
+        return response.messages
+    }
+
+    func sendChat(text: String, sessionKey: String, model: String?) async throws -> ChatSendResponse {
+        try await request("POST", path: "/api/chat", body: ChatSendBody(text: text, images: [], model: model, sessionKey: sessionKey))
+    }
+
+    func conversations(limit: Int = 25) async throws -> [Conversation] {
+        let response: ConversationsResponse = try await request("GET", path: "/api/messages?limit=\(limit)")
+        return response.conversations
+    }
+
+    func messages(conversation: String, limit: Int = 50) async throws -> [MessageItem] {
+        let encoded = conversation.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? conversation
+        let response: MessagesResponse = try await request("GET", path: "/api/messages?conversation=\(encoded)&limit=\(limit)")
+        return response.messages
+    }
+
+    func sendMessage(chatGuid: String, text: String) async throws {
+        let _: EmptyResponse = try await request("POST", path: "/api/messages", body: SendMessageBody(chatGuid: chatGuid, text: text))
+    }
+
+    func approvals() async throws -> ApprovalsResponse {
+        try await request("GET", path: "/api/approvals")
+    }
+
+    func approve(_ id: String) async throws {
+        let _: EmptyResponse = try await request("POST", path: "/api/approvals/\(id)/approve")
+    }
+
+    func reject(_ id: String, reason: String?) async throws {
+        let _: EmptyResponse = try await request("POST", path: "/api/approvals/\(id)/reject", body: ApprovalRejectBody(reason: reason))
+    }
+
+    func remoteStatus() async throws -> RemoteStatus {
+        try await request("GET", path: "/api/remote/status")
+    }
+
+    func vncStatus() async throws -> VNCStatus {
+        try await request("GET", path: "/api/vnc/status")
+    }
+
+    func repairVNC() async throws {
+        let _: EmptyResponse = try await request("POST", path: "/api/vnc/repair", body: VNCRepairBody(target: "all"))
+    }
+
     func quickCapture(_ body: QuickCaptureBody) async throws {
         let _: EmptyResponse = try await request("POST", path: "/api/quick-capture", body: body)
     }
@@ -60,9 +126,15 @@ struct APIClient {
         path: String,
         body: Body?
     ) async throws -> T {
+        let parts = path.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false)
         var url = baseURL
-        for component in path.split(separator: "/") {
+        for component in parts[0].split(separator: "/") {
             url.appendPathComponent(String(component))
+        }
+        if parts.count == 2 {
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            components?.percentEncodedQuery = String(parts[1])
+            url = components?.url ?? url
         }
         var request = URLRequest(url: url)
         request.httpMethod = method

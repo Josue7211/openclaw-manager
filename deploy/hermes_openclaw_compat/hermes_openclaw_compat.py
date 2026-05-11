@@ -17,36 +17,41 @@ from typing import Any, Optional
 
 
 DEFAULT_CHAT_SESSION_ID = "clawcontrol-chat"
-DEFAULT_MODEL = "gpt-5.4"
-DEFAULT_FAVORITE_MODELS = ["gpt-5.4", "gpt-5.4-mini"]
+DEFAULT_MODEL = "gpt-5.5"
+DEFAULT_FAVORITE_MODELS = ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex"]
 DEFAULT_AGENT_LABEL = "Hermes Agent"
 AGENT_ALIAS_MODEL_IDS = {"hermes", "hermes-agent"}
 DEFAULT_RUNTIME_FILENAME = "runtime-config.json"
 MAX_WORKSPACE_FILE_SIZE = 5 * 1024 * 1024
 CORE_WORKSPACE_FILES = [
     "SOUL.md",
+    "memories/MEMORY.md",
+    "memories/USER.md",
+    ".hermes.md",
+    "HERMES.md",
     "AGENTS.md",
-    "USER.md",
-    "IDENTITY.md",
-    "TOOLS.md",
-    "HEARTBEAT.md",
-    "RESEARCH.md",
-    "BOOTSTRAP.md",
     "CLAUDE.md",
-    "GEMINI.md",
+    "agents.md",
+    "claude.md",
+    ".cursorrules",
+]
+HERMES_CURSOR_RULE_DIR = ".cursor/rules"
+MEMD_WORKSPACE_FILES = [
     ".memd/README.md",
     ".memd/COMMANDS.md",
     ".memd/config.json",
-]
-MEMORY_WORKSPACE_FILES = [
     ".memd/wake.md",
     ".memd/mem.md",
     ".memd/events.md",
 ]
-MEMORY_WORKSPACE_DIRS = [
+MEMD_WORKSPACE_DIRS = [
     ".memd/compiled/memory",
     ".memd/compiled/events",
 ]
+HERMES_AGENT_FILE_DIRS = [
+]
+HERMES_AGENT_FILE_SUFFIXES = (".md", ".json", ".yaml", ".yml", ".toml")
+HERMES_AGENT_EXCLUDED_PARTS = {".git", "__pycache__", "node_modules", "dist", "build", ".venv", "venv"}
 
 
 def isoformat_utc(value: Any) -> str:
@@ -322,17 +327,39 @@ class CompatService:
     @property
     def session_db(self):
         if self._session_db is None:
-            hermes_home = self.hermes_home
-            if str(hermes_home) not in sys.path:
-                sys.path.insert(0, str(hermes_home))
+            hermes_code_home = self.hermes_code_home
+            if str(hermes_code_home) not in sys.path:
+                sys.path.insert(0, str(hermes_code_home))
             from hermes_state import SessionDB  # type: ignore
 
             self._session_db = SessionDB()
         return self._session_db
 
     @property
+    def hermes_code_home(self) -> pathlib.Path:
+        configured = os.environ.get("HERMES_CODE_HOME") or os.environ.get("HERMES_AGENT_HOME")
+        if configured:
+            return pathlib.Path(configured)
+        raw_home = pathlib.Path(os.environ.get("HERMES_HOME", str(pathlib.Path.home() / ".hermes")))
+        if raw_home.name == "hermes-agent":
+            return raw_home
+        nested = raw_home / "hermes-agent"
+        if nested.exists():
+            return nested
+        return pathlib.Path.home() / ".hermes" / "hermes-agent"
+
+    @property
     def hermes_home(self) -> pathlib.Path:
-        return pathlib.Path(os.environ.get("HERMES_HOME", str(pathlib.Path.home() / ".hermes" / "hermes-agent")))
+        return self._normalize_hermes_home(
+            pathlib.Path(os.environ.get("HERMES_HOME", str(pathlib.Path.home() / ".hermes")))
+        )
+
+    def _normalize_hermes_home(self, path: pathlib.Path) -> pathlib.Path:
+        if path.name == "hermes-agent":
+            parent = path.parent
+            if (parent / "SOUL.md").exists() or (parent / "memories").exists() or (parent / ".memd").exists():
+                return parent
+        return path
 
     @property
     def workspace_home(self) -> pathlib.Path:
@@ -341,7 +368,7 @@ class CompatService:
             return pathlib.Path(configured)
         hermes_home = self.hermes_home
         parent = hermes_home.parent
-        if (parent / "SOUL.md").exists() or (parent / ".memd").exists():
+        if (parent / "SOUL.md").exists() or (parent / "memories").exists() or (parent / ".memd").exists():
             return parent
         return hermes_home
 
@@ -364,25 +391,60 @@ class CompatService:
         def entry(path: str) -> dict[str, str]:
             return {"name": pathlib.PurePosixPath(path).name, "path": path}
 
-        core_files = [entry(path) for path in CORE_WORKSPACE_FILES if (root / path).is_file()]
+        core_seen = set()
+        core_files = []
+        for path in CORE_WORKSPACE_FILES:
+            if (root / path).is_file() and path not in core_seen:
+                core_files.append(entry(path))
+                core_seen.add(path)
+        cursor_rules = root / HERMES_CURSOR_RULE_DIR
+        if cursor_rules.is_dir():
+            for file in sorted(cursor_rules.glob("*.mdc"), key=lambda p: p.name):
+                rel = f"{HERMES_CURSOR_RULE_DIR}/{file.name}"
+                if rel not in core_seen:
+                    core_files.append(entry(rel))
+                    core_seen.add(rel)
 
         seen = set()
-        memory_paths: list[str] = []
-        for path in MEMORY_WORKSPACE_FILES:
+        memd_paths: list[str] = []
+        for path in MEMD_WORKSPACE_FILES:
             if (root / path).is_file() and path not in seen:
-                memory_paths.append(path)
+                memd_paths.append(path)
                 seen.add(path)
-        for rel_dir in MEMORY_WORKSPACE_DIRS:
+        for rel_dir in MEMD_WORKSPACE_DIRS:
             directory = root / rel_dir
             if not directory.is_dir():
                 continue
             for file in sorted(directory.glob("*.md"), key=lambda p: p.name, reverse=True):
                 rel = f"{rel_dir}/{file.name}"
                 if rel not in seen:
-                    memory_paths.append(rel)
+                    memd_paths.append(rel)
                     seen.add(rel)
 
-        return {"coreFiles": core_files, "memoryFiles": [entry(path) for path in memory_paths]}
+        memory_seen = set(core_seen)
+        memory_paths: list[str] = []
+        for rel_dir in HERMES_AGENT_FILE_DIRS:
+            directory = root / rel_dir
+            if not directory.is_dir():
+                continue
+            for file in sorted(directory.rglob("*"), key=lambda p: str(p.relative_to(root))):
+                if not file.is_file():
+                    continue
+                rel = file.relative_to(root).as_posix()
+                parts = set(pathlib.PurePosixPath(rel).parts)
+                if parts & HERMES_AGENT_EXCLUDED_PARTS:
+                    continue
+                if not rel.endswith(HERMES_AGENT_FILE_SUFFIXES):
+                    continue
+                if rel not in memory_seen:
+                    memory_paths.append(rel)
+                    memory_seen.add(rel)
+
+        return {
+            "coreFiles": core_files,
+            "memoryFiles": [entry(path) for path in memory_paths],
+            "memdFiles": [entry(path) for path in memd_paths],
+        }
 
     def read_workspace_file(self, file_path: str) -> str:
         resolved = self.resolve_workspace_file(file_path)

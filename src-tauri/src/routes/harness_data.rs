@@ -433,10 +433,10 @@ mod tests {
             favorite_models: Some(vec!["openai/gpt-5".into()]),
         };
         let runtime = HarnessRuntimePrefs {
-            chat_primary_model: Some("openai-codex/gpt-5.4".into()),
+            chat_primary_model: Some("openai-codex/gpt-5.2-codex".into()),
             heartbeat_model: None,
             favorite_models: Some(vec![
-                "openai-codex/gpt-5.4".into(),
+                "openai-codex/gpt-5.2-codex".into(),
                 "openai/gpt-5-mini".into(),
             ]),
         };
@@ -445,13 +445,13 @@ mod tests {
 
         assert_eq!(
             prefs.chat_primary_model.as_deref(),
-            Some("openai-codex/gpt-5.4")
+            Some("openai-codex/gpt-5.2-codex")
         );
         assert_eq!(prefs.heartbeat_model.as_deref(), Some("llama-desktop/qwen"));
         assert_eq!(
             prefs.favorite_models,
             Some(vec![
-                "openai-codex/gpt-5.4".into(),
+                "openai-codex/gpt-5.2-codex".into(),
                 "openai/gpt-5-mini".into()
             ])
         );
@@ -475,14 +475,14 @@ mod tests {
     #[test]
     fn parse_runtime_config_value_extracts_expected_fields() {
         let parsed = parse_runtime_config_value(json!({
-            "chatPrimaryModel": "openai-codex/gpt-5.4",
+            "chatPrimaryModel": "openai-codex/gpt-5.2-codex",
             "heartbeatModel": "llama-desktop/qwen",
-            "favoriteModels": ["openai-codex/gpt-5.4", "openai/gpt-5-mini"]
+            "favoriteModels": ["openai-codex/gpt-5.2-codex", "openai/gpt-5-mini"]
         }));
 
         assert_eq!(
             parsed.chat_primary_model.as_deref(),
-            Some("openai-codex/gpt-5.4")
+            Some("openai-codex/gpt-5.2-codex")
         );
         assert_eq!(
             parsed.heartbeat_model.as_deref(),
@@ -491,7 +491,7 @@ mod tests {
         assert_eq!(
             parsed.favorite_models,
             Some(vec![
-                "openai-codex/gpt-5.4".into(),
+                "openai-codex/gpt-5.2-codex".into(),
                 "openai/gpt-5-mini".into()
             ])
         );

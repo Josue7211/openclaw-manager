@@ -59,6 +59,7 @@ const EMPTY_COMPOSE: ComposeState = {
 }
 
 const EMAIL_LIMIT = 100
+const EMAIL_READER_FOCUS_WIDTH = 1200
 
 type EmailQueryResponse = {
   threads?: MailThread[]
@@ -100,7 +101,9 @@ export default function EmailPage() {
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [setupNotice, setSetupNotice] = useState<string | null>(null)
+  const [mailShellWidth, setMailShellWidth] = useState<number | null>(null)
   const accountInitRef = useRef(false)
+  const mailShellRef = useRef<HTMLDivElement | null>(null)
 
   // Load accounts via useQuery
   const { data: accountsData } = useQuery<{ accounts: EmailAccount[] }>({
@@ -118,6 +121,18 @@ export default function EmailPage() {
   const defaultAccount = accounts.find(a => a.is_default) || accounts[0] || null
   const effectiveSelectedAccountId = selectedAccountId ?? defaultAccount?.id ?? null
   const selectedAccount = accounts.find(account => account.id === effectiveSelectedAccountId) ?? defaultAccount
+
+  useEffect(() => {
+    const element = mailShellRef.current
+    if (!element || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(entries => {
+      const width = entries[0]?.contentRect.width
+      if (typeof width === 'number') setMailShellWidth(width)
+    })
+    observer.observe(element)
+    setMailShellWidth(element.getBoundingClientRect().width)
+    return () => observer.disconnect()
+  }, [])
 
   // Initialise selected account from localStorage / default when accounts first load
   useEffect(() => {
@@ -214,6 +229,10 @@ export default function EmailPage() {
       agentmail_inbox_id: acc.agentmail_inbox_id,
       forwarding_status: acc.forwarding_status,
       is_default: acc.is_default,
+      imap_host: acc.imap_host,
+      imap_port: String(acc.imap_port || 993),
+      imap_username: acc.imap_username || acc.address,
+      imap_password: '',
     })
     setFormError(null)
   }
@@ -227,6 +246,19 @@ export default function EmailPage() {
       setFormError('Gmail accounts require an AgentMail access inbox id')
       return
     }
+    if (!form.imap_host.trim()) {
+      setFormError('IMAP host is required for real inbox sync')
+      return
+    }
+    const imapPort = Number(form.imap_port)
+    if (!Number.isInteger(imapPort) || imapPort < 1 || imapPort > 65535) {
+      setFormError('IMAP port must be a valid port number')
+      return
+    }
+    if (!editingAccount && !form.imap_password.trim()) {
+      setFormError('IMAP password is required for real inbox sync')
+      return
+    }
     setFormSaving(true)
     setFormError(null)
     try {
@@ -237,7 +269,11 @@ export default function EmailPage() {
         agentmail_inbox_id: form.agentmail_inbox_id,
         forwarding_status: form.forwarding_status,
         is_default: form.is_default,
+        imap_host: form.imap_host,
+        imap_port: imapPort,
+        imap_username: form.imap_username || form.address,
       }
+      if (form.imap_password.trim()) body.imap_password = form.imap_password
 
       let data: { error?: string }
       if (editingAccount) {
@@ -302,20 +338,35 @@ export default function EmailPage() {
     Drafts: drafts.length,
     Trash: trashedIds.size,
   }
-  const selectedThread = visibleThreads.find(thread => thread.id === selectedThreadId) ?? visibleThreads[0] ?? null
+  const selectedThread = visibleThreads.find(thread => thread.id === selectedThreadId) ?? null
   const selectedThreadAccount = accounts.find(
     account =>
       account.id === (selectedThread?.account_id ?? effectiveSelectedAccountId) ||
       account.agentmail_inbox_id === selectedThread?.account_id,
   )
+  const composerAccount =
+    selectedThreadAccount ?? accounts.find(account => account.id === effectiveSelectedAccountId) ?? null
+  const showDetailColumn =
+    composeOpen ||
+    noMailAccounts ||
+    (!loading &&
+      !error &&
+      !noMailAccounts &&
+      (Boolean(agentmailError) ||
+        missingCreds ||
+        agentmailConnectedEmpty ||
+        selectedThread !== null ||
+        folder === 'Drafts'))
+  const focusReader = Boolean(
+    showDetailColumn &&
+    (composeOpen || selectedThread) &&
+    mailShellWidth !== null &&
+    mailShellWidth < EMAIL_READER_FOCUS_WIDTH,
+  )
 
   useEffect(() => {
-    if (visibleThreads.length === 0) {
-      if (selectedThreadId !== null) setSelectedThreadId(null)
-      return
-    }
-    if (!selectedThreadId || !visibleThreads.some(thread => thread.id === selectedThreadId)) {
-      setSelectedThreadId(visibleThreads[0].id)
+    if (selectedThreadId !== null && !visibleThreads.some(thread => thread.id === selectedThreadId)) {
+      setSelectedThreadId(null)
     }
   }, [selectedThreadId, visibleThreads])
 
@@ -567,12 +618,18 @@ export default function EmailPage() {
       </div>
 
       <div
+        ref={mailShellRef}
         style={{
           display: 'grid',
-          gridTemplateColumns: '238px minmax(520px, 0.95fr) minmax(520px, 1.2fr)',
+          gridTemplateColumns: focusReader
+            ? '238px minmax(0, 1fr)'
+            : showDetailColumn
+              ? '238px minmax(180px, 0.35fr) minmax(0, 1.65fr)'
+              : '238px minmax(0, 1fr)',
           gap: 0,
           alignItems: 'stretch',
-          minHeight: 'calc(100vh - 150px)',
+          flex: 1,
+          minHeight: 0,
           border: '1px solid var(--border)',
           borderRadius: '14px',
           overflow: 'hidden',
@@ -658,164 +715,253 @@ export default function EmailPage() {
           </div>
         </aside>
 
-        <section style={{ minWidth: 0 }}>
-          <div style={listHeaderStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-              <div>
-                <div style={{ fontSize: '15px', fontWeight: 850, color: 'var(--text-primary)' }}>
-                  {FOLDERS.find(f => f.id === folder)?.label ?? 'Inbox'}
+        {!focusReader && (
+          <section style={mailListColumnStyle}>
+            <div style={listHeaderStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                <div>
+                  <div style={{ fontSize: '15px', fontWeight: 850, color: 'var(--text-primary)' }}>
+                    {FOLDERS.find(f => f.id === folder)?.label ?? 'Inbox'}
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    {visibleThreads.length} of {threads.length} messages
+                  </div>
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  {visibleThreads.length} of {threads.length} messages
-                </div>
+                <button
+                  onClick={() => setUnreadOnly(value => !value)}
+                  style={{
+                    ...filterButtonStyle,
+                    borderColor: unreadOnly ? 'var(--accent)' : 'var(--border)',
+                    color: unreadOnly ? 'var(--text-on-color)' : 'var(--text-secondary)',
+                    background: unreadOnly ? 'var(--accent)' : 'var(--bg-elevated)',
+                  }}
+                >
+                  Unread
+                </button>
               </div>
-              <button
-                onClick={() => setUnreadOnly(value => !value)}
-                style={{
-                  ...filterButtonStyle,
-                  borderColor: unreadOnly ? 'var(--accent)' : 'var(--border)',
-                  color: unreadOnly ? 'var(--text-on-color)' : 'var(--text-secondary)',
-                  background: unreadOnly ? 'var(--accent)' : 'var(--bg-elevated)',
-                }}
-              >
-                Unread
-              </button>
+              <label style={searchBoxStyle}>
+                <MagnifyingGlass size={14} style={{ color: 'var(--text-muted)' }} />
+                <input
+                  value={search}
+                  onChange={event => setSearch(event.target.value)}
+                  placeholder="Search mail"
+                  aria-label="Search mail"
+                  style={searchInputStyle}
+                />
+              </label>
             </div>
-            <label style={searchBoxStyle}>
-              <MagnifyingGlass size={14} style={{ color: 'var(--text-muted)' }} />
-              <input
-                value={search}
-                onChange={event => setSearch(event.target.value)}
-                placeholder="Search mail"
-                aria-label="Search mail"
-                style={searchInputStyle}
+
+            {loading && <SkeletonList count={5} lines={2} />}
+            {error && <ErrorState resource="emails" onRetry={() => refetchEmails()} />}
+            {noMailAccounts && (
+              <MailSetupEmptyList
+                onAddAccount={() => {
+                  setManageOpen(true)
+                  openAddForm()
+                }}
               />
-            </label>
-          </div>
+            )}
+            {!noMailAccounts && !loading && !error && agentmailError && (
+              <MailSourceState
+                title={agentmailStatusCopy.title}
+                body={agentmailStatusCopy.body}
+                onRetry={() => refetchEmails()}
+              />
+            )}
+            {!noMailAccounts && !loading && !error && !agentmailError && missingCreds && (
+              <MailSourceState
+                title="Mail account not ready"
+                body="This account needs IMAP host, user, and password credentials in Settings."
+                onRetry={() => refetchEmails()}
+              />
+            )}
+            {!noMailAccounts && !loading && !error && agentmailConnectedEmpty && (
+              <AgentAccessEmptyList
+                account={selectedAccount}
+                onCopyAddress={handleCopyAgentMailAddress}
+                onSendTest={handleSendAgentMailTest}
+              />
+            )}
+            {!noMailAccounts && !loading && !error && !agentmailError && !missingCreds && !agentmailConnectedEmpty && (
+              <EmailList
+                threads={visibleThreads}
+                selectedAccountId={effectiveSelectedAccountId}
+                folder={folder}
+                onInvalidateEmails={invalidateEmails}
+                selectedThreadId={selectedThread?.id ?? null}
+                onSelectThread={thread => setSelectedThreadId(thread.id)}
+                starredIds={starredIds}
+                onToggleStar={toggleStar}
+                emptyTitle={search || unreadOnly || folder === 'Starred' ? 'No matching mail' : 'Inbox empty'}
+                emptyDescription={
+                  search || unreadOnly || folder === 'Starred'
+                    ? 'Clear filters to see the rest of this view.'
+                    : imapSource
+                      ? 'No messages returned from this mailbox yet.'
+                      : 'AgentMail is connected, but this view has no messages yet.'
+                }
+              />
+            )}
+          </section>
+        )}
 
-          {loading && <SkeletonList count={5} lines={2} />}
-          {error && <ErrorState resource="emails" onRetry={() => refetchEmails()} />}
-          {noMailAccounts && (
-            <MailSourceState
-              title="No mail account"
-              body="Add a mailbox account, then refresh."
-              onRetry={() => {
-                void invalidateAccounts()
-                void refetchEmails()
-              }}
-            />
-          )}
-          {!noMailAccounts && !loading && !error && agentmailError && (
-            <MailSourceState
-              title={agentmailStatusCopy.title}
-              body={agentmailStatusCopy.body}
-              onRetry={() => refetchEmails()}
-            />
-          )}
-          {!noMailAccounts && !loading && !error && !agentmailError && missingCreds && (
-            <MailSourceState
-              title="Mail account not ready"
-              body="This account needs IMAP host, user, and password credentials in Settings."
-              onRetry={() => refetchEmails()}
-            />
-          )}
-          {!noMailAccounts && !loading && !error && agentmailConnectedEmpty && (
-            <AgentAccessEmptyList
-              account={selectedAccount}
-              onCopyAddress={handleCopyAgentMailAddress}
-              onSendTest={handleSendAgentMailTest}
-            />
-          )}
-          {!noMailAccounts && !loading && !error && !agentmailError && !missingCreds && !agentmailConnectedEmpty && (
-            <EmailList
-              threads={visibleThreads}
-              selectedAccountId={effectiveSelectedAccountId}
-              folder={folder}
-              onInvalidateEmails={invalidateEmails}
-              selectedThreadId={selectedThread?.id ?? null}
-              onSelectThread={thread => setSelectedThreadId(thread.id)}
-              starredIds={starredIds}
-              onToggleStar={toggleStar}
-              emptyTitle={search || unreadOnly || folder === 'Starred' ? 'No matching mail' : 'Inbox empty'}
-              emptyDescription={
-                search || unreadOnly || folder === 'Starred'
-                  ? 'Clear filters to see the rest of this view.'
-                  : imapSource
-                    ? 'No messages returned from this mailbox yet.'
-                    : 'AgentMail is connected, but this view has no messages yet.'
-              }
-            />
-          )}
-        </section>
-
-        <section style={{ minWidth: 0 }}>
-          {noMailAccounts && (
-            <AgentAccessPanel
-              account={null}
-              notice={setupNotice}
-              onCopyAddress={handleCopyAgentMailAddress}
-              onSendTest={handleSendAgentMailTest}
-              onCompose={() => setManageOpen(true)}
-            />
-          )}
-          {!noMailAccounts && !loading && !error && agentmailError && (
-            <MailSourceState
-              title={agentmailStatusCopy.panelTitle}
-              body={agentmailStatusCopy.panelBody}
-              onRetry={() => refetchEmails()}
-            />
-          )}
-          {!noMailAccounts && !loading && !error && !agentmailError && missingCreds && (
-            <MailSourceState
-              title="No emails loaded"
-              body="Choose a configured mailbox account, then retry."
-              onRetry={() => refetchEmails()}
-            />
-          )}
-          {!noMailAccounts && !loading && !error && agentmailConnectedEmpty && (
-            <AgentAccessPanel
-              account={selectedAccount}
-              notice={setupNotice}
-              onCopyAddress={handleCopyAgentMailAddress}
-              onSendTest={handleSendAgentMailTest}
-              onCompose={() =>
-                openComposer({
-                  to: selectedAccount?.agentmail_inbox_id ?? '',
-                  subject: 'clawctrl mail test',
-                  body: 'Testing the clawctrl mail pipeline.',
-                })
-              }
-            />
-          )}
-          {!noMailAccounts && !loading && !error && !agentmailError && !missingCreds && !agentmailConnectedEmpty && (
-            <ThreadPanel
-              thread={selectedThread}
-              accountLabel={selectedThreadAccount?.label ?? null}
-              onPrepareDraft={handlePrepareDraft}
-              onComposeReply={openReplyComposer}
-              onComposeForward={openForwardComposer}
-              onArchive={archiveSelectedThread}
-              onTrash={trashSelectedThread}
-            />
-          )}
-          {!loading && !error && !agentmailError && !missingCreds && folder === 'Drafts' && (
-            <DraftQueue drafts={drafts} />
-          )}
-        </section>
+        {showDetailColumn && (
+          <section data-testid="mail-detail-column" style={mailDetailColumnStyle}>
+            {composeOpen ? (
+              <EmailComposer
+                open={composeOpen}
+                account={composerAccount}
+                compose={compose}
+                sending={sending}
+                sendError={sendError}
+                onChange={setCompose}
+                onClose={() => setComposeOpen(false)}
+                onSend={handleSendEmail}
+              />
+            ) : (
+              <>
+                {noMailAccounts && (
+                  <MailSetupPanel
+                    onAddProton={() => {
+                      setManageOpen(true)
+                      openAddForm()
+                    }}
+                  />
+                )}
+                {!noMailAccounts && !loading && !error && agentmailError && (
+                  <MailSourceState
+                    title={agentmailStatusCopy.panelTitle}
+                    body={agentmailStatusCopy.panelBody}
+                    onRetry={() => refetchEmails()}
+                  />
+                )}
+                {!noMailAccounts && !loading && !error && !agentmailError && missingCreds && (
+                  <MailSourceState
+                    title="No emails loaded"
+                    body="Choose a configured mailbox account, then retry."
+                    onRetry={() => refetchEmails()}
+                  />
+                )}
+                {!noMailAccounts && !loading && !error && agentmailConnectedEmpty && (
+                  <AgentAccessPanel
+                    account={selectedAccount}
+                    notice={setupNotice}
+                    onCopyAddress={handleCopyAgentMailAddress}
+                    onSendTest={handleSendAgentMailTest}
+                    onCompose={() =>
+                      openComposer({
+                        to: selectedAccount?.agentmail_inbox_id ?? '',
+                        subject: 'clawctrl mail test',
+                        body: 'Testing the clawctrl mail pipeline.',
+                      })
+                    }
+                  />
+                )}
+                {!noMailAccounts &&
+                  !loading &&
+                  !error &&
+                  !agentmailError &&
+                  !missingCreds &&
+                  !agentmailConnectedEmpty &&
+                  selectedThread && (
+                    <ThreadPanel
+                      thread={selectedThread}
+                      accountLabel={selectedThreadAccount?.label ?? null}
+                      onPrepareDraft={handlePrepareDraft}
+                      onComposeReply={openReplyComposer}
+                      onComposeForward={openForwardComposer}
+                      onArchive={archiveSelectedThread}
+                      onTrash={trashSelectedThread}
+                      onClose={() => setSelectedThreadId(null)}
+                    />
+                  )}
+                {!loading && !error && !agentmailError && !missingCreds && folder === 'Drafts' && (
+                  <DraftQueue drafts={drafts} />
+                )}
+              </>
+            )}
+          </section>
+        )}
       </div>
 
-      <EmailComposer
-        open={composeOpen}
-        account={selectedThreadAccount ?? accounts.find(account => account.id === effectiveSelectedAccountId) ?? null}
-        compose={compose}
-        sending={sending}
-        sendError={sendError}
-        onChange={setCompose}
-        onClose={() => setComposeOpen(false)}
-        onSend={handleSendEmail}
-      />
-
       {managePanelNode}
+    </div>
+  )
+}
+
+function MailSetupEmptyList({ onAddAccount }: { onAddAccount: () => void }) {
+  return (
+    <div style={mailSourceStateStyle}>
+      <div style={mailSourceIconStyle}>
+        <WarningCircle size={24} />
+      </div>
+      <div style={{ fontSize: '16px', fontWeight: 850, color: 'var(--text-primary)' }}>No mail account</div>
+      <p
+        style={{
+          maxWidth: '440px',
+          margin: '8px auto 18px',
+          color: 'var(--text-secondary)',
+          fontSize: '13px',
+          lineHeight: 1.6,
+        }}
+      >
+        Add Proton Bridge or another IMAP account to load your real inbox here.
+      </p>
+      <button
+        onClick={onAddAccount}
+        style={{ ...topButtonStyle, background: 'var(--accent)', color: 'var(--text-on-color)' }}
+      >
+        <Gear size={13} />
+        Add account
+      </button>
+    </div>
+  )
+}
+
+function MailSetupPanel({ onAddProton }: { onAddProton: () => void }) {
+  return (
+    <div style={agentmailSetupPanelStyle}>
+      <div style={setupHeroStyle}>
+        <div style={mailSourceIconStyle}>
+          <Envelope size={24} />
+        </div>
+        <div style={{ color: 'var(--text-muted)', fontSize: '11px', fontWeight: 850, textTransform: 'uppercase' }}>
+          Mail setup
+        </div>
+        <h2 style={{ margin: '8px 0 8px', fontSize: '24px', color: 'var(--text-primary)' }}>Connect your real inbox</h2>
+        <p style={{ margin: 0, maxWidth: '620px', color: 'var(--text-secondary)', fontSize: '13px', lineHeight: 1.7 }}>
+          Start with Proton Bridge, then add Gmail or Hotmail later using the same IMAP account flow.
+        </p>
+      </div>
+
+      <div style={setupGridStyle}>
+        <div style={setupCardStyle}>
+          <div style={setupStepStyle}>1</div>
+          <h3 style={setupCardTitleStyle}>Open Proton Bridge</h3>
+          <p style={setupCardBodyStyle}>
+            Bridge must be running locally. ClawControl defaults to 127.0.0.1:1143 for Proton IMAP.
+          </p>
+        </div>
+        <div style={setupCardStyle}>
+          <div style={setupStepStyle}>2</div>
+          <h3 style={setupCardTitleStyle}>Add Proton account</h3>
+          <p style={setupCardBodyStyle}>Paste the Bridge username and mailbox password from Proton Bridge.</p>
+          <button
+            onClick={onAddProton}
+            style={{ ...topButtonStyle, background: 'var(--accent)', color: 'var(--text-on-color)' }}
+          >
+            Add Proton
+          </button>
+        </div>
+        <div style={setupCardStyle}>
+          <div style={setupStepStyle}>3</div>
+          <h3 style={setupCardTitleStyle}>Refresh inbox</h3>
+          <p style={setupCardBodyStyle}>
+            Once saved, the inbox list loads directly through IMAP. AgentMail can stay empty unless you want agent
+            access.
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1003,9 +1149,11 @@ function MailSourceState({ title, body, onRetry }: { title: string; body: string
 const mailPageStyle: CSSProperties = {
   width: '100%',
   maxWidth: 'none',
-  minHeight: 'calc(100vh - 96px)',
+  height: '100%',
+  minHeight: 0,
   display: 'flex',
   flexDirection: 'column',
+  overflow: 'hidden',
 }
 
 const mailTopbarStyle: CSSProperties = {
@@ -1013,6 +1161,7 @@ const mailTopbarStyle: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'space-between',
   marginBottom: '14px',
+  flexShrink: 0,
 }
 
 const topButtonStyle: CSSProperties = {
@@ -1032,9 +1181,25 @@ const topButtonStyle: CSSProperties = {
 const mailSidebarStyle: CSSProperties = {
   borderRight: '1px solid var(--border)',
   background: 'var(--bg-elevated)',
-  overflow: 'hidden',
-  minHeight: 'calc(100vh - 150px)',
+  overflowY: 'auto',
+  minHeight: 0,
   padding: '16px 12px',
+}
+
+const mailListColumnStyle: CSSProperties = {
+  minWidth: 0,
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  overflow: 'hidden',
+}
+
+const mailDetailColumnStyle: CSSProperties = {
+  minWidth: 0,
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  overflow: 'hidden',
 }
 
 const composeButtonStyle: CSSProperties = {
@@ -1111,6 +1276,7 @@ const listHeaderStyle: CSSProperties = {
   padding: '14px',
   display: 'grid',
   gap: '10px',
+  flexShrink: 0,
 }
 
 const searchBoxStyle: CSSProperties = {

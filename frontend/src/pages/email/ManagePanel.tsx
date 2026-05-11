@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
 import type { EmailAccount, AccountForm } from './types'
-import { providerNeedsAgentMailAccess } from './types'
+import { providerImapDefaults, providerNeedsAgentMailAccess } from './types'
 
 interface ManagePanelProps {
   accounts: EmailAccount[]
@@ -160,7 +160,8 @@ export function ManagePanel({
                         ? 'linked'
                         : providerNeedsAgentMailAccess(acc.provider)
                           ? 'required'
-                          : 'not linked'}
+                          : 'not linked'}{' '}
+                      · IMAP {acc.imap_configured ? 'ready' : 'needs setup'}
                     </div>
                   </div>
                   {acc.is_default && (
@@ -254,13 +255,25 @@ export function ManagePanel({
                 <select
                   style={inputStyle}
                   value={form.provider}
-                  onChange={e => onSetForm(f => ({ ...f, provider: e.target.value }))}
+                  onChange={e =>
+                    onSetForm(f => {
+                      const provider = e.target.value
+                      const defaults = providerImapDefaults(provider)
+                      return {
+                        ...f,
+                        provider,
+                        imap_host: defaults.imap_host,
+                        imap_port: defaults.imap_port,
+                      }
+                    })
+                  }
                   aria-label="Mail provider"
                 >
                   <option value="proton">Proton</option>
                   <option value="gmail">Gmail</option>
                   <option value="icloud">iCloud</option>
                   <option value="outlook">Outlook</option>
+                  <option value="hotmail">Hotmail</option>
                   <option value="fastmail">Fastmail</option>
                   <option value="imap">Custom IMAP</option>
                 </select>
@@ -274,6 +287,67 @@ export function ManagePanel({
                   onChange={e => onSetForm(f => ({ ...f, address: e.target.value }))}
                   aria-label="Account address"
                 />
+              </div>
+              <div
+                style={{
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-panel)',
+                  padding: '12px',
+                  display: 'grid',
+                  gap: '10px',
+                }}
+              >
+                <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary)' }}>
+                  Real inbox sync
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 86px', gap: '8px' }}>
+                  <div>
+                    <label style={labelStyle}>IMAP host</label>
+                    <input
+                      style={inputStyle}
+                      placeholder="127.0.0.1 for Proton Bridge"
+                      value={form.imap_host}
+                      onChange={e => onSetForm(f => ({ ...f, imap_host: e.target.value }))}
+                      aria-label="IMAP host"
+                    />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Port</label>
+                    <input
+                      style={inputStyle}
+                      inputMode="numeric"
+                      placeholder="993"
+                      value={form.imap_port}
+                      onChange={e => onSetForm(f => ({ ...f, imap_port: e.target.value }))}
+                      aria-label="IMAP port"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label style={labelStyle}>IMAP username</label>
+                  <input
+                    style={inputStyle}
+                    placeholder="Usually your email address"
+                    value={form.imap_username}
+                    onChange={e => onSetForm(f => ({ ...f, imap_username: e.target.value }))}
+                    aria-label="IMAP username"
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>IMAP password</label>
+                  <input
+                    style={inputStyle}
+                    type="password"
+                    placeholder={editingAccount?.imap_configured ? 'Leave blank to keep saved password' : 'App or Bridge password'}
+                    value={form.imap_password}
+                    onChange={e => onSetForm(f => ({ ...f, imap_password: e.target.value }))}
+                    aria-label="IMAP password"
+                  />
+                </div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '11px', lineHeight: 1.45 }}>
+                  Proton needs Proton Mail Bridge running. Default Bridge IMAP is 127.0.0.1:1143.
+                </div>
               </div>
               <div>
                 <label style={labelStyle}>AgentMail Access Inbox ID</label>

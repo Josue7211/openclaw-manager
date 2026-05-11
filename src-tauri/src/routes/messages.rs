@@ -2,7 +2,7 @@ use axum::{
     extract::{Query, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{delete, get, post},
     Json, Router,
 };
 use regex::Regex;
@@ -11,9 +11,11 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::net::ToSocketAddrs;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
-use tokio::sync::RwLock;
+use subtle::ConstantTimeEq;
+use tokio::sync::{broadcast, RwLock};
 
 use std::sync::Arc;
 
@@ -21,6 +23,19 @@ use super::util::{base64_decode, percent_encode, random_uuid};
 use crate::server::{AppState, RequireAuth};
 
 const BLUEBUBBLES_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
+
+static BLUEBUBBLES_EVENT_TX: OnceLock<broadcast::Sender<Value>> = OnceLock::new();
+
+fn bluebubbles_event_tx() -> &'static broadcast::Sender<Value> {
+    BLUEBUBBLES_EVENT_TX.get_or_init(|| {
+        let (tx, _) = broadcast::channel(512);
+        tx
+    })
+}
+
+fn subscribe_bluebubbles_events() -> broadcast::Receiver<Value> {
+    bluebubbles_event_tx().subscribe()
+}
 
 // ---------------------------------------------------------------------------
 // Environment / configuration helpers
@@ -312,10 +327,20 @@ struct AvatarCache {
     fetched_at: std::time::Instant,
 }
 
+struct ChatAvatarCache {
+    map: HashMap<String, Arc<Vec<u8>>>,
+    fetched_at: std::time::Instant,
+}
+
 static AVATAR_CACHE: OnceLock<RwLock<Option<AvatarCache>>> = OnceLock::new();
+static CHAT_AVATAR_CACHE: OnceLock<RwLock<Option<ChatAvatarCache>>> = OnceLock::new();
 
 fn avatar_cache() -> &'static RwLock<Option<AvatarCache>> {
     AVATAR_CACHE.get_or_init(|| RwLock::new(None))
+}
+
+fn chat_avatar_cache() -> &'static RwLock<Option<ChatAvatarCache>> {
+    CHAT_AVATAR_CACHE.get_or_init(|| RwLock::new(None))
 }
 
 const AVATAR_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(10 * 60);
@@ -453,6 +478,250 @@ fn to_jpeg(data: &[u8]) -> Result<Vec<u8>, String> {
     img.write_to(&mut buf, image::ImageFormat::Jpeg)
         .map_err(|e| format!("jpeg encode: {}", e))?;
     Ok(buf.into_inner())
+}
+
+fn image_content_type(data: &[u8]) -> &'static str {
+    if data.starts_with(b"\x89PNG\r\n\x1a\n") {
+        "image/png"
+    } else if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a") {
+        "image/gif"
+    } else if data.starts_with(b"RIFF") && data.get(8..12) == Some(b"WEBP") {
+        "image/webp"
+    } else {
+        "image/jpeg"
+    }
+}
+
+fn is_supported_image_bytes(data: &[u8]) -> bool {
+    data.starts_with(b"\xff\xd8\xff")
+        || data.starts_with(b"\x89PNG\r\n\x1a\n")
+        || data.starts_with(b"GIF87a")
+        || data.starts_with(b"GIF89a")
+        || (data.starts_with(b"RIFF") && data.get(8..12) == Some(b"WEBP"))
+}
+
+fn image_response(buf: Arc<Vec<u8>>) -> Response {
+    (
+        [
+            (header::CONTENT_TYPE, image_content_type(buf.as_ref())),
+            (header::CACHE_CONTROL, "public, max-age=3600"),
+        ],
+        buf.as_ref().clone(),
+    )
+        .into_response()
+}
+
+fn messages_db_path() -> Option<PathBuf> {
+    let path = dirs::home_dir()?.join("Library/Messages/chat.db");
+    path.is_file().then_some(path)
+}
+
+fn expand_messages_path(raw: &str) -> Option<PathBuf> {
+    if let Some(rest) = raw.strip_prefix("~/") {
+        Some(dirs::home_dir()?.join(rest))
+    } else {
+        Some(PathBuf::from(raw))
+    }
+}
+
+fn messages_attachment_root() -> Option<PathBuf> {
+    Some(dirs::home_dir()?.join("Library/Messages/Attachments"))
+}
+
+fn is_messages_attachment_path(path: &Path) -> bool {
+    let Ok(path) = path.canonicalize() else {
+        return false;
+    };
+    let Some(root) = messages_attachment_root().and_then(|root| root.canonicalize().ok()) else {
+        return false;
+    };
+    path.starts_with(root)
+}
+
+fn extract_group_photo_guid(properties: &[u8]) -> Option<String> {
+    let plist = plist::Value::from_reader(Cursor::new(properties)).ok()?;
+    let guid = plist
+        .as_dictionary()?
+        .get("groupPhotoGuid")?
+        .as_string()?
+        .trim();
+    (!guid.is_empty()).then(|| guid.to_string())
+}
+
+async fn cache_chat_avatar(chat_key: &str, avatar: Arc<Vec<u8>>) {
+    let mut cache = chat_avatar_cache().write().await;
+    let now = std::time::Instant::now();
+    let cache = cache.get_or_insert_with(|| ChatAvatarCache {
+        map: HashMap::new(),
+        fetched_at: now,
+    });
+    if cache.fetched_at.elapsed() > AVATAR_CACHE_TTL {
+        cache.map.clear();
+        cache.fetched_at = now;
+    }
+    cache.map.insert(chat_key.to_string(), avatar);
+}
+
+async fn get_local_messages_group_avatar(chat_guid: &str) -> Option<Arc<Vec<u8>>> {
+    let db_path = messages_db_path()?;
+    let url = format!("sqlite://{}?mode=ro", db_path.display());
+    let pool = match sqlx::SqlitePool::connect(&url).await {
+        Ok(pool) => pool,
+        Err(err) => {
+            tracing::debug!("Messages group avatar DB open failed: {}", err);
+            return None;
+        }
+    };
+
+    let properties: Vec<u8> = match sqlx::query_scalar(
+        "SELECT properties FROM chat WHERE guid = ? OR chat_identifier = ? LIMIT 1",
+    )
+    .bind(chat_guid)
+    .bind(chat_guid)
+    .fetch_optional(&pool)
+    .await
+    {
+        Ok(Some(properties)) => properties,
+        Ok(None) => return None,
+        Err(err) => {
+            tracing::debug!("Messages group avatar properties query failed: {}", err);
+            return None;
+        }
+    };
+
+    let Some(group_photo_guid) = extract_group_photo_guid(&properties) else {
+        return None;
+    };
+
+    let filename: String =
+        match sqlx::query_scalar("SELECT filename FROM attachment WHERE guid = ? LIMIT 1")
+            .bind(&group_photo_guid)
+            .fetch_optional(&pool)
+            .await
+        {
+            Ok(Some(filename)) => filename,
+            Ok(None) => return None,
+            Err(err) => {
+                tracing::debug!("Messages group avatar attachment query failed: {}", err);
+                return None;
+            }
+        };
+
+    let path = expand_messages_path(&filename)?;
+    if !is_messages_attachment_path(&path) {
+        tracing::warn!("Rejected Messages group avatar outside attachment root");
+        return None;
+    }
+
+    let data = match tokio::fs::read(&path).await {
+        Ok(data) if !data.is_empty() && data.len() <= MAX_AVATAR_BYTES => data,
+        Ok(_) => return None,
+        Err(err) => {
+            tracing::debug!("Messages group avatar read failed: {}", err);
+            return None;
+        }
+    };
+
+    if is_supported_image_bytes(&data) {
+        Some(Arc::new(data))
+    } else {
+        to_jpeg(&data).ok().map(|jpeg| Arc::new(jpeg))
+    }
+}
+
+fn maybe_base64_image(value: &Value) -> Option<Vec<u8>> {
+    let raw = value.as_str()?.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let raw = raw
+        .strip_prefix("data:image/jpeg;base64,")
+        .or_else(|| raw.strip_prefix("data:image/jpg;base64,"))
+        .or_else(|| raw.strip_prefix("data:image/png;base64,"))
+        .or_else(|| raw.strip_prefix("data:image/gif;base64,"))
+        .or_else(|| raw.strip_prefix("data:image/webp;base64,"))
+        .unwrap_or(raw);
+    let decoded = base64_decode(raw)?;
+    is_supported_image_bytes(&decoded).then_some(decoded)
+}
+
+fn extract_embedded_avatar(value: &Value) -> Option<Vec<u8>> {
+    const KEYS: &[&str] = &[
+        "avatar",
+        "groupAvatar",
+        "groupPhoto",
+        "photo",
+        "image",
+        "icon",
+        "chatIcon",
+        "displayPhoto",
+    ];
+
+    match value {
+        Value::Object(map) => {
+            for key in KEYS {
+                if let Some(candidate) = map.get(*key) {
+                    if let Some(buf) = maybe_base64_image(candidate) {
+                        return Some(buf);
+                    }
+                    if let Some(buf) = candidate
+                        .get("data")
+                        .or_else(|| candidate.get("base64"))
+                        .and_then(maybe_base64_image)
+                    {
+                        return Some(buf);
+                    }
+                }
+            }
+            map.values().find_map(extract_embedded_avatar)
+        }
+        Value::Array(items) => items.iter().find_map(extract_embedded_avatar),
+        _ => maybe_base64_image(value),
+    }
+}
+
+async fn store_chat_avatars(chats: &[Value]) {
+    let mut map: HashMap<String, Arc<Vec<u8>>> = HashMap::new();
+    let mut total_bytes = 0usize;
+    for chat in chats {
+        let Some(bytes) = extract_embedded_avatar(chat) else {
+            continue;
+        };
+        if bytes.is_empty()
+            || bytes.len() > MAX_AVATAR_BYTES
+            || total_bytes + bytes.len() > MAX_CACHE_BYTES
+        {
+            continue;
+        }
+        let arc = Arc::new(bytes);
+        for key in [
+            chat.get("guid").and_then(Value::as_str),
+            chat.get("chatIdentifier").and_then(Value::as_str),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if !key.trim().is_empty() {
+                map.insert(key.to_string(), Arc::clone(&arc));
+            }
+        }
+        total_bytes += arc.len();
+    }
+
+    let mut cache = chat_avatar_cache().write().await;
+    *cache = Some(ChatAvatarCache {
+        map,
+        fetched_at: std::time::Instant::now(),
+    });
+}
+
+async fn get_cached_chat_avatar(chat_key: &str) -> Option<Arc<Vec<u8>>> {
+    let cache = chat_avatar_cache().read().await;
+    let cache = cache.as_ref()?;
+    if cache.fetched_at.elapsed() > AVATAR_CACHE_TTL {
+        return None;
+    }
+    cache.map.get(chat_key).cloned()
 }
 
 // ---------------------------------------------------------------------------
@@ -638,12 +907,14 @@ async fn fetch_and_build_conversations(
         "offset": 0,
         "sort": "lastmessage",
         "with": ["lastMessage", "participants"],
+        "extraProperties": ["avatar", "groupAvatar", "groupPhoto", "photo", "image", "icon"],
     });
     let chat_query_p2 = json!({
         "limit": 1000,
         "offset": 1000,
         "sort": "lastmessage",
         "with": ["lastMessage", "participants"],
+        "extraProperties": ["avatar", "groupAvatar", "groupPhoto", "photo", "image", "icon"],
     });
 
     let now_ms = chrono::Utc::now().timestamp_millis();
@@ -695,6 +966,7 @@ async fn fetch_and_build_conversations(
     let page2_arr = chats_p2.as_array().cloned().unwrap_or_default();
     chats_arr.extend(page2_arr);
     let recent_arr = recent_result.as_array().cloned().unwrap_or_default();
+    store_chat_avatars(&chats_arr).await;
 
     tracing::info!(
         "BB fetch: {} chats, {} recent messages, {} contacts",
@@ -1473,6 +1745,7 @@ async fn post_message(
         "chatGuid": chat_guid,
         "tempGuid": format!("temp-{}", random_uuid()),
         "message": text,
+        "method": "private-api",
     });
     if let Some(ref reply_guid) = body.selected_message_guid {
         send_body
@@ -1502,6 +1775,70 @@ async fn post_message(
     }
 }
 
+#[derive(Deserialize)]
+struct TypingBody {
+    #[serde(rename = "chatGuid")]
+    chat_guid: Option<String>,
+}
+
+async fn post_typing(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Json(body): Json<TypingBody>,
+) -> Response {
+    let chat_guid = match body.chat_guid {
+        Some(g) if !g.is_empty() && chat_guid_re().is_match(&g) => g,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": "Invalid chatGuid" })),
+            )
+                .into_response()
+        }
+    };
+    let path = format!("/chat/{}/typing", percent_encode(&chat_guid));
+    match bb_fetch(&state.http, &state, &path, reqwest::Method::POST, None).await {
+        Ok(_) => Json(json!({ "ok": true })).into_response(),
+        Err(e) => {
+            tracing::error!("BlueBubbles typing start error: {}", e);
+            (
+                StatusCode::BAD_GATEWAY,
+                Json(json!({ "error": "Failed to start typing" })),
+            )
+                .into_response()
+        }
+    }
+}
+
+async fn delete_typing(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Json(body): Json<TypingBody>,
+) -> Response {
+    let chat_guid = match body.chat_guid {
+        Some(g) if !g.is_empty() && chat_guid_re().is_match(&g) => g,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": "Invalid chatGuid" })),
+            )
+                .into_response()
+        }
+    };
+    let path = format!("/chat/{}/typing", percent_encode(&chat_guid));
+    match bb_fetch(&state.http, &state, &path, reqwest::Method::DELETE, None).await {
+        Ok(_) => Json(json!({ "ok": true })).into_response(),
+        Err(e) => {
+            tracing::error!("BlueBubbles typing stop error: {}", e);
+            (
+                StatusCode::BAD_GATEWAY,
+                Json(json!({ "error": "Failed to stop typing" })),
+            )
+                .into_response()
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // TODO: Extract into `avatars.rs` — avatar fetching, batch avatar endpoint,
 // and avatar cache (~120 lines).
@@ -1512,6 +1849,8 @@ async fn post_message(
 #[derive(Deserialize)]
 struct AvatarQuery {
     address: Option<String>,
+    #[serde(rename = "chatGuid")]
+    chat_guid: Option<String>,
 }
 
 async fn get_avatar(
@@ -1519,6 +1858,23 @@ async fn get_avatar(
     RequireAuth(_session): RequireAuth,
     Query(params): Query<AvatarQuery>,
 ) -> Response {
+    if let Some(chat_guid) = params
+        .chat_guid
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
+        if !chat_guid_re().is_match(chat_guid) {
+            return StatusCode::NOT_FOUND.into_response();
+        }
+        if let Some(buf) = get_cached_chat_avatar(chat_guid).await {
+            return image_response(buf);
+        }
+        if let Some(buf) = get_local_messages_group_avatar(chat_guid).await {
+            cache_chat_avatar(chat_guid, Arc::clone(&buf)).await;
+            return image_response(buf);
+        }
+    }
+
     let address = match &params.address {
         Some(a) if !a.is_empty() => a.clone(),
         _ => return StatusCode::NOT_FOUND.into_response(),
@@ -1531,14 +1887,7 @@ async fn get_avatar(
     let avatars = get_bb_contact_avatars(&state.http, &state).await;
     let avatar = avatars.get(&normalized).or_else(|| avatars.get(&lowered));
     if let Some(buf) = avatar {
-        return (
-            [
-                (header::CONTENT_TYPE, "image/jpeg"),
-                (header::CACHE_CONTROL, "public, max-age=3600"),
-            ],
-            buf.as_ref().clone(),
-        )
-            .into_response();
+        return image_response(Arc::clone(buf));
     }
 
     // 2) Try MAC_BRIDGE (may return TIFF — convert to JPEG)
@@ -1559,14 +1908,7 @@ async fn get_avatar(
                     if !image_data.is_empty() {
                         match to_jpeg(&image_data) {
                             Ok(jpeg) => {
-                                return (
-                                    [
-                                        (header::CONTENT_TYPE, "image/jpeg"),
-                                        (header::CACHE_CONTROL, "public, max-age=3600"),
-                                    ],
-                                    jpeg,
-                                )
-                                    .into_response();
+                                return image_response(Arc::new(jpeg));
                             }
                             Err(e) => {
                                 tracing::warn!("Avatar TIFF->JPEG conversion failed: {}", e);
@@ -2461,6 +2803,109 @@ async fn post_react(
 }
 
 // ---------------------------------------------------------------------------
+// Message destructive actions — private API backed.
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+struct MessageActionBody {
+    #[serde(rename = "chatGuid")]
+    chat_guid: Option<String>,
+    #[serde(rename = "messageGuid")]
+    message_guid: Option<String>,
+    #[serde(rename = "partIndex")]
+    part_index: Option<u32>,
+}
+
+fn validate_message_action(body: &MessageActionBody) -> Result<(String, String, u32), Response> {
+    let chat_guid = match &body.chat_guid {
+        Some(g) if !g.is_empty() => g.clone(),
+        _ => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": "chatGuid and messageGuid are required" })),
+            )
+                .into_response())
+        }
+    };
+    let message_guid = match &body.message_guid {
+        Some(g) if !g.is_empty() => g.clone(),
+        _ => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": "chatGuid and messageGuid are required" })),
+            )
+                .into_response())
+        }
+    };
+    if !chat_guid_re().is_match(&chat_guid) || !message_guid_re().is_match(&message_guid) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "Invalid GUID format" })),
+        )
+            .into_response());
+    }
+    Ok((chat_guid, message_guid, body.part_index.unwrap_or(0)))
+}
+
+async fn delete_message(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Json(body): Json<MessageActionBody>,
+) -> Response {
+    let (chat_guid, message_guid, _) = match validate_message_action(&body) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let path = format!(
+        "/chat/{}/{}",
+        percent_encode(&chat_guid),
+        percent_encode(&message_guid)
+    );
+    match bb_fetch(&state.http, &state, &path, reqwest::Method::DELETE, None).await {
+        Ok(data) => Json(json!({ "ok": true, "message": data })).into_response(),
+        Err(e) => {
+            tracing::error!("BlueBubbles delete message error: {}", e);
+            (
+                StatusCode::BAD_GATEWAY,
+                Json(json!({ "error": "Failed to delete message" })),
+            )
+                .into_response()
+        }
+    }
+}
+
+async fn post_unsend_message(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Json(body): Json<MessageActionBody>,
+) -> Response {
+    let (_, message_guid, part_index) = match validate_message_action(&body) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let path = format!("/message/{}/unsend", percent_encode(&message_guid));
+    match bb_fetch(
+        &state.http,
+        &state,
+        &path,
+        reqwest::Method::POST,
+        Some(json!({ "partIndex": part_index })),
+    )
+    .await
+    {
+        Ok(data) => Json(json!({ "ok": true, "message": data })).into_response(),
+        Err(e) => {
+            tracing::error!("BlueBubbles unsend message error: {}", e);
+            (
+                StatusCode::BAD_GATEWAY,
+                Json(json!({ "error": "Failed to undo send" })),
+            )
+                .into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // POST /messages/read — mark a chat as read or unread
 // ---------------------------------------------------------------------------
 
@@ -2706,6 +3151,7 @@ async fn post_send_attachment(
 
     write_text_field(&mut body_bytes, &boundary, "chatGuid", &chat_guid);
     write_text_field(&mut body_bytes, &boundary, "tempGuid", &temp_guid);
+    write_text_field(&mut body_bytes, &boundary, "method", "private-api");
     write_text_field(&mut body_bytes, &boundary, "name", &fname);
     if !message.is_empty() {
         write_text_field(&mut body_bytes, &boundary, "message", &message);
@@ -2816,6 +3262,109 @@ impl Drop for MsgSseConnectionGuard {
     }
 }
 
+#[derive(Debug, Deserialize, Default)]
+struct BlueBubblesWebhookQuery {
+    token: Option<String>,
+    password: Option<String>,
+}
+
+fn webhook_query_token(query: &BlueBubblesWebhookQuery) -> Option<&str> {
+    query
+        .token
+        .as_deref()
+        .or(query.password.as_deref())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn webhook_token_matches(
+    state: &AppState,
+    query: &BlueBubblesWebhookQuery,
+    payload: &Value,
+) -> bool {
+    let expected = bb_password(state);
+    if expected.is_empty() {
+        return false;
+    }
+    let provided = webhook_query_token(query)
+        .or_else(|| payload.get("token").and_then(|v| v.as_str()))
+        .or_else(|| payload.get("password").and_then(|v| v.as_str()))
+        .unwrap_or("");
+    !provided.is_empty() && provided.as_bytes().ct_eq(expected.as_bytes()).into()
+}
+
+fn webhook_kind(payload: &Value) -> String {
+    payload
+        .get("type")
+        .or_else(|| payload.get("event"))
+        .or_else(|| payload.get("name"))
+        .or_else(|| payload.pointer("/data/type"))
+        .or_else(|| payload.pointer("/data/event"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("webhook")
+        .to_ascii_lowercase()
+}
+
+fn webhook_data(payload: &Value) -> Value {
+    payload
+        .get("data")
+        .cloned()
+        .or_else(|| payload.get("message").cloned())
+        .unwrap_or_else(|| payload.clone())
+}
+
+fn normalize_webhook_sse_event(payload: Value) -> Value {
+    let kind = webhook_kind(&payload);
+    let data = webhook_data(&payload);
+    let sse_type = if kind.contains("typing") {
+        "typing"
+    } else if kind.contains("read") {
+        "chat-read"
+    } else if kind.contains("update")
+        || kind.contains("edited")
+        || kind.contains("delivered")
+        || kind.contains("unsent")
+    {
+        "updated-message"
+    } else if kind.contains("message") || data.get("guid").is_some() {
+        "new-message"
+    } else {
+        "refresh-convos"
+    };
+    json!({
+        "type": sse_type,
+        "bluebubblesEvent": kind,
+        "data": data,
+        "raw": payload,
+    })
+}
+
+async fn post_webhook(
+    State(state): State<AppState>,
+    Query(query): Query<BlueBubblesWebhookQuery>,
+    Json(payload): Json<Value>,
+) -> Response {
+    if !webhook_token_matches(&state, &query, &payload) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "error": "invalid webhook token" })),
+        )
+            .into_response();
+    }
+
+    let approval_command =
+        super::approvals::resolve_imessage_approval_command(&state, &payload).await;
+    let event = normalize_webhook_sse_event(payload);
+    let _ = bluebubbles_event_tx().send(event);
+    if let Some(approval_command) = approval_command {
+        let _ = bluebubbles_event_tx().send(json!({
+            "type": "approval-command",
+            "data": approval_command,
+        }));
+    }
+    Json(json!({ "ok": true })).into_response()
+}
+
 async fn stream_token_handler(RequireAuth(_session): RequireAuth) -> Response {
     match crate::server::mint_scoped_sse_token("/api/messages/stream") {
         Some((token, expires_at)) => Json(json!({
@@ -2869,9 +3418,43 @@ async fn get_stream(State(state): State<AppState>, RequireAuth(_session): Requir
         );
 
         let mut ticker = tokio::time::interval(std::time::Duration::from_secs(2));
+        let mut heartbeat = tokio::time::interval_at(
+            tokio::time::Instant::now() + std::time::Duration::from_secs(20),
+            std::time::Duration::from_secs(20),
+        );
+        heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        let mut webhook_rx = subscribe_bluebubbles_events();
 
         loop {
-            ticker.tick().await;
+            tokio::select! {
+                _ = heartbeat.tick() => {
+                    yield Ok(Event::default().data(
+                        serde_json::to_string(&json!({
+                            "type": "heartbeat",
+                            "data": { "ts": chrono::Utc::now().timestamp_millis() }
+                        })).unwrap_or_default()
+                    ));
+                    continue;
+                }
+                webhook_event = webhook_rx.recv() => {
+                    match webhook_event {
+                        Ok(event_data) => {
+                            yield Ok(Event::default().data(
+                                serde_json::to_string(&event_data).unwrap_or_default()
+                            ));
+                            continue;
+                        }
+                        Err(broadcast::error::RecvError::Lagged(_)) => {
+                            yield Ok(Event::default().data(
+                                serde_json::to_string(&json!({ "type": "refresh-convos", "data": null })).unwrap_or_default()
+                            ));
+                            continue;
+                        }
+                        Err(broadcast::error::RecvError::Closed) => break,
+                    }
+                }
+                _ = ticker.tick() => {}
+            }
 
             let query = json!({
                 "limit": 20,
@@ -3000,10 +3583,14 @@ pub fn router() -> Router<AppState> {
         .route("/messages/link-preview", get(get_link_preview))
         .route("/messages/attachment", get(get_attachment))
         .route("/messages/react", post(post_react))
+        .route("/messages/delete", delete(delete_message))
+        .route("/messages/unsend", post(post_unsend_message))
         .route("/messages/read", post(post_read))
         .route("/messages/send-attachment", post(post_send_attachment))
+        .route("/messages/typing", post(post_typing).delete(delete_typing))
         .route("/messages/stream-token", post(stream_token_handler))
-        .route("/messages/stream", get(get_stream));
+        .route("/messages/stream", get(get_stream))
+        .route("/messages/webhook", post(post_webhook));
 
     #[cfg(debug_assertions)]
     let r = r.route("/messages/debug", get(get_messages_debug));
@@ -3254,5 +3841,34 @@ mod tests {
     #[test]
     fn attachment_guid_re_rejects_dots() {
         assert!(!attachment_guid_re().is_match("bad.guid"));
+    }
+
+    #[test]
+    fn webhook_typing_event_normalizes() {
+        let event = normalize_webhook_sse_event(json!({
+            "type": "typing-indicator",
+            "data": { "chatGuid": "iMessage;-;+15551234567" }
+        }));
+        assert_eq!(event["type"], "typing");
+        assert_eq!(event["data"]["chatGuid"], "iMessage;-;+15551234567");
+    }
+
+    #[test]
+    fn webhook_message_event_normalizes() {
+        let event = normalize_webhook_sse_event(json!({
+            "event": "new-message",
+            "data": { "guid": "msg-1", "text": "hello" }
+        }));
+        assert_eq!(event["type"], "new-message");
+        assert_eq!(event["data"]["guid"], "msg-1");
+    }
+
+    #[test]
+    fn webhook_read_event_normalizes() {
+        let event = normalize_webhook_sse_event(json!({
+            "type": "chat-read",
+            "data": { "chatGuid": "iMessage;-;+15551234567" }
+        }));
+        assert_eq!(event["type"], "chat-read");
     }
 }

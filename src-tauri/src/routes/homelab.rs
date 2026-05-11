@@ -2,6 +2,7 @@ use axum::{extract::State, routing::get, routing::post, Json, Router};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -132,6 +133,20 @@ struct HomelabConfigInput {
     opnsense_secret: Option<String>,
 }
 
+struct ProxmoxApiCredentials {
+    url: String,
+    token_id: String,
+    token_secret: String,
+    origin: &'static str,
+}
+
+struct OPNsenseApiCredentials {
+    url: String,
+    key: String,
+    secret: String,
+    origin: &'static str,
+}
+
 // ── Insecure reqwest client (for self-signed TLS) ───────────────────────────
 
 fn insecure_client() -> &'static Client {
@@ -153,6 +168,69 @@ fn homelab_env_path() -> PathBuf {
         .parent()
         .map(|parent| parent.join(".env.local"))
         .unwrap_or_else(|| PathBuf::from(".env.local"))
+}
+
+fn homelab_env_values() -> HashMap<String, String> {
+    let mut values = HashMap::new();
+    let path = homelab_env_path();
+    if !path.is_file() {
+        return values;
+    }
+
+    let allowed = [
+        "PROXMOX_HOST",
+        "PROXMOX_TOKEN_ID",
+        "PROXMOX_TOKEN_SECRET",
+        "OPNSENSE_HOST",
+        "OPNSENSE_URL",
+        "OPNSENSE_API_KEY",
+        "OPNSENSE_KEY",
+        "OPNSENSE_API_SECRET",
+        "OPNSENSE_SECRET",
+    ];
+
+    if let Ok(iter) = dotenvy::from_path_iter(path) {
+        for item in iter.flatten() {
+            let (key, value) = item;
+            if allowed.contains(&key.as_str()) && !value.trim().is_empty() {
+                values.insert(key, value);
+            }
+        }
+    }
+
+    values
+}
+
+fn push_unique_proxmox_config(
+    configs: &mut Vec<ProxmoxApiCredentials>,
+    config: ProxmoxApiCredentials,
+) {
+    if config.url.is_empty() || config.token_id.is_empty() || config.token_secret.is_empty() {
+        return;
+    }
+    if configs.iter().any(|existing| {
+        existing.url == config.url
+            && existing.token_id == config.token_id
+            && existing.token_secret == config.token_secret
+    }) {
+        return;
+    }
+    configs.push(config);
+}
+
+fn push_unique_opnsense_config(
+    configs: &mut Vec<OPNsenseApiCredentials>,
+    config: OPNsenseApiCredentials,
+) {
+    if config.url.is_empty() || config.key.is_empty() || config.secret.is_empty() {
+        return;
+    }
+    if configs.iter().any(|existing| {
+        existing.url == config.url && existing.key == config.key && existing.secret == config.secret
+    }) {
+        return;
+    }
+    configs.push(config);
 }
 
 fn persist_homelab_env_value(env_key: &str, value: &str) -> Result<(), AppError> {
@@ -208,30 +286,63 @@ fn normalize_base_url(raw: &str) -> String {
 // ── Proxmox fetcher ─────────────────────────────────────────────────────────
 
 async fn fetch_proxmox(state: &AppState) -> Option<Value> {
-    let url = normalize_base_url(&state.secret_or_default("PROXMOX_HOST"));
-    let token_id = state.secret_or_default("PROXMOX_TOKEN_ID");
-    let token_secret = state.secret_or_default("PROXMOX_TOKEN_SECRET");
+    let mut configs = Vec::new();
+    push_unique_proxmox_config(
+        &mut configs,
+        ProxmoxApiCredentials {
+            url: normalize_base_url(&state.secret_or_default("PROXMOX_HOST")),
+            token_id: state.secret_or_default("PROXMOX_TOKEN_ID"),
+            token_secret: state.secret_or_default("PROXMOX_TOKEN_SECRET"),
+            origin: "runtime",
+        },
+    );
 
-    if url.is_empty() || token_id.is_empty() || token_secret.is_empty() {
-        if !token_id.is_empty() || !token_secret.is_empty() {
+    let env = homelab_env_values();
+    push_unique_proxmox_config(
+        &mut configs,
+        ProxmoxApiCredentials {
+            url: normalize_base_url(env.get("PROXMOX_HOST").map(String::as_str).unwrap_or("")),
+            token_id: env.get("PROXMOX_TOKEN_ID").cloned().unwrap_or_default(),
+            token_secret: env.get("PROXMOX_TOKEN_SECRET").cloned().unwrap_or_default(),
+            origin: "env-local",
+        },
+    );
+
+    if configs.is_empty() {
+        if secret_is_set(state, "PROXMOX_TOKEN_ID") || secret_is_set(state, "PROXMOX_TOKEN_SECRET")
+        {
             warn!("Proxmox credentials are set but PROXMOX_HOST is not configured");
         }
         return fetch_proxmox_ssh().await;
     }
 
+    for config in configs {
+        if let Some(value) = fetch_proxmox_api(&config).await {
+            return Some(value);
+        }
+    }
+
+    fetch_proxmox_ssh().await
+}
+
+async fn fetch_proxmox_api(config: &ProxmoxApiCredentials) -> Option<Value> {
     let client = insecure_client();
-    let auth_header = format!("PVEAPIToken={token_id}={token_secret}");
+    let auth_header = format!("PVEAPIToken={}={}", config.token_id, config.token_secret);
 
     // ── Fetch nodes ─────────────────────────────────────────────────────
     let nodes_res = client
-        .get(format!("{url}/api2/json/nodes"))
+        .get(format!("{}/api2/json/nodes", config.url))
         .header("Authorization", &auth_header)
         .send()
         .await
         .ok()?;
 
     if !nodes_res.status().is_success() {
-        warn!("Proxmox nodes endpoint returned {}", nodes_res.status());
+        warn!(
+            source = config.origin,
+            status = %nodes_res.status(),
+            "Proxmox nodes endpoint returned non-success"
+        );
         return None;
     }
 
@@ -254,7 +365,10 @@ async fn fetch_proxmox(state: &AppState) -> Option<Value> {
     let mut vms: Vec<ProxmoxVM> = Vec::new();
 
     if let Ok(res) = client
-        .get(format!("{url}/api2/json/cluster/resources?type=vm"))
+        .get(format!(
+            "{}/api2/json/cluster/resources?type=vm",
+            config.url
+        ))
         .header("Authorization", &auth_header)
         .send()
         .await
@@ -277,7 +391,7 @@ async fn fetch_proxmox(state: &AppState) -> Option<Value> {
         let mut futures = Vec::new();
         for node in &nodes {
             let node_name = node.name.clone();
-            let url = url.clone();
+            let url = config.url.clone();
             let auth = auth_header.clone();
 
             // qemu
@@ -425,40 +539,74 @@ async fn fetch_node_vms(
 // ── OPNsense fetcher ────────────────────────────────────────────────────────
 
 async fn fetch_opnsense(state: &AppState) -> Option<Value> {
-    let url = state
-        .secret("OPNSENSE_HOST")
-        .or_else(|| state.secret("OPNSENSE_URL"))
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| {
-            warn!("OPNSENSE_HOST is not configured");
-            String::new()
-        });
+    let mut configs = Vec::new();
+    push_unique_opnsense_config(
+        &mut configs,
+        OPNsenseApiCredentials {
+            url: normalize_base_url(
+                &state
+                    .secret("OPNSENSE_HOST")
+                    .or_else(|| state.secret("OPNSENSE_URL"))
+                    .unwrap_or_default(),
+            ),
+            key: state
+                .secret("OPNSENSE_API_KEY")
+                .or_else(|| state.secret("OPNSENSE_KEY"))
+                .unwrap_or_default(),
+            secret: state
+                .secret("OPNSENSE_API_SECRET")
+                .or_else(|| state.secret("OPNSENSE_SECRET"))
+                .unwrap_or_default(),
+            origin: "runtime",
+        },
+    );
 
-    if url.is_empty() {
+    let env = homelab_env_values();
+    push_unique_opnsense_config(
+        &mut configs,
+        OPNsenseApiCredentials {
+            url: normalize_base_url(
+                env.get("OPNSENSE_HOST")
+                    .or_else(|| env.get("OPNSENSE_URL"))
+                    .map(String::as_str)
+                    .unwrap_or(""),
+            ),
+            key: env
+                .get("OPNSENSE_API_KEY")
+                .or_else(|| env.get("OPNSENSE_KEY"))
+                .cloned()
+                .unwrap_or_default(),
+            secret: env
+                .get("OPNSENSE_API_SECRET")
+                .or_else(|| env.get("OPNSENSE_SECRET"))
+                .cloned()
+                .unwrap_or_default(),
+            origin: "env-local",
+        },
+    );
+
+    if configs.is_empty() {
+        warn!("OPNSENSE_HOST is not configured");
         return fetch_opnsense_ssh().await;
     }
-    let url = normalize_base_url(&url);
 
-    let key = state
-        .secret("OPNSENSE_API_KEY")
-        .or_else(|| state.secret("OPNSENSE_KEY"))
-        .unwrap_or_default();
-    let secret = state
-        .secret("OPNSENSE_API_SECRET")
-        .or_else(|| state.secret("OPNSENSE_SECRET"))
-        .unwrap_or_default();
-
-    if key.is_empty() || secret.is_empty() {
-        return fetch_opnsense_ssh().await;
+    for config in configs {
+        if let Some(value) = fetch_opnsense_api(&config).await {
+            return Some(value);
+        }
     }
 
+    fetch_opnsense_ssh().await
+}
+
+async fn fetch_opnsense_api(config: &OPNsenseApiCredentials) -> Option<Value> {
     let client = insecure_client();
 
     let sys_fut = opnsense_get_json(
         client,
-        &url,
-        &key,
-        &secret,
+        &config.url,
+        &config.key,
+        &config.secret,
         &[
             "/api/diagnostics/system/system_resources",
             "/api/diagnostics/system/systemResources",
@@ -466,9 +614,9 @@ async fn fetch_opnsense(state: &AppState) -> Option<Value> {
     );
     let time_fut = opnsense_get_json(
         client,
-        &url,
-        &key,
-        &secret,
+        &config.url,
+        &config.key,
+        &config.secret,
         &[
             "/api/diagnostics/system/system_time",
             "/api/diagnostics/system/systemTime",
@@ -476,9 +624,9 @@ async fn fetch_opnsense(state: &AppState) -> Option<Value> {
     );
     let iface_fut = opnsense_get_json(
         client,
-        &url,
-        &key,
-        &secret,
+        &config.url,
+        &config.key,
+        &config.secret,
         &[
             "/api/diagnostics/interface/get_interface_statistics",
             "/api/diagnostics/interface/getInterfaceStatistics",
@@ -486,9 +634,9 @@ async fn fetch_opnsense(state: &AppState) -> Option<Value> {
     );
     let traffic_fut = opnsense_get_json(
         client,
-        &url,
-        &key,
-        &secret,
+        &config.url,
+        &config.key,
+        &config.secret,
         &["/api/diagnostics/traffic/_interface"],
     );
 
@@ -496,8 +644,11 @@ async fn fetch_opnsense(state: &AppState) -> Option<Value> {
         tokio::join!(sys_fut, time_fut, iface_fut, traffic_fut);
 
     if sys_res.is_none() && time_res.is_none() && iface_res.is_none() && traffic_res.is_none() {
-        warn!("OPNsense API credentials are configured but all diagnostics endpoints failed");
-        return fetch_opnsense_ssh().await;
+        warn!(
+            source = config.origin,
+            "OPNsense API credentials are configured but all diagnostics endpoints failed"
+        );
+        return None;
     }
 
     let mut cpu: f64 = 0.0;
@@ -826,20 +977,43 @@ fn secret_is_set(state: &AppState, key: &str) -> bool {
         .is_some_and(|value| !value.trim().is_empty())
 }
 
+fn env_value(env: &HashMap<String, String>, keys: &[&str]) -> Option<String> {
+    keys.iter().find_map(|key| {
+        env.get(*key)
+            .filter(|value| !value.trim().is_empty())
+            .cloned()
+    })
+}
+
+fn homelab_secret_or_env(state: &AppState, env: &HashMap<String, String>, keys: &[&str]) -> String {
+    for key in keys {
+        if let Some(value) = state.secret(key).filter(|value| !value.trim().is_empty()) {
+            return value;
+        }
+    }
+    env_value(env, keys).unwrap_or_default()
+}
+
+fn homelab_secret_or_env_is_set(
+    state: &AppState,
+    env: &HashMap<String, String>,
+    keys: &[&str],
+) -> bool {
+    keys.iter().any(|key| secret_is_set(state, key)) || env_value(env, keys).is_some()
+}
+
 fn homelab_config_value(state: &AppState) -> Value {
-    let proxmox_host = state.secret_or_default("PROXMOX_HOST");
-    let proxmox_token_id = state.secret_or_default("PROXMOX_TOKEN_ID");
-    let opnsense_host = state
-        .secret("OPNSENSE_HOST")
-        .or_else(|| state.secret("OPNSENSE_URL"))
-        .unwrap_or_default();
+    let env = homelab_env_values();
+    let proxmox_host = homelab_secret_or_env(state, &env, &["PROXMOX_HOST"]);
+    let proxmox_token_id = homelab_secret_or_env(state, &env, &["PROXMOX_TOKEN_ID"]);
+    let opnsense_host = homelab_secret_or_env(state, &env, &["OPNSENSE_HOST", "OPNSENSE_URL"]);
 
     let proxmox_configured = !proxmox_host.trim().is_empty()
         && !proxmox_token_id.trim().is_empty()
-        && secret_is_set(state, "PROXMOX_TOKEN_SECRET");
+        && homelab_secret_or_env_is_set(state, &env, &["PROXMOX_TOKEN_SECRET"]);
     let opnsense_configured = !opnsense_host.trim().is_empty()
-        && (secret_is_set(state, "OPNSENSE_API_KEY") || secret_is_set(state, "OPNSENSE_KEY"))
-        && (secret_is_set(state, "OPNSENSE_API_SECRET") || secret_is_set(state, "OPNSENSE_SECRET"));
+        && homelab_secret_or_env_is_set(state, &env, &["OPNSENSE_API_KEY", "OPNSENSE_KEY"])
+        && homelab_secret_or_env_is_set(state, &env, &["OPNSENSE_API_SECRET", "OPNSENSE_SECRET"]);
 
     json!({
         "api_configured": {
@@ -849,10 +1023,10 @@ fn homelab_config_value(state: &AppState) -> Value {
         "local": {
             "proxmox_host": proxmox_host,
             "proxmox_token_id": proxmox_token_id,
-            "proxmox_token_secret_set": secret_is_set(state, "PROXMOX_TOKEN_SECRET"),
+            "proxmox_token_secret_set": homelab_secret_or_env_is_set(state, &env, &["PROXMOX_TOKEN_SECRET"]),
             "opnsense_host": opnsense_host,
-            "opnsense_key_set": secret_is_set(state, "OPNSENSE_API_KEY") || secret_is_set(state, "OPNSENSE_KEY"),
-            "opnsense_secret_set": secret_is_set(state, "OPNSENSE_API_SECRET") || secret_is_set(state, "OPNSENSE_SECRET"),
+            "opnsense_key_set": homelab_secret_or_env_is_set(state, &env, &["OPNSENSE_API_KEY", "OPNSENSE_KEY"]),
+            "opnsense_secret_set": homelab_secret_or_env_is_set(state, &env, &["OPNSENSE_API_SECRET", "OPNSENSE_SECRET"]),
         }
     })
 }

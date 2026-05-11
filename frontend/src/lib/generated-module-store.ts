@@ -8,6 +8,7 @@ import React from 'react'
 import { api } from '@/lib/api'
 import { registerWidget } from '@/lib/widget-registry'
 import { PRIMITIVE_COMPONENTS } from '@/components/primitives/register'
+import { OpenUiSnippet } from '@/lib/openui'
 import type { WidgetModule, WidgetModuleVersion } from '@/lib/generated-module-types'
 
 // ---------------------------------------------------------------------------
@@ -42,6 +43,7 @@ export function exposePrimitivesAPI(): void {
   ;(window as any).__generatedModuleAPI = {
     React,
     ...PRIMITIVE_COMPONENTS,
+    OpenUiSnippet,
   }
 }
 

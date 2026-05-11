@@ -1,4 +1,17 @@
 services:
+  coaching-frontend:
+    build:
+      context: ${STACK_BUILD_CONTEXT:-/opt/clawcontrol-backend}
+      dockerfile: docker/clawcontrol-frontend.Dockerfile
+      args:
+        VITE_API_BASE: ${FRONTEND_PUBLIC_API_BASE:-https://coaching.aparcedo.org}
+        VITE_SITE_URL: ${FRONTEND_PUBLIC_SITE_URL:-https://coaching.aparcedo.org}
+        VITE_ASSET_BASE: ${FRONTEND_PUBLIC_ASSET_BASE:-/}
+    container_name: coaching-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_BIND:-127.0.0.1:8088}:80"
+
   secret-broker:
     build:
       context: ${SECRET_BROKER_BUILD_CONTEXT:-/opt/clawcontrol-backend/secret-broker}
@@ -33,11 +46,14 @@ services:
     network_mode: host
     depends_on:
       - secret-broker
+      - memd-server
+      - memd-rag-sidecar
     environment:
       MC_BIND_HOST: 0.0.0.0
-      MC_BIND_PORT: 3000
+      MC_BIND_PORT: ${BACKEND_BIND_PORT:-3010}
       CLAWCONTROL_DATA_DIR: /var/lib/clawcontrol
       BACKEND_PUBLIC_BASE_URL: ${BACKEND_PUBLIC_BASE_URL}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       PAIRING_TOKEN: ${PAIRING_TOKEN}
       MC_AGENT_KEY: ${MC_AGENT_KEY}
       SUPABASE_URL: ${SUPABASE_URL}
@@ -53,9 +69,14 @@ services:
       OPENCLAW_API_KEY: ${OPENCLAW_API_KEY:-}
       OPENCLAW_WS: ${OPENCLAW_WS:-}
       OPENCLAW_PASSWORD: ${OPENCLAW_PASSWORD:-}
-      AGENTSECRETS_URL: ${AGENTSECRETS_URL:-http://127.0.0.1:4815}
+      AGENTSECRETS_URL: ${AGENTSECRETS_URL}
       AGENTSECRETS_CLIENT_API_KEY: ${AGENTSECRETS_CLIENT_API_KEY:-}
+      SECRET_BROKER_APPROVER_API_KEY: ${SECRET_BROKER_APPROVER_API_KEY:-}
       AGENTSHELL_URL: ${AGENTSHELL_URL:-}
+      MEMD_BASE_URL: ${MEMD_BASE_URL:-http://127.0.0.1:8787}
+      MEMD_RAG_URL: ${MEMD_RAG_URL:-http://127.0.0.1:9000}
+      LIGHTRAG_BASE_URL: ${LIGHTRAG_BASE_URL:-}
+      LIGHTRAG_API_KEY: ${LIGHTRAG_API_KEY:-}
       BLUEBUBBLES_HOST: ${BLUEBUBBLES_HOST:-}
       BLUEBUBBLES_PASSWORD: ${BLUEBUBBLES_PASSWORD:-}
       COUCHDB_URL: ${COUCHDB_URL:-}
@@ -66,6 +87,38 @@ services:
     volumes:
       - ${BACKEND_DATA_VOLUME:-clawcontrol-backend-data}:/var/lib/clawcontrol
 
+  memd-server:
+    build:
+      context: ${MEMD_SERVER_BUILD_CONTEXT:-/home/aparcedodev/memd}
+      dockerfile: ${MEMD_SERVER_DOCKERFILE:-deploy/docker/Dockerfile.memd-server}
+    container_name: clawcontrol-memd
+    restart: unless-stopped
+    environment:
+      MEMD_BIND_ADDR: 0.0.0.0:8787
+      MEMD_DB_PATH: /data/memd.db
+      MEMD_RAG_URL: ${MEMD_SERVER_RAG_URL:-http://memd-rag-sidecar:9000}
+      MEMD_AUTHORITY_SEARCH: ${MEMD_AUTHORITY_SEARCH:-0}
+      MEMD_AUTHORITY_TOKEN: ${MEMD_AUTHORITY_TOKEN:-}
+    ports:
+      - "${MEMD_BIND:-0.0.0.0:8787}:8787"
+    volumes:
+      - ${MEMD_DATA_BIND:-/home/aparcedodev/.local/share/memd}:/data
+
+  memd-rag-sidecar:
+    build:
+      context: ${MEMD_RAG_BUILD_CONTEXT:-/home/aparcedodev/memd}
+      dockerfile: ${MEMD_RAG_DOCKERFILE:-/home/aparcedodev/stacks/clawcontrol-backend/docker/memd-rag-sidecar.Dockerfile}
+    container_name: clawcontrol-memd-rag
+    restart: unless-stopped
+    environment:
+      LIGHTRAG_BASE_URL: ${LIGHTRAG_BASE_URL:-http://100.124.53.97:9621}
+      LIGHTRAG_API_KEY: ${LIGHTRAG_API_KEY:-}
+    ports:
+      - "${MEMD_RAG_BIND:-0.0.0.0:9000}:9000"
+    volumes:
+      - ${MEMD_RAG_DATA_VOLUME:-clawcontrol-memd-rag-data}:/data
+
 volumes:
   clawcontrol-backend-data:
   clawcontrol-agentsecrets-data:
+  clawcontrol-memd-rag-data:

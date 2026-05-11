@@ -1,8 +1,11 @@
 import { memo, type CSSProperties, type ReactNode } from 'react'
 import type { EditorView } from '@codemirror/view'
 import {
+  ArrowClockwise,
+  ArrowCounterClockwise,
   TextB,
   TextItalic,
+  TextUnderline,
   TextStrikethrough,
   Code,
   CodeBlock,
@@ -12,7 +15,9 @@ import {
   LinkSimple,
   Quotes,
   Minus,
+  Table,
 } from '@phosphor-icons/react'
+import { redo, undo } from '@codemirror/commands'
 
 // ---------------------------------------------------------------------------
 // Formatting helpers
@@ -104,6 +109,36 @@ function toggleWrap(view: EditorView, wrapper: string) {
   view.focus()
 }
 
+/** Wrap selection with different opening/closing markers, used for small HTML spans. */
+function toggleWrapPair(view: EditorView, open: string, close: string) {
+  const { state } = view
+  const { from, to } = state.selection.main
+  const selectedText = state.doc.sliceString(from, to)
+  const beforeStart = Math.max(0, from - open.length)
+  const afterEnd = Math.min(state.doc.length, to + close.length)
+  const before = state.doc.sliceString(beforeStart, from)
+  const after = state.doc.sliceString(to, afterEnd)
+
+  if (before === open && after === close) {
+    view.dispatch({
+      changes: [
+        { from: beforeStart, to: from, insert: '' },
+        { from: to, to: afterEnd, insert: '' },
+      ],
+    })
+  } else if (selectedText.length > 0) {
+    view.dispatch({
+      changes: { from, to, insert: `${open}${selectedText}${close}` },
+    })
+  } else {
+    view.dispatch({
+      changes: { from, to: from, insert: `${open}${close}` },
+      selection: { anchor: from + open.length },
+    })
+  }
+  view.focus()
+}
+
 /** Insert a link template, wrapping the selection as the link text. */
 function insertLink(view: EditorView) {
   const { state } = view
@@ -159,6 +194,20 @@ function insertHorizontalRule(view: EditorView) {
   view.dispatch({
     changes: { from, to: from, insert },
     selection: { anchor: from + insert.length },
+  })
+  view.focus()
+}
+
+/** Insert a compact Markdown table. */
+function insertTable(view: EditorView) {
+  const { state } = view
+  const { from } = state.selection.main
+  const line = state.doc.lineAt(from)
+  const prefix = from === line.from && line.text.trim() === '' ? '' : '\n'
+  const insert = `${prefix}| Column | Column | Column |\n| --- | --- | --- |\n|  |  |  |\n`
+  view.dispatch({
+    changes: { from, to: from, insert },
+    selection: { anchor: from + prefix.length + 2, head: from + prefix.length + 8 },
   })
   view.focus()
 }
@@ -279,6 +328,16 @@ function EditorToolbar({ viewRef }: EditorToolbarProps) {
         flexShrink: 0,
       }}
     >
+      {/* History */}
+      <ToolbarButton label="Undo" title="Undo (Ctrl+Z)" onClick={() => run((v) => undo(v))}>
+        <ArrowCounterClockwise size={ICON} />
+      </ToolbarButton>
+      <ToolbarButton label="Redo" title="Redo (Ctrl+Y)" onClick={() => run((v) => redo(v))}>
+        <ArrowClockwise size={ICON} />
+      </ToolbarButton>
+
+      <Separator />
+
       {/* Headings */}
       <ToolbarButton label="Heading 1" title="Heading 1" onClick={() => run((v) => toggleHeading(v, 1))}>
         <span style={{ fontSize: 13, fontWeight: 700 }}>H1</span>
@@ -298,6 +357,9 @@ function EditorToolbar({ viewRef }: EditorToolbarProps) {
       </ToolbarButton>
       <ToolbarButton label="Italic" title="Italic (Ctrl+I)" onClick={() => run((v) => toggleWrap(v, '*'))}>
         <TextItalic size={ICON} />
+      </ToolbarButton>
+      <ToolbarButton label="Underline" title="Underline (Ctrl+U)" onClick={() => run((v) => toggleWrapPair(v, '<u>', '</u>'))}>
+        <TextUnderline size={ICON} />
       </ToolbarButton>
       <ToolbarButton label="Strikethrough" title="Strikethrough (Ctrl+Shift+S)" onClick={() => run((v) => toggleWrap(v, '~~'))}>
         <TextStrikethrough size={ICON} />
@@ -331,6 +393,9 @@ function EditorToolbar({ viewRef }: EditorToolbarProps) {
       <ToolbarButton label="Code block" title="Code block" onClick={() => run(insertCodeBlock)}>
         <CodeBlock size={ICON} />
       </ToolbarButton>
+      <ToolbarButton label="Table" title="Table" onClick={() => run(insertTable)}>
+        <Table size={ICON} />
+      </ToolbarButton>
       <ToolbarButton label="Horizontal rule" title="Horizontal rule" onClick={() => run(insertHorizontalRule)}>
         <Minus size={ICON} />
       </ToolbarButton>
@@ -341,4 +406,4 @@ function EditorToolbar({ viewRef }: EditorToolbarProps) {
 export default memo(EditorToolbar)
 
 // Export formatting functions so NoteEditor can wire keyboard shortcuts
-export { toggleWrap, insertLink }
+export { toggleWrap, toggleWrapPair, insertLink }

@@ -5,6 +5,9 @@ export interface CalendarEvent {
   end: string
   allDay: boolean
   calendar: string
+  objectUrl?: string | null
+  localId?: string | number | null
+  appleEventId?: string | null
 }
 
 export interface CalendarResponse {

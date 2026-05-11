@@ -15,10 +15,10 @@ import { WaitingView } from './login/WaitingView'
 import { MfaEnrollView } from './login/MfaEnrollView'
 import { SyncUnlockView } from './login/SyncUnlockView'
 import {
-  claimTrustedDeviceHandoff,
+  type AccountSyncStatus,
   getAccountSyncStatus,
   hydrateAccountSync,
-  requestTrustedDeviceHandoff,
+  recoverAccountSyncFromLocal,
   unlockAccountSync,
   unlockWithRecoveryKey,
 } from '@/lib/account-sync'
@@ -42,10 +42,7 @@ export default function LoginPage() {
   const [mfaCode, setMfaCode] = useState('')
   const [syncPassword, setSyncPassword] = useState('')
   const [recoveryKey, setRecoveryKey] = useState('')
-  const [handoffRequestId, setHandoffRequestId] = useState('')
-  const [handoffCode, setHandoffCode] = useState('')
-  const [handoffStatus, setHandoffStatus] = useState('')
-  const [handoffLoading, setHandoffLoading] = useState(false)
+  const [syncStatus, setSyncStatus] = useState<AccountSyncStatus | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [sessionProbeFailed, setSessionProbeFailed] = useState(false)
@@ -70,16 +67,27 @@ export default function LoginPage() {
   async function finishAuthenticatedSession() {
     try {
       const sync = await getAccountSyncStatus()
+      setSyncStatus(sync)
       if (sync.has_synced_services) {
         markSetupCompleteForAccount()
       }
       if (sync.requires_unlock) {
+        if ((sync.hydrated_service_count ?? 0) > 0) {
+          const recovered = await recoverAccountSyncFromLocal()
+          setSyncStatus(recovered)
+          if (recovered.ready) {
+            markSetupCompleteForAccount()
+            goToNext()
+            return
+          }
+        }
         dispatch({ type: 'SHOW_SYNC_UNLOCK' })
         setLoading(false)
         return
       }
       if (sync.ready && sync.has_cached_key) {
-        await hydrateAccountSync().catch(() => sync)
+        const hydrated = await hydrateAccountSync().catch(() => sync)
+        setSyncStatus(hydrated)
       }
     } catch {
       // Auth already succeeded; do not strand the user on a transient sync probe.
@@ -146,32 +154,6 @@ export default function LoginPage() {
     }, 5000)
     return () => clearTimeout(timeout)
   }, [sessionProbeFailed, next])
-
-  useEffect(() => {
-    if (view !== 'sync-unlock' || !handoffRequestId) return
-
-    const interval = setInterval(async () => {
-      try {
-        const result = await claimTrustedDeviceHandoff(handoffRequestId)
-        if (result.claimed && result.sync?.ready) {
-          markSetupCompleteForAccount()
-          goToNext()
-          return
-        }
-        if (result.status === 'pending') {
-          setHandoffStatus('Waiting for approval from an unlocked device.')
-        } else if (result.status === 'approved') {
-          setHandoffStatus('Approval received. Unlocking this Mac...')
-        } else {
-          setHandoffStatus(`Request is ${result.status}.`)
-        }
-      } catch {
-        setHandoffStatus('Still waiting for approval.')
-      }
-    }, 4000)
-
-    return () => clearInterval(interval)
-  }, [view, handoffRequestId, next])
 
   // Poll for OAuth completion — backend exchanges the code in the callback
   useEffect(() => {
@@ -325,6 +307,7 @@ export default function LoginPage() {
 
     try {
       const sync = await unlockAccountSync(syncPassword)
+      setSyncStatus(sync)
       if (sync.ready) {
         markSetupCompleteForAccount()
         goToNext()
@@ -346,6 +329,7 @@ export default function LoginPage() {
 
     try {
       const result = await unlockWithRecoveryKey(recoveryKey)
+      setSyncStatus(result.sync)
       if (result.sync.ready) {
         markSetupCompleteForAccount()
         goToNext()
@@ -357,23 +341,6 @@ export default function LoginPage() {
       setError(formatLoginError(err, 'Could not unlock with that recovery key.'))
       setRecoveryKey('')
       setLoading(false)
-    }
-  }
-
-  async function handleHandoffRequest() {
-    setError('')
-    setHandoffLoading(true)
-    setHandoffStatus('')
-
-    try {
-      const request = await requestTrustedDeviceHandoff()
-      setHandoffRequestId(request.request_id)
-      setHandoffCode(request.code)
-      setHandoffStatus('Waiting for approval from an unlocked device.')
-    } catch (err) {
-      setError(formatLoginError(err, 'Could not create a trusted-device request.'))
-    } finally {
-      setHandoffLoading(false)
     }
   }
 
@@ -480,7 +447,7 @@ export default function LoginPage() {
             {view === 'mfa' && 'Verify your identity'}
             {view === 'mfa-enroll' && 'Set up two-factor authentication'}
             {view === 'waiting' && 'Complete sign-in in your browser'}
-            {view === 'sync-unlock' && 'Unlock synced services'}
+            {view === 'sync-unlock' && 'Finish service sync'}
           </p>
         </div>
 
@@ -592,21 +559,18 @@ export default function LoginPage() {
             password={syncPassword}
             recoveryKey={recoveryKey}
             loading={loading}
-            handoffCode={handoffCode}
-            handoffLoading={handoffLoading}
-            handoffStatus={handoffStatus}
+            recoveryKeyConfigured={syncStatus?.recovery_key_configured === true}
+            syncedServiceCount={syncStatus?.synced_service_count ?? 0}
+            hydratedServiceCount={syncStatus?.hydrated_service_count ?? 0}
             onPasswordChange={setSyncPassword}
             onRecoveryKeyChange={setRecoveryKey}
             onSubmit={handleSyncUnlock}
             onRecoverySubmit={handleRecoveryUnlock}
-            onRequestHandoff={handleHandoffRequest}
             onSignOut={async () => {
               await api.post('/api/auth/logout').catch(() => {})
               setSyncPassword('')
               setRecoveryKey('')
-              setHandoffRequestId('')
-              setHandoffCode('')
-              setHandoffStatus('')
+              setSyncStatus(null)
               setError('')
               dispatch({ type: 'SHOW_MAIN' })
               setLoading(false)

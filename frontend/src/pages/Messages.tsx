@@ -24,6 +24,18 @@ import { formatTime } from './messages/utils'
 
 /* ─── Main Page ─────────────────────────────────────────────────────────── */
 
+const THREAD_CACHE_TTL_MS = 2 * 60 * 1000
+const THREAD_PREFETCH_COUNT = 8
+const THREAD_PREFETCH_DELAY_MS = 120
+const THREAD_CACHE_MAX = 30
+
+type ThreadCacheEntry = {
+  messages: Message[]
+  contacts?: Record<string, string>
+  newestTimestamp?: number
+  fetchedAt: number
+}
+
 export default function MessagesPage() {
   const pageTitle = usePageTitle('Messages')
   const [searchParams, setSearchParams] = useSearchParams()
@@ -44,9 +56,13 @@ export default function MessagesPage() {
   const [focusedConvIndex, setFocusedConvIndex] = useState(-1)
   const [composeMode, setComposeMode] = useState(false)
   const [composeTo, setComposeTo] = useState('')
+  const [composeService, setComposeService] = useState<'iMessage' | 'SMS'>('iMessage')
   const [composeSending, setComposeSending] = useState(false)
+  const [composeError, setComposeError] = useState<string | null>(null)
   const composeDraftRef = useRef('')
   const [composeHasDraft, setComposeHasDraft] = useState(false)
+  const [typingConvs, setTypingConvs] = useState<Set<string>>(() => new Set())
+  const typingTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   /* ── Drag-and-drop state ── */
   const [dragOver, setDragOver] = useState(false)
@@ -68,6 +84,16 @@ export default function MessagesPage() {
   const selectedGuidRef = useRef<string | null>(null)
   // Track the newest message timestamp per conversation for delta sync
   const newestTsMap = useRef<Record<string, number>>({})
+  const threadCacheRef = useRef<Map<string, ThreadCacheEntry>>(new Map())
+  const prefetchingThreadsRef = useRef<Set<string>>(new Set())
+  const prefetchSignatureRef = useRef('')
+
+  useEffect(() => {
+    return () => {
+      for (const timer of Object.values(typingTimersRef.current)) clearTimeout(timer)
+      typingTimersRef.current = {}
+    }
+  }, [])
 
   /* ── Custom hooks ── */
 
@@ -92,19 +118,89 @@ export default function MessagesPage() {
   const mutedConvsRef = useRef(mutedConvs)
   mutedConvsRef.current = mutedConvs
 
+  const trimThreadCache = useCallback(() => {
+    const cache = threadCacheRef.current
+    if (cache.size <= THREAD_CACHE_MAX) return
+    const entries = Array.from(cache.entries()).sort((a, b) => a[1].fetchedAt - b[1].fetchedAt)
+    for (const [guid] of entries.slice(0, cache.size - THREAD_CACHE_MAX)) cache.delete(guid)
+  }, [])
+
+  const cacheThreadData = useCallback((
+    guid: string,
+    data: { messages?: Message[]; contacts?: Record<string, string>; newestTimestamp?: number },
+    mode: 'replace' | 'append' = 'replace',
+  ) => {
+    const now = Date.now()
+    const incoming = data.messages ?? []
+    const prev = threadCacheRef.current.get(guid)
+    let nextMessages = incoming
+
+    if (mode === 'append' && prev) {
+      const seen = new Set(prev.messages.map(m => m.guid))
+      const fresh = incoming.filter(m => !seen.has(m.guid))
+      nextMessages = fresh.length > 0 ? [...prev.messages, ...fresh] : prev.messages
+    }
+
+    const contacts = data.contacts ? { ...(prev?.contacts ?? {}), ...data.contacts } : prev?.contacts
+    const newestTimestamp = data.newestTimestamp ?? newestTsMap.current[guid] ?? prev?.newestTimestamp
+    if (newestTimestamp) newestTsMap.current[guid] = newestTimestamp
+
+    const entry: ThreadCacheEntry = {
+      messages: nextMessages,
+      contacts,
+      newestTimestamp,
+      fetchedAt: now,
+    }
+    threadCacheRef.current.set(guid, entry)
+    trimThreadCache()
+
+    if (data.contacts) {
+      setContactLookup(prevContacts => ({ ...prevContacts, ...data.contacts }))
+    }
+
+    return entry
+  }, [setContactLookup, trimThreadCache])
+
+  const updateCachedThread = useCallback((guid: string, update: (messages: Message[]) => Message[]) => {
+    const cached = threadCacheRef.current.get(guid)
+    if (!cached) return
+    threadCacheRef.current.set(guid, {
+      ...cached,
+      messages: update(cached.messages),
+      fetchedAt: Date.now(),
+    })
+  }, [])
+
   const fetchMessages = useCallback(async (conv: Conversation, silent = false) => {
+    const cached = threadCacheRef.current.get(conv.guid)
+    const hasFreshCache = !!cached && Date.now() - cached.fetchedAt < THREAD_CACHE_TTL_MS
+    const showCachedInstantly = !silent && hasFreshCache
+
     try {
-      if (!silent) setMsgsLoading(true)
+      if (showCachedInstantly && cached) {
+        setMessages(cached.messages)
+        if (cached.contacts) setContactLookup(prev => ({ ...prev, ...cached.contacts }))
+        if (cached.newestTimestamp) newestTsMap.current[conv.guid] = cached.newestTimestamp
+        setMsgsLoading(false)
+      } else if (!silent) {
+        setMsgsLoading(true)
+      }
+
       // Delta sync: on silent refreshes, only fetch messages newer than the
       // last known timestamp for this conversation.
-      const sinceTs = silent ? newestTsMap.current[conv.guid] : undefined
+      const refreshSilently = silent || showCachedInstantly
+      const sinceTs = refreshSilently
+        ? newestTsMap.current[conv.guid] ?? cached?.newestTimestamp
+        : undefined
       let url = `/api/messages?conversation=${encodeURIComponent(conv.guid)}&limit=50`
       if (sinceTs) url += `&since=${sinceTs}`
 
       const data = await api.get<{ messages?: Message[]; contacts?: Record<string, string>; newestTimestamp?: number }>(url)
+      const incoming = data.messages ?? []
+      const cacheEntry = cacheThreadData(conv.guid, data, sinceTs ? 'append' : 'replace')
+
       // Guard: only apply if we're still viewing this conversation
       if (selectedGuidRef.current === conv.guid) {
-        const incoming = data.messages ?? []
         if (sinceTs && incoming.length > 0) {
           // Delta: append only genuinely new messages
           setMessages(prev => {
@@ -112,22 +208,41 @@ export default function MessagesPage() {
             const fresh = incoming.filter(m => !existingGuids.has(m.guid))
             return fresh.length > 0 ? [...prev, ...fresh] : prev
           })
-        } else {
+        } else if (!sinceTs) {
           // Full load (initial or non-silent)
-          setMessages(incoming)
+          setMessages(cacheEntry.messages)
+        } else if (!showCachedInstantly) {
+          setMessages(cacheEntry.messages)
         }
-        if (data.contacts) setContactLookup(prev => ({ ...prev, ...data.contacts }))
       }
       // Track newest timestamp for next delta sync
       if (data.newestTimestamp) {
         newestTsMap.current[conv.guid] = data.newestTimestamp
       }
     } catch {
-      if (!silent && selectedGuidRef.current === conv.guid) setMessages([])
+      if (!silent && !showCachedInstantly && selectedGuidRef.current === conv.guid) setMessages([])
     } finally {
-      if (!silent) setMsgsLoading(false)
+      if (!silent && !showCachedInstantly) setMsgsLoading(false)
     }
-  }, [setContactLookup])
+  }, [cacheThreadData, setContactLookup])
+
+  const prefetchThread = useCallback(async (conv: Conversation) => {
+    if (!conv.guid || prefetchingThreadsRef.current.has(conv.guid)) return
+    const cached = threadCacheRef.current.get(conv.guid)
+    if (cached && Date.now() - cached.fetchedAt < THREAD_CACHE_TTL_MS) return
+
+    prefetchingThreadsRef.current.add(conv.guid)
+    try {
+      const data = await api.get<{ messages?: Message[]; contacts?: Record<string, string>; newestTimestamp?: number }>(
+        `/api/messages?conversation=${encodeURIComponent(conv.guid)}&limit=50`,
+      )
+      cacheThreadData(conv.guid, data, 'replace')
+    } catch {
+      // Warm cache only; opening the thread can still fetch normally.
+    } finally {
+      prefetchingThreadsRef.current.delete(conv.guid)
+    }
+  }, [cacheThreadData])
 
   const {
     hasDraft,
@@ -155,6 +270,8 @@ export default function MessagesPage() {
 
   const contactLookupRef = useRef(contactLookup)
   contactLookupRef.current = contactLookup
+  const selectedLatestRef = useRef(selected)
+  selectedLatestRef.current = selected
 
   const { sseConnected, toast, dismissToast } = useMessagesSSE({
     selectedGuidRef,
@@ -167,6 +284,12 @@ export default function MessagesPage() {
           const prev = newestTsMap.current[cg] ?? 0
           if (msg.dateCreated > prev) newestTsMap.current[cg] = msg.dateCreated
         }
+      }
+      for (const cg of msgChats) {
+        updateCachedThread(cg, cachedMessages => {
+          if (cachedMessages.some(m => m.guid === msg.guid)) return cachedMessages
+          return [...cachedMessages, msg]
+        })
       }
       if (selectedGuidRef.current && msgChats.includes(selectedGuidRef.current)) {
         setMessages(prev => {
@@ -195,13 +318,52 @@ export default function MessagesPage() {
           }
         }).sort((a, b) => (b.lastDate ?? 0) - (a.lastDate ?? 0))
       })
-    }, [setConversations]),
+    }, [setConversations, updateCachedThread]),
     onUpdateMessage: useCallback((msg: SSEMessage) => {
+      for (const [guid, entry] of threadCacheRef.current.entries()) {
+        if (!entry.messages.some(m => m.guid === msg.guid)) continue
+        updateCachedThread(guid, cachedMessages => cachedMessages.map(m => m.guid === msg.guid ? { ...m, ...msg } : m))
+      }
       setMessages(prev => prev.map(m => m.guid === msg.guid ? { ...m, ...msg } : m))
+    }, [updateCachedThread]),
+    onTyping: useCallback((chatGuids: string[], payload: SSEMessage) => {
+      for (const guid of chatGuids) {
+        if (!guid) continue
+        if (payload && 'display' in payload && payload.display === false) {
+          if (typingTimersRef.current[guid]) clearTimeout(typingTimersRef.current[guid])
+          setTypingConvs(prev => {
+            const next = new Set(prev)
+            next.delete(guid)
+            return next
+          })
+          delete typingTimersRef.current[guid]
+          continue
+        }
+        if (guid === selectedGuidRef.current && inputRef.current === document.activeElement) continue
+        if (typingTimersRef.current[guid]) clearTimeout(typingTimersRef.current[guid])
+        setTypingConvs(prev => {
+          const next = new Set(prev)
+          next.add(guid)
+          return next
+        })
+        typingTimersRef.current[guid] = setTimeout(() => {
+          setTypingConvs(prev => {
+            const next = new Set(prev)
+            next.delete(guid)
+            return next
+          })
+          delete typingTimersRef.current[guid]
+        }, 3500)
+      }
     }, []),
     onRefreshConvos: useCallback(() => {
       fetchConversations(true)
     }, [fetchConversations]),
+    onReconnectRefresh: useCallback(() => {
+      fetchConversations(true)
+      const current = selectedLatestRef.current
+      if (current) fetchMessages(current, true)
+    }, [fetchConversations, fetchMessages]),
   })
 
   /* ── Scroll helpers ── */
@@ -363,6 +525,38 @@ export default function MessagesPage() {
     return () => { setRecentConversations([]) }
   }, [conversations])
 
+  /* ── Warm recent message threads ── */
+
+  useEffect(() => {
+    if (loading || error || filteredConversations.length === 0) return
+
+    const recent = filteredConversations.slice(0, THREAD_PREFETCH_COUNT)
+    const signature = recent.map(c => `${c.guid}:${c.lastDate ?? ''}`).join('|')
+    if (prefetchSignatureRef.current === signature) return
+    prefetchSignatureRef.current = signature
+
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    const delay = () => new Promise<void>(resolve => {
+      timer = setTimeout(resolve, THREAD_PREFETCH_DELAY_MS)
+    })
+
+    void (async () => {
+      for (const conv of recent) {
+        if (cancelled) break
+        await delay()
+        if (cancelled) break
+        await prefetchThread(conv)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
+  }, [loading, error, filteredConversations, prefetchThread])
+
   /* ── Handle command palette params (compose, open) ── */
 
   const handledPaletteParams = useRef(false)
@@ -374,6 +568,8 @@ export default function MessagesPage() {
     if (composeParam === '1') {
       setComposeMode(true)
       setComposeTo('')
+      setComposeService('iMessage')
+      setComposeError(null)
       composeDraftRef.current = ''
       setComposeHasDraft(false)
       setSelected(null)
@@ -450,6 +646,61 @@ export default function MessagesPage() {
     } catch { /* best-effort */ }
   }, [selected, fetchMessages])
 
+  const deleteMessage = useCallback(async (msg: Message) => {
+    if (!selected) return
+    setMessageMenu(null)
+    const prev = messages
+    setMessages(current => current.filter(m => m.guid !== msg.guid))
+    updateCachedThread(selected.guid, current => current.filter(m => m.guid !== msg.guid))
+    try {
+      await api.del('/api/messages/delete', {
+        chatGuid: selected.guid,
+        messageGuid: msg.guid,
+      })
+      setTimeout(() => {
+        fetchMessages(selected, true)
+        fetchConversations(true)
+      }, 750)
+    } catch {
+      setMessages(prev)
+      threadCacheRef.current.set(selected.guid, {
+        ...(threadCacheRef.current.get(selected.guid) ?? { contacts: undefined, newestTimestamp: undefined }),
+        messages: prev,
+        fetchedAt: Date.now(),
+      })
+    }
+  }, [selected, messages, fetchMessages, fetchConversations, updateCachedThread])
+
+  const unsendMessage = useCallback(async (msg: Message) => {
+    if (!selected || !msg.isFromMe) return
+    setMessageMenu(null)
+    const prev = messages
+    setMessages(current => current.map(m =>
+      m.guid === msg.guid ? { ...m, text: 'You unsent a message' } : m
+    ))
+    updateCachedThread(selected.guid, current => current.map(m =>
+      m.guid === msg.guid ? { ...m, text: 'You unsent a message' } : m
+    ))
+    try {
+      await api.post('/api/messages/unsend', {
+        chatGuid: selected.guid,
+        messageGuid: msg.guid,
+        partIndex: 0,
+      })
+      setTimeout(() => {
+        fetchMessages(selected, true)
+        fetchConversations(true)
+      }, 1000)
+    } catch {
+      setMessages(prev)
+      threadCacheRef.current.set(selected.guid, {
+        ...(threadCacheRef.current.get(selected.guid) ?? { contacts: undefined, newestTimestamp: undefined }),
+        messages: prev,
+        fetchedAt: Date.now(),
+      })
+    }
+  }, [selected, messages, fetchMessages, fetchConversations, updateCachedThread])
+
   /* ── Mark read/unread ── */
 
   const toggleReadStatus = useCallback(async (convGuid: string, markUnread: boolean) => {
@@ -493,13 +744,15 @@ export default function MessagesPage() {
     const to = composeTo.trim()
     if (!text || !to || composeSending) return
 
+    setComposeError(null)
     setComposeSending(true)
 
-    // Build chat GUID: try iMessage first (email or phone)
+    // Build the exact BlueBubbles chat GUID for the service lane the user chose.
     const isEmail = to.includes('@')
+    const normalizedTo = isEmail || to.startsWith('+') ? to : `+${to}`
     const chatGuid = isEmail
       ? `iMessage;-;${to}`
-      : `iMessage;-;${to.startsWith('+') ? to : `+${to}`}`
+      : `${composeService};-;${normalizedTo}`
 
     try {
       await api.post('/api/messages', { chatGuid, text })
@@ -520,12 +773,12 @@ export default function MessagesPage() {
           return prev
         })
       }, 500)
-    } catch {
-      // If iMessage GUID failed, could try SMS - but keep it simple for now
+    } catch (err) {
+      setComposeError(err instanceof Error ? err.message : 'Could not send message')
     } finally {
       setComposeSending(false)
     }
-  }, [composeTo, composeSending, fetchConversations, setConversations])
+  }, [composeService, composeTo, composeSending, fetchConversations, setConversations])
 
   /* ── Delivery markers (iMessage-style) ── */
 
@@ -694,7 +947,10 @@ export default function MessagesPage() {
   /* ── Render ── */
 
   return (
-    <div style={{ display: 'flex', flex: 1, minHeight: 0, margin: '-20px -28px', gap: '0', overflow: 'hidden' }}>
+    <div
+      data-messages-menu-bounds
+      style={{ display: 'flex', flex: 1, minHeight: 0, margin: '-20px -28px', gap: '0', overflow: 'hidden' }}
+    >
 
       {/* ═══ Conversation list ═══ */}
       <ConversationList
@@ -726,6 +982,8 @@ export default function MessagesPage() {
         onStartCompose={() => {
           setComposeMode(true)
           setComposeTo('')
+          setComposeService('iMessage')
+          setComposeError(null)
           composeDraftRef.current = ''
           setComposeHasDraft(false)
           setSelected(null)
@@ -737,13 +995,6 @@ export default function MessagesPage() {
         onContextMenu={setConvCtx}
         onBatchMarkRead={() => batchMarkReadStatus('read')}
         onBatchMarkUnread={() => batchMarkReadStatus('unread')}
-        onBatchDelete={() => {
-          const guids = Array.from(selectedConvs)
-          setConversations(prev => prev.filter(c => !guids.includes(c.guid)))
-          if (selected && guids.includes(selected.guid)) setSelected(null)
-          setSelectedConvs(new Set())
-          setSelectMode(false)
-        }}
         fetchMessages={fetchMessages}
       />
 
@@ -771,6 +1022,7 @@ export default function MessagesPage() {
           loadingMore={loadingMore}
           contactLookup={contactLookup}
           sseConnected={sseConnected}
+          isTyping={typingConvs.has(selected.guid)}
           deliveryMarkers={deliveryMarkers}
           scrollContainerRef={scrollContainerRef}
           handleScroll={handleScroll}
@@ -816,6 +1068,9 @@ export default function MessagesPage() {
           composeTo={composeTo}
           setComposeTo={setComposeTo}
           composeSending={composeSending}
+          composeService={composeService}
+          setComposeService={setComposeService}
+          composeError={composeError}
           composeDraftRef={composeDraftRef}
           composeHasDraft={composeHasDraft}
           setComposeHasDraft={setComposeHasDraft}
@@ -825,13 +1080,15 @@ export default function MessagesPage() {
       {/* ═══ Message Menu ═══ */}
       {messageMenu && (
         <MessageMenu
-          x={messageMenu.x} y={messageMenu.y} msg={messageMenu.msg}
+          x={messageMenu.x} y={messageMenu.y} msg={messageMenu.msg} fromMe={messageMenu.fromMe}
           onReact={(reaction) => sendReaction(messageMenu.msgGuid, reaction)}
           onReply={() => { setReplyTo(messageMenu.msg); setMessageMenu(null); inputRef.current?.focus() }}
           onCopy={() => {
             if (messageMenu.msg.text) navigator.clipboard.writeText(messageMenu.msg.text).catch(() => {})
             setMessageMenu(null)
           }}
+          onDelete={() => deleteMessage(messageMenu.msg)}
+          onUnsend={() => unsendMessage(messageMenu.msg)}
           onClose={() => setMessageMenu(null)}
         />
       )}

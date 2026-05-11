@@ -9,36 +9,13 @@ import type { ApprovalsResponse } from '@/pages/approvals/types'
 export function useApprovals() {
   const demo = isDemoMode()
   const queryClient = useQueryClient()
-  const { data: setupStatus } = useQuery<{
-    services?: {
-      hermes?: { reachable?: boolean }
-      harness?: { reachable?: boolean }
-      openclaw?: { reachable?: boolean }
-    }
-  }>({
-    queryKey: queryKeys.harnessHealth,
-    queryFn: () =>
-      api.get<{
-        services?: {
-          hermes?: { reachable?: boolean }
-          harness?: { reachable?: boolean }
-          openclaw?: { reachable?: boolean }
-        }
-      }>('/api/setup/status'),
-    refetchInterval: demo ? false : 10_000,
-    staleTime: 10_000,
-    enabled: !demo,
-    retry: 1,
-  })
-  const harnessReachable = setupStatus?.services?.harness?.reachable ?? setupStatus?.services?.hermes?.reachable ?? setupStatus?.services?.openclaw?.reachable
-  const canPollApprovals = !demo && harnessReachable === true
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey: queryKeys.approvals,
     queryFn: () => api.get<ApprovalsResponse>('/api/approvals'),
-    refetchInterval: canPollApprovals ? 3_000 : false,
+    refetchInterval: demo ? false : 3_000,
     staleTime: 3_000,
-    enabled: canPollApprovals,
+    enabled: !demo,
     retry: 1,
   })
 
@@ -54,6 +31,7 @@ export function useApprovals() {
   })
 
   const approvals = data?.approvals ?? []
+  const sources = data?.sources ?? []
   const pendingCount = approvals.filter(a => a.status === 'pending').length
 
   // Sync pending count to sidebar unread badge
@@ -63,8 +41,13 @@ export function useApprovals() {
 
   return {
     approvals,
+    sources,
     pendingCount,
     isLoading,
+    isFetching,
+    isError,
+    error,
+    refetch,
     approve: approveMutation.mutate,
     reject: rejectMutation.mutate,
     isApproving: approveMutation.isPending,

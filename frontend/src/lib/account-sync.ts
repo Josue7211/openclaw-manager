@@ -87,6 +87,10 @@ export async function unlockAccountSync(password: string): Promise<AccountSyncSt
   return api.post<AccountSyncStatus>('/api/auth/sync/unlock', { password })
 }
 
+export async function recoverAccountSyncFromLocal(): Promise<AccountSyncStatus> {
+  return api.post<AccountSyncStatus>('/api/auth/sync/recover-local')
+}
+
 export async function requestTrustedDeviceHandoff(deviceName?: string): Promise<HandoffRequestCreated> {
   return api.post<HandoffRequestCreated>('/api/auth/sync/handoff/request', { device_name: deviceName })
 }

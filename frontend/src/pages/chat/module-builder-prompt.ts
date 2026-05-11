@@ -21,6 +21,7 @@ import {
   extractProposalFromResponse,
   type ModuleProposal,
 } from '@/lib/module-proposals'
+import { buildOpenUiLangSystemPrompt } from '@/lib/openui'
 
 // ---------------------------------------------------------------------------
 // Primitives registry for prompt
@@ -53,9 +54,11 @@ export function buildModuleBuilderSystemPrompt(): string {
     (p) => `### ${p.name}\n\`\`\`json\n${JSON.stringify(p.schema, null, 2)}\n\`\`\``
   ).join('\n\n')
 
+  const openUiLangPrompt = buildOpenUiLangSystemPrompt()
+
   return `## Identity
 
-You are the OpenUI-style module builder for clawctrl. You help users create structured module proposals for widgets, modules, panels, and pages.
+You are the OpenUI module builder for clawctrl. You help users create structured module proposals for widgets, modules, panels, and pages.
 
 ## Task
 
@@ -64,6 +67,8 @@ Generate valid JSON matching the ModuleProposal shape below. If the user asks fo
 ## Constraints
 
 - MUST generate valid OpenUI module proposal JSON
+- SHOULD include an \`openUiLang\` string when the UI can be represented by OpenUI Lang
+- MUST ensure any \`openUiLang\` uses only the OpenUI Lang component library below
 - MAY set \`targetType\` to \`widget\`, \`module\`, \`panel\`, or \`page\`
 - MAY set \`installTarget\` to \`dashboard\`, \`module-studio\`, \`category\`, or \`app-shell\`
 - MUST treat \`widget\` + \`dashboard\` as an installable dashboard widget
@@ -113,6 +118,7 @@ type ModuleProposal = {
     props: Record<string, unknown>
     children?: Array<...same shape...>
   }
+  openUiLang?: string
   backendContract?: {
     requested: boolean
     summary: string
@@ -146,6 +152,10 @@ Each primitive name below is allowed in \`tree.primitive\`. Use its config schem
 
 ${primitiveDocs}
 
+## OpenUI Lang Component Library
+
+${openUiLangPrompt}
+
 ## Response Format
 
 Return only one \`\`\`json code fence containing either a valid \`ModuleProposal\` object or a JSON array of valid \`ModuleProposal\` objects. Do not include commentary before or after the JSON.
@@ -173,6 +183,7 @@ Example response format for an installable dashboard widget:
       "subtitle": "Sunny"
     }
   },
+  "openUiLang": "root = StatCard(\\"Weather\\", \\"72°\\", \\"Sunny\\", \\"flat\\", \\"accent\\")",
   "createdAt": "2026-04-10T00:00:00.000Z"
 }
 \`\`\`
@@ -199,6 +210,7 @@ Example response format for an installable generated page:
       "content": "## Content Pipeline\\n- Ideas\\n- Drafts\\n- Scheduled posts"
     }
   },
+  "openUiLang": "root = MarkdownDisplay(\\"## Content Pipeline\\\\n- Ideas\\\\n- Drafts\\\\n- Scheduled posts\\")",
   "createdAt": "2026-04-10T00:00:00.000Z"
 }
 \`\`\`

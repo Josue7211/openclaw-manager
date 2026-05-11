@@ -4,14 +4,13 @@ interface SyncUnlockViewProps {
   password: string
   recoveryKey: string
   loading: boolean
-  handoffCode: string
-  handoffLoading: boolean
-  handoffStatus: string
+  recoveryKeyConfigured: boolean
+  syncedServiceCount: number
+  hydratedServiceCount: number
   onPasswordChange: (value: string) => void
   onRecoveryKeyChange: (value: string) => void
   onSubmit: (event: React.FormEvent) => void
   onRecoverySubmit: (event: React.FormEvent) => void
-  onRequestHandoff: () => void
   onSignOut: () => void
 }
 
@@ -19,16 +18,17 @@ export function SyncUnlockView({
   password,
   recoveryKey,
   loading,
-  handoffCode,
-  handoffLoading,
-  handoffStatus,
+  recoveryKeyConfigured,
+  syncedServiceCount,
+  hydratedServiceCount,
   onPasswordChange,
   onRecoveryKeyChange,
   onSubmit,
   onRecoverySubmit,
-  onRequestHandoff,
   onSignOut,
 }: SyncUnlockViewProps) {
+  const serviceLabel = syncedServiceCount === 1 ? 'service' : 'services'
+
   return (
     <div
       style={{
@@ -48,41 +48,73 @@ export function SyncUnlockView({
         lineHeight: 1.5,
         textAlign: 'center',
       }}>
-        Your account is synced. Unlock it once on this Mac so Connected Services can hydrate locally.
+        2FA is done. This Mac is signed in, but it does not have the local decrypt key for synced services yet.
       </div>
-      {handoffCode ? (
+      <div style={{
+        padding: '10px 12px',
+        borderRadius: '10px',
+        border: '1px solid var(--border)',
+        background: 'var(--bg-elevated)',
+        color: 'var(--text-secondary)',
+        fontSize: '12px',
+        lineHeight: 1.5,
+      }}>
+        <div style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
+          {syncedServiceCount || 0} synced {serviceLabel} locked on this Mac
+        </div>
+        <div>
+          {hydratedServiceCount > 0
+            ? `${hydratedServiceCount} local service entries are already available here.`
+            : 'Local services stay untouched while cloud sync waits for the key.'}
+        </div>
+      </div>
+      {recoveryKeyConfigured ? (
+        <>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            color: 'var(--text-muted)',
+            fontSize: '11px',
+            textTransform: 'uppercase',
+            letterSpacing: 0,
+          }}>
+            <span style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+            Recovery key
+            <span style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+          </div>
+          <form onSubmit={onRecoverySubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <input
+              type="password"
+              value={recoveryKey}
+              onChange={event => onRecoveryKeyChange(event.target.value)}
+              placeholder="Recovery key"
+              autoComplete="off"
+              aria-label="Recovery key"
+              style={inputStyle}
+            />
+            <button
+              type="submit"
+              disabled={loading || !recoveryKey}
+              style={loading || !recoveryKey ? disabledBtnStyle : primaryBtnStyle}
+            >
+              {loading ? 'Unlocking sync...' : 'Unlock with Recovery Key'}
+            </button>
+          </form>
+        </>
+      ) : (
         <div style={{
           padding: '10px 12px',
           borderRadius: '10px',
-          border: '1px solid var(--accent-a20)',
-          background: 'var(--accent-a10)',
-          color: 'var(--text-primary)',
+          border: '1px solid var(--border)',
+          background: 'var(--bg-white-03)',
+          color: 'var(--text-muted)',
           fontSize: '12px',
           lineHeight: 1.5,
           textAlign: 'center',
         }}>
-          <div style={{ color: 'var(--text-secondary)', marginBottom: '6px' }}>Approval code</div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '22px', letterSpacing: '0.08em', fontWeight: 700 }}>
-            {handoffCode}
-          </div>
-          <div style={{ color: 'var(--text-muted)', marginTop: '6px' }}>
-            {handoffStatus || 'Waiting for an unlocked device to approve this Mac.'}
-          </div>
+          No recovery key exists for this account, so ClawControl will not ask for one.
         </div>
-      ) : (
-        <button
-          type="button"
-          onClick={onRequestHandoff}
-          disabled={handoffLoading}
-          style={handoffLoading ? disabledBtnStyle : {
-            ...primaryBtnStyle,
-            background: 'var(--bg-white-04)',
-            border: '1px solid var(--border)',
-            color: 'var(--text-primary)',
-          }}
-        >
-          {handoffLoading ? 'Creating request...' : 'Request Trusted Device Approval'}
-        </button>
       )}
       <div style={{
         display: 'flex',
@@ -91,41 +123,10 @@ export function SyncUnlockView({
         color: 'var(--text-muted)',
         fontSize: '11px',
         textTransform: 'uppercase',
-        letterSpacing: '0.06em',
+        letterSpacing: 0,
       }}>
         <span style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
-        Recovery key
-        <span style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
-      </div>
-      <form onSubmit={onRecoverySubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        <input
-          type="password"
-          value={recoveryKey}
-          onChange={event => onRecoveryKeyChange(event.target.value)}
-          placeholder="ccrk_v1_..."
-          autoComplete="off"
-          aria-label="Recovery key"
-          style={inputStyle}
-        />
-        <button
-          type="submit"
-          disabled={loading || !recoveryKey}
-          style={loading || !recoveryKey ? disabledBtnStyle : primaryBtnStyle}
-        >
-          {loading ? 'Unlocking sync...' : 'Unlock with Recovery Key'}
-        </button>
-      </form>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        color: 'var(--text-muted)',
-        fontSize: '11px',
-        textTransform: 'uppercase',
-        letterSpacing: '0.06em',
-      }}>
-        <span style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
-        Password fallback
+        Sync password
         <span style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
       </div>
       <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -133,9 +134,9 @@ export function SyncUnlockView({
           type="password"
           value={password}
           onChange={event => onPasswordChange(event.target.value)}
-          placeholder="Account password"
+          placeholder="Password that created sync"
           autoComplete="current-password"
-          aria-label="Account password"
+          aria-label="Sync password"
           style={inputStyle}
         />
         <button type="submit" disabled={loading || !password} style={loading || !password ? disabledBtnStyle : primaryBtnStyle}>

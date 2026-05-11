@@ -11,10 +11,13 @@ use crate::error::AppError;
 use crate::harness_paths::{self, HarnessProviderLayout};
 use crate::server::{AppState, RequireAuth};
 
+use super::gateway::harness_api_key;
+
 const MAX_FILE_SIZE: u64 = 5 * 1024 * 1024; // 5 MB
 
 const CORE_FILES: &[&str] = &[
     "SOUL.md",
+    "docs/SOUL.md",
     "AGENTS.md",
     "USER.md",
     "IDENTITY.md",
@@ -26,22 +29,27 @@ const CORE_FILES: &[&str] = &[
 
 const HERMES_CORE_FILES: &[&str] = &[
     "SOUL.md",
+    "memories/MEMORY.md",
+    "memories/USER.md",
+    ".hermes.md",
+    "HERMES.md",
     "AGENTS.md",
-    "USER.md",
-    "IDENTITY.md",
-    "TOOLS.md",
-    "HEARTBEAT.md",
-    "RESEARCH.md",
-    "BOOTSTRAP.md",
     "CLAUDE.md",
-    "GEMINI.md",
+    "agents.md",
+    "claude.md",
+    ".cursorrules",
+];
+const HERMES_CURSOR_RULE_DIR: &str = ".cursor/rules";
+
+const MEMD_FILES: &[&str] = &[
     ".memd/README.md",
     ".memd/COMMANDS.md",
     ".memd/config.json",
+    ".memd/wake.md",
+    ".memd/mem.md",
+    ".memd/events.md",
 ];
-
-const HERMES_MEMORY_FILES: &[&str] = &[".memd/wake.md", ".memd/mem.md", ".memd/events.md"];
-const HERMES_MEMORY_DIRS: &[&str] = &[".memd/compiled/memory", ".memd/compiled/events"];
+const MEMD_DIRS: &[&str] = &[".memd/compiled/memory", ".memd/compiled/events"];
 
 // ---------------------------------------------------------------------------
 // Router
@@ -83,9 +91,7 @@ fn remote_config(state: &AppState) -> Option<(String, Option<String>)> {
         .secret_first(&["HARNESS_API_URL", "HERMES_API_URL", "OPENCLAW_API_URL"])
         .filter(|u| !u.is_empty())
         .map(|url| {
-            let key = state
-                .secret_first(&["HARNESS_API_KEY", "HERMES_API_KEY", "OPENCLAW_API_KEY"])
-                .filter(|k| !k.is_empty());
+            let key = Some(harness_api_key(state)).filter(|k| !k.is_empty());
             (url, key)
         })
 }
@@ -160,19 +166,20 @@ fn safe_path_in(ws: &Path, user_path: &str) -> Option<PathBuf> {
 // GET /files – list core + memory files
 // ---------------------------------------------------------------------------
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[cfg_attr(test, derive(Debug))]
 struct FileEntry {
     name: String,
     path: String,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[cfg_attr(test, derive(Debug))]
 #[serde(rename_all = "camelCase")]
 struct ListFilesResponse {
     core_files: Vec<FileEntry>,
     memory_files: Vec<FileEntry>,
+    memd_files: Vec<FileEntry>,
 }
 
 fn file_entry(path: &str) -> FileEntry {
@@ -185,6 +192,188 @@ fn file_entry(path: &str) -> FileEntry {
     }
 }
 
+fn push_unique_path(
+    paths: &mut Vec<String>,
+    seen: &mut std::collections::HashSet<String>,
+    path: String,
+) {
+    if seen.insert(path.clone()) {
+        paths.push(path);
+    }
+}
+
+fn is_visible_markdown_name(name: &str) -> bool {
+    !name.starts_with('.') && name.ends_with(".md")
+}
+
+fn local_first_path(file_path: &str) -> bool {
+    file_path.starts_with(".memd/")
+        || file_path.starts_with(".cursor/rules/")
+        || CORE_FILES.contains(&file_path)
+        || HERMES_CORE_FILES.contains(&file_path)
+}
+
+fn current_project_root() -> Option<PathBuf> {
+    let mut dir = std::env::current_dir().ok()?;
+    loop {
+        if dir.join(".memd").is_dir() || dir.join("AGENTS.md").is_file() {
+            return Some(dir);
+        }
+        if !dir.pop() {
+            return None;
+        }
+    }
+}
+
+fn workspace_roots_from(state: &AppState, provider: HarnessProviderLayout) -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for root in [
+        Some(workspace_dir_from(state, provider)),
+        current_project_root(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        let key = root.to_string_lossy().to_string();
+        if seen.insert(key) {
+            roots.push(root);
+        }
+    }
+    roots
+}
+
+fn workspace_root_for_path(
+    state: &AppState,
+    provider: HarnessProviderLayout,
+    file_path: &str,
+) -> PathBuf {
+    let roots = workspace_roots_from(state, provider);
+    for root in &roots {
+        if root.join(file_path).exists() {
+            return root.clone();
+        }
+    }
+    if file_path.starts_with(".memd/") {
+        if let Some(root) = roots.iter().find(|root| root.join(".memd").exists()) {
+            return root.clone();
+        }
+    }
+    roots
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| workspace_dir_from(state, provider))
+}
+
+fn collect_memd_files(roots: &[PathBuf]) -> Vec<FileEntry> {
+    let mut seen = std::collections::HashSet::new();
+    let mut paths = Vec::new();
+    for root in roots {
+        for path in MEMD_FILES {
+            if root.join(path).is_file() {
+                push_unique_path(&mut paths, &mut seen, path.to_string());
+            }
+        }
+        for rel_dir in MEMD_DIRS {
+            let dir = root.join(rel_dir);
+            if !dir.exists() {
+                continue;
+            }
+            let mut entries: Vec<String> = std::fs::read_dir(&dir)
+                .map(|rd| {
+                    rd.filter_map(|e| e.ok())
+                        .map(|e| e.file_name().to_string_lossy().to_string())
+                        .filter(|name| is_visible_markdown_name(name))
+                        .collect()
+                })
+                .unwrap_or_default();
+            entries.sort();
+            entries.reverse();
+            for name in entries {
+                push_unique_path(&mut paths, &mut seen, format!("{}/{}", rel_dir, name));
+            }
+        }
+    }
+
+    paths.iter().map(|path| file_entry(path)).collect()
+}
+
+fn list_files_for_roots(roots: &[PathBuf], provider: HarnessProviderLayout) -> ListFilesResponse {
+    let core_candidates = match provider {
+        HarnessProviderLayout::Harness => CORE_FILES,
+        HarnessProviderLayout::Hermes => HERMES_CORE_FILES,
+    };
+    let mut seen = std::collections::HashSet::new();
+    let mut core_files = Vec::new();
+    let core_roots: Vec<&PathBuf> = if provider == HarnessProviderLayout::Hermes {
+        roots.first().into_iter().collect()
+    } else {
+        roots.iter().collect()
+    };
+    for root in core_roots {
+        for path in core_candidates {
+            if root.join(path).is_file() && seen.insert(path.to_string()) {
+                core_files.push(file_entry(path));
+            }
+        }
+        if provider == HarnessProviderLayout::Hermes {
+            let cursor_rules = root.join(HERMES_CURSOR_RULE_DIR);
+            if cursor_rules.is_dir() {
+                let mut entries: Vec<String> = std::fs::read_dir(&cursor_rules)
+                    .map(|rd| {
+                        rd.filter_map(|e| e.ok())
+                            .map(|e| e.file_name().to_string_lossy().to_string())
+                            .filter(|name| name.ends_with(".mdc"))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                entries.sort();
+                for name in entries {
+                    let path = format!("{}/{}", HERMES_CURSOR_RULE_DIR, name);
+                    if seen.insert(path.clone()) {
+                        core_files.push(file_entry(&path));
+                    }
+                }
+            }
+        }
+    }
+
+    let mut memory_paths = Vec::new();
+    let mut memory_seen = std::collections::HashSet::new();
+    if provider == HarnessProviderLayout::Harness {
+        for root in roots {
+            let memory_dir = root.join("memory");
+            if !memory_dir.exists() {
+                continue;
+            }
+            let mut entries: Vec<String> = std::fs::read_dir(&memory_dir)
+                .map(|rd| {
+                    rd.filter_map(|e| e.ok())
+                        .map(|e| e.file_name().to_string_lossy().to_string())
+                        .filter(|name| is_visible_markdown_name(name))
+                        .collect()
+                })
+                .unwrap_or_default();
+            entries.sort();
+            entries.reverse();
+            for name in entries {
+                push_unique_path(
+                    &mut memory_paths,
+                    &mut memory_seen,
+                    format!("memory/{}", name),
+                );
+            }
+        }
+    }
+
+    ListFilesResponse {
+        core_files,
+        memory_files: memory_paths.iter().map(|path| file_entry(path)).collect(),
+        memd_files: collect_memd_files(roots),
+    }
+}
+
+#[cfg(test)]
 fn list_files_for_root(ws: &Path, provider: HarnessProviderLayout) -> ListFilesResponse {
     match provider {
         HarnessProviderLayout::Harness => {
@@ -200,7 +389,7 @@ fn list_files_for_root(ws: &Path, provider: HarnessProviderLayout) -> ListFilesR
                     .map(|rd| {
                         rd.filter_map(|e| e.ok())
                             .map(|e| e.file_name().to_string_lossy().to_string())
-                            .filter(|name| name.ends_with(".md"))
+                            .filter(|name| is_visible_markdown_name(name))
                             .collect()
                     })
                     .unwrap_or_default();
@@ -217,6 +406,7 @@ fn list_files_for_root(ws: &Path, provider: HarnessProviderLayout) -> ListFilesR
             ListFilesResponse {
                 core_files,
                 memory_files,
+                memd_files: collect_memd_files(&[ws.to_path_buf()]),
             }
         }
         HarnessProviderLayout::Hermes => {
@@ -226,47 +416,118 @@ fn list_files_for_root(ws: &Path, provider: HarnessProviderLayout) -> ListFilesR
                 .map(|f| file_entry(f))
                 .collect();
 
-            let mut seen = std::collections::HashSet::new();
-            let mut memory_paths = Vec::new();
-            for path in HERMES_MEMORY_FILES {
-                if ws.join(path).exists() && seen.insert(path.to_string()) {
-                    memory_paths.push(path.to_string());
-                }
-            }
-            for rel_dir in HERMES_MEMORY_DIRS {
-                let dir = ws.join(rel_dir);
-                if !dir.exists() {
-                    continue;
-                }
-                let mut entries: Vec<String> = std::fs::read_dir(&dir)
-                    .map(|rd| {
-                        rd.filter_map(|e| e.ok())
-                            .map(|e| e.file_name().to_string_lossy().to_string())
-                            .filter(|name| name.ends_with(".md"))
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                entries.sort();
-                entries.reverse();
-                for name in entries {
-                    let path = format!("{}/{}", rel_dir, name);
-                    if seen.insert(path.clone()) {
-                        memory_paths.push(path);
-                    }
-                }
-            }
-
             ListFilesResponse {
                 core_files,
-                memory_files: memory_paths.iter().map(|path| file_entry(path)).collect(),
+                memory_files: Vec::new(),
+                memd_files: collect_memd_files(&[ws.to_path_buf()]),
             }
         }
     }
 }
 
 fn local_files_json(state: &AppState, provider: HarnessProviderLayout) -> Value {
-    let ws = workspace_dir_from(state, provider);
-    serde_json::to_value(list_files_for_root(&ws, provider)).unwrap()
+    serde_json::to_value(list_files_for_roots(
+        &workspace_roots_from(state, provider),
+        provider,
+    ))
+    .unwrap()
+}
+
+fn normalize_files_json(mut body: Value) -> Value {
+    let Some(object) = body.as_object_mut() else {
+        return body;
+    };
+
+    let mut memd_files = object
+        .remove("memdFiles")
+        .and_then(|value| value.as_array().cloned())
+        .unwrap_or_default();
+    let mut memory_files = Vec::new();
+
+    for entry in object
+        .remove("memoryFiles")
+        .and_then(|value| value.as_array().cloned())
+        .unwrap_or_default()
+    {
+        let is_memd = entry
+            .get("path")
+            .and_then(Value::as_str)
+            .map(|path| path.starts_with(".memd/"))
+            .unwrap_or(false);
+        if is_memd {
+            memd_files.push(entry);
+        } else {
+            memory_files.push(entry);
+        }
+    }
+
+    object.insert("memoryFiles".to_string(), Value::Array(memory_files));
+    object.insert("memdFiles".to_string(), Value::Array(memd_files));
+    body
+}
+
+fn merge_file_array(object: &mut serde_json::Map<String, Value>, key: &str, additions: &[Value]) {
+    let mut entries = object
+        .remove(key)
+        .and_then(|value| value.as_array().cloned())
+        .unwrap_or_default();
+    let mut seen: std::collections::HashSet<String> = entries
+        .iter()
+        .filter_map(|entry| {
+            entry
+                .get("path")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .collect();
+
+    for entry in additions {
+        let Some(path) = entry.get("path").and_then(Value::as_str) else {
+            continue;
+        };
+        if seen.insert(path.to_string()) {
+            entries.push(entry.clone());
+        }
+    }
+
+    object.insert(key.to_string(), Value::Array(entries));
+}
+
+#[cfg(test)]
+fn merge_local_files_json(body: Value, local: Value) -> Value {
+    let mut body = normalize_files_json(body);
+    let local = normalize_files_json(local);
+    let Some(object) = body.as_object_mut() else {
+        return body;
+    };
+
+    if let Some(local_object) = local.as_object() {
+        for key in ["coreFiles", "memoryFiles", "memdFiles"] {
+            let additions = local_object
+                .get(key)
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            merge_file_array(object, key, &additions);
+        }
+    }
+
+    body
+}
+
+fn merge_local_memd_files_json(body: Value, local: Value) -> Value {
+    let mut body = normalize_files_json(body);
+    let local = normalize_files_json(local);
+    let Some(object) = body.as_object_mut() else {
+        return body;
+    };
+    let additions = local
+        .get("memdFiles")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    merge_file_array(object, "memdFiles", &additions);
+    body
 }
 
 fn is_core_workspace_file(file_path: &str, provider: HarnessProviderLayout) -> bool {
@@ -275,7 +536,10 @@ fn is_core_workspace_file(file_path: &str, provider: HarnessProviderLayout) -> b
             let basename = file_path.split('/').next_back().unwrap_or("");
             CORE_FILES.contains(&basename) && !file_path.starts_with("memory/")
         }
-        HarnessProviderLayout::Hermes => HERMES_CORE_FILES.contains(&file_path),
+        HarnessProviderLayout::Hermes => {
+            HERMES_CORE_FILES.contains(&file_path)
+                || file_path.starts_with(&format!("{}/", HERMES_CURSOR_RULE_DIR))
+        }
     }
 }
 
@@ -306,7 +570,7 @@ async fn read_local_file_content(
     file_path: &str,
     provider: HarnessProviderLayout,
 ) -> Result<String, AppError> {
-    let ws = workspace_dir_from(state, provider);
+    let ws = workspace_root_for_path(state, provider, file_path);
     let full =
         safe_path_in(&ws, file_path).ok_or_else(|| AppError::BadRequest("Invalid path".into()))?;
 
@@ -329,7 +593,7 @@ async fn write_local_file_content(
     content: &str,
     provider: HarnessProviderLayout,
 ) -> Result<(), AppError> {
-    let ws = workspace_dir_from(state, provider);
+    let ws = workspace_root_for_path(state, provider, file_path);
     let full =
         safe_path_in(&ws, file_path).ok_or_else(|| AppError::BadRequest("Invalid path".into()))?;
 
@@ -374,8 +638,11 @@ async fn delete_local_file_path(
     file_path: &str,
     provider: HarnessProviderLayout,
 ) -> Result<Json<Value>, AppError> {
-    let full = safe_path_in(&workspace_dir_from(state, provider), file_path)
-        .ok_or_else(|| AppError::BadRequest("Invalid path".into()))?;
+    let full = safe_path_in(
+        &workspace_root_for_path(state, provider, file_path),
+        file_path,
+    )
+    .ok_or_else(|| AppError::BadRequest("Invalid path".into()))?;
 
     match tokio::fs::remove_file(&full).await {
         Ok(()) => Ok(Json(json!({ "ok": true }))),
@@ -401,11 +668,11 @@ async fn list_files(
 
         match res {
             Ok(r) if r.status().is_success() => {
-                let body: Value = r
-                    .json()
-                    .await
-                    .unwrap_or_else(|_| json!({ "coreFiles": [], "memoryFiles": [] }));
-                return Ok(Json(body));
+                let body: Value = r.json().await.unwrap_or_else(
+                    |_| json!({ "coreFiles": [], "memoryFiles": [], "memdFiles": [] }),
+                );
+                let local = local_files_json(&state, local_workspace_provider(&state));
+                return Ok(Json(merge_local_memd_files_json(body, local)));
             }
             _ => {}
         }
@@ -417,7 +684,9 @@ async fn list_files(
             )));
         }
 
-        return Ok(Json(json!({ "coreFiles": [], "memoryFiles": [] })));
+        return Ok(Json(
+            json!({ "coreFiles": [], "memoryFiles": [], "memdFiles": [] }),
+        ));
     }
 
     // Local mode
@@ -443,9 +712,17 @@ async fn read_file(
     Query(query): Query<FileQuery>,
 ) -> Result<Json<Value>, AppError> {
     let file_path = query.path;
+    let provider = local_workspace_provider(&state);
+    let remote = remote_config(&state);
+
+    if remote.is_none() && local_first_path(&file_path) {
+        if let Ok(content) = read_local_file_content(&state, &file_path, provider).await {
+            return Ok(Json(json!({ "content": content })));
+        }
+    }
 
     // Remote mode
-    if let Some((url, key)) = remote_config(&state) {
+    if let Some((url, key)) = remote {
         if !is_valid_workspace_path(&file_path) {
             return Err(AppError::BadRequest("Invalid path".into()));
         }
@@ -471,6 +748,12 @@ async fn read_file(
                             .await?;
                     return Ok(Json(json!({ "content": content })));
                 }
+                if status == 404 {
+                    if let Ok(content) = read_local_file_content(&state, &file_path, provider).await
+                    {
+                        return Ok(Json(json!({ "content": content })));
+                    }
+                }
                 return if status == 404 {
                     Err(AppError::NotFound("File not found".into()))
                 } else {
@@ -487,14 +770,16 @@ async fn read_file(
                             .await?;
                     return Ok(Json(json!({ "content": content })));
                 }
+                if let Ok(content) = read_local_file_content(&state, &file_path, provider).await {
+                    return Ok(Json(json!({ "content": content })));
+                }
                 return Err(AppError::Internal(anyhow::anyhow!("Remote fetch failed")));
             }
         }
     }
 
     // Local mode
-    let content =
-        read_local_file_content(&state, &file_path, local_workspace_provider(&state)).await?;
+    let content = read_local_file_content(&state, &file_path, provider).await?;
     Ok(Json(json!({ "content": content })))
 }
 
@@ -678,6 +963,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path();
         std::fs::write(root.join("SOUL.md"), "soul").unwrap();
+        std::fs::create_dir_all(root.join("memories")).unwrap();
+        std::fs::write(root.join("memories/MEMORY.md"), "memory").unwrap();
+        std::fs::write(root.join("memories/USER.md"), "user").unwrap();
         std::fs::create_dir_all(root.join(".memd/compiled/memory")).unwrap();
         std::fs::write(root.join(".memd/wake.md"), "wake").unwrap();
         std::fs::write(root.join(".memd/mem.md"), "mem").unwrap();
@@ -689,13 +977,82 @@ mod tests {
             .iter()
             .any(|entry| entry.path == "SOUL.md"));
         assert!(listed
-            .memory_files
+            .core_files
+            .iter()
+            .any(|entry| entry.path == "memories/MEMORY.md"));
+        assert!(listed
+            .core_files
+            .iter()
+            .any(|entry| entry.path == "memories/USER.md"));
+        assert!(listed
+            .memd_files
             .iter()
             .any(|entry| entry.path == ".memd/wake.md"));
         assert!(listed
-            .memory_files
+            .memd_files
             .iter()
             .any(|entry| entry.path == ".memd/compiled/memory/working.md"));
+    }
+
+    #[test]
+    fn harness_listing_includes_memd_separately_from_legacy_memory() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        std::fs::create_dir_all(root.join("memory")).unwrap();
+        std::fs::create_dir_all(root.join(".memd/compiled/memory")).unwrap();
+        std::fs::write(root.join("memory/2026-05-08.md"), "legacy").unwrap();
+        std::fs::write(root.join(".memd/mem.md"), "mem").unwrap();
+        std::fs::write(root.join(".memd/compiled/memory/working.md"), "working").unwrap();
+
+        let listed = list_files_for_root(root, HarnessProviderLayout::Harness);
+
+        assert!(listed
+            .memory_files
+            .iter()
+            .any(|entry| entry.path == "memory/2026-05-08.md"));
+        assert!(listed
+            .memd_files
+            .iter()
+            .any(|entry| entry.path == ".memd/mem.md"));
+        assert!(listed
+            .memd_files
+            .iter()
+            .any(|entry| entry.path == ".memd/compiled/memory/working.md"));
+    }
+
+    #[test]
+    fn normalize_files_moves_old_memd_memory_files_to_memd_files() {
+        let normalized = normalize_files_json(json!({
+            "coreFiles": [],
+            "memoryFiles": [
+                { "name": "2026-05-08.md", "path": "memory/2026-05-08.md" },
+                { "name": "mem.md", "path": ".memd/mem.md" }
+            ]
+        }));
+
+        assert_eq!(normalized["memoryFiles"].as_array().unwrap().len(), 1);
+        assert_eq!(normalized["memdFiles"].as_array().unwrap().len(), 1);
+        assert_eq!(normalized["memdFiles"][0]["path"], ".memd/mem.md");
+    }
+
+    #[test]
+    fn merge_local_files_keeps_remote_and_adds_local_memd() {
+        let merged = merge_local_files_json(
+            json!({
+                "coreFiles": [{ "name": "SOUL.md", "path": "SOUL.md" }],
+                "memoryFiles": [],
+                "memdFiles": []
+            }),
+            json!({
+                "coreFiles": [{ "name": "AGENTS.md", "path": "AGENTS.md" }],
+                "memoryFiles": [],
+                "memdFiles": [{ "name": "wake.md", "path": ".memd/wake.md" }]
+            }),
+        );
+
+        assert_eq!(merged["coreFiles"].as_array().unwrap().len(), 2);
+        assert_eq!(merged["memdFiles"].as_array().unwrap().len(), 1);
+        assert_eq!(merged["memdFiles"][0]["path"], ".memd/wake.md");
     }
 
     #[test]

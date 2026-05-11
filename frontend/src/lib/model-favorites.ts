@@ -5,10 +5,14 @@ export const CHAT_FAVORITE_MODELS_STORAGE_KEY = 'chat-favorite-models'
 export const CHAT_FAVORITE_MODELS_VERSION_STORAGE_KEY = 'chat-favorite-models-version'
 export const CHAT_PRIMARY_MODEL_STORAGE_KEY = 'harness-chat-primary-model'
 export const HARNESS_HEARTBEAT_MODEL_STORAGE_KEY = 'harness-heartbeat-model'
-export const CHAT_FAVORITE_MODELS_VERSION = 3
+export const CHAT_FAVORITE_MODELS_VERSION = 6
+export const CHAT_DEFAULT_MODEL = 'openai/gpt-5.5'
 export const CHAT_DEFAULT_FAVORITE_MODELS: string[] = [
-  'openai-codex/gpt-5.4',
-  'openai-codex/gpt-5.4-mini',
+  CHAT_DEFAULT_MODEL,
+  'openai/gpt-5.4',
+  'openai/gpt-5.4-mini',
+  'openai-codex/gpt-5.3-codex',
+  'openai-codex/gpt-5.3-codex-spark',
 ]
 
 export function getHarnessModelList(models?: HarnessModelsResponse | null): ModelInfo[] {
@@ -51,6 +55,27 @@ function makeMissingFavoriteModel(modelId: string): ModelOption {
   }
 }
 
+function modelSlug(modelId: string): string {
+  return modelId.split('/').at(-1) ?? modelId
+}
+
+function findFavoriteModel(models: ModelOption[], favoriteId: string): ModelOption | undefined {
+  const exact = models.find((candidate) => candidate.id === favoriteId)
+  if (exact) return exact
+
+  const favoriteSlug = modelSlug(favoriteId)
+  return models.find((candidate) => modelSlug(candidate.id) === favoriteSlug)
+}
+
+function dedupeModelsById(models: ModelOption[]): ModelOption[] {
+  const uniqueModels: ModelOption[] = []
+  for (const model of models) {
+    if (uniqueModels.some((candidate) => candidate.id === model.id)) continue
+    uniqueModels.push(model)
+  }
+  return uniqueModels
+}
+
 export function getChatFavoriteModels(
   models: ModelOption[],
   favoriteIds: string[],
@@ -62,8 +87,9 @@ export function getChatFavoriteModels(
     return current ? [current] : models.slice(0, 1)
   }
 
-  const favorites = uniqueFavoriteIds
-    .map((favoriteId) => models.find((candidate) => candidate.id === favoriteId) ?? makeMissingFavoriteModel(favoriteId))
+  const favorites = dedupeModelsById(uniqueFavoriteIds
+    .map((favoriteId) => findFavoriteModel(models, favoriteId) ?? makeMissingFavoriteModel(favoriteId))
+  )
 
   const current = models.find((candidate) => candidate.id === currentModel)
   if (current && !favorites.some((candidate) => candidate.id === current.id)) {
@@ -86,7 +112,7 @@ export function mergeDefaultFavoriteModelIds(
   defaultIds: string[],
   _models: Array<{ id: string }>,
 ): string[] {
-  return sanitizeFavoriteModelIds([...favoriteIds, ...defaultIds])
+  return sanitizeFavoriteModelIds([...defaultIds, ...favoriteIds])
 }
 
 export function isFavoriteModel(modelId: string, favoriteIds: string[]): boolean {
@@ -98,5 +124,9 @@ export function resolvePreferredModelId(
   models: Array<{ id: string }>,
 ): string {
   if (!preferredId) return ''
-  return models.some((model) => model.id === preferredId) ? preferredId : ''
+  const exact = models.find((model) => model.id === preferredId)
+  if (exact) return exact.id
+
+  const preferredSlug = modelSlug(preferredId)
+  return models.find((model) => modelSlug(model.id) === preferredSlug)?.id ?? ''
 }

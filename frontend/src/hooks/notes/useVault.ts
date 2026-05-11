@@ -6,6 +6,7 @@ import {
   createNote as vaultCreate,
   createFolder as vaultCreateFolder,
   putNote,
+  moveNote as vaultMoveNote,
   deleteFolder as vaultDeleteFolder,
   deleteNote as vaultDelete,
   startSync,
@@ -64,8 +65,8 @@ export function useVault() {
   }, [refresh])
 
   const createNote = useCallback(
-    async (title: string, folder: string = '') => {
-      const note = await vaultCreate(title, folder)
+    async (title: string, folder: string = '', content: string = '') => {
+      const note = await vaultCreate(title, folder, content)
       await refresh()
       return note
     },
@@ -101,6 +102,15 @@ export function useVault() {
     [],
   )
 
+  const moveNote = useCallback(
+    async (id: string, folder: string = '') => {
+      const moved = await vaultMoveNote(id, folder)
+      await refresh()
+      return moved
+    },
+    [refresh],
+  )
+
   const deleteFolder = useCallback(
     async (path: string) => {
       await vaultDeleteFolder(path)
@@ -119,6 +129,7 @@ export function useVault() {
     createNote,
     createFolder,
     updateNote,
+    moveNote,
     deleteNote,
     deleteFolder,
   }

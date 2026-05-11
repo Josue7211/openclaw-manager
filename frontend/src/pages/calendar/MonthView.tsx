@@ -1,9 +1,6 @@
 import { X, CalendarBlank } from '@phosphor-icons/react'
 import { EmptyState } from '@/components/ui/EmptyState'
-import {
-  CalendarEvent, calendarColor, parseLocalDate, formatTime,
-  DAY_LABELS,
-} from './shared'
+import { CalendarEvent, calendarColor, parseLocalDate, formatTime, DAY_LABELS } from './shared'
 
 interface MonthViewProps {
   anchor: Date
@@ -13,9 +10,19 @@ interface MonthViewProps {
   selectedDate: string | null
   onSelectDate: (dateKey: string | null) => void
   onSwitchToWeek: (dateKey?: string) => void
+  onEventSelect?: (event: CalendarEvent) => void
 }
 
-export function MonthView({ anchor, events, eventsByDate, todayKey, selectedDate, onSelectDate, onSwitchToWeek }: MonthViewProps) {
+export function MonthView({
+  anchor,
+  events,
+  eventsByDate,
+  todayKey,
+  selectedDate,
+  onSelectDate,
+  onSwitchToWeek,
+  onEventSelect,
+}: MonthViewProps) {
   const year = anchor.getFullYear()
   const month = anchor.getMonth()
   const firstDow = new Date(year, month, 1).getDay() // 0=Sun
@@ -27,7 +34,7 @@ export function MonthView({ anchor, events, eventsByDate, todayKey, selectedDate
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ]
 
-  const selectedEvents = selectedDate ? (eventsByDate[selectedDate] || []) : []
+  const selectedEvents = selectedDate ? eventsByDate[selectedDate] || [] : []
 
   return (
     <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
@@ -35,7 +42,18 @@ export function MonthView({ anchor, events, eventsByDate, todayKey, selectedDate
         {/* Weekday headers */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', marginBottom: '6px' }}>
           {DAY_LABELS.map(d => (
-            <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.07em', textTransform: 'uppercase', paddingBottom: '6px' }}>
+            <div
+              key={d}
+              style={{
+                textAlign: 'center',
+                fontSize: '10px',
+                fontWeight: 600,
+                color: 'var(--text-muted)',
+                letterSpacing: '0.07em',
+                textTransform: 'uppercase',
+                paddingBottom: '6px',
+              }}
+            >
               {d}
             </div>
           ))}
@@ -55,11 +73,7 @@ export function MonthView({ anchor, events, eventsByDate, todayKey, selectedDate
                 key={dateKey}
                 onClick={() => onSelectDate(isSelected ? null : dateKey)}
                 style={{
-                  background: isSelected
-                    ? 'var(--purple-a20)'
-                    : isToday
-                      ? 'var(--purple-a08)'
-                      : 'transparent',
+                  background: isSelected ? 'var(--purple-a20)' : isToday ? 'var(--purple-a08)' : 'transparent',
                   border: isSelected
                     ? '1px solid var(--purple-a40)'
                     : isToday
@@ -76,32 +90,51 @@ export function MonthView({ anchor, events, eventsByDate, todayKey, selectedDate
                   transition: 'all 0.1s',
                 }}
               >
-                <span style={{
-                  width: '22px', height: '22px', borderRadius: '50%',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '12px',
-                  fontWeight: isToday ? 700 : 400,
-                  background: isToday ? 'var(--accent)' : 'transparent',
-                  color: isToday ? 'var(--text-on-color)' : 'var(--text-secondary)',
-                  flexShrink: 0,
-                }}>
+                <span
+                  style={{
+                    width: '22px',
+                    height: '22px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '12px',
+                    fontWeight: isToday ? 700 : 400,
+                    background: isToday ? 'var(--accent)' : 'transparent',
+                    color: isToday ? 'var(--text-on-color)' : 'var(--text-secondary)',
+                    flexShrink: 0,
+                  }}
+                >
                   {day}
                 </span>
                 {/* Event pills/dots */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px', justifyContent: 'center', width: '100%', padding: '0 2px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '2px',
+                    justifyContent: 'center',
+                    width: '100%',
+                    padding: '0 2px',
+                  }}
+                >
                   {dayEvents.slice(0, 3).map((ev, i) => (
                     <div
                       key={i}
                       title={ev.title}
                       style={{
-                        height: '5px', width: '5px', borderRadius: '50%',
+                        height: '5px',
+                        width: '5px',
+                        borderRadius: '50%',
                         background: calendarColor(ev.calendar),
                         flexShrink: 0,
                       }}
                     />
                   ))}
                   {dayEvents.length > 3 && (
-                    <span style={{ fontSize: '8px', color: 'var(--text-muted)', lineHeight: 1 }}>+{dayEvents.length - 3}</span>
+                    <span style={{ fontSize: '8px', color: 'var(--text-muted)', lineHeight: 1 }}>
+                      +{dayEvents.length - 3}
+                    </span>
                   )}
                 </div>
               </button>
@@ -111,10 +144,27 @@ export function MonthView({ anchor, events, eventsByDate, todayKey, selectedDate
 
         {/* Legend */}
         {events.length > 0 && (
-          <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+          <div
+            style={{
+              marginTop: '16px',
+              paddingTop: '14px',
+              borderTop: '1px solid var(--border)',
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '10px',
+            }}
+          >
             {[...new Set(events.map(e => e.calendar))].map(cal => (
               <div key={cal} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: calendarColor(cal), flexShrink: 0 }} />
+                <div
+                  style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: calendarColor(cal),
+                    flexShrink: 0,
+                  }}
+                />
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{cal}</span>
               </div>
             ))}
@@ -128,11 +178,23 @@ export function MonthView({ anchor, events, eventsByDate, todayKey, selectedDate
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
             <div>
               <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-primary)' }}>
-                {parseLocalDate(selectedDate).toLocaleDateString('default', { weekday: 'long', month: 'short', day: 'numeric' })}
+                {parseLocalDate(selectedDate).toLocaleDateString('default', {
+                  weekday: 'long',
+                  month: 'short',
+                  day: 'numeric',
+                })}
               </div>
               <button
                 onClick={() => onSwitchToWeek(selectedDate)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '11px', color: 'var(--accent)', marginTop: '2px' }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                  fontSize: '11px',
+                  color: 'var(--accent)',
+                  marginTop: '2px',
+                }}
               >
                 View week →
               </button>
@@ -140,30 +202,52 @@ export function MonthView({ anchor, events, eventsByDate, todayKey, selectedDate
             <button
               onClick={() => onSelectDate(null)}
               aria-label="Close"
-              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', padding: '2px' }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-muted)',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '2px',
+              }}
             >
               <X size={14} />
             </button>
           </div>
 
           {selectedEvents.length === 0 ? (
-            <div style={{ padding: '8px 0' }}><EmptyState icon={CalendarBlank} title="No events" /></div>
+            <div style={{ padding: '8px 0' }}>
+              <EmptyState icon={CalendarBlank} title="No events" />
+            </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {selectedEvents.map(ev => (
-                <div key={ev.id} style={{
-                  padding: '10px 12px',
-                  background: 'var(--bg-base)',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border)',
-                  borderLeft: `3px solid ${calendarColor(ev.calendar)}`,
-                }}>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>{ev.title}</div>
+                <button
+                  key={ev.id}
+                  type="button"
+                  onClick={() => onEventSelect?.(ev)}
+                  style={{
+                    padding: '10px 12px',
+                    background: 'var(--bg-base)',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border)',
+                    borderLeft: `3px solid ${calendarColor(ev.calendar)}`,
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  font: 'inherit',
+                  appearance: 'none',
+                  WebkitAppearance: 'none',
+                }}
+              >
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                    {ev.title}
+                  </div>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                    {ev.allDay ? 'All day' : `${formatTime(ev.start)} – ${formatTime(ev.end)}`}
+                    {ev.allDay ? 'All day' : `${formatTime(ev.start)} - ${formatTime(ev.end)}`}
                   </div>
                   <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>{ev.calendar}</div>
-                </div>
+                </button>
               ))}
             </div>
           )}

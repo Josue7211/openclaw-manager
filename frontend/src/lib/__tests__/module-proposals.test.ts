@@ -4,6 +4,7 @@ import {
   isInstallableModuleProposal,
   type ModuleProposal,
 } from '../module-proposals'
+import { extractOpenUiLangFromResponse } from '../openui'
 
 function makeProposal(
   overrides: Partial<ModuleProposal> = {},
@@ -54,5 +55,19 @@ describe('module-proposals', () => {
     const source = compileOpenUiProposalSource(makeProposal())
     expect(source).toContain('window.__generatedModuleAPI')
     expect(source).not.toContain('window.React')
+  })
+
+  it('compiles OpenUI Lang proposals through the runtime OpenUiSnippet bridge', () => {
+    const source = compileOpenUiProposalSource(
+      makeProposal({ openUiLang: 'root = StatCard("Tasks", "7")' }),
+    )
+    expect(source).toContain('OpenUiSnippet')
+    expect(source).toContain('StatCard')
+  })
+
+  it('extracts fenced OpenUI Lang from assistant responses', () => {
+    expect(
+      extractOpenUiLangFromResponse('```openui\nroot = MarkdownDisplay("Hello")\n```'),
+    ).toBe('root = MarkdownDisplay("Hello")')
   })
 })

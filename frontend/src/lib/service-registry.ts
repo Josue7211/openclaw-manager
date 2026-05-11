@@ -87,15 +87,16 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
   {
     id: 'agentsecrets',
     title: 'Agent Secrets',
-    description: 'Required safe-secrets service that ships with clawctrl.',
+    description: 'Required private secret broker for agent capability approvals.',
     icon: Key,
     moduleIds: [],
     optional: false,
     fields: [
-      { label: 'Agent Secrets URL', keychainKey: 'agentsecrets.url', placeholder: 'http://100.x.x.x:4815' },
+      { label: 'Agent Secrets URL', keychainKey: 'agentsecrets.url', placeholder: 'http://100.x.x.x:4815 or https://secrets.example.com' },
       { label: 'Agent Secrets Client API Key', keychainKey: 'agentsecrets.client-api-key', placeholder: 'Client API key', secret: true },
+      { label: 'Agent Secrets Approver API Key', keychainKey: 'agentsecrets.approver-api-key', placeholder: 'Approver API key', secret: true },
     ],
-    services: [{ name: 'agentsecrets', fieldKeys: ['agentsecrets.url', 'agentsecrets.client-api-key'] }],
+    services: [{ name: 'agentsecrets', fieldKeys: ['agentsecrets.url', 'agentsecrets.client-api-key', 'agentsecrets.approver-api-key'] }],
     testKey: 'agentsecrets',
   },
   {
@@ -258,20 +259,22 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
   },
   {
     id: 'lightrag',
-    title: 'LightRAG',
-    description: 'Semantic knowledge retrieval for Memory and Knowledge.',
+    title: 'Knowledge RAG',
+    description: 'Built-in memd, LightRAG, and RAGAnything/MinerU retrieval for Memory and Knowledge.',
     icon: Brain,
     moduleIds: ['memory', 'knowledge'],
     optional: true,
-    skipLabel: 'Skip — no LightRAG',
+    skipLabel: 'Use bundled/local RAG defaults',
     fields: [
       { label: 'LightRAG Base URL', keychainKey: 'lightrag.base-url', placeholder: 'http://your-lightrag-host:9621' },
       { label: 'LightRAG API Key', keychainKey: 'lightrag.api-key', placeholder: 'API key', secret: true },
       { label: 'memd RAG Sidecar URL', keychainKey: 'memd.rag-url', placeholder: 'http://100.x.x.x:9000' },
+      { label: 'RAGAnything/MinerU URL', keychainKey: 'raganything.url', placeholder: 'http://100.x.x.x:8010' },
     ],
     services: [
       { name: 'lightrag', fieldKeys: ['lightrag.base-url', 'lightrag.api-key'] },
       { name: 'memd', fieldKeys: ['memd.rag-url'] },
+      { name: 'raganything', fieldKeys: ['raganything.url'] },
     ],
   },
 ]
@@ -328,11 +331,12 @@ export const CONNECTION_SETTINGS: ConnectionSettingDef[] = [
   {
     id: 'agentsecrets',
     label: 'Agent Secrets',
-    description: 'Required safe-secrets service URL',
+    description: 'Private secret broker endpoint',
     urlKeychainKey: 'agentsecrets.url',
-    urlPlaceholder: 'http://100.x.x.x:4815',
+    urlPlaceholder: 'http://100.x.x.x:4815 or https://secrets.example.com',
     credentialFields: [
       { label: 'Client API Key', keychainKey: 'agentsecrets.client-api-key', placeholder: 'Client API key', secret: true },
+      { label: 'Approver API Key', keychainKey: 'agentsecrets.approver-api-key', placeholder: 'Approver API key', secret: true },
     ],
     expectedHostPreferenceKey: 'agentsecrets.expected-host',
     expectedHostPlaceholder: 'e.g. secrets-host',

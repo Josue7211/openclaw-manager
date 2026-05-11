@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 import { useChatSocket, type WsMessage } from '@/lib/hooks/useChatSocket'
 import { api, ApiError, getRequestApiKeyForPath, getRequestBaseForPath } from '@/lib/api'
@@ -7,6 +7,7 @@ import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode, DEMO_CHAT_MESSAGES } from '@/lib/demo-data'
 import { type LightboxData } from '@/components/Lightbox'
 import {
+  CHAT_DEFAULT_MODEL,
   CHAT_DEFAULT_FAVORITE_MODELS,
   CHAT_FAVORITE_MODELS_STORAGE_KEY,
   CHAT_FAVORITE_MODELS_VERSION,
@@ -51,6 +52,11 @@ interface ChatHistoryResponse {
   error?: string
 }
 
+interface ChatSendResponse {
+  ok?: boolean
+  sessionKey?: string | null
+}
+
 function normalizeHistoryMessages(items: ChatHistoryItem[] = []): ChatMessage[] {
   return items.flatMap((item, index) => {
     if (item.role !== 'user' && item.role !== 'assistant') return []
@@ -66,7 +72,11 @@ function normalizeHistoryMessages(items: ChatHistoryItem[] = []): ChatMessage[] 
   })
 }
 
-export function useChatState(sessionKey: string | null = null) {
+export function useChatState(
+  sessionKey: string | null = null,
+  options: { onSessionKey?: (key: string) => void } = {},
+) {
+  const queryClient = useQueryClient()
   const _demo = isDemoMode()
   const [messages, setMessages]   = useState<ChatMessage[]>(_demo ? DEMO_CHAT_MESSAGES : [])
   const [input, setInput]         = useState('')
@@ -93,6 +103,7 @@ export function useChatState(sessionKey: string | null = null) {
   const [primaryModel, setPrimaryModel] = useLocalStorageState(CHAT_PRIMARY_MODEL_STORAGE_KEY, '')
   const [favoriteModelIds, setFavoriteModelIds] = useLocalStorageState<string[]>(CHAT_FAVORITE_MODELS_STORAGE_KEY, [])
   const [favoriteModelsVersion, setFavoriteModelsVersion] = useLocalStorageState<number>(CHAT_FAVORITE_MODELS_VERSION_STORAGE_KEY, 0)
+  const lastPostedModelRef = useRef('')
   // System prompt is now server-side only (security: prevents prompt injection from frontend)
 
   // Fetch available models from the configured harness backend
@@ -122,13 +133,36 @@ export function useChatState(sessionKey: string | null = null) {
     }
   }, [favoriteModelIds, favoriteModelsVersion, modelsData, setFavoriteModelIds, setFavoriteModelsVersion])
 
+  useEffect(() => {
+    if (!modelsData?.models?.length) return
+    if (favoriteModelsVersion >= CHAT_FAVORITE_MODELS_VERSION) return
+
+    const defaultModel = resolvePreferredModelId(CHAT_DEFAULT_MODEL, modelsData.models)
+    if (!defaultModel) return
+
+    setModelLocal(defaultModel)
+    setPrimaryModel(defaultModel)
+    void api.patch<{ appliedChatModel?: boolean }>('/api/harness/runtime-config', {
+      chatPrimaryModel: defaultModel,
+    }).then((result) => {
+      if (result?.appliedChatModel) {
+        lastPostedModelRef.current = defaultModel
+        return
+      }
+      return api.post('/api/chat/model', { model: defaultModel }).then(() => {
+        lastPostedModelRef.current = defaultModel
+      })
+    }).catch(() => {
+      lastPostedModelRef.current = ''
+    })
+  }, [favoriteModelsVersion, modelsData, setModelLocal, setPrimaryModel])
+
   const visibleModels = modelsData?.models?.length
     ? getChatFavoriteModels(modelsData.models, favoriteModelIds, model)
     : []
 
   // Keep the local picker on a valid model without blindly forcing server-side changes.
   // Server model changes are posted in a separate effect so we don't create drift loops.
-  const lastPostedModelRef = useRef('')
   useEffect(() => {
     if (!modelsData?.models?.length) return
 
@@ -571,8 +605,13 @@ export function useChatState(sessionKey: string | null = null) {
       : { text, images: imgs, model }
 
     postChatRequest(withSessionKey(payload, sessionKey), controller.signal)
-      .then(() => {
+      .then((response: ChatSendResponse | undefined) => {
         if (controller.signal.aborted || abortRequestedRef.current) return
+        const nextSessionKey = response?.sessionKey?.trim()
+        if (nextSessionKey && !sessionKey) {
+          options.onSessionKey?.(nextSessionKey)
+        }
+        queryClient.invalidateQueries({ queryKey: queryKeys.gatewaySessions })
         sendingRef.current = false
         setSending(false)
         finalizeSendAccepted()
@@ -611,6 +650,7 @@ export function useChatState(sessionKey: string | null = null) {
     setOptimistic(prev => prev.map(m => m.id === msg.id ? { ...m, status: 'sending' } : m))
     try {
       await api.post('/api/chat', withSessionKey({ text: msg.text, images: msg.images || [], model }, sessionKey))
+      queryClient.invalidateQueries({ queryKey: queryKeys.gatewaySessions })
       setOptimistic(prev => prev.map(m => m.id === msg.id ? { ...m, status: 'sent' } : m))
       setTimeout(() => setOptimistic(prev => prev.filter(m => m.id !== msg.id)), 2000)
     } catch {

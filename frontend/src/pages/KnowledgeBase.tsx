@@ -18,6 +18,7 @@ interface SemanticResult {
   content?: string
   snippet?: string
   score?: number
+  backend?: string
 }
 
 interface RagStatus {
@@ -167,10 +168,10 @@ export default function KnowledgePage() {
   const hasQuery = debouncedSearch.length >= 2
   const hasResults = entries.length > 0 || ragResults.length > 0
   const ragStatusText = !ragStatus?.configured
-    ? 'LightRAG not configured'
+    ? 'Built-in memd ready'
     : ragStatus.reachable
-      ? `${ragStatus.backend || 'LightRAG'} online${ragCount ? ` · ${ragCount} docs` : ''}`
-      : `${ragStatus.backend || 'LightRAG'} offline`
+      ? `${ragStatus.backend || 'memd-local'} online${ragCount ? ` · ${ragCount} docs` : ''}`
+      : `${ragStatus.backend || 'memd-local'} offline`
 
   const forceGraphData = useMemo(() => {
     const edgeCounts = new Map<string, number>()
@@ -427,7 +428,7 @@ export default function KnowledgePage() {
               <EntryCard key={entry.id} entry={entry} onSelect={handleSelectEntry} />
             ))}
             {ragResults.map((result, index) => {
-              const title = result.name || result.path || `LightRAG result ${index + 1}`
+              const title = result.name || result.path || `Knowledge result ${index + 1}`
               const content = result.snippet || result.content || ''
               return (
                 <button
@@ -437,7 +438,7 @@ export default function KnowledgePage() {
                     id: `rag-${index}`,
                     title,
                     content: result.content || result.snippet || '',
-                    tags: ['lightrag'],
+                    tags: [result.backend === 'memd-local' ? 'memd' : 'lightrag'],
                     source_url: result.path || undefined,
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),
@@ -478,7 +479,7 @@ export default function KnowledgePage() {
         )}
         {ragError && (
           <div style={{ marginTop: '10px', color: 'var(--text-muted)', fontSize: '12px' }}>
-            LightRAG search unavailable.
+            Knowledge search unavailable.
           </div>
         )}
       </div>
@@ -590,7 +591,7 @@ export default function KnowledgePage() {
             {ragGraph?.is_truncated && ' · truncated'}
           </div>
           {!ragStatus?.reachable ? (
-            <EmptyState icon={ShareNetwork} title="LightRAG graph unavailable" description="Check the LightRAG host or backend route." />
+            <EmptyState icon={ShareNetwork} title="Knowledge graph unavailable" description="Check the backend route." />
           ) : graphLoading ? (
             <div style={{ padding: '70px 18px 18px' }}>
               <SkeletonList count={3} lines={2} layout="grid" />

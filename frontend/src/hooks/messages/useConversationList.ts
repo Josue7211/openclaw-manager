@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiError } from '@/lib/api'
 import { isDemoMode } from '@/lib/demo-data'
-import { ensureAvatarBatchCheck } from '@/components/messages/ContactAvatar'
+import { ensureAvatarBatchCheck, ensureConversationAvatarPreload } from '@/components/messages/ContactAvatar'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 import { getReadOverrides } from './readOverrides'
 import type { Conversation, ServiceFilter } from '@/pages/messages/types'
@@ -85,6 +85,7 @@ export function useConversationList() {
         const allAddresses = convs.flatMap((c: Conversation) =>
           (c.participants || []).map((p: { address: string }) => p.address).filter(Boolean)
         )
+        ensureConversationAvatarPreload(convs)
         if (allAddresses.length > 0) ensureAvatarBatchCheck(allAddresses)
       }
     } catch (e) {
@@ -107,6 +108,7 @@ export function useConversationList() {
         setConversations(prev => {
           const existingGuids = new Set(prev.map(c => c.guid))
           const fresh = more.filter((c: Conversation) => !existingGuids.has(c.guid))
+          if (fresh.length > 0) ensureConversationAvatarPreload(fresh)
           return fresh.length > 0 ? [...prev, ...fresh] : prev
         })
       }

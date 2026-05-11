@@ -18,11 +18,25 @@ import {
   type ConnectionSettingId,
   keychainKeyToCredKey,
 } from '@/lib/service-registry'
+import type { ApiSuccess, HomelabConfigData } from '@/pages/homelab/types'
 import { row, rowLast, val, inputStyle, sectionLabel } from './shared'
 
 const OnboardingWelcome = lazy(() => import('@/components/OnboardingWelcome'))
 
 type CredentialMap = Record<string, string>
+
+interface HomelabConfigForm {
+  proxmoxHost: string
+  proxmoxTokenId: string
+  proxmoxTokenSecret: string
+  opnsenseHost: string
+  opnsenseKey: string
+  opnsenseSecret: string
+}
+
+interface SyncedSecret {
+  credentials?: Record<string, string>
+}
 
 type SecretResponse =
   | {
@@ -39,6 +53,15 @@ function emptyConnectionRecord(): Record<ConnectionSettingId, CredentialMap> {
   return Object.fromEntries(
     CONNECTION_SETTINGS.map(setting => [setting.id, {}])
   ) as Record<ConnectionSettingId, CredentialMap>
+}
+
+const emptyHomelabForm: HomelabConfigForm = {
+  proxmoxHost: '',
+  proxmoxTokenId: '',
+  proxmoxTokenSecret: '',
+  opnsenseHost: '',
+  opnsenseKey: '',
+  opnsenseSecret: '',
 }
 
 function extractCredentials(response: SecretResponse): CredentialMap {
@@ -93,6 +116,10 @@ export default function SettingsConnections() {
   const [connSaveStatus, setConnSaveStatus] = useState<string | null>(null)
   const [connTesting, setConnTesting] = useState(false)
   const [connResults, setConnResults] = useState<Record<string, { status: string; latency_ms?: number; error?: string; peer_hostname?: string; peer_verified?: boolean }> | null>(null)
+  const [homelabForm, setHomelabForm] = useState<HomelabConfigForm>(emptyHomelabForm)
+  const [homelabConfig, setHomelabConfig] = useState<HomelabConfigData | null>(null)
+  const [homelabSaving, setHomelabSaving] = useState(false)
+  const [homelabStatus, setHomelabStatus] = useState<string | null>(null)
   const [showSetupWizard, setShowSetupWizard] = useState(false)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [backendUrl, setBackendUrl] = useState(getConfiguredBackendBase())
@@ -138,6 +165,27 @@ export default function SettingsConnections() {
         [keychainKey]: value,
       },
     }))
+  }, [])
+
+  const updateHomelabForm = useCallback((key: keyof HomelabConfigForm, value: string) => {
+    setHomelabForm(prev => ({ ...prev, [key]: value }))
+    setHomelabStatus(null)
+  }, [])
+
+  const applyHomelabConfig = useCallback((config: HomelabConfigData | null) => {
+    if (!config) return
+    setHomelabConfig(config)
+    setHomelabForm(prev => ({
+      ...prev,
+      proxmoxHost: prev.proxmoxHost || config.local.proxmox_host || '',
+      proxmoxTokenId: prev.proxmoxTokenId || config.local.proxmox_token_id || '',
+      opnsenseHost: prev.opnsenseHost || config.local.opnsense_host || '',
+    }))
+  }, [])
+
+  const loadSyncedHomelabCredentials = useCallback(async (service: 'proxmox' | 'opnsense') => {
+    const response = await api.get<ApiSuccess<SyncedSecret>>(`/api/secrets/${service}`).catch(() => null)
+    return response?.data?.credentials ?? null
   }, [])
 
   // Load saved connection URLs from the backend API first (Supabase-encrypted),
@@ -223,6 +271,36 @@ export default function SettingsConnections() {
       })
     }).catch(() => {})
   }, [updateExpectedHost])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadHomelabConfig() {
+      const localResponse = await api.get<ApiSuccess<HomelabConfigData>>('/api/homelab/config').catch(() => null)
+      if (!cancelled) applyHomelabConfig(localResponse?.data ?? null)
+
+      const [syncedProxmox, syncedOPNsense] = await Promise.all([
+        loadSyncedHomelabCredentials('proxmox'),
+        loadSyncedHomelabCredentials('opnsense'),
+      ])
+
+      if (cancelled) return
+      setHomelabForm(prev => ({
+        ...prev,
+        proxmoxHost: syncedProxmox?.host || prev.proxmoxHost,
+        proxmoxTokenId: syncedProxmox?.token_id || prev.proxmoxTokenId,
+        proxmoxTokenSecret: syncedProxmox?.token_secret || prev.proxmoxTokenSecret,
+        opnsenseHost: syncedOPNsense?.host || prev.opnsenseHost,
+        opnsenseKey: syncedOPNsense?.key || prev.opnsenseKey,
+        opnsenseSecret: syncedOPNsense?.secret || prev.opnsenseSecret,
+      }))
+    }
+
+    void loadHomelabConfig()
+    return () => {
+      cancelled = true
+    }
+  }, [applyHomelabConfig, loadSyncedHomelabCredentials])
 
   const refreshBackendStatus = useCallback(async (targetBase = backendUrl, announce = true) => {
     setBackendChecking(true)
@@ -400,6 +478,70 @@ export default function SettingsConnections() {
       setConnSaving(false)
     }
   }, [agentKey, bindHost, connectionCredentials, connectionUrls, expectedHosts, saveSecretMutation, savedCredentials])
+
+  const saveHomelabConfig = useCallback(async () => {
+    setHomelabSaving(true)
+    setHomelabStatus(null)
+    try {
+      const localPayload: Record<string, string> = {
+        proxmox_host: homelabForm.proxmoxHost,
+        proxmox_token_id: homelabForm.proxmoxTokenId,
+        opnsense_host: homelabForm.opnsenseHost,
+      }
+      if (homelabForm.proxmoxTokenSecret.trim()) localPayload.proxmox_token_secret = homelabForm.proxmoxTokenSecret
+      if (homelabForm.opnsenseKey.trim()) localPayload.opnsense_key = homelabForm.opnsenseKey
+      if (homelabForm.opnsenseSecret.trim()) localPayload.opnsense_secret = homelabForm.opnsenseSecret
+
+      const localResponse = await api.put<ApiSuccess<HomelabConfigData>>('/api/homelab/config', localPayload)
+      applyHomelabConfig(localResponse.data)
+
+      const localSync = await api.post<ApiSuccess<{ synced: string[]; skipped: string[] }>>('/api/homelab/sync')
+        .catch(() => null)
+      const localSyncComplete = !!localSync
+        && localSync.data.synced.includes('proxmox')
+        && localSync.data.synced.includes('opnsense')
+
+      const [existingProxmox, existingOPNsense] = localSync ? [null, null] : await Promise.all([
+        loadSyncedHomelabCredentials('proxmox').catch(() => null),
+        loadSyncedHomelabCredentials('opnsense').catch(() => null),
+      ])
+
+      const proxmoxCredentials: Record<string, string> = {
+        ...(existingProxmox ?? {}),
+        host: homelabForm.proxmoxHost.trim(),
+        token_id: homelabForm.proxmoxTokenId.trim(),
+      }
+      if (homelabForm.proxmoxTokenSecret.trim()) proxmoxCredentials.token_secret = homelabForm.proxmoxTokenSecret.trim()
+
+      const opnsenseCredentials: Record<string, string> = {
+        ...(existingOPNsense ?? {}),
+        host: homelabForm.opnsenseHost.trim(),
+      }
+      if (homelabForm.opnsenseKey.trim()) opnsenseCredentials.key = homelabForm.opnsenseKey.trim()
+      if (homelabForm.opnsenseSecret.trim()) opnsenseCredentials.secret = homelabForm.opnsenseSecret.trim()
+
+      const directSyncAllowed = !localSync
+        && !!(proxmoxCredentials.token_secret || homelabForm.proxmoxTokenSecret.trim())
+        && !!(opnsenseCredentials.key || homelabForm.opnsenseKey.trim())
+        && !!(opnsenseCredentials.secret || homelabForm.opnsenseSecret.trim())
+      const syncResults = directSyncAllowed
+        ? await Promise.allSettled([
+            api.put('/api/secrets/proxmox', { credentials: proxmoxCredentials }),
+            api.put('/api/secrets/opnsense', { credentials: opnsenseCredentials }),
+          ])
+        : []
+      const syncOk = localSyncComplete || (directSyncAllowed && syncResults.every(result => result.status === 'fulfilled'))
+
+      setHomelabForm(prev => ({ ...prev, proxmoxTokenSecret: '', opnsenseKey: '', opnsenseSecret: '' }))
+      setHomelabStatus(syncOk
+        ? 'Saved locally and synced.'
+        : 'Saved locally. Sign in to sync encrypted secrets.')
+    } catch (e: unknown) {
+      setHomelabStatus(`Error: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setHomelabSaving(false)
+    }
+  }, [applyHomelabConfig, homelabForm, loadSyncedHomelabCredentials])
 
   const testConnections = useCallback(async () => {
     setConnTesting(true)
@@ -597,6 +739,89 @@ export default function SettingsConnections() {
           </div>
         </div>
       ))}
+
+      <div style={{ ...sectionLabel, marginTop: '24px' }}>Home Lab</div>
+      <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 16px' }}>
+        Proxmox and OPNsense credentials for Home Lab Vitals. Secrets are stored locally and synced encrypted when auth is unlocked.
+      </p>
+
+      <div style={row}>
+        <div style={{ flex: 1 }}>
+          <span>Proxmox</span>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+            {homelabConfig?.api_configured.proxmox ? 'Ready' : 'Needs host, token ID, and token secret'}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+          <input
+            style={inputStyle}
+            value={homelabForm.proxmoxHost}
+            onChange={e => updateHomelabForm('proxmoxHost', e.target.value)}
+            placeholder="https://100.x.x.x:8006"
+            aria-label="Proxmox Host URL"
+          />
+          <input
+            style={inputStyle}
+            value={homelabForm.proxmoxTokenId}
+            onChange={e => updateHomelabForm('proxmoxTokenId', e.target.value)}
+            placeholder="user@pam!token-name"
+            aria-label="Proxmox Token ID"
+          />
+          <input
+            type="password"
+            style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '11px' }}
+            value={homelabForm.proxmoxTokenSecret}
+            onChange={e => updateHomelabForm('proxmoxTokenSecret', e.target.value)}
+            placeholder={homelabConfig?.local.proxmox_token_secret_set ? 'Token secret saved; paste new value to replace' : 'Token secret'}
+            aria-label="Proxmox Token Secret"
+          />
+        </div>
+      </div>
+
+      <div style={rowLast}>
+        <div style={{ flex: 1 }}>
+          <span>OPNsense</span>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+            {homelabConfig?.api_configured.opnsense ? 'Ready' : 'Needs host, API key, and API secret'}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+          <input
+            style={inputStyle}
+            value={homelabForm.opnsenseHost}
+            onChange={e => updateHomelabForm('opnsenseHost', e.target.value)}
+            placeholder="https://100.x.x.x"
+            aria-label="OPNsense Host URL"
+          />
+          <input
+            type="password"
+            style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '11px' }}
+            value={homelabForm.opnsenseKey}
+            onChange={e => updateHomelabForm('opnsenseKey', e.target.value)}
+            placeholder={homelabConfig?.local.opnsense_key_set ? 'API key saved; paste new value to replace' : 'API key'}
+            aria-label="OPNsense API Key"
+          />
+          <input
+            type="password"
+            style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '11px' }}
+            value={homelabForm.opnsenseSecret}
+            onChange={e => updateHomelabForm('opnsenseSecret', e.target.value)}
+            placeholder={homelabConfig?.local.opnsense_secret_set ? 'API secret saved; paste new value to replace' : 'API secret'}
+            aria-label="OPNsense API Secret"
+          />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', marginTop: '16px', marginBottom: '24px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <Button variant="primary" onClick={() => void saveHomelabConfig()} disabled={homelabSaving} style={{ fontSize: '12px', padding: '8px 16px' }}>
+          {homelabSaving ? 'Saving...' : 'Save Home Lab'}
+        </Button>
+        {homelabStatus && (
+          <span style={{ fontSize: '12px', fontFamily: 'monospace', color: homelabStatus.startsWith('Error') ? 'var(--red)' : 'var(--secondary)' }}>
+            {homelabStatus}
+          </span>
+        )}
+      </div>
 
       <div style={rowLast}>
         <div style={{ flex: 1 }}>

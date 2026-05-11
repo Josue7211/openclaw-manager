@@ -19,6 +19,8 @@ interface NoteMeta {
   folder: string
   tags: string[]
   links: string[]
+  aliases?: string[]
+  properties?: Record<string, string | string[]>
   created_at: number
   updated_at: number
 }
@@ -33,6 +35,14 @@ interface FolderMeta {
   updated_at: number
 }
 
+export interface VaultAttachmentUpload {
+  id: string
+  rev?: string
+  mime: string
+  size: number
+  created_at: number
+}
+
 function toMeta(note: VaultNote): NoteMeta {
   return {
     _id: note._id,
@@ -40,6 +50,8 @@ function toMeta(note: VaultNote): NoteMeta {
     folder: note.folder,
     tags: note.tags,
     links: note.links,
+    aliases: note.aliases,
+    properties: note.properties,
     created_at: note.created_at,
     updated_at: note.updated_at,
   }
@@ -96,6 +108,15 @@ function saveFolderCache(folders: Map<string, VaultFolder>) {
   localStorage.setItem(FOLDER_STORAGE_KEY, JSON.stringify([...folders.values()].map(toFolderMeta)))
 }
 
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
+}
+
 // In-memory note cache (includes content)
 const notesCache: Map<string, VaultNote> = new Map()
 const foldersCache: Map<string, VaultFolder> = loadFolderCache()
@@ -111,6 +132,8 @@ for (const [id, meta] of metaCache) {
     _id: meta._id,
     type: 'note',
     content: '',
+    aliases: meta.aliases,
+    properties: meta.properties,
   })
 }
 
@@ -119,9 +142,15 @@ function docToNote(doc: Record<string, unknown>): VaultNote {
   const id = (doc._id as string) || ''
   const title = (doc.title as string) || id.replace(/\.md$/, '').split('/').pop() || id
   const content = (doc.content as string) || (doc.body as string) || ''
+  const frontmatter = parseFrontmatter(content)
   const folder = (doc.folder as string) || (doc.path as string)?.split('/').slice(0, -1).join('/') || ''
-  const tags = Array.isArray(doc.tags) ? doc.tags : extractTags(content)
+  const tags = Array.isArray(doc.tags)
+    ? doc.tags
+    : [...new Set([...extractTags(content), ...frontmatterTags(frontmatter.properties)])]
   const links = Array.isArray(doc.links) ? doc.links : extractWikilinks(content)
+  const aliases = Array.isArray(doc.aliases)
+    ? doc.aliases.filter((alias): alias is string => typeof alias === 'string')
+    : frontmatterAliases(frontmatter.properties)
   const created = (doc.created_at as number) || (doc.ctime as number) || Date.now()
   const updated = (doc.updated_at as number) || (doc.mtime as number) || Date.now()
 
@@ -134,6 +163,8 @@ function docToNote(doc: Record<string, unknown>): VaultNote {
     folder,
     tags,
     links,
+    aliases,
+    properties: frontmatter.properties,
     created_at: created,
     updated_at: updated,
   }
@@ -273,14 +304,18 @@ export async function getAllFolders(): Promise<VaultFolder[]> {
 
 export async function putNote(note: VaultNote): Promise<VaultNote> {
   const now = Date.now()
+  const frontmatter = parseFrontmatter(note.content)
   const links = extractWikilinks(note.content)
-  const tags = extractTags(note.content)
+  const tags = [...new Set([...extractTags(note.content), ...frontmatterTags(frontmatter.properties)])]
+  const aliases = frontmatterAliases(frontmatter.properties)
 
   const doc: VaultNote = {
     ...note,
     type: 'note',
     links,
     tags,
+    aliases,
+    properties: frontmatter.properties,
     updated_at: now,
     created_at: note.created_at || now,
   }
@@ -301,6 +336,38 @@ export async function putNote(note: VaultNote): Promise<VaultNote> {
   return doc
 }
 
+export async function uploadAttachment(file: File, folder = 'attachments'): Promise<VaultAttachmentUpload> {
+  const dataUrl = await fileToDataUrl(file)
+  const result = await api.post<any>('/api/vault/attachment', {
+    name: file.name,
+    mime: file.type || 'application/octet-stream',
+    folder: normalizeFolderPath(folder) || 'attachments',
+    data: dataUrl,
+  })
+  const payload = result?.data || result
+  const uploaded: VaultAttachmentUpload = {
+    id: payload.id,
+    rev: payload.rev,
+    mime: payload.mime || file.type || 'application/octet-stream',
+    size: payload.size || file.size,
+    created_at: payload.created_at || Date.now(),
+  }
+  const name = uploaded.id.split('/').pop() || uploaded.id
+  notesCache.set(uploaded.id, {
+    _id: uploaded.id,
+    _rev: uploaded.rev,
+    type: 'attachment',
+    title: name,
+    content: '',
+    folder: uploaded.id.includes('/') ? uploaded.id.split('/').slice(0, -1).join('/') : '',
+    tags: [],
+    links: [],
+    created_at: uploaded.created_at,
+    updated_at: uploaded.created_at,
+  })
+  return uploaded
+}
+
 export async function deleteNote(id: string): Promise<void> {
   const note = notesCache.get(id)
   if (note?._rev) {
@@ -318,24 +385,52 @@ export async function deleteNote(id: string): Promise<void> {
 export async function createNote(
   title: string,
   folder: string = '',
+  content: string = '',
 ): Promise<VaultNote> {
-  const slug = slugify(title) || crypto.randomUUID().slice(0, 8)
-  const path = folder ? `${folder}/${slug}.md` : `${slug}.md`
+  const normalizedFolder = normalizeFolderPath(folder)
+  const slug = slugify(title) || 'untitled'
+  const path = uniqueNotePath(normalizedFolder, slug)
   const now = Date.now()
 
   const note: VaultNote = {
     _id: path,
     type: 'note',
     title,
-    content: '',
-    folder,
+    content,
+    folder: normalizedFolder,
     tags: [],
     links: [],
+    aliases: [],
+    properties: {},
     created_at: now,
     updated_at: now,
   }
 
   return putNote(note)
+}
+
+export async function moveNote(id: string, folder: string = ''): Promise<VaultNote> {
+  const note = notesCache.get(id)
+  if (!note) throw new Error('Note not found')
+  if (note.type === 'attachment') throw new Error('Attachments cannot be moved')
+
+  const normalizedFolder = normalizeFolderPath(folder)
+  if (normalizedFolder === note.folder) return note
+
+  const fileName = note._id.split('/').pop() || `${slugify(note.title) || 'untitled'}.md`
+  const stem = fileName.replace(/\.md$/i, '') || slugify(note.title) || 'untitled'
+  const nextId = uniqueNotePath(normalizedFolder, stem, id)
+  const moved: VaultNote = {
+    ...note,
+    _id: nextId,
+    _rev: undefined,
+    folder: normalizedFolder,
+    updated_at: Date.now(),
+  }
+
+  const saved = await putNote(moved)
+  await deleteNote(id)
+  return saved
 }
 
 export async function createFolder(path: string): Promise<VaultFolder> {
@@ -421,12 +516,26 @@ function slugify(text: string): string {
     .slice(0, 80)
 }
 
+function uniqueNotePath(folder: string, slug: string, ignoreId?: string): string {
+  const cleanSlug = slugify(slug) || crypto.randomUUID().slice(0, 8)
+  let candidate = folder ? `${folder}/${cleanSlug}.md` : `${cleanSlug}.md`
+  let suffix = 2
+
+  while (notesCache.has(candidate) && candidate !== ignoreId) {
+    candidate = folder ? `${folder}/${cleanSlug}-${suffix}.md` : `${cleanSlug}-${suffix}.md`
+    suffix += 1
+  }
+
+  return candidate
+}
+
 function extractWikilinks(content: string): string[] {
   const re = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g
   const links: string[] = []
   let m
   while ((m = re.exec(content)) !== null) {
-    links.push(m[1].trim())
+    const link = normalizeWikilinkTarget(m[1])
+    if (link) links.push(link)
   }
   return [...new Set(links)]
 }
@@ -442,11 +551,134 @@ function extractTags(content: string): string[] {
 }
 
 export function noteIdFromTitle(title: string, allNotes: VaultNote[]): string | null {
-  const lower = title.toLowerCase()
+  const lower = normalizeComparableTitle(title)
   const found = allNotes.find(
     (n) =>
-      n.title.toLowerCase() === lower ||
-      n._id.replace(/\.md$/, '').split('/').pop()?.toLowerCase() === lower,
+      normalizeComparableTitle(n.title) === lower ||
+      normalizeComparableTitle(n._id.replace(/\.md$/, '').split('/').pop() || '') === lower ||
+      n.aliases?.some((alias) => normalizeComparableTitle(alias) === lower),
   )
   return found?._id ?? null
+}
+
+export function rewriteWikilinks(content: string, fromTitle: string, toTitle: string): string {
+  const from = normalizeComparableTitle(fromTitle)
+  const cleanTo = toTitle.trim()
+  if (!from || !cleanTo || normalizeComparableTitle(cleanTo) === from) return content
+
+  return content.replace(/\[\[([^\]|]+)(\|[^\]]+)?\]\]/g, (match, rawTarget: string, aliasPart = '') => {
+    const parsed = parseWikilinkTarget(rawTarget)
+    if (normalizeComparableTitle(parsed.basename) !== from) return match
+    const nextTarget = parsed.prefix ? `${parsed.prefix}/${cleanTo}${parsed.suffix}` : `${cleanTo}${parsed.suffix}`
+    return `[[${nextTarget}${aliasPart}]]`
+  })
+}
+
+export function linkFirstPlainMention(content: string, title: string): string {
+  const cleanTitle = title.trim()
+  if (!cleanTitle) return content
+  const escaped = cleanTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const re = new RegExp(`(^|[^\\w\\[])(` + escaped + `)(?![^\\[]*\\]\\])`, 'i')
+  return content.replace(re, (_match, prefix: string, mention: string) => `${prefix}[[${mention}]]`)
+}
+
+interface ParsedFrontmatter {
+  properties: Record<string, string | string[]>
+}
+
+export function parseFrontmatter(content: string): ParsedFrontmatter {
+  if (!content.startsWith('---\n')) return { properties: {} }
+  const end = content.indexOf('\n---', 4)
+  if (end === -1) return { properties: {} }
+  const block = content.slice(4, end)
+  const properties: Record<string, string | string[]> = {}
+  const lines = block.split(/\r?\n/)
+  let currentKey: string | null = null
+
+  for (const line of lines) {
+    const listMatch = line.match(/^\s*-\s+(.+)$/)
+    if (currentKey && listMatch) {
+      const existing = properties[currentKey]
+      const nextValue = cleanYamlValue(listMatch[1])
+      properties[currentKey] = Array.isArray(existing)
+        ? [...existing, nextValue]
+        : existing
+          ? [existing, nextValue]
+          : [nextValue]
+      continue
+    }
+
+    const pair = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/)
+    if (!pair) {
+      currentKey = null
+      continue
+    }
+
+    const key = pair[1]
+    const raw = pair[2].trim()
+    currentKey = key
+    if (!raw) {
+      properties[key] = []
+      continue
+    }
+    properties[key] = parseYamlScalarOrList(raw)
+  }
+
+  return { properties }
+}
+
+function parseYamlScalarOrList(raw: string): string | string[] {
+  if (raw.startsWith('[') && raw.endsWith(']')) {
+    return raw
+      .slice(1, -1)
+      .split(',')
+      .map(cleanYamlValue)
+      .filter(Boolean)
+  }
+  return cleanYamlValue(raw)
+}
+
+function cleanYamlValue(raw: string): string {
+  return raw.trim().replace(/^['"]|['"]$/g, '')
+}
+
+function frontmatterAliases(properties: Record<string, string | string[]>): string[] {
+  const raw = properties.aliases ?? properties.alias
+  if (!raw) return []
+  return (Array.isArray(raw) ? raw : [raw]).map((alias) => alias.trim()).filter(Boolean)
+}
+
+function frontmatterTags(properties: Record<string, string | string[]>): string[] {
+  const raw = properties.tags ?? properties.tag
+  if (!raw) return []
+  return (Array.isArray(raw) ? raw : [raw])
+    .flatMap((value) => value.split(/[,\s]+/))
+    .map((tag) => tag.replace(/^#/, '').trim())
+    .filter(Boolean)
+}
+
+function normalizeWikilinkTarget(target: string): string {
+  return parseWikilinkTarget(target).basename
+}
+
+function parseWikilinkTarget(target: string): { prefix: string; basename: string; suffix: string } {
+  const clean = target.trim()
+  const suffixMatch = clean.match(/([#^].*)$/)
+  const suffix = suffixMatch?.[1] ?? ''
+  const withoutSuffix = suffix ? clean.slice(0, -suffix.length) : clean
+  const withoutExt = withoutSuffix.replace(/\.md$/i, '')
+  const parts = withoutExt.split('/').filter(Boolean)
+  const basename = parts.pop() || withoutExt
+  return {
+    prefix: parts.join('/'),
+    basename,
+    suffix,
+  }
+}
+
+function normalizeComparableTitle(title: string): string {
+  return normalizeWikilinkTarget(title)
+    .replace(/\.md$/i, '')
+    .trim()
+    .toLowerCase()
 }

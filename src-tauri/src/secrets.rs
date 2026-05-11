@@ -52,6 +52,10 @@ pub(crate) const KEY_ENV_MAP: &[(&str, &str)] = &[
     ("vnc.host", "VNC_HOST"),
     ("agentsecrets.url", "AGENTSECRETS_URL"),
     ("agentsecrets.client-api-key", "AGENTSECRETS_CLIENT_API_KEY"),
+    (
+        "agentsecrets.approver-api-key",
+        "SECRET_BROKER_APPROVER_API_KEY",
+    ),
     ("agentmail.url", "AGENTMAIL_URL"),
     ("agentmail.api-key", "AGENTMAIL_API_KEY"),
     ("agentmail.default-address", "AGENTMAIL_DEFAULT_ADDRESS"),
@@ -65,6 +69,8 @@ pub(crate) const KEY_ENV_MAP: &[(&str, &str)] = &[
     ("lightrag.base-url", "LIGHTRAG_BASE_URL"),
     ("lightrag.api-key", "LIGHTRAG_API_KEY"),
     ("memd.rag-url", "MEMD_RAG_URL"),
+    ("raganything.url", "RAGANYTHING_URL"),
+    ("mineru.url", "MINERU_URL"),
     ("rag.url", "RAG_URL"),
     ("sonarr.url", "SONARR_URL"),
     ("sonarr.api-key", "SONARR_API_KEY"),
@@ -129,6 +135,7 @@ pub(crate) const KEY_ENV_MAP: &[(&str, &str)] = &[
     ("couchdb.database", "COUCHDB_DATABASE"),
     ("couchdb.custom-headers", "COUCHDB_CUSTOM_HEADERS"),
     ("mc-bind.host", "MC_BIND_HOST"),
+    ("mc-bind.port", "MC_BIND_PORT"),
     ("mc-agent.key", "MC_AGENT_KEY"),
 ];
 
@@ -167,6 +174,7 @@ const USER_KEYS: &[&str] = &[
     "vnc.host",
     "agentsecrets.url",
     "agentsecrets.client-api-key",
+    "agentsecrets.approver-api-key",
     "agentmail.url",
     "agentmail.api-key",
     "agentmail.default-address",
@@ -180,6 +188,8 @@ const USER_KEYS: &[&str] = &[
     "lightrag.base-url",
     "lightrag.api-key",
     "memd.rag-url",
+    "raganything.url",
+    "mineru.url",
     "rag.url",
     "sonarr.url",
     "sonarr.api-key",
@@ -235,6 +245,7 @@ const USER_KEYS: &[&str] = &[
     "couchdb.database",
     "couchdb.custom-headers",
     "mc-bind.host",
+    "mc-bind.port",
     "mc-agent.key",
 ];
 
@@ -507,6 +518,7 @@ const FRONTEND_BLOCKED_KEYS: &[&str] = &[
     "openclaw.api-key",
     "openclaw.ws",
     "agentsecrets.client-api-key",
+    "agentsecrets.approver-api-key",
     "agentmail.api-key",
     "proxmox.host",
     "proxmox.token-id",
@@ -578,6 +590,8 @@ const FRONTEND_WRITABLE_KEYS: &[&str] = &[
     "openclaw.password",
     "sunshine.host",
     "agentsecrets.url",
+    "agentsecrets.client-api-key",
+    "agentsecrets.approver-api-key",
     "agentshell.url",
     "proxmox.host",
     "proxmox.token-id",
@@ -639,6 +653,8 @@ const FRONTEND_WRITABLE_KEYS: &[&str] = &[
     "lightrag.base-url",
     "lightrag.api-key",
     "memd.rag-url",
+    "raganything.url",
+    "mineru.url",
     "rag.url",
     "couchdb.url",
     "couchdb.user",
@@ -648,6 +664,7 @@ const FRONTEND_WRITABLE_KEYS: &[&str] = &[
     "supabase.url",
     "supabase.anon-key",
     "mc-bind.host",
+    "mc-bind.port",
     "mc-agent.key",
 ];
 

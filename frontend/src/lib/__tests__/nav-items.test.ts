@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   personalDashboardItems,
+  trainingItems,
   agentDashboardItems,
   allNavItems,
   navItemsByHref,
@@ -64,7 +65,7 @@ describe('agentDashboardItems', () => {
 
 describe('allNavItems', () => {
   it('contains all personal and agent items plus Settings', () => {
-    const expectedCount = personalDashboardItems.length + agentDashboardItems.length + 1
+    const expectedCount = personalDashboardItems.length + trainingItems.length + agentDashboardItems.length + 1
     expect(allNavItems.length).toBe(expectedCount)
   })
 

@@ -1,11 +1,20 @@
-use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::get, Json, Router};
+use axum::{
+    extract::rejection::JsonRejection,
+    extract::{Query, State},
+    http::StatusCode,
+    response::IntoResponse,
+    routing::get,
+    Json, Router,
+};
 use ical::parser::ical::component::IcalCalendar;
 use ical::IcalParser;
 use reqwest::header::CONTENT_TYPE;
+use serde::Deserialize;
 use serde::Serialize;
-use serde_json::json;
+use serde_json::{json, Value};
 use std::io::BufReader;
 
+use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -19,13 +28,26 @@ struct CalendarEvent {
     end: String,
     all_day: bool,
     calendar: String,
+    object_url: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct CalendarObject {
+    href: String,
+    data: String,
 }
 
 // ── Router ──────────────────────────────────────────────────────────────────
 
 /// Build the calendar router (CalDAV event discovery and fetching).
 pub fn router() -> Router<AppState> {
-    Router::new().route("/calendar", get(get_events))
+    Router::new().route(
+        "/calendar",
+        get(get_events)
+            .post(post_event)
+            .patch(patch_event)
+            .delete(delete_event),
+    )
 }
 
 // ── GET /api/calendar ───────────────────────────────────────────────────────
@@ -34,6 +56,10 @@ async fn get_events(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
 ) -> impl IntoResponse {
+    if let Some(data) = fetch_bridge_calendar(&state).await {
+        return (StatusCode::OK, Json(data));
+    }
+
     let url = state
         .secret("CALDAV_URL")
         .unwrap_or_else(|| "https://caldav.icloud.com".to_string());
@@ -41,12 +67,15 @@ async fn get_events(
     let password = state.secret_or_default("CALDAV_PASSWORD");
 
     if username.is_empty() || password.is_empty() {
+        if let Some(data) = fetch_local_macos_calendar().await {
+            return (StatusCode::OK, Json(data));
+        }
         return (
             StatusCode::OK,
             Json(json!({
                 "events": [],
                 "error": "missing_credentials",
-                "message": "CALDAV_USERNAME and CALDAV_PASSWORD are not set in .env.local"
+                "message": "iCloud Calendar is not hydrated. Unlock account sync or reconnect the iCloud Calendar account."
             })),
         );
     }
@@ -77,6 +106,238 @@ async fn get_events(
 }
 
 // ── CalDAV helpers ──────────────────────────────────────────────────────────
+
+fn bridge_config(state: &AppState) -> Option<(String, String)> {
+    let api_key = state.secret_or_default("MAC_BRIDGE_API_KEY");
+    let host = state
+        .secret("MAC_BRIDGE_HOST")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| (!api_key.trim().is_empty()).then(|| "http://127.0.0.1:4100".to_string()))?;
+    Some((host, api_key))
+}
+
+async fn fetch_bridge_calendar(state: &AppState) -> Option<Value> {
+    let (host, api_key) = bridge_config(state)?;
+
+    let url = format!("{host}/calendar");
+    let mut req = state
+        .http
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(8));
+    if !api_key.is_empty() {
+        req = req.header("X-API-Key", api_key);
+    }
+
+    match req.send().await {
+        Ok(res) if res.status().is_success() => match res.json::<Value>().await {
+            Ok(data) => Some(json!({
+                "events": data.get("events").cloned().unwrap_or_else(|| json!([])),
+                "source": "mac-bridge"
+            })),
+            Err(e) => {
+                tracing::warn!("[calendar] failed to decode Mac Bridge calendar response: {e}");
+                None
+            }
+        },
+        Ok(res) => {
+            tracing::warn!("[calendar] Mac Bridge calendar returned {}", res.status());
+            None
+        }
+        Err(e) => {
+            tracing::warn!("[calendar] Mac Bridge calendar request failed: {e}");
+            None
+        }
+    }
+}
+
+async fn post_bridge_calendar_event(state: &AppState, payload: Value) -> Result<Value, AppError> {
+    let (host, api_key) = bridge_config(state)
+        .ok_or_else(|| AppError::BadRequest("Mac Bridge is not configured".into()))?;
+    let mut req = state
+        .http
+        .post(format!("{host}/calendar"))
+        .timeout(std::time::Duration::from_secs(15))
+        .header("Content-Type", "application/json")
+        .json(&payload);
+    if !api_key.is_empty() {
+        req = req.header("X-API-Key", api_key);
+    }
+    let res = req.send().await.map_err(|e| {
+        AppError::Internal(anyhow::anyhow!("Mac Bridge calendar create failed: {e}"))
+    })?;
+    if res.status().is_success() {
+        return res
+            .json::<Value>()
+            .await
+            .map_err(|e| AppError::Internal(e.into()));
+    }
+    let status = res.status();
+    let text = res.text().await.unwrap_or_default();
+    Err(AppError::BadRequest(format!(
+        "Mac Bridge calendar create {status}: {text}"
+    )))
+}
+
+async fn patch_bridge_calendar_event(
+    state: &AppState,
+    id: &str,
+    payload: Value,
+) -> Result<Value, AppError> {
+    let (host, api_key) = bridge_config(state)
+        .ok_or_else(|| AppError::BadRequest("Mac Bridge is not configured".into()))?;
+    let encoded_id = urlencoding::encode(id);
+    let mut req = state
+        .http
+        .patch(format!("{host}/calendar/{encoded_id}"))
+        .timeout(std::time::Duration::from_secs(15))
+        .header("Content-Type", "application/json")
+        .json(&payload);
+    if !api_key.is_empty() {
+        req = req.header("X-API-Key", api_key);
+    }
+    let res = req.send().await.map_err(|e| {
+        AppError::Internal(anyhow::anyhow!("Mac Bridge calendar update failed: {e}"))
+    })?;
+    if res.status().is_success() {
+        return res
+            .json::<Value>()
+            .await
+            .map_err(|e| AppError::Internal(e.into()));
+    }
+    let status = res.status();
+    let text = res.text().await.unwrap_or_default();
+    Err(AppError::BadRequest(format!(
+        "Mac Bridge calendar update {status}: {text}"
+    )))
+}
+
+async fn delete_bridge_calendar_event(
+    state: &AppState,
+    id: &str,
+    payload: Value,
+) -> Option<Result<(), AppError>> {
+    let (host, api_key) = bridge_config(state)?;
+    let encoded_id = urlencoding::encode(id);
+    let candidates = [
+        (
+            reqwest::Method::POST,
+            format!("{host}/calendar/delete"),
+            Some(payload.clone()),
+        ),
+        (
+            reqwest::Method::DELETE,
+            format!("{host}/calendar/{encoded_id}"),
+            None,
+        ),
+        (
+            reqwest::Method::DELETE,
+            format!("{host}/calendar?id={encoded_id}"),
+            None,
+        ),
+    ];
+
+    let mut last_error: Option<AppError> = None;
+    for (method, url, body) in candidates {
+        let mut req = state
+            .http
+            .request(method, &url)
+            .timeout(std::time::Duration::from_secs(8))
+            .header("Content-Type", "application/json");
+        if !api_key.is_empty() {
+            req = req.header("X-API-Key", &api_key);
+        }
+        if let Some(body) = body {
+            req = req.json(&body);
+        }
+
+        match req.send().await {
+            Ok(res) if res.status().is_success() => return Some(Ok(())),
+            Ok(res) => {
+                let status = res.status();
+                let text = res.text().await.unwrap_or_default();
+                last_error = Some(AppError::BadRequest(format!(
+                    "Mac Bridge calendar delete {status}: {text}"
+                )));
+            }
+            Err(e) => {
+                last_error = Some(AppError::Internal(anyhow::anyhow!(
+                    "Mac Bridge calendar delete failed: {e}"
+                )));
+            }
+        }
+    }
+
+    Some(Err(last_error.unwrap_or_else(|| {
+        AppError::Internal(anyhow::anyhow!("Mac Bridge calendar delete failed"))
+    })))
+}
+
+#[cfg(target_os = "macos")]
+async fn fetch_local_macos_calendar() -> Option<Value> {
+    let home = std::env::var("HOME").ok()?;
+    let db = std::path::Path::new(&home)
+        .join("Library/Group Containers/group.com.apple.calendar/Calendar.sqlitedb");
+    if !db.exists() {
+        return None;
+    }
+
+    let query = r#"
+      SELECT
+        ci.ROWID AS id,
+        ci.ROWID AS localId,
+        ci.UUID AS appleEventId,
+        COALESCE(ci.external_id, '') AS objectUrl,
+        COALESCE(ci.summary, '') AS title,
+        strftime('%Y-%m-%dT%H:%M:%SZ', ci.start_date + 978307200, 'unixepoch') AS start,
+        strftime('%Y-%m-%dT%H:%M:%SZ', ci.end_date + 978307200, 'unixepoch') AS end,
+        CASE WHEN COALESCE(ci.all_day, 0) = 0 THEN 0 ELSE 1 END AS allDay,
+        COALESCE(c.title, '') AS calendar
+      FROM CalendarItem ci
+      LEFT JOIN Calendar c ON c.ROWID = ci.calendar_id
+      WHERE ci.start_date BETWEEN (strftime('%s','now','-30 days') - 978307200)
+        AND (strftime('%s','now','+30 days') - 978307200)
+        AND COALESCE(ci.hidden, 0) = 0
+      ORDER BY ci.start_date ASC
+      LIMIT 500
+    "#;
+
+    let output = tokio::process::Command::new("sqlite3")
+        .arg("-json")
+        .arg(db)
+        .arg(query)
+        .output()
+        .await
+        .ok()?;
+
+    if !output.status.success() {
+        tracing::warn!(
+            "[calendar] local macOS Calendar sqlite query failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return None;
+    }
+
+    let mut events: Value = serde_json::from_slice(&output.stdout).ok()?;
+    if let Some(items) = events.as_array_mut() {
+        for item in items {
+            if let Some(map) = item.as_object_mut() {
+                let all_day = map
+                    .get("allDay")
+                    .and_then(|v| v.as_i64())
+                    .map(|value| value != 0)
+                    .unwrap_or(false);
+                map.insert("allDay".to_string(), json!(all_day));
+            }
+        }
+    }
+    Some(json!({ "events": events, "source": "local-macos-calendar" }))
+}
+
+#[cfg(not(target_os = "macos"))]
+async fn fetch_local_macos_calendar() -> Option<Value> {
+    None
+}
 
 /// Discover calendar collection URLs via PROPFIND on the CalDAV principal.
 async fn discover_calendars(
@@ -171,6 +432,29 @@ async fn fetch_calendar_objects(
     start: &str,
     end: &str,
 ) -> anyhow::Result<Vec<CalendarEvent>> {
+    let objects =
+        fetch_calendar_ical_objects(client, calendar_url, username, password, start, end).await?;
+    let mut events = Vec::new();
+    for object in objects {
+        let object_url = resolve_url(calendar_url, &object.href);
+        events.extend(parse_vcalendar(
+            &object.data,
+            calendar_name,
+            Some(object_url),
+        ));
+    }
+
+    Ok(events)
+}
+
+async fn fetch_calendar_ical_objects(
+    client: &reqwest::Client,
+    calendar_url: &str,
+    username: &str,
+    password: &str,
+    start: &str,
+    end: &str,
+) -> anyhow::Result<Vec<CalendarObject>> {
     let report_body = format!(
         r#"<?xml version="1.0" encoding="utf-8"?>
 <c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
@@ -202,15 +486,18 @@ async fn fetch_calendar_objects(
 
     let xml = resp.text().await?;
 
-    // Extract all <cal:calendar-data> or <C:calendar-data> blocks.
-    let ics_blocks = extract_calendar_data(&xml);
-
-    let mut events = Vec::new();
-    for ics in ics_blocks {
-        events.extend(parse_vcalendar(&ics, calendar_name));
+    let mut objects = extract_calendar_objects(&xml);
+    if objects.is_empty() {
+        objects = extract_calendar_data(&xml)
+            .into_iter()
+            .map(|data| CalendarObject {
+                href: calendar_url.to_string(),
+                data,
+            })
+            .collect();
     }
 
-    Ok(events)
+    Ok(objects)
 }
 
 /// Top-level fetch: discover calendars, then fetch events from each.
@@ -274,7 +561,11 @@ async fn fetch_caldav_events(
 
 /// Parse a VCALENDAR iCal blob into CalendarEvents using the `ical` crate.
 /// Falls back to manual regex-style parsing if the crate parser fails.
-fn parse_vcalendar(ics_text: &str, calendar_name: &str) -> Vec<CalendarEvent> {
+fn parse_vcalendar(
+    ics_text: &str,
+    calendar_name: &str,
+    object_url: Option<String>,
+) -> Vec<CalendarEvent> {
     // Try the ical crate parser first.
     let reader = BufReader::new(ics_text.as_bytes());
     let parser = IcalParser::new(reader);
@@ -286,7 +577,11 @@ fn parse_vcalendar(ics_text: &str, calendar_name: &str) -> Vec<CalendarEvent> {
         match cal_result {
             Ok(cal) => {
                 parsed_any = true;
-                events.extend(extract_events_from_ical(&cal, calendar_name));
+                events.extend(extract_events_from_ical(
+                    &cal,
+                    calendar_name,
+                    object_url.clone(),
+                ));
             }
             Err(_) => continue,
         }
@@ -295,14 +590,18 @@ fn parse_vcalendar(ics_text: &str, calendar_name: &str) -> Vec<CalendarEvent> {
     // If the crate parser produced nothing, fall back to manual parsing
     // (mirrors the TypeScript regex approach).
     if !parsed_any || events.is_empty() {
-        events = parse_vcalendar_manual(ics_text, calendar_name);
+        events = parse_vcalendar_manual(ics_text, calendar_name, object_url);
     }
 
     events
 }
 
 /// Extract CalendarEvents from a parsed IcalCalendar.
-fn extract_events_from_ical(cal: &IcalCalendar, calendar_name: &str) -> Vec<CalendarEvent> {
+fn extract_events_from_ical(
+    cal: &IcalCalendar,
+    calendar_name: &str,
+    object_url: Option<String>,
+) -> Vec<CalendarEvent> {
     let mut events = Vec::new();
 
     for event in &cal.events {
@@ -353,6 +652,7 @@ fn extract_events_from_ical(cal: &IcalCalendar, calendar_name: &str) -> Vec<Cale
             end,
             all_day,
             calendar: calendar_name.to_string(),
+            object_url: object_url.clone(),
         });
     }
 
@@ -360,7 +660,11 @@ fn extract_events_from_ical(cal: &IcalCalendar, calendar_name: &str) -> Vec<Cale
 }
 
 /// Manual VEVENT parser matching the TypeScript implementation.
-fn parse_vcalendar_manual(ics_text: &str, calendar_name: &str) -> Vec<CalendarEvent> {
+fn parse_vcalendar_manual(
+    ics_text: &str,
+    calendar_name: &str,
+    object_url: Option<String>,
+) -> Vec<CalendarEvent> {
     let mut events = Vec::new();
     let vevents: Vec<&str> = ics_text.split("BEGIN:VEVENT").skip(1).collect();
 
@@ -428,10 +732,506 @@ fn parse_vcalendar_manual(ics_text: &str, calendar_name: &str) -> Vec<CalendarEv
             end,
             all_day,
             calendar: calendar_name.to_string(),
+            object_url: object_url.clone(),
         });
     }
 
     events
+}
+
+// ── POST /api/calendar ──────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct CreateCalendarBody {
+    title: String,
+    start: String,
+    end: Option<String>,
+    calendar: Option<String>,
+    #[serde(rename = "allDay")]
+    all_day: Option<bool>,
+}
+
+async fn post_event(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Json(body): Json<CreateCalendarBody>,
+) -> Result<Json<Value>, AppError> {
+    let title = body.title.trim();
+    if title.is_empty() {
+        return Err(AppError::BadRequest("title required".into()));
+    }
+    let start = body.start.trim();
+    if start.is_empty() {
+        return Err(AppError::BadRequest("start required".into()));
+    }
+    let payload = json!({
+        "title": title,
+        "start": start,
+        "end": body.end.as_deref().map(str::trim).filter(|value| !value.is_empty()),
+        "calendar": body.calendar.as_deref().map(str::trim).filter(|value| !value.is_empty()),
+        "allDay": body.all_day.unwrap_or(false),
+    });
+    let created = post_bridge_calendar_event(&state, payload).await?;
+    Ok(Json(created))
+}
+
+// ── PATCH /api/calendar ─────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct UpdateCalendarBody {
+    id: Option<Value>,
+    #[serde(rename = "appleEventId")]
+    apple_event_id: Option<String>,
+    title: String,
+    start: String,
+    end: Option<String>,
+    calendar: Option<String>,
+    #[serde(rename = "allDay")]
+    all_day: Option<bool>,
+}
+
+async fn patch_event(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Query(query): Query<DeleteCalendarQuery>,
+    Json(body): Json<UpdateCalendarBody>,
+) -> Result<Json<Value>, AppError> {
+    let id = body
+        .id
+        .clone()
+        .and_then(calendar_id_value_to_string)
+        .or(query.id)
+        .or(body.apple_event_id.clone())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::BadRequest("id required".into()))?;
+    let title = body.title.trim();
+    if title.is_empty() {
+        return Err(AppError::BadRequest("title required".into()));
+    }
+    let start = body.start.trim();
+    if start.is_empty() {
+        return Err(AppError::BadRequest("start required".into()));
+    }
+    let payload = json!({
+        "id": id,
+        "appleEventId": body.apple_event_id,
+        "title": title,
+        "start": start,
+        "end": body.end.as_deref().map(str::trim).filter(|value| !value.is_empty()),
+        "calendar": body.calendar.as_deref().map(str::trim).filter(|value| !value.is_empty()),
+        "allDay": body.all_day.unwrap_or(false),
+    });
+    let updated = patch_bridge_calendar_event(&state, &id, payload).await?;
+    Ok(Json(updated))
+}
+
+// ── DELETE /api/calendar ────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct DeleteCalendarBody {
+    id: Option<Value>,
+    #[serde(rename = "objectUrl")]
+    object_url: Option<String>,
+    #[serde(rename = "localId")]
+    local_id: Option<Value>,
+    #[serde(rename = "appleEventId")]
+    apple_event_id: Option<String>,
+    calendar: Option<String>,
+    title: Option<String>,
+    start: Option<String>,
+    end: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct DeleteCalendarQuery {
+    id: Option<String>,
+    #[serde(rename = "objectUrl")]
+    object_url: Option<String>,
+    #[serde(rename = "localId")]
+    local_id: Option<String>,
+    #[serde(rename = "appleEventId")]
+    apple_event_id: Option<String>,
+    calendar: Option<String>,
+    title: Option<String>,
+    start: Option<String>,
+    end: Option<String>,
+}
+
+async fn delete_event(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Query(query): Query<DeleteCalendarQuery>,
+    body: Result<Json<DeleteCalendarBody>, JsonRejection>,
+) -> Result<Json<Value>, AppError> {
+    let body = match body {
+        Ok(Json(body)) => Some(body),
+        Err(_) => None,
+    };
+    let body_id = body.as_ref().and_then(|body| body.id.clone());
+    let body_object_url = body.as_ref().and_then(|body| body.object_url.clone());
+    let id = body_id
+        .and_then(calendar_id_value_to_string)
+        .or(query.id)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_default();
+    let object_url = body_object_url
+        .or(query.object_url)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let local_id = body
+        .as_ref()
+        .and_then(|body| body.local_id.clone())
+        .and_then(calendar_id_value_to_string)
+        .or(query.local_id)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let apple_event_id = body
+        .as_ref()
+        .and_then(|body| body.apple_event_id.clone())
+        .or(query.apple_event_id)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let calendar_name = body
+        .as_ref()
+        .and_then(|body| body.calendar.clone())
+        .or(query.calendar)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let title = body
+        .as_ref()
+        .and_then(|body| body.title.clone())
+        .or(query.title)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let start = body
+        .as_ref()
+        .and_then(|body| body.start.clone())
+        .or(query.start)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let end = body
+        .as_ref()
+        .and_then(|body| body.end.clone())
+        .or(query.end)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let bridge_payload = json!({
+        "id": if id.is_empty() { Value::Null } else { json!(id) },
+        "objectUrl": object_url.clone(),
+        "localId": local_id.clone(),
+        "appleEventId": apple_event_id.clone(),
+        "calendar": calendar_name.clone(),
+        "title": title.clone(),
+        "start": start.clone(),
+        "end": end.clone(),
+    });
+
+    let bridge_id = apple_event_id
+        .as_deref()
+        .or(object_url.as_deref())
+        .or(local_id.as_deref())
+        .or(if id.is_empty() {
+            None
+        } else {
+            Some(id.as_str())
+        });
+
+    let mut bridge_error: Option<AppError> = None;
+    if let Some(bridge_id) = bridge_id {
+        if let Some(result) =
+            delete_bridge_calendar_event(&state, bridge_id, bridge_payload.clone()).await
+        {
+            match result {
+                Ok(()) => return Ok(Json(json!({ "ok": true, "source": "mac-bridge" }))),
+                Err(err) => {
+                    tracing::warn!("[calendar] Mac Bridge delete did not complete: {err:?}");
+                    bridge_error = Some(err);
+                }
+            }
+        }
+    }
+
+    let username = state.secret_or_default("CALDAV_USERNAME");
+    let password = state.secret_or_default("CALDAV_PASSWORD");
+    if !username.is_empty() && !password.is_empty() {
+        let base_url = state
+            .secret("CALDAV_URL")
+            .unwrap_or_else(|| "https://caldav.icloud.com".to_string());
+        let caldav_client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .unwrap_or_else(|_| state.http.clone());
+
+        let delete_url = match object_url {
+            Some(url) => validate_caldav_object_url(&base_url, &url)?,
+            None if !id.is_empty() => {
+                find_caldav_event_object_url(&caldav_client, &base_url, &username, &password, &id)
+                    .await?
+                    .ok_or_else(|| AppError::BadRequest("calendar event not found".into()))?
+            }
+            None => return Err(AppError::BadRequest("id or objectUrl required".into())),
+        };
+
+        delete_caldav_object(&caldav_client, &delete_url, &username, &password).await?;
+        return Ok(Json(json!({ "ok": true, "source": "caldav" })));
+    }
+
+    if let Some(result) = delete_local_macos_calendar_event(
+        local_id.as_deref().or(if id.is_empty() {
+            None
+        } else {
+            Some(id.as_str())
+        }),
+        apple_event_id.as_deref(),
+        calendar_name.as_deref(),
+        title.as_deref(),
+        start.as_deref(),
+        end.as_deref(),
+    )
+    .await
+    {
+        result?;
+        return Ok(Json(json!({ "ok": true, "source": "calendar-app" })));
+    }
+
+    if id.is_empty() {
+        return Err(AppError::BadRequest("id or objectUrl required".into()));
+    }
+
+    if let Some(err) = bridge_error {
+        return Err(err);
+    }
+
+    Err(AppError::BadRequest(
+        "Calendar delete needs CalDAV credentials or Mac Bridge".into(),
+    ))
+}
+
+fn calendar_id_value_to_string(value: Value) -> Option<String> {
+    match value {
+        Value::String(s) => Some(s),
+        Value::Number(n) => Some(n.to_string()),
+        Value::Null => None,
+        other => Some(other.to_string()),
+    }
+}
+
+#[cfg(target_os = "macos")]
+async fn delete_local_macos_calendar_event(
+    local_id: Option<&str>,
+    apple_event_id: Option<&str>,
+    calendar_name: Option<&str>,
+    _title: Option<&str>,
+    _start: Option<&str>,
+    _end: Option<&str>,
+) -> Option<Result<(), AppError>> {
+    let home = std::env::var("HOME").ok()?;
+    let db = std::path::Path::new(&home)
+        .join("Library/Group Containers/group.com.apple.calendar/Calendar.sqlitedb");
+    if !db.exists() {
+        return None;
+    }
+
+    let local_id = local_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()));
+    let mut resolved_event_id = apple_event_id.map(str::to_string);
+    let mut resolved_calendar_name = calendar_name.map(str::to_string);
+
+    if let Some(row_id) = local_id {
+        let query = format!(
+            "SELECT COALESCE(ci.UUID, '') AS uuid, COALESCE(c.title, '') AS calendar \
+             FROM CalendarItem ci LEFT JOIN Calendar c ON c.ROWID = ci.calendar_id \
+             WHERE ci.ROWID = {row_id} LIMIT 1"
+        );
+        let output = match tokio::process::Command::new("sqlite3")
+            .arg("-json")
+            .arg(&db)
+            .arg(query)
+            .output()
+            .await
+        {
+            Ok(output) => output,
+            Err(e) => return Some(Err(AppError::Internal(e.into()))),
+        };
+        if output.status.success() {
+            if let Ok(rows) = serde_json::from_slice::<Vec<Value>>(&output.stdout) {
+                if let Some(row) = rows.first() {
+                    if resolved_event_id.is_none() {
+                        resolved_event_id = row
+                            .get("uuid")
+                            .and_then(|value| value.as_str())
+                            .filter(|value| !value.is_empty())
+                            .map(str::to_string);
+                    }
+                    if resolved_calendar_name.is_none() {
+                        resolved_calendar_name = row
+                            .get("calendar")
+                            .and_then(|value| value.as_str())
+                            .filter(|value| !value.is_empty())
+                            .map(str::to_string);
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(event_id) = resolved_event_id.as_deref() {
+        let script = r#"
+on deleteEvent(eventId, calendarName)
+  launch application "Calendar"
+  tell application "Calendar"
+    if calendarName is not "" then
+      repeat with cal in calendars
+        if name of cal is calendarName then
+          tell cal
+            delete (first event whose id is eventId)
+          end tell
+          return "deleted"
+        end if
+      end repeat
+    end if
+
+    repeat with cal in calendars
+      try
+        tell cal
+          delete (first event whose id is eventId)
+        end tell
+        return "deleted"
+      end try
+    end repeat
+  end tell
+  error "event not found in Calendar.app"
+end deleteEvent
+
+on run argv
+  set eventId to item 1 of argv
+  set calendarName to ""
+  if (count of argv) > 1 then set calendarName to item 2 of argv
+  return deleteEvent(eventId, calendarName)
+end run
+"#;
+        let calendar_arg = resolved_calendar_name.as_deref().unwrap_or("");
+        if let Ok(output) = tokio::process::Command::new("osascript")
+            .arg("-e")
+            .arg(script)
+            .arg(event_id)
+            .arg(calendar_arg)
+            .output()
+            .await
+        {
+            if output.status.success() {
+                return Some(Ok(()));
+            }
+            tracing::warn!(
+                "[calendar] Calendar.app delete failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+    }
+
+    if local_id.is_some() {
+        return Some(Err(AppError::BadRequest(
+            "Calendar.app could not delete that event; refusing local-only hide because it would not sync to iCloud."
+                .into(),
+        )));
+    }
+
+    None
+}
+
+#[cfg(not(target_os = "macos"))]
+async fn delete_local_macos_calendar_event(
+    _local_id: Option<&str>,
+    _apple_event_id: Option<&str>,
+    _calendar_name: Option<&str>,
+    _title: Option<&str>,
+    _start: Option<&str>,
+    _end: Option<&str>,
+) -> Option<Result<(), AppError>> {
+    None
+}
+
+fn validate_caldav_object_url(base_url: &str, object_url: &str) -> Result<String, AppError> {
+    let base = reqwest::Url::parse(base_url)
+        .map_err(|_| AppError::BadRequest("invalid CalDAV base URL".into()))?;
+    let object = match reqwest::Url::parse(object_url) {
+        Ok(url) => url,
+        Err(_) if object_url.starts_with('/') => base
+            .join(object_url)
+            .map_err(|_| AppError::BadRequest("invalid calendar object URL".into()))?,
+        Err(_) => return Err(AppError::BadRequest("invalid calendar object URL".into())),
+    };
+
+    if base.scheme() != object.scheme() || base.host_str() != object.host_str() {
+        return Err(AppError::BadRequest(
+            "calendar object URL does not match CalDAV host".into(),
+        ));
+    }
+
+    Ok(object.to_string())
+}
+
+async fn delete_caldav_object(
+    client: &reqwest::Client,
+    object_url: &str,
+    username: &str,
+    password: &str,
+) -> Result<(), AppError> {
+    let res = client
+        .delete(object_url)
+        .basic_auth(username, Some(password))
+        .send()
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?;
+
+    if res.status().is_success() || res.status() == StatusCode::NOT_FOUND {
+        return Ok(());
+    }
+
+    let status = res.status();
+    let text = res.text().await.unwrap_or_default();
+    Err(AppError::Internal(anyhow::anyhow!(
+        "CalDAV delete {status}: {text}"
+    )))
+}
+
+async fn find_caldav_event_object_url(
+    client: &reqwest::Client,
+    base_url: &str,
+    username: &str,
+    password: &str,
+    event_id: &str,
+) -> Result<Option<String>, AppError> {
+    let calendars = discover_calendars(client, base_url, username, password)
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?;
+    let now = chrono::Utc::now();
+    let start = (now - chrono::Duration::days(365))
+        .format("%Y%m%dT%H%M%SZ")
+        .to_string();
+    let end = (now + chrono::Duration::days(365))
+        .format("%Y%m%dT%H%M%SZ")
+        .to_string();
+
+    for (calendar_url, _) in calendars {
+        let objects =
+            fetch_calendar_ical_objects(client, &calendar_url, username, password, &start, &end)
+                .await
+                .map_err(|e| AppError::Internal(e.into()))?;
+        for object in objects {
+            let object_url = resolve_url(&calendar_url, &object.href);
+            let events = parse_vcalendar(&object.data, "", Some(object_url.clone()));
+            if events.iter().any(|event| event.id == event_id) {
+                return Ok(Some(object_url));
+            }
+        }
+    }
+
+    Ok(None)
 }
 
 /// Format an iCalendar date/datetime string into the same format
@@ -706,6 +1506,17 @@ fn extract_calendar_data(xml: &str) -> Vec<String> {
     results
 }
 
+fn extract_calendar_objects(xml: &str) -> Vec<CalendarObject> {
+    split_xml_responses(xml)
+        .into_iter()
+        .filter_map(|response| {
+            let href = extract_href(response)?;
+            let data = extract_calendar_data(response).into_iter().next()?;
+            Some(CalendarObject { href, data })
+        })
+        .collect()
+}
+
 /// Resolve a potentially-relative href against the base CalDAV URL.
 fn resolve_url(base_url: &str, href: &str) -> String {
     if href.starts_with("http://") || href.starts_with("https://") {
@@ -770,7 +1581,11 @@ DTSTART;VALUE=DATE:20250316
 END:VEVENT
 END:VCALENDAR"#;
 
-        let events = parse_vcalendar_manual(ics, "Work");
+        let events = parse_vcalendar_manual(
+            ics,
+            "Work",
+            Some("https://caldav.example.com/cal/event.ics".to_string()),
+        );
         assert_eq!(events.len(), 2);
 
         assert_eq!(events[0].id, "abc123");
@@ -779,6 +1594,10 @@ END:VCALENDAR"#;
         assert_eq!(events[0].end, "2025-03-15T09:30:00Z");
         assert!(!events[0].all_day);
         assert_eq!(events[0].calendar, "Work");
+        assert_eq!(
+            events[0].object_url.as_deref(),
+            Some("https://caldav.example.com/cal/event.ics")
+        );
 
         assert_eq!(events[1].id, "def456");
         assert_eq!(events[1].title, "Lunch");
@@ -841,6 +1660,31 @@ END:VCALENDAR</cal:calendar-data>
         let data = extract_calendar_data(xml);
         assert_eq!(data.len(), 1);
         assert!(data[0].contains("BEGIN:VCALENDAR"));
+    }
+
+    #[test]
+    fn test_extract_calendar_objects_keeps_href() {
+        let xml = r#"<d:multistatus>
+            <d:response>
+                <d:href>/calendars/user/work/event-1.ics</d:href>
+                <d:propstat>
+                    <d:prop>
+                        <cal:calendar-data>BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:test1
+SUMMARY:Test
+DTSTART:20250315T090000Z
+END:VEVENT
+END:VCALENDAR</cal:calendar-data>
+                    </d:prop>
+                </d:propstat>
+            </d:response>
+        </d:multistatus>"#;
+
+        let objects = extract_calendar_objects(xml);
+        assert_eq!(objects.len(), 1);
+        assert_eq!(objects[0].href, "/calendars/user/work/event-1.ics");
+        assert!(objects[0].data.contains("UID:test1"));
     }
 
     // ---- xml_unescape ----
@@ -976,7 +1820,7 @@ UID:no-title-event
 DTSTART:20250601T100000Z
 END:VEVENT
 END:VCALENDAR"#;
-        let events = parse_vcalendar_manual(ics, "Personal");
+        let events = parse_vcalendar_manual(ics, "Personal", None);
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].title, "(No title)");
         assert_eq!(events[0].calendar, "Personal");
@@ -990,7 +1834,39 @@ UID:bad-event
 SUMMARY:Missing date
 END:VEVENT
 END:VCALENDAR"#;
-        let events = parse_vcalendar_manual(ics, "Cal");
+        let events = parse_vcalendar_manual(ics, "Cal", None);
         assert!(events.is_empty());
+    }
+
+    #[test]
+    fn test_validate_caldav_object_url_same_host() {
+        let url = validate_caldav_object_url(
+            "https://caldav.example.com/base",
+            "https://caldav.example.com/cal/event.ics",
+        )
+        .unwrap();
+        assert_eq!(url, "https://caldav.example.com/cal/event.ics");
+    }
+
+    #[test]
+    fn test_validate_caldav_object_url_allows_absolute_path() {
+        let url = validate_caldav_object_url(
+            "https://caldav.example.com/base",
+            "/calendars/user/work/event.ics",
+        )
+        .unwrap();
+        assert_eq!(
+            url,
+            "https://caldav.example.com/calendars/user/work/event.ics"
+        );
+    }
+
+    #[test]
+    fn test_validate_caldav_object_url_rejects_other_host() {
+        let result = validate_caldav_object_url(
+            "https://caldav.example.com/base",
+            "https://evil.example.com/cal/event.ics",
+        );
+        assert!(result.is_err());
     }
 }

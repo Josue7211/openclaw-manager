@@ -1,6 +1,6 @@
 ---
 created: 2026-03-22T17:40:00.000Z
-title: Notes editor — Google Docs-level rich editing with full Obsidian features
+title: /goal — Notes must reach 1:1 Obsidian functionality plus Word-class editing
 area: ui
 files:
   - frontend/src/pages/notes/NoteEditor.tsx
@@ -9,9 +9,17 @@ files:
   - frontend/src/lib/vault.ts
 ---
 
+## /goal
+
+Make ClawControl Notes a first-class Obsidian replacement inside the app: 1:1 daily vault functionality, folder/file operations, command palette, links/backlinks/unlinked mentions, graph, aliases/properties/frontmatter, templates, daily notes, attachments/embeds, import/export, keyboard shortcuts, and markdown compatibility. Then layer Word-class editing on top without breaking Obsidian/CouchDB data compatibility.
+
+Work rule: keep using CLI and API verification. Do not count the goal as done because one UI pass compiles; each feature should be checked through typecheck/tests/build and relevant backend API probes where possible.
+
+Canonical execution plan: `.planning/GOAL-notes-25-star-docs-vault.md`.
+
 ## Problem
 
-The notes editor is currently a basic CodeMirror markdown editor. It should be a rich document editing experience like Google Docs — so the user never has to leave the app to write documents. Should leverage everything Obsidian/CouchDB offers.
+The notes editor is still below the user target. It should feel like Obsidian for vault workflows and like Word/Google Docs for authoring, so the user never has to leave the app to write, organize, connect, and export documents. It should leverage everything Obsidian/CouchDB offers.
 
 ## What's Missing (Google Docs-level)
 
@@ -41,15 +49,19 @@ The notes editor is currently a basic CodeMirror markdown editor. It should be a
 - `[[wikilinks]]` rendered as clickable pills (done: autocomplete exists)
 - `![[embeds]]` rendered inline (images done, need note embeds)
 - Tags (`#tag`) rendered as colored pills
-- Frontmatter/YAML metadata editor (properties panel)
+- Frontmatter/YAML metadata editor (properties panel) (in progress)
 - Dataview-style queries (render data from other notes)
 - Mermaid diagram rendering
 - Canvas/whiteboard mode
-- Daily notes template
-- Templates system (insert template into new note)
-- Starred/pinned notes
-- Note aliases
-- Outline/TOC sidebar for current note
+- Daily notes template (done)
+- Templates system (insert template into new note) (started)
+- Starred/pinned notes (done)
+- Note aliases (in progress)
+- Outline/TOC sidebar for current note (done)
+- Command palette / quick switcher (done)
+- Linked and unlinked mentions with one-click link promotion (in progress)
+- Rename notes updates existing wikilinks (in progress)
+- Sidebar right-click parity for notes/folders (done)
 
 ### Collaboration & Productivity
 - Comments/annotations on text

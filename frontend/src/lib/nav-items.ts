@@ -1,4 +1,4 @@
-import { SquaresFour, Brain, ChatCircle, Gear, CalendarDots, Robot, Target, House, CheckSquare, Bell, Timer, Envelope, GitBranch, Desktop, FilmStrip, BookOpen, DeviceMobile, FileText, Monitor, ShieldCheck, Pulse, MagnifyingGlass } from '@phosphor-icons/react'
+import { SquaresFour, Brain, ChatCircle, Gear, CalendarDots, Robot, Target, House, CheckSquare, Bell, Timer, Envelope, GitBranch, Desktop, FilmStrip, BookOpen, DeviceMobile, FileText, Monitor, ShieldCheck, Pulse, MagnifyingGlass, Barbell, UsersThree, ClipboardText } from '@phosphor-icons/react'
 
 export interface NavItem {
   href: string
@@ -22,6 +22,13 @@ export const personalDashboardItems: NavItem[] = [
   { href: '/notes', label: 'Notes', icon: FileText, moduleId: 'notes' },
 ]
 
+export const trainingItems: NavItem[] = [
+  { href: '/training', label: 'Training Dashboard', icon: Barbell, moduleId: 'training' },
+  { href: '/training/clients', label: 'Clients', icon: UsersThree, moduleId: 'training-clients' },
+  { href: '/training/calendar', label: 'Calendar', icon: CalendarDots, moduleId: 'training-calendar' },
+  { href: '/training/forms', label: 'Forms', icon: ClipboardText, moduleId: 'training-forms' },
+]
+
 export const agentDashboardItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: SquaresFour, moduleId: 'dashboard' },
   { href: '/missions', label: 'Missions', icon: Target, moduleId: 'missions' },
@@ -36,6 +43,7 @@ export const agentDashboardItems: NavItem[] = [
 
 export const allNavItems: NavItem[] = [
   ...personalDashboardItems,
+  ...trainingItems,
   ...agentDashboardItems,
   { href: '/settings', label: 'Settings', icon: Gear },
 ]

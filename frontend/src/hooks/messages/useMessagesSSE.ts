@@ -31,7 +31,9 @@ interface UseMessagesSSEParams {
   contactLookupRef: React.MutableRefObject<Record<string, string>>
   onNewMessage: (msg: SSEMessage, chatGuids: string[]) => void
   onUpdateMessage: (msg: SSEMessage) => void
+  onTyping: (chatGuids: string[], payload: SSEMessage) => void
   onRefreshConvos: () => void
+  onReconnectRefresh?: () => void
 }
 
 interface ToastData {
@@ -41,13 +43,22 @@ interface ToastData {
   count: number
 }
 
+const SSE_INITIAL_RETRY_MS = 3000
+const SSE_MAX_RETRY_MS = 30000
+const SSE_HEALTHCHECK_MS = 15000
+const SSE_STALE_AFTER_MS = 45000
+const SSE_WAKE_SKEW_MS = 25000
+const SSE_RECONNECT_COOLDOWN_MS = 2500
+
 export function useMessagesSSE({
   selectedGuidRef: _selectedGuidRef,
   mutedConvsRef,
   contactLookupRef,
   onNewMessage,
   onUpdateMessage,
+  onTyping,
   onRefreshConvos,
+  onReconnectRefresh,
 }: UseMessagesSSEParams) {
   const [sseConnected, setSseConnected] = useState(false)
   const [toast, setToast] = useState<ToastData | null>(null)
@@ -65,44 +76,123 @@ export function useMessagesSSE({
   onNewMessageRef.current = onNewMessage
   const onUpdateMessageRef = useRef(onUpdateMessage)
   onUpdateMessageRef.current = onUpdateMessage
+  const onTypingRef = useRef(onTyping)
+  onTypingRef.current = onTyping
   const onRefreshConvosRef = useRef(onRefreshConvos)
   onRefreshConvosRef.current = onRefreshConvos
+  const onReconnectRefreshRef = useRef(onReconnectRefresh)
+  onReconnectRefreshRef.current = onReconnectRefresh
 
   useEffect(() => {
     let es: EventSource | null = null
     let retryTimeout: ReturnType<typeof setTimeout> | null = null
-    let retryDelay = 3000
+    let retryDelay = SSE_INITIAL_RETRY_MS
     let connected = false
     let debounceTimer: ReturnType<typeof setTimeout> | null = null
+    let healthTimer: ReturnType<typeof setInterval> | null = null
+    let convPoll: ReturnType<typeof setInterval> | null = null
     let disposed = false
+    let connecting = false
+    let lastEventAt = Date.now()
+    let lastHealthTickAt = Date.now()
+    let lastReconnectAt = 0
 
     function debouncedRefreshConvos() {
       if (debounceTimer) clearTimeout(debounceTimer)
       debounceTimer = setTimeout(() => onRefreshConvosRef.current(), 2000)
     }
 
+    function markDisconnected() {
+      if (!connected || disposed) return
+      connected = false
+      setSseConnected(false)
+      emit('connection-status', { connected: false }, 'sse')
+    }
+
+    function closeStream() {
+      es?.close()
+      es = null
+      markDisconnected()
+    }
+
+    function runCatchUp() {
+      try {
+        onReconnectRefreshRef.current?.()
+      } catch {
+        onRefreshConvosRef.current()
+      }
+    }
+
+    function scheduleReconnect(delay = retryDelay, catchUp = false) {
+      if (disposed) return
+      if (retryTimeout) clearTimeout(retryTimeout)
+      if (catchUp) runCatchUp()
+      retryTimeout = setTimeout(() => {
+        retryTimeout = null
+        void connect()
+      }, delay)
+      if (delay >= retryDelay) retryDelay = Math.min(retryDelay * 2, SSE_MAX_RETRY_MS)
+    }
+
+    function forceReconnect(catchUp = true) {
+      if (disposed) return
+      const now = Date.now()
+      if (now - lastReconnectAt < SSE_RECONNECT_COOLDOWN_MS) return
+      lastReconnectAt = now
+      closeStream()
+      retryDelay = SSE_INITIAL_RETRY_MS
+      scheduleReconnect(250, catchUp)
+    }
+
+    function refreshOrReconnect() {
+      const stale = Date.now() - lastEventAt > SSE_STALE_AFTER_MS
+      if (!es || es.readyState === EventSource.CLOSED || stale) {
+        forceReconnect(true)
+        return
+      }
+      runCatchUp()
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') refreshOrReconnect()
+    }
+
     async function connect() {
+      if (connecting || disposed) return
+      connecting = true
       try {
         const path = '/api/messages/stream'
         const tokenResponse = await api.post<{ token?: string }>('/api/messages/stream-token', {})
         const token = tokenResponse.token?.trim()
         if (!token) throw new Error('Messages SSE token missing')
         if (disposed) return
+        es?.close()
         es = new EventSource(`${getRequestBaseForPath(path)}${path}?sseToken=${encodeURIComponent(token)}`)
       } catch {
+        connecting = false
         if (disposed) return
-        retryTimeout = setTimeout(connect, retryDelay)
-        retryDelay = Math.min(retryDelay * 2, 30000)
+        scheduleReconnect()
         return
       }
+      connecting = false
       es.onmessage = async (ev) => {
+        lastEventAt = Date.now()
         try {
           const event: SSEEvent = JSON.parse(ev.data)
           if (event.type === 'connected') {
+            const wasConnected = connected
             connected = true
             setSseConnected(true)
             emit('connection-status', { connected: true }, 'sse')
-            retryDelay = 3000
+            retryDelay = SSE_INITIAL_RETRY_MS
+            if (!wasConnected) runCatchUp()
+          } else if (event.type === 'heartbeat') {
+            if (!connected) {
+              connected = true
+              setSseConnected(true)
+              emit('connection-status', { connected: true }, 'sse')
+            }
+            retryDelay = SSE_INITIAL_RETRY_MS
           } else if (event.type === 'new-message') {
             const msg = event.data
             const msgChats = msg.chats?.map((c: { guid: string }) => c.guid) ?? []
@@ -168,31 +258,53 @@ export function useMessagesSSE({
           } else if (event.type === 'chat-read') {
             emit('message-read', null, 'sse')
             debouncedRefreshConvos()
+          } else if (event.type === 'typing') {
+            const msg = event.data
+            const chatGuids = msg.chats?.map((c: { guid: string }) => c.guid) ??
+              [msg.chatGuid, msg.chat?.guid, msg.guid].filter((value): value is string => typeof value === 'string')
+            onTypingRef.current(chatGuids, msg)
+          } else if (event.type === 'refresh-convos') {
+            debouncedRefreshConvos()
           }
         } catch { /* ignore */ }
       }
       es.onerror = () => {
-        connected = false
-        setSseConnected(false)
-        emit('connection-status', { connected: false }, 'sse')
-        es?.close()
-        retryTimeout = setTimeout(connect, retryDelay)
-        retryDelay = Math.min(retryDelay * 2, 30000)
+        closeStream()
+        scheduleReconnect()
       }
     }
 
     void connect()
-    const convPoll = setInterval(() => {
-      if (!connected) onRefreshConvosRef.current()
+    convPoll = setInterval(() => {
+      if (!connected || Date.now() - lastEventAt > SSE_STALE_AFTER_MS) onRefreshConvosRef.current()
     }, 60000)
+
+    healthTimer = setInterval(() => {
+      const now = Date.now()
+      const sleptOrThrottled = now - lastHealthTickAt > SSE_HEALTHCHECK_MS + SSE_WAKE_SKEW_MS
+      lastHealthTickAt = now
+      const stale = now - lastEventAt > SSE_STALE_AFTER_MS
+      if (sleptOrThrottled || stale || !es || es.readyState === EventSource.CLOSED) {
+        forceReconnect(true)
+      }
+    }, SSE_HEALTHCHECK_MS)
+
+    window.addEventListener('focus', refreshOrReconnect)
+    window.addEventListener('online', refreshOrReconnect)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       disposed = true
       es?.close()
+      es = null
       if (retryTimeout) clearTimeout(retryTimeout)
       if (debounceTimer) clearTimeout(debounceTimer)
+      if (healthTimer) clearInterval(healthTimer)
+      if (convPoll) clearInterval(convPoll)
       if (toastTimeout.current) clearTimeout(toastTimeout.current)
-      clearInterval(convPoll)
+      window.removeEventListener('focus', refreshOrReconnect)
+      window.removeEventListener('online', refreshOrReconnect)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, []) // stable — uses refs for all callbacks
 

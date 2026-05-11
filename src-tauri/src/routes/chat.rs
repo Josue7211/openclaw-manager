@@ -789,6 +789,7 @@ fn parse_messages(file_path: &Path) -> Vec<ChatMessage> {
 struct ChatSendResult {
     ok: bool,
     error: Option<String>,
+    session_key: Option<String>,
 }
 
 async fn harness_chat_send(
@@ -816,6 +817,7 @@ async fn harness_chat_send(
                 return ChatSendResult {
                     ok: false,
                     error: Some(format!("http client error: {}", e)),
+                    session_key: None,
                 };
             }
         };
@@ -836,9 +838,21 @@ async fn harness_chat_send(
         return match req.send().await {
             Ok(resp) => {
                 if resp.status().is_success() {
+                    let session_key = resp.json::<Value>().await.ok().and_then(|value| {
+                        value
+                            .get("sessionKey")
+                            .or_else(|| value.get("session_key"))
+                            .or_else(|| value.get("key"))
+                            .or_else(|| value.get("id"))
+                            .and_then(|v| v.as_str())
+                            .map(str::trim)
+                            .filter(|v| !v.is_empty())
+                            .map(ToOwned::to_owned)
+                    });
                     ChatSendResult {
                         ok: true,
                         error: None,
+                        session_key,
                     }
                 } else {
                     let status = resp.status();
@@ -846,12 +860,14 @@ async fn harness_chat_send(
                     ChatSendResult {
                         ok: false,
                         error: Some(format!("api returned {}: {}", status, text)),
+                        session_key: None,
                     }
                 }
             }
             Err(e) => ChatSendResult {
                 ok: false,
                 error: Some(format!("http request error: {}", e)),
+                session_key: None,
             },
         };
     }
@@ -872,6 +888,7 @@ async fn harness_chat_send(
             return ChatSendResult {
                 ok: false,
                 error: Some(format!("http client error: {}", e)),
+                session_key: None,
             };
         }
     };
@@ -880,6 +897,7 @@ async fn harness_chat_send(
         return ChatSendResult {
             ok: false,
             error: Some("no chat model selected".to_string()),
+            session_key: None,
         };
     };
     let mut messages = vec![json!({"role": "user", "content": message})];
@@ -904,6 +922,7 @@ async fn harness_chat_send(
                 ChatSendResult {
                     ok: true,
                     error: None,
+                    session_key: None,
                 }
             } else {
                 let status = resp.status();
@@ -911,12 +930,14 @@ async fn harness_chat_send(
                 ChatSendResult {
                     ok: false,
                     error: Some(format!("gateway returned {}: {}", status, text)),
+                    session_key: None,
                 }
             }
         }
         Err(e) => ChatSendResult {
             ok: false,
             error: Some(format!("http request error: {}", e)),
+            session_key: None,
         },
     }
 }
@@ -1092,7 +1113,7 @@ async fn post_chat(
             .into_response();
     }
 
-    Json(json!({"ok": true})).into_response()
+    Json(json!({"ok": true, "sessionKey": result.session_key})).into_response()
 }
 
 // ---------------------------------------------------------------------------

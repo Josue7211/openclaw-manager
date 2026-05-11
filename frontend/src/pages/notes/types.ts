@@ -7,6 +7,8 @@ export interface VaultNote {
   folder: string
   tags: string[]
   links: string[]
+  aliases?: string[]
+  properties?: Record<string, string | string[]>
   created_at: number
   updated_at: number
 }

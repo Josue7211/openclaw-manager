@@ -40,6 +40,7 @@ vi.mock('@/pages/Messages', () => ({ default: () => <div data-testid="page-messa
 vi.mock('@/pages/Pomodoro', () => ({ default: () => <div data-testid="page-pomodoro">Pomodoro</div> }))
 vi.mock('@/pages/Email', () => ({ default: () => <div data-testid="page-email">Email</div> }))
 vi.mock('@/pages/JobHunter', () => ({ default: () => <div data-testid="page-jobs">Career Ops</div> }))
+vi.mock('@/pages/Training', () => ({ default: () => <div data-testid="page-training">Training</div> }))
 vi.mock('@/pages/HomeLab', () => ({ default: () => <div data-testid="page-homelab">HomeLab</div> }))
 vi.mock('@/pages/MediaRadar', () => ({ default: () => <div data-testid="page-media">MediaRadar</div> }))
 vi.mock('@/pages/Missions', () => ({ default: () => <div data-testid="page-missions">Missions</div> }))
@@ -59,6 +60,7 @@ vi.mock('@/pages/Capture', () => ({ default: () => <div data-testid="page-captur
 vi.mock('@/pages/Settings', () => ({ default: () => <div data-testid="page-settings">Settings</div> }))
 vi.mock('@/pages/Search', () => ({ default: () => <div data-testid="page-search">Search</div> }))
 vi.mock('@/pages/Login', () => ({ default: () => <div data-testid="page-login">Login</div> }))
+vi.mock('@/pages/TrainingPublicIntake', () => ({ default: () => <div data-testid="page-training-public-intake">TrainingPublicIntake</div> }))
 vi.mock('@/pages/CustomPage', () => ({ default: () => <div data-testid="page-custom">CustomPage</div> }))
 vi.mock('@/pages/NotFound', () => ({ default: () => <div data-testid="page-notfound"><div>404</div><h2>Page not found</h2></div> }))
 
@@ -103,6 +105,7 @@ const Messages = lazy(() => import('@/pages/Messages'))
 const Pomodoro = lazy(() => import('@/pages/Pomodoro'))
 const Email = lazy(() => import('@/pages/Email'))
 const JobHunter = lazy(() => import('@/pages/JobHunter'))
+const Training = lazy(() => import('@/pages/Training'))
 const HomeLab = lazy(() => import('@/pages/HomeLab'))
 const MediaRadar = lazy(() => import('@/pages/MediaRadar'))
 const Missions = lazy(() => import('@/pages/Missions'))
@@ -119,6 +122,7 @@ const Capture = lazy(() => import('@/pages/Capture'))
 const Settings = lazy(() => import('@/pages/Settings'))
 const Search = lazy(() => import('@/pages/Search'))
 const Login = lazy(() => import('@/pages/Login'))
+const TrainingPublicIntake = lazy(() => import('@/pages/TrainingPublicIntake'))
 const CustomPage = lazy(() => import('@/pages/CustomPage'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
@@ -141,6 +145,8 @@ interface RouteEntry {
 const ROUTES: RouteEntry[] = [
   // Unguarded
   { path: '/login', type: 'page', testId: 'page-login', guarded: false },
+  { path: '/form/:token', type: 'page', testId: 'page-training-public-intake', guarded: false },
+  { path: '/training/intake/:token', type: 'page', testId: 'page-training-public-intake', guarded: false },
   // Guarded (inside AuthGuard + LayoutShell)
   { path: '/', type: 'page', testId: 'page-personal', guarded: true },
   { path: '/personal', type: 'redirect', target: '/', testId: 'page-personal', guarded: true },
@@ -154,6 +160,7 @@ const ROUTES: RouteEntry[] = [
   { path: '/pomodoro', type: 'page', testId: 'page-pomodoro', guarded: true },
   { path: '/email', type: 'page', testId: 'page-email', guarded: true },
   { path: '/jobs', type: 'page', testId: 'page-jobs', guarded: true },
+  { path: '/training/*', type: 'page', testId: 'page-training', guarded: true },
   { path: '/homelab', type: 'page', testId: 'page-homelab', guarded: true },
   { path: '/media', type: 'page', testId: 'page-media', guarded: true },
   { path: '/missions', type: 'page', testId: 'page-missions', guarded: true },
@@ -201,6 +208,8 @@ function renderRoute(routePath: string) {
         <Suspense fallback={<div data-testid="suspense-fallback">Loading...</div>}>
           <Routes>
             <Route path="/login" element={<Suspense fallback={null}><Login /></Suspense>} />
+            <Route path="/form/:token" element={<Suspense fallback={null}><TrainingPublicIntake /></Suspense>} />
+            <Route path="/training/intake/:token" element={<Suspense fallback={null}><TrainingPublicIntake /></Suspense>} />
             <Route element={<Outlet />}>
               <Route path="/" element={<Suspense fallback={null}><Personal /></Suspense>} />
               <Route path="/personal" element={<Navigate to="/" replace />} />
@@ -214,6 +223,7 @@ function renderRoute(routePath: string) {
               <Route path="/pomodoro" element={<Suspense fallback={null}><Pomodoro /></Suspense>} />
               <Route path="/email" element={<Suspense fallback={null}><Email /></Suspense>} />
               <Route path="/jobs" element={<Suspense fallback={null}><JobHunter /></Suspense>} />
+              <Route path="/training/*" element={<Suspense fallback={null}><Training /></Suspense>} />
               <Route path="/homelab" element={<Suspense fallback={null}><HomeLab /></Suspense>} />
               <Route path="/media" element={<Suspense fallback={null}><MediaRadar /></Suspense>} />
               <Route path="/missions" element={<Suspense fallback={null}><Missions /></Suspense>} />

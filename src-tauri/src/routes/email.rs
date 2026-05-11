@@ -1,11 +1,14 @@
 use axum::{
-    Json, Router,
     extract::{Query, State},
     routing::{get, post},
+    Json, Router,
 };
 use futures::TryStreamExt;
+use lettre::message::{Mailbox, SinglePart};
+use lettre::transport::smtp::authentication::Credentials as SmtpAuthCredentials;
+use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
 use crate::error::AppError;
@@ -21,6 +24,15 @@ struct Credentials {
     port: u16,
     user: String,
     password: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SmtpConfig {
+    host: String,
+    port: u16,
+    user: String,
+    password: String,
+    from: String,
 }
 
 fn normalized_secret_text(value: Option<String>) -> String {
@@ -55,11 +67,40 @@ fn get_credentials(state: &AppState) -> Option<Credentials> {
 /// The concrete TLS stream type used throughout this module.
 type ImapTlsStream = async_native_tls::TlsStream<tokio_util::compat::Compat<tokio::net::TcpStream>>;
 
+fn is_loopback_imap_host(host: &str) -> bool {
+    matches!(host.trim(), "127.0.0.1" | "::1" | "localhost")
+}
+
+fn is_loopback_mail_host(host: &str) -> bool {
+    matches!(host.trim(), "127.0.0.1" | "::1" | "localhost")
+}
+
+fn imap_tls_connector(host: &str) -> async_native_tls::TlsConnector {
+    let connector = async_native_tls::TlsConnector::new();
+    if is_loopback_imap_host(host) {
+        connector
+            .danger_accept_invalid_certs(true)
+            .danger_accept_invalid_hostnames(true)
+    } else {
+        connector
+    }
+}
+
 /// Connect to the IMAP server over TLS and authenticate.
 async fn imap_session(creds: &Credentials) -> anyhow::Result<async_imap::Session<ImapTlsStream>> {
     let tcp = tokio::net::TcpStream::connect((&*creds.host, creds.port)).await?;
-    let tls = async_native_tls::TlsConnector::new();
-    let tls_stream = tls.connect(&creds.host, tcp.compat()).await?;
+    let tls = imap_tls_connector(&creds.host);
+    let tls_stream = if creds.port == 993 {
+        tls.connect(&creds.host, tcp.compat()).await?
+    } else {
+        let mut client = async_imap::Client::new(tcp.compat());
+        client
+            .read_response()
+            .await
+            .ok_or_else(|| anyhow::anyhow!("missing IMAP greeting"))??;
+        client.run_command_and_check_ok("STARTTLS", None).await?;
+        tls.connect(&creds.host, client.into_inner()).await?
+    };
 
     let client = async_imap::Client::new(tls_stream);
     let session = client
@@ -108,10 +149,11 @@ fn make_preview(raw: &str) -> String {
     //   .replace(/\r?\n/g, ' ')       — newlines → spaces
     //   .replace(/\s+/g, ' ')         — collapse whitespace
     //   .replace(/<[^>]+>/g, '')      — strip HTML tags
-    let mut s = raw.to_string();
+    let mut s = extract_mime_text_part(raw);
 
     // Remove quoted-printable soft breaks
     s = s.replace("=\r\n", "").replace("=\n", "");
+    s = decode_quoted_printable_text(&s);
 
     // Newlines → space
     s = s.replace("\r\n", " ").replace('\n', " ");
@@ -134,6 +176,10 @@ fn make_preview(raw: &str) -> String {
             }
         })
         .collect();
+
+    for tag in ["style", "script", "head"] {
+        s = remove_html_block(&s, tag);
+    }
 
     // Strip HTML tags (simple <…> removal)
     let mut result = String::with_capacity(s.len());
@@ -159,6 +205,114 @@ fn make_preview(raw: &str) -> String {
     } else {
         trimmed.to_string()
     }
+}
+
+fn remove_html_block(raw: &str, tag: &str) -> String {
+    let mut output = String::with_capacity(raw.len());
+    let mut cursor = 0;
+    let lower = raw.to_ascii_lowercase();
+    let open = format!("<{tag}");
+    let close = format!("</{tag}>");
+
+    while let Some(rel_start) = lower[cursor..].find(&open) {
+        let start = cursor + rel_start;
+        output.push_str(&raw[cursor..start]);
+        let Some(rel_end) = lower[start..].find(&close) else {
+            return output;
+        };
+        cursor = start + rel_end + close.len();
+    }
+    output.push_str(&raw[cursor..]);
+    output
+}
+
+fn decode_quoted_printable_text(raw: &str) -> String {
+    let bytes = raw.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'=' && i + 2 < bytes.len() {
+            let hi = bytes[i + 1];
+            let lo = bytes[i + 2];
+            if hi == b'\r' || hi == b'\n' {
+                i += 1;
+                continue;
+            }
+            let hex = |b: u8| -> Option<u8> {
+                match b {
+                    b'0'..=b'9' => Some(b - b'0'),
+                    b'a'..=b'f' => Some(b - b'a' + 10),
+                    b'A'..=b'F' => Some(b - b'A' + 10),
+                    _ => None,
+                }
+            };
+            if let (Some(hi), Some(lo)) = (hex(hi), hex(lo)) {
+                out.push((hi << 4) | lo);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out)
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+}
+
+fn extract_mime_text_part(raw: &str) -> String {
+    let normalized = raw.replace("\r\n", "\n");
+    if !normalized
+        .lines()
+        .any(|line| line.trim_start().starts_with("--"))
+    {
+        return normalized;
+    }
+
+    let mut current = Vec::new();
+    let mut plain = Vec::new();
+    let mut html = Vec::new();
+
+    let mut flush_part = |part: &mut Vec<&str>| {
+        if part.is_empty() {
+            return;
+        }
+        let Some(split) = part.iter().position(|line| line.trim().is_empty()) else {
+            part.clear();
+            return;
+        };
+        let headers = part[..split].join("\n").to_ascii_lowercase();
+        if headers.contains("content-disposition: attachment") {
+            part.clear();
+            return;
+        }
+        let body = part[split + 1..].join("\n");
+        if headers.contains("content-type: text/plain") {
+            plain.push(body);
+        } else if headers.contains("content-type: text/html") {
+            html.push(body);
+        }
+        part.clear();
+    };
+
+    for line in normalized.lines() {
+        if line.trim_start().starts_with("--") {
+            flush_part(&mut current);
+        } else {
+            current.push(line);
+        }
+    }
+    flush_part(&mut current);
+
+    plain
+        .into_iter()
+        .find(|part| !part.trim().is_empty())
+        .or_else(|| html.into_iter().find(|part| !part.trim().is_empty()))
+        .unwrap_or(normalized)
 }
 
 /// Fetch recent emails from the given IMAP folder.
@@ -385,6 +539,10 @@ struct SelectedMailAccount {
     provider: String,
     address: String,
     agentmail_inbox_id: String,
+    imap_host: String,
+    imap_port: u16,
+    imap_username: String,
+    imap_password: String,
 }
 
 fn selected_mail_account(
@@ -404,6 +562,14 @@ fn selected_mail_account(
             provider: account.provider.trim().to_string(),
             address: account.address.trim().to_string(),
             agentmail_inbox_id: account.agentmail_inbox_id.trim().to_string(),
+            imap_host: account.imap_host.trim().to_string(),
+            imap_port: if account.imap_port == 0 {
+                993
+            } else {
+                account.imap_port
+            },
+            imap_username: account.imap_username.trim().to_string(),
+            imap_password: account.imap_password.trim().to_string(),
         })
 }
 
@@ -429,26 +595,42 @@ fn is_imap_provider(provider: &str) -> bool {
 }
 
 fn provider_requires_agentmail_access(provider: &str) -> bool {
-    matches!(
-        provider.trim().to_ascii_lowercase().as_str(),
-        "gmail" | "google" | "google-workspace"
-    )
+    let _ = provider;
+    false
 }
 
 fn should_fetch_via_agentmail(account: &SelectedMailAccount) -> bool {
     account.provider.trim().eq_ignore_ascii_case("agentmail")
-        || !account.agentmail_inbox_id.trim().is_empty()
 }
 
 fn get_credentials_for_account(
     state: &AppState,
     account: &SelectedMailAccount,
 ) -> Option<Credentials> {
+    if account.has_direct_imap_credentials() {
+        return Some(Credentials {
+            host: account.imap_host.clone(),
+            port: account.imap_port,
+            user: if account.imap_username.is_empty() {
+                account.address.clone()
+            } else {
+                account.imap_username.clone()
+            },
+            password: account.imap_password.clone(),
+        });
+    }
+
     let mut creds = get_credentials(state)?;
     if creds.user.is_empty() && !account.address.is_empty() {
         creds.user = account.address.clone();
     }
     Some(creds)
+}
+
+impl SelectedMailAccount {
+    fn has_direct_imap_credentials(&self) -> bool {
+        !self.imap_host.trim().is_empty() && !self.imap_password.trim().is_empty()
+    }
 }
 
 fn agentmail_ready_response(
@@ -534,6 +716,134 @@ fn build_agentmail_send_request(
         text,
         labels: vec!["clawctrl".into()],
     })
+}
+
+fn smtp_host_for_account(account: &SelectedMailAccount) -> String {
+    let imap_host = account.imap_host.trim();
+    if is_loopback_mail_host(imap_host) {
+        return imap_host.to_string();
+    }
+
+    match account.provider.trim().to_ascii_lowercase().as_str() {
+        "proton" | "protonmail" => "127.0.0.1".into(),
+        "gmail" | "google" | "google-workspace" => "smtp.gmail.com".into(),
+        "outlook" | "hotmail" | "office365" | "exchange" => "smtp.office365.com".into(),
+        "icloud" | "apple" => "smtp.mail.me.com".into(),
+        "fastmail" => "smtp.fastmail.com".into(),
+        _ => imap_host
+            .strip_prefix("imap.")
+            .map(|domain| format!("smtp.{domain}"))
+            .unwrap_or_else(|| imap_host.to_string()),
+    }
+}
+
+fn smtp_port_for_account(state: &AppState, account: &SelectedMailAccount, smtp_host: &str) -> u16 {
+    if let Some(port) = state
+        .secret("EMAIL_SMTP_PORT")
+        .and_then(|value| value.trim().parse::<u16>().ok())
+    {
+        return port;
+    }
+
+    if is_loopback_mail_host(smtp_host) || account.provider.trim().eq_ignore_ascii_case("proton") {
+        return 1025;
+    }
+
+    587
+}
+
+fn smtp_config_for_account(
+    state: &AppState,
+    account: &SelectedMailAccount,
+) -> Result<SmtpConfig, AppError> {
+    let creds = get_credentials_for_account(state, account).ok_or_else(|| {
+        AppError::BadRequest("Selected account needs SMTP/Bridge credentials before sending".into())
+    })?;
+    let host = state
+        .secret("EMAIL_SMTP_HOST")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| smtp_host_for_account(account));
+    let port = smtp_port_for_account(state, account, &host);
+    let from = if account.address.trim().is_empty() {
+        creds.user.clone()
+    } else {
+        account.address.clone()
+    };
+
+    Ok(SmtpConfig {
+        host,
+        port,
+        user: creds.user,
+        password: creds.password,
+        from,
+    })
+}
+
+fn add_mailboxes(
+    mut builder: lettre::message::MessageBuilder,
+    recipients: Vec<String>,
+    kind: &str,
+) -> Result<lettre::message::MessageBuilder, AppError> {
+    for recipient in recipients {
+        let mailbox = recipient.parse::<Mailbox>().map_err(|_| {
+            AppError::BadRequest(format!("Invalid {kind} email address: {recipient}"))
+        })?;
+        builder = match kind {
+            "cc" => builder.cc(mailbox),
+            "bcc" => builder.bcc(mailbox),
+            _ => builder.to(mailbox),
+        };
+    }
+    Ok(builder)
+}
+
+fn build_smtp_message(config: &SmtpConfig, body: &SendEmailRequest) -> Result<Message, AppError> {
+    let to = split_recipients(body.to.as_deref());
+    if to.is_empty() {
+        return Err(AppError::BadRequest("Missing recipient".into()));
+    }
+
+    let subject = required_send_text(body.subject.as_deref(), "subject")?;
+    let text = required_send_text(body.body.as_deref(), "body")?;
+    let from = config.from.parse::<Mailbox>().map_err(|_| {
+        AppError::BadRequest(format!("Invalid sender email address: {}", config.from))
+    })?;
+
+    let builder = Message::builder().from(from).subject(subject);
+    let builder = add_mailboxes(builder, to, "to")?;
+    let builder = add_mailboxes(builder, split_recipients(body.cc.as_deref()), "cc")?;
+    let builder = add_mailboxes(builder, split_recipients(body.bcc.as_deref()), "bcc")?;
+
+    builder
+        .singlepart(SinglePart::plain(text))
+        .map_err(|err| AppError::BadRequest(format!("Failed to build email: {err}")))
+}
+
+async fn send_smtp_email(config: &SmtpConfig, body: &SendEmailRequest) -> Result<Value, AppError> {
+    let message = build_smtp_message(config, body)?;
+    let transport = AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&config.host)
+        .port(config.port)
+        .credentials(SmtpAuthCredentials::new(
+            config.user.clone(),
+            config.password.clone(),
+        ))
+        .build();
+
+    transport.send(message).await.map_err(|err| {
+        AppError::BadRequest(format!(
+            "SMTP send failed via {}:{}: {err}",
+            config.host, config.port
+        ))
+    })?;
+
+    Ok(json!({
+        "message_id": format!("smtp-{}", chrono::Utc::now().timestamp_millis()),
+        "transport": "smtp",
+        "from": config.from,
+        "smtp_host": config.host,
+        "smtp_port": config.port
+    }))
 }
 
 fn find_account_label(
@@ -824,21 +1134,30 @@ async fn send_email(
 ) -> Result<Json<Value>, AppError> {
     let account_id = required_send_text(body.account_id.as_deref(), "account_id")?;
     let accounts = load_mail_accounts_for_email(&state, &session).await?;
-    let account = accounts
-        .iter()
-        .find(|account| account.id == account_id)
-        .ok_or_else(|| {
-            AppError::BadRequest("Sending is blocked until sender identity is resolved".into())
-        })?;
-    let inbox_id = account.agentmail_inbox_id.trim();
-    if inbox_id.is_empty() {
-        return Err(AppError::BadRequest(
-            "Selected account has no AgentMail inbox id".into(),
-        ));
-    }
+    let selected_account = selected_mail_account(&accounts, &account_id).ok_or_else(|| {
+        AppError::BadRequest("Sending is blocked until sender identity is resolved".into())
+    })?;
 
-    let send_body = build_agentmail_send_request(&body)?;
-    let sent = agentmail::send_message_for_account(&state, inbox_id, &send_body).await?;
+    let sent = if should_fetch_via_agentmail(&selected_account) {
+        let inbox_id = selected_account.agentmail_inbox_id.trim();
+        if inbox_id.is_empty() {
+            return Err(AppError::BadRequest(
+                "Selected AgentMail account has no inbox id".into(),
+            ));
+        }
+
+        let send_body = build_agentmail_send_request(&body)?;
+        json!(agentmail::send_message_for_account(&state, inbox_id, &send_body).await?)
+    } else if is_imap_provider(&selected_account.provider) {
+        let smtp_config = smtp_config_for_account(&state, &selected_account)?;
+        send_smtp_email(&smtp_config, &body).await?
+    } else {
+        return Err(AppError::BadRequest(format!(
+            "Selected account provider cannot send mail: {}",
+            selected_account.provider
+        )));
+    };
+
     Ok(Json(json!({ "sent": sent })))
 }
 
@@ -977,6 +1296,7 @@ mod tests {
                 agentmail_inbox_id: "am_inbox_personal".into(),
                 forwarding_status: "active".into(),
                 is_default: true,
+                ..MailAccountRecord::default()
             },
             MailAccountRecord {
                 id: "acct_work".into(),
@@ -986,6 +1306,7 @@ mod tests {
                 agentmail_inbox_id: "am_inbox_work".into(),
                 forwarding_status: "active".into(),
                 is_default: false,
+                ..MailAccountRecord::default()
             },
         ];
 
@@ -1007,10 +1328,10 @@ mod tests {
     }
 
     #[test]
-    fn gmail_providers_require_agentmail_access_for_agent_fetch() {
-        assert!(provider_requires_agentmail_access("gmail"));
-        assert!(provider_requires_agentmail_access("google"));
-        assert!(provider_requires_agentmail_access("google-workspace"));
+    fn gmail_providers_allow_direct_imap_fetch() {
+        assert!(!provider_requires_agentmail_access("gmail"));
+        assert!(!provider_requires_agentmail_access("google"));
+        assert!(!provider_requires_agentmail_access("google-workspace"));
         assert!(!provider_requires_agentmail_access("imap"));
         assert!(!provider_requires_agentmail_access("proton"));
 
@@ -1021,15 +1342,19 @@ mod tests {
     }
 
     #[test]
-    fn real_provider_with_agentmail_binding_uses_agentmail_transport() {
+    fn real_provider_with_agentmail_binding_still_requires_imap_transport() {
         let account = SelectedMailAccount {
             id: "acct_proton".into(),
             provider: "proton".into(),
             address: "josue@aparcedo.org".into(),
             agentmail_inbox_id: "clawcontrol-josue-aparcedo@agentmail.to".into(),
+            imap_host: String::new(),
+            imap_port: 993,
+            imap_username: String::new(),
+            imap_password: String::new(),
         };
 
-        assert!(should_fetch_via_agentmail(&account));
+        assert!(!should_fetch_via_agentmail(&account));
     }
 
     #[test]
@@ -1039,9 +1364,68 @@ mod tests {
             provider: "proton".into(),
             address: "josue@aparcedo.org".into(),
             agentmail_inbox_id: "".into(),
+            imap_host: String::new(),
+            imap_port: 993,
+            imap_username: String::new(),
+            imap_password: String::new(),
         };
 
         assert!(!should_fetch_via_agentmail(&account));
+    }
+
+    #[test]
+    fn real_provider_with_imap_credentials_prefers_direct_imap_transport() {
+        let account = SelectedMailAccount {
+            id: "acct_proton".into(),
+            provider: "proton".into(),
+            address: "josue@aparcedo.org".into(),
+            agentmail_inbox_id: "clawcontrol-josue-aparcedo@agentmail.to".into(),
+            imap_host: "127.0.0.1".into(),
+            imap_port: 1143,
+            imap_username: "josue@aparcedo.org".into(),
+            imap_password: "bridge-password".into(),
+        };
+
+        assert!(!should_fetch_via_agentmail(&account));
+    }
+
+    #[test]
+    fn proton_bridge_imap_account_maps_to_local_smtp_bridge() {
+        let account = SelectedMailAccount {
+            id: "imap:josue@aparcedo.org".into(),
+            provider: "proton".into(),
+            address: "josue@aparcedo.org".into(),
+            agentmail_inbox_id: "".into(),
+            imap_host: "127.0.0.1".into(),
+            imap_port: 1143,
+            imap_username: "bridge-user".into(),
+            imap_password: "bridge-password".into(),
+        };
+
+        assert_eq!(smtp_host_for_account(&account), "127.0.0.1");
+    }
+
+    #[test]
+    fn builds_smtp_message_without_agentmail_inbox_id() {
+        let config = SmtpConfig {
+            host: "127.0.0.1".into(),
+            port: 1025,
+            user: "bridge-user".into(),
+            password: "bridge-password".into(),
+            from: "josue@aparcedo.org".into(),
+        };
+        let body = SendEmailRequest {
+            account_id: Some("imap:josue@aparcedo.org".into()),
+            to: Some("friend@example.com".into()),
+            cc: None,
+            bcc: None,
+            subject: Some("Hello".into()),
+            body: Some("Direct SMTP body".into()),
+        };
+
+        let message = build_smtp_message(&config, &body).unwrap();
+
+        assert!(String::from_utf8_lossy(&message.formatted()).contains("Direct SMTP body"));
     }
 
     #[test]
@@ -1160,6 +1544,7 @@ mod tests {
             agentmail_inbox_id: "am_1".into(),
             forwarding_status: "active".into(),
             is_default: true,
+            ..MailAccountRecord::default()
         }];
         let body = DraftReplyRequest {
             thread_id: Some("thr_1".into()),

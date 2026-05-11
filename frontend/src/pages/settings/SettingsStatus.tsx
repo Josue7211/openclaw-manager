@@ -1,5 +1,5 @@
 import { memo, useEffect, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Desktop, WifiHigh, Database, Info, ArrowsClockwise, Clock, HardDrive, Stack, Monitor, Plugs, Key } from '@phosphor-icons/react'
 
 import {
@@ -30,8 +30,27 @@ interface ServiceStatus {
   status: string
   latency_ms?: number
   error?: string
+  message?: string
   peer_hostname?: string
   peer_verified?: boolean
+}
+
+interface AppleSyncProbe {
+  status: string
+  step?: string
+  error?: string
+  message?: string
+  created?: boolean
+  listed?: boolean
+  completed?: boolean
+  deleted?: boolean
+}
+
+interface AppleSyncVerification {
+  ok: boolean
+  calendar?: AppleSyncProbe
+  reminders?: AppleSyncProbe
+  caveat?: string
 }
 
 interface HealthData {
@@ -43,9 +62,15 @@ interface HealthData {
   sqlite_db_size_bytes: number
 	  services: {
 	    bluebubbles: ServiceStatus
-	    hermes?: ServiceStatus
-	    harness?: ServiceStatus
-	    openclaw?: ServiceStatus
+    bluebubbles_private_api?: ServiceStatus
+    messages?: ServiceStatus
+    mac_bridge?: ServiceStatus
+    calendar?: ServiceStatus
+    reminders?: ServiceStatus
+    harness?: ServiceStatus
+    agentsecrets?: ServiceStatus
+    agentshell?: ServiceStatus
+    memd?: ServiceStatus
     supabase: ServiceStatus
   }
 }
@@ -67,17 +92,13 @@ interface SetupStatusData {
 	  capabilities: {
 	    google_oauth: boolean
 	    github_oauth: boolean
-	    hermes?: boolean
 	    harness?: boolean
-	    openclaw?: boolean
     agentsecrets?: boolean
     memd: boolean
   }
 	  services: {
 	    supabase: SetupServiceState
-	    hermes?: SetupServiceState
 	    harness?: SetupServiceState
-	    openclaw?: SetupServiceState
     agentsecrets?: SetupServiceState
     memd: SetupServiceState
   }
@@ -151,11 +172,8 @@ function setupReadinessColor(setupStatus: SetupStatusData): string {
 function formatMissingSetup(missing: string[]): string {
   if (missing.length === 0) return 'Everything required is configured'
   const labels: Record<string, string> = {
-	    hermes: 'Hermes provider',
-	    hermes_auth: 'Hermes provider auth',
 	    harness: 'Harness',
 	    harness_auth: 'Harness auth',
-	    openclaw: 'OpenClaw compat',
     agentsecrets: 'Agent Secrets',
     supabase: 'Supabase',
     memd: 'memd',
@@ -323,6 +341,7 @@ export default memo(function SettingsStatus() {
   const [generatedRecoveryKey, setGeneratedRecoveryKey] = useState('')
   const [recoveryBusy, setRecoveryBusy] = useState(false)
   const [recoveryError, setRecoveryError] = useState('')
+  const [appleSyncResult, setAppleSyncResult] = useState<AppleSyncVerification | null>(null)
 
   const { data: health, isLoading: healthLoading, isError: healthError, dataUpdatedAt: healthUpdatedAt } = useQuery<HealthData>({
     queryKey: queryKeys.health,
@@ -374,6 +393,33 @@ export default memo(function SettingsStatus() {
     retry: false,
   })
 
+  const restartMacBridge = useMutation({
+    mutationFn: () => api.post('/api/status/mac-bridge/restart', {}),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.health })
+    },
+  })
+
+  const verifyAppleSync = useMutation({
+    mutationFn: () => api.post<AppleSyncVerification>('/api/status/apple-sync/verify', {
+      calendar: true,
+      reminders: true,
+      cleanup: true,
+    }),
+    onSuccess: async (result) => {
+      setAppleSyncResult(result)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.health })
+    },
+    onError: (error) => {
+      const message = error instanceof Error && error.message ? error.message : 'Apple sync verification failed.'
+      setAppleSyncResult({
+        ok: false,
+        calendar: { status: 'failed', error: message },
+        reminders: { status: 'failed', error: message },
+      })
+    },
+  })
+
   useEffect(() => {
     const onBackendChanged = () => {
       const nextBase = getConfiguredBackendBase()
@@ -414,8 +460,15 @@ export default memo(function SettingsStatus() {
 
   const services = health?.services
   const serviceEntries: { key: string; label: string; data: ServiceStatus | undefined }[] = [
-    { key: 'bluebubbles', label: 'BlueBubbles', data: services?.bluebubbles },
-	    { key: 'harness', label: 'Harness', data: services?.harness ?? services?.hermes ?? services?.openclaw },
+    { key: 'messages', label: 'Messages', data: services?.messages ?? services?.bluebubbles },
+    { key: 'bluebubbles_private_api', label: 'BlueBubbles Private API', data: services?.bluebubbles_private_api },
+    { key: 'calendar', label: 'Calendar', data: services?.calendar },
+    { key: 'reminders', label: 'Reminders', data: services?.reminders },
+    { key: 'mac_bridge', label: 'Mac Bridge', data: services?.mac_bridge },
+    { key: 'agentshell', label: 'Agent Shell', data: services?.agentshell },
+    { key: 'agentsecrets', label: 'Agent Secrets', data: services?.agentsecrets },
+    { key: 'memd', label: 'memd', data: services?.memd },
+    { key: 'harness', label: 'Harness', data: services?.harness },
     { key: 'supabase', label: 'Supabase', data: services?.supabase },
   ]
   const pendingHandoffs = handoffs?.requests ?? []
@@ -553,6 +606,31 @@ export default memo(function SettingsStatus() {
                     <span style={{ fontWeight: 500 }}>{svc.label}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {svc.key === 'mac_bridge' && (
+                      <button
+                        type="button"
+                        onClick={() => restartMacBridge.mutate()}
+                        disabled={restartMacBridge.isPending}
+                        title="Restart Mac Bridge"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border)',
+                          background: 'var(--bg-white-03)',
+                          color: 'var(--text-muted)',
+                          cursor: restartMacBridge.isPending ? 'wait' : 'pointer',
+                        }}
+                      >
+                        <ArrowsClockwise
+                          size={13}
+                          style={{ animation: restartMacBridge.isPending ? 'spin 0.8s linear infinite' : 'none' }}
+                        />
+                      </button>
+                    )}
                     {s?.latency_ms !== undefined && (
                       <span style={{ ...statusVal, fontSize: '11px', color: 'var(--text-muted)' }}>
                         {s.latency_ms}ms
@@ -576,6 +654,84 @@ export default memo(function SettingsStatus() {
               </div>
             </div>
           )}
+          <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Apple source round trip
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Calendar and Reminders create, list, delete through Mac Bridge.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => verifyAppleSync.mutate()}
+                disabled={verifyAppleSync.isPending}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  background: verifyAppleSync.isPending ? 'var(--bg-white-04)' : 'var(--accent-solid)',
+                  color: verifyAppleSync.isPending ? 'var(--text-muted)' : 'var(--text-on-color)',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  padding: '9px 12px',
+                  cursor: verifyAppleSync.isPending ? 'wait' : 'pointer',
+                }}
+              >
+                <ArrowsClockwise
+                  size={14}
+                  style={{ animation: verifyAppleSync.isPending ? 'spin 0.8s linear infinite' : 'none' }}
+                />
+                Verify
+              </button>
+            </div>
+            {appleSyncResult && (
+              <div style={{
+                marginTop: '12px',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                overflow: 'hidden',
+                background: appleSyncResult.ok ? 'var(--secondary-a08)' : 'var(--red-500-a12)',
+              }}>
+                {[
+                  ['Calendar', appleSyncResult.calendar],
+                  ['Reminders', appleSyncResult.reminders],
+                ].map(([label, probe], index) => {
+                  const data = probe as AppleSyncProbe | undefined
+                  const ok = data?.status === 'ok'
+                  return (
+                    <div
+                      key={label as string}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                        padding: '10px 12px',
+                        borderBottom: index === 0 ? '1px solid var(--border)' : 'none',
+                        fontSize: '12px',
+                      }}
+                    >
+                      <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{label as string}</span>
+                      <span style={{ color: ok ? 'var(--secondary-dim)' : 'var(--red-500)', textAlign: 'right' }}>
+                        {ok
+                          ? 'created, listed, deleted'
+                          : data?.message || data?.error || data?.step || data?.status || 'failed'}
+                      </span>
+                    </div>
+                  )
+                })}
+                {appleSyncResult.caveat && (
+                  <div style={{ padding: '10px 12px', color: 'var(--text-muted)', fontSize: '11px', lineHeight: 1.45 }}>
+                    {appleSyncResult.caveat}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {pendingHandoffs.length > 0 && (

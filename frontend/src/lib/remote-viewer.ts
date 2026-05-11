@@ -44,15 +44,15 @@ export interface RemoteViewerRepairResult {
     service?: string
     ok: boolean
     error?: string
-    result?: {
-      program: string
-      status: number
-      stdout: string
+    result?: Record<string, unknown> & {
+      program?: string
+      status?: number
+      stdout?: string
     }
   }>
 }
 
-const DEFAULT_LOCAL_API_BASE = 'http://127.0.0.1:5000'
+const DEFAULT_LOCAL_API_BASE = 'http://127.0.0.1:3010'
 
 function isTauriDesktop(): boolean {
   return typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__

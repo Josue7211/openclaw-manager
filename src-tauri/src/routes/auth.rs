@@ -19,7 +19,7 @@ use crate::gotrue::GoTrueClient;
 use crate::server::{AppState, RequireAuth, UserSession};
 use crate::supabase::SupabaseClient;
 
-use super::util::random_uuid;
+use super::{mail_accounts, util::random_uuid};
 use zeroize::Zeroize;
 
 // ---------------------------------------------------------------------------
@@ -100,6 +100,7 @@ pub fn router() -> Router<AppState> {
         .route("/sync/status", get(account_sync_status))
         .route("/sync/hydrate", post(account_sync_hydrate))
         .route("/sync/unlock", post(account_sync_unlock))
+        .route("/sync/recover-local", post(account_sync_recover_local))
         .route("/sync/handoff/request", post(account_sync_handoff_request))
         .route("/sync/handoff/requests", get(account_sync_handoff_requests))
         .route("/sync/handoff/approve", post(account_sync_handoff_approve))
@@ -562,6 +563,12 @@ const MEMD_FIELDS: &[SyncFieldSpec] = &[SyncFieldSpec {
     label: "RAG URL",
     required: false,
 }];
+const RAGANYTHING_FIELDS: &[SyncFieldSpec] = &[SyncFieldSpec {
+    keys: &["url"],
+    env_var: "RAGANYTHING_URL",
+    label: "URL",
+    required: false,
+}];
 const RAG_FIELDS: &[SyncFieldSpec] = &[SyncFieldSpec {
     keys: &["url"],
     env_var: "RAG_URL",
@@ -690,6 +697,11 @@ const SYNC_SERVICE_SPECS: &[SyncServiceSpec] = &[
         service: "memd",
         label: "memd",
         fields: MEMD_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "raganything",
+        label: "RAGAnything/MinerU",
+        fields: RAGANYTHING_FIELDS,
     },
     SyncServiceSpec {
         service: "rag",
@@ -825,17 +837,18 @@ async fn account_sync_status_payload(state: &AppState, session: &UserSession) ->
                 if let Ok(plaintext) =
                     crate::crypto::decrypt(ciphertext, nonce, &session.encryption_key)
                 {
-                    if let Ok(creds) = serde_json::from_slice::<HashMap<String, Value>>(&plaintext)
-                    {
+                    if let Ok(creds) = serde_json::from_slice::<Value>(&plaintext) {
                         decryptable = true;
-                        credential_keys.extend(
-                            creds
-                                .iter()
-                                .filter(|(_, value)| {
-                                    value.as_str().is_some_and(|v| !v.trim().is_empty())
-                                })
-                                .map(|(key, _)| key.to_string()),
-                        );
+                        if let Some(creds) = creds.as_object() {
+                            credential_keys.extend(
+                                creds
+                                    .iter()
+                                    .filter(|(_, value)| {
+                                        value.as_str().is_some_and(|v| !v.trim().is_empty())
+                                    })
+                                    .map(|(key, _)| key.to_string()),
+                            );
+                        }
                     }
                 }
             }
@@ -1079,6 +1092,7 @@ async fn account_sync_recovery_unlock(
     cache_account_sync_key(&session.user_id, &account_key);
     session.encryption_key = account_key;
     *state.session.write().await = Some(session.clone());
+    promote_missing_keychain_secrets(&state, &session, &sb).await;
     load_user_secrets(&state, &session).await;
 
     #[cfg(debug_assertions)]
@@ -1343,6 +1357,7 @@ async fn account_sync_handoff_claim(
     cache_account_sync_key(&session.user_id, &account_key);
     session.encryption_key = account_key;
     *state.session.write().await = Some(session.clone());
+    promote_missing_keychain_secrets(&state, &session, &sb).await;
     load_user_secrets(&state, &session).await;
 
     #[cfg(debug_assertions)]
@@ -1395,9 +1410,71 @@ async fn account_sync_hydrate(
     }
 
     load_user_secrets(&state, &session).await;
+    if let Ok(sb) = SupabaseClient::from_state(&state) {
+        promote_missing_keychain_secrets(&state, &session, &sb).await;
+        load_user_secrets(&state, &session).await;
+    }
 
     #[cfg(debug_assertions)]
     crate::server::save_dev_session(&state.db, &session).await;
+
+    Ok(Json(account_sync_status_payload(&state, &session).await))
+}
+
+async fn account_sync_recover_local(
+    State(state): State<AppState>,
+    RequireAuth(mut session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    if !session.mfa_verified {
+        return Err(AppError::Forbidden(
+            "Verify MFA before repairing account sync from this device.".into(),
+        ));
+    }
+
+    let services = collect_local_sync_credentials(&state);
+    if services.is_empty() {
+        return Err(AppError::BadRequest(
+            "No local service credentials are available on this device.".into(),
+        ));
+    }
+
+    use rand::RngCore;
+    let mut account_key = vec![0u8; 32];
+    rand::thread_rng().fill_bytes(&mut account_key);
+
+    cache_account_sync_key(&session.user_id, &account_key);
+    session.encryption_key = account_key;
+    *state.session.write().await = Some(session.clone());
+
+    let sb = SupabaseClient::from_state(&state)?;
+    let mut count = 0usize;
+    for (service, creds) in &services {
+        if let Err(err) = upsert_encrypted_service_credentials(&session, &sb, service, creds).await
+        {
+            tracing::warn!(service = %service, "local sync repair failed: {err}");
+            continue;
+        }
+        count += 1;
+    }
+
+    if count == 0 {
+        return Err(AppError::BadRequest(
+            "Local service credentials could not be synced.".into(),
+        ));
+    }
+
+    load_user_secrets(&state, &session).await;
+
+    #[cfg(debug_assertions)]
+    crate::server::save_dev_session(&state.db, &session).await;
+
+    log_security_event(
+        &state.db,
+        "account_sync_recovered_from_local",
+        Some(&session.user_id),
+        &json!({ "services_synced": count }),
+    )
+    .await;
 
     Ok(Json(account_sync_status_payload(&state, &session).await))
 }
@@ -1449,6 +1526,7 @@ async fn account_sync_unlock(
     drop(encryption_key);
     *state.session.write().await = Some(session.clone());
 
+    promote_missing_keychain_secrets(&state, &session, &sb).await;
     load_user_secrets(&state, &session).await;
 
     #[cfg(debug_assertions)]
@@ -1500,6 +1578,11 @@ pub(crate) fn service_credential_to_env_var(service: &str, key: &str) -> Option<
             "agentsecrets" | "agent-secrets",
             "client_api_key" | "client-api-key" | "api_key" | "api-key",
         ) => Some("AGENTSECRETS_CLIENT_API_KEY"),
+        ("agentsecrets" | "agent-secrets", "approver_api_key" | "approver-api-key") => {
+            Some("SECRET_BROKER_APPROVER_API_KEY")
+        }
+        // Agent Shell
+        ("agentshell" | "agent-shell", "url" | "base_url" | "base-url") => Some("AGENTSHELL_URL"),
         // Sunshine
         ("sunshine", "url" | "host") => Some("SUNSHINE_HOST"),
         // Embedded VNC viewer
@@ -1568,9 +1651,7 @@ pub(crate) fn service_credential_to_env_var(service: &str, key: &str) -> Option<
         ("agentmail", "default_inbox_id" | "default-inbox-id") => {
             Some("AGENTMAIL_DEFAULT_INBOX_ID")
         }
-        ("agentmail", "default_address" | "default-address") => {
-            Some("AGENTMAIL_DEFAULT_ADDRESS")
-        }
+        ("agentmail", "default_address" | "default-address") => Some("AGENTMAIL_DEFAULT_ADDRESS"),
         ("agentmail", "default_label" | "default-label") => Some("AGENTMAIL_DEFAULT_LABEL"),
         ("agentmail", "default_provider" | "default-provider") => {
             Some("AGENTMAIL_DEFAULT_PROVIDER")
@@ -1599,9 +1680,62 @@ pub(crate) fn service_credential_to_env_var(service: &str, key: &str) -> Option<
         ("lightrag", "url" | "base_url" | "base-url") => Some("LIGHTRAG_BASE_URL"),
         ("lightrag", "api_key" | "api-key") => Some("LIGHTRAG_API_KEY"),
         ("memd", "rag_url" | "rag-url") => Some("MEMD_RAG_URL"),
+        ("raganything", "url") => Some("RAGANYTHING_URL"),
+        ("mineru", "url") => Some("MINERU_URL"),
         ("rag", "url") => Some("RAG_URL"),
         _ => None,
     }
+}
+
+fn string_map_to_value_map(
+    creds: &HashMap<String, String>,
+) -> serde_json::Map<String, serde_json::Value> {
+    creds
+        .iter()
+        .map(|(key, value)| (key.clone(), serde_json::Value::String(value.clone())))
+        .collect()
+}
+
+fn merge_service_credentials_into_state_map(
+    service: &str,
+    creds: &serde_json::Map<String, serde_json::Value>,
+    merged: &mut HashMap<String, String>,
+    count: &mut usize,
+) {
+    for (cred_key, cred_value) in creds {
+        let Some(cred_value) = cred_value.as_str() else {
+            tracing::warn!(
+                service = %service,
+                key = %cred_key,
+                "non-string credential in user_secrets — skipping"
+            );
+            continue;
+        };
+
+        match service_credential_to_env_var(service, cred_key) {
+            Some(env_var) => {
+                merged.insert(env_var.to_string(), cred_value.to_string());
+                *count += 1;
+            }
+            None => {
+                tracing::warn!(
+                    service = %service,
+                    key = %cred_key,
+                    "unknown service/credential key in user_secrets — skipping"
+                );
+            }
+        }
+    }
+}
+
+async fn delete_unrecoverable_user_secret(
+    sb: &SupabaseClient,
+    session: &UserSession,
+    service: &str,
+) -> anyhow::Result<()> {
+    let query = format!("service=eq.{}", urlencoding::encode(service));
+    sb.delete_as_user("user_secrets", &query, &session.access_token)
+        .await
 }
 
 /// Fetch all `user_secrets` rows from Supabase for the given user, decrypt
@@ -1655,8 +1789,10 @@ pub async fn load_user_secrets(state: &AppState, session: &UserSession) {
         return;
     }
 
+    let local_services = collect_local_sync_credentials(state);
     let mut merged: HashMap<String, String> = HashMap::new();
     let mut count = 0usize;
+    let mut repaired = 0usize;
 
     for row in rows {
         let service = match row["service"].as_str() {
@@ -1680,6 +1816,65 @@ pub async fn load_user_secrets(state: &AppState, session: &UserSession) {
                     service = %service,
                     "failed to decrypt user_secrets for service (wrong key or corrupted): {e}"
                 );
+                if service == "mail_accounts" {
+                    match mail_accounts::repair_cloud_mail_accounts_from_local(state, session).await
+                    {
+                        Ok(true) => {
+                            repaired += 1;
+                            tracing::info!(
+                                service = %service,
+                                "repaired synced user_secrets from local mail account registry"
+                            );
+                        }
+                        Ok(false) => {}
+                        Err(err) => {
+                            tracing::warn!(
+                                service = %service,
+                                "failed to repair synced mail_accounts from local registry: {err:?}"
+                            );
+                        }
+                    }
+                } else if let Some(local_creds) = local_services.get(service) {
+                    match upsert_encrypted_service_credentials(session, &sb, service, local_creds)
+                        .await
+                    {
+                        Ok(()) => {
+                            repaired += 1;
+                            merge_service_credentials_into_state_map(
+                                service,
+                                local_creds,
+                                &mut merged,
+                                &mut count,
+                            );
+                            tracing::info!(
+                                service = %service,
+                                "repaired synced user_secrets from local keychain fallback"
+                            );
+                        }
+                        Err(err) => {
+                            tracing::warn!(
+                                service = %service,
+                                "failed to repair synced user_secrets from local keychain fallback: {err}"
+                            );
+                        }
+                    }
+                } else {
+                    match delete_unrecoverable_user_secret(&sb, session, service).await {
+                        Ok(()) => {
+                            repaired += 1;
+                            tracing::info!(
+                                service = %service,
+                                "removed unrecoverable synced user_secret with no local fallback"
+                            );
+                        }
+                        Err(err) => {
+                            tracing::warn!(
+                                service = %service,
+                                "failed to remove unrecoverable synced user_secret: {err}"
+                            );
+                        }
+                    }
+                }
                 continue;
             }
         };
@@ -1700,22 +1895,12 @@ pub async fn load_user_secrets(state: &AppState, session: &UserSession) {
             }
         };
 
-        // Map each credential to its env-var name and collect
-        for (cred_key, cred_value) in &creds {
-            match service_credential_to_env_var(service, cred_key) {
-                Some(env_var) => {
-                    merged.insert(env_var.to_string(), cred_value.clone());
-                    count += 1;
-                }
-                None => {
-                    tracing::warn!(
-                        service = %service,
-                        key = %cred_key,
-                        "unknown service/credential key in user_secrets — skipping"
-                    );
-                }
-            }
-        }
+        merge_service_credentials_into_state_map(
+            service,
+            &string_map_to_value_map(&creds),
+            &mut merged,
+            &mut count,
+        );
     }
 
     if !merged.is_empty() {
@@ -1726,15 +1911,19 @@ pub async fn load_user_secrets(state: &AppState, session: &UserSession) {
             "user_secrets loaded from Supabase and merged into AppState"
         );
     }
+
+    if repaired > 0 {
+        tracing::info!(
+            user_id = %session.user_id,
+            services_repaired = repaired,
+            "repaired synced user_secrets with current account encryption key"
+        );
+    }
 }
 
 /// Auto-migrate keychain secrets to Supabase user_secrets on first login.
-async fn auto_migrate_keychain_secrets(
-    state: &AppState,
-    session: &UserSession,
-    sb: &SupabaseClient,
-) {
-    let env_to_service: &[(&str, &str, &str)] = &[
+fn sync_env_to_service_fields() -> &'static [(&'static str, &'static str, &'static str)] {
+    &[
         ("BLUEBUBBLES_HOST", "bluebubbles", "host"),
         ("BLUEBUBBLES_PASSWORD", "bluebubbles", "password"),
         ("HARNESS_API_URL", "harness", "api_url"),
@@ -1754,6 +1943,11 @@ async fn auto_migrate_keychain_secrets(
             "AGENTSECRETS_CLIENT_API_KEY",
             "agentsecrets",
             "client_api_key",
+        ),
+        (
+            "SECRET_BROKER_APPROVER_API_KEY",
+            "agentsecrets",
+            "approver_api_key",
         ),
         ("AGENTSHELL_URL", "agentshell", "url"),
         ("SUNSHINE_HOST", "sunshine", "url"),
@@ -1823,12 +2017,18 @@ async fn auto_migrate_keychain_secrets(
         ("LIGHTRAG_BASE_URL", "lightrag", "base_url"),
         ("LIGHTRAG_API_KEY", "lightrag", "api_key"),
         ("MEMD_RAG_URL", "memd", "rag_url"),
+        ("RAGANYTHING_URL", "raganything", "url"),
+        ("MINERU_URL", "mineru", "url"),
         ("RAG_URL", "rag", "url"),
-    ];
+    ]
+}
 
+fn collect_local_sync_credentials(
+    state: &AppState,
+) -> HashMap<String, serde_json::Map<String, serde_json::Value>> {
     // Group by service
     let mut services: HashMap<String, serde_json::Map<String, serde_json::Value>> = HashMap::new();
-    for &(env_var, service, cred_key) in env_to_service {
+    for &(env_var, service, cred_key) in sync_env_to_service_fields() {
         if let Some(value) = state.secret(env_var) {
             if !value.is_empty() {
                 services
@@ -1838,29 +2038,40 @@ async fn auto_migrate_keychain_secrets(
             }
         }
     }
+    services
+}
+
+async fn upsert_encrypted_service_credentials(
+    session: &UserSession,
+    sb: &SupabaseClient,
+    service: &str,
+    creds: &serde_json::Map<String, serde_json::Value>,
+) -> anyhow::Result<()> {
+    let creds_value = serde_json::Value::Object(creds.clone());
+    let json_bytes = serde_json::to_vec(&creds_value)?;
+    let (ciphertext, nonce) = crate::crypto::encrypt(&json_bytes, &session.encryption_key)?;
+    let row = serde_json::json!({
+        "user_id": session.user_id,
+        "service": service,
+        "encrypted_credentials": ciphertext,
+        "nonce": nonce,
+    });
+    sb.upsert_as_user("user_secrets", row, &session.access_token)
+        .await?;
+    Ok(())
+}
+
+/// Auto-migrate keychain secrets to Supabase user_secrets on first login.
+async fn auto_migrate_keychain_secrets(
+    state: &AppState,
+    session: &UserSession,
+    sb: &SupabaseClient,
+) {
+    let services = collect_local_sync_credentials(state);
 
     let mut count = 0usize;
     for (service, creds) in &services {
-        let creds_value = serde_json::Value::Object(creds.clone());
-        let json_bytes = match serde_json::to_vec(&creds_value) {
-            Ok(b) => b,
-            Err(_) => continue,
-        };
-        let (ciphertext, nonce) = match crate::crypto::encrypt(&json_bytes, &session.encryption_key)
-        {
-            Ok(pair) => pair,
-            Err(_) => continue,
-        };
-        let row = serde_json::json!({
-            "user_id": session.user_id,
-            "service": service,
-            "encrypted_credentials": ciphertext,
-            "nonce": nonce,
-        });
-        if let Err(e) = sb
-            .upsert_as_user("user_secrets", row, &session.access_token)
-            .await
-        {
+        if let Err(e) = upsert_encrypted_service_credentials(session, sb, service, creds).await {
             tracing::warn!(service = %service, "auto-migrate failed: {e}");
             continue;
         }
@@ -1871,6 +2082,59 @@ async fn auto_migrate_keychain_secrets(
         services_migrated = count,
         "auto-migrated keychain secrets to Supabase user_secrets"
     );
+}
+
+/// Promote local-only keychain secrets after account sync unlock.
+///
+/// This keeps existing synced rows authoritative and only fills missing
+/// services, so an older or partial local cache cannot overwrite better cloud
+/// data.
+async fn promote_missing_keychain_secrets(
+    state: &AppState,
+    session: &UserSession,
+    sb: &SupabaseClient,
+) {
+    if session.encryption_key.is_empty() {
+        return;
+    }
+
+    let rows = match sb
+        .select_as_user("user_secrets", "select=service", &session.access_token)
+        .await
+    {
+        Ok(rows) => rows,
+        Err(err) => {
+            tracing::warn!("cannot inspect synced services for local promotion: {err}");
+            return;
+        }
+    };
+
+    let existing = rows
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|row| row.get("service").and_then(Value::as_str))
+        .collect::<std::collections::HashSet<_>>();
+
+    let services = collect_local_sync_credentials(state);
+    let mut count = 0usize;
+    for (service, creds) in &services {
+        if existing.contains(service.as_str()) {
+            continue;
+        }
+        if let Err(err) = upsert_encrypted_service_credentials(session, sb, service, creds).await {
+            tracing::warn!(service = %service, "local-only secret promotion failed: {err}");
+            continue;
+        }
+        count += 1;
+    }
+
+    if count > 0 {
+        tracing::info!(
+            services_promoted = count,
+            "promoted local-only secrets to synced user_secrets"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -2108,26 +2372,12 @@ async fn signup(
 // ---------------------------------------------------------------------------
 
 async fn get_session(State(state): State<AppState>) -> Json<Value> {
-    let existing_session = { state.session.read().await.clone() };
-    if let Some(existing) = existing_session {
-        if existing.expires_at - epoch_secs() < 60 {
-            let refreshed = tokio::time::timeout(
-                std::time::Duration::from_secs(5),
-                refresh(State(state.clone())),
-            )
-            .await
-            .ok()
-            .and_then(Result::ok)
-            .is_some();
-            if !refreshed {
-                *state.session.write().await = None;
-                return Json(json!({
-                    "authenticated": false,
-                    "mfa_required": false,
-                    "mfa_verified": false,
-                }));
-            }
-        }
+    if state.session.read().await.is_some() && !crate::server::ensure_session_valid(&state).await {
+        return Json(json!({
+            "authenticated": false,
+            "mfa_required": false,
+            "mfa_verified": false,
+        }));
     }
 
     let mut session = state.session.read().await.clone();
@@ -2240,10 +2490,15 @@ async fn refresh(State(state): State<AppState>) -> Result<Json<Value>, AppError>
 
     let gotrue = GoTrueClient::from_state(&state).map_err(AppError::Internal)?;
 
-    let auth = gotrue
-        .refresh_token(&session.refresh_token)
-        .await
-        .map_err(AppError::Internal)?;
+    let auth = match gotrue.refresh_token(&session.refresh_token).await {
+        Ok(auth) => auth,
+        Err(err) => {
+            tracing::warn!(user_id = %session.user_id, "session refresh failed; clearing restored session: {err}");
+            *state.session.write().await = None;
+            crate::server::clear_dev_session(&state.db).await;
+            return Err(AppError::Unauthorized);
+        }
+    };
 
     let now = epoch_secs();
 
@@ -3682,6 +3937,10 @@ mod tests {
         assert_eq!(
             service_credential_to_env_var("agentsecrets", "api_key"),
             Some("AGENTSECRETS_CLIENT_API_KEY")
+        );
+        assert_eq!(
+            service_credential_to_env_var("agentsecrets", "approver-api-key"),
+            Some("SECRET_BROKER_APPROVER_API_KEY")
         );
     }
 

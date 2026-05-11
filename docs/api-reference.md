@@ -603,11 +603,11 @@ List OpenClaw cron jobs (via `openclaw cron list --json`).
 
 ---
 
-## Workspace (OpenClaw files)
+## Workspace (agent files)
 
 ### GET /api/workspace/files
-List core workspace files and memory files.
-**Response:** `{ "coreFiles": [{ "name": string, "path": string }], "memoryFiles": [{ "name": string, "path": string }] }`
+List editable agent files, legacy memory files, and memd bundle files.
+**Response:** `{ "coreFiles": [{ "name": string, "path": string }], "memoryFiles": [{ "name": string, "path": string }], "memdFiles": [{ "name": string, "path": string }] }`
 
 ### GET /api/workspace/file
 Read a workspace file.

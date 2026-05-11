@@ -7,7 +7,7 @@ use tokio::process::Command;
 use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
 
-/// Build the OpenClaw CLI compatibility router (sessions, subagents).
+/// Build the harness CLI compatibility router (sessions, subagents).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/sessions", get(get_sessions))
@@ -18,7 +18,7 @@ pub fn router() -> Router<AppState> {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Build a PATH string that includes common binary locations so the `openclaw`
+/// Build a PATH string that includes common binary locations so a harness CLI
 /// binary can be found even when the app is launched outside a shell.
 fn exec_path() -> String {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
@@ -35,27 +35,29 @@ fn exec_path() -> String {
     .join(":")
 }
 
-/// Check once whether `openclaw` binary exists on PATH.
-fn openclaw_available() -> bool {
-    static AVAILABLE: OnceLock<bool> = OnceLock::new();
-    *AVAILABLE.get_or_init(|| {
+/// Find the first compatible harness CLI binary on PATH.
+fn harness_cli_binary() -> Option<&'static str> {
+    static BINARY: OnceLock<Option<&'static str>> = OnceLock::new();
+    *BINARY.get_or_init(|| {
         let path = exec_path();
-        path.split(':')
-            .any(|dir| std::path::Path::new(dir).join("openclaw").exists())
+        ["harness", "hermes", "openclaw"]
+            .into_iter()
+            .find(|binary| {
+                path.split(':')
+                    .any(|dir| std::path::Path::new(dir).join(binary).exists())
+            })
     })
 }
 
-/// Run an `openclaw` CLI subcommand with a timeout and return its stdout.
+/// Run a compatible harness CLI subcommand with a timeout and return stdout.
 ///
 /// Returns `Ok(stdout)` on success, `Err(message)` if the command fails, times
 /// out, or the binary is not found.
-async fn run_openclaw(args: &[&str], timeout: Duration) -> Result<String, String> {
-    if !openclaw_available() {
-        return Err("openclaw not installed".into());
-    }
+async fn run_harness_cli(args: &[&str], timeout: Duration) -> Result<String, String> {
+    let binary = harness_cli_binary().ok_or_else(|| "harness cli not installed".to_string())?;
 
     let result = tokio::time::timeout(timeout, async {
-        Command::new("openclaw")
+        Command::new(binary)
             .args(args)
             .env("PATH", exec_path())
             // Suppress stderr so noisy warnings don't leak into output.
@@ -74,14 +76,14 @@ async fn run_openclaw(args: &[&str], timeout: Duration) -> Result<String, String
             } else {
                 let stderr = String::from_utf8_lossy(&output.stderr);
                 Err(format!(
-                    "openclaw exited with {}: {}",
+                    "harness cli exited with {}: {}",
                     output.status,
                     stderr.trim()
                 ))
             }
         }
-        Ok(Err(e)) => Err(format!("failed to spawn openclaw: {e}")),
-        Err(_) => Err("openclaw command timed out".into()),
+        Ok(Err(e)) => Err(format!("failed to spawn harness cli: {e}")),
+        Err(_) => Err("harness cli command timed out".into()),
     }
 }
 
@@ -103,7 +105,7 @@ fn parse_json_array(raw: &str) -> Vec<Value> {
 async fn get_sessions(RequireAuth(_session): RequireAuth) -> Result<Json<Value>, AppError> {
     let timeout = Duration::from_secs(5);
 
-    match run_openclaw(&["sessions", "list", "--json"], timeout).await {
+    match run_harness_cli(&["sessions", "list", "--json"], timeout).await {
         Ok(stdout) => {
             let mut sessions = parse_json_array(&stdout);
             sessions.truncate(5);
@@ -124,7 +126,7 @@ async fn get_sessions(RequireAuth(_session): RequireAuth) -> Result<Json<Value>,
 async fn get_subagents(RequireAuth(_session): RequireAuth) -> Result<Json<Value>, AppError> {
     let timeout = Duration::from_secs(5);
 
-    match run_openclaw(&["subagents", "list", "--json"], timeout).await {
+    match run_harness_cli(&["subagents", "list", "--json"], timeout).await {
         Ok(stdout) => {
             let agents = parse_json_array(&stdout);
             let count = agents.len();

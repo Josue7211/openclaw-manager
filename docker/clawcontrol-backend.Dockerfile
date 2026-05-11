@@ -21,6 +21,7 @@ COPY src-tauri/icons ./src-tauri/icons
 COPY src-tauri/tauri.conf.json ./src-tauri/tauri.conf.json
 COPY src-tauri/migrations ./src-tauri/migrations
 COPY src-tauri/resources ./src-tauri/resources
+COPY src-tauri/vendor ./src-tauri/vendor
 COPY src-tauri/src ./src-tauri/src
 COPY frontend/public ./frontend/public
 
@@ -41,6 +42,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /srv/clawcontrol
 
 COPY --from=builder /app/src-tauri/target/release/clawcontrol-backend /usr/local/bin/clawcontrol-backend
+COPY --from=builder /app/src-tauri/migrations /app/src-tauri/migrations
 
 ENV MC_BIND_HOST=0.0.0.0
 ENV MC_BIND_PORT=3000

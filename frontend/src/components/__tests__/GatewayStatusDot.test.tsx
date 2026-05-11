@@ -119,15 +119,15 @@ describe('GatewayStatusDot', () => {
     expect(liveRegion).toBeInTheDocument()
   })
 
-  it('renders a Hermes-specific label when the provider is Hermes Agent', () => {
+  it('keeps the visible label generic', () => {
     vi.mocked(useHarnessStatus).mockReturnValue({
       status: 'connected',
       connected: true,
       isLoading: false,
-      providerLabel: 'Hermes Agent',
+      providerLabel: 'Harness',
     })
 
     render(<GatewayStatusDot showLabel />)
-    expect(screen.getByText('Hermes Agent connected')).toBeInTheDocument()
+    expect(screen.getByText('Harness connected')).toBeInTheDocument()
   })
 })

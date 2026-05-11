@@ -6,6 +6,8 @@ use axum::{
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::{sqlite::SqliteRow, FromRow, Row};
+use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use crate::error::{success_json, AppError};
 use crate::server::{AppState, RequireAuth};
@@ -45,8 +47,20 @@ struct QueryBody {
     query: Option<String>,
     limit: Option<i64>,
     scope: Option<ScopeInput>,
+    kinds: Option<Vec<String>>,
+    statuses: Option<Vec<String>>,
+    stages: Option<Vec<String>>,
+    #[serde(rename = "sourceAgent")]
+    source_agent: Option<String>,
     #[serde(rename = "includeArchived")]
     include_archived: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OperationPlanBody {
+    action: String,
+    target: Option<String>,
+    reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -151,7 +165,10 @@ impl<'r> FromRow<'r, SqliteRow> for MemdEntryRecord {
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route("/authority", get(authority_memo))
+        .route("/health", get(health_memo))
         .route("/query", post(query_memo))
+        .route("/operations/plan", post(plan_operation))
         .route("/upsert", post(upsert_memo))
         .route("/archive", post(archive_memo))
         .route("/compact", post(compact_memo))
@@ -436,6 +453,13 @@ async fn query_memo(
     RequireAuth(session): RequireAuth,
     Json(body): Json<QueryBody>,
 ) -> Result<Json<Value>, AppError> {
+    if let Some(response) = query_remote_memd(&state, &body).await? {
+        return Ok(response);
+    }
+    if let Some(response) = query_bundle_memd(&body)? {
+        return Ok(response);
+    }
+
     let scope = ensure_scope(&state.db, &session.user_id, body.scope.as_ref()).await?;
     let limit = normalize_limit(body.limit, 10, 100);
     let mut entries = query_entry_rows(
@@ -518,6 +542,964 @@ async fn query_memo(
         "scope": scope_to_json(&scope, None),
         "entries": entries,
     })))
+}
+
+fn read_dev_env_value(key: &str) -> Option<String> {
+    for path in [".env.local", "../.env.local"] {
+        let Ok(iter) = dotenvy::from_filename_iter(path) else {
+            continue;
+        };
+        for item in iter.flatten() {
+            if item.0 == key && !item.1.trim().is_empty() {
+                return Some(item.1);
+            }
+        }
+    }
+    None
+}
+
+fn current_project_root() -> Option<PathBuf> {
+    let mut dir = std::env::current_dir().ok()?;
+    loop {
+        if dir.join(".memd").is_dir() || dir.join("AGENTS.md").is_file() {
+            return Some(dir);
+        }
+        if !dir.pop() {
+            return None;
+        }
+    }
+}
+
+fn read_memd_env_value(key: &str) -> Option<String> {
+    let root = current_project_root()?;
+    let env_path = root.join(".memd/env");
+    let Ok(iter) = dotenvy::from_path_iter(env_path) else {
+        return None;
+    };
+    for item in iter.flatten() {
+        if item.0 == key && !item.1.trim().is_empty() {
+            return Some(item.1);
+        }
+    }
+    None
+}
+
+fn read_memd_config_base_url() -> Option<String> {
+    let root = current_project_root()?;
+    let config_path = root.join(".memd/config.json");
+    let content = std::fs::read_to_string(config_path).ok()?;
+    let config: Value = serde_json::from_str(&content).ok()?;
+    config
+        .get("base_url")
+        .or_else(|| {
+            config
+                .get("authority_state")
+                .and_then(|authority| authority.get("shared_base_url"))
+        })
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+fn memd_base_url(state: &AppState) -> Option<String> {
+    read_memd_env_value("MEMD_BASE_URL")
+        .or_else(read_memd_config_base_url)
+        .or_else(|| state.secret("MEMD_BASE_URL"))
+        .or_else(|| dotenvy::var("MEMD_BASE_URL").ok())
+        .or_else(|| read_dev_env_value("MEMD_BASE_URL"))
+        .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn local_bundle_memory_count() -> Option<usize> {
+    let root = current_project_root()?;
+    let raw_spine = root.join(".memd/state/raw-spine.jsonl");
+    let content = std::fs::read_to_string(raw_spine).ok()?;
+    Some(
+        content
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .count(),
+    )
+}
+
+async fn fetch_memd_health_payload(
+    state: &AppState,
+    base_url: &str,
+) -> Result<(Value, u64), String> {
+    let started = Instant::now();
+    let response = state
+        .http
+        .get(format!("{base_url}/healthz"))
+        .timeout(Duration::from_secs(5))
+        .send()
+        .await;
+    let latency_ms = started.elapsed().as_millis() as u64;
+    let response = response.map_err(|error| error.to_string())?;
+    if !response.status().is_success() {
+        return Err(format!("memd server returned {}", response.status()));
+    }
+    let payload: Value = response.json().await.map_err(|error| error.to_string())?;
+    Ok((payload, latency_ms))
+}
+
+fn memd_expected_min_items(state: &AppState) -> Option<u64> {
+    read_memd_env_value("MEMD_EXPECTED_MIN_ITEMS")
+        .or_else(|| state.secret("MEMD_EXPECTED_MIN_ITEMS"))
+        .or_else(|| dotenvy::var("MEMD_EXPECTED_MIN_ITEMS").ok())
+        .or_else(|| read_dev_env_value("MEMD_EXPECTED_MIN_ITEMS"))
+        .and_then(|value| value.trim().parse::<u64>().ok())
+}
+
+fn memd_authority_token(state: &AppState) -> Option<String> {
+    read_memd_env_value("MEMD_AUTHORITY_TOKEN")
+        .or_else(|| state.secret("MEMD_AUTHORITY_TOKEN"))
+        .or_else(|| dotenvy::var("MEMD_AUTHORITY_TOKEN").ok())
+        .or_else(|| read_dev_env_value("MEMD_AUTHORITY_TOKEN"))
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn pressure_count(pressure: &Value, key: &str) -> u64 {
+    pressure.get(key).and_then(Value::as_u64).unwrap_or(0)
+}
+
+fn memory_operation_contract(action: &str, target: Option<&str>, reason: Option<&str>) -> Value {
+    let target = target.unwrap_or("clawcontrol-memd");
+    let reason = reason.unwrap_or("Memory authority operation requested from ClawControl");
+    let (label, risk, approval, agent_action, capabilities): (&str, &str, bool, &str, Vec<&str>) =
+        match action {
+            "health.check" => (
+                "Check memd health",
+                "low",
+                false,
+                "memd.health.check",
+                vec![],
+            ),
+            "backup.create" => (
+                "Create memd backup",
+                "medium",
+                true,
+                "memd.backup.create",
+                vec!["agentsecrets:memd:backup"],
+            ),
+            "container.restart" => (
+                "Restart memd container",
+                "medium",
+                true,
+                "portainer.container.restart",
+                vec!["agentsecrets:portainer:write"],
+            ),
+            "container.recreate" => (
+                "Recreate memd stack",
+                "high",
+                true,
+                "portainer.stack.redeploy",
+                vec!["agentsecrets:portainer:write", "agentsecrets:memd:backup"],
+            ),
+            "import.sync" => (
+                "Import/sync memory archive",
+                "high",
+                true,
+                "memd.import.sync",
+                vec!["agentsecrets:memd:write", "agentsecrets:ssh:desktop"],
+            ),
+            "db.restore" => (
+                "Restore memd database",
+                "critical",
+                true,
+                "memd.db.restore",
+                vec!["agentsecrets:memd:restore", "agentsecrets:memd:backup"],
+            ),
+            _ => (
+                "Unknown memory operation",
+                "blocked",
+                true,
+                "memd.operation.unknown",
+                vec![],
+            ),
+        };
+
+    json!({
+        "action": action,
+        "label": label,
+        "target": target,
+        "reason": reason,
+        "risk": risk,
+        "requiresApproval": approval,
+        "allowed": action != "unknown" && risk != "blocked",
+        "agentShell": {
+            "action": agent_action,
+            "target": target,
+            "dryRunFirst": true,
+        },
+        "agentSecrets": {
+            "capabilities": capabilities,
+        },
+        "guardrails": [
+            "never mutate Docker/Portainer from the renderer",
+            "take or verify a backup before high-risk work",
+            "route secret use through AgentSecrets",
+            "route host/container work through AgentShell",
+            "require local approval for destructive or externally visible changes"
+        ],
+    })
+}
+
+async fn plan_operation(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Json(body): Json<OperationPlanBody>,
+) -> Result<Json<Value>, AppError> {
+    let agent_shell = crate::routes::agent_shell_support::health(&state)
+        .await
+        .map(|response| response.0)
+        .unwrap_or_else(|error| json!({ "ok": false, "error": format!("{error:?}") }));
+    let secrets = crate::routes::secret_broker_support::health_status(&state).await;
+    Ok(success_json(json!({
+        "plan": memory_operation_contract(&body.action, body.target.as_deref(), body.reason.as_deref()),
+        "safety": {
+            "agentShell": agent_shell,
+            "agentSecrets": secrets,
+        },
+    })))
+}
+
+async fn authority_memo(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let base_url = memd_base_url(&state);
+    let checked_at = chrono::Utc::now().to_rfc3339();
+    let local_count = local_bundle_memory_count().unwrap_or(0);
+    let expected_min_items = memd_expected_min_items(&state);
+    let authority_token_configured = memd_authority_token(&state).is_some();
+    let mut warnings = Vec::new();
+    let agent_shell = crate::routes::agent_shell_support::health(&state)
+        .await
+        .map(|response| response.0)
+        .unwrap_or_else(|error| json!({ "ok": false, "error": format!("{error:?}") }));
+    let secrets = crate::routes::secret_broker_support::health_status(&state).await;
+
+    let Some(base_url) = base_url else {
+        warnings.push(json!({
+            "severity": "error",
+            "code": "memd_base_url_missing",
+            "message": "MEMD_BASE_URL is not configured, so ClawControl is using only the local bundle fallback.",
+            "action": "configure MEMD_BASE_URL through memd/AgentSecrets before treating this as source of truth"
+        }));
+        return Ok(success_json(json!({
+            "checkedAt": checked_at,
+            "source": "memd-bundle",
+            "baseUrl": null,
+            "ok": local_count > 0,
+            "health": {
+                "remoteHealthy": false,
+                "itemCount": local_count,
+                "localItemCount": local_count,
+            },
+            "counts": {
+                "total": local_count,
+                "active": local_count,
+                "stale": 0,
+                "expired": 0,
+                "candidates": 0,
+                "sampleSize": 0,
+                "partial": true,
+            },
+            "owner": {
+                "mode": "fallback",
+                "active": "local_bundle",
+                "verified": false,
+            },
+            "authoritySearch": {
+                "mode": "unavailable",
+                "configured": authority_token_configured,
+                "tokenRequired": true,
+                "endpoint": "/memory/authority/search",
+            },
+            "safety": {
+                "agentShell": agent_shell,
+                "agentSecrets": secrets,
+            },
+            "operations": [
+                memory_operation_contract("health.check", None, None),
+                memory_operation_contract("backup.create", None, None),
+                memory_operation_contract("import.sync", None, None),
+                memory_operation_contract("container.restart", None, None),
+                memory_operation_contract("container.recreate", None, None),
+                memory_operation_contract("db.restore", None, None)
+            ],
+            "warnings": warnings,
+        })));
+    };
+
+    let health_result = fetch_memd_health_payload(&state, &base_url).await;
+    let (health_payload, latency_ms, remote_healthy) = match health_result {
+        Ok((payload, latency_ms)) => (payload, latency_ms, true),
+        Err(error) => {
+            warnings.push(json!({
+                "severity": "error",
+                "code": "memd_unreachable",
+                "message": error,
+                "action": "check Portainer stack, Docker network, and AgentShell host access"
+            }));
+            (json!({}), 0, false)
+        }
+    };
+
+    let item_count = health_payload
+        .get("items")
+        .and_then(Value::as_u64)
+        .unwrap_or(local_count as u64);
+    let pressure = health_payload
+        .get("pressure")
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let expired = pressure_count(&pressure, "expired");
+    let stale = pressure_count(&pressure, "stale");
+    let candidates = pressure_count(&pressure, "candidates");
+    let active = item_count.saturating_sub(expired).saturating_sub(stale);
+
+    if let Some(floor) = expected_min_items {
+        if item_count < floor {
+            warnings.push(json!({
+                "severity": "error",
+                "code": "memd_count_below_floor",
+                "message": format!("memd reports {item_count} items, below expected floor {floor}."),
+                "action": "hold destructive actions; verify backup/sync before repair"
+            }));
+        }
+    }
+
+    if expired > 0 {
+        warnings.push(json!({
+            "severity": "info",
+            "code": "expired_rows_present",
+            "message": format!("{expired} expired rows exist; these are memory logs/status history, not active memories."),
+            "action": "use the Logs view to inspect them"
+        }));
+    }
+
+    if health_payload
+        .get("rag")
+        .and_then(|rag| rag.get("reachable"))
+        .and_then(Value::as_bool)
+        == Some(false)
+    {
+        warnings.push(json!({
+            "severity": "warning",
+            "code": "rag_unreachable",
+            "message": "RAG sidecar is not reachable from memd.",
+            "action": "verify clawcontrol-memd-rag in Portainer before semantic search work"
+        }));
+    }
+
+    if health_payload
+        .get("atlas")
+        .and_then(|atlas| atlas.get("dormant"))
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
+        warnings.push(json!({
+            "severity": "info",
+            "code": "atlas_dormant",
+            "message": "Atlas is dormant by design right now.",
+            "action": "no action unless graph/atlas features are expected"
+        }));
+    }
+
+    warnings.push(json!({
+        "severity": "info",
+        "code": "owner_probe_required",
+        "message": "The renderer can verify memd health, but Docker/Portainer ownership must be inspected through AgentShell/AgentSecrets.",
+        "action": "use the operation contract when container changes are needed"
+    }));
+
+    let source_inventory = query_remote_memd_sources(&state, &base_url)
+        .await
+        .unwrap_or_default();
+    let ownerless_private_count: u64 = source_inventory
+        .iter()
+        .filter(|source| source.get("source_agent").is_none_or(Value::is_null))
+        .filter(|source| {
+            source
+                .get("visibility")
+                .and_then(Value::as_str)
+                .is_none_or(|visibility| visibility == "private")
+        })
+        .map(|source| {
+            source
+                .get("item_count")
+                .and_then(Value::as_u64)
+                .unwrap_or(0)
+        })
+        .sum();
+    if ownerless_private_count > 0 {
+        warnings.push(json!({
+            "severity": "warning",
+            "code": "ownerless_private_rows_need_memd_authority",
+            "message": format!("{ownerless_private_count} private rows have no source_agent, so normal memd search will not return their content."),
+            "action": "add a Docker-side memd authority/inventory endpoint or backfill source_agent ownership before full content sync"
+        }));
+    }
+    if ownerless_private_count > 0 && !authority_token_configured {
+        warnings.push(json!({
+            "severity": "warning",
+            "code": "memd_authority_token_missing",
+            "message": "MEMD_AUTHORITY_TOKEN is not configured in ClawControl, so the guarded memd authority endpoint cannot be used yet.",
+            "action": "store the token through AgentSecrets/.memd env after the Docker image is redeployed with MEMD_AUTHORITY_SEARCH=1"
+        }));
+    }
+
+    Ok(success_json(json!({
+        "checkedAt": checked_at,
+        "source": if remote_healthy { "memd-server" } else { "memd-bundle" },
+        "baseUrl": base_url,
+        "ok": remote_healthy,
+        "health": {
+            "status": health_payload.get("status").and_then(Value::as_str).unwrap_or(if remote_healthy { "ok" } else { "error" }),
+            "remoteHealthy": remote_healthy,
+            "itemCount": item_count,
+            "localItemCount": local_count,
+            "pressure": pressure,
+            "rag": health_payload.get("rag").cloned().unwrap_or(Value::Null),
+            "atlas": health_payload.get("atlas").cloned().unwrap_or(Value::Null),
+            "latencyMs": latency_ms,
+        },
+        "counts": {
+            "total": item_count,
+            "active": active,
+            "stale": stale,
+            "expired": expired,
+            "candidates": candidates,
+            "sampleSize": 0,
+            "partial": true,
+            "byKindSample": {},
+            "byStatusSample": {},
+            "byStageSample": {},
+            "byProjectSample": {},
+            "byNamespaceSample": {},
+            "sourceInventorySize": source_inventory.len(),
+            "ownerlessPrivate": ownerless_private_count,
+        },
+        "owner": {
+            "mode": "docker_expected",
+            "active": if remote_healthy { "docker_memd_server" } else { "unknown" },
+            "verified": false,
+            "portainerRequired": true,
+            "containers": [
+                { "name": "clawcontrol-memd", "role": "server", "port": 8787, "status": if remote_healthy { "reachable" } else { "unknown" } },
+                { "name": "clawcontrol-memd-rag", "role": "rag-sidecar", "port": 9000, "status": health_payload.get("rag").and_then(|rag| rag.get("reachable")).and_then(Value::as_bool).map(|ok| if ok { "reachable" } else { "unreachable" }).unwrap_or("unknown") }
+            ],
+            "systemd": { "service": "memd-server.service", "expected": "inactive_disabled", "status": "not_observable_from_renderer" }
+        },
+        "authoritySearch": {
+            "mode": "token_gated",
+            "configured": authority_token_configured,
+            "tokenRequired": true,
+            "endpoint": "/memory/authority/search",
+            "usedForInventory": authority_token_configured,
+        },
+        "safety": {
+            "agentShell": agent_shell,
+            "agentSecrets": secrets,
+        },
+        "operations": [
+            memory_operation_contract("health.check", None, None),
+            memory_operation_contract("backup.create", None, None),
+            memory_operation_contract("import.sync", None, None),
+            memory_operation_contract("container.restart", None, None),
+            memory_operation_contract("container.recreate", None, None),
+            memory_operation_contract("db.restore", None, None)
+        ],
+        "warnings": warnings,
+    })))
+}
+
+async fn health_memo(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let base_url = memd_base_url(&state);
+    let checked_at = chrono::Utc::now().to_rfc3339();
+    let local_count = local_bundle_memory_count().unwrap_or(0);
+
+    let Some(base_url) = base_url else {
+        return Ok(success_json(json!({
+            "source": "memd-bundle",
+            "status": if local_count > 0 { "fallback" } else { "missing" },
+            "baseUrl": null,
+            "remoteHealthy": false,
+            "itemCount": local_count,
+            "localItemCount": local_count,
+            "checkedAt": checked_at,
+        })));
+    };
+
+    match fetch_memd_health_payload(&state, &base_url).await {
+        Ok((payload, latency_ms)) => Ok(success_json(json!({
+            "source": "memd-server",
+            "status": payload.get("status").and_then(Value::as_str).unwrap_or("ok"),
+            "baseUrl": base_url,
+            "remoteHealthy": true,
+            "itemCount": payload.get("items").and_then(Value::as_u64).unwrap_or(local_count as u64),
+            "localItemCount": local_count,
+            "pressure": payload.get("pressure").cloned().unwrap_or(Value::Null),
+            "rag": payload.get("rag").cloned().unwrap_or(Value::Null),
+            "atlas": payload.get("atlas").cloned().unwrap_or(Value::Null),
+            "latencyMs": latency_ms,
+            "checkedAt": checked_at,
+        }))),
+        Err(error) => Ok(success_json(json!({
+            "source": "memd-bundle",
+            "status": if local_count > 0 { "fallback" } else { "error" },
+            "baseUrl": base_url,
+            "remoteHealthy": false,
+            "itemCount": local_count,
+            "localItemCount": local_count,
+            "error": error,
+            "latencyMs": 0,
+            "checkedAt": checked_at,
+        }))),
+    }
+}
+
+fn first_content_line(content: &str) -> String {
+    content
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .unwrap_or("Memory")
+        .chars()
+        .take(96)
+        .collect()
+}
+
+fn remote_item_to_entry(item: &Value) -> Option<Value> {
+    let id = item.get("id").and_then(Value::as_str)?.to_string();
+    let content = item
+        .get("content")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let title = item
+        .get("title")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| first_content_line(&content));
+    let scope = item
+        .get("scope")
+        .and_then(Value::as_str)
+        .unwrap_or("memd")
+        .to_string();
+    let kind = item
+        .get("kind")
+        .and_then(Value::as_str)
+        .unwrap_or("memory")
+        .to_string();
+    let confidence = item
+        .get("confidence")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
+    let snippet: String = content.chars().take(240).collect();
+
+    Some(json!({
+        "id": id,
+        "scope": {
+            "kind": scope,
+            "name": item.get("project").and_then(Value::as_str).unwrap_or("shared"),
+            "description": item.get("namespace").and_then(Value::as_str).unwrap_or_default(),
+        },
+        "kind": kind,
+        "title": title,
+        "content": content,
+        "summary": snippet,
+        "source": item.get("source_system").and_then(Value::as_str).unwrap_or("memd-server"),
+        "confidence": (confidence * 100.0).round() as i64,
+        "priority": 0,
+        "retentionDays": 0,
+        "version": item.get("version").and_then(Value::as_u64).unwrap_or(1),
+        "status": item.get("status").and_then(Value::as_str).unwrap_or("active"),
+        "metadata": item,
+        "createdAt": item.get("created_at").and_then(Value::as_str).unwrap_or_default(),
+        "updatedAt": item.get("updated_at").and_then(Value::as_str).unwrap_or_default(),
+        "archivedAt": null,
+        "name": title,
+        "path": format!("memd/{scope}/{id}"),
+        "snippet": snippet,
+        "score": confidence,
+    }))
+}
+
+fn value_text<'a>(value: &'a Value, key: &str) -> &'a str {
+    value.get(key).and_then(Value::as_str).unwrap_or_default()
+}
+
+fn local_bundle_item_to_entry(item: &Value, index: usize) -> Option<Value> {
+    let content = value_text(item, "content_preview").trim().to_string();
+    if content.is_empty() {
+        return None;
+    }
+    let id = value_text(item, "id")
+        .trim()
+        .to_string()
+        .if_empty_then(|| format!("bundle-{index}"));
+    let kind = value_text(item, "event_type")
+        .trim()
+        .to_string()
+        .if_empty_then(|| value_text(item, "memory_kind").trim().to_string())
+        .if_empty_then(|| "memory".to_string());
+    let title = first_content_line(&content);
+    let confidence = item
+        .get("confidence")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
+    let snippet: String = content.chars().take(240).collect();
+
+    Some(json!({
+        "id": id,
+        "scope": {
+            "kind": "bundle",
+            "name": value_text(item, "project").if_empty("local"),
+            "description": value_text(item, "namespace"),
+        },
+        "kind": kind,
+        "title": title,
+        "content": content,
+        "summary": snippet,
+        "source": value_text(item, "source_system").if_empty("memd-bundle"),
+        "confidence": (confidence * 100.0).round() as i64,
+        "priority": 0,
+        "retentionDays": 0,
+        "version": 1,
+        "status": "active",
+        "metadata": item,
+        "createdAt": value_text(item, "recorded_at"),
+        "updatedAt": value_text(item, "recorded_at"),
+        "archivedAt": null,
+        "name": title,
+        "path": format!("memd/bundle/{id}"),
+        "snippet": snippet,
+        "score": confidence,
+    }))
+}
+
+trait EmptyStringExt {
+    fn if_empty_then(self, fallback: impl FnOnce() -> String) -> String;
+}
+
+impl EmptyStringExt for String {
+    fn if_empty_then(self, fallback: impl FnOnce() -> String) -> String {
+        if self.trim().is_empty() {
+            fallback()
+        } else {
+            self
+        }
+    }
+}
+
+trait EmptyStrExt<'a> {
+    fn if_empty(self, fallback: &'a str) -> &'a str;
+}
+
+impl<'a> EmptyStrExt<'a> for &'a str {
+    fn if_empty(self, fallback: &'a str) -> &'a str {
+        if self.trim().is_empty() {
+            fallback
+        } else {
+            self
+        }
+    }
+}
+
+fn entry_matches_query(entry: &Value, needle: &str) -> bool {
+    if needle.is_empty() {
+        return true;
+    }
+    [
+        "title", "content", "summary", "snippet", "kind", "source", "path",
+    ]
+    .iter()
+    .any(|key| {
+        entry
+            .get(*key)
+            .and_then(Value::as_str)
+            .map(|value| value.to_lowercase().contains(needle))
+            .unwrap_or(false)
+    })
+}
+
+fn query_bundle_memd(body: &QueryBody) -> Result<Option<Json<Value>>, AppError> {
+    let Some(root) = current_project_root() else {
+        return Ok(None);
+    };
+    let raw_spine = root.join(".memd/state/raw-spine.jsonl");
+    let Ok(content) = std::fs::read_to_string(raw_spine) else {
+        return Ok(None);
+    };
+    let limit = normalize_limit(body.limit, 10, 100) as usize;
+    let needle = body
+        .query
+        .as_deref()
+        .unwrap_or_default()
+        .trim()
+        .to_lowercase();
+    let mut seen = std::collections::HashSet::new();
+    let entries: Vec<Value> = content
+        .lines()
+        .enumerate()
+        .filter_map(|(index, line)| {
+            serde_json::from_str::<Value>(line)
+                .ok()
+                .map(|item| (index, item))
+        })
+        .filter_map(|(index, item)| local_bundle_item_to_entry(&item, index))
+        .filter(|entry| entry_matches_query(entry, &needle))
+        .filter(|entry| {
+            entry
+                .get("id")
+                .and_then(Value::as_str)
+                .map(|id| seen.insert(id.to_string()))
+                .unwrap_or(true)
+        })
+        .take(limit)
+        .collect();
+
+    if entries.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(success_json(json!({
+        "scope": null,
+        "entries": entries,
+        "source": "memd-bundle",
+        "baseUrl": null,
+    }))))
+}
+
+fn sanitize_filter_list(values: Option<&Vec<String>>, max_items: usize) -> Vec<String> {
+    values
+        .into_iter()
+        .flat_map(|values| values.iter())
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .take(max_items)
+        .map(|value| value.chars().take(80).collect::<String>())
+        .collect()
+}
+
+fn sanitize_optional_token(value: Option<&str>, max_len: usize) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.chars().take(max_len).collect::<String>())
+}
+
+fn remote_memd_search_request(
+    body: &QueryBody,
+    limit: usize,
+    max_chars_per_item: usize,
+    source_agent: Option<&str>,
+) -> Value {
+    let mut statuses = sanitize_filter_list(body.statuses.as_ref(), 12);
+    if statuses.is_empty() && !body.include_archived.unwrap_or(false) {
+        statuses.push("active".to_string());
+    }
+    let source_agent = sanitize_optional_token(source_agent.or(body.source_agent.as_deref()), 160);
+
+    json!({
+        "query": body.query,
+        "route": "all",
+        "scopes": [],
+        "kinds": sanitize_filter_list(body.kinds.as_ref(), 12),
+        "statuses": statuses,
+        "source_agent": source_agent,
+        "tags": [],
+        "stages": sanitize_filter_list(body.stages.as_ref(), 12),
+        "limit": limit,
+        "max_chars_per_item": max_chars_per_item,
+    })
+}
+
+async fn query_remote_memd_source_agents(
+    state: &AppState,
+    base_url: &str,
+) -> Result<Vec<String>, AppError> {
+    let sources = query_remote_memd_sources(state, base_url).await?;
+    let mut seen = std::collections::HashSet::new();
+    let mut agents = Vec::new();
+    for source in sources {
+        let Some(agent) = source.get("source_agent").and_then(Value::as_str) else {
+            continue;
+        };
+        let agent = agent.trim();
+        if !agent.is_empty() && seen.insert(agent.to_string()) {
+            agents.push(agent.to_string());
+        }
+    }
+    Ok(agents)
+}
+
+async fn query_remote_memd_sources(
+    state: &AppState,
+    base_url: &str,
+) -> Result<Vec<Value>, AppError> {
+    let response = state
+        .http
+        .get(format!("{base_url}/memory/source?limit=200"))
+        .timeout(Duration::from_secs(8))
+        .send()
+        .await?;
+    if !response.status().is_success() {
+        return Ok(Vec::new());
+    }
+    let payload: Value = response
+        .json()
+        .await
+        .map_err(|error| AppError::Internal(error.into()))?;
+    Ok(payload
+        .get("sources")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default())
+}
+
+async fn post_remote_memd_search(
+    state: &AppState,
+    base_url: &str,
+    request: Value,
+) -> Result<Vec<Value>, AppError> {
+    let response = state
+        .http
+        .post(format!("{base_url}/memory/search"))
+        .timeout(Duration::from_secs(12))
+        .json(&request)
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        return Ok(Vec::new());
+    }
+
+    let payload: Value = response
+        .json()
+        .await
+        .map_err(|error| AppError::Internal(error.into()))?;
+
+    Ok(payload
+        .get("items")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default())
+}
+
+async fn post_remote_memd_authority_search(
+    state: &AppState,
+    base_url: &str,
+    request: Value,
+) -> Result<Option<Vec<Value>>, AppError> {
+    let Some(token) = memd_authority_token(state) else {
+        return Ok(None);
+    };
+    let response = state
+        .http
+        .post(format!("{base_url}/memory/authority/search"))
+        .header("x-memd-authority-token", token)
+        .timeout(Duration::from_secs(12))
+        .json(&request)
+        .send()
+        .await;
+
+    let Ok(response) = response else {
+        return Ok(None);
+    };
+    if !response.status().is_success() {
+        return Ok(None);
+    }
+
+    let payload: Value = response
+        .json()
+        .await
+        .map_err(|error| AppError::Internal(error.into()))?;
+    Ok(Some(
+        payload
+            .get("items")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default(),
+    ))
+}
+
+async fn query_remote_memd_raw_items(
+    state: &AppState,
+    base_url: &str,
+    body: &QueryBody,
+    max_chars_per_item: usize,
+) -> Result<Vec<Value>, AppError> {
+    let limit = normalize_limit(body.limit, 10, 100) as usize;
+    let request = remote_memd_search_request(body, limit, max_chars_per_item, None);
+    if let Some(items) = post_remote_memd_authority_search(state, base_url, request.clone()).await?
+    {
+        return Ok(items);
+    }
+    let items = post_remote_memd_search(state, base_url, request).await?;
+    if !items.is_empty() || body.source_agent.is_some() {
+        return Ok(items);
+    }
+
+    let agents = query_remote_memd_source_agents(state, base_url).await?;
+    if agents.is_empty() {
+        return Ok(items);
+    }
+
+    let mut seen = std::collections::HashSet::new();
+    let mut merged = Vec::new();
+    for agent in agents {
+        let remaining = limit.saturating_sub(merged.len());
+        if remaining == 0 {
+            break;
+        }
+        let request =
+            remote_memd_search_request(body, remaining, max_chars_per_item, Some(agent.as_str()));
+        let agent_items = post_remote_memd_search(state, base_url, request).await?;
+        for item in agent_items {
+            if item
+                .get("id")
+                .and_then(Value::as_str)
+                .map(|id| seen.insert(id.to_string()))
+                .unwrap_or(true)
+            {
+                merged.push(item);
+            }
+            if merged.len() >= limit {
+                break;
+            }
+        }
+    }
+    Ok(merged)
+}
+
+async fn query_remote_memd(
+    state: &AppState,
+    body: &QueryBody,
+) -> Result<Option<Json<Value>>, AppError> {
+    let Some(base_url) = memd_base_url(state) else {
+        return Ok(None);
+    };
+    let Ok(items) = query_remote_memd_raw_items(state, &base_url, body, 900).await else {
+        return Ok(None);
+    };
+    let entries: Vec<Value> = items.iter().filter_map(remote_item_to_entry).collect();
+    if entries.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(success_json(json!({
+        "scope": null,
+        "entries": entries,
+        "source": "memd-server",
+        "baseUrl": base_url,
+    }))))
 }
 
 async fn upsert_memo(

@@ -116,6 +116,163 @@ pub async fn save_dev_session(db: &sqlx::SqlitePool, session: &UserSession) {
     }
 }
 
+/// Clear the persisted debug session when the restored Supabase tokens are no
+/// longer accepted. Without this, `cargo tauri dev` can keep resurrecting a
+/// stale JWT and every synced route will repeatedly fail with 401s.
+#[cfg(debug_assertions)]
+pub async fn clear_dev_session(db: &sqlx::SqlitePool) {
+    let _ = sqlx::query("DELETE FROM _dev_session").execute(db).await;
+}
+
+#[cfg(not(debug_assertions))]
+pub async fn clear_dev_session(_db: &sqlx::SqlitePool) {}
+
+fn epoch_secs() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
+}
+
+fn is_invalid_auth_error(err: &anyhow::Error) -> bool {
+    let msg = err.to_string().to_ascii_lowercase();
+    msg.contains("401")
+        || msg.contains("403")
+        || msg.contains("invalid authentication")
+        || msg.contains("invalid refresh")
+        || msg.contains("jwt")
+}
+
+async fn clear_session(state: &AppState, user_id: &str, reason: &str) {
+    tracing::warn!(user_id = %user_id, reason = %reason, "clearing invalid Supabase session");
+    *state.session.write().await = None;
+    *state.session_validated_at.write().await = 0;
+    state.cache_clear_user(user_id).await;
+    clear_dev_session(&state.db).await;
+}
+
+async fn refresh_session_tokens(
+    state: &AppState,
+    session: &UserSession,
+) -> anyhow::Result<UserSession> {
+    let gotrue = crate::gotrue::GoTrueClient::from_state(state)?;
+    let auth_resp = gotrue.refresh_token(&session.refresh_token).await?;
+    let now = epoch_secs();
+
+    let mut write = state.session.write().await;
+    let mut refreshed = session.clone();
+    refreshed.access_token = auth_resp.access_token;
+    refreshed.refresh_token = auth_resp.refresh_token;
+    refreshed.expires_at = now + auth_resp.expires_in;
+
+    *write = Some(refreshed.clone());
+    drop(write);
+
+    #[cfg(debug_assertions)]
+    save_dev_session(&state.db, &refreshed).await;
+
+    *state.session_validated_at.write().await = now;
+    Ok(refreshed)
+}
+
+/// Ensure the restored desktop session still has a valid Supabase token.
+///
+/// Access tokens can be revoked server-side while their local `expires_at`
+/// still says they are fresh. This guard probes GoTrue periodically, refreshes
+/// on auth failure, and clears bad sessions before RLS-backed routes hit
+/// PostgREST and spam 401 errors.
+pub async fn ensure_session_valid(state: &AppState) -> bool {
+    let Some(session) = state.session.read().await.clone() else {
+        return false;
+    };
+
+    let now = epoch_secs();
+    if now - session.created_at > 86400 {
+        clear_session(state, &session.user_id, "session lifetime exceeded").await;
+        return false;
+    }
+
+    let last_validated_at = *state.session_validated_at.read().await;
+    let needs_refresh = session.expires_at - now < 60;
+    let needs_probe = now - last_validated_at >= 60;
+
+    if !needs_refresh && !needs_probe {
+        return true;
+    }
+
+    let _guard = state.refresh_mutex.lock().await;
+    let Some(current) = state.session.read().await.clone() else {
+        return false;
+    };
+
+    let now = epoch_secs();
+    if now - current.created_at > 86400 {
+        clear_session(state, &current.user_id, "session lifetime exceeded").await;
+        return false;
+    }
+
+    if current.expires_at - now < 60 {
+        match refresh_session_tokens(state, &current).await {
+            Ok(_) => return true,
+            Err(err) if is_invalid_auth_error(&err) => {
+                clear_session(state, &current.user_id, "refresh rejected").await;
+                return false;
+            }
+            Err(err) => {
+                tracing::warn!("token refresh failed; keeping session for retry: {err}");
+                return true;
+            }
+        }
+    }
+
+    if now - *state.session_validated_at.read().await < 60 {
+        return true;
+    }
+
+    let gotrue = match crate::gotrue::GoTrueClient::from_state(state) {
+        Ok(gotrue) => gotrue,
+        Err(err) => {
+            tracing::warn!("cannot validate Supabase session: {err}");
+            return true;
+        }
+    };
+
+    match tokio::time::timeout(
+        Duration::from_secs(5),
+        gotrue.get_user(&current.access_token),
+    )
+    .await
+    {
+        Ok(Ok(_)) => {
+            *state.session_validated_at.write().await = now;
+            true
+        }
+        Ok(Err(err)) if is_invalid_auth_error(&err) => {
+            match refresh_session_tokens(state, &current).await {
+                Ok(_) => true,
+                Err(refresh_err) if is_invalid_auth_error(&refresh_err) => {
+                    clear_session(state, &current.user_id, "access and refresh rejected").await;
+                    false
+                }
+                Err(refresh_err) => {
+                    tracing::warn!(
+                        "Supabase session validation failed and refresh could not complete; keeping session for retry: {refresh_err}"
+                    );
+                    true
+                }
+            }
+        }
+        Ok(Err(err)) => {
+            tracing::warn!("Supabase session validation failed; keeping session for retry: {err}");
+            true
+        }
+        Err(_) => {
+            tracing::warn!("Supabase session validation timed out; keeping session for retry");
+            true
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // RequireAuth extractor
 // ---------------------------------------------------------------------------
@@ -224,6 +381,9 @@ pub struct AppState {
     /// Mutex that serialises token refresh attempts so concurrent requests
     /// don't all hit GoTrue simultaneously.
     pub refresh_mutex: Arc<tokio::sync::Mutex<()>>,
+    /// Last time the restored desktop session was validated against GoTrue.
+    /// This lets us catch revoked/stale JWTs without probing on every request.
+    pub session_validated_at: Arc<RwLock<i64>>,
     /// In-progress OAuth flow state. Stores verifier + URL + nonce so that
     /// duplicate `start_oauth` calls within 120s return the same URL instead
     /// of overwriting the PKCE verifier (fixes first-attempt failure).
@@ -559,7 +719,7 @@ async fn verify_connection_security(secrets: &std::collections::HashMap<String, 
     }
 }
 
-/// Start the embedded Axum HTTP server on localhost:5000 with all API routes.
+/// Start the embedded Axum HTTP server on localhost:3010 with all API routes.
 pub async fn start(
     app_handle: Option<tauri::AppHandle>,
     secrets: std::collections::HashMap<String, String>,
@@ -675,6 +835,7 @@ pub async fn start(
         gateway_ws,
         session: Arc::new(RwLock::new(restored_session)),
         refresh_mutex: Arc::new(tokio::sync::Mutex::new(())),
+        session_validated_at: Arc::new(RwLock::new(0)),
         pending_oauth: Arc::new(RwLock::new(None)),
     };
 
@@ -686,7 +847,10 @@ pub async fn start(
     // Start the background sync engine (offline-first SQLite <-> Supabase)
     {
         let supabase_url = state.secret_or_default("SUPABASE_URL");
-        let service_key = state.secret_or_default("SUPABASE_SERVICE_ROLE_KEY");
+        let service_key = state
+            .secret("SUPABASE_ANON_KEY")
+            .or_else(|| state.secret("VITE_SUPABASE_ANON_KEY"))
+            .unwrap_or_else(|| state.secret_or_default("SUPABASE_SERVICE_ROLE_KEY"));
         let sync_engine = crate::sync::SyncEngine::new(
             state.db.clone(),
             supabase_url,
@@ -744,10 +908,19 @@ pub async fn start(
                 .secret("MC_BIND_PORT")
                 .and_then(|value| value.parse::<u16>().ok())
         })
-        .unwrap_or(5000);
+        .unwrap_or(3010);
 
     // Pre-warm the messages conversation cache in the background
     let prewarm_state = state.clone();
+
+    let allowed_cors_origins = std::env::var("CORS_ALLOWED_ORIGINS")
+        .ok()
+        .or_else(|| state.secret("CORS_ALLOWED_ORIGINS"))
+        .unwrap_or_default()
+        .split(',')
+        .map(|origin| origin.trim().trim_end_matches('/').to_string())
+        .filter(|origin| !origin.is_empty())
+        .collect::<Vec<_>>();
 
     let app = Router::new()
         .nest("/api", routes::router())
@@ -762,8 +935,9 @@ pub async fn start(
         .layer(middleware::from_fn(api_key_auth))
         .layer(
             CorsLayer::new()
-                .allow_origin(AllowOrigin::predicate(|origin: &HeaderValue, _| {
+                .allow_origin(AllowOrigin::predicate(move |origin: &HeaderValue, _| {
                     if let Ok(s) = origin.to_str() {
+                        let origin = s.trim_end_matches('/');
                         s.starts_with("http://localhost:")
                             || s.starts_with("http://127.0.0.1:")
                             || s == "http://localhost"
@@ -771,6 +945,7 @@ pub async fn start(
                             || s.starts_with("tauri://")
                             || s.starts_with("http://tauri.localhost")
                             || s.starts_with("https://tauri.localhost")
+                            || allowed_cors_origins.iter().any(|allowed| allowed == origin)
                     } else {
                         false
                     }
@@ -811,85 +986,35 @@ async fn inject_session(
     next: Next,
 ) -> Response {
     let path = req.uri().path().to_string();
-    if path == "/api/health" || path.starts_with("/api/setup/") || path.starts_with("/api/auth/") {
+    if path == "/api/health"
+        || path.starts_with("/api/setup/")
+        || auth_route_skips_session_injection(&path)
+    {
         return next.run(req).await;
     }
 
-    let session = state.session.read().await.clone();
-
-    if let Some(ref sess) = session {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64;
-
-        // Force re-login after 24 hours regardless of token validity.
-        // This limits the blast radius of a compromised session.
-        let session_age = now - sess.created_at;
-        if session_age > 86400 {
-            tracing::info!(
-                user_id = %sess.user_id,
-                session_age_secs = session_age,
-                "session expired (24h) — forcing re-login"
-            );
-            *state.session.write().await = None;
-            return (
-                StatusCode::UNAUTHORIZED,
-                "Session expired — please log in again",
-            )
-                .into_response();
-        }
-
-        if sess.expires_at - now < 60 {
-            // Token is near expiry — try to refresh.
-            // Acquire the mutex so only one request refreshes at a time.
-            let _guard = state.refresh_mutex.lock().await;
-
-            // Re-read: another request may have already refreshed while we waited.
-            let current = state.session.read().await.clone();
-            if let Some(ref current_sess) = current {
-                let now = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs() as i64;
-
-                if current_sess.expires_at - now < 60 {
-                    // Still needs refresh.
-                    if let Ok(gotrue) = crate::gotrue::GoTrueClient::from_state(&state) {
-                        match gotrue.refresh_token(&current_sess.refresh_token).await {
-                            Ok(auth_resp) => {
-                                let mut write = state.session.write().await;
-                                if let Some(ref mut s) = *write {
-                                    s.access_token = auth_resp.access_token;
-                                    s.refresh_token = auth_resp.refresh_token;
-                                    s.expires_at = now + auth_resp.expires_in;
-                                }
-                                let updated_session = write.clone();
-                                drop(write);
-                                if let Some(ref session) = updated_session {
-                                    #[cfg(debug_assertions)]
-                                    save_dev_session(&state.db, session).await;
-                                }
-                            }
-                            Err(e) => {
-                                tracing::warn!("token refresh failed: {e}");
-                                // Clear session — user will need to re-authenticate.
-                                *state.session.write().await = None;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Insert the (possibly refreshed) session into request extensions.
-        let final_session = state.session.read().await.clone();
-        if let Some(s) = final_session {
+    if ensure_session_valid(&state).await {
+        if let Some(s) = state.session.read().await.clone() {
             req.extensions_mut().insert(s);
         }
     }
 
     next.run(req).await
+}
+
+fn auth_route_skips_session_injection(path: &str) -> bool {
+    matches!(
+        path,
+        "/api/auth/tauri-session"
+            | "/api/auth/nonce"
+            | "/api/auth/callback"
+            | "/api/auth/favicon.png"
+            | "/api/auth/logo.png"
+            | "/api/auth/login"
+            | "/api/auth/signup"
+            | "/api/auth/session"
+            | "/api/auth/refresh"
+    ) || path.starts_with("/api/auth/oauth/")
 }
 
 /// Middleware that sets Cache-Control: no-store on all API responses.
@@ -953,7 +1078,7 @@ const AUTH_EXEMPT_PATHS: &[&str] = &["/api/health"];
 /// Path prefixes exempt from API key authentication.
 /// Note: "/api/wizard/" endpoints are NOT exempt -- they require X-API-Key
 /// but not RequireAuth (no user session needed during setup wizard).
-const AUTH_EXEMPT_PREFIXES: &[&str] = &["/api/auth/", "/api/setup/"];
+const AUTH_EXEMPT_PREFIXES: &[&str] = &["/api/auth/", "/api/setup/", "/api/training/public/"];
 
 #[cfg(debug_assertions)]
 fn insecure_dev_api_key_bypass_enabled() -> bool {
@@ -1040,12 +1165,19 @@ async fn rate_limit(req: Request<Body>, next: Next) -> Response {
         });
 
     // Choose category and limit
-    // Session polling is frequent (every 2s during OAuth) — never rate-limit it
-    if path == "/api/auth/session" || path == "/api/health" {
+    // Session polling and trusted BlueBubbles webhooks are high-frequency.
+    if path == "/api/auth/session" || path == "/api/health" || path == "/api/messages/webhook" {
         return next.run(req).await;
     }
 
-    let (category, limit) = if path.starts_with("/api/auth/") {
+    let (category, limit) = if method == axum::http::Method::GET
+        && (path == "/api/vnc/status"
+            || path == "/api/approvals"
+            || path == "/api/setup/status"
+            || path.starts_with("/api/status/"))
+    {
+        ("poll", 600u64)
+    } else if path.starts_with("/api/auth/") {
         ("auth", 30u64)
     } else if path.starts_with("/api/chat/") {
         ("chat", 10u64)
@@ -1179,6 +1311,7 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
     if path.starts_with("/api/messages/avatar")
         || path.starts_with("/api/messages/attachment")
         || path.starts_with("/api/messages/sticker")
+        || path.starts_with("/api/messages/webhook")
         || path.starts_with("/api/vault/media")
     {
         return next.run(req).await;
@@ -1232,7 +1365,7 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
     }
 
     // WebSocket connections can't send custom headers — check query parameter
-    // e.g. ws://127.0.0.1:5000/api/chat/ws?apiKey=...
+    // e.g. ws://127.0.0.1:3010/api/chat/ws?apiKey=...
     if req
         .headers()
         .get("upgrade")
@@ -1527,7 +1660,7 @@ mod tests {
 
     #[test]
     fn warn_if_insecure_url_ignores_localhost() {
-        warn_if_insecure_url("TestService", "http://127.0.0.1:5000");
+        warn_if_insecure_url("TestService", "http://127.0.0.1:3010");
         warn_if_insecure_url("TestService", "http://localhost:8080");
     }
 
@@ -1554,7 +1687,7 @@ mod tests {
         log_tls_status("Supabase", "https://supabase.example.com");
         log_tls_status("Supabase", "http://192.0.2.1:8000");
         log_tls_status("External", "http://203.0.113.50:8080");
-        log_tls_status("Local", "http://127.0.0.1:5000");
+        log_tls_status("Local", "http://127.0.0.1:3010");
         log_tls_status("Tailscale", "http://100.64.0.3:1234");
     }
 

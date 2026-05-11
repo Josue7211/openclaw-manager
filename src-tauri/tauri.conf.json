@@ -10,6 +10,7 @@
     "frontendDist": "../frontend/dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "clawctrl",
@@ -19,11 +20,14 @@
         "minHeight": 600,
         "resizable": true,
         "fullscreen": false,
-        "decorations": false
+        "decorations": false,
+        "transparent": true,
+        "shadow": true,
+        "backgroundColor": "#00000000"
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; worker-src 'none'; connect-src 'self' http://127.0.0.1:3000 ws://127.0.0.1:3000 http://127.0.0.1:5000 ws://127.0.0.1:5000; img-src 'self' data: http://127.0.0.1:3000 http://127.0.0.1:5000; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+      "csp": "default-src 'self'; script-src 'self'; worker-src 'none'; connect-src 'self' http://127.0.0.1:3000 ws://127.0.0.1:3000 http://127.0.0.1:3010 ws://127.0.0.1:3010 http://127.0.0.1:5000 ws://127.0.0.1:5000; img-src 'self' data: http://127.0.0.1:3000 http://127.0.0.1:3010 http://127.0.0.1:5000; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     }
   },
   "bundle": {

@@ -88,6 +88,8 @@ export default function LayoutShell() {
         const key = `account-sync-recovery-reminder:${userId}`
         if (!cancelled && sync.needs_recovery_key && !localStorage.getItem(key)) {
           setRecoveryReminderKey(key)
+        } else if (!cancelled) {
+          setRecoveryReminderKey(null)
         }
       } catch {
         // Keep the shell quiet if auth/sync probing is unavailable.
@@ -195,6 +197,17 @@ export default function LayoutShell() {
   const autoHideTitleBar = useSyncExternalStore(subscribeTitleBarSettings, getTitleBarAutoHide)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [titleBarHover, setTitleBarHover] = useState(false)
+  const handleTitleBarMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (!window.__TAURI_INTERNALS__ || event.button !== 0) return
+
+    const target = event.target as HTMLElement
+    if (target.closest('button, input, textarea, select, a, [data-no-window-drag]')) return
+
+    void import('@tauri-apps/api/window')
+      .then(({ getCurrentWindow }) => getCurrentWindow().startDragging())
+      .catch(() => {})
+  }, [])
+
   // Auto-hide title bar: track mouse position globally
   useEffect(() => {
     if (!autoHideTitleBar && !isFullscreen) return () => {}
@@ -293,7 +306,7 @@ export default function LayoutShell() {
   return (
     <IconContext.Provider value={iconContextValue}>
     <ToastProvider>
-    <div style={{
+    <div className={`app-window-frame${isFullscreen ? ' app-window-frame-fullscreen' : ''}`} style={{
       display: 'flex',
       flexDirection: 'column',
       height: '100vh',
@@ -313,6 +326,7 @@ export default function LayoutShell() {
         )}
         <div
           data-tauri-drag-region
+          onMouseDown={handleTitleBarMouseDown}
           style={{
             height: showTitleBar ? '30px' : '0px',
             minHeight: showTitleBar ? '30px' : '0px',

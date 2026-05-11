@@ -23,7 +23,8 @@ use crate::server::AppState;
 static VNC_CONNECTIONS: AtomicUsize = AtomicUsize::new(0);
 const MAX_VNC_CONNECTIONS: usize = 8;
 const VNC_SECURITY_NONE: u8 = 1;
-const LOCAL_TUNNEL_SERVICE: &str = "openclaw-sunshine-tunnel.service";
+const LOCAL_TUNNEL_SERVICE: &str = "openclaw-vnc-tunnel.service";
+const LEGACY_LOCAL_TUNNEL_SERVICE: &str = "openclaw-sunshine-tunnel.service";
 const REMOTE_VNC_SERVICE: &str = "clawcontrol-vnc.service";
 const REMOTE_VNC_HOST: &str = "openclaw-vm";
 const DEFAULT_VNC_HOST: &str = "127.0.0.1";
@@ -296,6 +297,7 @@ fn repair_guidance(target: &VncTarget, reason: Option<&str>) -> Value {
         "services": {
             "remoteVnc": REMOTE_VNC_SERVICE,
             "localTunnel": LOCAL_TUNNEL_SERVICE,
+            "legacySunshineTunnel": LEGACY_LOCAL_TUNNEL_SERVICE,
         },
         "repairHost": repair_host,
     })
@@ -514,23 +516,43 @@ async fn run_repair_command(program: &str, args: &[&str]) -> Result<Value, Strin
     }))
 }
 
+async fn run_optional_repair_command(program: &str, args: &[&str]) -> Value {
+    match tokio::time::timeout(
+        Duration::from_secs(5),
+        Command::new(program).args(args).output(),
+    )
+    .await
+    {
+        Ok(Ok(output)) => json!({
+            "program": program,
+            "status": output.status.code().unwrap_or(-1),
+            "stdout": String::from_utf8_lossy(&output.stdout).trim().to_string(),
+            "stderr": String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        }),
+        Ok(Err(error)) => json!({
+            "program": program,
+            "error": format!("{program} failed to start: {error}"),
+        }),
+        Err(_) => json!({
+            "program": program,
+            "error": format!("{program} timed out"),
+        }),
+    }
+}
+
 #[cfg(target_os = "macos")]
 async fn restart_local_tunnel(repair_host: &str) -> Result<Value, String> {
-    run_repair_command(
+    let forward = format!("127.0.0.1:{DEFAULT_VNC_PORT}:127.0.0.1:{DEFAULT_VNC_PORT}");
+    let stale_pattern =
+        format!("ssh .*127\\.0\\.0\\.1:{DEFAULT_VNC_PORT}:127\\.0\\.0\\.1:{DEFAULT_VNC_PORT}");
+    let stale_tunnel = run_optional_repair_command("pkill", &["-f", &stale_pattern]).await;
+    let start_result = run_repair_command(
         "ssh",
         &[
             "-f",
             "-N",
             "-L",
-            "47984:127.0.0.1:47984",
-            "-L",
-            "47989:127.0.0.1:47989",
-            "-L",
-            "47990:127.0.0.1:47990",
-            "-L",
-            "48010:127.0.0.1:48010",
-            "-L",
-            "5901:127.0.0.1:5901",
+            &forward,
             "-o",
             "BatchMode=yes",
             "-o",
@@ -546,12 +568,55 @@ async fn restart_local_tunnel(repair_host: &str) -> Result<Value, String> {
             repair_host,
         ],
     )
-    .await
+    .await?;
+
+    Ok(json!({
+        "staleTunnel": stale_tunnel,
+        "start": start_result,
+    }))
 }
 
 #[cfg(not(target_os = "macos"))]
-async fn restart_local_tunnel(_repair_host: &str) -> Result<Value, String> {
-    run_repair_command("systemctl", &["--user", "restart", LOCAL_TUNNEL_SERVICE]).await
+async fn restart_local_tunnel(repair_host: &str) -> Result<Value, String> {
+    match run_repair_command("systemctl", &["--user", "restart", LOCAL_TUNNEL_SERVICE]).await {
+        Ok(result) => Ok(result),
+        Err(service_error) => {
+            let forward = format!("127.0.0.1:{DEFAULT_VNC_PORT}:127.0.0.1:{DEFAULT_VNC_PORT}");
+            match run_repair_command(
+                "ssh",
+                &[
+                    "-f",
+                    "-N",
+                    "-L",
+                    &forward,
+                    "-o",
+                    "BatchMode=yes",
+                    "-o",
+                    "ConnectTimeout=10",
+                    "-o",
+                    "TCPKeepAlive=yes",
+                    "-o",
+                    "ServerAliveInterval=15",
+                    "-o",
+                    "ServerAliveCountMax=2",
+                    "-o",
+                    "ExitOnForwardFailure=yes",
+                    repair_host,
+                ],
+            )
+            .await
+            {
+                Ok(result) => Ok(json!({
+                    "fallback": "ssh",
+                    "serviceError": service_error,
+                    "result": result,
+                })),
+                Err(ssh_error) => Err(format!(
+                    "{LOCAL_TUNNEL_SERVICE} restart failed: {service_error}; direct SSH tunnel failed: {ssh_error}"
+                )),
+            }
+        }
+    }
 }
 
 async fn restart_remote_vnc(host: &str) -> Result<Value, String> {
@@ -747,7 +812,7 @@ mod tests {
                 "configured": false,
                 "repairHost": "openclaw-vm",
                 "vncService": "clawcontrol-vnc.service",
-                "tunnelService": "openclaw-sunshine-tunnel.service"
+                "tunnelService": "openclaw-vnc-tunnel.service"
             },
             "reason": "connect failed: Connection refused (os error 61)",
             "message": "VNC target 127.0.0.1:5901 refused the connection",

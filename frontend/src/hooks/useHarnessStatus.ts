@@ -18,9 +18,7 @@ export interface HarnessServiceState {
 
 interface HarnessHealthResponse {
   services?: {
-    hermes?: HarnessServiceState
     harness?: HarnessServiceState
-    openclaw?: HarnessServiceState
   }
 }
 
@@ -30,18 +28,6 @@ export interface UseHarnessStatusReturn {
   isLoading: boolean
   providerLabel: string
   detail?: string
-}
-
-function normalizeProviderLabel(value?: string): string {
-  const raw = (value ?? '').trim().toLowerCase()
-  if (!raw) return 'Harness'
-  if (raw === 'hermes-openclaw-compat' || raw === 'hermes-agent' || raw === 'hermes') {
-    return 'Hermes'
-  }
-  if (raw === 'openclaw') {
-    return 'OpenClaw compat'
-  }
-  return (value ?? 'Harness').trim()
 }
 
 function detailForService(service?: HarnessServiceState): string | undefined {
@@ -69,8 +55,8 @@ export function useHarnessStatus(): UseHarnessStatusReturn {
     staleTime: 10_000,
     retry: 1,
   })
-  const providerLabel = normalizeProviderLabel('harness')
-  const service = data?.services?.harness ?? data?.services?.hermes ?? data?.services?.openclaw
+  const providerLabel = 'Harness'
+  const service = data?.services?.harness
   const detail = detailForService(service)
 
   if (service?.reachable) {

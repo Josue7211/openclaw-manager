@@ -1,7 +1,14 @@
 import { formatHour } from '@/lib/utils'
 import {
-  CalendarEvent, calendarColor, toDateKey, formatTime, addDays,
-  isoToMinutes, GRID_START, GRID_END, DAY_LABELS,
+  CalendarEvent,
+  calendarColor,
+  toDateKey,
+  formatTime,
+  addDays,
+  isoToMinutes,
+  GRID_START,
+  GRID_END,
+  DAY_LABELS,
 } from './shared'
 
 interface WeekViewProps {
@@ -10,9 +17,64 @@ interface WeekViewProps {
   todayKey: string
   hourHeight: number
   scrollRef: React.RefObject<HTMLDivElement | null>
+  onEventSelect?: (event: CalendarEvent) => void
 }
 
-export function WeekView({ anchor, events, todayKey, hourHeight, scrollRef }: WeekViewProps) {
+interface PositionedEvent {
+  event: CalendarEvent
+  column: number
+  columns: number
+}
+
+function layoutTimedEvents(events: CalendarEvent[]): PositionedEvent[] {
+  const sorted = [...events].sort((a, b) => {
+    const startDiff = isoToMinutes(a.start) - isoToMinutes(b.start)
+    if (startDiff !== 0) return startDiff
+    return isoToMinutes(a.end) - isoToMinutes(b.end)
+  })
+  const positioned: PositionedEvent[] = []
+  let cluster: CalendarEvent[] = []
+  let clusterEnd = -1
+
+  function flushCluster() {
+    if (cluster.length === 0) return
+    const columnEnds: number[] = []
+    const clusterPositioned: PositionedEvent[] = []
+
+    for (const event of cluster) {
+      const start = isoToMinutes(event.start)
+      const end = isoToMinutes(event.end)
+      let column = columnEnds.findIndex(columnEnd => columnEnd <= start)
+      if (column === -1) {
+        column = columnEnds.length
+        columnEnds.push(end)
+      } else {
+        columnEnds[column] = end
+      }
+      clusterPositioned.push({ event, column, columns: 1 })
+    }
+
+    const columns = Math.max(columnEnds.length, 1)
+    positioned.push(...clusterPositioned.map(item => ({ ...item, columns })))
+    cluster = []
+    clusterEnd = -1
+  }
+
+  for (const event of sorted) {
+    const start = isoToMinutes(event.start)
+    const end = isoToMinutes(event.end)
+    if (cluster.length > 0 && start >= clusterEnd) {
+      flushCluster()
+    }
+    cluster.push(event)
+    clusterEnd = Math.max(clusterEnd, end)
+  }
+  flushCluster()
+
+  return positioned
+}
+
+export function WeekView({ anchor, events, todayKey, hourHeight, scrollRef, onEventSelect }: WeekViewProps) {
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(anchor, i))
   const hours = Array.from({ length: GRID_END - GRID_START }, (_, i) => GRID_START + i)
 
@@ -40,7 +102,14 @@ export function WeekView({ anchor, events, todayKey, hourHeight, scrollRef }: We
   return (
     <div className="card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       {/* Day header row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '52px repeat(7, 1fr)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '52px repeat(7, 1fr)',
+          borderBottom: '1px solid var(--border)',
+          flexShrink: 0,
+        }}
+      >
         <div /> {/* time gutter */}
         {weekDays.map((d, i) => {
           const key = toDateKey(d.toISOString())
@@ -60,16 +129,31 @@ export function WeekView({ anchor, events, todayKey, hourHeight, scrollRef }: We
                 gap: '4px',
               }}
             >
-              <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.07em', textTransform: 'uppercase' }}>
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  color: 'var(--text-muted)',
+                  letterSpacing: '0.07em',
+                  textTransform: 'uppercase',
+                }}
+              >
                 {DAY_LABELS[i]}
               </span>
-              <span style={{
-                width: '28px', height: '28px', borderRadius: '50%',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '13px', fontWeight: isToday ? 700 : 400,
-                background: isToday ? 'var(--accent)' : 'transparent',
-                color: isToday ? 'var(--text-on-color)' : 'var(--text-primary)',
-              }}>
+              <span
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '13px',
+                  fontWeight: isToday ? 700 : 400,
+                  background: isToday ? 'var(--accent)' : 'transparent',
+                  color: isToday ? 'var(--text-on-color)' : 'var(--text-primary)',
+                }}
+              >
                 {d.getDate()}
               </span>
             </button>
@@ -79,27 +163,69 @@ export function WeekView({ anchor, events, todayKey, hourHeight, scrollRef }: We
 
       {/* All-day strip */}
       {allDayEvents.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '52px repeat(7, 1fr)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          <div style={{ padding: '4px 6px 4px', fontSize: '9px', color: 'var(--text-muted)', textAlign: 'right', alignSelf: 'center', textTransform: 'uppercase', letterSpacing: '0.05em' }}>all-day</div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '52px repeat(7, 1fr)',
+            borderBottom: '1px solid var(--border)',
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              padding: '4px 6px 4px',
+              fontSize: '9px',
+              color: 'var(--text-muted)',
+              textAlign: 'right',
+              alignSelf: 'center',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+            }}
+          >
+            all-day
+          </div>
           {weekDays.map((d, i) => {
             const key = toDateKey(d.toISOString())
             const dayAll = allDayEvents.filter(e => toDateKey(e.start) === key)
             return (
-              <div key={i} style={{ borderLeft: '1px solid var(--border)', padding: '3px 2px', display: 'flex', flexDirection: 'column', gap: '2px', minHeight: '28px' }}>
+              <div
+                key={i}
+                style={{
+                  borderLeft: '1px solid var(--border)',
+                  padding: '3px 2px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px',
+                  minHeight: '28px',
+                }}
+              >
                 {dayAll.map(ev => (
-                  <div key={ev.id} style={{
-                    background: calendarColor(ev.calendar) + '33',
-                    borderLeft: `2px solid ${calendarColor(ev.calendar)}`,
-                    borderRadius: '3px',
-                    padding: '1px 4px',
-                    fontSize: '10px',
-                    color: 'var(--text-primary)',
-                    overflow: 'hidden',
-                    whiteSpace: 'nowrap',
-                    textOverflow: 'ellipsis',
-                  }}>
+                  <button
+                    key={ev.id}
+                    type="button"
+                    onClick={() => onEventSelect?.(ev)}
+                    style={{
+                      background: calendarColor(ev.calendar) + '33',
+                      borderLeft: `2px solid ${calendarColor(ev.calendar)}`,
+                      borderTop: 'none',
+                      borderRight: 'none',
+                      borderBottom: 'none',
+                      borderRadius: '3px',
+                      padding: '1px 4px',
+                      fontSize: '10px',
+                      color: 'var(--text-primary)',
+                      overflow: 'hidden',
+                      whiteSpace: 'nowrap',
+                      textOverflow: 'ellipsis',
+                      textAlign: 'left',
+                      font: 'inherit',
+                      cursor: 'pointer',
+                      appearance: 'none',
+                      WebkitAppearance: 'none',
+                    }}
+                  >
                     {ev.title}
-                  </div>
+                  </button>
                 ))}
               </div>
             )
@@ -114,53 +240,62 @@ export function WeekView({ anchor, events, todayKey, hourHeight, scrollRef }: We
           {hours.map(h => (
             <div key={h} style={{ display: 'contents' }}>
               {/* Time label */}
-              <div style={{
-                height: `${hourHeight}px`,
-                display: 'flex',
-                alignItems: 'flex-start',
-                justifyContent: 'flex-end',
-                paddingRight: '8px',
-                paddingTop: '2px',
-                fontSize: '10px',
-                color: 'var(--text-muted)',
-                flexShrink: 0,
-                userSelect: 'none',
-              }}>
+              <div
+                style={{
+                  height: `${hourHeight}px`,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'flex-end',
+                  paddingRight: '8px',
+                  paddingTop: '2px',
+                  fontSize: '10px',
+                  color: 'var(--text-muted)',
+                  flexShrink: 0,
+                  userSelect: 'none',
+                }}
+              >
                 {formatHour(h)}
               </div>
               {/* 7 day cells */}
               {weekDays.map((_, di) => (
-                <div key={di} style={{
-                  height: `${hourHeight}px`,
-                  borderLeft: '1px solid var(--border)',
-                  borderBottom: '1px solid var(--border-strong)',
-                  position: 'relative',
-                }} />
+                <div
+                  key={di}
+                  style={{
+                    height: `${hourHeight}px`,
+                    borderLeft: '1px solid var(--border)',
+                    borderBottom: '1px solid var(--border-strong)',
+                    position: 'relative',
+                  }}
+                />
               ))}
             </div>
           ))}
 
           {/* Current time line */}
           {showNowLine && nowTop > 0 && nowTop < (GRID_END - GRID_START) * hourHeight && (
-            <div style={{
-              position: 'absolute',
-              top: `${nowTop}px`,
-              left: '52px',
-              right: 0,
-              height: '2px',
-              background: 'var(--red)',
-              zIndex: 10,
-              pointerEvents: 'none',
-            }}>
-              <div style={{
+            <div
+              style={{
                 position: 'absolute',
-                left: '-5px',
-                top: '-4px',
-                width: '10px',
-                height: '10px',
-                borderRadius: '50%',
+                top: `${nowTop}px`,
+                left: '52px',
+                right: 0,
+                height: '2px',
                 background: 'var(--red)',
-              }} />
+                zIndex: 10,
+                pointerEvents: 'none',
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  left: '-5px',
+                  top: '-4px',
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '50%',
+                  background: 'var(--red)',
+                }}
+              />
             </div>
           )}
 
@@ -168,21 +303,23 @@ export function WeekView({ anchor, events, todayKey, hourHeight, scrollRef }: We
           {weekDays.map((d, di) => {
             const key = toDateKey(d.toISOString())
             const dayEvs = timedEventsByDay[key] || []
-            return dayEvs.map(ev => {
+            return layoutTimedEvents(dayEvs).map(({ event: ev, column, columns }) => {
               const startMin = isoToMinutes(ev.start)
               const endMin = isoToMinutes(ev.end)
               const top = ((startMin - GRID_START * 60) / 60) * hourHeight
               const height = Math.max(((endMin - startMin) / 60) * hourHeight, 18)
               const color = calendarColor(ev.calendar)
               return (
-                <div
+                <button
                   key={ev.id}
-                  title={`${ev.title}\n${formatTime(ev.start)} – ${formatTime(ev.end)}`}
+                  type="button"
+                  onClick={() => onEventSelect?.(ev)}
+                  title={`${ev.title}\n${formatTime(ev.start)} - ${formatTime(ev.end)}`}
                   style={{
                     position: 'absolute',
                     top: `${top}px`,
-                    left: `calc(52px + (100% - 52px) * ${di} / 7 + 2px)`,
-                    width: `calc((100% - 52px) / 7 - 4px)`,
+                    left: `calc(52px + (100% - 52px) * ${di} / 7 + ((100% - 52px) / 7) * ${column} / ${columns} + 2px)`,
+                    width: `calc(((100% - 52px) / 7) / ${columns} - 4px)`,
                     height: `${height}px`,
                     background: color + '25',
                     border: `1px solid ${color}66`,
@@ -191,18 +328,39 @@ export function WeekView({ anchor, events, todayKey, hourHeight, scrollRef }: We
                     padding: '2px 4px',
                     overflow: 'hidden',
                     zIndex: 5,
-                    cursor: 'default',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    font: 'inherit',
+                    appearance: 'none',
+                    WebkitAppearance: 'none',
                   }}
                 >
-                  <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                  <div
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                      lineHeight: 1.2,
+                      overflow: 'hidden',
+                      whiteSpace: 'nowrap',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
                     {ev.title}
                   </div>
                   {height > 28 && (
-                    <div style={{ fontSize: '9px', color: 'var(--text-secondary)', fontFamily: 'monospace', marginTop: '1px' }}>
+                    <div
+                      style={{
+                        fontSize: '9px',
+                        color: 'var(--text-secondary)',
+                        fontFamily: 'monospace',
+                        marginTop: '1px',
+                      }}
+                    >
                       {formatTime(ev.start)}
                     </div>
                   )}
-                </div>
+                </button>
               )
             })
           })}

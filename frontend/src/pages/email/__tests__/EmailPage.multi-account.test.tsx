@@ -98,6 +98,10 @@ describe('EmailPage multi-account threads', () => {
               agentmail_inbox_id: 'clawcontrol-josue-aparcedo@agentmail.to',
               forwarding_status: 'active',
               is_default: true,
+              imap_host: '',
+              imap_port: 993,
+              imap_username: '',
+              imap_configured: false,
             },
           ],
         }
@@ -130,6 +134,7 @@ describe('EmailPage multi-account threads', () => {
       expect(mockGet).toHaveBeenCalledWith('/api/email?folder=INBOX&limit=100&account_id=josue%40aparcedo.org')
     })
 
+    fireEvent.click(await screen.findByText('Quarterly update'))
     expect(await screen.findByText('Replying as Aparcedo')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Prepare draft' }))
@@ -138,6 +143,111 @@ describe('EmailPage multi-account threads', () => {
 
     expect(await screen.findByText('needs human send')).toBeInTheDocument()
     expect(mockGet).toHaveBeenCalledWith('/api/mail-accounts')
+  })
+
+  it('does not select a thread until the user opens one', async () => {
+    mockGet.mockImplementation(async (path: string) => {
+      if (path === '/api/mail-accounts') {
+        return {
+          accounts: [
+            {
+              id: 'josue@aparcedo.org',
+              label: 'Aparcedo',
+              provider: 'proton',
+              address: 'josue@aparcedo.org',
+              agentmail_inbox_id: 'clawcontrol-josue-aparcedo@agentmail.to',
+              forwarding_status: 'active',
+              is_default: true,
+              imap_host: '',
+              imap_port: 993,
+              imap_username: '',
+              imap_configured: false,
+            },
+          ],
+        }
+      }
+
+      if (path.startsWith('/api/email?')) {
+        return {
+          threads: [
+            {
+              id: 'thr_1',
+              account_id: 'josue@aparcedo.org',
+              subject: 'Quarterly update',
+              from: 'boss@example.com',
+              preview: 'Can you reply by Friday?',
+              unread: true,
+            },
+          ],
+          source: 'agentmail',
+          state: 'ready',
+        }
+      }
+
+      throw new Error(`Unexpected GET ${path}`)
+    })
+
+    const EmailPage = await getEmailPage()
+    const { container } = render(<EmailPage />, { wrapper: createWrapper() })
+
+    expect(await screen.findByText('Quarterly update')).toBeInTheDocument()
+    expect(container.querySelector('[data-testid="mail-detail-column"]')).not.toBeInTheDocument()
+    expect(screen.queryByText('Select a thread')).not.toBeInTheDocument()
+    expect(screen.queryByText('Replying as Aparcedo')).not.toBeInTheDocument()
+  })
+
+  it('can close an opened thread back to the message list only view', async () => {
+    mockGet.mockImplementation(async (path: string) => {
+      if (path === '/api/mail-accounts') {
+        return {
+          accounts: [
+            {
+              id: 'josue@aparcedo.org',
+              label: 'Aparcedo',
+              provider: 'proton',
+              address: 'josue@aparcedo.org',
+              agentmail_inbox_id: 'clawcontrol-josue-aparcedo@agentmail.to',
+              forwarding_status: 'active',
+              is_default: true,
+              imap_host: '',
+              imap_port: 993,
+              imap_username: '',
+              imap_configured: false,
+            },
+          ],
+        }
+      }
+
+      if (path.startsWith('/api/email?')) {
+        return {
+          threads: [
+            {
+              id: 'thr_1',
+              account_id: 'josue@aparcedo.org',
+              subject: 'Quarterly update',
+              from: 'boss@example.com',
+              preview: 'Can you reply by Friday?',
+              unread: true,
+            },
+          ],
+          source: 'agentmail',
+          state: 'ready',
+        }
+      }
+
+      throw new Error(`Unexpected GET ${path}`)
+    })
+
+    const EmailPage = await getEmailPage()
+    const { container } = render(<EmailPage />, { wrapper: createWrapper() })
+
+    fireEvent.click(await screen.findByText('Quarterly update'))
+    expect(await screen.findByText('Replying as Aparcedo')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close email' }))
+
+    expect(container.querySelector('[data-testid="mail-detail-column"]')).not.toBeInTheDocument()
+    expect(screen.queryByText('Replying as Aparcedo')).not.toBeInTheDocument()
   })
 
   it('shows connected empty copy for an empty mailbox linked through AgentMail access', async () => {
@@ -153,6 +263,10 @@ describe('EmailPage multi-account threads', () => {
               agentmail_inbox_id: 'clawcontrol-josue-aparcedo@agentmail.to',
               forwarding_status: 'active',
               is_default: true,
+              imap_host: '',
+              imap_port: 993,
+              imap_username: '',
+              imap_configured: false,
             },
           ],
         }
@@ -192,6 +306,10 @@ describe('EmailPage multi-account threads', () => {
               agentmail_inbox_id: 'clawcontrol-josue-aparcedo@agentmail.to',
               forwarding_status: 'active',
               is_default: true,
+              imap_host: '',
+              imap_port: 993,
+              imap_username: '',
+              imap_configured: false,
             },
           ],
         }
@@ -230,6 +348,10 @@ describe('EmailPage multi-account threads', () => {
               agentmail_inbox_id: '',
               forwarding_status: 'active',
               is_default: true,
+              imap_host: '',
+              imap_port: 993,
+              imap_username: '',
+              imap_configured: false,
             },
           ],
         }
@@ -270,6 +392,10 @@ describe('EmailPage multi-account threads', () => {
               agentmail_inbox_id: 'clawcontrol-josue-aparcedo@agentmail.to',
               forwarding_status: 'active',
               is_default: true,
+              imap_host: '',
+              imap_port: 993,
+              imap_username: '',
+              imap_configured: false,
             },
           ],
         }
@@ -309,6 +435,10 @@ describe('EmailPage multi-account threads', () => {
               agentmail_inbox_id: '',
               forwarding_status: 'pending',
               is_default: true,
+              imap_host: '',
+              imap_port: 993,
+              imap_username: '',
+              imap_configured: false,
             },
           ],
         }

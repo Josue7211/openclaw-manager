@@ -7,6 +7,7 @@ async fn main() {
     let secrets = clawctrl::secrets::load_secrets();
 
     if let Err(err) = clawctrl::server::start(None, secrets).await {
+        eprintln!("Headless backend error: {err:?}");
         tracing::error!("Headless backend error: {err}");
         std::process::exit(1);
     }

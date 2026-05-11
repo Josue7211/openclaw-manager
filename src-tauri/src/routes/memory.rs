@@ -7,6 +7,8 @@ use crate::error::AppError;
 use crate::harness_paths::{self, HarnessProviderLayout};
 use crate::server::{AppState, RequireAuth};
 
+use super::gateway::harness_api_key;
+
 /// Build the memory router (list recent harness memory entries).
 pub fn router() -> Router<AppState> {
     Router::new().route("/memory", get(get_memory))
@@ -28,9 +30,8 @@ async fn get_memory(
     {
         let client = reqwest::Client::new();
         let mut req = client.get(format!("{harness_url}/memory"));
-        if let Some(key) =
-            state.secret_first(&["HARNESS_API_KEY", "HERMES_API_KEY", "OPENCLAW_API_KEY"])
-        {
+        let key = harness_api_key(&state);
+        if !key.is_empty() {
             req = req.header("Authorization", format!("Bearer {key}"));
         }
         match req.send().await {
@@ -104,6 +105,8 @@ fn memory_candidates(provider: HarnessProviderLayout) -> Vec<PathBuf> {
 
     if provider == HarnessProviderLayout::Hermes {
         candidates.insert(0, PathBuf::from("SOUL.md"));
+        candidates.insert(1, PathBuf::from("memories/MEMORY.md"));
+        candidates.insert(2, PathBuf::from("memories/USER.md"));
     }
 
     candidates
@@ -203,8 +206,15 @@ mod tests {
     fn local_hermes_memory_reads_soul_and_memd_files() {
         let dir = tempfile::tempdir().unwrap();
         let workspace = dir.path();
+        std::fs::create_dir_all(workspace.join("memories")).unwrap();
         std::fs::create_dir_all(workspace.join(".memd/compiled/memory")).unwrap();
         std::fs::write(workspace.join("SOUL.md"), "# soul\ncore identity").unwrap();
+        std::fs::write(
+            workspace.join("memories/MEMORY.md"),
+            "# memory\ndurable facts",
+        )
+        .unwrap();
+        std::fs::write(workspace.join("memories/USER.md"), "# user\nuser profile").unwrap();
         std::fs::write(workspace.join(".memd/mem.md"), "# mem\ncompiled memory").unwrap();
         std::fs::write(
             workspace.join(".memd/compiled/memory/session.md"),
@@ -219,6 +229,8 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert!(paths.contains(&"SOUL.md"));
+        assert!(paths.contains(&"memories/MEMORY.md"));
+        assert!(paths.contains(&"memories/USER.md"));
         assert!(paths.contains(&".memd/mem.md"));
         assert!(paths.contains(&".memd/compiled/memory/session.md"));
     }

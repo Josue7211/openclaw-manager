@@ -1,9 +1,7 @@
 
-
-
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { Brain, Scroll, MagnifyingGlass, Sparkle } from '@phosphor-icons/react'
+import { Brain, MagnifyingGlass, Sparkle } from '@phosphor-icons/react'
 import { api, ApiError } from '@/lib/api'
 import { timeAgo } from '@/lib/utils'
 import { queryKeys } from '@/lib/query-keys'
@@ -19,6 +17,7 @@ interface FileItem {
 interface FileTree {
   coreFiles: FileItem[]
   memoryFiles: FileItem[]
+  memdFiles: FileItem[]
 }
 
 interface SearchResult {
@@ -30,22 +29,120 @@ interface SearchResult {
   [key: string]: unknown
 }
 
+interface MemdEntry {
+  id: string
+  title?: string
+  name?: string
+  path?: string
+  content?: string
+  summary?: string
+  snippet?: string
+  kind?: string
+  status?: string
+  score?: number
+  updatedAt?: string
+  createdAt?: string
+}
+
+interface MemdHealth {
+  source?: string
+  status?: string
+  baseUrl?: string | null
+  remoteHealthy?: boolean
+  itemCount?: number
+  localItemCount?: number
+  latencyMs?: number
+  checkedAt?: string
+  error?: string
+}
+
+type MemdView = 'current' | 'inbox' | 'repair' | 'logs' | 'files'
+
+interface MemdAuthorityWarning {
+  severity?: string
+  code?: string
+  message?: string
+  action?: string
+}
+
+interface MemdAuthority {
+  ok?: boolean
+  source?: string
+  baseUrl?: string | null
+  checkedAt?: string
+  health?: MemdHealth & {
+    pressure?: Record<string, number>
+    rag?: { reachable?: boolean; url?: string | null; [key: string]: unknown } | null
+    atlas?: { dormant?: boolean; [key: string]: unknown } | null
+  }
+  counts?: {
+    total?: number
+    active?: number
+    stale?: number
+    expired?: number
+    candidates?: number
+    sampleSize?: number
+    partial?: boolean
+    byKindSample?: Record<string, number>
+    byStatusSample?: Record<string, number>
+    byStageSample?: Record<string, number>
+  }
+  owner?: {
+    mode?: string
+    active?: string
+    verified?: boolean
+    portainerRequired?: boolean
+  }
+  authoritySearch?: {
+    mode?: string
+    configured?: boolean
+    tokenRequired?: boolean
+    endpoint?: string
+    usedForInventory?: boolean
+  }
+  safety?: Record<string, unknown>
+  operations?: Array<Record<string, unknown>>
+  warnings?: MemdAuthorityWarning[]
+}
+
+function uniqueFiles(files: FileItem[]): FileItem[] {
+  const seen = new Set<string>()
+  return files.filter(file => {
+    if (file.name.startsWith('._') || file.path.split('/').some(part => part.startsWith('._'))) return false
+    if (seen.has(file.path)) return false
+    seen.add(file.path)
+    return true
+  })
+}
+
 export default function MemoryPage() {
   const queryClient = useQueryClient()
   const { data: treeData, isLoading: treeLoading } = useQuery<FileTree>({
     queryKey: queryKeys.workspaceFiles,
     queryFn: async () => {
-      const d = await api.get<{ coreFiles?: FileItem[]; memoryFiles?: FileItem[] }>('/api/workspace/files')
-      return { coreFiles: d.coreFiles || [], memoryFiles: d.memoryFiles || [] }
+      const d = await api.get<{ coreFiles?: FileItem[]; memoryFiles?: FileItem[]; memdFiles?: FileItem[] }>('/api/workspace/files')
+      const memdFiles = d.memdFiles ?? []
+      const legacyMemoryFiles = d.memoryFiles ?? []
+      return {
+        coreFiles: d.coreFiles || [],
+        memoryFiles: legacyMemoryFiles.filter(file => !file.path.startsWith('.memd/')),
+        memdFiles: uniqueFiles([
+          ...memdFiles,
+          ...legacyMemoryFiles.filter(file => file.path.startsWith('.memd/')),
+        ]),
+      }
     },
   })
 
   const tree = {
     coreFiles: treeData?.coreFiles ?? [],
     memoryFiles: treeData?.memoryFiles ?? [],
+    memdFiles: treeData?.memdFiles ?? [],
   }
 
   const [activeFile, setActiveFile] = useState<string | null>(null)
+  const [activeTitle, setActiveTitle] = useState<string | null>(null)
+  const [activeReadOnly, setActiveReadOnly] = useState(false)
   const [content, setContent] = useState('')
   const [editContent, setEditContent] = useState('')
   const [mode, setMode] = useState<'view' | 'edit'>('view')
@@ -54,8 +151,44 @@ export default function MemoryPage() {
   const [search, setSearch] = useState('')
   const [searchMode, setSearchMode] = useState<'files' | 'semantic'>('files')
   const [semanticQuery, setSemanticQuery] = useState('')
+  const [memdView, setMemdView] = useState<MemdView>('current')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const loadRequestRef = useRef(0)
+
+  const { data: memdHealth } = useQuery<MemdHealth | null>({
+    queryKey: ['memd-health'],
+    queryFn: async () => {
+      const resp = await api.get<{ ok?: boolean; data?: MemdHealth }>('/api/memd/health')
+      return resp?.ok ? (resp.data ?? null) : null
+    },
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+  })
+
+  const { data: memdAuthority, isLoading: memdAuthorityLoading } = useQuery<MemdAuthority | null>({
+    queryKey: ['memd-authority'],
+    queryFn: async () => {
+      const resp = await api.get<{ ok?: boolean; data?: MemdAuthority }>('/api/memd/authority')
+      return resp?.ok ? (resp.data ?? null) : null
+    },
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+  })
+
+  const { data: memdEntriesData, isLoading: memdEntriesLoading } = useQuery<MemdEntry[]>({
+    queryKey: [...queryKeys.memory, memdView],
+    queryFn: async () => {
+      const filters = memdQueryForView(memdView)
+      const resp = await api.post<{ ok?: boolean; data?: { entries?: MemdEntry[] } }>('/api/memd/query', {
+        limit: 30,
+        ...filters,
+      })
+      return resp?.ok ? (resp.data?.entries ?? []) : []
+    },
+    enabled: searchMode === 'files' && memdView !== 'files',
+    staleTime: 30_000,
+  })
+  const memdEntries = memdEntriesData ?? []
 
   // Debounce semantic search input
   const handleSemanticInput = useCallback((value: string) => {
@@ -101,6 +234,8 @@ export default function MemoryPage() {
   const loadFile = useCallback(async (filePath: string) => {
     const requestId = ++loadRequestRef.current
     setActiveFile(filePath)
+    setActiveTitle(null)
+    setActiveReadOnly(false)
     setMode('view')
     setLoading(true)
     setContent('')
@@ -136,6 +271,29 @@ export default function MemoryPage() {
     }
   }, [])
 
+  const loadMemdEntry = useCallback((entry: MemdEntry) => {
+    const title = (entry.title || entry.name || 'memd memory').toString()
+    const path = entry.path || `memd/${entry.kind || 'memory'}/${entry.id}`
+    const body = [
+      `# ${title}`,
+      '',
+      entry.summary || entry.snippet ? `Summary: ${entry.summary || entry.snippet}` : '',
+      entry.kind ? `Kind: ${entry.kind}` : '',
+      entry.status ? `Status: ${entry.status}` : '',
+      entry.score != null ? `Score: ${entry.score}` : '',
+      entry.updatedAt ? `Updated: ${entry.updatedAt}` : '',
+      '',
+      entry.content || entry.summary || entry.snippet || '',
+    ].filter(Boolean).join('\n')
+    setActiveFile(path)
+    setActiveTitle(title)
+    setActiveReadOnly(true)
+    setMode('view')
+    setLoading(false)
+    setContent(body)
+    setEditContent(body)
+  }, [])
+
   const saveMutation = useMutation({
     mutationFn: async ({ path, content: fileContent }: { path: string; content: string }) => {
       await api.post('/api/workspace/file', { path, content: fileContent })
@@ -161,12 +319,12 @@ export default function MemoryPage() {
   })
 
   const saveFile = async () => {
-    if (!activeFile) return
+    if (!activeFile || activeReadOnly) return
     await saveMutation.mutateAsync({ path: activeFile, content: editContent })
   }
 
   const deleteFile = async () => {
-    if (!activeFile) return
+    if (!activeFile || activeReadOnly) return
     if (!confirm(`Delete "${activeFile}"? This cannot be undone.`)) return
     await deleteMutation.mutateAsync(activeFile)
   }
@@ -180,6 +338,23 @@ export default function MemoryPage() {
   const filteredMemory = q && searchMode === 'files'
     ? tree.memoryFiles.filter(f => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q))
     : tree.memoryFiles
+  const filteredMemd = q && searchMode === 'files'
+    ? tree.memdFiles.filter(f => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q))
+    : tree.memdFiles
+  const filteredMemdEntries = q && searchMode === 'files'
+    ? memdEntries.filter(entry => {
+      const haystack = [
+        entry.title,
+        entry.name,
+        entry.path,
+        entry.summary,
+        entry.snippet,
+        entry.content,
+        entry.kind,
+      ].filter(Boolean).join(' ').toLowerCase()
+      return haystack.includes(q)
+    })
+    : memdEntries
 
   return (
     <div style={{ display: 'flex', gap: 0, height: 'calc(100vh - 120px)', minHeight: 0 }}>
@@ -193,8 +368,14 @@ export default function MemoryPage() {
         flexShrink: 0,
       }}>
         <div style={{ padding: '0 0 8px 0', marginBottom: 8 }}>
-          <PageHeader defaultTitle="Memory" defaultSubtitle="workspace files + daily logs" />
+          <PageHeader defaultTitle="Memory" defaultSubtitle="agent files + memory stores" />
         </div>
+
+        <MemoryAuthorityPanel
+          authority={memdAuthority}
+          fallbackHealth={memdHealth}
+          authorityLoading={memdAuthorityLoading}
+        />
 
         {/* Search mode toggle */}
         <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
@@ -276,7 +457,7 @@ export default function MemoryPage() {
             )}
             {searchError && (
               <div style={{ padding: '12px', fontSize: '12px', color: 'var(--red-500)' }}>
-                Search unavailable. Check LightRAG connection.
+                Search unavailable. Check the backend route.
               </div>
             )}
             {!searchLoading && !searchError && semanticQuery.length >= 2 && searchResults && searchResults.length === 0 && (
@@ -341,7 +522,7 @@ export default function MemoryPage() {
                     letterSpacing: '0.08em',
                     padding: '8px 12px 4px',
                   }}>
-                    Workspace Files
+                    Agent Files
                   </div>
                   {filteredCore.length === 0 && (
                     <div style={{ padding: '8px 0' }}>
@@ -358,7 +539,34 @@ export default function MemoryPage() {
                   ))}
                 </div>
 
-                {/* Memory logs section */}
+                {(filteredMemory.length > 0 || q) && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: 'var(--text-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      padding: '8px 12px 4px',
+                    }}>
+                      Legacy Memory Logs
+                    </div>
+                    {filteredMemory.length === 0 && (
+                      <div style={{ padding: '8px 12px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                        No legacy log matches
+                      </div>
+                    )}
+                    {filteredMemory.map(f => (
+                      <FileRow
+                        key={f.path}
+                        file={f}
+                        active={activeFile === f.path}
+                        onClick={() => loadFile(f.path)}
+                      />
+                    ))}
+                  </div>
+                )}
+
                 <div>
                   <div style={{
                     fontSize: '11px',
@@ -368,14 +576,55 @@ export default function MemoryPage() {
                     letterSpacing: '0.08em',
                     padding: '8px 12px 4px',
                   }}>
-                    Memory Logs
+                    memd
                   </div>
-                  {filteredMemory.length === 0 && (
+                  <MemdViewTabs value={memdView} onChange={setMemdView} counts={memdAuthority?.counts} />
+                  {memdView === 'files' && filteredMemd.length === 0 && (
                     <div style={{ padding: '8px 0' }}>
-                      <EmptyState icon={Scroll} title={q ? 'No matches' : 'No logs found'} />
+                      <EmptyState icon={Brain} title={q ? 'No file matches' : 'No memd files found'} />
                     </div>
                   )}
-                  {filteredMemory.map(f => (
+                  {memdView !== 'files' && filteredMemdEntries.length === 0 && !memdEntriesLoading && (
+                    <div style={{ padding: '8px 0' }}>
+                      <EmptyState icon={Brain} title={q ? 'No memory matches' : emptyTitleForMemdView(memdView)} />
+                    </div>
+                  )}
+                  {memdView !== 'files' && memdEntriesLoading && (
+                    <SkeletonList count={2} lines={2} />
+                  )}
+                  {memdView !== 'files' && filteredMemdEntries.length > 0 && (
+                    <div style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      color: 'var(--text-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      padding: '6px 12px 3px',
+                    }}>
+                      {labelForMemdView(memdView)}
+                    </div>
+                  )}
+                  {memdView !== 'files' && filteredMemdEntries.map(entry => (
+                    <MemdEntryRow
+                      key={entry.id}
+                      entry={entry}
+                      active={activeFile === (entry.path || `memd/${entry.kind || 'memory'}/${entry.id}`)}
+                      onClick={() => loadMemdEntry(entry)}
+                    />
+                  ))}
+                  {memdView === 'files' && filteredMemd.length > 0 && (
+                    <div style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      color: 'var(--text-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      padding: '8px 12px 3px',
+                    }}>
+                      Files
+                    </div>
+                  )}
+                  {memdView === 'files' && filteredMemd.map(f => (
                     <FileRow
                       key={f.path}
                       file={f}
@@ -396,7 +645,7 @@ export default function MemoryPage() {
           <div className="card" style={{ padding: '48px', textAlign: 'center', marginTop: 8 }}>
             <div style={{ fontSize: '40px', marginBottom: '16px' }}>📄</div>
             <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-              Select a file from the left panel to view or edit it.
+              Select a file or memory from the left panel to view it.
             </div>
           </div>
         ) : (
@@ -405,7 +654,7 @@ export default function MemoryPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexShrink: 0 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
-                  {fileName}
+                  {activeTitle || fileName}
                 </div>
                 {lastSaved && (
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: 2 }}>
@@ -429,21 +678,23 @@ export default function MemoryPage() {
                 >
                   View
                 </button>
-                <button
-                  onClick={() => setMode('edit')}
-                  style={{
-                    padding: '5px 14px',
-                    fontSize: '12px',
-                    borderRadius: 6,
-                    border: '1px solid var(--border)',
-                    background: mode === 'edit' ? 'var(--accent)' : 'transparent',
-                    color: mode === 'edit' ? 'var(--text-on-color)' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                  }}
-                >
-                  Edit
-                </button>
+                {!activeReadOnly && (
+                  <button
+                    onClick={() => setMode('edit')}
+                    style={{
+                      padding: '5px 14px',
+                      fontSize: '12px',
+                      borderRadius: 6,
+                      border: '1px solid var(--border)',
+                      background: mode === 'edit' ? 'var(--accent)' : 'transparent',
+                      color: mode === 'edit' ? 'var(--text-on-color)' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Edit
+                  </button>
+                )}
                 {mode === 'edit' && (
                   <>
                     <button
@@ -540,7 +791,304 @@ export default function MemoryPage() {
   )
 }
 
+function memdQueryForView(view: MemdView): Record<string, unknown> {
+  switch (view) {
+    case 'inbox':
+      return { includeArchived: true, stages: ['candidate'] }
+    case 'repair':
+      return { includeArchived: true, statuses: ['stale', 'contested', 'superseded'] }
+    case 'logs':
+      return { includeArchived: true, statuses: ['expired'] }
+    case 'files':
+      return { includeArchived: true }
+    case 'current':
+    default:
+      return { includeArchived: false, statuses: ['active'] }
+  }
+}
+
+function labelForMemdView(view: MemdView): string {
+  switch (view) {
+    case 'inbox':
+      return 'Inbox / Candidates'
+    case 'repair':
+      return 'Repair Queue'
+    case 'logs':
+      return 'Memory Logs'
+    case 'files':
+      return 'Files'
+    case 'current':
+    default:
+      return 'Current Memories'
+  }
+}
+
+function emptyTitleForMemdView(view: MemdView): string {
+  switch (view) {
+    case 'inbox':
+      return 'No candidate memories'
+    case 'repair':
+      return 'No stale memories'
+    case 'logs':
+      return 'No log memories'
+    case 'current':
+    default:
+      return 'No active memories'
+  }
+}
+
+function formatCount(value?: number): string {
+  if (value == null) return '0'
+  return value.toLocaleString()
+}
+
+function MemoryAuthorityPanel({
+  authority,
+  fallbackHealth,
+  authorityLoading = false,
+}: {
+  authority?: MemdAuthority | null
+  fallbackHealth?: MemdHealth | null
+  authorityLoading?: boolean
+}) {
+  const health = authority?.health ?? fallbackHealth
+  const counts = authority?.counts
+  const healthy = Boolean(health?.remoteHealthy)
+  const status = authorityLoading && !authority ? 'checking' : health?.status || 'checking'
+  const source = authority?.source || fallbackHealth?.source || 'memd'
+  const count = counts?.total ?? health?.itemCount ?? 0
+  const pressure = authority?.health?.pressure
+  const expired = counts?.expired ?? pressure?.expired ?? 0
+  const stale = counts?.stale ?? pressure?.stale ?? 0
+  const active = counts?.active ?? Math.max(0, count - expired - stale)
+  const candidates = counts?.candidates ?? pressure?.candidates ?? 0
+  const latency = health?.latencyMs != null ? `${health.latencyMs}ms` : null
+  const baseUrl = authority?.baseUrl || fallbackHealth?.baseUrl || 'local bundle'
+  const ragOk = authority?.health?.rag?.reachable
+  const authorityMode = Boolean(authority?.authoritySearch?.configured)
+  const primaryWarning = authority?.warnings?.find(w => w.severity === 'error' || w.severity === 'warning')
+  const displayWarning = authorityLoading && !authority ? undefined : primaryWarning
+  const dotColor = healthy ? 'var(--green-500)' : status === 'checking' ? 'var(--text-muted)' : 'var(--amber)'
+
+  return (
+    <div style={{
+      border: '1px solid var(--border)',
+      borderRadius: 8,
+      padding: '10px',
+      marginBottom: 8,
+      background: 'var(--bg-elevated)',
+      boxSizing: 'border-box',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <span style={{
+          width: 8,
+          height: 8,
+          borderRadius: 999,
+          background: dotColor,
+          flexShrink: 0,
+        }} />
+        <div style={{
+          minWidth: 0,
+          flex: 1,
+          color: 'var(--text-primary)',
+          fontSize: 12,
+          fontWeight: 700,
+          fontFamily: 'monospace',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}>
+          {source} · {formatCount(count)} items
+        </div>
+        <div style={{
+          color: healthy ? 'var(--green-500)' : 'var(--text-muted)',
+          fontSize: 10,
+          fontFamily: 'monospace',
+          textTransform: 'uppercase',
+          flexShrink: 0,
+        }}>
+          {status}
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 6, marginTop: 7, minWidth: 0 }}>
+        <StatusBadge
+          label={authorityMode ? 'authority' : 'standard'}
+          tone={authorityMode ? 'good' : 'muted'}
+          title={authorityMode ? 'Token-gated memd authority search is configured' : 'Using normal memd search only'}
+        />
+        <StatusBadge
+          label={ragOk == null ? 'rag n/a' : ragOk ? 'rag ok' : 'rag down'}
+          tone={ragOk ? 'good' : ragOk === false ? 'warn' : 'muted'}
+        />
+      </div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+        gap: 6,
+        marginTop: 8,
+      }}>
+        <AuthorityMetric label="active" value={active} />
+        <AuthorityMetric label="logs" value={expired} />
+        <AuthorityMetric label="inbox" value={candidates} />
+      </div>
+      <div style={{
+        marginTop: 7,
+        color: primaryWarning ? 'var(--amber)' : 'var(--text-muted)',
+        fontSize: 10,
+        fontFamily: 'monospace',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}>
+          {displayWarning?.message || [baseUrl, latency, ragOk == null ? null : `rag ${ragOk ? 'ok' : 'down'}`].filter(Boolean).join(' · ')}
+      </div>
+    </div>
+  )
+}
+
+function StatusBadge({ label, tone, title }: { label: string; tone: 'good' | 'warn' | 'muted'; title?: string }) {
+  const color = tone === 'good' ? 'var(--green-500)' : tone === 'warn' ? 'var(--amber)' : 'var(--text-muted)'
+  return (
+    <span
+      title={title}
+      style={{
+        minWidth: 0,
+        border: '1px solid var(--border)',
+        borderRadius: 999,
+        padding: '2px 7px',
+        color,
+        fontSize: 9,
+        fontWeight: 800,
+        fontFamily: 'monospace',
+        textTransform: 'uppercase',
+        lineHeight: 1.4,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </span>
+  )
+}
+
+function AuthorityMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div style={{
+      border: '1px solid var(--border)',
+      borderRadius: 6,
+      padding: '5px 6px',
+      minWidth: 0,
+      background: 'var(--bg-base)',
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
+        {formatCount(value)}
+      </div>
+      <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'monospace' }}>
+        {label}
+      </div>
+    </div>
+  )
+}
+
+function MemdViewTabs({
+  value,
+  onChange,
+  counts,
+}: {
+  value: MemdView
+  onChange: (value: MemdView) => void
+  counts?: MemdAuthority['counts']
+}) {
+  const tabs: Array<{ value: MemdView; label: string; count?: number }> = [
+    { value: 'current', label: 'Current', count: counts?.active },
+    { value: 'inbox', label: 'Inbox', count: counts?.candidates },
+    { value: 'repair', label: 'Repair', count: counts?.stale },
+    { value: 'logs', label: 'Logs', count: counts?.expired },
+    { value: 'files', label: 'Files' },
+  ]
+
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+      gap: 3,
+      padding: '4px 0 8px',
+    }}>
+      {tabs.map(tab => (
+        <button
+          key={tab.value}
+          onClick={() => onChange(tab.value)}
+          style={{
+            minWidth: 0,
+            padding: '5px 4px',
+            borderRadius: 6,
+            border: '1px solid var(--border)',
+            background: value === tab.value ? 'var(--accent)' : 'transparent',
+            color: value === tab.value ? 'var(--text-on-color)' : 'var(--text-secondary)',
+            cursor: 'pointer',
+            fontSize: 10,
+            fontFamily: 'monospace',
+            fontWeight: 700,
+          }}
+          title={labelForMemdView(tab.value)}
+        >
+          <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tab.label}</span>
+          {tab.count != null && (
+            <span style={{ display: 'block', fontSize: 9, opacity: 0.75 }}>{formatCount(tab.count)}</span>
+          )}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function FileRow({ file, active, onClick }: { file: FileItem; active: boolean; onClick: () => void }) {
+  const showPath = file.path.includes('/')
+  return (
+    <button
+      onClick={onClick}
+      className={active ? undefined : 'hover-bg'}
+      style={{
+        display: 'block',
+        width: '100%',
+        textAlign: 'left',
+        background: active ? 'var(--active-bg)' : 'transparent',
+        border: 'none',
+        borderRadius: 8,
+        padding: showPath ? '7px 12px' : '8px 12px',
+        marginBottom: 2,
+        cursor: 'pointer',
+        color: active ? 'var(--text-on-color)' : 'var(--text-secondary)',
+        fontSize: '13px',
+        fontFamily: 'monospace',
+        fontWeight: active ? 600 : 400,
+        transition: 'background 0.15s ease',
+      }}
+    >
+      <span style={{ display: 'block' }}>{file.name}</span>
+      {showPath && (
+        <span style={{
+          display: 'block',
+          marginTop: 2,
+          color: active ? 'var(--text-on-color)' : 'var(--text-muted)',
+          fontSize: '10px',
+          fontWeight: 400,
+          opacity: 0.78,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}>
+          {file.path}
+        </span>
+      )}
+    </button>
+  )
+}
+
+function MemdEntryRow({ entry, active, onClick }: { entry: MemdEntry; active: boolean; onClick: () => void }) {
+  const title = (entry.title || entry.name || 'memd memory').toString()
+  const preview = (entry.snippet || entry.summary || entry.content || entry.path || '').toString()
+  const truncated = preview.length > 160 ? preview.slice(0, 160) + '...' : preview
+
   return (
     <button
       onClick={onClick}
@@ -562,7 +1110,23 @@ function FileRow({ file, active, onClick }: { file: FileItem; active: boolean; o
         transition: 'background 0.15s ease',
       }}
     >
-      {file.name}
+      <span style={{ display: 'block' }}>{title}</span>
+      {truncated && (
+        <span style={{
+          marginTop: 3,
+          color: active ? 'var(--text-on-color)' : 'var(--text-muted)',
+          fontSize: '10px',
+          fontWeight: 400,
+          opacity: 0.78,
+          overflow: 'hidden',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          lineHeight: 1.35,
+        }}>
+          {truncated}
+        </span>
+      )}
     </button>
   )
 }

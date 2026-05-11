@@ -16,6 +16,7 @@ import { Robot, Warning, SpinnerGap, Eye } from '@phosphor-icons/react'
 import { analyzeCode } from '@/lib/generated-module-static-analysis'
 import { buildSandboxHTML, getThemeVarsCSS } from '@/lib/generated-module-sandbox'
 import { api } from '@/lib/api'
+import { OpenUiSnippet } from '@/lib/openui'
 import type { GenerationState } from '@/lib/generated-module-types'
 import type { ModuleProposal, PrimitiveNode } from '@/lib/module-proposals'
 import { PRIMITIVE_COMPONENTS } from '@/components/primitives/register'
@@ -54,6 +55,9 @@ export function ModulePreview({
 
   const structuredPreview = useMemo(() => {
     if (!proposal || isFallback) return null
+    if (proposal.openUiLang?.trim()) {
+      return <OpenUiSnippet source={proposal.openUiLang} />
+    }
     return renderProposalNode(proposal.tree, 'root')
   }, [proposal, isFallback])
 

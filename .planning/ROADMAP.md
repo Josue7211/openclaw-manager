@@ -2,6 +2,9 @@
 
 ## Milestones
 
+- 25-Star Sovereign Executive System -- long-range north star -- [Full details](GOAL-25-star-sovereign-executive-system.md)
+- 25-Star Memory Authority -- memd as governed memory control plane -- [Full details](GOAL-memory-authority-25-star.md)
+- 25-Star Notes Docs + Obsidian Vault -- Google Docs-class editor on Obsidian-compatible markdown -- [Full details](GOAL-notes-25-star-docs-vault.md)
 - v1.0 -- Publishable release (shipped 2026-03-21) -- [Full details](milestones/v1.0-ROADMAP.md)
 - v0.0.2 -- Widget-First Architecture (shipped 2026-03-22)
 - v0.0.3 -- AI Ops Center + OpenClaw Controller + Polish (shipped 2026-03-24)

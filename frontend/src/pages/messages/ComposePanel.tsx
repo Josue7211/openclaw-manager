@@ -7,6 +7,9 @@ interface ComposePanelProps {
   composeTo: string
   setComposeTo: (v: string) => void
   composeSending: boolean
+  composeService: 'iMessage' | 'SMS'
+  setComposeService: (v: 'iMessage' | 'SMS') => void
+  composeError: string | null
   composeDraftRef: React.MutableRefObject<string>
   composeHasDraft: boolean
   setComposeHasDraft: (v: boolean | ((prev: boolean) => boolean)) => void
@@ -18,6 +21,9 @@ export default function ComposePanel({
   composeTo,
   setComposeTo,
   composeSending,
+  composeService,
+  setComposeService,
+  composeError,
   composeDraftRef,
   composeHasDraft,
   setComposeHasDraft,
@@ -43,8 +49,12 @@ export default function ComposePanel({
         <NotePencil size={20} style={{ color: 'var(--accent)', flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: '14px', fontWeight: 600 }}>New Message</div>
-          <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: "'JetBrains Mono', monospace" }}>
-            Compose
+          <div style={{
+            fontSize: '10px',
+            color: composeService === 'iMessage' ? 'var(--apple-cyan)' : 'var(--apple-green)',
+            fontFamily: "'JetBrains Mono', monospace",
+          }}>
+            {composeService}
           </div>
         </div>
       </div>
@@ -67,12 +77,69 @@ export default function ComposePanel({
           }}
         />
       </div>
+      <div style={{
+        padding: '10px 20px',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex',
+        justifyContent: 'center',
+      }}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          width: 'min(280px, 100%)',
+          padding: '3px',
+          borderRadius: '999px',
+          background: 'var(--bg-elevated)',
+          border: '1px solid var(--border)',
+        }}>
+          {(['iMessage', 'SMS'] as const).map(service => {
+            const active = composeService === service
+            return (
+              <button
+                key={service}
+                type="button"
+                onClick={() => setComposeService(service)}
+                style={{
+                  border: 'none',
+                  borderRadius: '999px',
+                  padding: '7px 12px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  color: active ? 'var(--text-on-color)' : 'var(--text-secondary)',
+                  background: active
+                    ? service === 'iMessage'
+                      ? 'linear-gradient(135deg, var(--apple-cyan), var(--apple-blue))'
+                      : 'var(--apple-green)'
+                    : 'transparent',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {service}
+              </button>
+            )
+          })}
+        </div>
+      </div>
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
         <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
           <ChatText size={32} style={{ opacity: 0.3, marginBottom: '12px' }} />
           <div>Start a new conversation</div>
         </div>
       </div>
+      {composeError && (
+        <div style={{
+          margin: '0 20px 10px',
+          padding: '10px 12px',
+          border: '1px solid var(--red-500-a20)',
+          borderRadius: '10px',
+          background: 'var(--red-500-a12)',
+          color: 'var(--red)',
+          fontSize: '12px',
+        }}>
+          {composeError}
+        </div>
+      )}
       <div style={{
         padding: '12px 20px',
         borderTop: '1px solid var(--border)',

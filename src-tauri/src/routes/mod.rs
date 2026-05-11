@@ -50,6 +50,7 @@ pub mod stale;
 pub mod status;
 pub mod terminal;
 pub mod todos;
+pub mod training;
 pub mod user_secrets;
 pub mod util;
 pub mod vault;
@@ -105,6 +106,7 @@ pub fn router() -> Router<AppState> {
         .merge(stale::router())
         .merge(status::router())
         .merge(todos::router())
+        .merge(training::router())
         .merge(terminal::router())
         .merge(claude_sessions::router())
         .merge(user_secrets::router())

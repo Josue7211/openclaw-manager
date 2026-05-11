@@ -3,47 +3,80 @@
 ClawControl currently has two configuration modes:
 
 1. local/dev mode: `.env.local` plus in-app settings
-2. release-path mode: backend-first setup with one compose file and one deployment env
+2. release-path mode: batteries-included Docker setup with one compose file and one deployment env
 
-The backend-first release path is in progress. It is not fully shipped yet.
+New Docker installs should use the full stack so Supabase, Agent Secrets,
+AgentShell, memd, LightRAG, RAGAnything/MinerU, and RAG ship with ClawControl
+by default. Existing personal setups can keep pointing the app at separately
+hosted services through env overrides or in-app connection settings.
 
 The active release direction is a backend-first setup flow:
 
-- one backend Docker Compose stack
-- one deployment `.env`
+- one full Docker Compose stack
+- one generated deployment `.env`
 - one backend URL
 - one pairing token
 
 Tracking docs:
 
+- [SETUP.md](SETUP.md)
 - [backend-stack.md](backend-stack.md)
 - [release-package-plan.md](release-package-plan.md)
 
-## Required
+## Required For Full Docker Stack
 
 | Variable | Description |
 |----------|-------------|
-| `VITE_SITE_URL` | Your app URL (e.g. `http://localhost:3000`) |
-| `VITE_SUPABASE_URL` | Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anonymous key |
+| `FRONTEND_PUBLIC_SITE_URL` | Public frontend URL (for example `http://localhost:8088`) |
+| `BACKEND_PUBLIC_BASE_URL` | Public backend URL (for example `http://localhost:3010`) |
+| `PAIRING_TOKEN` | Token pasted into the desktop app during pairing |
+| `MC_AGENT_KEY` | Stable API key for agent/backend calls |
+| `POSTGRES_PASSWORD` | Bundled Supabase database password |
+| `JWT_SECRET` | Supabase JWT signing secret |
+| `SUPABASE_URL` | Bundled gateway URL or external Supabase URL |
+| `SUPABASE_ANON_KEY` | Supabase anonymous JWT |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
-| `MC_API_KEY` | API authentication key (required in production, optional in dev) |
+| `SECRET_BROKER_CLIENT_API_KEY` | Agent Secrets client key |
+| `SECRET_BROKER_APPROVER_API_KEY` | Agent Secrets approver key |
+
+## Built-in Docker Stack
+
+Fresh Docker/Portainer installs ship these services:
+
+| Service | Default |
+|----------|---------|
+| Supabase-compatible backend | Postgres, PostgREST, GoTrue, Realtime, Storage, Meta, gateway |
+| Agent Secrets | `http://secret-broker:4815` |
+| AgentShell | `http://agentshell:8077` |
+| Harness API sidecar | `http://harness-api:3939` |
+| memd server | `http://memd-server:8787` |
+| memd RAG sidecar | `http://memd-rag-sidecar:9000` |
+| LightRAG | `http://lightrag:9621` |
+| RAGAnything/MinerU | `http://raganything-miner:8010` |
+| Mac Bridge | shipped as optional `macos` profile |
+
+External values still win. If a user already has Supabase, Agent Secrets,
+memd, LightRAG, or Mac Bridge running elsewhere, set the corresponding env var
+or in-app connection and ClawControl will use that instead.
 
 ## Release-Path Scaffold
 
 The current release scaffold lives in:
 
-- [../docker-compose.backend.yml](../docker-compose.backend.yml)
-- [../.env.backend.example](../.env.backend.example)
+- [../deploy/portainer/clawcontrol-full.stack.yml](../deploy/portainer/clawcontrol-full.stack.yml)
+- [../deploy/portainer/clawcontrol-full.env.example](../deploy/portainer/clawcontrol-full.env.example)
+- [SETUP.md](SETUP.md)
 - [backend-stack.md](backend-stack.md)
 - [release-package-plan.md](release-package-plan.md)
 
 For now:
 
-- the compose stack is scaffolded
+- the full compose stack is scaffolded
+- `npm run stack:env` generates first-run secrets and Supabase JWTs
+- `npm run stack:check` validates the env and compose wiring
 - setup/status and pairing endpoints exist
 - the desktop app can store a backend URL and pairing token
-- package verification is still a work item
+- Docker runtime verification is still a release work item
 
 ## Optional -- Homelab
 
@@ -120,13 +153,20 @@ For now:
 
 `HERMES_*` and `OPENCLAW_*` are supported as provider-specific compatibility aliases. Prefer `HARNESS_*` for new configuration so the app stays provider-neutral.
 
-## Optional -- LightRAG / memd RAG
+## Built-in memd, LightRAG, and RAGAnything
+
+ClawControl ships with local memd retrieval for Memory and Knowledge. The full
+Docker stack also includes memd RAG sidecar, LightRAG, and a RAGAnything/MinerU
+service for multimodal document extraction. External endpoints remain override
+paths for users who already run any of these pieces.
 
 | Variable | Description |
 |----------|-------------|
-| `LIGHTRAG_BASE_URL` | LightRAG server URL (for example `http://your-lightrag-host:9621`) |
+| `LIGHTRAG_BASE_URL` | Bundled or external LightRAG server URL (for example `http://lightrag:9621`) |
 | `LIGHTRAG_API_KEY` | Optional LightRAG bearer token |
 | `MEMD_RAG_URL` | memd RAG sidecar URL. Used when ClawControl should talk to the sidecar instead of raw LightRAG |
+| `RAGANYTHING_URL` | RAGAnything/MinerU service URL |
+| `MINERU_URL` | MinerU parser service URL, currently same default as RAGAnything |
 
 ## Optional -- iOS Quick Capture
 

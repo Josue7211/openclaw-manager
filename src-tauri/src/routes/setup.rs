@@ -50,17 +50,17 @@ struct SetupServiceState {
     configured: bool,
     reachable: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    status: Option<&'static str>,
+    status: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     auth_configured: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     auth_valid: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    auth_source: Option<&'static str>,
+    auth_source: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    checked_path: Option<&'static str>,
+    checked_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    message: Option<&'static str>,
+    message: Option<String>,
 }
 
 impl SetupServiceState {
@@ -133,17 +133,26 @@ async fn get_setup_status(
     headers: HeaderMap,
 ) -> Json<SetupStatusResponse> {
     let supabase_url = state.secret_or_default("SUPABASE_URL");
-    let supabase_service_key = state.secret_or_default("SUPABASE_SERVICE_ROLE_KEY");
+    let supabase_reachability_key = state
+        .secret_first(&[
+            "SUPABASE_ANON_KEY",
+            "VITE_SUPABASE_ANON_KEY",
+            "SUPABASE_SERVICE_ROLE_KEY",
+        ])
+        .unwrap_or_default();
     let harness_url = state
         .secret_first(&["HARNESS_API_URL", "HERMES_API_URL", "OPENCLAW_API_URL"])
         .unwrap_or_default();
     let harness_auth = harness_auth(&state);
-    let agentsecrets_url = state.secret_or_default("AGENTSECRETS_URL");
-    let agentsecrets_key = state.secret_or_default("AGENTSECRETS_CLIENT_API_KEY");
+    let agentsecrets_health = crate::routes::secret_broker_support::health_status(&state).await;
+    let agentsecrets_configured = !matches!(
+        agentsecrets_health.status.as_str(),
+        "not_configured" | "auth_missing"
+    );
 
-    let supabase_configured = !supabase_url.is_empty() && !supabase_service_key.is_empty();
+    let supabase_configured = !supabase_url.is_empty() && !supabase_reachability_key.is_empty();
     let supabase_reachable = if supabase_configured {
-        crate::sync::is_supabase_reachable(&supabase_url, &supabase_service_key).await
+        crate::sync::is_supabase_reachable(&supabase_url, &supabase_reachability_key).await
     } else {
         false
     };
@@ -160,22 +169,6 @@ async fn get_setup_status(
             message: "Harness URL is not configured.",
         }
     };
-    let agentsecrets_configured = !agentsecrets_url.is_empty() && !agentsecrets_key.is_empty();
-    let agentsecrets_reachable = if agentsecrets_configured {
-        crate::routes::secret_broker_support::health(&state)
-            .await
-            .map(|value| {
-                value
-                    .0
-                    .get("ok")
-                    .and_then(|value| value.as_bool())
-                    .unwrap_or(false)
-            })
-            .unwrap_or(false)
-    } else {
-        false
-    };
-
     let mut missing = Vec::new();
     if !supabase_configured {
         missing.push("supabase".to_string());
@@ -205,17 +198,23 @@ async fn get_setup_status(
             harness: SetupServiceState {
                 configured: harness_configured,
                 reachable: harness_health.reachable,
-                status: Some(harness_health.status),
+                status: Some(harness_health.status.into()),
                 auth_configured: Some(harness_auth.source != HarnessAuthSource::Missing),
                 auth_valid: Some(harness_health.auth_valid),
-                auth_source: Some(harness_auth.source.as_str()),
-                checked_path: harness_health.checked_path,
-                message: Some(harness_health.message),
+                auth_source: Some(harness_auth.source.as_str().into()),
+                checked_path: harness_health.checked_path.map(str::to_string),
+                message: Some(harness_health.message.into()),
             },
-            agentsecrets: SetupServiceState::simple(
-                agentsecrets_configured,
-                agentsecrets_reachable,
-            ),
+            agentsecrets: SetupServiceState {
+                configured: agentsecrets_configured,
+                reachable: agentsecrets_health.ok,
+                status: Some(agentsecrets_health.status),
+                auth_configured: Some(agentsecrets_configured),
+                auth_valid: Some(agentsecrets_health.ok),
+                auth_source: Some("client_api_key".into()),
+                checked_path: Some("/healthz".into()),
+                message: agentsecrets_health.message,
+            },
             memd: SetupServiceState::simple(true, true),
         },
         missing,

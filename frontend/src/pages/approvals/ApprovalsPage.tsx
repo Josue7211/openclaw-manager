@@ -1,8 +1,127 @@
 import { useState, useCallback } from 'react'
-import { ShieldCheck, Check, X, CaretDown, CaretRight } from '@phosphor-icons/react'
+import type { ReactNode } from 'react'
+import { ShieldCheck, Check, X, CaretDown, CaretRight, ArrowsClockwise } from '@phosphor-icons/react'
 import { useApprovals } from '@/hooks/useApprovals'
 import SecondsAgo from '@/components/SecondsAgo'
-import type { ApprovalRequest } from './types'
+import type { ApprovalRequest, ApprovalSourceStatus } from './types'
+
+type RiskFilter = 'all' | 'high' | 'medium' | 'low' | 'unknown'
+type AgeFilter = 'all' | 'hour' | 'today' | 'older'
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function approvalRisk(approval: ApprovalRequest): RiskFilter {
+  const raw = isRecord(approval.raw) ? approval.raw : {}
+  const argsRisk = isRecord(approval.args) ? approval.args.risk : undefined
+  const rawRisk = raw.risk
+  const risk = String(approval.risk ?? argsRisk ?? rawRisk ?? 'unknown').toLowerCase()
+  if (risk === 'high' || risk === 'medium' || risk === 'low') return risk
+  return 'unknown'
+}
+
+function approvalSource(approval: ApprovalRequest) {
+  return approval.source || 'harness'
+}
+
+function ageMatches(approval: ApprovalRequest, filter: AgeFilter) {
+  if (filter === 'all') return true
+  const requested = new Date(approval.requestedAt)
+  const requestedMs = requested.getTime()
+  if (!Number.isFinite(requestedMs)) return filter === 'older'
+
+  const now = new Date()
+  if (filter === 'hour') return now.getTime() - requestedMs <= 60 * 60 * 1000
+  const sameDay =
+    requested.getFullYear() === now.getFullYear()
+    && requested.getMonth() === now.getMonth()
+    && requested.getDate() === now.getDate()
+  if (filter === 'today') return sameDay
+  return !sameDay
+}
+
+function sourceColor(source: ApprovalSourceStatus) {
+  if (!source.configured) return 'var(--text-muted)'
+  return source.ok ? 'var(--green-500)' : 'var(--red-500)'
+}
+
+function FilterButton({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean
+  children: ReactNode
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        minHeight: 30,
+        borderRadius: 8,
+        border: `1px solid ${active ? 'color-mix(in srgb, var(--accent) 55%, var(--border))' : 'var(--border)'}`,
+        background: active ? 'color-mix(in srgb, var(--accent) 16%, transparent)' : 'var(--surface-bg)',
+        color: active ? 'var(--text-primary)' : 'var(--text-muted)',
+        fontSize: 12,
+        fontWeight: active ? 700 : 600,
+        fontFamily: 'inherit',
+        padding: '5px 10px',
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+function FilterGroup({ children }: { children: ReactNode }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+      {children}
+    </div>
+  )
+}
+
+function SourceStrip({ sources }: { sources: ApprovalSourceStatus[] }) {
+  if (sources.length === 0) return null
+
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+      gap: 10,
+      marginBottom: 18,
+    }}>
+      {sources.map(source => (
+        <div key={source.source} style={{
+          border: '1px solid var(--border)',
+          borderRadius: 8,
+          padding: '10px 12px',
+          background: 'var(--surface-bg)',
+          display: 'grid',
+          gap: 4,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 99, background: sourceColor(source) }} />
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{source.label}</span>
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}>
+              {source.ok ? `${source.count ?? 0} pending` : source.configured ? 'Needs attention' : 'Not configured'}
+            </span>
+          </div>
+          {source.error && (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+              {source.error}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
 
 function ApprovalCard({
   approval,
@@ -45,17 +164,35 @@ function ApprovalCard({
     }}>
       {/* Header row: tool name + timestamp */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{
-          fontFamily: 'var(--font-mono, monospace)',
-          fontWeight: 600,
-          fontSize: 14,
-          color: 'var(--text-primary)',
-          background: 'var(--hover-bg)',
-          padding: '2px 8px',
-          borderRadius: 6,
-        }}>
-          {approval.tool}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <span style={{
+            fontFamily: 'var(--font-mono, monospace)',
+            fontWeight: 600,
+            fontSize: 14,
+            color: 'var(--text-primary)',
+            background: 'var(--hover-bg)',
+            padding: '2px 8px',
+            borderRadius: 6,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>
+            {approval.tool}
+          </span>
+          {approval.sourceLabel && (
+            <span style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: 'var(--accent)',
+              border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
+              borderRadius: 999,
+              padding: '2px 7px',
+              whiteSpace: 'nowrap',
+            }}>
+              {approval.sourceLabel}
+            </span>
+          )}
+        </div>
         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
           <SecondsAgo sinceMs={requestedMs} />
         </span>
@@ -224,10 +361,44 @@ function ApprovalCard({
 }
 
 export default function ApprovalsPage() {
-  const { approvals, isLoading, approve, reject, isApproving, isRejecting } = useApprovals()
+  const [sourceFilter, setSourceFilter] = useState('all')
+  const [riskFilter, setRiskFilter] = useState<RiskFilter>('all')
+  const [ageFilter, setAgeFilter] = useState<AgeFilter>('all')
+  const {
+    approvals,
+    sources: rawSources,
+    isLoading,
+    isFetching,
+    isError,
+    error,
+    approve,
+    reject,
+    isApproving,
+    isRejecting,
+    refetch,
+  } = useApprovals()
+  const sources = rawSources ?? []
 
-  const pending = approvals.filter(a => a.status === 'pending')
-  const resolved = approvals.filter(a => a.status !== 'pending')
+  const sourceLabels = new Map<string, string>()
+  sources.forEach(source => sourceLabels.set(source.source, source.label))
+  approvals.forEach(approval => {
+    const source = approvalSource(approval)
+    if (!sourceLabels.has(source)) sourceLabels.set(source, approval.sourceLabel || source)
+  })
+  const sourceOptions = Array.from(sourceLabels.entries()).sort((a, b) => a[1].localeCompare(b[1]))
+  const filteredApprovals = approvals.filter(approval => {
+    const sourceOk = sourceFilter === 'all' || approvalSource(approval) === sourceFilter
+    const riskOk = riskFilter === 'all' || approvalRisk(approval) === riskFilter
+    const ageOk = ageMatches(approval, ageFilter)
+    return sourceOk && riskOk && ageOk
+  })
+
+  const pending = filteredApprovals.filter(a => a.status === 'pending')
+  const resolved = filteredApprovals.filter(a => a.status !== 'pending')
+  const totalPending = approvals.filter(a => a.status === 'pending').length
+  const sourceErrors = sources.filter(source => !source.ok && source.configured)
+  const showQueryError = isError && !sources.some(source => source.ok)
+  const filtersActive = sourceFilter !== 'all' || riskFilter !== 'all' || ageFilter !== 'all'
 
   return (
     <div style={{
@@ -256,7 +427,7 @@ export default function ApprovalsPage() {
         }}>
           Approval Queue
         </h1>
-        {pending.length > 0 && (
+        {totalPending > 0 && (
           <span style={{
             minWidth: 20,
             height: 20,
@@ -270,9 +441,20 @@ export default function ApprovalsPage() {
             justifyContent: 'center',
             padding: '0 6px',
           }}>
-            {pending.length}
+            {totalPending}
           </span>
         )}
+        <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 12 }}>
+          {isFetching ? 'Refreshing' : `${sources.length || 0} sources`}
+        </span>
+        <button
+          type="button"
+          onClick={() => void refetch()}
+          className="icon-button"
+          aria-label="Refresh approvals"
+        >
+          <ArrowsClockwise size={16} />
+        </button>
       </div>
 
       {/* Content */}
@@ -281,6 +463,115 @@ export default function ApprovalsPage() {
         overflow: 'auto',
         padding: 24,
       }}>
+        <SourceStrip sources={sources} />
+
+        {approvals.length > 0 && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: 10,
+            marginBottom: 18,
+          }}>
+            <FilterGroup>
+              <FilterButton active={sourceFilter === 'all'} onClick={() => setSourceFilter('all')}>
+                All sources
+              </FilterButton>
+              {sourceOptions.map(([source, label]) => (
+                <FilterButton
+                  key={source}
+                  active={sourceFilter === source}
+                  onClick={() => setSourceFilter(source)}
+                >
+                  {label}
+                </FilterButton>
+              ))}
+            </FilterGroup>
+            <FilterGroup>
+              {(['all', 'high', 'medium', 'low', 'unknown'] as RiskFilter[]).map(risk => (
+                <FilterButton
+                  key={risk}
+                  active={riskFilter === risk}
+                  onClick={() => setRiskFilter(risk)}
+                >
+                  {risk === 'all' ? 'All risk' : risk[0].toUpperCase() + risk.slice(1)}
+                </FilterButton>
+              ))}
+            </FilterGroup>
+            <FilterGroup>
+              {([
+                ['all', 'All ages'],
+                ['hour', 'Last hour'],
+                ['today', 'Today'],
+                ['older', 'Older'],
+              ] as Array<[AgeFilter, string]>).map(([age, label]) => (
+                <FilterButton
+                  key={age}
+                  active={ageFilter === age}
+                  onClick={() => setAgeFilter(age)}
+                >
+                  {label}
+                </FilterButton>
+              ))}
+              {filtersActive && (
+                <FilterButton
+                  active={false}
+                  onClick={() => {
+                    setSourceFilter('all')
+                    setRiskFilter('all')
+                    setAgeFilter('all')
+                  }}
+                >
+                  Clear
+                </FilterButton>
+              )}
+            </FilterGroup>
+          </div>
+        )}
+
+        {showQueryError && (
+          <div style={{
+            border: '1px solid color-mix(in srgb, var(--red-500) 40%, var(--border))',
+            borderRadius: 8,
+            padding: 12,
+            marginBottom: 16,
+            color: 'var(--text-secondary)',
+            background: 'color-mix(in srgb, var(--red-500) 8%, transparent)',
+            fontSize: 13,
+          }}>
+            {error instanceof Error ? error.message : 'Approvals failed to load'}
+          </div>
+        )}
+
+        {sourceErrors.length > 0 && totalPending === 0 && (
+          <div style={{
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            padding: 12,
+            marginBottom: 16,
+            color: 'var(--text-secondary)',
+            background: 'var(--surface-bg)',
+            fontSize: 13,
+          }}>
+            Some approval sources are configured but unreachable. Fix the source above, then refresh.
+          </div>
+        )}
+
+        {!isLoading && approvals.length > 0 && filteredApprovals.length === 0 && (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: 240,
+            gap: 12,
+          }}>
+            <ShieldCheck size={40} weight="thin" style={{ color: 'var(--text-muted)' }} />
+            <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>
+              No approvals match
+            </span>
+          </div>
+        )}
+
         {isLoading && approvals.length === 0 && (
           <div style={{
             display: 'flex',
@@ -305,10 +596,10 @@ export default function ApprovalsPage() {
           }}>
             <ShieldCheck size={48} weight="thin" style={{ color: 'var(--text-muted)' }} />
             <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>
-              No pending approval requests
+              No pending approvals
             </span>
             <span style={{ color: 'var(--text-muted)', fontSize: 12, opacity: 0.7 }}>
-              Execution requests from agents will appear here
+              Agent execution and Agent Secrets requests will appear here
             </span>
           </div>
         )}

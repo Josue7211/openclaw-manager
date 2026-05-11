@@ -87,7 +87,9 @@ export function EmailList({
           background: 'var(--bg-panel)',
           padding: '64px 24px',
           textAlign: 'center',
-          minHeight: '420px',
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
         }}
       >
         <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
@@ -106,8 +108,9 @@ export function EmailList({
         border: 'none',
         borderTop: 'none',
         borderRadius: 0,
-        overflow: 'hidden',
+        overflowY: 'auto',
         background: 'var(--bg-panel)',
+        flex: 1,
         minHeight: 0,
       }}
     >
@@ -140,6 +143,7 @@ export function EmailList({
               alignItems: 'center',
               gap: '8px',
               minHeight: '52px',
+              flexShrink: 0,
               padding: '9px 13px 9px 9px',
               cursor: 'pointer',
               textAlign: 'left',

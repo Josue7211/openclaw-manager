@@ -1,6 +1,6 @@
 # Harness Workspace API
 
-A zero-dependency Node.js micro-server that exposes your selected harness workspace files over HTTP. ClawControl connects to it to read, edit, and delete workspace and memory files from the Memory page.
+A zero-dependency Node.js micro-server that exposes your selected harness agent files over HTTP. ClawControl connects to it to read, edit, and delete agent and memory files from the Memory page.
 
 ## Why
 
@@ -15,7 +15,7 @@ This script is the remote-mode server.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/files` | List core workspace files + memory logs |
+| `GET` | `/files` | List core agent files + memory logs |
 | `GET` | `/file?path=...` | Read a file's content |
 | `POST` | `/file` | Write/edit a file (`{ "path": "...", "content": "..." }`) |
 | `DELETE` | `/file?path=...` | Delete a file (memory files only, core files protected) |
@@ -91,7 +91,7 @@ HARNESS_API_KEY=your-secret-key-here
 ## Security Notes
 
 - The API only serves files within the configured workspace directory — path traversal is blocked
-- Core workspace files (SOUL.md, IDENTITY.md, etc.) cannot be deleted via the API
+- Core agent files (SOUL.md, IDENTITY.md, etc.) cannot be deleted via the API
 - File size is capped at 5 MB per read/write
 - **Always set `API_KEY`** when exposing on a network — without it, anyone can read/write your workspace
 - Bind to `127.0.0.1` instead of `0.0.0.0` if you only need local access (edit the `server.listen` call)

@@ -17,6 +17,12 @@ vi.mock('../nav-items', () => ({
     { href: '/media', label: 'Media Radar', icon: Stub, moduleId: 'media' },
     { href: '/notes', label: 'Notes', icon: Stub, moduleId: 'notes' },
   ],
+  trainingItems: [
+    { href: '/training', label: 'Training Dashboard', icon: Stub, moduleId: 'training' },
+    { href: '/training/clients', label: 'Clients', icon: Stub, moduleId: 'training-clients' },
+    { href: '/training/calendar', label: 'Calendar', icon: Stub, moduleId: 'training-calendar' },
+    { href: '/training/forms', label: 'Forms', icon: Stub, moduleId: 'training-forms' },
+  ],
   agentDashboardItems: [
     { href: '/dashboard', label: 'Dashboard', icon: Stub, moduleId: 'dashboard' },
     { href: '/missions', label: 'Missions', icon: Stub, moduleId: 'missions' },
@@ -39,6 +45,10 @@ vi.mock('../nav-items', () => ({
     { href: '/homelab', label: 'Home Lab', icon: Stub, moduleId: 'homelab' },
     { href: '/media', label: 'Media Radar', icon: Stub, moduleId: 'media' },
     { href: '/notes', label: 'Notes', icon: Stub, moduleId: 'notes' },
+    { href: '/training', label: 'Training Dashboard', icon: Stub, moduleId: 'training' },
+    { href: '/training/clients', label: 'Clients', icon: Stub, moduleId: 'training-clients' },
+    { href: '/training/calendar', label: 'Calendar', icon: Stub, moduleId: 'training-calendar' },
+    { href: '/training/forms', label: 'Forms', icon: Stub, moduleId: 'training-forms' },
     { href: '/dashboard', label: 'Dashboard', icon: Stub, moduleId: 'dashboard' },
     { href: '/missions', label: 'Missions', icon: Stub, moduleId: 'missions' },
     { href: '/agents', label: 'Agents', icon: Stub, moduleId: 'agents' },
@@ -98,9 +108,10 @@ beforeEach(async () => {
 describe('getSidebarConfig', () => {
   it('returns default config when localStorage is empty', () => {
     const config = getSidebarConfig()
-    expect(config.categories).toHaveLength(2)
+    expect(config.categories).toHaveLength(3)
     expect(config.categories[0].id).toBe('personal')
-    expect(config.categories[1].id).toBe('agent')
+    expect(config.categories[1].id).toBe('training')
+    expect(config.categories[2].id).toBe('agent')
     expect(config.customNames).toEqual({})
     expect(config.customModules).toEqual([])
   })
@@ -132,7 +143,7 @@ describe('getSidebarConfig', () => {
     localStorage.setItem('sidebar-config', 'not-valid-json')
     await loadModule()
     const config = getSidebarConfig()
-    expect(config.categories).toHaveLength(2)
+    expect(config.categories).toHaveLength(3)
     expect(config.categories[0].id).toBe('personal')
   })
 
@@ -152,7 +163,8 @@ describe('getSidebarConfig', () => {
     // Should have more items than what was stored (missing items appended)
     expect(config.categories[0].items.length).toBeGreaterThan(1)
     expect(config.categories[0].items).toContain('/chat')
-    expect(config.categories[1].items).toContain('/missions')
+    expect(config.categories.find(c => c.id === 'training')?.items).toContain('/training')
+    expect(config.categories.find(c => c.id === 'agent')?.items).toContain('/missions')
   })
 
   it('deduplicates items across categories', async () => {
@@ -289,8 +301,8 @@ describe('moveItemToCategory', () => {
     const href = config.categories[0].items[0]
     moveItemToCategory(href, 'personal', 'agent', 0)
     const updated = getSidebarConfig()
-    expect(updated.categories[0].items).not.toContain(href)
-    expect(updated.categories[1].items[0]).toBe(href)
+    expect(updated.categories.find(c => c.id === 'personal')?.items).not.toContain(href)
+    expect(updated.categories.find(c => c.id === 'agent')?.items[0]).toBe(href)
   })
 
   it('inserts at specified index', () => {
@@ -298,7 +310,7 @@ describe('moveItemToCategory', () => {
     const href = config.categories[0].items[0]
     moveItemToCategory(href, 'personal', 'agent', 2)
     const updated = getSidebarConfig()
-    expect(updated.categories[1].items[2]).toBe(href)
+    expect(updated.categories.find(c => c.id === 'agent')?.items[2]).toBe(href)
   })
 
   it('does nothing with invalid category IDs', () => {
@@ -420,6 +432,37 @@ describe('softDeleteItem', () => {
     softDeleteItem('/chat')
     const config = getSidebarConfig()
     expect(config.deletedItems![0].deletedAt).toBeGreaterThanOrEqual(before)
+  })
+
+  it('keeps deleted built-in training items in trash after config reload', async () => {
+    softDeleteItem('/training/calendar')
+    await loadModule()
+
+    const config = getSidebarConfig()
+    const allItems = config.categories.flatMap(c => c.items)
+    expect(allItems).not.toContain('/training/calendar')
+    expect(config.deletedItems).toEqual([
+      expect.objectContaining({ href: '/training/calendar', fromCatId: 'training' }),
+    ])
+  })
+
+  it('removes visible copies when a deleted item was re-added before reload', async () => {
+    softDeleteItem('/training/calendar')
+    const config = getSidebarConfig()
+    const corrupted = {
+      ...config,
+      categories: config.categories.map(c =>
+        c.id === 'training' ? { ...c, items: [...c.items, '/training/calendar'] } : c
+      ),
+    }
+    localStorage.setItem('sidebar-config', JSON.stringify(corrupted))
+    await loadModule()
+
+    const updated = getSidebarConfig()
+    expect(updated.categories.find(c => c.id === 'training')?.items).not.toContain('/training/calendar')
+    expect(updated.deletedItems).toEqual([
+      expect.objectContaining({ href: '/training/calendar', fromCatId: 'training' }),
+    ])
   })
 })
 

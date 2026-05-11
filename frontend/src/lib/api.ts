@@ -3,8 +3,8 @@ import { reportError } from './error-reporter'
 const API_BASE_STORAGE_KEY = 'backend-api-base'
 const CONFIGURED_BACKEND_BASE_STORAGE_KEY = 'configured-backend-base'
 const ENV_API_BASE = import.meta.env.VITE_API_BASE?.trim()
-const DEFAULT_API_BASE = ENV_API_BASE || 'http://127.0.0.1:5000'
-const DEFAULT_LOCAL_API_BASE = 'http://127.0.0.1:5000'
+const DEFAULT_API_BASE = ENV_API_BASE || 'http://127.0.0.1:3010'
+const DEFAULT_LOCAL_API_BASE = ENV_API_BASE || 'http://127.0.0.1:3010'
 const LOCAL_DESKTOP_ONLY_PATH_PREFIXES = [
   '/api/auth',
   '/api/chat',

@@ -1,7 +1,6 @@
 import type { CSSProperties } from 'react'
-import { Archive, ArrowBendUpLeft, ArrowBendUpRight, EnvelopeSimple, PaperPlaneTilt, Trash } from '@phosphor-icons/react'
+import { Archive, ArrowBendUpLeft, ArrowBendUpRight, PaperPlaneTilt, Trash, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/Button'
-import { EmptyState } from '@/components/ui/EmptyState'
 import type { MailThread } from './types'
 import { formatDate } from './types'
 
@@ -13,6 +12,7 @@ interface ThreadPanelProps {
   onComposeForward: () => void
   onArchive: () => void
   onTrash: () => void
+  onClose: () => void
 }
 
 export function ThreadPanel({
@@ -23,6 +23,7 @@ export function ThreadPanel({
   onComposeForward,
   onArchive,
   onTrash,
+  onClose,
 }: ThreadPanelProps) {
   if (!thread) {
     return (
@@ -32,16 +33,11 @@ export function ThreadPanel({
           border: 'none',
           borderLeft: '1px solid var(--border)',
           background: 'var(--bg-panel)',
-          minHeight: 'calc(100vh - 150px)',
+          flex: 1,
+          minHeight: 0,
           overflow: 'hidden',
         }}
-      >
-        <EmptyState
-          icon={EnvelopeSimple}
-          title="Select a thread"
-          description="Choose a thread to inspect sender identity, preview, and draft handoff state."
-        />
-      </div>
+      />
     )
   }
 
@@ -52,7 +48,8 @@ export function ThreadPanel({
         border: 'none',
         borderLeft: '1px solid var(--border)',
         background: 'var(--bg-panel)',
-        minHeight: 'calc(100vh - 150px)',
+        flex: 1,
+        minHeight: 0,
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
@@ -62,27 +59,47 @@ export function ThreadPanel({
         style={{
           padding: '10px 14px',
           borderBottom: '1px solid var(--border)',
-          display: 'flex',
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) auto',
           alignItems: 'center',
-          justifyContent: 'space-between',
           gap: '10px',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <button title="Archive" onClick={onArchive} style={iconButtonStyle}><Archive size={15} /></button>
-          <button title="Move to trash" onClick={onTrash} style={iconButtonStyle}><Trash size={15} /></button>
-          <button title="Reply" onClick={onComposeReply} style={iconButtonStyle}><ArrowBendUpLeft size={15} /></button>
-          <button title="Forward" onClick={onComposeForward} style={iconButtonStyle}><ArrowBendUpRight size={15} /></button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflow: 'hidden' }}>
+          <button title="Archive" onClick={onArchive} style={iconButtonStyle}>
+            <Archive size={15} />
+          </button>
+          <button title="Move to trash" onClick={onTrash} style={iconButtonStyle}>
+            <Trash size={15} />
+          </button>
+          <button title="Reply" onClick={onComposeReply} style={iconButtonStyle}>
+            <ArrowBendUpLeft size={15} />
+          </button>
+          <button title="Forward" onClick={onComposeForward} style={iconButtonStyle}>
+            <ArrowBendUpRight size={15} />
+          </button>
+          <button title="Close email" aria-label="Close email" onClick={onClose} style={iconButtonStyle}>
+            <X size={15} />
+          </button>
         </div>
         <Button
           variant="primary"
           disabled={!accountLabel}
           onClick={onPrepareDraft}
           aria-label="Prepare draft"
-          style={{ fontSize: '12px', padding: '7px 12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          title="Prepare draft"
+          style={{
+            fontSize: '12px',
+            padding: '7px 10px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+          }}
         >
           <PaperPlaneTilt size={13} />
-          Prepare Draft
+          Draft
         </Button>
       </div>
 
@@ -131,7 +148,18 @@ export function ThreadPanel({
         </div>
       </div>
 
-      <div style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: '18px', flex: 1 }}>
+      <div
+        style={{
+          padding: '22px 24px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '18px',
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+        }}
+      >
         <div
           style={{
             borderBottom: '1px solid var(--border)',
@@ -173,15 +201,19 @@ export function ThreadPanel({
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(118px, 1fr))',
             gap: '10px',
             marginTop: 'auto',
             paddingTop: '16px',
             borderTop: '1px solid var(--border)',
           }}
         >
-          <button onClick={onComposeReply} style={actionButtonStyle}><ArrowBendUpLeft size={14} /> Reply</button>
-          <button onClick={onComposeForward} style={actionButtonStyle}><ArrowBendUpRight size={14} /> Forward</button>
+          <button onClick={onComposeReply} style={actionButtonStyle}>
+            <ArrowBendUpLeft size={14} /> Reply
+          </button>
+          <button onClick={onComposeForward} style={actionButtonStyle}>
+            <ArrowBendUpRight size={14} /> Forward
+          </button>
           <button onClick={onPrepareDraft} disabled={!accountLabel} style={actionButtonStyle}>
             <PaperPlaneTilt size={14} /> AI Draft
           </button>

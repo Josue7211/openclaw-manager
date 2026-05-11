@@ -24,6 +24,7 @@ const Messages = lazy(() => import('./pages/Messages'))
 const Pomodoro = lazy(() => import('./pages/Pomodoro'))
 const Email = lazy(() => import('./pages/Email'))
 const JobHunter = lazy(() => import('./pages/JobHunter'))
+const Training = lazy(() => import('./pages/Training'))
 const HomeLab = lazy(() => import('./pages/HomeLab'))
 const MediaRadar = lazy(() => import('./pages/MediaRadar'))
 const Missions = lazy(() => import('./pages/Missions'))
@@ -40,6 +41,7 @@ const Capture = lazy(() => import('./pages/Capture'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Search = lazy(() => import('./pages/Search'))
 const Login = lazy(() => import('./pages/Login'))
+const TrainingPublicIntake = lazy(() => import('./pages/TrainingPublicIntake'))
 const CustomPage = lazy(() => import('./pages/CustomPage'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 
@@ -65,6 +67,7 @@ if (typeof window !== 'undefined') {
 
 // Tie React Query focus refetching to Tauri window focus events
 if (window.__TAURI_INTERNALS__) {
+  document.documentElement.classList.add('tauri-desktop')
   import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
     focusManager.setEventListener((handleFocus) => {
       let unlisten: (() => void) | undefined
@@ -319,6 +322,8 @@ bootstrapApiKey().finally(() => {
           }>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/form/:token" element={<Suspense fallback={<GenericPageSkeleton />}><TrainingPublicIntake /></Suspense>} />
+            <Route path="/training/intake/:token" element={<Suspense fallback={<GenericPageSkeleton />}><TrainingPublicIntake /></Suspense>} />
             <Route element={<AuthGuard><LayoutShell /></AuthGuard>}>
               <Route path="/" element={<Suspense fallback={<PersonalSkeleton />}><Personal /></Suspense>} />
               <Route path="/personal" element={<Navigate to="/" replace />} />
@@ -332,6 +337,7 @@ bootstrapApiKey().finally(() => {
               <Route path="/pomodoro" element={<Suspense fallback={<GenericPageSkeleton />}><Pomodoro /></Suspense>} />
               <Route path="/email" element={<Suspense fallback={<GenericPageSkeleton />}><Email /></Suspense>} />
               <Route path="/jobs" element={<Suspense fallback={<GenericPageSkeleton />}><JobHunter /></Suspense>} />
+              <Route path="/training/*" element={<Suspense fallback={<GenericPageSkeleton />}><Training /></Suspense>} />
               <Route path="/homelab" element={<Suspense fallback={<GenericPageSkeleton />}><HomeLab /></Suspense>} />
               <Route path="/media" element={<Suspense fallback={<GenericPageSkeleton />}><MediaRadar /></Suspense>} />
               <Route path="/missions" element={<Suspense fallback={<GenericPageSkeleton />}><Missions /></Suspense>} />

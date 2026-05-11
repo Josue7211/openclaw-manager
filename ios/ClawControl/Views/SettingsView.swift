@@ -8,11 +8,18 @@ struct SettingsView: View {
         Form {
             Section("Backend") {
                 TextField("https://clawcontrol.example.com", text: $model.backendURL)
+                    .textInputAutocapitalization(.never)
+                    .keyboardType(.URL)
+                    .autocorrectionDisabled()
 
                 if showAPIKey {
                     TextField("X-API-Key", text: $model.apiKey)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
                 } else {
                     SecureField("X-API-Key", text: $model.apiKey)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
                 }
 
                 Toggle("Show API key", isOn: $showAPIKey)
@@ -49,7 +56,7 @@ struct SettingsView: View {
             }
 
             Section("Signing") {
-                Text("Open the project in Xcode, choose your paid Apple Developer team, then run on iPad or archive for TestFlight.")
+                Text("Open the project in Xcode, choose your Apple Developer team, then run on iPad or archive for TestFlight.")
                     .foregroundStyle(.secondary)
             }
         }
