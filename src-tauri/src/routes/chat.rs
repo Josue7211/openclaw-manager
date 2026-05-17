@@ -80,6 +80,44 @@ fn resolve_system_prompt(override_prompt: Option<&str>) -> &str {
     }
 }
 
+fn compact_live_context(value: Option<&str>) -> Option<String> {
+    let value = value?.trim();
+    if value.is_empty() {
+        return None;
+    }
+    let max_chars = 12_000usize;
+    let mut compacted = value
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+    if compacted.chars().count() > max_chars {
+        compacted = compacted
+            .chars()
+            .take(max_chars.saturating_sub(14))
+            .collect();
+        compacted.push_str("\n[truncated]");
+    }
+    Some(compacted)
+}
+
+fn with_live_app_context(message: &str, live_context: Option<&str>) -> String {
+    let Some(context) = compact_live_context(live_context) else {
+        return message.to_string();
+    };
+
+    format!(
+        "ClawControl live app context captured immediately before this request:\n\
+{context}\n\n\
+Rules for current app data:\n\
+- Treat this live app context as the only supplied source for current/my/actual/today/upcoming app data.\n\
+- If the live app context is missing a required fact, say it is unavailable or ask for the needed module data.\n\
+- Do not invent appointments, todos, reminders, messages, emails, metrics, or placeholder records.\n\n\
+User request:\n{message}"
+    )
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -999,6 +1037,8 @@ struct PostChatBody {
     system_prompt: Option<String>,
     #[serde(rename = "sessionKey")]
     session_key: Option<String>,
+    #[serde(rename = "liveContext", alias = "live_context")]
+    live_context: Option<String>,
 }
 
 async fn post_chat(
@@ -1056,6 +1096,7 @@ async fn post_chat(
             format!("{}\n{}", txt, annotations)
         }
     };
+    let annotated_text = with_live_app_context(&annotated_text, body.live_context.as_deref());
 
     // Build attachments from data URLs (extract mimeType + base64 content)
     let attachments: Vec<Value> = imgs
@@ -1701,6 +1742,25 @@ mod tests {
     fn gateway_connect_frame_omits_auth_when_empty() {
         let frame = gateway_connect_frame("connect-2", Some(""));
         assert!(frame["params"].get("auth").is_none());
+    }
+
+    #[test]
+    fn live_app_context_wraps_current_data_rules_and_user_request() {
+        let wrapped = with_live_app_context(
+            "What is my next appointment?",
+            Some("calendar: loaded; upcoming_events=1\n- Dentist | 2026-05-17T14:00:00Z"),
+        );
+
+        assert!(wrapped.contains("ClawControl live app context"));
+        assert!(wrapped.contains("Dentist | 2026-05-17T14:00:00Z"));
+        assert!(wrapped.contains("Do not invent appointments"));
+        assert!(wrapped.ends_with("User request:\nWhat is my next appointment?"));
+    }
+
+    #[test]
+    fn live_app_context_blank_context_leaves_message_plain() {
+        assert_eq!(with_live_app_context("hello", Some("   ")), "hello".to_string());
+        assert_eq!(with_live_app_context("hello", None), "hello".to_string());
     }
 
     #[test]

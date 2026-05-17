@@ -19,6 +19,7 @@ import {
   sanitizeFavoriteModelIds,
 } from '@/lib/model-favorites'
 import { buildModuleBuilderSystemPrompt } from './module-builder-prompt'
+import { buildLiveAppContext } from './live-app-context'
 
 import { type ChatMessage, type OptimisticMsg, type ModelsResponse, cleanMessages, cleanText, isSlashCommand } from './types'
 
@@ -36,6 +37,12 @@ function chatHistoryPath(sessionKey: string | null): string {
 
 function withSessionKey<T extends Record<string, unknown>>(payload: T, sessionKey: string | null): T & { sessionKey?: string } {
   return sessionKey ? { ...payload, sessionKey } : payload
+}
+
+function displayUserTextFromStoredPrompt(value: string): string {
+  const text = value.trim()
+  const match = text.match(/(?:^|\n)User request:\s*([\s\S]+)$/)
+  return match?.[1]?.trim() || text
 }
 
 interface ChatHistoryItem {
@@ -57,10 +64,28 @@ interface ChatSendResponse {
   sessionKey?: string | null
 }
 
+interface ChatRequestContext {
+  project?: string
+  workingDir?: string
+  branch?: string
+  runtime?: string
+}
+
+async function captureLiveContext(text: string, context?: ChatRequestContext): Promise<string> {
+  return buildLiveAppContext(api.get, {
+    requestText: text,
+    route: typeof window === 'undefined' ? undefined : window.location.pathname,
+    pageTitle: typeof document === 'undefined' ? undefined : document.title,
+    context,
+    apiPost: api.post,
+  })
+}
+
 function normalizeHistoryMessages(items: ChatHistoryItem[] = []): ChatMessage[] {
   return items.flatMap((item, index) => {
     if (item.role !== 'user' && item.role !== 'assistant') return []
-    const text = cleanText(String(item.text ?? item.content ?? ''))
+    const rawText = cleanText(String(item.text ?? item.content ?? ''))
+    const text = item.role === 'user' ? displayUserTextFromStoredPrompt(rawText) : rawText
     if (!text) return []
     return [{
       id: item.id || `${item.role}-${item.timestamp ?? 'no-time'}-${index}`,
@@ -74,7 +99,7 @@ function normalizeHistoryMessages(items: ChatHistoryItem[] = []): ChatMessage[] 
 
 export function useChatState(
   sessionKey: string | null = null,
-  options: { onSessionKey?: (key: string) => void } = {},
+  options: { onSessionKey?: (key: string) => void; context?: ChatRequestContext } = {},
 ) {
   const queryClient = useQueryClient()
   const _demo = isDemoMode()
@@ -595,16 +620,24 @@ export function useChatState(
     }
 
     const builderMode = shouldUseModuleBuilderPrompt(text)
-    const payload = builderMode
-      ? {
-          text,
-          images: imgs,
-          model,
-          system_prompt: buildModuleBuilderSystemPrompt(),
-        }
-      : { text, images: imgs, model }
+    const liveContextPromise = captureLiveContext(text, options.context).catch((err) => {
+      console.warn('Failed to capture live app context:', err)
+      return ''
+    })
 
-    postChatRequest(withSessionKey(payload, sessionKey), controller.signal)
+    liveContextPromise.then((liveContext) => {
+      const payload = builderMode
+        ? {
+            text,
+            images: imgs,
+            model,
+            system_prompt: buildModuleBuilderSystemPrompt(),
+            liveContext,
+          }
+        : { text, images: imgs, model, liveContext }
+
+      return postChatRequest(withSessionKey(payload, sessionKey), controller.signal)
+    })
       .then((response: ChatSendResponse | undefined) => {
         if (controller.signal.aborted || abortRequestedRef.current) return
         const nextSessionKey = response?.sessionKey?.trim()
@@ -649,7 +682,8 @@ export function useChatState(
   const retry = async (msg: OptimisticMsg) => {
     setOptimistic(prev => prev.map(m => m.id === msg.id ? { ...m, status: 'sending' } : m))
     try {
-      await api.post('/api/chat', withSessionKey({ text: msg.text, images: msg.images || [], model }, sessionKey))
+      const liveContext = await captureLiveContext(msg.text, options.context).catch(() => '')
+      await api.post('/api/chat', withSessionKey({ text: msg.text, images: msg.images || [], model, liveContext }, sessionKey))
       queryClient.invalidateQueries({ queryKey: queryKeys.gatewaySessions })
       setOptimistic(prev => prev.map(m => m.id === msg.id ? { ...m, status: 'sent' } : m))
       setTimeout(() => setOptimistic(prev => prev.filter(m => m.id !== msg.id)), 2000)

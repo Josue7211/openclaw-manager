@@ -38,6 +38,7 @@ import {
   extractModuleProposal,
   extractModuleMetadata,
 } from './module-builder-prompt'
+import { buildLiveAppContext } from './live-app-context'
 
 const MarkdownBubble = lazy(() => import('@/components/MarkdownBubble'))
 
@@ -220,6 +221,12 @@ export default function ModuleBuilderTab() {
           text: builderRequestText,
           model: selectedModel,
           system_prompt: moduleBuilderSystemPrompt,
+          liveContext: await buildLiveAppContext(api.get, {
+            requestText: text,
+            route: typeof window === 'undefined' ? undefined : window.location.pathname,
+            pageTitle: typeof document === 'undefined' ? undefined : document.title,
+            apiPost: api.post,
+          }).catch(() => ''),
         }
       )
 

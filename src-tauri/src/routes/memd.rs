@@ -3,10 +3,12 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use sqlx::{sqlite::SqliteRow, FromRow, Row};
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use crate::error::{success_json, AppError};
@@ -96,6 +98,56 @@ struct CompactBody {
 }
 
 #[derive(Debug, Deserialize)]
+struct LiveStateIngestBody {
+    records: Vec<LiveStateInputRecord>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LiveStateInputRecord {
+    source_app: Option<String>,
+    module: String,
+    scope: Option<String>,
+    visibility: Option<String>,
+    privacy: Option<String>,
+    approved: Option<bool>,
+    agentsecrets_approved: Option<bool>,
+    freshness_secs: Option<i64>,
+    labels: Option<Vec<String>>,
+    summary: String,
+    payload: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct LiveAppStateStore {
+    version: u32,
+    updated_at: Option<String>,
+    #[serde(default)]
+    records: Vec<LiveAppStateRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct LiveAppStateRecord {
+    id: String,
+    source_app: String,
+    module: String,
+    scope: String,
+    visibility: String,
+    privacy: String,
+    approved: bool,
+    #[serde(default)]
+    agentsecrets_approved: bool,
+    #[serde(default)]
+    labels: Vec<String>,
+    summary: String,
+    payload: Value,
+    payload_hash: String,
+    captured_at: String,
+    updated_at: String,
+    expires_at: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct AuditQuery {
     #[serde(rename = "scopeId")]
     scope_id: Option<String>,
@@ -167,6 +219,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/authority", get(authority_memo))
         .route("/health", get(health_memo))
+        .route("/live-state", post(upsert_live_state))
         .route("/query", post(query_memo))
         .route("/operations/plan", post(plan_operation))
         .route("/upsert", post(upsert_memo))
@@ -182,6 +235,336 @@ fn default_scope() -> ScopeInput {
         name: "brain".to_string(),
         description: Some("Default brain scope".to_string()),
     }
+}
+
+async fn upsert_live_state(
+    RequireAuth(_session): RequireAuth,
+    Json(body): Json<LiveStateIngestBody>,
+) -> Result<Json<Value>, AppError> {
+    let root = current_project_root()
+        .ok_or_else(|| AppError::BadRequest("Unable to locate .memd bundle root".into()))?;
+    let path = live_state_path(&root);
+    let mut store = read_live_state_store(&path)?;
+    let now = chrono::Utc::now();
+    let mut updated = 0usize;
+
+    for input in body.records {
+        let record = input.to_record(now)?;
+        store.records.retain(|existing| existing.id != record.id);
+        store.records.push(record);
+        updated += 1;
+    }
+
+    store.version = 1;
+    store.updated_at = Some(now.to_rfc3339());
+    store
+        .records
+        .sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+    write_live_state_store(&path, &store)?;
+
+    Ok(success_json(json!({
+        "path": path.display().to_string(),
+        "updated": updated,
+        "total": store.records.len(),
+    })))
+}
+
+fn live_state_path(root: &Path) -> PathBuf {
+    root.join(".memd").join("state").join("live-app-state.json")
+}
+
+fn read_live_state_store(path: &Path) -> Result<LiveAppStateStore, AppError> {
+    if !path.exists() {
+        return Ok(LiveAppStateStore {
+            version: 1,
+            updated_at: None,
+            records: Vec::new(),
+        });
+    }
+    let text = fs::read_to_string(path)
+        .map_err(|error| AppError::Internal(anyhow::anyhow!("read live state: {error}")))?;
+    let mut store: LiveAppStateStore = serde_json::from_str(&text)
+        .map_err(|error| AppError::Internal(anyhow::anyhow!("parse live state: {error}")))?;
+    store.version = store.version.max(1);
+    Ok(store)
+}
+
+fn write_live_state_store(path: &Path, store: &LiveAppStateStore) -> Result<(), AppError> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
+            AppError::Internal(anyhow::anyhow!("create live state dir: {error}"))
+        })?;
+    }
+    let text = serde_json::to_string_pretty(store)
+        .map_err(|error| AppError::Internal(anyhow::anyhow!("serialize live state: {error}")))?;
+    fs::write(path, text)
+        .map_err(|error| AppError::Internal(anyhow::anyhow!("write live state: {error}")))
+}
+
+impl LiveStateInputRecord {
+    fn to_record(self, now: chrono::DateTime<chrono::Utc>) -> Result<LiveAppStateRecord, AppError> {
+        validate_live_state_input(&self)?;
+        let module = normalize_live_state_key(&self.module);
+        let source_app =
+            normalize_live_state_key(self.source_app.as_deref().unwrap_or("clawcontrol"));
+        let scope = self
+            .scope
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("current")
+            .to_string();
+        let visibility = self
+            .visibility
+            .as_deref()
+            .unwrap_or("private")
+            .trim()
+            .to_ascii_lowercase();
+        let privacy = self
+            .privacy
+            .as_deref()
+            .unwrap_or("metadata")
+            .trim()
+            .to_ascii_lowercase();
+        let payload = self.payload.unwrap_or_else(|| json!({}));
+        let labels = self
+            .labels
+            .unwrap_or_default()
+            .into_iter()
+            .map(|label| label.trim().to_string())
+            .filter(|label| !label.is_empty())
+            .collect::<Vec<_>>();
+        let freshness_secs = self.freshness_secs.unwrap_or(300).max(60);
+
+        Ok(LiveAppStateRecord {
+            id: format!("{source_app}:{module}:{scope}"),
+            source_app,
+            module,
+            scope,
+            visibility,
+            privacy,
+            approved: self.approved.unwrap_or(false),
+            agentsecrets_approved: self.agentsecrets_approved.unwrap_or(false),
+            labels,
+            summary: self.summary.trim().to_string(),
+            payload_hash: hash_live_state_payload(&payload),
+            payload,
+            captured_at: now.to_rfc3339(),
+            updated_at: now.to_rfc3339(),
+            expires_at: (now + chrono::Duration::seconds(freshness_secs)).to_rfc3339(),
+        })
+    }
+}
+
+fn validate_live_state_input(input: &LiveStateInputRecord) -> Result<(), AppError> {
+    let module = input.module.trim().to_ascii_lowercase();
+    let visibility = input
+        .visibility
+        .as_deref()
+        .unwrap_or("private")
+        .trim()
+        .to_ascii_lowercase();
+    let privacy = input
+        .privacy
+        .as_deref()
+        .unwrap_or("metadata")
+        .trim()
+        .to_ascii_lowercase();
+    if input.summary.trim().is_empty() {
+        return Err(AppError::BadRequest(
+            "live state summary is required".into(),
+        ));
+    }
+    if !matches!(visibility.as_str(), "private" | "workspace" | "public") {
+        return Err(AppError::BadRequest("invalid live state visibility".into()));
+    }
+    if !matches!(
+        privacy.as_str(),
+        "metadata" | "redacted" | "approved" | "aggregate" | "public"
+    ) {
+        return Err(AppError::BadRequest("invalid live state privacy".into()));
+    }
+    let sensitive = matches!(
+        module.as_str(),
+        "messages" | "texts" | "text_messages" | "imessage" | "email" | "mail"
+    );
+    if sensitive && visibility != "private" {
+        return Err(AppError::BadRequest(
+            "sensitive live state must remain private".into(),
+        ));
+    }
+    if sensitive
+        && !input.approved.unwrap_or(false)
+        && !matches!(privacy.as_str(), "metadata" | "aggregate")
+    {
+        return Err(AppError::BadRequest(
+            "sensitive live state requires approval unless metadata or aggregate".into(),
+        ));
+    }
+    let null_payload = Value::Null;
+    let payload = input.payload.as_ref().unwrap_or(&null_payload);
+    let media_state = live_state_labels_contain_media(input.labels.as_deref().unwrap_or(&[]))
+        || live_state_payload_contains_media_hint(payload);
+    if sensitive && media_state {
+        if !input.agentsecrets_approved.unwrap_or(false) {
+            return Err(AppError::BadRequest(
+                "sensitive media live state requires AgentSecrets approval".into(),
+            ));
+        }
+        if !matches!(privacy.as_str(), "metadata" | "redacted") {
+            return Err(AppError::BadRequest(
+                "sensitive media live state must be metadata or redacted".into(),
+            ));
+        }
+    }
+    if sensitive && live_state_payload_contains_raw_media(payload) {
+        return Err(AppError::BadRequest(
+            "raw message media must stay behind AgentSecrets".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn normalize_live_state_key(value: &str) -> String {
+    value
+        .trim()
+        .to_ascii_lowercase()
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .trim_matches('-')
+        .to_string()
+}
+
+fn hash_live_state_payload(payload: &Value) -> String {
+    let text = serde_json::to_string(payload).unwrap_or_default();
+    let digest = Sha256::digest(text.as_bytes());
+    format!("{digest:x}")
+}
+
+fn live_state_labels_contain_media(labels: &[String]) -> bool {
+    labels.iter().any(|label| {
+        matches!(
+            label.trim().to_ascii_lowercase().as_str(),
+            "attachment"
+                | "attachments"
+                | "audio"
+                | "file"
+                | "files"
+                | "image"
+                | "images"
+                | "media"
+                | "message-file"
+                | "message-files"
+                | "photo"
+                | "photos"
+                | "video"
+        )
+    })
+}
+
+fn live_state_payload_contains_media_hint(value: &Value) -> bool {
+    match value {
+        Value::Object(map) => map.iter().any(|(key, value)| {
+            live_state_is_media_key(key)
+                || live_state_payload_contains_media_hint(value)
+                || live_state_value_is_media_type(value)
+        }),
+        Value::Array(items) => items.iter().any(live_state_payload_contains_media_hint),
+        Value::String(text) => live_state_looks_like_media_reference(text),
+        _ => false,
+    }
+}
+
+fn live_state_payload_contains_raw_media(value: &Value) -> bool {
+    match value {
+        Value::Object(map) => map.iter().any(|(key, value)| {
+            (live_state_is_raw_media_key(key) && live_state_value_is_raw_media(value))
+                || live_state_payload_contains_raw_media(value)
+        }),
+        Value::Array(items) => items.iter().any(live_state_payload_contains_raw_media),
+        Value::String(text) => live_state_looks_like_raw_media_blob(text),
+        _ => false,
+    }
+}
+
+fn live_state_value_is_media_type(value: &Value) -> bool {
+    match value {
+        Value::String(text) => matches!(
+            text.trim().to_ascii_lowercase().as_str(),
+            "attachment" | "audio" | "file" | "image" | "media" | "photo" | "video"
+        ),
+        _ => false,
+    }
+}
+
+fn live_state_value_is_raw_media(value: &Value) -> bool {
+    match value {
+        Value::String(text) => live_state_looks_like_raw_media_blob(text),
+        _ => false,
+    }
+}
+
+fn live_state_is_media_key(key: &str) -> bool {
+    matches!(
+        key.trim().to_ascii_lowercase().as_str(),
+        "attachment"
+            | "attachments"
+            | "audio"
+            | "file"
+            | "files"
+            | "image"
+            | "images"
+            | "media"
+            | "message_file"
+            | "message_files"
+            | "photo"
+            | "photos"
+            | "video"
+    )
+}
+
+fn live_state_is_raw_media_key(key: &str) -> bool {
+    matches!(
+        key.trim().to_ascii_lowercase().as_str(),
+        "base64" | "blob" | "bytes" | "content" | "data" | "data_url" | "payload"
+    )
+}
+
+fn live_state_looks_like_media_reference(text: &str) -> bool {
+    let lower = text.trim().to_ascii_lowercase();
+    lower.starts_with("data:image/")
+        || lower.starts_with("data:video/")
+        || lower.starts_with("data:audio/")
+        || lower.ends_with(".gif")
+        || lower.ends_with(".heic")
+        || lower.ends_with(".jpeg")
+        || lower.ends_with(".jpg")
+        || lower.ends_with(".m4a")
+        || lower.ends_with(".mov")
+        || lower.ends_with(".mp3")
+        || lower.ends_with(".mp4")
+        || lower.ends_with(".png")
+        || lower.ends_with(".wav")
+        || lower.ends_with(".webp")
+}
+
+fn live_state_looks_like_raw_media_blob(text: &str) -> bool {
+    let trimmed = text.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    lower.starts_with("data:image/")
+        || lower.starts_with("data:video/")
+        || lower.starts_with("data:audio/")
+        || (trimmed.len() > 256
+            && trimmed.chars().all(|ch| {
+                ch.is_ascii_alphanumeric() || matches!(ch, '+' | '/' | '=' | '\n' | '\r')
+            }))
 }
 
 fn scope_to_json(scope: &MemdScopeRecord, entry_count: Option<i64>) -> Value {
@@ -1974,6 +2357,53 @@ mod tests {
 
         assert_eq!(scope.id, again.id);
         assert_eq!(scope.kind, "agent");
+    }
+
+    #[test]
+    fn live_state_allows_message_metadata_but_blocks_unapproved_media() {
+        let metadata = LiveStateInputRecord {
+            source_app: Some("clawcontrol".into()),
+            module: "messages".into(),
+            scope: Some("current".into()),
+            visibility: Some("private".into()),
+            privacy: Some("metadata".into()),
+            approved: Some(false),
+            agentsecrets_approved: Some(false),
+            freshness_secs: Some(300),
+            labels: Some(vec!["live-app-state".into(), "messages".into()]),
+            summary: "messages: loaded; conversations=1".into(),
+            payload: Some(json!({ "summary": "messages: loaded; conversations=1" })),
+        };
+        assert!(validate_live_state_input(&metadata).is_ok());
+
+        let media = LiveStateInputRecord {
+            labels: Some(vec!["image".into()]),
+            payload: Some(json!({ "attachments": [{ "type": "image" }] })),
+            ..metadata
+        };
+        let err = validate_live_state_input(&media).expect_err("must reject media");
+        assert!(matches!(err, AppError::BadRequest(message) if message.contains("AgentSecrets")));
+    }
+
+    #[test]
+    fn live_state_blocks_raw_message_media_even_with_agentsecrets() {
+        let media = LiveStateInputRecord {
+            source_app: Some("clawcontrol".into()),
+            module: "messages".into(),
+            scope: Some("current".into()),
+            visibility: Some("private".into()),
+            privacy: Some("metadata".into()),
+            approved: Some(false),
+            agentsecrets_approved: Some(true),
+            freshness_secs: Some(300),
+            labels: Some(vec!["image".into()]),
+            summary: "messages: loaded; has image".into(),
+            payload: Some(json!({ "data_url": "data:image/png;base64,AAAA" })),
+        };
+        let err = validate_live_state_input(&media).expect_err("must reject raw media");
+        assert!(
+            matches!(err, AppError::BadRequest(message) if message.contains("raw message media"))
+        );
     }
 
     #[tokio::test]
