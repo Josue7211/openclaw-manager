@@ -38,7 +38,7 @@ import {
   extractModuleProposal,
   extractModuleMetadata,
 } from './module-builder-prompt'
-import { buildLiveAppContext } from './live-app-context'
+import { buildLiveAppContext } from '@/features/chat/liveAppContext'
 
 const MarkdownBubble = lazy(() => import('@/components/MarkdownBubble'))
 

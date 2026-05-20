@@ -19,7 +19,7 @@ import {
   sanitizeFavoriteModelIds,
 } from '@/lib/model-favorites'
 import { buildModuleBuilderSystemPrompt } from './module-builder-prompt'
-import { buildLiveAppContext } from './live-app-context'
+import { buildLiveAppContext } from '@/features/chat/liveAppContext'
 import { CHAT_IMAGE_LIMIT } from './constants'
 import { CHAT_FALLBACK_PROVIDER_OPTIONS } from './providers'
 import { selectableChatProviderOptions } from '@/chat/t3-adapters/providerSnapshots'

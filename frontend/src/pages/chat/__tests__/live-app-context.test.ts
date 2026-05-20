@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { buildLiveAppContext } from '../live-app-context'
+import { buildLiveAppContext } from '@/features/chat/liveAppContext'
 
 describe('buildLiveAppContext', () => {
   it('summarizes live module data and current route before chat send', async () => {

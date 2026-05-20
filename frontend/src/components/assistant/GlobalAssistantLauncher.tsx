@@ -77,7 +77,7 @@ import {
   notifyChatSessionsChanged,
   saveSelectedChatSessionKey,
 } from '@/lib/chat-session-selection'
-import { buildLiveAppContext } from '@/pages/chat/live-app-context'
+import { buildLiveAppContext } from '@/features/chat/liveAppContext'
 import { plusIconStyle } from '../sidebar/styles'
 import type { ClaudeSession } from '@/features/sessions/types'
 

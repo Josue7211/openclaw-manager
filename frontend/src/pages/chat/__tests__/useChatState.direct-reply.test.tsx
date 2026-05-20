@@ -12,7 +12,7 @@ vi.mock('@/lib/hooks/useChatSocket', () => ({
   useChatSocket: () => ({ connected: false, usingFallback: false }),
 }))
 
-vi.mock('../live-app-context', () => ({
+vi.mock('@/features/chat/liveAppContext', () => ({
   buildLiveAppContext: vi.fn().mockResolvedValue(''),
 }))
 
