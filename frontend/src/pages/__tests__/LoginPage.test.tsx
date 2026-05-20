@@ -55,11 +55,40 @@ describe('LoginPage', () => {
     })
   })
 
+  it('disables sign-in methods when Supabase and OAuth are not configured', async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/api/setup/status') {
+        return {
+          capabilities: { github_oauth: false, google_oauth: false },
+          services: { supabase: { configured: false, reachable: false } },
+          missing: ['supabase'],
+        }
+      }
+      return { authenticated: false }
+    })
+
+    renderLogin()
+
+    expect(await screen.findByText('Sign-in is not configured. Set Supabase URL and anon key, then restart.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'GitHub not configured' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Google not configured' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Email not configured' })).toBeDisabled()
+  })
+
   it('shows a product error when OAuth start fails with a raw API status', async () => {
     const user = userEvent.setup()
-    vi.mocked(api.get)
-      .mockResolvedValueOnce({ authenticated: false })
-      .mockRejectedValueOnce(new Error('API 500'))
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/api/setup/status') {
+        return {
+          capabilities: { github_oauth: true, google_oauth: true },
+          services: { supabase: { configured: true, reachable: true } },
+          missing: [],
+        }
+      }
+      if (path === '/api/auth/session') return { authenticated: false }
+      if (path.startsWith('/api/auth/oauth/')) throw new Error('API 500')
+      return {}
+    })
 
     renderLogin()
 
@@ -72,10 +101,19 @@ describe('LoginPage', () => {
 
   it('shows the normalized MFA invalid-code message', async () => {
     const user = userEvent.setup()
-    vi.mocked(api.get).mockResolvedValue({
-      authenticated: true,
-      factor_id: 'factor-123',
-      available_mfa_methods: ['totp'],
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/api/setup/status') {
+        return {
+          capabilities: { github_oauth: true, google_oauth: true },
+          services: { supabase: { configured: true, reachable: true } },
+          missing: [],
+        }
+      }
+      return {
+        authenticated: true,
+        factor_id: 'factor-123',
+        available_mfa_methods: ['totp'],
+      }
     })
     vi.mocked(api.post)
       .mockResolvedValueOnce({ id: 'challenge-123' })

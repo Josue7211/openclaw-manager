@@ -20,6 +20,7 @@ import {
   applyLogoColor,
 } from './themes'
 import { hexToOklch, oklchToHex } from './color-utils'
+import { loadGoogleFont } from './google-fonts'
 
 // ---------------------------------------------------------------------------
 // resolveThemeDefinition
@@ -453,19 +454,25 @@ export function deriveTertiaryTints(hex: string): void {
 const SYSTEM_SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"
 const SYSTEM_MONO = "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Courier New', monospace"
 
+function primaryFontFamily(fontFamily: string): string {
+  return fontFamily.split(',')[0]?.trim().replace(/^['"]|['"]$/g, '') ?? ''
+}
+
+function applyFontSlot(variable: string, family: string | undefined, fallback: string): void {
+  const primary = family ? primaryFontFamily(family) : ''
+  if (primary) loadGoogleFont(primary)
+  document.documentElement.style.setProperty(variable, family ? `${family}, ${fallback}` : fallback)
+}
+
 export function applyFonts(
   fonts: { body?: string; heading?: string; mono?: string; ui?: string } | undefined,
   globalOverride?: boolean,
 ): void {
-  if (!fonts) {
-    if (globalOverride) return
-    return
-  }
-  const el = document.documentElement
-  if (fonts.body) el.style.setProperty('--font-body', `${fonts.body}, ${SYSTEM_SANS}`)
-  if (fonts.heading) el.style.setProperty('--font-heading', `${fonts.heading}, ${SYSTEM_SANS}`)
-  if (fonts.mono) el.style.setProperty('--font-mono', `${fonts.mono}, ${SYSTEM_MONO}`)
-  if (fonts.ui) el.style.setProperty('--font-ui', `${fonts.ui}, ${SYSTEM_SANS}`)
+  if (!fonts && globalOverride) return
+  applyFontSlot('--font-body', fonts?.body, SYSTEM_SANS)
+  applyFontSlot('--font-heading', fonts?.heading, SYSTEM_SANS)
+  applyFontSlot('--font-mono', fonts?.mono, SYSTEM_MONO)
+  applyFontSlot('--font-ui', fonts?.ui, SYSTEM_SANS)
 }
 
 // ---------------------------------------------------------------------------

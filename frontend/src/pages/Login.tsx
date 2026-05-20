@@ -32,9 +32,24 @@ import { markSetupCompleteForAccount } from '@/lib/wizard-store'
 function formatLoginError(err: unknown, fallback: string): string {
   const message = err instanceof Error ? err.message.trim() : ''
   if (!message) return fallback
+  if (/SUPABASE_URL not set|Supabase/i.test(message)) return 'Sign-in is not configured. Set Supabase URL and anon key, then restart.'
   if (message === 'Invalid TOTP code entered') return 'That verification code was not accepted. Try the latest code from your authenticator app.'
   if (message.startsWith('API ')) return fallback
   return message
+}
+
+interface LoginSetupStatus {
+  capabilities?: {
+    github_oauth?: boolean
+    google_oauth?: boolean
+  }
+  services?: {
+    supabase?: {
+      configured?: boolean
+      reachable?: boolean
+    }
+  }
+  missing?: string[]
 }
 
 export default function LoginPage() {
@@ -53,6 +68,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [sessionProbeFailed, setSessionProbeFailed] = useState(false)
   const [backendBase, setBackendBase] = useState(() => getRequestBaseForPath('/api/auth/session'))
+  const [setupStatus, setSetupStatus] = useState<LoginSetupStatus | null>(null)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const rawNext = searchParams.get('next') || '/'
@@ -135,10 +151,20 @@ export default function LoginPage() {
     }
   }
 
+  async function refreshSetupStatus() {
+    try {
+      const status = await api.get<LoginSetupStatus>('/api/setup/status')
+      setSetupStatus(status)
+    } catch {
+      setSetupStatus(null)
+    }
+  }
+
   // On mount, ALWAYS check session — if logged in but MFA not verified, show MFA
   const mfaParam = searchParams.get('mfa')
   useEffect(() => {
     void checkSession()
+    void refreshSetupStatus()
   }, [mfaParam, next])
 
   useEffect(() => {
@@ -147,6 +173,7 @@ export default function LoginPage() {
       setSessionProbeFailed(false)
       setError('')
       void checkSession()
+      void refreshSetupStatus()
     }
 
     window.addEventListener(CONFIGURED_BACKEND_BASE_CHANGED_EVENT, onBackendChanged)
@@ -354,6 +381,15 @@ export default function LoginPage() {
     }
   }
 
+  const supabaseConfigured = setupStatus?.services?.supabase?.configured !== false && !setupStatus?.missing?.includes('supabase')
+  const oauthAvailable = {
+    github: !!setupStatus?.capabilities?.github_oauth,
+    google: !!setupStatus?.capabilities?.google_oauth,
+  }
+  const setupMessage = setupStatus && !supabaseConfigured
+    ? 'Sign-in is not configured. Set Supabase URL and anon key, then restart.'
+    : ''
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -361,7 +397,7 @@ export default function LoginPage() {
       alignItems: 'center',
       justifyContent: 'center',
       background: 'var(--bg-base)',
-      fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
+      fontFamily: 'var(--font-body)',
       position: 'relative',
       overflow: 'hidden',
     }}>
@@ -425,7 +461,7 @@ export default function LoginPage() {
             background: 'var(--bg-elevated)',
             color: 'var(--text-muted)',
             fontSize: '11px',
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: 'var(--font-mono)',
             marginBottom: '12px',
             maxWidth: '100%',
           }}>
@@ -438,7 +474,7 @@ export default function LoginPage() {
             margin: 0,
             fontSize: '22px',
             fontWeight: 700,
-            fontFamily: "'Bitcount Prop Double', monospace",
+            fontFamily: "'Bitcount Prop Double', var(--font-heading)",
             color: 'var(--text-primary)',
             letterSpacing: '0.04em',
             textTransform: 'uppercase',
@@ -450,7 +486,7 @@ export default function LoginPage() {
             margin: '8px 0 0',
             fontSize: '12px',
             color: 'var(--text-muted)',
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: 'var(--font-mono)',
           }}>
             {view === 'main' && 'Sign in to continue'}
             {view === 'email' && 'Sign in with email'}
@@ -461,7 +497,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {error && (
+        {(error || setupMessage) && (
           <div style={{
             fontSize: '12px',
             color: 'var(--red)',
@@ -472,7 +508,7 @@ export default function LoginPage() {
             borderRadius: '8px',
             animation: 'fadeInUp 0.3s ease both',
           }}>
-            {error}
+            {error || setupMessage}
           </div>
         )}
 
@@ -512,6 +548,8 @@ export default function LoginPage() {
         {view === 'main' && (
           <MainView
             loading={loading}
+            authConfigured={supabaseConfigured}
+            oauthAvailable={oauthAvailable}
             onOAuth={handleOAuth}
             onShowEmail={() => { dispatch({ type: 'SHOW_EMAIL' }); setError('') }}
           />
