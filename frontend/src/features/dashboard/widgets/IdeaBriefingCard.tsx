@@ -1,6 +1,6 @@
 import React from 'react'
 import { Lightbulb, CheckCircle, SkipForward, XCircle } from '@phosphor-icons/react'
-import { pillStyle } from './types'
+import { pillStyle } from '@/features/dashboard/types'
 import { useIdeas } from '@/lib/hooks/dashboard'
 
 export const IdeaBriefingCard = React.memo(function IdeaBriefingCard() {

@@ -2,7 +2,7 @@ import React from 'react'
 import { Target, Rocket } from '@phosphor-icons/react'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonRows } from '@/components/Skeleton'
-import { missionStatusStyle } from './types'
+import { missionStatusStyle } from '@/features/dashboard/types'
 import { useMissions } from '@/lib/hooks/dashboard'
 
 export const MissionsCard = React.memo(function MissionsCard() {

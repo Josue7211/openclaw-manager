@@ -88,7 +88,7 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 1, h: 2 },
     minSize: { w: 1, h: 2 },
-    component: () => import('@/pages/dashboard/AgentStatusCard').then(m => ({ default: m.AgentStatusCard })),
+    component: () => import('@/features/dashboard/widgets/AgentStatusCard').then(m => ({ default: m.AgentStatusCard })),
   },
   {
     id: 'heartbeat',
@@ -99,7 +99,7 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 1, h: 2 },
     minSize: { w: 1, h: 2 },
-    component: () => import('@/pages/dashboard/HeartbeatCard').then(m => ({ default: m.HeartbeatCard })),
+    component: () => import('@/features/dashboard/widgets/HeartbeatCard').then(m => ({ default: m.HeartbeatCard })),
   },
   {
     id: 'agents',
@@ -110,7 +110,7 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 2, h: 3 },
     minSize: { w: 2, h: 2 },
-    component: () => import('@/pages/dashboard/AgentsCard').then(m => ({ default: m.AgentsCard })),
+    component: () => import('@/features/dashboard/widgets/AgentsCard').then(m => ({ default: m.AgentsCard })),
   },
   {
     id: 'missions',
@@ -121,7 +121,7 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 2, h: 3 },
     minSize: { w: 2, h: 2 },
-    component: () => import('@/pages/dashboard/MissionsCard').then(m => ({ default: m.MissionsCard })),
+    component: () => import('@/features/dashboard/widgets/MissionsCard').then(m => ({ default: m.MissionsCard })),
   },
   {
     id: 'memory',
@@ -132,7 +132,7 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 1, h: 2 },
     minSize: { w: 1, h: 2 },
-    component: () => import('@/pages/dashboard/MemoryCard').then(m => ({ default: m.MemoryCard })),
+    component: () => import('@/features/dashboard/widgets/MemoryCard').then(m => ({ default: m.MemoryCard })),
   },
   {
     id: 'idea-briefing',
@@ -143,7 +143,7 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 2, h: 2 },
     minSize: { w: 1, h: 2 },
-    component: () => import('@/pages/dashboard/IdeaBriefingCard').then(m => ({ default: m.IdeaBriefingCard })),
+    component: () => import('@/features/dashboard/widgets/IdeaBriefingCard').then(m => ({ default: m.IdeaBriefingCard })),
   },
   {
     id: 'network',
@@ -154,7 +154,7 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 1, h: 2 },
     minSize: { w: 1, h: 2 },
-    component: () => import('@/pages/dashboard/NetworkCard').then(m => ({ default: m.NetworkCard })),
+    component: () => import('@/features/dashboard/widgets/NetworkCard').then(m => ({ default: m.NetworkCard })),
   },
   {
     id: 'sessions',
@@ -165,7 +165,7 @@ export const BUILTIN_WIDGETS: WidgetDefinition[] = [
     tier: 'builtin',
     defaultSize: { w: 1, h: 2 },
     minSize: { w: 1, h: 2 },
-    component: () => import('@/pages/dashboard/SessionsCard').then(m => ({ default: m.SessionsCard })),
+    component: () => import('@/features/dashboard/widgets/SessionsCard').then(m => ({ default: m.SessionsCard })),
   },
   {
     id: 'todos',

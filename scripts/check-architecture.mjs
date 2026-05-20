@@ -39,10 +39,6 @@ const reusableLayerPrefixes = [
   'frontend/src/lib/',
 ]
 
-const allowedWidgetImports = [
-  '@/pages/dashboard/',
-]
-
 const problems = []
 const maxSourceBytes = 260 * 1024
 const maxPageBytes = 240 * 1024
@@ -161,13 +157,7 @@ walk(root, (fullPath, stats) => {
   const importPattern = /(?:from\s+['"]|import\s*\(\s*['"])(@\/pages\/[^'"]+)/g
   for (const match of source.matchAll(importPattern)) {
     const specifier = match[1]
-    const allowed =
-      relative.startsWith('frontend/src/lib/widget-registry.ts') &&
-      allowedWidgetImports.some(prefix => specifier.startsWith(prefix))
-
-    if (!allowed) {
-      problems.push(`${relative} imports page-owned module ${specifier}`)
-    }
+    problems.push(`${relative} imports page-owned module ${specifier}`)
   }
 })
 
