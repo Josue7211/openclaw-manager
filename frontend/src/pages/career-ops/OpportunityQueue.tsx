@@ -1,6 +1,6 @@
 import { Archive, ArrowRight } from '@phosphor-icons/react'
-import type { OpportunityDossier, StageId } from '@/pages/job-hunter-types'
-import { badgeStyle, dossierToTrackedLead, truncate, STAGES } from '@/pages/job-hunter-domain'
+import type { OpportunityDossier, StageId } from '@/features/career-ops/types'
+import { badgeStyle, dossierToTrackedLead, truncate, STAGES } from '@/features/career-ops/domain'
 
 interface OpportunityQueueProps {
   groupedDossiers: Array<{

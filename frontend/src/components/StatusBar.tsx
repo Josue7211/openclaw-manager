@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useUnreadCounts } from '@/lib/unread-store'
 import { useAgentsData } from '@/lib/hooks/dashboard'
 import { subscribeModules, getEnabledModules } from '@/lib/modules'
-import { STORAGE_KEY as POMODORO_STORAGE_KEY, type SessionEntry } from '@/pages/pomodoro/types'
+import { STORAGE_KEY as POMODORO_STORAGE_KEY, type SessionEntry } from '@/features/pomodoro/types'
 
 /* ─── Pomodoro localStorage reader ──────────────────────────────────────── */
 

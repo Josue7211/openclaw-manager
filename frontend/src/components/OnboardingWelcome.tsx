@@ -1,6 +1,24 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { CheckCircle, CaretLeft, CaretRight, SpinnerGap, SkipForward, Database, ChatText, Robot, Rocket, Desktop, FilmStrip, Envelope, CalendarDots, Eye, EyeSlash, MagnifyingGlass, Key } from '@phosphor-icons/react'
+import {
+  CheckCircle,
+  CaretLeft,
+  CaretRight,
+  SpinnerGap,
+  SkipForward,
+  Database,
+  ChatText,
+  Robot,
+  Rocket,
+  Desktop,
+  FilmStrip,
+  Envelope,
+  CalendarDots,
+  Eye,
+  EyeSlash,
+  MagnifyingGlass,
+  Key,
+} from '@phosphor-icons/react'
 import { api, getApiBase } from '@/lib/api'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
@@ -69,39 +87,50 @@ interface StepProps {
   onBack: () => void
 }
 
-
 // ── Step 1: Welcome ──
 
 function StepWelcome({ onNext }: { onNext: () => void }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '8px 0' }}>
-      <img
-        src="/logo-128.png"
-        alt="clawctrl"
-        width={72}
-        height={72}
-        style={{ borderRadius: '18px' }}
-      />
+      <img src="/logo-128.png" alt="clawctrl" width={72} height={72} style={{ borderRadius: '18px' }} />
       <div style={{ textAlign: 'center' }}>
-        <h2 id="ob-title" style={{
-          margin: 0, fontSize: '22px', fontWeight: 700,
-          color: 'var(--text-primary)', letterSpacing: '-0.02em',
-        }}>
+        <h2
+          id="ob-title"
+          style={{
+            margin: 0,
+            fontSize: '22px',
+            fontWeight: 700,
+            color: 'var(--text-primary)',
+            letterSpacing: '-0.02em',
+          }}
+        >
           Welcome to clawctrl
         </h2>
-        <p style={{
-          margin: '10px 0 0', fontSize: '13px',
-          color: 'var(--text-muted)', lineHeight: 1.6, maxWidth: '340px',
-        }}>
-          Your personal command center for messages, tasks, and AI chat.
-          Let's connect your services so everything works together.
+        <p
+          style={{
+            margin: '10px 0 0',
+            fontSize: '13px',
+            color: 'var(--text-muted)',
+            lineHeight: 1.6,
+            maxWidth: '340px',
+          }}
+        >
+          Your personal command center for messages, tasks, and AI chat. Let's connect your services so everything works
+          together.
         </p>
       </div>
-      <div style={{
-        display: 'flex', flexDirection: 'column', gap: '6px', width: '100%',
-        padding: '12px 16px', borderRadius: '12px',
-        background: 'var(--bg-white-03)', border: '1px solid var(--bg-white-04)',
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '6px',
+          width: '100%',
+          padding: '12px 16px',
+          borderRadius: '12px',
+          background: 'var(--bg-white-03)',
+          border: '1px solid var(--bg-white-04)',
+        }}
+      >
         <SetupFeature icon={Database} title="Supabase" desc="Database and authentication (required)" />
         <SetupFeature icon={Key} title="Agent Secrets" desc="Safe secrets service (required)" />
         <SetupFeature icon={Robot} title="AI & Chat" desc="Harness runtime, Anthropic (optional)" />
@@ -123,11 +152,18 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
 function SetupFeature({ icon: Icon, title, desc }: { icon: React.ElementType; title: string; desc: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 0' }}>
-      <div style={{
-        width: '30px', height: '30px', borderRadius: '8px',
-        background: 'var(--purple-a10)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-      }}>
+      <div
+        style={{
+          width: '30px',
+          height: '30px',
+          borderRadius: '8px',
+          background: 'var(--purple-a10)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
         <Icon size={14} style={{ color: 'var(--accent)' }} />
       </div>
       <div>
@@ -156,16 +192,24 @@ function StepModuleSelection({ onNext, onBack }: StepProps) {
   }, [enabled, onNext])
 
   // Group modules that have associated service credentials
-  const serviceModules = APP_MODULES.filter(m =>
-    SERVICE_GROUPS.some(sg => sg.moduleIds.includes(m.id))
-  )
-  const otherModules = APP_MODULES.filter(m =>
-    !SERVICE_GROUPS.some(sg => sg.moduleIds.includes(m.id))
-  )
+  const serviceModules = APP_MODULES.filter(m => SERVICE_GROUPS.some(sg => sg.moduleIds.includes(m.id)))
+  const otherModules = APP_MODULES.filter(m => !SERVICE_GROUPS.some(sg => sg.moduleIds.includes(m.id)))
 
   const iconMap: Record<string, React.ElementType> = {
-    messages: ChatText, chat: Robot, homelab: Desktop, media: FilmStrip,
-    email: Envelope, calendar: CalendarDots, 'job-hunter': MagnifyingGlass,
+    messages: ChatText,
+    chat: Robot,
+    homelab: Desktop,
+    'homelab-proxmox': Desktop,
+    'homelab-portainer': Desktop,
+    'homelab-network': Desktop,
+    'homelab-storage': Desktop,
+    'homelab-power': Desktop,
+    'homelab-services': Desktop,
+    'homelab-activity': Desktop,
+    media: FilmStrip,
+    email: Envelope,
+    calendar: CalendarDots,
+    'job-hunter': MagnifyingGlass,
   }
 
   return (
@@ -179,13 +223,27 @@ function StepModuleSelection({ onNext, onBack }: StepProps) {
         </p>
       </div>
 
-      <div style={{
-        display: 'flex', flexDirection: 'column', gap: '2px',
-        maxHeight: '280px', overflowY: 'auto',
-        padding: '4px 0',
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2px',
+          maxHeight: '280px',
+          overflowY: 'auto',
+          padding: '4px 0',
+        }}
+      >
         {/* Service modules first */}
-        <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '4px 0', fontWeight: 600 }}>
+        <div
+          style={{
+            fontSize: '10px',
+            color: 'var(--text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            padding: '4px 0',
+            fontWeight: 600,
+          }}
+        >
           Requires configuration
         </div>
         {serviceModules.map(m => (
@@ -198,7 +256,16 @@ function StepModuleSelection({ onNext, onBack }: StepProps) {
             onChange={() => toggle(m.id)}
           />
         ))}
-        <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '8px 0 4px', fontWeight: 600 }}>
+        <div
+          style={{
+            fontSize: '10px',
+            color: 'var(--text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            padding: '8px 0 4px',
+            fontWeight: 600,
+          }}
+        >
           No configuration needed
         </div>
         {otherModules.map(m => (
@@ -224,8 +291,18 @@ function StepModuleSelection({ onNext, onBack }: StepProps) {
   )
 }
 
-function ModuleToggleRow({ label, desc, icon: Icon, checked, onChange }: {
-  label: string; desc: string; icon?: React.ElementType; checked: boolean; onChange: () => void
+function ModuleToggleRow({
+  label,
+  desc,
+  icon: Icon,
+  checked,
+  onChange,
+}: {
+  label: string
+  desc: string
+  icon?: React.ElementType
+  checked: boolean
+  onChange: () => void
 }) {
   return (
     <button
@@ -234,20 +311,34 @@ function ModuleToggleRow({ label, desc, icon: Icon, checked, onChange }: {
       aria-checked={checked}
       aria-label={`${label}: ${desc}`}
       style={{
-        display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px',
-        borderRadius: '8px', border: 'none', background: 'transparent',
-        cursor: 'pointer', textAlign: 'left', width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '8px 10px',
+        borderRadius: '8px',
+        border: 'none',
+        background: 'transparent',
+        cursor: 'pointer',
+        textAlign: 'left',
+        width: '100%',
         transition: 'background 0.15s ease',
       }}
       className="hover-bg"
     >
       {Icon && (
-        <div style={{
-          width: '26px', height: '26px', borderRadius: '6px',
-          background: checked ? 'var(--accent-a10)' : 'var(--bg-white-04)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          transition: 'background 0.15s ease',
-        }}>
+        <div
+          style={{
+            width: '26px',
+            height: '26px',
+            borderRadius: '6px',
+            background: checked ? 'var(--accent-a10)' : 'var(--bg-white-04)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            transition: 'background 0.15s ease',
+          }}
+        >
           <Icon size={12} style={{ color: checked ? 'var(--accent)' : 'var(--text-muted)' }} />
         </div>
       )}
@@ -255,19 +346,30 @@ function ModuleToggleRow({ label, desc, icon: Icon, checked, onChange }: {
         <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{label}</div>
         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{desc}</div>
       </div>
-      <div style={{
-        width: '36px', height: '20px', borderRadius: '10px',
-        background: checked ? 'var(--accent-solid)' : 'var(--bg-white-10)',
-        position: 'relative', transition: 'background 0.2s ease', flexShrink: 0,
-      }}>
-        <div style={{
-          width: '16px', height: '16px', borderRadius: '50%',
-          background: 'var(--text-on-color)',
-          position: 'absolute', top: '2px',
-          left: checked ? '18px' : '2px',
-          transition: 'left 0.2s var(--ease-spring)',
-          boxShadow: '0 1px 3px var(--overlay-light)',
-        }} />
+      <div
+        style={{
+          width: '36px',
+          height: '20px',
+          borderRadius: '10px',
+          background: checked ? 'var(--accent-solid)' : 'var(--bg-white-10)',
+          position: 'relative',
+          transition: 'background 0.2s ease',
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            width: '16px',
+            height: '16px',
+            borderRadius: '50%',
+            background: 'var(--text-on-color)',
+            position: 'absolute',
+            top: '2px',
+            left: checked ? '18px' : '2px',
+            transition: 'left 0.2s var(--ease-spring)',
+            boxShadow: '0 1px 3px var(--overlay-light)',
+          }}
+        />
       </div>
     </button>
   )
@@ -319,11 +421,19 @@ function StepSupabase({ onNext, onBack }: StepProps) {
       </div>
 
       {envConfigured ? (
-        <div style={{
-          padding: '12px 14px', borderRadius: '10px',
-          background: 'var(--secondary-a12)', border: '1px solid var(--secondary-a15)',
-          fontSize: '12px', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '8px',
-        }}>
+        <div
+          style={{
+            padding: '12px 14px',
+            borderRadius: '10px',
+            background: 'var(--secondary-a12)',
+            border: '1px solid var(--secondary-a15)',
+            fontSize: '12px',
+            color: 'var(--secondary)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
           <CheckCircle size={14} />
           Configured via environment variables
         </div>
@@ -337,7 +447,10 @@ function StepSupabase({ onNext, onBack }: StepProps) {
               id="ob-supabase-url"
               style={wizardInput}
               value={url}
-              onChange={e => { setUrl(e.target.value); setTestStatus('idle') }}
+              onChange={e => {
+                setUrl(e.target.value)
+                setTestStatus('idle')
+              }}
               placeholder="https://your-project.supabase.co"
               aria-label="Supabase URL"
             />
@@ -350,7 +463,10 @@ function StepSupabase({ onNext, onBack }: StepProps) {
               id="ob-supabase-key"
               style={wizardInput}
               value={anonKey}
-              onChange={e => { setAnonKey(e.target.value); setTestStatus('idle') }}
+              onChange={e => {
+                setAnonKey(e.target.value)
+                setTestStatus('idle')
+              }}
               placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
               type="password"
               aria-label="Supabase anon key"
@@ -370,10 +486,16 @@ function StepSupabase({ onNext, onBack }: StepProps) {
             <button
               onClick={testConnection}
               disabled={!url || !anonKey || testStatus === 'testing'}
-              style={{ ...secondaryBtn, opacity: (!url || !anonKey) ? 0.5 : 1 }}
+              style={{ ...secondaryBtn, opacity: !url || !anonKey ? 0.5 : 1 }}
               aria-label="Test Supabase connection"
             >
-              {testStatus === 'testing' ? <><SpinnerGap size={14} style={{ animation: 'spin 1s linear infinite' }} /> Testing...</> : 'Test Connection'}
+              {testStatus === 'testing' ? (
+                <>
+                  <SpinnerGap size={14} style={{ animation: 'spin 1s linear infinite' }} /> Testing...
+                </>
+              ) : (
+                'Test Connection'
+              )}
             </button>
           )}
           <button onClick={onNext} style={primaryBtn}>
@@ -407,8 +529,8 @@ function StepServiceGroup({ group, onNext, onBack }: StepProps & { group: Servic
         group.fields.map(f =>
           invoke<string | null>('get_secret', { key: f.keychainKey })
             .then(v => ({ key: f.keychainKey, value: v }))
-            .catch(() => ({ key: f.keychainKey, value: null }))
-        )
+            .catch(() => ({ key: f.keychainKey, value: null })),
+        ),
       ).then(results => {
         const loaded: Record<string, string> = {}
         for (const r of results) {
@@ -435,7 +557,10 @@ function StepServiceGroup({ group, onNext, onBack }: StepProps & { group: Servic
     setTestStatus('testing')
     setErrorMsg('')
     try {
-      const data = await api.get<Record<string, { status: string; latency_ms?: number; error?: string }>>('/api/status/connections')
+      const data =
+        await api.get<Record<string, { status: string; latency_ms?: number; error?: string }>>(
+          '/api/status/connections',
+        )
       const result = data?.[group.testKey]
       if (result?.status === 'ok') {
         setTestStatus('ok')
@@ -464,7 +589,7 @@ function StepServiceGroup({ group, onNext, onBack }: StepProps & { group: Servic
         await Promise.all(
           group.fields
             .filter(f => values[f.keychainKey]?.trim())
-            .map(f => invoke('set_secret', { key: f.keychainKey, value: values[f.keychainKey].trim() }))
+            .map(f => invoke('set_secret', { key: f.keychainKey, value: values[f.keychainKey].trim() })),
         ).catch(e => console.warn('Keychain save (best-effort):', e))
       }
 
@@ -503,11 +628,16 @@ function StepServiceGroup({ group, onNext, onBack }: StepProps & { group: Servic
         </p>
       </div>
 
-      <div style={{
-        display: 'flex', flexDirection: 'column', gap: '10px',
-        maxHeight: '260px', overflowY: 'auto',
-        paddingRight: '4px',
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+          maxHeight: '260px',
+          overflowY: 'auto',
+          paddingRight: '4px',
+        }}
+      >
         {group.fields.map(f => {
           const fieldId = `ob-${f.keychainKey.replace(/\./g, '-')}`
           const isVisible = visibility[f.keychainKey]
@@ -526,7 +656,7 @@ function StepServiceGroup({ group, onNext, onBack }: StepProps & { group: Servic
                   value={values[f.keychainKey] || ''}
                   onChange={e => setField(f.keychainKey, e.target.value)}
                   placeholder={f.placeholder}
-                  type={f.secret && !isVisible ? 'password' : (f.type || 'text')}
+                  type={f.secret && !isVisible ? 'password' : f.type || 'text'}
                   aria-label={f.label}
                   autoComplete="off"
                 />
@@ -536,9 +666,17 @@ function StepServiceGroup({ group, onNext, onBack }: StepProps & { group: Servic
                     onClick={() => toggleVisibility(f.keychainKey)}
                     aria-label={isVisible ? `Hide ${f.label}` : `Show ${f.label}`}
                     style={{
-                      position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
-                      background: 'none', border: 'none', cursor: 'pointer', padding: '4px',
-                      color: 'var(--text-muted)', display: 'flex', alignItems: 'center',
+                      position: 'absolute',
+                      right: '8px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      color: 'var(--text-muted)',
+                      display: 'flex',
+                      alignItems: 'center',
                     }}
                   >
                     {isVisible ? <EyeSlash size={14} /> : <Eye size={14} />}
@@ -564,7 +702,13 @@ function StepServiceGroup({ group, onNext, onBack }: StepProps & { group: Servic
               style={secondaryBtn}
               aria-label={`Test ${group.title} connection`}
             >
-              {testStatus === 'testing' ? <><SpinnerGap size={14} style={{ animation: 'spin 1s linear infinite' }} /> Testing...</> : 'Test'}
+              {testStatus === 'testing' ? (
+                <>
+                  <SpinnerGap size={14} style={{ animation: 'spin 1s linear infinite' }} /> Testing...
+                </>
+              ) : (
+                'Test'
+              )}
             </button>
           )}
           <button onClick={saveAndNext} disabled={saving} style={primaryBtn}>
@@ -607,7 +751,9 @@ function StepDone({ onFinish, activeGroups }: { onFinish: () => void; activeGrou
               results[group.title] = !!val
             }
           }
-        } catch { /* */ }
+        } catch {
+          /* */
+        }
       }
 
       // Fallback: try backend health check
@@ -615,7 +761,9 @@ function StepDone({ onFinish, activeGroups }: { onFinish: () => void; activeGrou
         try {
           const res = await fetch(`${getApiBase()}/api/status`, { signal: AbortSignal.timeout(3000) })
           if (res.ok) results['Supabase'] = true
-        } catch { /* */ }
+        } catch {
+          /* */
+        }
       }
 
       setConfiguredServices(results)
@@ -629,32 +777,46 @@ function StepDone({ onFinish, activeGroups }: { onFinish: () => void; activeGrou
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '8px 0' }}>
-      <div style={{
-        width: '64px', height: '64px', borderRadius: '50%',
-        background: 'var(--secondary-a12)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
+      <div
+        style={{
+          width: '64px',
+          height: '64px',
+          borderRadius: '50%',
+          background: 'var(--secondary-a12)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         <Rocket size={28} style={{ color: 'var(--secondary)' }} />
       </div>
 
       <div style={{ textAlign: 'center' }}>
-        <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
-          You're all set!
-        </h3>
+        <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>You're all set!</h3>
         <p style={{ margin: '8px 0 0', fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
           {connectedCount === 0 && 'No services configured yet. You can set them up later in Settings.'}
-          {connectedCount > 0 && connectedCount < allLabels.length && `${connectedCount} of ${allLabels.length} services configured.`}
+          {connectedCount > 0 &&
+            connectedCount < allLabels.length &&
+            `${connectedCount} of ${allLabels.length} services configured.`}
           {connectedCount === allLabels.length && connectedCount > 0 && 'All services configured!'}
         </p>
       </div>
 
       {!checking && (
-        <div style={{
-          width: '100%', display: 'flex', flexDirection: 'column', gap: '6px',
-          padding: '12px 16px', borderRadius: '12px',
-          background: 'var(--bg-white-03)', border: '1px solid var(--bg-white-04)',
-          maxHeight: '200px', overflowY: 'auto',
-        }}>
+        <div
+          style={{
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+            padding: '12px 16px',
+            borderRadius: '12px',
+            background: 'var(--bg-white-03)',
+            border: '1px solid var(--bg-white-04)',
+            maxHeight: '200px',
+            overflowY: 'auto',
+          }}
+        >
           {allLabels.map(label => (
             <ConnectionSummaryRow key={label} label={label} connected={!!configuredServices[label]} />
           ))}
@@ -680,16 +842,25 @@ function ConnectionSummaryRow({ label, connected }: { label: string; connected: 
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
       <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{label}</span>
-      <span style={{
-        fontSize: '11px', fontFamily: 'monospace',
-        color: connected ? 'var(--secondary)' : 'var(--text-muted)',
-        display: 'flex', alignItems: 'center', gap: '4px',
-      }}>
-        <span style={{
-          width: '6px', height: '6px', borderRadius: '50%',
-          background: connected ? 'var(--secondary)' : 'var(--bg-white-15)',
-          display: 'inline-block',
-        }} />
+      <span
+        style={{
+          fontSize: '11px',
+          fontFamily: 'monospace',
+          color: connected ? 'var(--secondary)' : 'var(--text-muted)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+        }}
+      >
+        <span
+          style={{
+            width: '6px',
+            height: '6px',
+            borderRadius: '50%',
+            background: connected ? 'var(--secondary)' : 'var(--bg-white-15)',
+            display: 'inline-block',
+          }}
+        />
         {connected ? 'Configured' : 'Skipped'}
       </span>
     </div>
@@ -700,32 +871,56 @@ function ConnectionSummaryRow({ label, connected }: { label: string; connected: 
 
 function TestResult({ status, errorMsg }: { status: TestStatus; errorMsg: string }) {
   if (status === 'idle') return null
-  if (status === 'testing') return (
-    <div style={{
-      padding: '8px 12px', borderRadius: '8px', fontSize: '12px',
-      background: 'var(--accent-a10)', border: '1px solid var(--accent-a12)',
-      color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '6px',
-    }}>
-      <SpinnerGap size={12} style={{ animation: 'spin 1s linear infinite' }} />
-      Testing connection...
-    </div>
-  )
-  if (status === 'ok') return (
-    <div style={{
-      padding: '8px 12px', borderRadius: '8px', fontSize: '12px',
-      background: 'var(--secondary-a12)', border: '1px solid var(--secondary-a15)',
-      color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '6px',
-    }}>
-      <CheckCircle size={12} />
-      Connection successful
-    </div>
-  )
+  if (status === 'testing')
+    return (
+      <div
+        style={{
+          padding: '8px 12px',
+          borderRadius: '8px',
+          fontSize: '12px',
+          background: 'var(--accent-a10)',
+          border: '1px solid var(--accent-a12)',
+          color: 'var(--accent)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+        }}
+      >
+        <SpinnerGap size={12} style={{ animation: 'spin 1s linear infinite' }} />
+        Testing connection...
+      </div>
+    )
+  if (status === 'ok')
+    return (
+      <div
+        style={{
+          padding: '8px 12px',
+          borderRadius: '8px',
+          fontSize: '12px',
+          background: 'var(--secondary-a12)',
+          border: '1px solid var(--secondary-a15)',
+          color: 'var(--secondary)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+        }}
+      >
+        <CheckCircle size={12} />
+        Connection successful
+      </div>
+    )
   return (
-    <div style={{
-      padding: '8px 12px', borderRadius: '8px', fontSize: '12px',
-      background: 'var(--red-a08)', border: '1px solid var(--red-a15)',
-      color: 'var(--red)', lineHeight: 1.4,
-    }}>
+    <div
+      style={{
+        padding: '8px 12px',
+        borderRadius: '8px',
+        fontSize: '12px',
+        background: 'var(--red-a08)',
+        border: '1px solid var(--red-a15)',
+        color: 'var(--red)',
+        lineHeight: 1.4,
+      }}
+    >
       Connection failed{errorMsg ? `: ${errorMsg}` : ''}
     </div>
   )
@@ -844,7 +1039,7 @@ export default function OnboardingWelcome({ forceOpen, onClose }: { forceOpen?: 
         role="dialog"
         aria-modal="true"
         aria-labelledby="ob-title"
-        onClick={(e) => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
         style={{
           position: 'fixed',
           top: '50%',
@@ -860,27 +1055,29 @@ export default function OnboardingWelcome({ forceOpen, onClose }: { forceOpen?: 
           WebkitBackdropFilter: 'blur(32px) saturate(180%)',
           border: '1px solid var(--hover-bg-bright)',
           borderRadius: '20px',
-          boxShadow:
-            '0 32px 100px var(--overlay-heavy), 0 0 0 1px var(--bg-white-04)',
+          boxShadow: '0 32px 100px var(--overlay-heavy), 0 0 0 1px var(--bg-white-04)',
           zIndex: 'var(--z-modal)' as React.CSSProperties['zIndex'],
           animation: 'ob-scalein 0.25s var(--ease-spring)',
         }}
       >
         {/* Step label */}
         {step >= 2 && step < totalSteps - 1 && (
-          <div style={{
-            padding: '16px 28px 0', fontSize: '11px',
-            color: 'var(--text-muted)', fontWeight: 500, letterSpacing: '0.04em',
-            textTransform: 'uppercase',
-          }}>
+          <div
+            style={{
+              padding: '16px 28px 0',
+              fontSize: '11px',
+              color: 'var(--text-muted)',
+              fontWeight: 500,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+            }}
+          >
             Service {step === 2 ? 1 : serviceStepNumber} of {totalServiceSteps}
           </div>
         )}
 
         {/* Content */}
-        <div style={{ padding: '24px 28px 16px' }}>
-          {renderStep()}
-        </div>
+        <div style={{ padding: '24px 28px 16px' }}>{renderStep()}</div>
 
         {/* Progress dots */}
         <div style={{ padding: '0 28px 20px' }}>

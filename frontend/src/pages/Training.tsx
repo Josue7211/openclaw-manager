@@ -18,7 +18,6 @@ import {
   TrendUp,
   Trash,
   UploadSimple,
-  User,
   UsersThree,
 } from '@phosphor-icons/react'
 import { PageHeader } from '@/components/PageHeader'
@@ -1075,9 +1074,7 @@ export default function TrainingPage() {
           }}
         >
           <PageHeader
-            defaultTitle={
-              view === 'calendar' ? 'Training Calendar' : view === 'forms' ? 'Forms' : 'Training Dashboard'
-            }
+            defaultTitle={view === 'calendar' ? 'Training Calendar' : view === 'forms' ? 'Forms' : 'Training Dashboard'}
             defaultSubtitle="clients, intake, assessments, splits, injuries, and coaching notes"
           />
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -1603,364 +1600,374 @@ function ClientsView({
           />
 
           {activeSection === 'overview' && (
-          <SectionPanel title="Overview & Admin" meta="identity, contact, package, schedule">
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
-                gap: '12px',
-              }}
-            >
-              <EditableField
-                label="Name"
-                value={selectedClient.name}
-                onChange={value => onUpdate(selectedClient.id, { name: value })}
-              />
-              <SelectField
-                label="Status"
-                value={selectedClient.status}
-                options={['active', 'onboarding', 'paused']}
-                onChange={value => onUpdate(selectedClient.id, { status: value as ClientStatus })}
-              />
-              <EditableField
-                label="Age"
-                value={selectedClient.age}
-                onChange={value => onUpdate(selectedClient.id, { age: value })}
-              />
-              <EditableField
-                label="Primary language"
-                value={selectedClient.primaryLanguage}
-                onChange={value => onUpdate(selectedClient.id, { primaryLanguage: value })}
-              />
-              <EditableField
-                label="Preferred contact"
-                value={selectedClient.preferredContact}
-                onChange={value => onUpdate(selectedClient.id, { preferredContact: value })}
-              />
-              <EditableField
-                label="Package"
-                value={selectedClient.packageName}
-                onChange={value => onUpdate(selectedClient.id, { packageName: value })}
-              />
-              <EditableField
-                label="Payment status"
-                value={selectedClient.paymentStatus}
-                onChange={value => onUpdate(selectedClient.id, { paymentStatus: value })}
-              />
-              <EditableField
-                label="Onboarding stage"
-                value={selectedClient.onboardingStage}
-                onChange={value => onUpdate(selectedClient.id, { onboardingStage: value })}
-              />
-              <EditableField
-                label="Goal"
-                value={selectedClient.goal}
-                onChange={value => onUpdate(selectedClient.id, { goal: value })}
-              />
-              <EditableField
-                label="Phone"
-                value={selectedClient.phone}
-                onChange={value => onUpdate(selectedClient.id, { phone: value })}
-              />
-              <EditableField
-                label="Email"
-                value={selectedClient.email}
-                onChange={value => onUpdate(selectedClient.id, { email: value })}
-              />
-              <EditableField
-                label="Emergency contact"
-                value={selectedClient.emergencyContact}
-                onChange={value => onUpdate(selectedClient.id, { emergencyContact: value })}
-              />
-              <EditableField
-                label="Occupation"
-                value={selectedClient.occupation}
-                onChange={value => onUpdate(selectedClient.id, { occupation: value })}
-              />
-              <EditableField
-                label="Session cadence"
-                value={selectedClient.sessionCadence}
-                onChange={value => onUpdate(selectedClient.id, { sessionCadence: value })}
-              />
-              <DateField
-                label="Start date"
-                value={selectedClient.startDate}
-                onChange={value => onUpdate(selectedClient.id, { startDate: value })}
-              />
-              <DateField
-                label="Next session"
-                value={selectedClient.nextSession}
-                onChange={value => onUpdate(selectedClient.id, { nextSession: value })}
-              />
-              <DateField
-                label="Latest InBody"
-                value={selectedClient.latestInbodyDate}
-                onChange={value => onUpdate(selectedClient.id, { latestInbodyDate: value })}
-              />
-              <DateField
-                label="Next check-in"
-                value={selectedClient.nextCheckIn}
-                onChange={value => onUpdate(selectedClient.id, { nextCheckIn: value })}
-              />
-            </div>
-          </SectionPanel>
-        )}
+            <SectionPanel title="Overview & Admin" meta="identity, contact, package, schedule">
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
+                  gap: '12px',
+                }}
+              >
+                <EditableField
+                  label="Name"
+                  value={selectedClient.name}
+                  onChange={value => onUpdate(selectedClient.id, { name: value })}
+                />
+                <SelectField
+                  label="Status"
+                  value={selectedClient.status}
+                  options={['active', 'onboarding', 'paused']}
+                  onChange={value => onUpdate(selectedClient.id, { status: value as ClientStatus })}
+                />
+                <EditableField
+                  label="Age"
+                  value={selectedClient.age}
+                  onChange={value => onUpdate(selectedClient.id, { age: value })}
+                />
+                <EditableField
+                  label="Primary language"
+                  value={selectedClient.primaryLanguage}
+                  onChange={value => onUpdate(selectedClient.id, { primaryLanguage: value })}
+                />
+                <EditableField
+                  label="Preferred contact"
+                  value={selectedClient.preferredContact}
+                  onChange={value => onUpdate(selectedClient.id, { preferredContact: value })}
+                />
+                <EditableField
+                  label="Package"
+                  value={selectedClient.packageName}
+                  onChange={value => onUpdate(selectedClient.id, { packageName: value })}
+                />
+                <EditableField
+                  label="Payment status"
+                  value={selectedClient.paymentStatus}
+                  onChange={value => onUpdate(selectedClient.id, { paymentStatus: value })}
+                />
+                <EditableField
+                  label="Onboarding stage"
+                  value={selectedClient.onboardingStage}
+                  onChange={value => onUpdate(selectedClient.id, { onboardingStage: value })}
+                />
+                <EditableField
+                  label="Goal"
+                  value={selectedClient.goal}
+                  onChange={value => onUpdate(selectedClient.id, { goal: value })}
+                />
+                <EditableField
+                  label="Phone"
+                  value={selectedClient.phone}
+                  onChange={value => onUpdate(selectedClient.id, { phone: value })}
+                />
+                <EditableField
+                  label="Email"
+                  value={selectedClient.email}
+                  onChange={value => onUpdate(selectedClient.id, { email: value })}
+                />
+                <EditableField
+                  label="Emergency contact"
+                  value={selectedClient.emergencyContact}
+                  onChange={value => onUpdate(selectedClient.id, { emergencyContact: value })}
+                />
+                <EditableField
+                  label="Occupation"
+                  value={selectedClient.occupation}
+                  onChange={value => onUpdate(selectedClient.id, { occupation: value })}
+                />
+                <EditableField
+                  label="Session cadence"
+                  value={selectedClient.sessionCadence}
+                  onChange={value => onUpdate(selectedClient.id, { sessionCadence: value })}
+                />
+                <DateField
+                  label="Start date"
+                  value={selectedClient.startDate}
+                  onChange={value => onUpdate(selectedClient.id, { startDate: value })}
+                />
+                <DateField
+                  label="Next session"
+                  value={selectedClient.nextSession}
+                  onChange={value => onUpdate(selectedClient.id, { nextSession: value })}
+                />
+                <DateField
+                  label="Latest InBody"
+                  value={selectedClient.latestInbodyDate}
+                  onChange={value => onUpdate(selectedClient.id, { latestInbodyDate: value })}
+                />
+                <DateField
+                  label="Next check-in"
+                  value={selectedClient.nextCheckIn}
+                  onChange={value => onUpdate(selectedClient.id, { nextCheckIn: value })}
+                />
+              </div>
+            </SectionPanel>
+          )}
 
-        {activeSection === 'sessions' && (
-          <SectionPanel title="Session History" meta={`${sessions.length} logged`}>
-            <SessionHistory sessions={sessions} onAdd={addSession} onUpdate={updateSession} onRemove={removeSession} />
-          </SectionPanel>
-        )}
+          {activeSection === 'sessions' && (
+            <SectionPanel title="Session History" meta={`${sessions.length} logged`}>
+              <SessionHistory
+                sessions={sessions}
+                onAdd={addSession}
+                onUpdate={updateSession}
+                onRemove={removeSession}
+              />
+            </SectionPanel>
+          )}
 
-        {activeSection === 'overload' && (
-          <SectionPanel title="Progressive Overload" meta={`${overloadRecords.length} exercises`}>
-            <ProgressiveOverloadBoard
-              records={overloadRecords}
-              onAdd={addOverloadRecord}
-              onUpdate={updateOverloadRecord}
-              onRemove={removeOverloadRecord}
-            />
-          </SectionPanel>
-        )}
+          {activeSection === 'overload' && (
+            <SectionPanel title="Progressive Overload" meta={`${overloadRecords.length} exercises`}>
+              <ProgressiveOverloadBoard
+                records={overloadRecords}
+                onAdd={addOverloadRecord}
+                onUpdate={updateOverloadRecord}
+                onRemove={removeOverloadRecord}
+              />
+            </SectionPanel>
+          )}
 
-        {activeSection === 'metrics' && (
-          <SectionPanel title="Body Metrics & Assessments" meta="InBody, vitals, adherence">
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 170px), 1fr))',
-                gap: '12px',
-              }}
-            >
-              <DataTile
-                label="Weight"
-                value={selectedClient.latestWeight || '--'}
-                suffix="lb"
-                icon={<TrendUp size={17} />}
+          {activeSection === 'metrics' && (
+            <SectionPanel title="Body Metrics & Assessments" meta="InBody, vitals, adherence">
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 170px), 1fr))',
+                  gap: '12px',
+                }}
+              >
+                <DataTile
+                  label="Weight"
+                  value={selectedClient.latestWeight || '--'}
+                  suffix="lb"
+                  icon={<TrendUp size={17} />}
+                />
+                <DataTile
+                  label="Body fat"
+                  value={selectedClient.bodyFat || '--'}
+                  suffix="%"
+                  icon={<Pulse size={17} />}
+                />
+                <DataTile
+                  label="Fat mass"
+                  value={latestInbodyScan?.bodyFatMass || '--'}
+                  suffix="lb"
+                  icon={<Pulse size={17} />}
+                />
+                <DataTile label="BMI" value={latestInbodyScan?.bmi || '--'} suffix="" icon={<TrendUp size={17} />} />
+                <DataTile
+                  label="Lean mass"
+                  value={selectedClient.leanMass || '--'}
+                  suffix="lb"
+                  icon={<Barbell size={17} />}
+                />
+                <DataTile
+                  label="SMM"
+                  value={latestInbodyScan?.skeletalMuscleMass || '--'}
+                  suffix="lb"
+                  icon={<Barbell size={17} />}
+                />
+                <DataTile
+                  label="Visceral fat"
+                  value={latestInbodyScan?.visceralFatLevel || '--'}
+                  suffix=""
+                  icon={<Pulse size={17} />}
+                />
+                <DataTile
+                  label="Resting HR"
+                  value={selectedClient.restingHeartRate || '--'}
+                  suffix="bpm"
+                  icon={<Pulse size={17} />}
+                />
+                <DataTile
+                  label="Sleep avg"
+                  value={selectedClient.sleepAverage || '--'}
+                  suffix="hrs"
+                  icon={<ChatCircle size={17} />}
+                />
+                <DataTile
+                  label="Steps avg"
+                  value={selectedClient.stepsAverage || '--'}
+                  suffix="steps"
+                  icon={<TrendUp size={17} />}
+                />
+              </div>
+              <InBodyScanPanel
+                scans={inbodyScans}
+                scanWindow={scanWindow}
+                onAdd={addInBodyScan}
+                onUpdate={updateInBodyScan}
+                onRemove={removeInBodyScan}
               />
-              <DataTile label="Body fat" value={selectedClient.bodyFat || '--'} suffix="%" icon={<Pulse size={17} />} />
-              <DataTile
-                label="Fat mass"
-                value={latestInbodyScan?.bodyFatMass || '--'}
-                suffix="lb"
-                icon={<Pulse size={17} />}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))',
+                  gap: '12px',
+                }}
+              >
+                <EditableField
+                  label="Latest weight"
+                  value={selectedClient.latestWeight}
+                  onChange={value => onUpdate(selectedClient.id, { latestWeight: value })}
+                />
+                <EditableField
+                  label="Body fat %"
+                  value={selectedClient.bodyFat}
+                  onChange={value => onUpdate(selectedClient.id, { bodyFat: value })}
+                />
+                <EditableField
+                  label="Lean mass"
+                  value={selectedClient.leanMass}
+                  onChange={value => onUpdate(selectedClient.id, { leanMass: value })}
+                />
+                <EditableField
+                  label="Resting HR"
+                  value={selectedClient.restingHeartRate}
+                  onChange={value => onUpdate(selectedClient.id, { restingHeartRate: value })}
+                />
+                <EditableField
+                  label="Sleep average"
+                  value={selectedClient.sleepAverage}
+                  onChange={value => onUpdate(selectedClient.id, { sleepAverage: value })}
+                />
+                <EditableField
+                  label="Steps average"
+                  value={selectedClient.stepsAverage}
+                  onChange={value => onUpdate(selectedClient.id, { stepsAverage: value })}
+                />
+                <EditableField
+                  label="Program phase"
+                  value={selectedClient.programPhase}
+                  onChange={value => onUpdate(selectedClient.id, { programPhase: value })}
+                />
+                <EditableField
+                  label="Adherence"
+                  value={selectedClient.adherence}
+                  onChange={value => onUpdate(selectedClient.id, { adherence: value })}
+                />
+              </div>
+              <TextAreaCard
+                label="Assessment Notes"
+                value={selectedClient.assessmentNotes}
+                onChange={value => onUpdate(selectedClient.id, { assessmentNotes: value })}
+                minHeight={90}
+                inset
               />
-              <DataTile label="BMI" value={latestInbodyScan?.bmi || '--'} suffix="" icon={<TrendUp size={17} />} />
-              <DataTile
-                label="Lean mass"
-                value={selectedClient.leanMass || '--'}
-                suffix="lb"
-                icon={<Barbell size={17} />}
-              />
-              <DataTile
-                label="SMM"
-                value={latestInbodyScan?.skeletalMuscleMass || '--'}
-                suffix="lb"
-                icon={<Barbell size={17} />}
-              />
-              <DataTile
-                label="Visceral fat"
-                value={latestInbodyScan?.visceralFatLevel || '--'}
-                suffix=""
-                icon={<Pulse size={17} />}
-              />
-              <DataTile
-                label="Resting HR"
-                value={selectedClient.restingHeartRate || '--'}
-                suffix="bpm"
-                icon={<Pulse size={17} />}
-              />
-              <DataTile
-                label="Sleep avg"
-                value={selectedClient.sleepAverage || '--'}
-                suffix="hrs"
-                icon={<ChatCircle size={17} />}
-              />
-              <DataTile
-                label="Steps avg"
-                value={selectedClient.stepsAverage || '--'}
-                suffix="steps"
-                icon={<TrendUp size={17} />}
-              />
-            </div>
-            <InBodyScanPanel
-              scans={inbodyScans}
-              scanWindow={scanWindow}
-              onAdd={addInBodyScan}
-              onUpdate={updateInBodyScan}
-              onRemove={removeInBodyScan}
-            />
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))',
-                gap: '12px',
-              }}
-            >
-              <EditableField
-                label="Latest weight"
-                value={selectedClient.latestWeight}
-                onChange={value => onUpdate(selectedClient.id, { latestWeight: value })}
-              />
-              <EditableField
-                label="Body fat %"
-                value={selectedClient.bodyFat}
-                onChange={value => onUpdate(selectedClient.id, { bodyFat: value })}
-              />
-              <EditableField
-                label="Lean mass"
-                value={selectedClient.leanMass}
-                onChange={value => onUpdate(selectedClient.id, { leanMass: value })}
-              />
-              <EditableField
-                label="Resting HR"
-                value={selectedClient.restingHeartRate}
-                onChange={value => onUpdate(selectedClient.id, { restingHeartRate: value })}
-              />
-              <EditableField
-                label="Sleep average"
-                value={selectedClient.sleepAverage}
-                onChange={value => onUpdate(selectedClient.id, { sleepAverage: value })}
-              />
-              <EditableField
-                label="Steps average"
-                value={selectedClient.stepsAverage}
-                onChange={value => onUpdate(selectedClient.id, { stepsAverage: value })}
-              />
-              <EditableField
-                label="Program phase"
-                value={selectedClient.programPhase}
-                onChange={value => onUpdate(selectedClient.id, { programPhase: value })}
-              />
-              <EditableField
-                label="Adherence"
-                value={selectedClient.adherence}
-                onChange={value => onUpdate(selectedClient.id, { adherence: value })}
-              />
-            </div>
-            <TextAreaCard
-              label="Assessment Notes"
-              value={selectedClient.assessmentNotes}
-              onChange={value => onUpdate(selectedClient.id, { assessmentNotes: value })}
-              minHeight={90}
-              inset
-            />
-          </SectionPanel>
-        )}
+            </SectionPanel>
+          )}
 
-        {activeSection === 'program' && (
-          <SectionPanel title="Program, Nutrition & Health" meta="split, supplements, injuries, habits">
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
-                gap: '16px',
-              }}
-            >
-              <TextAreaCard
-                label="Current Workout Split"
-                value={selectedClient.currentSplit}
-                onChange={value => onUpdate(selectedClient.id, { currentSplit: value })}
-              />
-              <TextAreaCard
-                label="Supplements"
-                value={selectedClient.supplements}
-                onChange={value => onUpdate(selectedClient.id, { supplements: value })}
-              />
-              <TextAreaCard
-                label="Injuries / Limitations"
-                value={selectedClient.injuries}
-                onChange={value => onUpdate(selectedClient.id, { injuries: value })}
-              />
-              <TextAreaCard
-                label="Nutrition Notes"
-                value={selectedClient.nutritionNotes}
-                onChange={value => onUpdate(selectedClient.id, { nutritionNotes: value })}
-              />
-              <TextAreaCard
-                label="Habit Coaching"
-                value={selectedClient.habitNotes}
-                onChange={value => onUpdate(selectedClient.id, { habitNotes: value })}
-              />
-            </div>
-          </SectionPanel>
-        )}
+          {activeSection === 'program' && (
+            <SectionPanel title="Program, Nutrition & Health" meta="split, supplements, injuries, habits">
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
+                  gap: '16px',
+                }}
+              >
+                <TextAreaCard
+                  label="Current Workout Split"
+                  value={selectedClient.currentSplit}
+                  onChange={value => onUpdate(selectedClient.id, { currentSplit: value })}
+                />
+                <TextAreaCard
+                  label="Supplements"
+                  value={selectedClient.supplements}
+                  onChange={value => onUpdate(selectedClient.id, { supplements: value })}
+                />
+                <TextAreaCard
+                  label="Injuries / Limitations"
+                  value={selectedClient.injuries}
+                  onChange={value => onUpdate(selectedClient.id, { injuries: value })}
+                />
+                <TextAreaCard
+                  label="Nutrition Notes"
+                  value={selectedClient.nutritionNotes}
+                  onChange={value => onUpdate(selectedClient.id, { nutritionNotes: value })}
+                />
+                <TextAreaCard
+                  label="Habit Coaching"
+                  value={selectedClient.habitNotes}
+                  onChange={value => onUpdate(selectedClient.id, { habitNotes: value })}
+                />
+              </div>
+            </SectionPanel>
+          )}
 
-        {activeSection === 'notes' && (
-          <SectionPanel title="Notes & Communication" meta="intake, coach notes, language, admin">
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
-                gap: '16px',
-              }}
-            >
-              <TextAreaCard
-                label="Communication Notes"
-                value={selectedClient.communicationNotes}
-                onChange={value => onUpdate(selectedClient.id, { communicationNotes: value })}
-              />
-              <TextAreaCard
-                label="Admin / Billing Notes"
-                value={selectedClient.adminNotes}
-                onChange={value => onUpdate(selectedClient.id, { adminNotes: value })}
-              />
-              <TextAreaCard
-                label="Intake Notes"
-                value={selectedClient.intakeNotes}
-                onChange={value => onUpdate(selectedClient.id, { intakeNotes: value })}
-              />
-              <TextAreaCard
-                label="Coach Notes"
-                value={selectedClient.coachNotes}
-                onChange={value => onUpdate(selectedClient.id, { coachNotes: value })}
-                minHeight={130}
-              />
-            </div>
-          </SectionPanel>
-        )}
+          {activeSection === 'notes' && (
+            <SectionPanel title="Notes & Communication" meta="intake, coach notes, language, admin">
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
+                  gap: '16px',
+                }}
+              >
+                <TextAreaCard
+                  label="Communication Notes"
+                  value={selectedClient.communicationNotes}
+                  onChange={value => onUpdate(selectedClient.id, { communicationNotes: value })}
+                />
+                <TextAreaCard
+                  label="Admin / Billing Notes"
+                  value={selectedClient.adminNotes}
+                  onChange={value => onUpdate(selectedClient.id, { adminNotes: value })}
+                />
+                <TextAreaCard
+                  label="Intake Notes"
+                  value={selectedClient.intakeNotes}
+                  onChange={value => onUpdate(selectedClient.id, { intakeNotes: value })}
+                />
+                <TextAreaCard
+                  label="Coach Notes"
+                  value={selectedClient.coachNotes}
+                  onChange={value => onUpdate(selectedClient.id, { coachNotes: value })}
+                  minHeight={130}
+                />
+              </div>
+            </SectionPanel>
+          )}
         </>
       )}
 
-        {clientMenu && <ContextMenu {...clientMenu} onClose={() => setClientMenu(null)} />}
-        {clientPendingDelete && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 10001,
-              display: 'grid',
-              placeItems: 'center',
-              background: 'rgba(0, 0, 0, 0.42)',
-              padding: '24px',
-            }}
-          >
-            <div style={{ ...cardStyle, width: 'min(420px, 100%)', background: 'var(--bg-panel)' }}>
-              <div style={{ color: 'var(--text-primary)', fontWeight: 800, fontSize: '16px' }}>
-                Delete {clientPendingDelete.name}?
-              </div>
-              <div style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: 1.5, marginTop: '8px' }}>
-                This removes the client profile from this device.
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
-                <Button variant="secondary" onClick={() => setClientPendingDelete(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => {
-                    onDelete(clientPendingDelete.id)
-                    setClientPendingDelete(null)
-                  }}
-                  style={{ background: 'var(--red)', color: '#fff' }}
-                >
-                  Delete
-                </Button>
-              </div>
+      {clientMenu && <ContextMenu {...clientMenu} onClose={() => setClientMenu(null)} />}
+      {clientPendingDelete && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10001,
+            display: 'grid',
+            placeItems: 'center',
+            background: 'rgba(0, 0, 0, 0.42)',
+            padding: '24px',
+          }}
+        >
+          <div style={{ ...cardStyle, width: 'min(420px, 100%)', background: 'var(--bg-panel)' }}>
+            <div style={{ color: 'var(--text-primary)', fontWeight: 800, fontSize: '16px' }}>
+              Delete {clientPendingDelete.name}?
+            </div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: 1.5, marginTop: '8px' }}>
+              This removes the client profile from this device.
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
+              <Button variant="secondary" onClick={() => setClientPendingDelete(null)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  onDelete(clientPendingDelete.id)
+                  setClientPendingDelete(null)
+                }}
+                style={{ background: 'var(--red)', color: '#fff' }}
+              >
+                Delete
+              </Button>
             </div>
           </div>
-        )}
+        </div>
+      )}
     </div>
   )
 }
@@ -3148,7 +3155,9 @@ function FormsView({
                     <div style={{ color: 'var(--text-primary)', fontSize: '18px', fontWeight: 850 }}>
                       {selectedForm.title}
                     </div>
-                    <div style={{ color: 'var(--text-secondary)', fontSize: '13px', marginTop: '5px', lineHeight: 1.45 }}>
+                    <div
+                      style={{ color: 'var(--text-secondary)', fontSize: '13px', marginTop: '5px', lineHeight: 1.45 }}
+                    >
                       {selectedForm.purpose || 'No purpose set'}
                     </div>
                   </div>
@@ -3219,7 +3228,9 @@ function FormsView({
                 </div>
 
                 <details style={{ borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
-                  <summary style={{ color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '13px', fontWeight: 800 }}>
+                  <summary
+                    style={{ color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '13px', fontWeight: 800 }}
+                  >
                     Edit template
                   </summary>
                   <div style={{ display: 'grid', gap: '12px', marginTop: '12px' }}>

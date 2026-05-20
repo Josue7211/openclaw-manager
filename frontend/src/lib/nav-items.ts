@@ -1,4 +1,31 @@
-import { SquaresFour, Brain, ChatCircle, Gear, CalendarDots, Robot, Target, House, CheckSquare, Bell, Timer, Envelope, GitBranch, Desktop, FilmStrip, BookOpen, DeviceMobile, FileText, Monitor, ShieldCheck, Pulse, MagnifyingGlass, Barbell, UsersThree, ClipboardText } from '@phosphor-icons/react'
+import {
+  SquaresFour,
+  Brain,
+  ChatCircle,
+  Gear,
+  CalendarDots,
+  Robot,
+  Target,
+  House,
+  CheckSquare,
+  Bell,
+  Timer,
+  Envelope,
+  GitBranch,
+  Desktop,
+  FilmStrip,
+  BookOpen,
+  DeviceMobile,
+  FileText,
+  Monitor,
+  ShieldCheck,
+  Pulse,
+  MagnifyingGlass,
+  TrendUp,
+  Barbell,
+  UsersThree,
+  ClipboardText,
+} from '@phosphor-icons/react'
 
 export interface NavItem {
   href: string
@@ -17,9 +44,20 @@ export const personalDashboardItems: NavItem[] = [
   { href: '/pomodoro', label: 'Pomodoro', icon: Timer, moduleId: 'pomodoro' },
   { href: '/email', label: 'Email', icon: Envelope, moduleId: 'email' },
   { href: '/jobs', label: 'Career Ops', icon: MagnifyingGlass, moduleId: 'job-hunter' },
-  { href: '/homelab', label: 'Home Lab', icon: Desktop, moduleId: 'homelab' },
-  { href: '/media', label: 'Media Radar', icon: FilmStrip, moduleId: 'media' },
+  { href: '/growth-ops', label: 'Growth Ops', icon: TrendUp, moduleId: 'growth-ops' },
+  { href: '/media', label: 'Media Command', icon: FilmStrip, moduleId: 'media' },
   { href: '/notes', label: 'Notes', icon: FileText, moduleId: 'notes' },
+]
+
+export const homelabItems: NavItem[] = [
+  { href: '/homelab', label: 'Overview', icon: SquaresFour, moduleId: 'homelab' },
+  { href: '/homelab/proxmox', label: 'Proxmox', icon: Monitor, moduleId: 'homelab-proxmox' },
+  { href: '/homelab/portainer', label: 'Portainer', icon: Desktop, moduleId: 'homelab-portainer' },
+  { href: '/homelab/network', label: 'Network', icon: ShieldCheck, moduleId: 'homelab-network' },
+  { href: '/homelab/storage', label: 'Storage/Backups', icon: FileText, moduleId: 'homelab-storage' },
+  { href: '/homelab/power', label: 'Power/Hardware', icon: Pulse, moduleId: 'homelab-power' },
+  { href: '/homelab/services', label: 'Services', icon: Gear, moduleId: 'homelab-services' },
+  { href: '/homelab/activity', label: 'Activity/Settings', icon: CalendarDots, moduleId: 'homelab-activity' },
 ]
 
 export const trainingItems: NavItem[] = [
@@ -43,12 +81,11 @@ export const agentDashboardItems: NavItem[] = [
 
 export const allNavItems: NavItem[] = [
   ...personalDashboardItems,
+  ...homelabItems,
   ...trainingItems,
   ...agentDashboardItems,
   { href: '/settings', label: 'Settings', icon: Gear },
 ]
 
 /** Lookup any nav item by its href */
-export const navItemsByHref = new Map<string, NavItem>(
-  allNavItems.map(item => [item.href, item])
-)
+export const navItemsByHref = new Map<string, NavItem>(allNavItems.map(item => [item.href, item]))

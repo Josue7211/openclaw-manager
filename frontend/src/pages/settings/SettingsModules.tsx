@@ -18,6 +18,25 @@ import { GeneratedModulesSection } from './GeneratedModulesSection'
 import { ModuleProposalsSection } from './ModuleProposalsSection'
 
 const GAP_BETWEEN_PANELS = 16 // must match GAP in ResizablePanel
+const SIDEBAR_ITEM_DRAG_TYPE = 'application/x-clawcontrol-sidebar-item'
+
+function setSidebarItemDragData(dataTransfer: DataTransfer, href: string, fromCatId: string) {
+  const payload = JSON.stringify({ href, fromCatId })
+  dataTransfer.setData(SIDEBAR_ITEM_DRAG_TYPE, payload)
+  dataTransfer.setData('text/plain', href)
+}
+
+function getSidebarItemDragData(dataTransfer: DataTransfer): { href: string; fromCatId: string } | null {
+  try {
+    const raw = dataTransfer.getData(SIDEBAR_ITEM_DRAG_TYPE)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { href?: unknown; fromCatId?: unknown }
+    if (typeof parsed.href === 'string' && typeof parsed.fromCatId === 'string') {
+      return { href: parsed.href, fromCatId: parsed.fromCatId }
+    }
+  } catch { /* ignore malformed drag payloads */ }
+  return null
+}
 
 function InterCategoryDropZone({ index: _index, active, onDragOver, onDragLeave, onDrop, modDragHref, setModDragHref, setModDragFromCat, setModDropCat, setModDropIdx }: {
   index: number; active: boolean
@@ -145,7 +164,7 @@ export default function SettingsModules() {
   const handleModDragStart = (href: string, catId: string) => (e: React.DragEvent) => {
     setModDragHref(href)
     setModDragFromCat(catId)
-    e.dataTransfer.setData('text/plain', href)
+    setSidebarItemDragData(e.dataTransfer, href, catId)
     e.dataTransfer.effectAllowed = 'move'
     if (e.currentTarget instanceof HTMLElement) {
       e.currentTarget.style.opacity = '0.4'
@@ -174,13 +193,17 @@ export default function SettingsModules() {
 
   const handleModDrop = (catId: string, index: number) => (e: React.DragEvent) => {
     e.preventDefault()
-    const draggedHref = modDragHref || e.dataTransfer.getData('text/plain')
-    const fromCat = modDragFromCat
+    const payload = getSidebarItemDragData(e.dataTransfer)
+    const draggedHref = modDragHref || payload?.href || e.dataTransfer.getData('text/plain')
+    const config = getSidebarConfig()
+    const inferredCat = draggedHref
+      ? config.categories.find(c => c.items.includes(draggedHref))?.id
+      : undefined
+    const fromCat = modDragFromCat || payload?.fromCatId || inferredCat
     if (!draggedHref || !fromCat) return
 
     // Dragging from Recycle Bin into a category — restore and place
     if (fromCat === '__recycle__') {
-      const config = getSidebarConfig()
       const newCategories = config.categories.map(c => ({ ...c, items: [...c.items] }))
       const targetCat = newCategories.find(c => c.id === catId)
       if (targetCat) targetCat.items.splice(index, 0, draggedHref)
@@ -203,7 +226,6 @@ export default function SettingsModules() {
         toggleModule(item.moduleId)
       }
       // Move the item from its current category to the drop target
-      const config = getSidebarConfig()
       const newCategories = config.categories.map(c => ({
         ...c,
         items: c.items.filter(h => h !== draggedHref),
@@ -220,7 +242,6 @@ export default function SettingsModules() {
       return
     }
 
-    const config = getSidebarConfig()
     const newCategories = config.categories.map(c => ({ ...c, items: [...c.items] }))
 
     const sourceCat = newCategories.find(c => c.id === fromCat)
@@ -305,6 +326,21 @@ export default function SettingsModules() {
       ...config,
       categories: config.categories.filter(c => c.id !== catId),
     })
+  }
+
+  const moveHrefToCategory = (href: string, targetCatId: string) => {
+    const config = getSidebarConfig()
+    const sourceCat = config.categories.find(c => c.items.includes(href))
+    const targetCat = config.categories.find(c => c.id === targetCatId)
+    if (!sourceCat || !targetCat || sourceCat.id === targetCat.id) return
+
+    const newCategories = config.categories.map(c => {
+      if (c.id === sourceCat.id) return { ...c, items: c.items.filter(itemHref => itemHref !== href) }
+      if (c.id === targetCat.id) return { ...c, items: [...c.items, href] }
+      return c
+    })
+
+    setSidebarConfig({ ...config, categories: newCategories })
   }
 
   const handleCreateModule = (catId?: string) => {
@@ -607,6 +643,8 @@ export default function SettingsModules() {
               if (!resolved) return null
               const Icon = resolved.icon
               const displayName = sidebarConfig.customNames[href] || resolved.label
+              const currentCategoryId = sidebarConfig.categories.find(c => c.items.includes(href))?.id || ''
+              const namedCategories = sidebarConfig.categories.filter(c => c.name)
               const isEnabled = !resolved.moduleId || enabledModules.includes(resolved.moduleId)
               if (!isEnabled && cat.name) return null // standalone items always visible
               const isDragTarget = modDropCat === cat.id && modDropIdx === idx && modDragHref !== href
@@ -695,6 +733,32 @@ export default function SettingsModules() {
                         </span>
                       )}
                     </div>
+                    {namedCategories.length > 1 && (
+                      <select
+                        aria-label={`Move ${displayName} to category`}
+                        value={currentCategoryId}
+                        onClick={e => e.stopPropagation()}
+                        onChange={e => moveHrefToCategory(href, e.target.value)}
+                        style={{
+                          background: 'var(--bg-elevated)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                          color: 'var(--text-secondary)',
+                          fontSize: '11px',
+                          padding: '5px 8px',
+                          maxWidth: '132px',
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {currentCategoryId && !namedCategories.some(category => category.id === currentCategoryId) && (
+                          <option value={currentCategoryId}>Current</option>
+                        )}
+                        {namedCategories.map(category => (
+                          <option key={category.id} value={category.id}>{category.name}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                   {isDragTargetAfter && dropIndicator}
                 </div>
@@ -755,8 +819,13 @@ export default function SettingsModules() {
             onDragLeave={() => { if (modDropCat === '__unused__') setModDropCat(null) }}
             onDrop={e => {
               e.preventDefault()
-              const href = modDragHref || e.dataTransfer.getData('text/plain')
-              const fromCat = modDragFromCat
+              const payload = getSidebarItemDragData(e.dataTransfer)
+              const href = modDragHref || payload?.href || e.dataTransfer.getData('text/plain')
+              const cfgForSource = getSidebarConfig()
+              const inferredCat = href
+                ? cfgForSource.categories.find(c => c.items.includes(href))?.id
+                : undefined
+              const fromCat = modDragFromCat || payload?.fromCatId || inferredCat
               if (!href) return
 
               // Ignore drops from unused back to unused (prevents accidental toggle)
@@ -1222,7 +1291,7 @@ export default function SettingsModules() {
                   <div key={d.href}
                     draggable
                     onDragStart={e => {
-                      e.dataTransfer.setData('text/plain', d.href)
+                      setSidebarItemDragData(e.dataTransfer, d.href, '__recycle__')
                       e.dataTransfer.effectAllowed = 'move'
                       setModDragHref(d.href)
                       setModDragFromCat('__recycle__')

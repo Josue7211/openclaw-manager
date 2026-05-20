@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deriveSessionTitle, isRepairableSessionLabel } from '../Chat'
+import { deriveSessionTitle, isRepairableSessionLabel } from '@/chat/t3-adapters/sessionTitles'
 
 describe('chat session title derivation', () => {
   it('skips protocol-test prompts and names from the real request', () => {

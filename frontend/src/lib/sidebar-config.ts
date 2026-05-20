@@ -1,24 +1,24 @@
-import { personalDashboardItems, trainingItems, agentDashboardItems } from './nav-items'
+import { personalDashboardItems, homelabItems, trainingItems, agentDashboardItems } from './nav-items'
 
-interface SidebarCategory {
+export interface SidebarCategory {
   id: string
   name: string
   items: string[] // hrefs in display order
 }
 
-interface CustomModule {
+export interface CustomModule {
   id: string
   name: string
   generatedModuleId?: string
 }
 
-interface DeletedItem {
+export interface DeletedItem {
   href: string
   fromCatId: string
   deletedAt: number
 }
 
-interface SidebarConfig {
+export interface SidebarConfig {
   categories: SidebarCategory[]
   customNames: Record<string, string> // href -> custom display name
   customModules: CustomModule[]
@@ -40,6 +40,11 @@ function getDefaultConfig(): SidebarConfig {
         items: personalDashboardItems.map(i => i.href),
       },
       {
+        id: 'homelab',
+        name: 'HomeLab',
+        items: homelabItems.map(i => i.href),
+      },
+      {
         id: 'training',
         name: 'Training',
         items: trainingItems.map(i => i.href),
@@ -59,6 +64,7 @@ function getDefaultConfig(): SidebarConfig {
 function getBuiltinHrefs(): Set<string> {
   return new Set([
     ...personalDashboardItems.map(i => i.href),
+    ...homelabItems.map(i => i.href),
     ...trainingItems.map(i => i.href),
     ...agentDashboardItems.map(i => i.href),
   ])
@@ -77,24 +83,29 @@ function ensureComplete(config: SidebarConfig): SidebarConfig {
     ...(config.deletedItems || []).map(d => d.href),
   ])
 
-  const missingPersonal = personalDashboardItems
-    .filter(i => !accountedHrefs.has(i.href))
-    .map(i => i.href)
-  const missingAgent = agentDashboardItems
-    .filter(i => !accountedHrefs.has(i.href))
-    .map(i => i.href)
-  const missingTraining = trainingItems
-    .filter(i => !accountedHrefs.has(i.href))
-    .map(i => i.href)
+  const missingPersonal = personalDashboardItems.filter(i => !accountedHrefs.has(i.href)).map(i => i.href)
+  const missingHomelab = homelabItems.filter(i => !accountedHrefs.has(i.href)).map(i => i.href)
+  const missingAgent = agentDashboardItems.filter(i => !accountedHrefs.has(i.href)).map(i => i.href)
+  const missingTraining = trainingItems.filter(i => !accountedHrefs.has(i.href)).map(i => i.href)
 
   // Check if cleanup is needed: removed items or duplicates
   const allItems = config.categories.flatMap(c => c.items)
   const hasDupes = new Set(allItems).size !== allItems.length
   let hasInvalid = false
   for (const cat of config.categories) {
-    if (cat.items.some(h => !allValidHrefs.has(h) || deletedHrefs.has(h))) { hasInvalid = true; break }
+    if (cat.items.some(h => !allValidHrefs.has(h) || deletedHrefs.has(h))) {
+      hasInvalid = true
+      break
+    }
   }
-  if (missingPersonal.length === 0 && missingTraining.length === 0 && missingAgent.length === 0 && !hasDupes && !hasInvalid) {
+  if (
+    missingPersonal.length === 0 &&
+    missingHomelab.length === 0 &&
+    missingTraining.length === 0 &&
+    missingAgent.length === 0 &&
+    !hasDupes &&
+    !hasInvalid
+  ) {
     return config
   }
 
@@ -116,6 +127,20 @@ function ensureComplete(config: SidebarConfig): SidebarConfig {
   if (missingPersonal.length > 0) {
     const target = updated.categories.find(c => c.id === 'personal') || updated.categories[0]
     if (target) target.items = [...target.items, ...missingPersonal]
+  }
+  if (missingHomelab.length > 0) {
+    const target = updated.categories.find(c => c.id === 'homelab' || c.name.toLowerCase() === 'homelab')
+    if (target) {
+      target.items = [...target.items, ...missingHomelab]
+    } else {
+      const trainingIndex = updated.categories.findIndex(c => c.id === 'training')
+      const homelabCategory = { id: 'homelab', name: 'HomeLab', items: missingHomelab }
+      if (trainingIndex >= 0) {
+        updated.categories.splice(trainingIndex, 0, homelabCategory)
+      } else {
+        updated.categories.push(homelabCategory)
+      }
+    }
   }
   if (missingTraining.length > 0) {
     const target = updated.categories.find(c => c.id === 'training' || c.name.toLowerCase() === 'training')
@@ -145,7 +170,18 @@ let _cached: SidebarConfig | null = null
 // Undo/redo stacks — stores serialized configs (max 30)
 const _undoStack: string[] = []
 const _redoStack: string[] = []
+let _draftBase: string | null = null
+const _draftUndoStack: string[] = []
+const _draftRedoStack: string[] = []
 const MAX_UNDO = 30
+
+function currentSidebarConfigJson(): string {
+  return JSON.stringify(_cached || getSidebarConfig())
+}
+
+function emitSidebarConfig(): void {
+  _listeners.forEach(fn => fn())
+}
 
 export function getSidebarConfig(): SidebarConfig {
   if (_cached) return _cached
@@ -163,20 +199,28 @@ export function getSidebarConfig(): SidebarConfig {
         return _cached
       }
     }
-  } catch { /* fall through */ }
+  } catch {
+    /* fall through */
+  }
   _cached = getDefaultConfig()
   return _cached
 }
 
 export function setSidebarConfig(config: SidebarConfig): void {
+  if (_draftBase) {
+    _draftUndoStack.push(currentSidebarConfigJson())
+    if (_draftUndoStack.length > MAX_UNDO) _draftUndoStack.shift()
+    _draftRedoStack.length = 0
+  } else {
   // Push current state to undo stack before changing
   const current = localStorage.getItem(STORAGE_KEY)
-  if (current) {
-    _undoStack.push(current)
-    if (_undoStack.length > MAX_UNDO) _undoStack.shift()
-  }
+    if (current) {
+      _undoStack.push(current)
+      if (_undoStack.length > MAX_UNDO) _undoStack.shift()
+    }
   // New edit invalidates redo history
-  _redoStack.length = 0
+    _redoStack.length = 0
+  }
   // Auto-clean standalone categories: remove empty ones, split multi-item ones
   const cleanedCats: SidebarCategory[] = []
   for (const c of config.categories) {
@@ -187,15 +231,84 @@ export function setSidebarConfig(config: SidebarConfig): void {
     } else if (c.items.length > 1) {
       // Split each item into its own standalone category
       for (const item of c.items) {
-        cleanedCats.push({ id: `standalone-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: '', items: [item] })
+        cleanedCats.push({
+          id: `standalone-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          name: '',
+          items: [item],
+        })
       }
     }
     // empty standalones (items.length === 0) are dropped
   }
   config = { ...config, categories: cleanedCats }
   _cached = config
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
-  _listeners.forEach(fn => fn())
+  if (!_draftBase) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
+  }
+  emitSidebarConfig()
+}
+
+export function startSidebarConfigDraft(): void {
+  if (_draftBase) return
+  _draftBase = currentSidebarConfigJson()
+  _draftUndoStack.length = 0
+  _draftRedoStack.length = 0
+}
+
+export function commitSidebarConfigDraft(): boolean {
+  if (!_draftBase) return false
+  localStorage.setItem(STORAGE_KEY, currentSidebarConfigJson())
+  _draftBase = null
+  _draftUndoStack.length = 0
+  _draftRedoStack.length = 0
+  emitSidebarConfig()
+  return true
+}
+
+export function discardSidebarConfigDraft(): boolean {
+  if (!_draftBase) return false
+  try {
+    _cached = JSON.parse(_draftBase) as SidebarConfig
+    _draftBase = null
+    _draftUndoStack.length = 0
+    _draftRedoStack.length = 0
+    emitSidebarConfig()
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function undoSidebarConfigDraft(): boolean {
+  if (!_draftBase) return false
+  const prev = _draftUndoStack.pop()
+  if (!prev) return false
+  try {
+    _draftRedoStack.push(currentSidebarConfigJson())
+    _cached = JSON.parse(prev) as SidebarConfig
+    emitSidebarConfig()
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function redoSidebarConfigDraft(): boolean {
+  if (!_draftBase) return false
+  const next = _draftRedoStack.pop()
+  if (!next) return false
+  try {
+    _draftUndoStack.push(currentSidebarConfigJson())
+    _cached = JSON.parse(next) as SidebarConfig
+    emitSidebarConfig()
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function hasSidebarConfigDraft(): boolean {
+  return Boolean(_draftBase)
 }
 
 /** Undo the last sidebar config change. Returns true if undone. */
@@ -242,7 +355,9 @@ export function resetSidebarConfig(): void {
 
 export function subscribeSidebarConfig(fn: () => void): () => void {
   _listeners.add(fn)
-  return () => { _listeners.delete(fn) }
+  return () => {
+    _listeners.delete(fn)
+  }
 }
 
 /**
@@ -272,26 +387,65 @@ export function moveItem(href: string, direction: 'up' | 'down'): void {
     const idx = cat.items.indexOf(href)
     if (idx === -1) continue
     const targetIdx = direction === 'up' ? idx - 1 : idx + 1
-    if (targetIdx < 0 || targetIdx >= cat.items.length) return
-    // Swap
+    if (targetIdx < 0 || targetIdx >= cat.items.length) return // Swap
     ;[cat.items[idx], cat.items[targetIdx]] = [cat.items[targetIdx], cat.items[idx]]
     setSidebarConfig({ ...config, categories: newCategories })
     return
   }
 }
 
-/** Move an item from one category to another */
-export function moveItemToCategory(href: string, fromCatId: string, toCatId: string, toIndex: number): void {
+/** Move an item from its current category to another category. */
+export function moveItemToCategory(href: string, toCatId: string, toIndex: number): void
+export function moveItemToCategory(href: string, fromCatId: string, toCatId: string, toIndex: number): void
+export function moveItemToCategory(
+  href: string,
+  fromOrToCatId: string,
+  toCatIdOrIndex: string | number,
+  maybeToIndex?: number,
+): void {
   const config = getSidebarConfig()
+  const legacyArgs = typeof toCatIdOrIndex === 'string'
+  const explicitFromCatId = legacyArgs ? fromOrToCatId : undefined
+  const toCatId = legacyArgs ? toCatIdOrIndex : fromOrToCatId
+  const requestedIndex = legacyArgs ? maybeToIndex : toCatIdOrIndex
   const newCategories = config.categories.map(c => ({ ...c, items: [...c.items] }))
 
-  const sourceCat = newCategories.find(c => c.id === fromCatId)
+  const sourceCat = explicitFromCatId
+    ? newCategories.find(c => c.id === explicitFromCatId)
+    : newCategories.find(c => c.items.includes(href))
   const targetCat = newCategories.find(c => c.id === toCatId)
-  if (!sourceCat || !targetCat) return
+  if (!sourceCat || !targetCat || !sourceCat.items.includes(href)) return
 
-  sourceCat.items = sourceCat.items.filter(h => h !== href)
-  targetCat.items.splice(toIndex, 0, href)
+  const oldIndex = sourceCat.items.indexOf(href)
+  let insertIndex =
+    typeof requestedIndex === 'number' && Number.isFinite(requestedIndex)
+      ? Math.trunc(requestedIndex)
+      : targetCat.items.length
+  if (sourceCat.id === targetCat.id && oldIndex < insertIndex) insertIndex -= 1
+
+  for (const cat of newCategories) {
+    cat.items = cat.items.filter(h => h !== href)
+  }
+  const cleanedTarget = newCategories.find(c => c.id === toCatId)
+  if (!cleanedTarget) return
+  insertIndex = Math.max(0, Math.min(insertIndex, cleanedTarget.items.length))
+  cleanedTarget.items.splice(insertIndex, 0, href)
   setSidebarConfig({ ...config, categories: newCategories })
+}
+
+/** Move a category to a new position in the sidebar. */
+export function moveCategoryToIndex(catId: string, toIndex: number): void {
+  const config = getSidebarConfig()
+  const fromIndex = config.categories.findIndex(c => c.id === catId)
+  if (fromIndex === -1 || !Number.isFinite(toIndex)) return
+
+  const categories = config.categories.map(c => ({ ...c, items: [...c.items] }))
+  const [moved] = categories.splice(fromIndex, 1)
+  let insertIndex = Math.trunc(toIndex)
+  if (fromIndex < insertIndex) insertIndex -= 1
+  insertIndex = Math.max(0, Math.min(insertIndex, categories.length))
+  categories.splice(insertIndex, 0, moved)
+  setSidebarConfig({ ...config, categories })
 }
 
 /** Rename a sidebar item */
@@ -302,9 +456,7 @@ export function renameItem(href: string, newName: string): void {
   // For custom modules, also update the module name
   if (href.startsWith('/custom/')) {
     const modId = href.slice('/custom/'.length)
-    const newMods = (config.customModules || []).map(m =>
-      m.id === modId ? { ...m, name: newName } : m
-    )
+    const newMods = (config.customModules || []).map(m => (m.id === modId ? { ...m, name: newName } : m))
     if (!newName.trim()) {
       delete newCustomNames[href]
       setSidebarConfig({ ...config, customNames: newCustomNames, customModules: newMods })
@@ -329,9 +481,7 @@ export function renameCategory(catId: string, newName: string): void {
   const config = getSidebarConfig()
   setSidebarConfig({
     ...config,
-    categories: config.categories.map(c =>
-      c.id === catId ? { ...c, name: newName.trim() } : c
-    ),
+    categories: config.categories.map(c => (c.id === catId ? { ...c, name: newName.trim() } : c)),
   })
 }
 
@@ -401,9 +551,7 @@ export function deleteCustomModule(modId: string): void {
       items: c.items.filter(h => h !== href),
     })),
     customModules: (config.customModules || []).filter(m => m.id !== modId),
-    customNames: Object.fromEntries(
-      Object.entries(config.customNames).filter(([k]) => k !== href)
-    ),
+    customNames: Object.fromEntries(Object.entries(config.customNames).filter(([k]) => k !== href)),
   })
 }
 
@@ -412,7 +560,10 @@ export function softDeleteItem(href: string): void {
   const config = getSidebarConfig()
   let fromCatId = ''
   for (const cat of config.categories) {
-    if (cat.items.includes(href)) { fromCatId = cat.id; break }
+    if (cat.items.includes(href)) {
+      fromCatId = cat.id
+      break
+    }
   }
   const deleted: DeletedItem = { href, fromCatId, deletedAt: Date.now() }
   setSidebarConfig({
@@ -433,9 +584,7 @@ export function restoreItem(href: string): void {
   const targetCat = config.categories.find(c => c.id === deleted.fromCatId) || config.categories[0]
   setSidebarConfig({
     ...config,
-    categories: config.categories.map(c =>
-      c === targetCat ? { ...c, items: [...c.items, href] } : c
-    ),
+    categories: config.categories.map(c => (c === targetCat ? { ...c, items: [...c.items, href] } : c)),
     deletedItems: (config.deletedItems || []).filter(d => d.href !== href),
   })
 }
@@ -447,12 +596,14 @@ export function permanentlyDelete(href: string): void {
   setSidebarConfig({
     ...config,
     deletedItems: (config.deletedItems || []).filter(d => d.href !== href),
-    ...(isCustom ? {
-      customModules: (config.customModules || []).filter(m => `/custom/${m.id}` !== href),
-      customNames: Object.fromEntries(
-        Object.entries(config.customNames).filter(([k]) => k !== href && !k.startsWith(href + '::'))
-      ),
-    } : {}),
+    ...(isCustom
+      ? {
+          customModules: (config.customModules || []).filter(m => `/custom/${m.id}` !== href),
+          customNames: Object.fromEntries(
+            Object.entries(config.customNames).filter(([k]) => k !== href && !k.startsWith(href + '::')),
+          ),
+        }
+      : {}),
   })
 }
 
@@ -466,7 +617,7 @@ export function emptyRecycleBin(): void {
     if (d.href.startsWith('/custom/')) {
       newCustomModules = newCustomModules.filter(m => `/custom/${m.id}` !== d.href)
       newCustomNames = Object.fromEntries(
-        Object.entries(newCustomNames).filter(([k]) => k !== d.href && !k.startsWith(d.href + '::'))
+        Object.entries(newCustomNames).filter(([k]) => k !== d.href && !k.startsWith(d.href + '::')),
       )
     }
   }

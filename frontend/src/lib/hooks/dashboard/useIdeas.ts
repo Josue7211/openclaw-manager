@@ -4,7 +4,7 @@ import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode } from '@/lib/demo-data'
 import { useRealtimeSSE } from '@/lib/hooks/useRealtimeSSE'
-import type { Idea } from '@/pages/dashboard/types'
+import type { Idea } from '@/features/dashboard/types'
 
 export function useIdeas() {
   const _demo = isDemoMode()

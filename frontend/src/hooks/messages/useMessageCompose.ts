@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '@/lib/api'
-import type { Conversation, Message } from '@/pages/messages/types'
+import type { Conversation, Message } from '@/features/messages/types'
 
 async function fileToBase64(file: File): Promise<string> {
   const buffer = await file.arrayBuffer()

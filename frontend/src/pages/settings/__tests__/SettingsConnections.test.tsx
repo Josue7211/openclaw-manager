@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event'
 vi.mock('@/lib/api', () => ({
   api: {
     get: vi.fn(),
+    put: vi.fn(),
+    post: vi.fn(),
     patch: vi.fn(),
   },
   API_BASE_CHANGED_EVENT: 'backend-api-base-changed',
@@ -12,6 +14,7 @@ vi.mock('@/lib/api', () => ({
   getApiBase: vi.fn(() => 'http://127.0.0.1:5000'),
   getConfiguredBackendBase: vi.fn(() => 'http://127.0.0.1:5000'),
   setApiBase: vi.fn(),
+  setApiKey: vi.fn(),
   setConfiguredBackendBase: vi.fn(),
 }))
 
@@ -42,6 +45,7 @@ import { getSetupStatus, pairWithBackend } from '@/lib/setup'
 describe('SettingsConnections', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.history.pushState({}, '', '/settings')
 
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/api/status/active-config') {
@@ -54,7 +58,48 @@ describe('SettingsConnections', () => {
       if (path === '/api/user-preferences') {
         return { ok: true, data: {} }
       }
+      if (path === '/api/homelab/config') {
+        return {
+          ok: true,
+          data: {
+            api_configured: { proxmox: false, opnsense: false, portainer: false },
+            local: {
+              proxmox_host: '',
+              proxmox_token_id: '',
+              proxmox_token_secret_set: false,
+              opnsense_host: '',
+              opnsense_key_set: false,
+              opnsense_secret_set: false,
+              portainer_instances: [],
+            },
+          },
+        }
+      }
       return null
+    })
+    vi.mocked(api.put).mockResolvedValue({
+      ok: true,
+      data: {
+        api_configured: { proxmox: true, opnsense: true, portainer: true },
+        local: {
+          proxmox_host: 'https://pve.test:8006',
+          proxmox_token_id: 'root@pam!claw',
+          proxmox_token_secret_set: true,
+          opnsense_host: 'https://opn.test',
+          opnsense_key_set: true,
+          opnsense_secret_set: true,
+          portainer_instances: [{
+            id: 'portainer-test',
+            name: 'Services Portainer',
+            url: 'https://portainer.test:9443',
+            token_set: true,
+          }],
+        },
+      },
+    })
+    vi.mocked(api.post).mockResolvedValue({
+      ok: true,
+      data: { synced: ['proxmox', 'opnsense', 'portainer'], skipped: [] },
     })
 
     vi.mocked(getSetupStatus).mockResolvedValue({
@@ -120,6 +165,53 @@ describe('SettingsConnections', () => {
       expect(pairWithBackend).toHaveBeenCalledTimes(1)
       expect(setApiBase).toHaveBeenCalledWith('http://127.0.0.1:5000')
       expect(screen.getByText('Backend paired')).toBeInTheDocument()
+    })
+  })
+
+  it('saves multi-Portainer Home Lab config through the backend', async () => {
+    const user = userEvent.setup()
+
+    render(<SettingsConnections />)
+
+    await user.click(await screen.findByRole('button', { name: 'Add Portainer' }))
+    await user.clear(screen.getByLabelText('Portainer 1 name'))
+    await user.type(screen.getByLabelText('Portainer 1 name'), 'Services Portainer')
+    await user.type(screen.getByLabelText('Portainer 1 URL'), 'https://portainer.test:9443')
+    await user.type(screen.getByLabelText('Portainer 1 API token'), 'ptr_secret')
+    await user.click(screen.getByRole('button', { name: 'Save Home Lab' }))
+
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith('/api/homelab/config', expect.objectContaining({
+        portainer_instances: [expect.objectContaining({
+          name: 'Services Portainer',
+          url: 'https://portainer.test:9443',
+          token: 'ptr_secret',
+        })],
+      }))
+      expect(api.post).toHaveBeenCalledWith('/api/homelab/sync')
+      expect(screen.getByText('Saved locally and synced.')).toBeInTheDocument()
+    })
+  })
+
+  it('opens a focused Media Command credential target from query params', async () => {
+    const user = userEvent.setup()
+    window.history.pushState({}, '', '/settings?section=connections&service=kometa&keys=kometa.url%2Ckometa.api-key')
+
+    render(<SettingsConnections />)
+
+    expect(await screen.findByText('Kometa setup')).toBeInTheDocument()
+    await user.type(screen.getByLabelText('Kometa URL'), 'http://kometa.test')
+    await user.type(screen.getByLabelText('Kometa API Key'), 'kometa_secret')
+    await user.click(screen.getByRole('button', { name: 'Save Kometa' }))
+
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith('/api/secrets/kometa', {
+        credentials: {
+          url: 'http://kometa.test',
+          api_key: 'kometa_secret',
+        },
+      })
+      expect(screen.getByText('Saved. Restart to apply changes.')).toBeInTheDocument()
     })
   })
 })

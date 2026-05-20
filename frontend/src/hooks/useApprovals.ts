@@ -4,7 +4,7 @@ import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode } from '@/lib/demo-data'
 import { setUnreadCount } from '@/lib/unread-store'
-import type { ApprovalsResponse } from '@/pages/approvals/types'
+import type { ApprovalsResponse } from '@/features/approvals/types'
 
 export function useApprovals() {
   const demo = isDemoMode()

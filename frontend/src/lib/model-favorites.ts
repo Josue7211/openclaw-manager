@@ -1,5 +1,5 @@
-import type { ModelInfo, ModelsResponse as HarnessModelsResponse } from '@/pages/harness/types'
-import type { ModelOption } from '@/pages/chat/types'
+import type { ModelInfo, ModelsResponse as HarnessModelsResponse } from '@/features/harness/types'
+import type { ModelOption } from '@/features/chat/types'
 
 export const CHAT_FAVORITE_MODELS_STORAGE_KEY = 'chat-favorite-models'
 export const CHAT_FAVORITE_MODELS_VERSION_STORAGE_KEY = 'chat-favorite-models-version'

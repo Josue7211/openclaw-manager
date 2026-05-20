@@ -16,6 +16,14 @@ describe('openui', () => {
     expect(result.meta.errors).toEqual([])
   })
 
+  it('parses composed generated UI layouts for the assistant drawer', () => {
+    const parser = createParser(clawOpenUiLibrary.toJSONSchema())
+    const result = parser.parse('root = Stack([Card("Today", "Focus plan", "Focus", "Ship one task", "accent", [Metric("Time block", "90m", "Deep work", "accent"), Checklist("Rules", [{"label":"No context switching"}])])])')
+
+    expect(result.root?.typeName).toBe('Stack')
+    expect(result.meta.errors).toEqual([])
+  })
+
   it('extracts only fenced OpenUI Lang for normal chat rendering', () => {
     expect(
       extractFencedOpenUiLangFromResponse('```openui\nroot = MarkdownDisplay("Hello")\n```'),

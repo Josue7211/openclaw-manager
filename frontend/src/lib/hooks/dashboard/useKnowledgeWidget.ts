@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode } from '@/lib/demo-data'
-import type { KnowledgeEntry } from '@/pages/knowledge/shared'
+import type { KnowledgeEntry } from '@/features/knowledge/types'
 
 const DEMO_ENTRIES: KnowledgeEntry[] = [
   { id: '1', title: 'React Server Components deep dive', tags: ['react', 'rsc'], created_at: '2026-03-22T10:00:00Z', updated_at: '2026-03-22T10:00:00Z' },

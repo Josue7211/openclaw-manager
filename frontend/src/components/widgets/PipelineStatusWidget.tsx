@@ -3,7 +3,7 @@ import { Rocket, ArrowRight } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { SkeletonRows } from '@/components/Skeleton'
 import { usePipelineStatus } from '@/lib/hooks/dashboard/usePipelineStatus'
-import { relativeTime } from '@/pages/crons/types'
+import { relativeTime } from '@/features/crons/types'
 import type { WidgetProps } from '@/lib/widget-registry'
 
 export const PipelineStatusWidget = React.memo(function PipelineStatusWidget(_props: WidgetProps) {

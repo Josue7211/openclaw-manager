@@ -4,7 +4,7 @@ import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode } from '@/lib/demo-data'
 import { useGatewaySSE } from '@/lib/hooks/useGatewaySSE'
-import type { Agent, CreateAgentPayload, AgentActionPayload } from '@/pages/agents/types'
+import type { Agent, CreateAgentPayload, AgentActionPayload } from '@/features/agents/types'
 
 interface AgentsResponse {
   agents: Agent[]

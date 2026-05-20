@@ -3,6 +3,7 @@
 const STORAGE_KEY = 'keybindings'
 const MOD_KEY_STORAGE = 'modifier-key'
 const MOD_LIST_STORAGE = 'modifier-list'
+const MOD_PLATFORM_MIGRATION_STORAGE = 'modifier-key-platform-default-v1'
 
 type ModifierKey = string
 
@@ -57,11 +58,52 @@ function load(): Keybinding[] {
 }
 
 let _bindings: Keybinding[] = load()
-let _defaultMod: ModifierKey = (localStorage.getItem(MOD_KEY_STORAGE) as ModifierKey) || 'ctrl'
+
+function isApplePlatform(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const nav = navigator as Navigator & { userAgentData?: { platform?: string } }
+  const platform = [
+    nav.userAgentData?.platform,
+    nav.platform,
+    nav.userAgent,
+  ].filter(Boolean).join(' ')
+  return /\b(Mac|iPhone|iPad|iPod)\b/i.test(platform)
+}
+
+export function getPlatformModifierKey(): ModifierKey {
+  return isApplePlatform() ? 'meta' : 'ctrl'
+}
+
+function loadDefaultModifierKey(): ModifierKey {
+  const platformDefault = getPlatformModifierKey()
+  const stored = localStorage.getItem(MOD_KEY_STORAGE) as ModifierKey | null
+  if (!stored) return platformDefault
+
+  const migrated = localStorage.getItem(MOD_PLATFORM_MIGRATION_STORAGE) === '1'
+  if (!migrated) {
+    localStorage.setItem(MOD_PLATFORM_MIGRATION_STORAGE, '1')
+    if (stored === 'ctrl' && platformDefault === 'meta') {
+      localStorage.setItem(MOD_KEY_STORAGE, platformDefault)
+      return platformDefault
+    }
+  }
+
+  return stored
+}
+
+let _defaultMod: ModifierKey = loadDefaultModifierKey()
 let _modList: ModifierKey[] = (() => {
   try {
     const stored = localStorage.getItem(MOD_LIST_STORAGE)
-    if (stored) { const parsed = JSON.parse(stored); if (Array.isArray(parsed)) return parsed }
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        if (parsed.includes(_defaultMod)) return parsed
+        const next = [_defaultMod, ...parsed]
+        localStorage.setItem(MOD_LIST_STORAGE, JSON.stringify(next))
+        return next
+      }
+    }
   } catch {
     // Ignore malformed persisted modifier lists.
   }

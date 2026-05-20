@@ -82,7 +82,8 @@ export function EventDetails({
 
   if (!event) return null
 
-  const color = calendarColor(event.calendar)
+  const activeEvent = event
+  const color = calendarColor(activeEvent.calendar)
   const inputStyle: React.CSSProperties = {
     minWidth: 0,
     border: '1px solid var(--border)',
@@ -101,12 +102,12 @@ export function EventDetails({
     const end = form.allDay
       ? new Date(new Date(`${form.date}T00:00`).getTime() + 24 * 60 * 60 * 1000).toISOString()
       : new Date(`${form.date}T${form.endTime || '10:00'}`).toISOString()
-    onUpdate?.(event, {
+    onUpdate?.(activeEvent, {
       title: form.title.trim(),
       start,
       end,
       allDay: form.allDay,
-      calendar: event.calendar,
+      calendar: activeEvent.calendar,
     })
   }
 
@@ -139,8 +140,25 @@ export function EventDetails({
           overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '18px 18px 14px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: color, marginTop: '6px', flexShrink: 0 }} />
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '12px',
+            padding: '18px 18px 14px',
+            borderBottom: '1px solid var(--border)',
+          }}
+        >
+          <div
+            style={{
+              width: '12px',
+              height: '12px',
+              borderRadius: '50%',
+              background: color,
+              marginTop: '6px',
+              flexShrink: 0,
+            }}
+          />
           <div style={{ minWidth: 0, flex: 1 }}>
             {editing ? (
               <input
@@ -149,14 +167,27 @@ export function EventDetails({
                 style={{ ...inputStyle, width: '100%', fontSize: '14px', fontWeight: 600 }}
               />
             ) : (
-              <h2 style={{ margin: 0, fontSize: '18px', lineHeight: 1.25, color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: '18px',
+                  lineHeight: 1.25,
+                  color: 'var(--text-primary)',
+                  overflowWrap: 'anywhere',
+                }}
+              >
                 {event.title || 'Untitled event'}
               </h2>
             )}
             <p style={{ margin: '6px 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>{event.calendar}</p>
           </div>
           {onUpdate && (
-            <button type="button" onClick={() => setEditing(value => !value)} aria-label="Edit event" style={iconButtonStyle}>
+            <button
+              type="button"
+              onClick={() => setEditing(value => !value)}
+              aria-label="Edit event"
+              style={iconButtonStyle}
+            >
               <PencilSimple size={14} />
             </button>
           )}
@@ -190,7 +221,15 @@ export function EventDetails({
                   style={inputStyle}
                 />
               </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', fontSize: '12px' }}>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  color: 'var(--text-secondary)',
+                  fontSize: '12px',
+                }}
+              >
                 <input
                   type="checkbox"
                   checked={form.allDay}
@@ -220,7 +259,15 @@ export function EventDetails({
             </>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '6px', borderTop: '1px solid var(--border)' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '8px',
+              paddingTop: '6px',
+              borderTop: '1px solid var(--border)',
+            }}
+          >
             {editing && onUpdate && (
               <button type="button" onClick={saveEdit} disabled={updating} style={saveButtonStyle}>
                 <FloppyDisk size={14} />
@@ -228,7 +275,12 @@ export function EventDetails({
               </button>
             )}
             {onDelete && (
-              <button type="button" onClick={() => onDelete(event)} disabled={deleting} style={deleteButtonStyle(deleting)}>
+              <button
+                type="button"
+                onClick={() => onDelete(event)}
+                disabled={deleting}
+                style={deleteButtonStyle(deleting)}
+              >
                 <Trash size={14} />
                 Delete
               </button>

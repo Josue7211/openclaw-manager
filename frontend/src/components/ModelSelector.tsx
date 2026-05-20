@@ -1,7 +1,7 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { CaretDown } from '@phosphor-icons/react'
 import { useHarnessModels } from '@/hooks/useHarnessModels'
-import type { ModelInfo } from '@/pages/harness/types'
+import type { ModelInfo } from '@/features/harness/types'
 
 interface ModelSelectorProps {
   value: string

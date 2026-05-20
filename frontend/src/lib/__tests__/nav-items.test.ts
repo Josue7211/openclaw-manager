@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   personalDashboardItems,
+  homelabItems,
   trainingItems,
   agentDashboardItems,
   allNavItems,
@@ -63,9 +64,34 @@ describe('agentDashboardItems', () => {
   })
 })
 
+describe('homelabItems', () => {
+  it('exposes the full HomeLab control center split', () => {
+    expect(homelabItems.map(item => item.href)).toEqual([
+      '/homelab',
+      '/homelab/proxmox',
+      '/homelab/portainer',
+      '/homelab/network',
+      '/homelab/storage',
+      '/homelab/power',
+      '/homelab/services',
+      '/homelab/activity',
+    ])
+  })
+
+  it('every item has href, label, icon, and moduleId', () => {
+    for (const item of homelabItems) {
+      expect(item.href).toMatch(/^\/homelab/)
+      expect(item.label).toBeTruthy()
+      expect(item.icon).toBeDefined()
+      expect(item.moduleId).toBeTruthy()
+    }
+  })
+})
+
 describe('allNavItems', () => {
   it('contains all personal and agent items plus Settings', () => {
-    const expectedCount = personalDashboardItems.length + trainingItems.length + agentDashboardItems.length + 1
+    const expectedCount =
+      personalDashboardItems.length + homelabItems.length + trainingItems.length + agentDashboardItems.length + 1
     expect(allNavItems.length).toBe(expectedCount)
   })
 

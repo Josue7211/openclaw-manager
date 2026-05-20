@@ -9,8 +9,8 @@ import { createElement } from 'react'
 
 const mockUseHarnessUsage = vi.fn()
 
-vi.mock('@/hooks/useHarnessUsage', () => ({
-  useHarnessUsage: () => mockUseHarnessUsage(),
+vi.mock('@/hooks/useCodexLbUsage', () => ({
+  useCodexLbUsage: () => mockUseHarnessUsage(),
 }))
 
 // ---------------------------------------------------------------------------
@@ -41,11 +41,18 @@ describe('UsageTab', () => {
 
   it('renders without throwing when healthy with usage data', () => {
     mockUseHarnessUsage.mockReturnValue({
-      usage: {
+      rawUsage: {
         total_tokens: 150000,
         total_cost: 2.5,
-        period: '2026-03',
         models: [{ model: 'claude-sonnet-4-6', tokens: 100000, cost: 1.5, requests: 50 }],
+      },
+      usage: {
+        totalTokens: 150000,
+        totalCost: 2.5,
+        used: 150000,
+        period: '2026-03',
+        accounts: [],
+        windows: [],
       },
       loading: false,
       error: null,
@@ -53,9 +60,9 @@ describe('UsageTab', () => {
 
     renderWithQC(<UsageTab healthy={true} />)
 
-    expect(screen.getByText('Total Tokens')).toBeInTheDocument()
+    expect(screen.getByText('Used')).toBeInTheDocument()
     expect(screen.getByText('Total Cost')).toBeInTheDocument()
-    expect(screen.getByText('150,000')).toBeInTheDocument()
+    expect(screen.getByText('150k')).toBeInTheDocument()
     expect(screen.getByText('$2.50')).toBeInTheDocument()
     expect(screen.getByText('2026-03')).toBeInTheDocument()
   })
@@ -68,6 +75,7 @@ describe('UsageTab', () => {
 
   it('shows loading state', () => {
     mockUseHarnessUsage.mockReturnValue({
+      rawUsage: undefined,
       usage: undefined,
       loading: true,
       error: null,
@@ -80,6 +88,7 @@ describe('UsageTab', () => {
 
   it('shows "No usage data available" when usage is null', () => {
     mockUseHarnessUsage.mockReturnValue({
+      rawUsage: null,
       usage: null,
       loading: false,
       error: null,
@@ -92,13 +101,20 @@ describe('UsageTab', () => {
 
   it('renders model breakdown table when models present', () => {
     mockUseHarnessUsage.mockReturnValue({
-      usage: {
+      rawUsage: {
         total_tokens: 200000,
         total_cost: 3.0,
         models: [
           { model: 'claude-sonnet-4-6', tokens: 150000, cost: 2.0, requests: 75 },
           { model: 'gpt-4', tokens: 50000, cost: 1.0, requests: 25 },
         ],
+      },
+      usage: {
+        totalTokens: 200000,
+        totalCost: 3.0,
+        used: 200000,
+        accounts: [],
+        windows: [],
       },
       loading: false,
       error: null,
@@ -113,7 +129,8 @@ describe('UsageTab', () => {
 
   it('renders stat cards with fallback values for missing fields', () => {
     mockUseHarnessUsage.mockReturnValue({
-      usage: { total_tokens: undefined, total_cost: undefined },
+      rawUsage: { total_tokens: undefined, total_cost: undefined },
+      usage: { accounts: [], windows: [] },
       loading: false,
       error: null,
     })
@@ -125,5 +142,27 @@ describe('UsageTab', () => {
     expect(dashes.length).toBeGreaterThanOrEqual(2)
     // Period falls back to "All time"
     expect(screen.getByText('All time')).toBeInTheDocument()
+  })
+
+  it('renders Codex LB account and limit breakdowns', () => {
+    mockUseHarnessUsage.mockReturnValue({
+      rawUsage: { total_tokens: 100000 },
+      usage: {
+        totalTokens: 100000,
+        used: 40,
+        remaining: 60,
+        totalCost: 1,
+        accounts: [{ id: 'personal', label: 'personal', used: 10, remaining: 90, percent: 10, windows: [] }],
+        windows: [{ id: 'fiveHour', label: '5h', used: 40, limit: 100, remaining: 60, percent: 40 }],
+      },
+      loading: false,
+      error: null,
+    })
+
+    renderWithQC(<UsageTab healthy={true} />)
+
+    expect(screen.getByText('5h limit')).toBeInTheDocument()
+    expect(screen.getByText('Codex LB Accounts')).toBeInTheDocument()
+    expect(screen.getByText('personal')).toBeInTheDocument()
   })
 })

@@ -16,9 +16,22 @@ let reorderModifiers: typeof import('../keybindings').reorderModifiers
 let keyToModifier: typeof import('../keybindings').keyToModifier
 let modLabel: typeof import('../keybindings').modLabel
 let getBindingMod: typeof import('../keybindings').getBindingMod
+let getPlatformModifierKey: typeof import('../keybindings').getPlatformModifierKey
+
+function setNavigatorPlatform(platform: string, userAgent: string) {
+  Object.defineProperty(navigator, 'platform', {
+    value: platform,
+    configurable: true,
+  })
+  Object.defineProperty(navigator, 'userAgent', {
+    value: userAgent,
+    configurable: true,
+  })
+}
 
 beforeEach(async () => {
   localStorage.clear()
+  setNavigatorPlatform('Linux x86_64', 'Mozilla/5.0 (X11; Linux x86_64)')
   // Reset the module so module-level `_bindings` is re-initialised
   vi.resetModules()
   const mod = await import('../keybindings')
@@ -36,6 +49,7 @@ beforeEach(async () => {
   keyToModifier = mod.keyToModifier
   modLabel = mod.modLabel
   getBindingMod = mod.getBindingMod
+  getPlatformModifierKey = mod.getPlatformModifierKey
 })
 
 describe('getKeybindings', () => {
@@ -92,7 +106,7 @@ describe('resetKeybindings', () => {
 
 describe('formatKey', () => {
   it('returns modifier label and uppercased key with default mod (ctrl)', () => {
-    // Default modifier is 'ctrl', so formatKey returns 'Ctrl' regardless of platform
+    // Test setup defaults to Linux, so the platform modifier is Ctrl.
     const parts = formatKey({ id: 'test', label: 'Test', key: 'k', mod: true })
     expect(parts).toEqual(['Ctrl', 'K'])
   })
@@ -135,6 +149,44 @@ describe('subscribeKeybindings', () => {
 describe('getModifierKey / setModifierKey', () => {
   it('defaults to ctrl when localStorage is empty', () => {
     expect(getModifierKey()).toBe('ctrl')
+  })
+
+  it('defaults to meta on macOS when localStorage is empty', async () => {
+    localStorage.clear()
+    setNavigatorPlatform('MacIntel', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)')
+    vi.resetModules()
+
+    const mod = await import('../keybindings')
+
+    expect(mod.getPlatformModifierKey()).toBe('meta')
+    expect(mod.getModifierKey()).toBe('meta')
+    expect(mod.getModifierList()).toEqual(['meta'])
+    expect(mod.formatKey({ id: 'test', label: 'Test', key: 'k', mod: true })).toEqual(['⌘ Cmd', 'K'])
+  })
+
+  it('migrates the legacy hardcoded ctrl default to meta on macOS', async () => {
+    localStorage.setItem('modifier-key', 'ctrl')
+    localStorage.setItem('modifier-list', JSON.stringify(['ctrl']))
+    setNavigatorPlatform('MacIntel', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)')
+    vi.resetModules()
+
+    const mod = await import('../keybindings')
+
+    expect(mod.getModifierKey()).toBe('meta')
+    expect(mod.getModifierList()).toEqual(['meta', 'ctrl'])
+    expect(localStorage.getItem('modifier-key')).toBe('meta')
+    expect(JSON.parse(localStorage.getItem('modifier-list')!)).toEqual(['meta', 'ctrl'])
+  })
+
+  it('preserves a saved modifier after platform default migration has run', async () => {
+    localStorage.setItem('modifier-key', 'alt')
+    localStorage.setItem('modifier-key-platform-default-v1', '1')
+    setNavigatorPlatform('MacIntel', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)')
+    vi.resetModules()
+
+    const mod = await import('../keybindings')
+
+    expect(mod.getModifierKey()).toBe('alt')
   })
 
   it('persists and returns the new modifier key', () => {
@@ -336,5 +388,11 @@ describe('getBindingMod', () => {
     setModifierKey('meta')
     const binding = { id: 'test', label: 'Test', key: 'k', mod: true }
     expect(getBindingMod(binding)).toBe('meta')
+  })
+})
+
+describe('getPlatformModifierKey', () => {
+  it('returns ctrl on non-Apple platforms', () => {
+    expect(getPlatformModifierKey()).toBe('ctrl')
   })
 })

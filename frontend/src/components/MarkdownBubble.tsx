@@ -1,6 +1,7 @@
-import { useRef, useEffect, useMemo } from 'react'
+import { useCallback, useRef, useEffect, useMemo } from 'react'
 import { marked } from 'marked'
 import { sanitizeHtml } from '@/lib/sanitize'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import hljs from 'highlight.js/lib/core'
 import javascript from 'highlight.js/lib/languages/javascript'
 import typescript from 'highlight.js/lib/languages/typescript'
@@ -60,10 +61,34 @@ marked.use({
  */
 export default function MarkdownBubble({ children }: { children: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const html = useMemo(
     () => sanitizeHtml(marked.parse(children) as string),
     [children],
   )
+  const resetCopyButton = useCallback((button: HTMLButtonElement) => {
+    button.textContent = 'Copy'
+    button.setAttribute('aria-label', 'Copy code')
+    button.title = 'Copy code'
+  }, [])
+  const setCopyButtonFeedback = useCallback((button: HTMLButtonElement, label: string) => {
+    if (resetTimerRef.current) {
+      clearTimeout(resetTimerRef.current)
+      resetTimerRef.current = null
+    }
+    button.textContent = label
+    button.setAttribute('aria-label', label)
+    button.title = label
+    resetTimerRef.current = setTimeout(() => {
+      resetCopyButton(button)
+      resetTimerRef.current = null
+    }, 1600)
+  }, [resetCopyButton])
+  const { copyToClipboard } = useCopyToClipboard<{ button: HTMLButtonElement }>({
+    trackState: false,
+    onCopy: ({ button }) => setCopyButtonFeedback(button, 'Copied code'),
+    onError: (_error, { button }) => setCopyButtonFeedback(button, 'Copy failed'),
+  })
 
   useEffect(() => {
     const el = containerRef.current
@@ -73,13 +98,14 @@ export default function MarkdownBubble({ children }: { children: string }) {
       if (!btn) return
       const code = btn.closest('.md-code-block')?.querySelector('code')
       if (!code) return
-      navigator.clipboard.writeText(code.textContent ?? '').then(() => {
-        btn.textContent = 'Copied!'
-        setTimeout(() => { btn.textContent = 'Copy' }, 2000)
-      }).catch(() => { /* clipboard API may be blocked */ })
+      void copyToClipboard(code.textContent ?? '', { button: btn })
     }
     el.addEventListener('click', onClick)
     return () => el.removeEventListener('click', onClick)
+  }, [copyToClipboard])
+
+  useEffect(() => () => {
+    if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
   }, [])
 
   // Content is sanitized via DOMPurify (sanitizeHtml) before rendering

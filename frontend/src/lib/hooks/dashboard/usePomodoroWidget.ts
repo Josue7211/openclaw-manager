@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import type { Mode, SessionEntry } from '@/pages/pomodoro/types'
-import { DEFAULT_DURATIONS, STORAGE_KEY, loadSessions, saveSessions } from '@/pages/pomodoro/types'
+import type { Mode, SessionEntry } from '@/features/pomodoro/types'
+import { DEFAULT_DURATIONS, STORAGE_KEY, loadSessions, saveSessions } from '@/features/pomodoro/types'
 
 interface PomodoroWidgetOptions {
   workDuration?: number

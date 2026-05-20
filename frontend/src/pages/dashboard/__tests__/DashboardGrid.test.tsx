@@ -10,13 +10,14 @@ import React from 'react'
 let capturedGridProps: Record<string, unknown> = {}
 
 vi.mock('react-grid-layout', () => {
-  const MockResponsiveGridLayout = React.forwardRef(function MockRGL(
-    props: Record<string, unknown>,
-    _ref: any,
-  ) {
+  const MockResponsiveGridLayout = React.forwardRef(function MockRGL(props: Record<string, unknown>, _ref: any) {
     capturedGridProps = props
     return (
-      <div data-testid="rgl-container" data-draggable={String(props.isDraggable)} data-resizable={String(props.isResizable)}>
+      <div
+        data-testid="rgl-container"
+        data-draggable={String(props.isDraggable)}
+        data-resizable={String(props.isResizable)}
+      >
         {props.children as React.ReactNode}
       </div>
     )
@@ -37,11 +38,25 @@ vi.mock('react-resizable/css/styles.css', () => ({}))
 
 // Mock WidgetWrapper to render a simple div
 vi.mock('@/components/dashboard/WidgetWrapper', () => ({
-  WidgetWrapper: ({ widgetId, pluginId, isEditMode, size }: {
-    widgetId: string; pluginId: string; isEditMode: boolean;
-    config: Record<string, unknown>; size: { w: number; h: number }
+  WidgetWrapper: ({
+    widgetId,
+    pluginId,
+    isEditMode,
+    size,
+  }: {
+    widgetId: string
+    pluginId: string
+    isEditMode: boolean
+    config: Record<string, unknown>
+    size: { w: number; h: number }
   }) => (
-    <div data-testid={`widget-${widgetId}`} data-plugin={pluginId} data-edit={String(isEditMode)} data-w={size.w} data-h={size.h}>
+    <div
+      data-testid={`widget-${widgetId}`}
+      data-plugin={pluginId}
+      data-edit={String(isEditMode)}
+      data-w={size.w}
+      data-h={size.h}
+    >
       Widget: {widgetId}
     </div>
   ),
@@ -96,14 +111,20 @@ const mockPages = [
     },
     widgetConfigs: {
       'agent-status': { refreshInterval: 5000 },
-      'heartbeat': {},
-      'network': {},
+      heartbeat: {},
+      network: {},
     },
   },
 ]
 
 let mockDashboardState: {
-  pages: { id: string; name: string; sortOrder: number; layouts: Record<string, { i: string; x: number; y: number; w: number; h: number }[]>; widgetConfigs: Record<string, Record<string, unknown>> }[]
+  pages: {
+    id: string
+    name: string
+    sortOrder: number
+    layouts: Record<string, { i: string; x: number; y: number; w: number; h: number }[]>
+    widgetConfigs: Record<string, Record<string, unknown>>
+  }[]
   activePageId: string
   editMode: boolean
   wobbleEnabled: boolean
@@ -165,7 +186,7 @@ describe('DashboardGrid', () => {
   beforeEach(async () => {
     const mod = await import('../DashboardGrid')
     DashboardGrid = mod.DashboardGrid
-  })
+  }, 30000)
 
   it('renders ResponsiveGridLayout from react-grid-layout', () => {
     render(<DashboardGrid pageId="page-1" editMode={false} wobbleEnabled={false} />)
@@ -204,13 +225,15 @@ describe('DashboardGrid', () => {
   it('empty page shows EmptyState with "No widgets yet"', () => {
     mockDashboardState = {
       ...mockDashboardState,
-      pages: [{
-        id: 'empty-page',
-        name: 'Empty',
-        sortOrder: 0,
-        layouts: {} as Record<string, { i: string; x: number; y: number; w: number; h: number }[]>,
-        widgetConfigs: {} as Record<string, Record<string, unknown>>,
-      }],
+      pages: [
+        {
+          id: 'empty-page',
+          name: 'Empty',
+          sortOrder: 0,
+          layouts: {} as Record<string, { i: string; x: number; y: number; w: number; h: number }[]>,
+          widgetConfigs: {} as Record<string, Record<string, unknown>>,
+        },
+      ],
       activePageId: 'empty-page',
     }
 

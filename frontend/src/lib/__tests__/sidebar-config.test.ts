@@ -13,9 +13,19 @@ vi.mock('../nav-items', () => ({
     { href: '/pomodoro', label: 'Pomodoro', icon: Stub, moduleId: 'pomodoro' },
     { href: '/email', label: 'Email', icon: Stub, moduleId: 'email' },
     { href: '/jobs', label: 'Career Ops', icon: Stub, moduleId: 'job-hunter' },
-    { href: '/homelab', label: 'Home Lab', icon: Stub, moduleId: 'homelab' },
-    { href: '/media', label: 'Media Radar', icon: Stub, moduleId: 'media' },
+    { href: '/growth-ops', label: 'Growth Ops', icon: Stub, moduleId: 'growth-ops' },
+    { href: '/media', label: 'Media Command', icon: Stub, moduleId: 'media' },
     { href: '/notes', label: 'Notes', icon: Stub, moduleId: 'notes' },
+  ],
+  homelabItems: [
+    { href: '/homelab', label: 'Overview', icon: Stub, moduleId: 'homelab' },
+    { href: '/homelab/proxmox', label: 'Proxmox', icon: Stub, moduleId: 'homelab-proxmox' },
+    { href: '/homelab/portainer', label: 'Portainer', icon: Stub, moduleId: 'homelab-portainer' },
+    { href: '/homelab/network', label: 'Network', icon: Stub, moduleId: 'homelab-network' },
+    { href: '/homelab/storage', label: 'Storage/Backups', icon: Stub, moduleId: 'homelab-storage' },
+    { href: '/homelab/power', label: 'Power/Hardware', icon: Stub, moduleId: 'homelab-power' },
+    { href: '/homelab/services', label: 'Services', icon: Stub, moduleId: 'homelab-services' },
+    { href: '/homelab/activity', label: 'Activity/Settings', icon: Stub, moduleId: 'homelab-activity' },
   ],
   trainingItems: [
     { href: '/training', label: 'Training Dashboard', icon: Stub, moduleId: 'training' },
@@ -42,9 +52,17 @@ vi.mock('../nav-items', () => ({
     { href: '/pomodoro', label: 'Pomodoro', icon: Stub, moduleId: 'pomodoro' },
     { href: '/email', label: 'Email', icon: Stub, moduleId: 'email' },
     { href: '/jobs', label: 'Career Ops', icon: Stub, moduleId: 'job-hunter' },
-    { href: '/homelab', label: 'Home Lab', icon: Stub, moduleId: 'homelab' },
-    { href: '/media', label: 'Media Radar', icon: Stub, moduleId: 'media' },
+    { href: '/growth-ops', label: 'Growth Ops', icon: Stub, moduleId: 'growth-ops' },
+    { href: '/media', label: 'Media Command', icon: Stub, moduleId: 'media' },
     { href: '/notes', label: 'Notes', icon: Stub, moduleId: 'notes' },
+    { href: '/homelab', label: 'Overview', icon: Stub, moduleId: 'homelab' },
+    { href: '/homelab/proxmox', label: 'Proxmox', icon: Stub, moduleId: 'homelab-proxmox' },
+    { href: '/homelab/portainer', label: 'Portainer', icon: Stub, moduleId: 'homelab-portainer' },
+    { href: '/homelab/network', label: 'Network', icon: Stub, moduleId: 'homelab-network' },
+    { href: '/homelab/storage', label: 'Storage/Backups', icon: Stub, moduleId: 'homelab-storage' },
+    { href: '/homelab/power', label: 'Power/Hardware', icon: Stub, moduleId: 'homelab-power' },
+    { href: '/homelab/services', label: 'Services', icon: Stub, moduleId: 'homelab-services' },
+    { href: '/homelab/activity', label: 'Activity/Settings', icon: Stub, moduleId: 'homelab-activity' },
     { href: '/training', label: 'Training Dashboard', icon: Stub, moduleId: 'training' },
     { href: '/training/clients', label: 'Clients', icon: Stub, moduleId: 'training-clients' },
     { href: '/training/calendar', label: 'Calendar', icon: Stub, moduleId: 'training-calendar' },
@@ -68,6 +86,7 @@ let resetSidebarConfig: typeof import('../sidebar-config').resetSidebarConfig
 let subscribeSidebarConfig: typeof import('../sidebar-config').subscribeSidebarConfig
 let moveItem: typeof import('../sidebar-config').moveItem
 let moveItemToCategory: typeof import('../sidebar-config').moveItemToCategory
+let moveCategoryToIndex: typeof import('../sidebar-config').moveCategoryToIndex
 let renameItem: typeof import('../sidebar-config').renameItem
 let renameCategory: typeof import('../sidebar-config').renameCategory
 let createCustomModule: typeof import('../sidebar-config').createCustomModule
@@ -78,6 +97,11 @@ let permanentlyDelete: typeof import('../sidebar-config').permanentlyDelete
 let emptyRecycleBin: typeof import('../sidebar-config').emptyRecycleBin
 let undoSidebarConfig: typeof import('../sidebar-config').undoSidebarConfig
 let redoSidebarConfig: typeof import('../sidebar-config').redoSidebarConfig
+let startSidebarConfigDraft: typeof import('../sidebar-config').startSidebarConfigDraft
+let commitSidebarConfigDraft: typeof import('../sidebar-config').commitSidebarConfigDraft
+let discardSidebarConfigDraft: typeof import('../sidebar-config').discardSidebarConfigDraft
+let undoSidebarConfigDraft: typeof import('../sidebar-config').undoSidebarConfigDraft
+let redoSidebarConfigDraft: typeof import('../sidebar-config').redoSidebarConfigDraft
 
 async function loadModule() {
   vi.resetModules()
@@ -88,6 +112,7 @@ async function loadModule() {
   subscribeSidebarConfig = mod.subscribeSidebarConfig
   moveItem = mod.moveItem
   moveItemToCategory = mod.moveItemToCategory
+  moveCategoryToIndex = mod.moveCategoryToIndex
   renameItem = mod.renameItem
   renameCategory = mod.renameCategory
   createCustomModule = mod.createCustomModule
@@ -98,6 +123,11 @@ async function loadModule() {
   emptyRecycleBin = mod.emptyRecycleBin
   undoSidebarConfig = mod.undoSidebarConfig
   redoSidebarConfig = mod.redoSidebarConfig
+  startSidebarConfigDraft = mod.startSidebarConfigDraft
+  commitSidebarConfigDraft = mod.commitSidebarConfigDraft
+  discardSidebarConfigDraft = mod.discardSidebarConfigDraft
+  undoSidebarConfigDraft = mod.undoSidebarConfigDraft
+  redoSidebarConfigDraft = mod.redoSidebarConfigDraft
 }
 
 beforeEach(async () => {
@@ -108,10 +138,11 @@ beforeEach(async () => {
 describe('getSidebarConfig', () => {
   it('returns default config when localStorage is empty', () => {
     const config = getSidebarConfig()
-    expect(config.categories).toHaveLength(3)
+    expect(config.categories).toHaveLength(4)
     expect(config.categories[0].id).toBe('personal')
-    expect(config.categories[1].id).toBe('training')
-    expect(config.categories[2].id).toBe('agent')
+    expect(config.categories[1].id).toBe('homelab')
+    expect(config.categories[2].id).toBe('training')
+    expect(config.categories[3].id).toBe('agent')
     expect(config.customNames).toEqual({})
     expect(config.customModules).toEqual([])
   })
@@ -143,7 +174,7 @@ describe('getSidebarConfig', () => {
     localStorage.setItem('sidebar-config', 'not-valid-json')
     await loadModule()
     const config = getSidebarConfig()
-    expect(config.categories).toHaveLength(3)
+    expect(config.categories).toHaveLength(4)
     expect(config.categories[0].id).toBe('personal')
   })
 
@@ -163,6 +194,7 @@ describe('getSidebarConfig', () => {
     // Should have more items than what was stored (missing items appended)
     expect(config.categories[0].items.length).toBeGreaterThan(1)
     expect(config.categories[0].items).toContain('/chat')
+    expect(config.categories.find(c => c.id === 'homelab')?.items).toContain('/homelab/proxmox')
     expect(config.categories.find(c => c.id === 'training')?.items).toContain('/training')
     expect(config.categories.find(c => c.id === 'agent')?.items).toContain('/missions')
   })
@@ -220,6 +252,38 @@ describe('setSidebarConfig', () => {
     setSidebarConfig({ ...config, customNames: { '/': 'C' } })
     const redone = redoSidebarConfig()
     expect(redone).toBe(false) // redo stack cleared
+  })
+})
+
+describe('sidebar config drafts', () => {
+  it('previews edits without persisting until commit', () => {
+    const initial = getSidebarConfig()
+    setSidebarConfig(initial)
+    const before = localStorage.getItem('sidebar-config')
+
+    startSidebarConfigDraft()
+    renameItem('/todos', 'Focus')
+
+    expect(getSidebarConfig().customNames['/todos']).toBe('Focus')
+    expect(localStorage.getItem('sidebar-config')).toBe(before)
+
+    expect(commitSidebarConfigDraft()).toBe(true)
+    expect(JSON.parse(localStorage.getItem('sidebar-config')!).customNames['/todos']).toBe('Focus')
+  })
+
+  it('supports undo, redo, and discard for draft sidebar edits', () => {
+    setSidebarConfig(getSidebarConfig())
+    startSidebarConfigDraft()
+    renameItem('/todos', 'Focus')
+    renameItem('/todos', 'Today')
+
+    expect(getSidebarConfig().customNames['/todos']).toBe('Today')
+    expect(undoSidebarConfigDraft()).toBe(true)
+    expect(getSidebarConfig().customNames['/todos']).toBe('Focus')
+    expect(redoSidebarConfigDraft()).toBe(true)
+    expect(getSidebarConfig().customNames['/todos']).toBe('Today')
+    expect(discardSidebarConfigDraft()).toBe(true)
+    expect(getSidebarConfig().customNames['/todos']).toBeUndefined()
   })
 })
 
@@ -296,13 +360,39 @@ describe('moveItem', () => {
 })
 
 describe('moveItemToCategory', () => {
-  it('moves an item between categories', () => {
+  it('moves an item between categories using the legacy source-category signature', () => {
     const config = getSidebarConfig()
     const href = config.categories[0].items[0]
     moveItemToCategory(href, 'personal', 'agent', 0)
     const updated = getSidebarConfig()
     expect(updated.categories.find(c => c.id === 'personal')?.items).not.toContain(href)
     expect(updated.categories.find(c => c.id === 'agent')?.items[0]).toBe(href)
+  })
+
+  it('moves Home Lab from Personal Dashboard to an empty Homelab category', () => {
+    const config = getSidebarConfig()
+    const homelabCategory = { id: 'homelab-cat', name: 'Homelab', items: [] }
+    setSidebarConfig({ ...config, categories: [...config.categories, homelabCategory] })
+
+    moveItemToCategory('/homelab', 'homelab-cat', 0)
+
+    const updated = getSidebarConfig()
+    expect(updated.categories.find(c => c.id === 'personal')?.items).not.toContain('/homelab')
+    expect(updated.categories.find(c => c.id === 'homelab-cat')?.items).toEqual(['/homelab'])
+  })
+
+  it('moves Media Command after Home Lab inside Homelab', () => {
+    const config = getSidebarConfig()
+    setSidebarConfig({
+      ...config,
+      categories: [...config.categories, { id: 'homelab-cat', name: 'Homelab', items: ['/homelab'] }],
+    })
+
+    moveItemToCategory('/media', 'homelab-cat', 1)
+
+    const updated = getSidebarConfig()
+    expect(updated.categories.find(c => c.id === 'personal')?.items).not.toContain('/media')
+    expect(updated.categories.find(c => c.id === 'homelab-cat')?.items).toEqual(['/homelab', '/media'])
   })
 
   it('inserts at specified index', () => {
@@ -318,6 +408,50 @@ describe('moveItemToCategory', () => {
     const original = JSON.stringify(config)
     moveItemToCategory('/', 'nonexistent', 'agent', 0)
     // Should not change since source category doesn't exist
+    expect(JSON.stringify(getSidebarConfig())).toBe(original)
+  })
+
+  it('does not duplicate when moving within the same category', () => {
+    const config = getSidebarConfig()
+    const href = config.categories[0].items[0]
+
+    moveItemToCategory(href, 'personal', 1)
+
+    const updated = getSidebarConfig()
+    const matches = updated.categories.flatMap(c => c.items).filter(item => item === href)
+    expect(matches).toHaveLength(1)
+  })
+})
+
+describe('moveCategoryToIndex', () => {
+  it('reorders categories so Homelab can move above Training', () => {
+    const config = getSidebarConfig()
+    setSidebarConfig({
+      ...config,
+      categories: [
+        config.categories[0],
+        { id: 'homelab-cat', name: 'Homelab', items: [] },
+        config.categories[1],
+        config.categories[2],
+        config.categories[3],
+      ],
+    })
+
+    moveCategoryToIndex('homelab-cat', 1)
+
+    expect(getSidebarConfig().categories.map(c => c.id)).toEqual([
+      'personal',
+      'homelab-cat',
+      'homelab',
+      'training',
+      'agent',
+    ])
+  })
+
+  it('does nothing with invalid category IDs', () => {
+    const config = getSidebarConfig()
+    const original = JSON.stringify(config)
+    moveCategoryToIndex('missing', 1)
     expect(JSON.stringify(getSidebarConfig())).toBe(original)
   })
 })
@@ -452,7 +586,7 @@ describe('softDeleteItem', () => {
     const corrupted = {
       ...config,
       categories: config.categories.map(c =>
-        c.id === 'training' ? { ...c, items: [...c.items, '/training/calendar'] } : c
+        c.id === 'training' ? { ...c, items: [...c.items, '/training/calendar'] } : c,
       ),
     }
     localStorage.setItem('sidebar-config', JSON.stringify(corrupted))

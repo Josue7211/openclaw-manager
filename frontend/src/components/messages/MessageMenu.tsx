@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { ArrowBendUpLeft, ArrowCounterClockwise, Copy, Trash } from '@phosphor-icons/react'
-import type { Message } from '@/pages/messages/types'
+import type { Message } from '@/features/messages/types'
 
 /* ─── Types ────────────────────────────────────────────────────────────── */
 

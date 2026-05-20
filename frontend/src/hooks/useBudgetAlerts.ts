@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
-import type { UsageData } from '@/pages/harness/types'
+import type { UsageData } from '@/features/harness/types'
 
 export interface BudgetConfig {
   dailyLimit: number | null

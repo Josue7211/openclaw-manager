@@ -1,19 +1,31 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // vi.hoisted runs before vi.mock hoisting
-const { mockGet, stableSubscribe, stableSidebarConfig, stableEnabledModules } = vi.hoisted(() => {
-  const _noop = () => {}
-  const _sidebarConfig = { categories: [], customNames: {}, deletedItems: [], panelTitles: {} }
-  const _enabledModules: string[] = []
-  return {
-    mockGet: vi.fn(),
-    stableSubscribe: () => _noop,
-    stableSidebarConfig: _sidebarConfig,
-    stableEnabledModules: _enabledModules,
-  }
-})
+const { mockGet, mockSetSidebarConfig, stableSubscribe, stableSidebarConfig, stableEnabledModules, navItemsByHref } =
+  vi.hoisted(() => {
+    const _noop = () => {}
+    const _sidebarConfig: {
+      categories: Array<{ id: string; name: string; items: string[] }>
+      customNames: Record<string, string>
+      deletedItems: string[]
+      panelTitles: Record<string, string>
+    } = { categories: [], customNames: {}, deletedItems: [], panelTitles: {} }
+    const _enabledModules: string[] = []
+    const _navItemsByHref = new Map([
+      ['/homelab', { href: '/homelab', label: 'Home Lab', icon: () => null, moduleId: 'homelab' }],
+      ['/media', { href: '/media', label: 'Media Command', icon: () => null, moduleId: 'media' }],
+    ])
+    return {
+      mockGet: vi.fn(),
+      mockSetSidebarConfig: vi.fn(),
+      stableSubscribe: () => _noop,
+      stableSidebarConfig: _sidebarConfig,
+      stableEnabledModules: _enabledModules,
+      navItemsByHref: _navItemsByHref,
+    }
+  })
 
 // Mock api module
 vi.mock('@/lib/api', () => ({
@@ -37,7 +49,7 @@ vi.mock('@/lib/generated-module-store', () => ({
 // Mock sidebar-config (needed by SettingsModules)
 vi.mock('@/lib/sidebar-config', () => ({
   getSidebarConfig: () => stableSidebarConfig,
-  setSidebarConfig: vi.fn(),
+  setSidebarConfig: mockSetSidebarConfig,
   resetSidebarConfig: vi.fn(),
   subscribeSidebarConfig: stableSubscribe,
   renameItem: vi.fn(),
@@ -61,7 +73,7 @@ vi.mock('@/lib/modules', () => ({
 
 // Mock nav-items
 vi.mock('@/lib/nav-items', () => ({
-  navItemsByHref: new Map(),
+  navItemsByHref,
 }))
 
 // Mock sidebar-settings
@@ -95,7 +107,10 @@ vi.mock('@/lib/titlebar-settings', () => ({
 // Mock ResizablePanel
 vi.mock('@/components/ResizablePanel', () => ({
   ResizablePanel: ({ children, title }: { children: React.ReactNode; title: string }) => (
-    <div data-testid={`panel-${title}`}>{title}{children}</div>
+    <div data-testid={`panel-${title}`}>
+      {title}
+      {children}
+    </div>
   ),
 }))
 
@@ -114,9 +129,7 @@ function createWrapper() {
     },
   })
   return function Wrapper({ children }: { children: React.ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    )
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   }
 }
 
@@ -139,6 +152,11 @@ const mockModule = {
 describe('GeneratedModulesSection in SettingsModules', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    stableSidebarConfig.categories = []
+    stableSidebarConfig.customNames = {}
+    stableSidebarConfig.deletedItems = []
+    stableSidebarConfig.panelTitles = {}
+    stableEnabledModules.length = 0
   })
 
   it('renders "Generated Modules" section header', async () => {
@@ -212,6 +230,29 @@ describe('GeneratedModulesSection in SettingsModules', () => {
       expect(screen.getByText('Weather Widget')).toBeInTheDocument()
     })
     expect(screen.queryByText('Deleted Module')).not.toBeInTheDocument()
+  })
+
+  it('moves a module into another named category from the inline picker', () => {
+    stableSidebarConfig.categories = [
+      { id: 'personal', name: 'Personal Dashboard', items: ['/homelab', '/media'] },
+      { id: 'homelab-cat', name: 'Homelab', items: [] },
+    ]
+    stableEnabledModules.push('homelab', 'media')
+    mockGet.mockResolvedValue({ modules: [] })
+
+    render(<SettingsModules />, { wrapper: createWrapper() })
+
+    const select = screen.getByLabelText('Move Home Lab to category')
+    fireEvent.change(select, { target: { value: 'homelab-cat' } })
+
+    expect(mockSetSidebarConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        categories: [
+          { id: 'personal', name: 'Personal Dashboard', items: ['/media'] },
+          { id: 'homelab-cat', name: 'Homelab', items: ['/homelab'] },
+        ],
+      }),
+    )
   })
 })
 

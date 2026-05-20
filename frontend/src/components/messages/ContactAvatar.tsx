@@ -2,6 +2,8 @@ import { useEffect, useState, useSyncExternalStore, memo } from 'react'
 import { User, Users } from '@phosphor-icons/react'
 import { api, getRequestApiKeyForPath, getRequestBaseForPath } from '@/lib/api'
 import { LRUCache } from '@/lib/lru-cache'
+import { isIMessage } from '@/features/messages/utils'
+import type { Conversation } from '@/features/messages/types'
 
 /* ─── Constants ────────────────────────────────────────────────────────── */
 
@@ -163,21 +165,6 @@ export function ensureAvatarBatchCheck(addresses: string[]) {
 
 /* ─── Types used locally ─────────────────────────────────────────────── */
 
-interface Participant { address: string; service: string }
-
-interface Conversation {
-  guid: string
-  chatId: string
-  displayName: string | null
-  participants: Participant[]
-  service: string
-  lastMessage: string | null
-  lastDate: number | null
-  lastFromMe: number
-  isUnread?: boolean
-  isJunk?: boolean
-}
-
 export function ensureConversationAvatarPreload(conversations: Conversation[]) {
   conversations.slice(0, 80).forEach(conv => {
     if (conv.participants?.length > 1 && conv.guid) {
@@ -264,22 +251,6 @@ export const ContactAvatar = memo(function ContactAvatar({ address, name, isImsg
 })
 
 /* ─── GroupAvatar ─────────────────────────────────────────────────────────── */
-
-function isIMessage(conv: Conversation): boolean {
-  const svc = conv.service?.toLowerCase() || ''
-  const guidLower = conv.guid?.toLowerCase() || ''
-  if (svc.includes('imessage') || guidLower.startsWith('imessage')) return true
-  if (svc === 'any' || guidLower.startsWith('any;')) {
-    const hasExplicitSms = conv.participants?.some(p => p.service?.toLowerCase() === 'sms')
-    if (!hasExplicitSms) return true
-  }
-  if (conv.participants?.length > 1 &&
-    conv.participants.every(p => {
-      const ps = p.service?.toLowerCase() || ''
-      return ps.includes('imessage') || ps === 'any'
-    })) return true
-  return false
-}
 
 export const GroupAvatar = memo(function GroupAvatar({ conv, size = 40 }: { conv: Conversation; size?: number }) {
   const version = useSyncExternalStore(subscribeBatch, getBatchVersion, getBatchVersion)

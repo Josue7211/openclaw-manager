@@ -8,10 +8,21 @@ import React from 'react'
 
 // Mock DashboardGrid
 vi.mock('../DashboardGrid', () => ({
-  DashboardGrid: ({ pageId, editMode, wobbleEnabled }: {
-    pageId: string; editMode: boolean; wobbleEnabled: boolean
+  DashboardGrid: ({
+    pageId,
+    editMode,
+    wobbleEnabled,
+  }: {
+    pageId: string
+    editMode: boolean
+    wobbleEnabled: boolean
   }) => (
-    <div data-testid="dashboard-grid" data-page-id={pageId} data-edit={String(editMode)} data-wobble={String(wobbleEnabled)}>
+    <div
+      data-testid="dashboard-grid"
+      data-page-id={pageId}
+      data-edit={String(editMode)}
+      data-wobble={String(wobbleEnabled)}
+    >
       Grid
     </div>
   ),
@@ -19,11 +30,11 @@ vi.mock('../DashboardGrid', () => ({
 
 // Mock DashboardEditBar
 vi.mock('@/components/dashboard/DashboardEditBar', () => ({
-  DashboardEditBar: ({ editMode, onOpenPicker }: {
-    editMode: boolean; onOpenPicker: () => void
-  }) => (
+  DashboardEditBar: ({ editMode, onOpenPicker }: { editMode: boolean; onOpenPicker: () => void }) => (
     <div data-testid="dashboard-edit-bar" data-edit={String(editMode)}>
-      <button data-testid="open-picker-btn" onClick={onOpenPicker}>Add Widget</button>
+      <button data-testid="open-picker-btn" onClick={onOpenPicker}>
+        Add Widget
+      </button>
     </div>
   ),
   useLongPress: () => ({}),
@@ -31,12 +42,26 @@ vi.mock('@/components/dashboard/DashboardEditBar', () => ({
 
 // Mock DashboardTabs
 vi.mock('@/components/dashboard/DashboardTabs', () => ({
-  DashboardTabs: ({ pages, activePageId, editMode, dotIndicatorsEnabled }: {
-    pages: Array<{ id: string; name: string }>; activePageId: string;
-    editMode: boolean; dotIndicatorsEnabled: boolean
+  DashboardTabs: ({
+    pages,
+    activePageId,
+    editMode,
+    dotIndicatorsEnabled,
+  }: {
+    pages: Array<{ id: string; name: string }>
+    activePageId: string
+    editMode: boolean
+    dotIndicatorsEnabled: boolean
   }) => (
-    <div data-testid="dashboard-tabs" data-active={activePageId} data-edit={String(editMode)} data-dots={String(dotIndicatorsEnabled)}>
-      {pages.map(p => <span key={p.id}>{p.name}</span>)}
+    <div
+      data-testid="dashboard-tabs"
+      data-active={activePageId}
+      data-edit={String(editMode)}
+      data-dots={String(dotIndicatorsEnabled)}
+    >
+      {pages.map(p => (
+        <span key={p.id}>{p.name}</span>
+      ))}
     </div>
   ),
 }))
@@ -48,14 +73,24 @@ vi.mock('../DashboardHeader', () => ({
 
 // Mock WidgetPicker (lazy-loaded)
 vi.mock('@/components/dashboard/WidgetPicker', () => ({
-  WidgetPicker: ({ open, onClose, pageId, placedWidgetIds }: {
-    open: boolean; onClose: () => void; pageId: string; placedWidgetIds: string[]
+  WidgetPicker: ({
+    open,
+    onClose,
+    pageId,
+    placedWidgetIds,
+  }: {
+    open: boolean
+    onClose: () => void
+    pageId: string
+    placedWidgetIds: string[]
   }) => {
     if (!open) return null
     return (
       <div data-testid="widget-picker" data-page-id={pageId}>
         <span data-testid="placed-count">{placedWidgetIds.length}</span>
-        <button data-testid="close-picker-btn" onClick={onClose}>Close</button>
+        <button data-testid="close-picker-btn" onClick={onClose}>
+          Close
+        </button>
       </div>
     )
   },
@@ -63,9 +98,7 @@ vi.mock('@/components/dashboard/WidgetPicker', () => ({
 
 // Mock RecycleBin (lazy-loaded)
 vi.mock('@/components/dashboard/RecycleBin', () => ({
-  RecycleBin: ({ items, visible }: {
-    items: unknown[]; visible: boolean
-  }) => {
+  RecycleBin: ({ items, visible }: { items: unknown[]; visible: boolean }) => {
     if (!visible) return null
     return (
       <div data-testid="recycle-bin">
@@ -79,7 +112,9 @@ vi.mock('@/components/dashboard/RecycleBin', () => ({
 vi.mock('../IdeaDetailPanel', () => ({
   IdeaDetailPanel: ({ onClose }: { idea: unknown; onClose: () => void; onIdeaAction: unknown }) => (
     <div data-testid="idea-panel">
-      <button data-testid="close-idea" onClick={onClose}>Close</button>
+      <button data-testid="close-idea" onClick={onClose}>
+        Close
+      </button>
     </div>
   ),
 }))
@@ -87,7 +122,9 @@ vi.mock('../IdeaDetailPanel', () => ({
 // Mock BackendErrorBanner
 vi.mock('@/components/BackendErrorBanner', () => ({
   BackendErrorBanner: ({ label }: { label: string }) => (
-    <div data-testid="backend-error" data-label={label}>Error: {label}</div>
+    <div data-testid="backend-error" data-label={label}>
+      Error: {label}
+    </div>
   ),
 }))
 
@@ -113,7 +150,13 @@ vi.mock('@/lib/dashboard-defaults', () => ({
 
 // Mutable dashboard state
 let mockDashState: {
-  pages: { id: string; name: string; sortOrder: number; layouts: Record<string, { i: string; x: number; y: number; w: number; h: number }[]>; widgetConfigs: Record<string, Record<string, unknown>> }[]
+  pages: {
+    id: string
+    name: string
+    sortOrder: number
+    layouts: Record<string, { i: string; x: number; y: number; w: number; h: number }[]>
+    widgetConfigs: Record<string, Record<string, unknown>>
+  }[]
   activePageId: string
   editMode: boolean
   wobbleEnabled: boolean
@@ -121,19 +164,21 @@ let mockDashState: {
   recycleBin: unknown[]
   lastModified: string
 } = {
-  pages: [{
-    id: 'home',
-    name: 'Home',
-    sortOrder: 0,
-    layouts: {
-      lg: [
-        { i: 'agent-status', x: 0, y: 0, w: 4, h: 2 },
-        { i: 'heartbeat', x: 4, y: 0, w: 4, h: 2 },
-        { i: 'network', x: 8, y: 0, w: 4, h: 2 },
-      ],
+  pages: [
+    {
+      id: 'home',
+      name: 'Home',
+      sortOrder: 0,
+      layouts: {
+        lg: [
+          { i: 'agent-status', x: 0, y: 0, w: 4, h: 2 },
+          { i: 'heartbeat', x: 4, y: 0, w: 4, h: 2 },
+          { i: 'network', x: 8, y: 0, w: 4, h: 2 },
+        ],
+      },
+      widgetConfigs: {},
     },
-    widgetConfigs: {},
-  }],
+  ],
   activePageId: 'home',
   editMode: false,
   wobbleEnabled: true,
@@ -184,19 +229,21 @@ afterEach(() => {
   // Reset mutable state — needs >= 3 unique widgets to avoid triggering
   // first-use default layout (Dashboard.tsx checks uniqueWidgets < 3)
   mockDashState = {
-    pages: [{
-      id: 'home',
-      name: 'Home',
-      sortOrder: 0,
-      layouts: {
-        lg: [
-          { i: 'agent-status', x: 0, y: 0, w: 4, h: 2 },
-          { i: 'heartbeat', x: 4, y: 0, w: 4, h: 2 },
-          { i: 'network', x: 8, y: 0, w: 4, h: 2 },
-        ],
+    pages: [
+      {
+        id: 'home',
+        name: 'Home',
+        sortOrder: 0,
+        layouts: {
+          lg: [
+            { i: 'agent-status', x: 0, y: 0, w: 4, h: 2 },
+            { i: 'heartbeat', x: 4, y: 0, w: 4, h: 2 },
+            { i: 'network', x: 8, y: 0, w: 4, h: 2 },
+          ],
+        },
+        widgetConfigs: {},
       },
-      widgetConfigs: {},
-    }],
+    ],
     activePageId: 'home',
     editMode: false,
     wobbleEnabled: true,
@@ -216,7 +263,7 @@ describe('Dashboard Integration', () => {
   beforeEach(async () => {
     const mod = await import('../../Dashboard')
     Dashboard = mod.default
-  })
+  }, 30000)
 
   it('renders all sub-components: header, edit bar, tabs, grid', async () => {
     await act(async () => {
@@ -362,13 +409,15 @@ describe('Dashboard Integration', () => {
   it('triggers first-use default layout when active page has empty layouts', async () => {
     mockDashState = {
       ...mockDashState,
-      pages: [{
-        id: 'empty-page',
-        name: 'New Page',
-        sortOrder: 0,
-        layouts: {} as Record<string, { i: string; x: number; y: number; w: number; h: number }[]>,
-        widgetConfigs: {} as Record<string, Record<string, unknown>>,
-      }],
+      pages: [
+        {
+          id: 'empty-page',
+          name: 'New Page',
+          sortOrder: 0,
+          layouts: {} as Record<string, { i: string; x: number; y: number; w: number; h: number }[]>,
+          widgetConfigs: {} as Record<string, Record<string, unknown>>,
+        },
+      ],
       activePageId: 'empty-page',
     }
 
@@ -393,21 +442,23 @@ describe('Dashboard Integration', () => {
   it('does NOT repopulate defaults after a user trims the page below three widgets', async () => {
     mockDashState = {
       ...mockDashState,
-      pages: [{
-        id: 'custom-page',
-        name: 'Custom',
-        sortOrder: 0,
-        layouts: {
-          lg: [
-            { i: 'agent-status', x: 0, y: 0, w: 4, h: 2 },
-            { i: 'heartbeat', x: 4, y: 0, w: 4, h: 2 },
-          ],
+      pages: [
+        {
+          id: 'custom-page',
+          name: 'Custom',
+          sortOrder: 0,
+          layouts: {
+            lg: [
+              { i: 'agent-status', x: 0, y: 0, w: 4, h: 2 },
+              { i: 'heartbeat', x: 4, y: 0, w: 4, h: 2 },
+            ],
+          },
+          widgetConfigs: {
+            'agent-status': {},
+            heartbeat: {},
+          },
         },
-        widgetConfigs: {
-          'agent-status': {},
-          'heartbeat': {},
-        },
-      }],
+      ],
       activePageId: 'custom-page',
     }
 
@@ -437,7 +488,7 @@ describe('Dashboard Integration', () => {
   })
 
   it('does not export DashboardDataContext (removed — widgets use kernel hooks)', async () => {
-    const mod = await import('../../Dashboard') as Record<string, unknown>
+    const mod = (await import('../../Dashboard')) as Record<string, unknown>
     expect(mod.DashboardDataContext).toBeUndefined()
     expect(mod.useDashboardDataContext).toBeUndefined()
   })

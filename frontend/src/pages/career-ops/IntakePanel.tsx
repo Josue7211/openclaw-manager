@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { MagicWand, Plus } from '@phosphor-icons/react'
-import type { JobForm, StageId } from '@/pages/job-hunter-types'
-import { STAGES, normalizeTags } from '@/pages/job-hunter-domain'
+import type { JobForm, StageId } from '@/features/career-ops/types'
+import { STAGES, normalizeTags } from '@/features/career-ops/domain'
 
 function extractField(patterns: RegExp[], text: string): string {
   for (const pattern of patterns) {

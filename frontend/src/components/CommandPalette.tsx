@@ -11,6 +11,7 @@ import { getKeybindings, subscribeKeybindings, formatKey } from '@/lib/keybindin
 import { markAllRead } from '@/components/NotificationCenter'
 import { formatContactLabel } from '@/lib/utils'
 import { api } from '@/lib/api'
+import { cycleThemeMode, useThemeState } from '@/lib/theme-store'
 import type { KoelSearchResults } from '@/lib/types'
 
 interface PaletteItem {
@@ -22,31 +23,6 @@ interface PaletteItem {
   category: 'page' | 'action' | 'conversation' | 'search'
   /** Optional secondary text shown dimmer to the right of the label */
   hint?: string
-}
-
-/* ─── Theme helpers (mirror Gear page logic) ───────────────────────── */
-
-function getStoredTheme(): 'dark' | 'light' | 'system' {
-  try {
-    const raw = localStorage.getItem('theme')
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (parsed === 'dark' || parsed === 'light' || parsed === 'system') return parsed
-    }
-  } catch { /* ignore */ }
-  return 'dark'
-}
-
-function cycleTheme(): string {
-  const order: Array<'dark' | 'light' | 'system'> = ['dark', 'light', 'system']
-  const current = getStoredTheme()
-  const next = order[(order.indexOf(current) + 1) % order.length]
-  localStorage.setItem('theme', JSON.stringify(next))
-  const resolved: 'dark' | 'light' = next === 'system'
-    ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
-    : next
-  document.documentElement.dataset.theme = resolved
-  return next
 }
 
 /* ─── DND helpers ──────────────────────────────────────────────────────── */
@@ -70,7 +46,10 @@ function exportSettings() {
   const KNOWN_PREFIXES = [
     'dnd-enabled', 'system-notifs', 'in-app-notifs', 'notif-sound',
     'title-bar-visible', 'sidebar-header-visible', 'user-name', 'user-avatar',
-    'app-version', 'keybindings', 'sidebar-collapsed', 'theme', 'enabled-modules',
+    'app-version', 'keybindings', 'sidebar-collapsed', 'theme', 'theme-state',
+    'enabled-modules', 'sidebar-config', 'dashboard-state', 'chat-model',
+    'chat-favorite-models', 'chat-favorite-models-version',
+    'harness-chat-primary-model', 'harness-heartbeat-model',
   ]
   const data: Record<string, string> = {}
   for (let i = 0; i < localStorage.length; i++) {
@@ -266,6 +245,7 @@ export default function CommandPalette({
 
   const bindings = useSyncExternalStore(subscribeKeybindings, getKeybindings)
   const recentConvs = useSyncExternalStore(subscribeRecent, getRecentSnapshot)
+  const themeState = useThemeState()
   const isOnMessages = location.pathname === '/messages'
 
   const items: PaletteItem[] = useMemo(() => {
@@ -321,12 +301,12 @@ export default function CommandPalette({
       {
         id: 'action-toggle-theme',
         label: 'Toggle theme',
-        icon: getStoredTheme() === 'dark' ? <Sun size={16} /> : <Moon size={16} />,
+        icon: themeState.mode === 'dark' ? <Sun size={16} /> : <Moon size={16} />,
         action: () => {
-          cycleTheme()
+          cycleThemeMode()
           onClose()
         },
-        hint: getStoredTheme(),
+        hint: themeState.mode,
         category: 'action',
       },
       {
@@ -391,7 +371,7 @@ export default function CommandPalette({
       : []
 
     return [...pages, ...actions, ...conversations]
-  }, [navigate, bindings, isOnMessages, recentConvs, router, onClose])
+  }, [navigate, bindings, isOnMessages, recentConvs, router, onClose, themeState.mode])
 
   const filtered = useMemo(() => {
     if (!query.trim()) return items

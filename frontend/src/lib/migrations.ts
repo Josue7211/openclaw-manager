@@ -29,9 +29,31 @@ export function runMigrations() {
     // invisible. Append any missing modules from the current set so upgrading
     // users see newly added pages without losing their existing selection.
     const CURRENT_MODULE_IDS = [
-      'messages', 'chat', 'todos', 'calendar', 'reminders', 'email',
-      'pomodoro', 'homelab', 'media', 'dashboard', 'missions', 'agents',
-      'memory', 'crons', 'pipeline', 'knowledge', 'notes', 'status',
+      'messages',
+      'chat',
+      'todos',
+      'calendar',
+      'reminders',
+      'email',
+      'pomodoro',
+      'homelab',
+      'homelab-proxmox',
+      'homelab-portainer',
+      'homelab-network',
+      'homelab-storage',
+      'homelab-power',
+      'homelab-services',
+      'homelab-activity',
+      'media',
+      'dashboard',
+      'missions',
+      'agents',
+      'memory',
+      'crons',
+      'pipeline',
+      'knowledge',
+      'notes',
+      'status',
     ]
     const raw = localStorage.getItem('enabled-modules')
     if (raw) {
@@ -47,7 +69,9 @@ export function runMigrations() {
             localStorage.setItem('enabled-modules', JSON.stringify(updated))
           }
         }
-      } catch { /* invalid JSON — leave it, modules.ts will fall back to defaults */ }
+      } catch {
+        /* invalid JSON — leave it, modules.ts will fall back to defaults */
+      }
     }
 
     // sidebar-config gained deletedItems and unusedCategories fields, and
@@ -102,7 +126,9 @@ export function runMigrations() {
           try {
             const raw = localStorage.getItem(key)
             if (raw) return JSON.parse(raw)
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
           return null
         }
 
@@ -112,7 +138,10 @@ export function runMigrations() {
         const logo = readOldColor('logo-color')
 
         // Build overrides object (only if any color was set)
-        const overrides: Record<string, { themeId: string; accent?: string; glow?: string; secondary?: string; logo?: string }> = {}
+        const overrides: Record<
+          string,
+          { themeId: string; accent?: string; glow?: string; secondary?: string; logo?: string }
+        > = {}
         if (accent || glow || secondary || logo) {
           overrides[activeThemeId] = {
             themeId: activeThemeId,
@@ -187,9 +216,7 @@ export function runMigrations() {
       if (raw) {
         const parsed = JSON.parse(raw)
         if (parsed.widgets && Array.isArray(parsed.widgets)) {
-          const filtered = parsed.widgets.filter(
-            (w: { pluginId?: string }) => w.pluginId !== 'vnc-viewer'
-          )
+          const filtered = parsed.widgets.filter((w: { pluginId?: string }) => w.pluginId !== 'vnc-viewer')
           if (filtered.length !== parsed.widgets.length) {
             parsed.widgets = filtered
             localStorage.setItem('dashboard-state', JSON.stringify(parsed))

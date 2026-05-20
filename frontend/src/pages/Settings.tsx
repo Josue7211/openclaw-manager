@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { row, rowLast, val, btnSecondary, sectionLabel } from './settings/shared'
+import { CodexLbSection, ProvidersSection, UsageSection } from './settings/ChatParitySections'
 
 // ── Lazy-loaded section components ──────────────────────────────────────────
 const SettingsUser = lazy(() => import('./settings/SettingsUser'))
@@ -19,7 +20,24 @@ const SettingsNotifications = lazy(() => import('./settings/SettingsNotification
 const SettingsPrivacy = lazy(() => import('./settings/SettingsPrivacy'))
 const SettingsStatus = lazy(() => import('./settings/SettingsStatus'))
 
-type SettingsSection = 'agent' | 'gateway' | 'app' | 'user' | 'connections' | 'display' | 'keybindings' | 'modules' | 'notifications' | 'privacy' | 'status'
+export const SETTINGS_SECTION_KEYS = [
+  'agent',
+  'gateway',
+  'app',
+  'user',
+  'connections',
+  'usage',
+  'providers',
+  'codex-lb',
+  'display',
+  'keybindings',
+  'modules',
+  'notifications',
+  'privacy',
+  'status',
+] as const
+
+export type SettingsSection = typeof SETTINGS_SECTION_KEYS[number]
 
 const SECTIONS: { key: SettingsSection; label: string; icon: React.ElementType; group: string }[] = [
   { key: 'agent', label: 'Agent', icon: Lightning, group: 'General' },
@@ -27,6 +45,9 @@ const SECTIONS: { key: SettingsSection; label: string; icon: React.ElementType; 
   { key: 'app', label: 'clawctrl', icon: Cpu, group: 'General' },
   { key: 'user', label: 'User', icon: User, group: 'General' },
   { key: 'connections', label: 'Connections', icon: Plug, group: 'General' },
+  { key: 'usage', label: 'Usage', icon: Lightning, group: 'Chat' },
+  { key: 'providers', label: 'Providers', icon: Plug, group: 'Chat' },
+  { key: 'codex-lb', label: 'Codex LB', icon: Desktop, group: 'Chat' },
   { key: 'display', label: 'Personalization', icon: Palette, group: 'App Gear' },
   { key: 'keybindings', label: 'Keybinds', icon: Keyboard, group: 'App Gear' },
   { key: 'modules', label: 'Sidebar', icon: SquaresFour, group: 'App Gear' },
@@ -231,6 +252,12 @@ export default function SettingsPage() {
             <SettingsConnections />
           </Suspense>
         )
+      case 'usage':
+        return <UsageSection />
+      case 'providers':
+        return <ProvidersSection />
+      case 'codex-lb':
+        return <CodexLbSection />
       case 'display':
         return (
           <Suspense fallback={<SectionFallback />}>

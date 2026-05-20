@@ -1,0 +1,19 @@
+/*
+ * Copied/adapted from T3 Code's settings route shortcuts.
+ * ClawControl keeps the account/settings popover as a thin adapter over
+ * concrete settings routes so chat does not hard-code a second settings map.
+ */
+
+export interface ChatSettingsShortcut {
+  id: 'settings' | 'usage' | 'providers' | 'codex-lb'
+  label: string
+  href: string
+  section: 'usage' | 'providers' | 'codex-lb' | null
+}
+
+export const CHAT_SETTINGS_SHORTCUTS: readonly ChatSettingsShortcut[] = [
+  { id: 'settings', label: 'Settings', href: '/settings', section: null },
+  { id: 'usage', label: 'Usage remaining', href: '/settings?section=usage', section: 'usage' },
+  { id: 'providers', label: 'Providers', href: '/settings?section=providers', section: 'providers' },
+  { id: 'codex-lb', label: 'Codex LB', href: '/settings?section=codex-lb', section: 'codex-lb' },
+] as const

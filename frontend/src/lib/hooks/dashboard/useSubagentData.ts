@@ -3,7 +3,7 @@ import { useAgentCache } from './useAgentCache'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode } from '@/lib/demo-data'
-import type { SubagentData, ActiveSubagentData } from '@/pages/dashboard/types'
+import type { SubagentData, ActiveSubagentData } from '@/features/dashboard/types'
 
 const DEMO_SUBAGENTS: SubagentData = { count: 0, agents: [] }
 const EMPTY_ACTIVE: ActiveSubagentData = { active: false, count: 0, tasks: [] }

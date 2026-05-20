@@ -7,10 +7,14 @@ export function setChatSocketApiKey(key: string) { _apiKey = key }
 
 export interface WsMessage {
   id: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'tool'
   text: string
   timestamp: string
   images?: string[]
+  transcriptId?: string
+  turnId?: string
+  toolCallId?: string
+  toolName?: string
 }
 
 interface UseChatSocketOptions {

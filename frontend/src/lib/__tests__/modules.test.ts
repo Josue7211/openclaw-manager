@@ -13,9 +13,19 @@ vi.mock('../nav-items', () => ({
     { href: '/pomodoro', label: 'Pomodoro', icon: Stub, moduleId: 'pomodoro' },
     { href: '/email', label: 'Email', icon: Stub, moduleId: 'email' },
     { href: '/jobs', label: 'Career Ops', icon: Stub, moduleId: 'job-hunter' },
-    { href: '/homelab', label: 'Home Lab', icon: Stub, moduleId: 'homelab' },
-    { href: '/media', label: 'Media Radar', icon: Stub, moduleId: 'media' },
+    { href: '/growth-ops', label: 'Growth Ops', icon: Stub, moduleId: 'growth-ops' },
+    { href: '/media', label: 'Media Command', icon: Stub, moduleId: 'media' },
     { href: '/notes', label: 'Notes', icon: Stub, moduleId: 'notes' },
+  ],
+  homelabItems: [
+    { href: '/homelab', label: 'Overview', icon: Stub, moduleId: 'homelab' },
+    { href: '/homelab/proxmox', label: 'Proxmox', icon: Stub, moduleId: 'homelab-proxmox' },
+    { href: '/homelab/portainer', label: 'Portainer', icon: Stub, moduleId: 'homelab-portainer' },
+    { href: '/homelab/network', label: 'Network', icon: Stub, moduleId: 'homelab-network' },
+    { href: '/homelab/storage', label: 'Storage/Backups', icon: Stub, moduleId: 'homelab-storage' },
+    { href: '/homelab/power', label: 'Power/Hardware', icon: Stub, moduleId: 'homelab-power' },
+    { href: '/homelab/services', label: 'Services', icon: Stub, moduleId: 'homelab-services' },
+    { href: '/homelab/activity', label: 'Activity/Settings', icon: Stub, moduleId: 'homelab-activity' },
   ],
   trainingItems: [
     { href: '/training', label: 'Training Dashboard', icon: Stub, moduleId: 'training' },
@@ -45,9 +55,17 @@ vi.mock('../nav-items', () => ({
     { href: '/pomodoro', label: 'Pomodoro', icon: Stub, moduleId: 'pomodoro' },
     { href: '/email', label: 'Email', icon: Stub, moduleId: 'email' },
     { href: '/jobs', label: 'Career Ops', icon: Stub, moduleId: 'job-hunter' },
-    { href: '/homelab', label: 'Home Lab', icon: Stub, moduleId: 'homelab' },
-    { href: '/media', label: 'Media Radar', icon: Stub, moduleId: 'media' },
+    { href: '/growth-ops', label: 'Growth Ops', icon: Stub, moduleId: 'growth-ops' },
+    { href: '/media', label: 'Media Command', icon: Stub, moduleId: 'media' },
     { href: '/notes', label: 'Notes', icon: Stub, moduleId: 'notes' },
+    { href: '/homelab', label: 'Overview', icon: Stub, moduleId: 'homelab' },
+    { href: '/homelab/proxmox', label: 'Proxmox', icon: Stub, moduleId: 'homelab-proxmox' },
+    { href: '/homelab/portainer', label: 'Portainer', icon: Stub, moduleId: 'homelab-portainer' },
+    { href: '/homelab/network', label: 'Network', icon: Stub, moduleId: 'homelab-network' },
+    { href: '/homelab/storage', label: 'Storage/Backups', icon: Stub, moduleId: 'homelab-storage' },
+    { href: '/homelab/power', label: 'Power/Hardware', icon: Stub, moduleId: 'homelab-power' },
+    { href: '/homelab/services', label: 'Services', icon: Stub, moduleId: 'homelab-services' },
+    { href: '/homelab/activity', label: 'Activity/Settings', icon: Stub, moduleId: 'homelab-activity' },
     { href: '/training', label: 'Training Dashboard', icon: Stub, moduleId: 'training' },
     { href: '/training/clients', label: 'Clients', icon: Stub, moduleId: 'training-clients' },
     { href: '/training/calendar', label: 'Calendar', icon: Stub, moduleId: 'training-calendar' },
@@ -74,12 +92,32 @@ vi.mock('../nav-items', () => ({
     ['/pomodoro', { href: '/pomodoro', label: 'Pomodoro', icon: Stub, moduleId: 'pomodoro' }],
     ['/email', { href: '/email', label: 'Email', icon: Stub, moduleId: 'email' }],
     ['/jobs', { href: '/jobs', label: 'Career Ops', icon: Stub, moduleId: 'job-hunter' }],
-    ['/homelab', { href: '/homelab', label: 'Home Lab', icon: Stub, moduleId: 'homelab' }],
-    ['/media', { href: '/media', label: 'Media Radar', icon: Stub, moduleId: 'media' }],
+    ['/growth-ops', { href: '/growth-ops', label: 'Growth Ops', icon: Stub, moduleId: 'growth-ops' }],
+    ['/media', { href: '/media', label: 'Media Command', icon: Stub, moduleId: 'media' }],
     ['/notes', { href: '/notes', label: 'Notes', icon: Stub, moduleId: 'notes' }],
+    ['/homelab', { href: '/homelab', label: 'Overview', icon: Stub, moduleId: 'homelab' }],
+    ['/homelab/proxmox', { href: '/homelab/proxmox', label: 'Proxmox', icon: Stub, moduleId: 'homelab-proxmox' }],
+    [
+      '/homelab/portainer',
+      { href: '/homelab/portainer', label: 'Portainer', icon: Stub, moduleId: 'homelab-portainer' },
+    ],
+    ['/homelab/network', { href: '/homelab/network', label: 'Network', icon: Stub, moduleId: 'homelab-network' }],
+    [
+      '/homelab/storage',
+      { href: '/homelab/storage', label: 'Storage/Backups', icon: Stub, moduleId: 'homelab-storage' },
+    ],
+    ['/homelab/power', { href: '/homelab/power', label: 'Power/Hardware', icon: Stub, moduleId: 'homelab-power' }],
+    ['/homelab/services', { href: '/homelab/services', label: 'Services', icon: Stub, moduleId: 'homelab-services' }],
+    [
+      '/homelab/activity',
+      { href: '/homelab/activity', label: 'Activity/Settings', icon: Stub, moduleId: 'homelab-activity' },
+    ],
     ['/training', { href: '/training', label: 'Training Dashboard', icon: Stub, moduleId: 'training' }],
     ['/training/clients', { href: '/training/clients', label: 'Clients', icon: Stub, moduleId: 'training-clients' }],
-    ['/training/calendar', { href: '/training/calendar', label: 'Calendar', icon: Stub, moduleId: 'training-calendar' }],
+    [
+      '/training/calendar',
+      { href: '/training/calendar', label: 'Calendar', icon: Stub, moduleId: 'training-calendar' },
+    ],
     ['/training/forms', { href: '/training/forms', label: 'Forms', icon: Stub, moduleId: 'training-forms' }],
     ['/dashboard', { href: '/dashboard', label: 'Dashboard', icon: Stub, moduleId: 'dashboard' }],
     ['/missions', { href: '/missions', label: 'Missions', icon: Stub, moduleId: 'missions' }],
@@ -275,9 +313,7 @@ describe('setEnabledModules edge cases', () => {
 describe('APP_MODULES completeness — every module route has a matching nav item', () => {
   it('every APP_MODULE with a moduleId has a corresponding nav item', async () => {
     const { allNavItems } = await import('../nav-items')
-    const navModuleIds = allNavItems
-      .filter(n => n.moduleId)
-      .map(n => n.moduleId!)
+    const navModuleIds = allNavItems.filter(n => n.moduleId).map(n => n.moduleId!)
 
     // Every nav item with a moduleId must reference a valid APP_MODULE
     for (const moduleId of navModuleIds) {
@@ -291,10 +327,9 @@ describe('APP_MODULES completeness — every module route has a matching nav ite
     const navHrefs = new Set(allNavItems.map(n => n.href))
 
     for (const mod of APP_MODULES) {
-      expect(
-        navHrefs.has(mod.route),
-        `APP_MODULE "${mod.id}" route "${mod.route}" has no matching nav item href`
-      ).toBe(true)
+      expect(navHrefs.has(mod.route), `APP_MODULE "${mod.id}" route "${mod.route}" has no matching nav item href`).toBe(
+        true,
+      )
     }
   })
 

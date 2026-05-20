@@ -60,9 +60,22 @@ describe('runMigrations', () => {
   it('appends new modules to existing enabled-modules list', () => {
     localStorage.setItem('app-version', '1')
     const oldModules = [
-      'messages', 'chat', 'todos', 'calendar', 'reminders', 'email',
-      'pomodoro', 'homelab', 'media', 'dashboard', 'missions', 'agents',
-      'memory', 'crons', 'pipeline', 'knowledge',
+      'messages',
+      'chat',
+      'todos',
+      'calendar',
+      'reminders',
+      'email',
+      'pomodoro',
+      'homelab',
+      'media',
+      'dashboard',
+      'missions',
+      'agents',
+      'memory',
+      'crons',
+      'pipeline',
+      'knowledge',
     ]
     localStorage.setItem('enabled-modules', JSON.stringify(oldModules))
 
@@ -71,6 +84,8 @@ describe('runMigrations', () => {
     const updated = JSON.parse(localStorage.getItem('enabled-modules')!)
     expect(updated).toContain('notes')
     expect(updated).toContain('status')
+    expect(updated).toContain('homelab-proxmox')
+    expect(updated).toContain('homelab-portainer')
     expect(updated.slice(0, oldModules.length)).toEqual(oldModules)
     expect(localStorage.getItem('app-version')).toBe('8')
   })
@@ -184,7 +199,7 @@ describe('runMigrations', () => {
       activeThemeId: 'default-dark',
       overrides: {
         'default-dark': { themeId: 'default-dark', secondary: '#818cf8' },
-        'dracula': { themeId: 'dracula', secondary: '#bd93f9' },
+        dracula: { themeId: 'dracula', secondary: '#bd93f9' },
       },
       customThemes: [],
     }
@@ -258,13 +273,16 @@ describe('runMigrations', () => {
   // v7 -> v8 migration tests (strip vnc-viewer from dashboard-state)
   it('v8 migration strips vnc-viewer from dashboard-state widgets', () => {
     localStorage.setItem('app-version', '7')
-    localStorage.setItem('dashboard-state', JSON.stringify({
-      widgets: [
-        { pluginId: 'heartbeat', layout: { x: 0, y: 0, w: 1, h: 2 } },
-        { pluginId: 'vnc-viewer', layout: { x: 1, y: 0, w: 3, h: 3 } },
-        { pluginId: 'agents', layout: { x: 4, y: 0, w: 2, h: 3 } },
-      ]
-    }))
+    localStorage.setItem(
+      'dashboard-state',
+      JSON.stringify({
+        widgets: [
+          { pluginId: 'heartbeat', layout: { x: 0, y: 0, w: 1, h: 2 } },
+          { pluginId: 'vnc-viewer', layout: { x: 1, y: 0, w: 3, h: 3 } },
+          { pluginId: 'agents', layout: { x: 4, y: 0, w: 2, h: 3 } },
+        ],
+      }),
+    )
     runMigrations()
     const state = JSON.parse(localStorage.getItem('dashboard-state')!)
     expect(state.widgets).toHaveLength(2)
@@ -279,12 +297,15 @@ describe('runMigrations', () => {
 
   it('v8 migration is no-op when dashboard-state has no vnc-viewer widgets', () => {
     localStorage.setItem('app-version', '7')
-    localStorage.setItem('dashboard-state', JSON.stringify({
-      widgets: [
-        { pluginId: 'heartbeat', layout: { x: 0, y: 0, w: 1, h: 2 } },
-        { pluginId: 'agents', layout: { x: 4, y: 0, w: 2, h: 3 } },
-      ]
-    }))
+    localStorage.setItem(
+      'dashboard-state',
+      JSON.stringify({
+        widgets: [
+          { pluginId: 'heartbeat', layout: { x: 0, y: 0, w: 1, h: 2 } },
+          { pluginId: 'agents', layout: { x: 4, y: 0, w: 2, h: 3 } },
+        ],
+      }),
+    )
     runMigrations()
     const state = JSON.parse(localStorage.getItem('dashboard-state')!)
     expect(state.widgets).toHaveLength(2)

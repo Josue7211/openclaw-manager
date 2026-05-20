@@ -135,8 +135,8 @@ describe('getSidebarTitleLayout / setSidebarTitleLayout', () => {
 })
 
 describe('getSidebarTitleText / setSidebarTitleText', () => {
-  it('defaults to "CLAWCONTROL" when localStorage is empty', () => {
-    expect(getSidebarTitleText()).toBe('CLAWCONTROL')
+  it('defaults to "clawctrl" when localStorage is empty', () => {
+    expect(getSidebarTitleText()).toBe('clawctrl')
   })
 
   it('reads persisted text from localStorage', async () => {

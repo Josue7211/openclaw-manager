@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, useSyncExternalStore, Suspense } from 'react'
 import { useLocation, useNavigate, Outlet } from 'react-router-dom'
 import Sidebar from '@/components/Sidebar'
+import { GlobalAssistantDrawer } from '@/components/assistant/GlobalAssistantLauncher'
 import PageErrorBoundary from '@/components/PageErrorBoundary'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 const CommandPalette = React.lazy(() => import('@/components/CommandPalette'))
@@ -32,6 +33,9 @@ import { useApprovals } from '@/hooks/useApprovals'
 // Capped at 50 entries to prevent memory leaks.
 const scrollPositions = new Map<string, number>()
 const MAX_SCROLL_ENTRIES = 50
+const ASSISTANT_MIN_WIDTH = 280
+const ASSISTANT_DEFAULT_WIDTH = 300
+const ASSISTANT_MAX_WIDTH = 420
 
 function saveScrollPosition(pathname: string, scrollTop: number) {
   scrollPositions.set(pathname, scrollTop)
@@ -57,7 +61,11 @@ export default function LayoutShell() {
   const [themePickerOpen, setThemePickerOpen] = useState(false)
   const [recoveryReminderKey, setRecoveryReminderKey] = useState<string | null>(null)
   const [sidebarWidth, setSidebarWidth] = useLocalStorageState('sidebar-width', 260)
+  const [assistantOpen, setAssistantOpen] = useState(false)
+  const [assistantWidth, setAssistantWidth] = useLocalStorageState('assistant-width', ASSISTANT_DEFAULT_WIDTH)
   const sidebarDraggingRef = useRef(false)
+  const assistantCollapsedSidebarRef = useRef(false)
+  const assistantPrevSidebarWidthRef = useRef(sidebarWidth)
   const mainRef = useRef<HTMLElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const prevPathnameRef = useRef(pathname)
@@ -69,6 +77,10 @@ export default function LayoutShell() {
 
   // Keep approval badge count synced globally (polls gateway every 3s)
   useApprovals()
+
+  useEffect(() => {
+    document.documentElement.dataset.clawRoute = pathname
+  }, [pathname])
 
   useEffect(() => {
     if (!shouldShowSetupWizard) setShowWizard(false)
@@ -138,6 +150,45 @@ export default function LayoutShell() {
       if (debounceTimer) clearTimeout(debounceTimer)
     }
   }, [sidebarWidth, setSidebarWidth])
+
+  useEffect(() => {
+    if (assistantOpen) {
+      if (sidebarWidth > 64) {
+        assistantPrevSidebarWidthRef.current = sidebarWidth
+        assistantCollapsedSidebarRef.current = true
+        setSidebarWidth(64)
+      }
+      return
+    }
+    if (assistantCollapsedSidebarRef.current) {
+      assistantCollapsedSidebarRef.current = false
+      setSidebarWidth(Math.max(180, assistantPrevSidebarWidthRef.current))
+    }
+  }, [assistantOpen, sidebarWidth, setSidebarWidth])
+
+  const handleAssistantResizeStart = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const startX = event.clientX
+    const startWidth = assistantWidth
+    const maxWidth = Math.min(ASSISTANT_MAX_WIDTH, Math.max(ASSISTANT_MIN_WIDTH, window.innerWidth - 64 - 520))
+
+    const onMove = (moveEvent: MouseEvent) => {
+      const delta = startX - moveEvent.clientX
+      const next = Math.max(ASSISTANT_MIN_WIDTH, Math.min(maxWidth, startWidth + delta))
+      setAssistantWidth(next)
+    }
+    const onUp = () => {
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [assistantWidth, setAssistantWidth])
 
   // Scroll restoration: save position on route change, restore on return
   useEffect(() => {
@@ -418,9 +469,12 @@ export default function LayoutShell() {
         width={sidebarWidth}
         onWidthChange={setSidebarWidth}
         draggingRef={sidebarDraggingRef}
+        assistantOpen={assistantOpen}
+        onAssistantOpenChange={setAssistantOpen}
       />
       <main ref={mainRef} id="main-content" data-testid="main-content" data-tour="dashboard" style={{
         flex: 1,
+        minWidth: 0,
         overflow: 'hidden',
         background: 'transparent',
         display: 'flex',
@@ -516,6 +570,28 @@ export default function LayoutShell() {
         </PageErrorBoundary>
         </div>
       </main>
+      {assistantOpen && (
+        <aside
+          data-testid="global-assistant-dock"
+          style={{
+            width: Math.max(ASSISTANT_MIN_WIDTH, Math.min(ASSISTANT_MAX_WIDTH, assistantWidth)),
+            flex: '0 0 auto',
+            minWidth: ASSISTANT_MIN_WIDTH,
+            maxWidth: ASSISTANT_MAX_WIDTH,
+            height: '100%',
+            minHeight: 0,
+            background: 'var(--bg-panel)',
+            display: 'flex',
+            overflow: 'hidden',
+          }}
+        >
+          <GlobalAssistantDrawer
+            docked
+            onClose={() => setAssistantOpen(false)}
+            onResizeStart={handleAssistantResizeStart}
+          />
+        </aside>
+      )}
       <Suspense fallback={null}>
         <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       </Suspense>

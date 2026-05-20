@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { contactLabel } from '../useConversationList'
-import type { Conversation } from '@/pages/messages/types'
+import type { Conversation } from '@/features/messages/types'
 
 function makeConv(overrides: Partial<Conversation> = {}): Conversation {
   return {

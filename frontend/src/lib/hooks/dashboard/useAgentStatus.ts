@@ -1,6 +1,6 @@
 import { useAgentCache } from './useAgentCache'
 import { isDemoMode, DEMO_AGENT_STATUS } from '@/lib/demo-data'
-import type { StatusData } from '@/pages/dashboard/types'
+import type { StatusData } from '@/features/dashboard/types'
 
 export function useAgentStatus() {
   const _demo = isDemoMode()

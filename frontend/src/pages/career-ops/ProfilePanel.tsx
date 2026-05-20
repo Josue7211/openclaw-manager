@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { CareerProfile, OpportunityDossier } from '@/pages/job-hunter-types'
-import { badgeStyle } from '@/pages/job-hunter-domain'
+import type { CareerProfile, OpportunityDossier } from '@/features/career-ops/types'
+import { badgeStyle } from '@/features/career-ops/domain'
 
 function splitList(value: string): string[] {
   return value

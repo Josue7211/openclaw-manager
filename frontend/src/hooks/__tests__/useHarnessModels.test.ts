@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createElement } from 'react'
-import type { ModelsResponse } from '@/pages/harness/types'
+import type { ModelsResponse } from '@/features/harness/types'
 
 // ---------------------------------------------------------------------------
 // Mocks

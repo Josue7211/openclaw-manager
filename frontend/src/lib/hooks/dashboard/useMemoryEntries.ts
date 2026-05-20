@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode } from '@/lib/demo-data'
-import type { MemoryEntry } from '@/pages/dashboard/types'
+import type { MemoryEntry } from '@/features/dashboard/types'
 
 type MemdQueryResponse = {
   ok: boolean

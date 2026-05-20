@@ -1,11 +1,32 @@
 import { useState, useMemo, useCallback, memo } from 'react'
-import { CaretRight, CaretDown, FileText, FolderOpen, Folder, Plus, MagnifyingGlass, Image, FolderPlus, Trash, Copy, PencilSimple, NotePencil, Star, X, SlidersHorizontal } from '@phosphor-icons/react'
+import {
+  CaretRight,
+  CaretDown,
+  FileText,
+  FolderOpen,
+  Folder,
+  Plus,
+  MagnifyingGlass,
+  Image,
+  FolderPlus,
+  Trash,
+  Copy,
+  PencilSimple,
+  NotePencil,
+  Star,
+  X,
+  SlidersHorizontal,
+} from '@phosphor-icons/react'
 import { ContextMenu, type ContextMenuState, type ContextMenuItem } from '@/components/ContextMenu'
 import type { VaultFolder, VaultNote, FolderNode } from './types'
+import type { NoteTemplate } from './templates'
+import { matchesNoteSearch, matchesNoteSearchFilters } from './searchFilters'
+import { NOTES_TRASH_FOLDER, isNotesTrashPath, noteFolderPath, normalizeNotesFolderPath } from './trash'
 
 interface FileTreeProps {
   notes: VaultNote[]
   folders?: VaultFolder[]
+  templates?: NoteTemplate[]
   pinnedNoteIds?: Set<string>
   recentNoteIds?: string[]
   recentLimit?: number
@@ -16,11 +37,13 @@ interface FileTreeProps {
   onCreateFolder: (parent?: string) => void
   onDelete: (id: string) => void
   onDeleteFolder: (path: string) => void
+  onRestoreFolder: (path: string) => void
   onRename: (id: string) => void
   onRenameFolder: (path: string) => void
   onDuplicate: (id: string) => void
   onMove: (id: string) => void
   onMoveToFolder: (id: string, folder: string) => void
+  onRestoreNoteToFolder: (id: string, folder: string) => void
   onCreateDailyNote: (folder?: string) => void
   onCreateTemplate: (folder: string | undefined, templateId: string) => void
   onCopyMarkdown: (id: string) => void
@@ -28,13 +51,53 @@ interface FileTreeProps {
   onTogglePin: (id: string) => void
   searchQuery: string
   onSearchChange: (q: string) => void
+  searchUsesBackend?: boolean
+}
+
+const TEMPLATE_CONTEXT_MENU_LIMIT = 8
+const TRASH_FOLDER = NOTES_TRASH_FOLDER
+
+export type NoteDropAction =
+  | { type: 'ignore' }
+  | { type: 'move'; id: string; folder: string }
+  | { type: 'trash'; id: string }
+  | { type: 'restore'; id: string; folder: string }
+
+export type FolderDropAction = { type: 'ignore' } | { type: 'trash'; path: string }
+
+export function resolveNoteDropAction(notes: VaultNote[], noteId: string, targetFolder: string): NoteDropAction {
+  const note = notes.find(item => item._id === noteId)
+  if (!note || note.type !== 'note') return { type: 'ignore' }
+
+  const target = normalizeNotesFolderPath(targetFolder)
+  const current = noteFolderPath(note)
+  const targetIsTrash = isNotesTrashPath(target)
+  const currentIsTrash = isNotesTrashPath(current)
+
+  if (targetIsTrash) {
+    if (currentIsTrash) return { type: 'ignore' }
+    return { type: 'trash', id: noteId }
+  }
+
+  if (currentIsTrash) return { type: 'restore', id: noteId, folder: target }
+  if (current === target) return { type: 'ignore' }
+  return { type: 'move', id: noteId, folder: target }
+}
+
+export function resolveFolderDropAction(folderPath: string, targetFolder: string): FolderDropAction {
+  const source = normalizeNotesFolderPath(folderPath)
+  const target = normalizeNotesFolderPath(targetFolder)
+  if (!source || !target || source === target) return { type: 'ignore' }
+  if (isNotesTrashPath(source)) return { type: 'ignore' }
+  if (!isNotesTrashPath(target)) return { type: 'ignore' }
+  return { type: 'trash', path: source }
 }
 
 function ensureFolder(root: FolderNode, path: string): FolderNode {
-  const parts = path.split('/').filter(Boolean)
+  const parts = normalizeNotesFolderPath(path).split('/').filter(Boolean)
   let current = root
   for (const part of parts) {
-    let child = current.children.find((c) => c.name === part)
+    let child = current.children.find(c => c.name.toLowerCase() === part.toLowerCase())
     if (!child) {
       child = {
         name: part,
@@ -50,18 +113,38 @@ function ensureFolder(root: FolderNode, path: string): FolderNode {
   return current
 }
 
-function buildTree(notes: VaultNote[], folders: VaultFolder[]): FolderNode {
+export function buildTree(
+  notes: VaultNote[],
+  folders: VaultFolder[],
+  options: { includeTrash?: boolean } = {},
+): FolderNode {
   const root: FolderNode = { name: 'vault', path: '', children: [], notes: [], isExpanded: true }
+  const folderPaths = new Map<string, string>()
+  const addFolderPath = (path: string) => {
+    const normalized = normalizeNotesFolderPath(path)
+    if (!normalized) return
+    const key = normalized.toLowerCase()
+    if (!folderPaths.has(key)) folderPaths.set(key, normalized)
+  }
 
   for (const folder of folders) {
-    ensureFolder(root, folder.path)
+    addFolderPath(folder.path)
   }
 
   for (const note of notes) {
-    const parts = note._id.split('/')
-    parts.pop()
-    const current = ensureFolder(root, parts.join('/'))
+    addFolderPath(noteFolderPath(note))
+  }
 
+  if (options.includeTrash || [...folderPaths.values()].some(isNotesTrashPath)) {
+    addFolderPath(TRASH_FOLDER)
+  }
+
+  for (const path of folderPaths.values()) {
+    ensureFolder(root, path)
+  }
+
+  for (const note of notes) {
+    const current = ensureFolder(root, noteFolderPath(note))
     current.notes.push(note)
   }
 
@@ -74,39 +157,6 @@ function buildTree(notes: VaultNote[], folders: VaultFolder[]): FolderNode {
   return root
 }
 
-function matchesSearch(note: VaultNote, query: string): boolean {
-  const q = query.trim().toLowerCase()
-  if (!q) return true
-
-  const operator = q.match(/^(tag|path|folder|content|title):(.+)$/)
-  if (operator) {
-    const value = operator[2].trim().replace(/^#/, '')
-    if (!value) return true
-    switch (operator[1]) {
-      case 'tag':
-        return note.tags.some((tag) => tag.toLowerCase().includes(value))
-      case 'path':
-      case 'folder':
-        return note._id.toLowerCase().includes(value) || note.folder.toLowerCase().includes(value)
-      case 'content':
-        return note.content.toLowerCase().includes(value)
-      case 'title':
-        return note.title.toLowerCase().includes(value) || note.aliases?.some((alias) => alias.toLowerCase().includes(value)) === true
-      default:
-        return false
-    }
-  }
-
-  const tagQuery = q.replace(/^#/, '')
-  return (
-    note.title.toLowerCase().includes(q) ||
-    note.aliases?.some((alias) => alias.toLowerCase().includes(q)) === true ||
-    note.content.toLowerCase().includes(q) ||
-    note.folder.toLowerCase().includes(q) ||
-    note.tags.some((tag) => tag.toLowerCase().includes(tagQuery))
-  )
-}
-
 const FolderItem = memo(function FolderItem({
   node,
   depth,
@@ -117,7 +167,8 @@ const FolderItem = memo(function FolderItem({
   onSelect,
   onCreate,
   onCreateFolder,
-  onMoveToFolder,
+  onDropNote,
+  onDropFolder,
   onContextMenu,
   onNoteContextMenu,
 }: {
@@ -130,12 +181,15 @@ const FolderItem = memo(function FolderItem({
   onSelect: (id: string) => void
   onCreate: (folder?: string) => void
   onCreateFolder: (parent?: string) => void
-  onMoveToFolder: (id: string, folder: string) => void
+  onDropNote: (id: string, folder: string) => void
+  onDropFolder: (path: string, folder: string) => void
   onContextMenu: (node: FolderNode, e: React.MouseEvent) => void
   onNoteContextMenu: (note: VaultNote, e: React.MouseEvent) => void
 }) {
   const isExpanded = expandedFolders.has(node.path)
   const pl = 10 + Math.max(0, depth - 1) * 16
+  const inTrash = isNotesTrashPath(node.path)
+  const FolderIcon = node.path === TRASH_FOLDER ? Trash : isExpanded ? FolderOpen : Folder
 
   return (
     <>
@@ -150,15 +204,31 @@ const FolderItem = memo(function FolderItem({
             background: 'transparent',
           }}
           className="hover-bg"
-          onContextMenu={(e) => onContextMenu(node, e)}
-          onDragOver={(event) => {
-            if (event.dataTransfer.types.includes('application/x-clawcontrol-note')) event.preventDefault()
+          onContextMenu={e => onContextMenu(node, e)}
+          draggable={!inTrash}
+          onDragStart={event => {
+            if (inTrash) return
+            event.dataTransfer.setData('application/x-clawcontrol-folder', node.path)
+            event.dataTransfer.effectAllowed = 'move'
           }}
-          onDrop={(event) => {
+          onDragOver={event => {
+            const hasNote = event.dataTransfer.types.includes('application/x-clawcontrol-note')
+            const hasFolder = event.dataTransfer.types.includes('application/x-clawcontrol-folder')
+            if (hasNote || (hasFolder && isNotesTrashPath(node.path))) event.preventDefault()
+          }}
+          onDrop={event => {
             const noteId = event.dataTransfer.getData('application/x-clawcontrol-note')
-            if (!noteId) return
-            event.preventDefault()
-            onMoveToFolder(noteId, node.path)
+            const folderPath = event.dataTransfer.getData('application/x-clawcontrol-folder')
+            if (!noteId && !folderPath) return
+            if (noteId) {
+              event.preventDefault()
+              onDropNote(noteId, node.path)
+              return
+            }
+            if (folderPath && isNotesTrashPath(node.path)) {
+              event.preventDefault()
+              onDropFolder(folderPath, node.path)
+            }
           }}
         >
           <button
@@ -190,65 +260,63 @@ const FolderItem = memo(function FolderItem({
             ) : (
               <CaretRight size={10} style={{ opacity: 0.5, flexShrink: 0 }} />
             )}
-            {isExpanded ? (
-              <FolderOpen size={12} style={{ opacity: 0.6, flexShrink: 0 }} />
-            ) : (
-              <Folder size={12} style={{ opacity: 0.6, flexShrink: 0 }} />
-            )}
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {node.name}
-            </span>
+            <FolderIcon size={12} style={{ opacity: 0.6, flexShrink: 0 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</span>
           </button>
-          <button
-            type="button"
-            title="New note"
-            aria-label={`New note in ${node.name}`}
-            onClick={() => onCreate(node.path)}
-            className="hover-bg"
-            style={{
-              width: 24,
-              height: 24,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: 'var(--radius-sm)',
-              flexShrink: 0,
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-            }}
-          >
-            <NotePencil size={11} style={{ opacity: 0.45 }} />
-          </button>
-          <button
-            type="button"
-            title="New folder"
-            aria-label={`New folder in ${node.name}`}
-            onClick={() => onCreateFolder(node.path)}
-            className="hover-bg"
-            style={{
-              width: 24,
-              height: 24,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: 'var(--radius-sm)',
-              flexShrink: 0,
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-            }}
-          >
-            <FolderPlus size={11} style={{ opacity: 0.45 }} />
-          </button>
+          {!inTrash && (
+            <>
+              <button
+                type="button"
+                title="New note"
+                aria-label={`New note in ${node.name}`}
+                onClick={() => onCreate(node.path)}
+                className="hover-bg"
+                style={{
+                  width: 24,
+                  height: 24,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 'var(--radius-sm)',
+                  flexShrink: 0,
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                }}
+              >
+                <NotePencil size={11} style={{ opacity: 0.45 }} />
+              </button>
+              <button
+                type="button"
+                title="New folder"
+                aria-label={`New folder in ${node.name}`}
+                onClick={() => onCreateFolder(node.path)}
+                className="hover-bg"
+                style={{
+                  width: 24,
+                  height: 24,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 'var(--radius-sm)',
+                  flexShrink: 0,
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                }}
+              >
+                <FolderPlus size={11} style={{ opacity: 0.45 }} />
+              </button>
+            </>
+          )}
         </div>
       )}
 
       {(depth === 0 || isExpanded) && (
         <>
-          {node.children.map((child) => (
+          {node.children.map(child => (
             <FolderItem
               key={child.path}
               node={child}
@@ -260,12 +328,13 @@ const FolderItem = memo(function FolderItem({
               onSelect={onSelect}
               onCreate={onCreate}
               onCreateFolder={onCreateFolder}
-              onMoveToFolder={onMoveToFolder}
+              onDropNote={onDropNote}
+              onDropFolder={onDropFolder}
               onContextMenu={onContextMenu}
               onNoteContextMenu={onNoteContextMenu}
             />
           ))}
-          {node.notes.map((note) => (
+          {node.notes.map(note => (
             <NoteItem
               key={note._id}
               note={note}
@@ -307,9 +376,9 @@ const NoteItem = memo(function NoteItem({
   return (
     <button
       onClick={() => onSelect(note._id)}
-      onContextMenu={(e) => onContextMenu(note, e)}
+      onContextMenu={e => onContextMenu(note, e)}
       draggable={note.type === 'note'}
-      onDragStart={(event) => {
+      onDragStart={event => {
         if (note.type !== 'note') return
         event.dataTransfer.setData('application/x-clawcontrol-note', note._id)
         event.dataTransfer.effectAllowed = 'move'
@@ -354,11 +423,16 @@ const NoteItem = memo(function NoteItem({
         {note.title || 'Untitled'}
       </span>
       {ext && (
-        <span style={{
-          fontSize: 9, fontWeight: 600, letterSpacing: '0.04em',
-          color: 'var(--text-muted)', opacity: 0.5,
-          flexShrink: 0,
-        }}>
+        <span
+          style={{
+            fontSize: 9,
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            color: 'var(--text-muted)',
+            opacity: 0.5,
+            flexShrink: 0,
+          }}
+        >
           {ext}
         </span>
       )}
@@ -395,6 +469,7 @@ const NoteItem = memo(function NoteItem({
 export default function FileTree({
   notes,
   folders = [],
+  templates = [],
   pinnedNoteIds = new Set(),
   recentNoteIds = [],
   recentLimit = 5,
@@ -405,11 +480,13 @@ export default function FileTree({
   onCreateFolder,
   onDelete,
   onDeleteFolder,
+  onRestoreFolder,
   onRename,
   onRenameFolder,
   onDuplicate,
   onMove,
   onMoveToFolder,
+  onRestoreNoteToFolder,
   onCreateDailyNote,
   onCreateTemplate,
   onCopyMarkdown,
@@ -417,16 +494,22 @@ export default function FileTree({
   onTogglePin,
   searchQuery,
   onSearchChange,
+  searchUsesBackend = false,
 }: FileTreeProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['']))
   const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null)
   const [recentSettingsOpen, setRecentSettingsOpen] = useState(false)
   const normalizedRecentLimit = Math.max(1, Math.min(10, Number(recentLimit) || 5))
+  const menuTemplates = useMemo(
+    () => templates.filter(template => template.source === 'vault').slice(0, TEMPLATE_CONTEXT_MENU_LIMIT),
+    [templates],
+  )
 
   const filteredNotes = useMemo(() => {
     if (!searchQuery.trim()) return notes
-    return notes.filter((note) => matchesSearch(note, searchQuery))
-  }, [notes, searchQuery])
+    const matches = searchUsesBackend ? matchesNoteSearchFilters : matchesNoteSearch
+    return notes.filter(note => matches(note, searchQuery))
+  }, [notes, searchQuery, searchUsesBackend])
 
   const tagCounts = useMemo(() => {
     const counts = new Map<string, number>()
@@ -436,37 +519,62 @@ export default function FileTree({
         counts.set(tag, (counts.get(tag) ?? 0) + 1)
       }
     }
-    return [...counts.entries()]
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, 18)
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 18)
   }, [notes])
 
   const visibleFolders = useMemo(() => {
     if (!searchQuery.trim()) return folders
     const q = searchQuery.toLowerCase()
-    return folders.filter((f) => f.path.toLowerCase().includes(q))
+    return folders.filter(f => f.path.toLowerCase().includes(q))
   }, [folders, searchQuery])
+  const activeNotes = useMemo(
+    () => filteredNotes.filter(note => !isNotesTrashPath(noteFolderPath(note))),
+    [filteredNotes],
+  )
+  const activeFolders = useMemo(
+    () => visibleFolders.filter(folder => !isNotesTrashPath(folder.path)),
+    [visibleFolders],
+  )
+  const trashNotes = useMemo(
+    () => notes.filter(note => isNotesTrashPath(noteFolderPath(note))),
+    [notes],
+  )
+  const trashFolders = useMemo(
+    () => folders.filter(folder => isNotesTrashPath(folder.path)),
+    [folders],
+  )
 
-  const tree = useMemo(() => buildTree(filteredNotes, visibleFolders), [filteredNotes, visibleFolders])
+  const tree = useMemo(
+    () => buildTree(activeNotes, activeFolders),
+    [activeFolders, activeNotes],
+  )
+  const trashTree = useMemo(
+    () => buildTree(trashNotes, trashFolders, { includeTrash: true }),
+    [trashFolders, trashNotes],
+  )
 
   const pinnedNotes = useMemo(
-    () =>
-      notes
-        .filter((note) => pinnedNoteIds.has(note._id))
-        .sort((a, b) => b.updated_at - a.updated_at),
+    () => notes.filter(note => pinnedNoteIds.has(note._id)).sort((a, b) => b.updated_at - a.updated_at),
     [notes, pinnedNoteIds],
   )
 
   const recentNotes = useMemo(() => {
-    const byId = new Map(notes.map((note) => [note._id, note]))
+    const byId = new Map(notes.map(note => [note._id, note]))
     return recentNoteIds
-      .map((id) => byId.get(id))
+      .map(id => byId.get(id))
       .filter((note): note is VaultNote => !!note && !pinnedNoteIds.has(note._id))
       .slice(0, normalizedRecentLimit)
   }, [notes, pinnedNoteIds, normalizedRecentLimit, recentNoteIds])
 
+  const trashCount = useMemo(
+    () =>
+      notes.filter(note => isNotesTrashPath(noteFolderPath(note))).length +
+      folders.filter(folder => isNotesTrashPath(folder.path)).length,
+    [folders, notes],
+  )
+
   const toggleFolder = useCallback((path: string) => {
-    setExpandedFolders((prev) => {
+    setExpandedFolders(prev => {
       const next = new Set(prev)
       if (next.has(path)) next.delete(path)
       else next.add(path)
@@ -478,162 +586,247 @@ export default function FileTree({
     void navigator.clipboard?.writeText(text)
   }, [])
 
-  const openFolderMenu = useCallback((node: FolderNode, e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    const hasContents =
-      notes.some((note) => note.folder === node.path || note.folder.startsWith(`${node.path}/`)) ||
-      folders.some((folder) => folder.path !== node.path && folder.path.startsWith(`${node.path}/`))
-    const items: ContextMenuItem[] = [
-      {
-        label: 'New Note',
-        icon: NotePencil,
-        onClick: () => onCreate(node.path),
-      },
-      {
-        label: 'New Daily Note',
-        icon: FileText,
-        onClick: () => onCreateDailyNote(node.path),
-      },
-      {
-        label: 'New Meeting Note',
-        icon: FileText,
-        onClick: () => onCreateTemplate(node.path, 'meeting'),
-      },
-      {
-        label: 'New Project Brief',
-        icon: FileText,
-        onClick: () => onCreateTemplate(node.path, 'project'),
-      },
-      {
-        label: 'New Folder',
-        icon: FolderPlus,
-        onClick: () => onCreateFolder(node.path),
-      },
-      {
-        label: 'Rename Folder',
-        icon: PencilSimple,
-        onClick: () => onRenameFolder(node.path),
-      },
-      {
-        label: 'Copy Folder Path',
-        icon: Copy,
-        onClick: () => copyText(node.path),
-      },
-      {
-        label: hasContents ? 'Delete Empty Folder' : 'Delete Folder',
-        icon: Trash,
-        onClick: () => onDeleteFolder(node.path),
-        danger: true,
-        disabled: hasContents,
-      },
-    ]
-    setCtxMenu({ x: e.clientX, y: e.clientY, items })
-  }, [copyText, folders, notes, onCreate, onCreateDailyNote, onCreateFolder, onCreateTemplate, onDeleteFolder, onRenameFolder])
+  const handleDropNote = useCallback(
+    (noteId: string, folder: string) => {
+      const action = resolveNoteDropAction(notes, noteId, folder)
+      if (action.type === 'move') onMoveToFolder(action.id, action.folder)
+      if (action.type === 'trash') onDelete(action.id)
+      if (action.type === 'restore') onRestoreNoteToFolder(action.id, action.folder)
+    },
+    [notes, onDelete, onMoveToFolder, onRestoreNoteToFolder],
+  )
 
-  const openNoteMenu = useCallback((note: VaultNote, e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    const folder = note.folder || undefined
-    const isPinned = pinnedNoteIds.has(note._id)
-    const items: ContextMenuItem[] = [
-      {
-        label: 'Open',
-        icon: FileText,
-        onClick: () => onSelect(note._id),
-      },
-      {
-        label: 'Rename',
-        icon: PencilSimple,
-        onClick: () => onRename(note._id),
-        disabled: note.type === 'attachment',
-      },
-      {
-        label: 'New Note Here',
-        icon: NotePencil,
-        onClick: () => onCreate(folder),
-      },
-      {
-        label: isPinned ? 'Unpin' : 'Pin',
-        icon: Star,
-        onClick: () => onTogglePin(note._id),
-      },
-      {
-        label: 'Duplicate',
-        icon: Copy,
-        onClick: () => onDuplicate(note._id),
-        disabled: note.type === 'attachment',
-      },
-      {
-        label: 'Move...',
-        icon: FolderOpen,
-        onClick: () => onMove(note._id),
-        disabled: note.type === 'attachment',
-      },
-      {
-        label: 'Copy Wikilink',
-        icon: Copy,
-        onClick: () => copyText(`[[${note.title || note._id.replace(/\.md$/, '')}]]`),
-        disabled: note.type === 'attachment',
-      },
-      {
-        label: 'Copy Markdown',
-        icon: Copy,
-        onClick: () => onCopyMarkdown(note._id),
-        disabled: note.type === 'attachment',
-      },
-      {
-        label: 'Export Markdown',
-        icon: FileText,
-        onClick: () => onExportMarkdown(note._id),
-        disabled: note.type === 'attachment',
-      },
-      {
-        label: 'Copy Path',
-        icon: Copy,
-        onClick: () => copyText(note._id),
-      },
-      {
-        label: 'Delete Note',
-        icon: Trash,
-        onClick: () => onDelete(note._id),
-        danger: true,
-      },
-    ]
-    setCtxMenu({ x: e.clientX, y: e.clientY, items })
-  }, [copyText, onCopyMarkdown, onCreate, onDelete, onDuplicate, onExportMarkdown, onMove, onRename, onSelect, onTogglePin, pinnedNoteIds])
+  const handleDropFolder = useCallback(
+    (folderPath: string, folder: string) => {
+      const action = resolveFolderDropAction(folderPath, folder)
+      if (action.type === 'trash') onDeleteFolder(action.path)
+    },
+    [onDeleteFolder],
+  )
 
-  const openRootMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    const items: ContextMenuItem[] = [
-      {
-        label: 'New Note',
-        icon: NotePencil,
-        onClick: () => onCreate(),
-      },
-      {
-        label: 'New Daily Note',
+  const templateMenuItems = useCallback(
+    (folder: string | undefined): ContextMenuItem[] => {
+      const items = menuTemplates.map<ContextMenuItem>(template => ({
+        label: `New from ${template.label}`,
         icon: FileText,
-        onClick: () => onCreateDailyNote(),
-      },
-      {
-        label: 'New Meeting Note',
-        icon: FileText,
-        onClick: () => onCreateTemplate(undefined, 'meeting'),
-      },
-      {
-        label: 'New Project Brief',
-        icon: FileText,
-        onClick: () => onCreateTemplate(undefined, 'project'),
-      },
-      {
-        label: 'New Folder',
-        icon: FolderPlus,
-        onClick: () => onCreateFolder(),
-      },
-    ]
-    setCtxMenu({ x: e.clientX, y: e.clientY, items })
-  }, [onCreate, onCreateDailyNote, onCreateFolder, onCreateTemplate])
+        onClick: () => onCreateTemplate(folder, template.id),
+      }))
+
+      if (templates.length > menuTemplates.length) {
+        items.push({
+          label: `${templates.length - menuTemplates.length} more templates in command palette`,
+          onClick: () => {},
+          disabled: true,
+        })
+      }
+
+      return items
+    },
+    [menuTemplates, onCreateTemplate, templates.length],
+  )
+
+  const openFolderMenu = useCallback(
+    (node: FolderNode, e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const inTrash = isNotesTrashPath(node.path)
+      const items: ContextMenuItem[] = [
+        ...(!inTrash
+          ? ([
+              {
+                label: 'New Note',
+                icon: NotePencil,
+                onClick: () => onCreate(node.path),
+              },
+              {
+                label: 'New Daily Note',
+                icon: FileText,
+                onClick: () => onCreateDailyNote(node.path),
+              },
+              {
+                label: 'New Meeting Note',
+                icon: FileText,
+                onClick: () => onCreateTemplate(node.path, 'meeting'),
+              },
+              {
+                label: 'New Project Brief',
+                icon: FileText,
+                onClick: () => onCreateTemplate(node.path, 'project'),
+              },
+              ...templateMenuItems(node.path),
+              {
+                label: 'New Folder',
+                icon: FolderPlus,
+                onClick: () => onCreateFolder(node.path),
+              },
+            ] satisfies ContextMenuItem[])
+          : []),
+        {
+          label: 'Rename Folder',
+          icon: PencilSimple,
+          onClick: () => onRenameFolder(node.path),
+          disabled: inTrash,
+        },
+        {
+          label: 'Copy Folder Path',
+          icon: Copy,
+          onClick: () => copyText(node.path),
+        },
+        ...(inTrash && node.path !== TRASH_FOLDER
+          ? ([
+              {
+                label: 'Restore Folder',
+                icon: FolderOpen,
+                onClick: () => onRestoreFolder(node.path),
+              },
+            ] satisfies ContextMenuItem[])
+          : []),
+        {
+          label:
+            node.path === TRASH_FOLDER ? 'Empty Trash' : inTrash ? 'Permanently Delete Folder' : 'Move Folder to Trash',
+          icon: Trash,
+          onClick: () => onDeleteFolder(node.path),
+          danger: true,
+        },
+      ]
+      setCtxMenu({ x: e.clientX, y: e.clientY, items })
+    },
+    [
+      copyText,
+      onCreate,
+      onCreateDailyNote,
+      onCreateFolder,
+      onCreateTemplate,
+      onDeleteFolder,
+      onRenameFolder,
+      onRestoreFolder,
+      templateMenuItems,
+    ],
+  )
+
+  const openNoteMenu = useCallback(
+    (note: VaultNote, e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const folder = note.folder || undefined
+      const inTrash = isNotesTrashPath(noteFolderPath(note))
+      const isPinned = pinnedNoteIds.has(note._id)
+      const items: ContextMenuItem[] = [
+        {
+          label: 'Open',
+          icon: FileText,
+          onClick: () => onSelect(note._id),
+        },
+        {
+          label: 'Rename',
+          icon: PencilSimple,
+          onClick: () => onRename(note._id),
+          disabled: note.type === 'attachment',
+        },
+        {
+          label: 'New Note Here',
+          icon: NotePencil,
+          onClick: () => onCreate(folder),
+        },
+        {
+          label: isPinned ? 'Unpin' : 'Pin',
+          icon: Star,
+          onClick: () => onTogglePin(note._id),
+        },
+        {
+          label: 'Duplicate',
+          icon: Copy,
+          onClick: () => onDuplicate(note._id),
+          disabled: note.type === 'attachment',
+        },
+        {
+          label: 'Move...',
+          icon: FolderOpen,
+          onClick: () => onMove(note._id),
+          disabled: note.type === 'attachment',
+        },
+        {
+          label: 'Copy Wikilink',
+          icon: Copy,
+          onClick: () => copyText(`[[${note.title || note._id.replace(/\.md$/, '')}]]`),
+          disabled: note.type === 'attachment',
+        },
+        {
+          label: 'Copy Markdown',
+          icon: Copy,
+          onClick: () => onCopyMarkdown(note._id),
+          disabled: note.type === 'attachment',
+        },
+        {
+          label: 'Export Markdown',
+          icon: FileText,
+          onClick: () => onExportMarkdown(note._id),
+          disabled: note.type === 'attachment',
+        },
+        {
+          label: 'Copy Path',
+          icon: Copy,
+          onClick: () => copyText(note._id),
+        },
+        {
+          label: inTrash ? 'Permanently Delete Note' : 'Move Note to Trash',
+          icon: Trash,
+          onClick: () => onDelete(note._id),
+          danger: true,
+        },
+      ]
+      setCtxMenu({ x: e.clientX, y: e.clientY, items })
+    },
+    [
+      copyText,
+      onCopyMarkdown,
+      onCreate,
+      onDelete,
+      onDuplicate,
+      onExportMarkdown,
+      onMove,
+      onRename,
+      onSelect,
+      onTogglePin,
+      pinnedNoteIds,
+    ],
+  )
+
+  const openRootMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      const items: ContextMenuItem[] = [
+        {
+          label: 'New Note',
+          icon: NotePencil,
+          onClick: () => onCreate(),
+        },
+        {
+          label: 'New Daily Note',
+          icon: FileText,
+          onClick: () => onCreateDailyNote(),
+        },
+        {
+          label: 'New Meeting Note',
+          icon: FileText,
+          onClick: () => onCreateTemplate(undefined, 'meeting'),
+        },
+        {
+          label: 'New Project Brief',
+          icon: FileText,
+          onClick: () => onCreateTemplate(undefined, 'project'),
+        },
+        ...templateMenuItems(undefined),
+        {
+          label: 'New Folder',
+          icon: FolderPlus,
+          onClick: () => onCreateFolder(),
+        },
+      ]
+      setCtxMenu({ x: e.clientX, y: e.clientY, items })
+    },
+    [onCreate, onCreateDailyNote, onCreateFolder, onCreateTemplate, templateMenuItems],
+  )
 
   return (
     <div
@@ -644,20 +837,26 @@ export default function FileTree({
         overflow: 'hidden',
       }}
       onContextMenu={openRootMenu}
-      onDragOver={(event) => {
-        if (event.dataTransfer.types.includes('application/x-clawcontrol-note')) event.preventDefault()
+      onDragOver={event => {
+        if (
+          event.dataTransfer.types.includes('application/x-clawcontrol-note') ||
+          event.dataTransfer.types.includes('application/x-clawcontrol-folder')
+        )
+          event.preventDefault()
       }}
-      onDrop={(event) => {
+      onDrop={event => {
         const noteId = event.dataTransfer.getData('application/x-clawcontrol-note')
-        if (!noteId) return
+        const folderPath = event.dataTransfer.getData('application/x-clawcontrol-folder')
+        if (!noteId && !folderPath) return
         event.preventDefault()
-        onMoveToFolder(noteId, '')
+        if (noteId) handleDropNote(noteId, '')
+        if (folderPath) handleDropFolder(folderPath, '')
       }}
     >
       {/* MagnifyingGlass is the top element — no separate header needed */}
 
       {/* MagnifyingGlass */}
-      <div style={{ padding: '10px 10px 6px', flexShrink: 0 }} onContextMenu={(e) => e.stopPropagation()}>
+      <div style={{ padding: '10px 10px 6px', flexShrink: 0 }} onContextMenu={e => e.stopPropagation()}>
         <div
           style={{
             display: 'flex',
@@ -674,7 +873,7 @@ export default function FileTree({
           <MagnifyingGlass size={12} style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.5 }} />
           <input
             value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
+            onChange={e => onSearchChange(e.target.value)}
             placeholder="Search, tag:, path:, content:..."
             aria-label="Search notes"
             style={{
@@ -715,11 +914,13 @@ export default function FileTree({
       </div>
 
       {/* Tree */}
-      <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: '2px 6px',
-      }}>
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '2px 6px',
+        }}
+      >
         {!searchQuery.trim() && pinnedNotes.length > 0 && (
           <div style={{ marginBottom: 8 }}>
             <div
@@ -737,7 +938,7 @@ export default function FileTree({
               <Star size={11} weight="fill" style={{ color: 'var(--amber)' }} />
               Pinned
             </div>
-            {pinnedNotes.map((note) => (
+            {pinnedNotes.map(note => (
               <NoteItem
                 key={`pinned-${note._id}`}
                 note={note}
@@ -767,7 +968,7 @@ export default function FileTree({
               <span style={{ flex: 1 }}>Recent</span>
               {recentSettingsOpen && (
                 <div
-                  onContextMenu={(event) => event.stopPropagation()}
+                  onContextMenu={event => event.stopPropagation()}
                   style={{
                     height: 22,
                     display: 'flex',
@@ -787,7 +988,7 @@ export default function FileTree({
                     value={normalizedRecentLimit}
                     aria-label="Recent notes count"
                     title={`Show ${normalizedRecentLimit} recent notes`}
-                    onChange={(event) => onRecentLimitChange?.(Number(event.target.value))}
+                    onChange={event => onRecentLimitChange?.(Number(event.target.value))}
                     style={{
                       width: 58,
                       accentColor: 'var(--accent)',
@@ -803,8 +1004,8 @@ export default function FileTree({
                 type="button"
                 aria-label="Recent settings"
                 title="Recent settings"
-                onClick={() => setRecentSettingsOpen((open) => !open)}
-                onContextMenu={(event) => event.stopPropagation()}
+                onClick={() => setRecentSettingsOpen(open => !open)}
+                onContextMenu={event => event.stopPropagation()}
                 style={{
                   width: 22,
                   height: 22,
@@ -823,7 +1024,7 @@ export default function FileTree({
                 <SlidersHorizontal size={12} />
               </button>
             </div>
-            {recentNotes.map((note) => (
+            {recentNotes.map(note => (
               <NoteItem
                 key={`recent-${note._id}`}
                 note={note}
@@ -872,9 +1073,7 @@ export default function FileTree({
                     fontSize: 11,
                   }}
                 >
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    #{tag}
-                  </span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>#{tag}</span>
                   <span style={{ opacity: 0.55 }}>{count}</span>
                 </button>
               ))}
@@ -891,12 +1090,13 @@ export default function FileTree({
           onSelect={onSelect}
           onCreate={onCreate}
           onCreateFolder={onCreateFolder}
-          onMoveToFolder={onMoveToFolder}
+          onDropNote={handleDropNote}
+          onDropFolder={handleDropFolder}
           onContextMenu={openFolderMenu}
           onNoteContextMenu={openNoteMenu}
         />
 
-        {filteredNotes.length === 0 && visibleFolders.length === 0 && (
+        {activeNotes.length === 0 && activeFolders.length === 0 && (
           <div
             style={{
               padding: '32px 16px',
@@ -912,10 +1112,12 @@ export default function FileTree({
       </div>
 
       {/* New note */}
-      <div style={{
-        padding: '6px 10px 10px',
-        flexShrink: 0,
-      }}>
+      <div
+        style={{
+          padding: '6px 10px 10px',
+          flexShrink: 0,
+        }}
+      >
         <button
           onClick={() => onCreate()}
           className="hover-bg"
@@ -960,6 +1162,95 @@ export default function FileTree({
           <FolderPlus size={13} />
           New Folder
         </button>
+        <button
+          onClick={() => {
+            onSearchChange('')
+            setExpandedFolders(prev => {
+              const next = new Set([...prev, ''])
+              if (next.has(TRASH_FOLDER)) next.delete(TRASH_FOLDER)
+              else next.add(TRASH_FOLDER)
+              return next
+            })
+          }}
+          onDragOver={event => {
+            if (
+              event.dataTransfer.types.includes('application/x-clawcontrol-note') ||
+              event.dataTransfer.types.includes('application/x-clawcontrol-folder')
+            )
+              event.preventDefault()
+          }}
+          onDrop={event => {
+            const noteId = event.dataTransfer.getData('application/x-clawcontrol-note')
+            const folderPath = event.dataTransfer.getData('application/x-clawcontrol-folder')
+            if (!noteId && !folderPath) return
+            event.preventDefault()
+            onSearchChange('')
+            setExpandedFolders(prev => new Set([...prev, '', TRASH_FOLDER]))
+            if (noteId) handleDropNote(noteId, TRASH_FOLDER)
+            if (folderPath) handleDropFolder(folderPath, TRASH_FOLDER)
+          }}
+          className="hover-bg"
+          aria-label="Show Trash"
+          title="Show Trash"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            width: '100%',
+            padding: '6px 10px',
+            background: 'transparent',
+            border: 'none',
+            borderRadius: 'var(--radius-sm)',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            fontSize: 12,
+            transition: 'color var(--duration-fast)',
+          }}
+        >
+          <Trash size={13} />
+          <span style={{ flex: 1, textAlign: 'left' }}>Trash</span>
+          {trashCount > 0 && (
+            <span
+              style={{
+                minWidth: 18,
+                padding: '1px 6px',
+                borderRadius: '999px',
+                background: 'var(--bg-white-04)',
+                color: 'var(--text-muted)',
+                fontSize: 10,
+                fontWeight: 600,
+                textAlign: 'center',
+              }}
+            >
+              {trashCount}
+            </span>
+          )}
+        </button>
+        {expandedFolders.has(TRASH_FOLDER) && (
+          <div style={{ marginTop: 4, maxHeight: 220, overflowY: 'auto' }} aria-label="Trash contents">
+            {trashCount > 0 ? (
+              <FolderItem
+                node={trashTree}
+                depth={0}
+                selectedId={selectedId}
+                pinnedNoteIds={pinnedNoteIds}
+                expandedFolders={expandedFolders}
+                onToggle={toggleFolder}
+                onSelect={onSelect}
+                onCreate={onCreate}
+                onCreateFolder={onCreateFolder}
+                onDropNote={handleDropNote}
+                onDropFolder={handleDropFolder}
+                onContextMenu={openFolderMenu}
+                onNoteContextMenu={openNoteMenu}
+              />
+            ) : (
+              <div style={{ padding: '8px 10px', color: 'var(--text-muted)', fontSize: 12, opacity: 0.65 }}>
+                Trash is empty.
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {ctxMenu && <ContextMenu {...ctxMenu} onClose={() => setCtxMenu(null)} />}

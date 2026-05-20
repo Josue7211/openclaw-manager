@@ -14,6 +14,7 @@ import { COUNTERPART_MAP } from './theme-definitions'
 import { applyTheme } from './theme-engine'
 
 const STORAGE_KEY = 'theme-state'
+type ThemeMode = ThemeState['mode']
 
 const DEFAULT_STATE: ThemeState = {
   mode: 'dark',
@@ -22,35 +23,101 @@ const DEFAULT_STATE: ThemeState = {
   customThemes: [],
 }
 
+function normalizeThemeState(state: Partial<ThemeState>): ThemeState {
+  return {
+    ...DEFAULT_STATE,
+    ...state,
+    overrides: state.overrides ?? {},
+    customThemes: state.customThemes ?? [],
+  }
+}
+
+function parseThemeMode(raw: string | null): ThemeMode | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw)
+    if (parsed === 'dark' || parsed === 'light' || parsed === 'system') return parsed
+  } catch {
+    // Fall through to raw string handling.
+  }
+  if (raw === 'dark' || raw === 'light' || raw === 'system') return raw
+  return null
+}
+
+function stateWithMode(state: ThemeState, mode: ThemeMode): ThemeState {
+  let activeThemeId = state.activeThemeId
+  if (
+    mode !== 'system' &&
+    state.mode !== 'system' &&
+    state.mode !== mode
+  ) {
+    activeThemeId = COUNTERPART_MAP[state.activeThemeId] ?? (mode === 'dark' ? 'default-dark' : 'default-light')
+  }
+
+  const next = {
+    ...state,
+    mode,
+    activeThemeId,
+    lastModified: Date.now(),
+  }
+  if (mode === 'system') {
+    delete next.blendPosition
+  }
+  return next
+}
+
+function promoteLegacyThemeMode(state: ThemeState): ThemeState {
+  const legacyMode = parseThemeMode(localStorage.getItem('theme'))
+  if (!legacyMode) return state
+
+  const next = legacyMode === state.mode
+    ? state
+    : stateWithMode(state, legacyMode)
+
+  if (next !== state) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+  }
+  localStorage.removeItem('theme')
+  return next
+}
+
 function loadInitialState(): ThemeState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as ThemeState
       // Ensure required fields exist (defensive against partial data)
-      return {
-        ...DEFAULT_STATE,
-        ...parsed,
-        overrides: parsed.overrides ?? {},
-        customThemes: parsed.customThemes ?? [],
-      }
+      return promoteLegacyThemeMode(normalizeThemeState(parsed))
     }
   } catch { /* fallback to default */ }
-  return { ...DEFAULT_STATE }
+  return promoteLegacyThemeMode({ ...DEFAULT_STATE })
 }
 
 let _state: ThemeState = loadInitialState()
 const _listeners = new Set<() => void>()
+let _themeDraftBase: ThemeState | null = null
+let _themeDraftUndoStack: ThemeState[] = []
+let _themeDraftRedoStack: ThemeState[] = []
 
 /** Temporary storage for ripple animation click coordinates */
 export let _lastClickEvent: { clientX: number; clientY: number } | undefined
 
+function cloneThemeState(state: ThemeState): ThemeState {
+  return JSON.parse(JSON.stringify(state)) as ThemeState
+}
+
 function persist() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(_state))
+  if (!_themeDraftBase) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(_state))
+  }
   _listeners.forEach(fn => fn())
 }
 
 function mutate(updater: (s: ThemeState) => ThemeState) {
+  if (_themeDraftBase) {
+    _themeDraftUndoStack.push(cloneThemeState(_state))
+    _themeDraftRedoStack = []
+  }
   _state = { ...updater(_state), lastModified: Date.now() }
   persist()
 }
@@ -68,6 +135,70 @@ export function subscribeTheme(fn: () => void) {
   return () => { _listeners.delete(fn) }
 }
 
+export function hydrateThemeState(state: Partial<ThemeState>) {
+  _state = normalizeThemeState(state)
+  _themeDraftBase = null
+  _themeDraftUndoStack = []
+  _themeDraftRedoStack = []
+  _listeners.forEach(fn => fn())
+  applyThemeFromState()
+}
+
+// ---------------------------------------------------------------------------
+// Draft API
+// ---------------------------------------------------------------------------
+
+export function startThemeDraft() {
+  if (_themeDraftBase) return
+  _themeDraftBase = cloneThemeState(_state)
+  _themeDraftUndoStack = []
+  _themeDraftRedoStack = []
+}
+
+export function hasThemeDraft() {
+  return Boolean(_themeDraftBase)
+}
+
+export function commitThemeDraft() {
+  if (!_themeDraftBase) return false
+  _themeDraftBase = null
+  _themeDraftUndoStack = []
+  _themeDraftRedoStack = []
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(_state))
+  _listeners.forEach(fn => fn())
+  applyThemeFromState()
+  return true
+}
+
+export function discardThemeDraft() {
+  if (!_themeDraftBase) return false
+  _state = cloneThemeState(_themeDraftBase)
+  _themeDraftBase = null
+  _themeDraftUndoStack = []
+  _themeDraftRedoStack = []
+  _listeners.forEach(fn => fn())
+  applyThemeFromState()
+  return true
+}
+
+export function undoThemeDraft() {
+  if (!_themeDraftBase || _themeDraftUndoStack.length === 0) return false
+  _themeDraftRedoStack.push(cloneThemeState(_state))
+  _state = cloneThemeState(_themeDraftUndoStack.pop()!)
+  _listeners.forEach(fn => fn())
+  applyThemeFromState()
+  return true
+}
+
+export function redoThemeDraft() {
+  if (!_themeDraftBase || _themeDraftRedoStack.length === 0) return false
+  _themeDraftUndoStack.push(cloneThemeState(_state))
+  _state = cloneThemeState(_themeDraftRedoStack.pop()!)
+  _listeners.forEach(fn => fn())
+  applyThemeFromState()
+  return true
+}
+
 // ---------------------------------------------------------------------------
 // Mutation API
 // ---------------------------------------------------------------------------
@@ -79,33 +210,19 @@ export function setActiveTheme(id: string, clickEvent?: { clientX: number; clien
 }
 
 export function setMode(mode: 'dark' | 'light' | 'system') {
-  const prevMode = _state.mode
-  const prevThemeId = _state.activeThemeId
-
-  // Auto-switch to counterpart when toggling between dark<->light
-  let newThemeId = prevThemeId
-  if (
-    mode !== 'system' &&
-    prevMode !== 'system' &&
-    prevMode !== mode
-  ) {
-    const counterpart = COUNTERPART_MAP[prevThemeId]
-    if (counterpart) {
-      newThemeId = counterpart
-    } else {
-      // No counterpart -- fall back to default for target mode
-      newThemeId = mode === 'dark' ? 'default-dark' : 'default-light'
-    }
-  }
-
-  const clearBlend = mode === 'system'
-  mutate(s => ({
-    ...s,
-    mode,
-    activeThemeId: newThemeId,
-    ...(clearBlend ? { blendPosition: undefined } : {}),
-  }))
+  mutate(s => stateWithMode(s, mode))
   applyThemeFromState()
+}
+
+export function nextThemeMode(mode: ThemeMode): ThemeMode {
+  const order: ThemeMode[] = ['dark', 'light', 'system']
+  return order[(order.indexOf(mode) + 1) % order.length]
+}
+
+export function cycleThemeMode(): ThemeMode {
+  const next = nextThemeMode(_state.mode)
+  setMode(next)
+  return next
 }
 
 function getOrCreateOverride(state: ThemeState): UserThemeOverrides {

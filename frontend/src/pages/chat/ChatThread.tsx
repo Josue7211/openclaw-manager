@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useRef, useState, lazy, Suspense } from 'react'
-import { CaretDown, ChatCircle } from '@phosphor-icons/react'
+import { BracketsCurly, CaretDown, ChatCircle, CheckCircle, ClipboardText, WarningCircle, Wrench } from '@phosphor-icons/react'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { type LightboxData } from '@/components/Lightbox'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatTime } from '@/lib/utils'
 import { addWidgetToPage, getDashboardState, setActivePage } from '@/lib/dashboard-store'
 import { saveGeneratedModule } from '@/lib/generated-module-store'
@@ -20,6 +21,111 @@ import { ModulePreview } from './ModulePreview'
 import type { ChatMessage, OptimisticMsg } from './types'
 
 const MarkdownBubble = lazy(() => import('@/components/MarkdownBubble'))
+
+type ToolCardStatus = 'running' | 'done' | 'error'
+
+interface ToolCard {
+  id: string
+  name: string
+  status: ToolCardStatus
+  summary?: string
+  detail?: string
+}
+
+const TOOL_FENCE_RE = /```(tool_call|tool-call|tool_result|tool-result|tool_error|tool-error|tool)\s*\n([\s\S]*?)```/gi
+const TOOL_XML_RE = /<tool_(call|result|error)(?:\s+name=["']?([^"'>\s]+)["']?)?[^>]*>([\s\S]*?)<\/tool_\1>/gi
+const CLAUDE_TOOL_LINE_RE = /^(?:[⏺●])\s*([A-Za-z][\w.-]*)\s*(?:\((.*)\))?\s*$/gm
+const CLAUDE_RESULT_LINE_RE = /^(?:[⎿↳])\s*(.+)$/gm
+
+function compactToolDetail(value: unknown): string {
+  if (value == null) return ''
+  const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+  return text.replace(/\s+/g, ' ').trim().slice(0, 220)
+}
+
+function parseToolPayload(raw: string): { name?: string; summary?: string; detail?: string } {
+  const text = raw.trim()
+  if (!text) return {}
+  try {
+    const parsed = JSON.parse(text)
+    const name = parsed.name || parsed.tool || parsed.toolName || parsed.function?.name
+    const args = parsed.arguments || parsed.args || parsed.input || parsed.parameters || parsed.function?.arguments
+    const result = parsed.result || parsed.output || parsed.error || parsed.content
+    return {
+      name: typeof name === 'string' ? name : undefined,
+      summary: compactToolDetail(result || args),
+      detail: compactToolDetail(args || result || parsed),
+    }
+  } catch {
+    const [firstLine, ...rest] = text.split('\n')
+    const inline = firstLine.match(/^([A-Za-z][\w.-]*)\s*[:(]?\s*(.*?)\)?$/)
+    return {
+      name: inline?.[1],
+      summary: inline?.[2] || rest.join(' ').trim() || firstLine,
+      detail: rest.join('\n').trim() || text,
+    }
+  }
+}
+
+export function extractToolCards(text: string): ToolCard[] {
+  const cards: ToolCard[] = []
+  let match: RegExpExecArray | null
+
+  TOOL_FENCE_RE.lastIndex = 0
+  while ((match = TOOL_FENCE_RE.exec(text))) {
+    const kind = match[1].toLowerCase()
+    const payload = parseToolPayload(match[2])
+    cards.push({
+      id: `fence-${match.index}`,
+      name: payload.name || 'tool',
+      status: kind.includes('error') ? 'error' : kind.includes('result') ? 'done' : 'running',
+      summary: payload.summary,
+      detail: payload.detail,
+    })
+  }
+
+  TOOL_XML_RE.lastIndex = 0
+  while ((match = TOOL_XML_RE.exec(text))) {
+    const kind = match[1].toLowerCase()
+    const payload = parseToolPayload(match[3])
+    cards.push({
+      id: `xml-${match.index}`,
+      name: match[2] || payload.name || 'tool',
+      status: kind === 'error' ? 'error' : kind === 'result' ? 'done' : 'running',
+      summary: payload.summary,
+      detail: payload.detail,
+    })
+  }
+
+  CLAUDE_TOOL_LINE_RE.lastIndex = 0
+  while ((match = CLAUDE_TOOL_LINE_RE.exec(text))) {
+    cards.push({
+      id: `line-${match.index}`,
+      name: match[1],
+      status: 'running',
+      summary: match[2]?.trim(),
+      detail: match[2]?.trim(),
+    })
+  }
+
+  CLAUDE_RESULT_LINE_RE.lastIndex = 0
+  while ((match = CLAUDE_RESULT_LINE_RE.exec(text))) {
+    cards.push({
+      id: `result-${match.index}`,
+      name: 'result',
+      status: /error|failed|denied/i.test(match[1]) ? 'error' : 'done',
+      summary: match[1].trim(),
+    })
+  }
+
+  const seen = new Set<string>()
+  return cards.filter((card) => {
+    const key = `${card.name}:${card.status}:${card.summary || ''}:${card.detail || ''}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  }).slice(0, 6)
+}
 
 function ChatProposalActions({ text }: { text: string }) {
   const proposals = useMemo<ModuleProposal[]>(() => {
@@ -52,6 +158,215 @@ function ChatProposalActions({ text }: { text: string }) {
         <ChatSingleProposalAction key={`${proposal.id}-${index}`} proposal={proposal} />
       ))}
     </div>
+  )
+}
+
+function ChatToolCards({ text }: { text: string }) {
+  const cards = useMemo(() => extractToolCards(text), [text])
+  if (cards.length === 0) return null
+
+  return (
+    <div aria-label="Tool activity" style={{ marginTop: 8, width: 'min(680px, 100%)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {cards.map((card) => (
+        <div
+          key={card.id}
+          style={{
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            background: card.status === 'error'
+              ? 'var(--red-a8, rgba(239, 68, 68, 0.12))'
+              : 'var(--bg-card)',
+            padding: '8px 10px',
+            display: 'grid',
+            gridTemplateColumns: 'auto minmax(0, 1fr)',
+            gap: 8,
+            color: 'var(--text-secondary)',
+            fontSize: 12,
+          }}
+        >
+          <ToolStatusIcon status={card.status} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+              <span style={{ fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {card.name}
+              </span>
+              <span style={{
+                border: '1px solid var(--border)',
+                borderRadius: 999,
+                padding: '1px 7px',
+                color: card.status === 'error'
+                  ? 'var(--red)'
+                  : card.status === 'done'
+                    ? 'var(--secondary)'
+                    : 'var(--accent)',
+                whiteSpace: 'nowrap',
+              }}>
+                {card.status === 'running' ? 'running' : card.status}
+              </span>
+            </div>
+            {card.summary && (
+              <div style={{ marginTop: 4, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {card.summary}
+              </div>
+            )}
+            {card.detail && card.detail !== card.summary && (
+              <pre style={{
+                margin: '6px 0 0',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                color: 'var(--text-muted)',
+                fontFamily: 'var(--font-mono, monospace)',
+                fontSize: 11,
+              }}>
+                {card.detail}
+              </pre>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ChatToolEvent({ message }: { message: ChatMessage }) {
+  const label = message.toolName || 'tool'
+  const detail = message.text.trim() || 'Tool completed without output.'
+
+  return (
+    <div
+      role="note"
+      aria-label={`Tool event ${label}`}
+      style={{
+        alignSelf: 'flex-start',
+        width: 'min(680px, 100%)',
+        marginLeft: 34,
+        border: '1px solid var(--border)',
+        borderRadius: 8,
+        background: 'var(--bg-card)',
+        color: 'var(--text-secondary)',
+        padding: '8px 10px',
+        display: 'grid',
+        gridTemplateColumns: 'auto minmax(0, 1fr)',
+        gap: 8,
+        fontSize: 12,
+      }}
+    >
+      <Wrench size={15} color="var(--accent)" />
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <span style={{ color: 'var(--text-primary)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {label}
+          </span>
+          <span style={{
+            border: '1px solid var(--border)',
+            borderRadius: 999,
+            padding: '1px 7px',
+            color: 'var(--secondary)',
+            whiteSpace: 'nowrap',
+          }}>
+            event
+          </span>
+          {message.toolCallId && (
+            <span style={{ color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {message.toolCallId}
+            </span>
+          )}
+        </div>
+        <pre style={{
+          margin: '6px 0 0',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          color: 'var(--text-muted)',
+          fontFamily: 'var(--font-mono, monospace)',
+          fontSize: 11,
+        }}>
+          {detail}
+        </pre>
+      </div>
+    </div>
+  )
+}
+
+function ToolStatusIcon({ status }: { status: ToolCardStatus }) {
+  const color = status === 'error'
+    ? 'var(--red)'
+    : status === 'done'
+      ? 'var(--secondary)'
+      : 'var(--accent)'
+  const Icon = status === 'error' ? WarningCircle : status === 'done' ? CheckCircle : Wrench
+  return <Icon size={16} color={color} weight={status === 'running' ? 'regular' : 'fill'} />
+}
+
+function ChatStreamingStatusCard() {
+  return (
+    <div
+      role="status"
+      aria-label="Assistant status"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        width: 'fit-content',
+        maxWidth: 'min(520px, 100%)',
+        padding: '9px 12px',
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border)',
+        borderRadius: '14px 14px 14px 4px',
+        color: 'var(--text-secondary)',
+        fontSize: 12,
+        marginBottom: 8,
+      }}
+    >
+      <BracketsCurly size={15} color="var(--accent)" />
+      <span>Assistant is working</span>
+      <span aria-hidden="true" style={{ display: 'inline-flex', gap: 3 }}>
+        {[0, 1, 2].map(i => (
+          <span key={i} style={{
+            width: 5,
+            height: 5,
+            borderRadius: '50%',
+            background: 'var(--text-muted)',
+            animation: `typingBounce 1.2s ease-in-out ${i * 0.2}s infinite`,
+          }} />
+        ))}
+      </span>
+    </div>
+  )
+}
+
+function ChatMessageCopyButton({
+  copied,
+  errored,
+  onCopy,
+}: {
+  copied: boolean
+  errored: boolean
+  onCopy: () => void
+}) {
+  const label = copied ? 'Copied assistant message' : errored ? 'Retry copy assistant message' : 'Copy assistant message'
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onCopy}
+      className="hover-bg"
+      style={{
+        width: 24,
+        height: 24,
+        border: 'none',
+        borderRadius: 7,
+        background: copied ? 'color-mix(in srgb, var(--accent) 16%, var(--bg-card))' : 'var(--bg-card)',
+        color: errored ? 'var(--red-500)' : copied ? 'var(--accent)' : 'var(--text-muted)',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 0,
+        cursor: 'pointer',
+      }}
+    >
+      <ClipboardText size={13} />
+    </button>
   )
 }
 
@@ -176,6 +491,29 @@ export default function ChatThread({
   void _lightbox // used by parent for Lightbox component
   const buttonShellRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const [copyAnnouncement, setCopyAnnouncement] = useState('')
+  const {
+    copyToClipboard,
+    copiedContext,
+    errorContext,
+  } = useCopyToClipboard<{ id: string; label: string }>({
+    onCopy: (context) => setCopyAnnouncement(`Copied ${context.label}`),
+    onError: (error, context) => setCopyAnnouncement(`Could not copy ${context.label}: ${error.message}`),
+  })
+  const visibleMessages = useMemo(() => messages.filter(msg => (
+    (msg.role as string) !== 'system'
+    && !msg.text.includes('ACTIVATION RULE')
+    && !msg.text.startsWith('HEARTBEAT')
+    && !msg.text.includes('000Server not running')
+    && !msg.text.includes('Read HEARTBEAT.md')
+    && !msg.text.includes('HEARTBEAT_OK')
+  )), [messages])
+  const finalAssistantMessageId = useMemo(() => {
+    if (isTyping) return null
+    return [...visibleMessages].reverse().find(msg => msg.role === 'assistant' && msg.text.trim())?.id ?? null
+  }, [isTyping, visibleMessages])
+  const copiedMessageId = copiedContext?.id ?? ''
+  const copyErrorMessageId = errorContext?.id ?? ''
 
   const setButtonVisible = useCallback((visible: boolean) => {
     if (buttonShellRef.current) {
@@ -220,6 +558,19 @@ export default function ChatThread({
         onDragOver={e => e.preventDefault()}
         style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', overflowAnchor: 'none', scrollBehavior: 'auto', marginBottom: '12px' }}
       >
+        <div role="status" aria-live="polite" style={{
+          position: 'absolute',
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: -1,
+          overflow: 'hidden',
+          clip: 'rect(0, 0, 0, 0)',
+          whiteSpace: 'nowrap',
+          border: 0,
+        }}>
+          {copyAnnouncement}
+        </div>
         <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }}>
         {!mounted ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingTop: '20px' }}>
@@ -255,7 +606,10 @@ export default function ChatThread({
           </div>
         )}
 
-        {messages.filter(msg => (msg.role as string) !== 'system' && !msg.text.includes('ACTIVATION RULE') && !msg.text.startsWith('HEARTBEAT') && !msg.text.includes('000Server not running') && !msg.text.includes('Read HEARTBEAT.md') && !msg.text.includes('HEARTBEAT_OK')).map(msg => (
+        {visibleMessages.map(msg => (
+          msg.role === 'tool' ? (
+            <ChatToolEvent key={msg.id} message={msg} />
+          ) : (
           <div key={msg.id} style={{
             display: 'flex',
             flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
@@ -302,15 +656,33 @@ export default function ChatThread({
                       </Suspense>
                     )}
                   </div>
+                  {msg.role === 'assistant' && <ChatToolCards text={msg.text} />}
                   {msg.role === 'assistant' && <ChatProposalActions text={msg.text} />}
                 </>
               )}
-              {/* Timestamp */}
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace', padding: '0 2px' }}>
-                {formatTime(msg.timestamp)}
+              {/* Timestamp and message actions */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
+                fontSize: '10px',
+                color: 'var(--text-muted)',
+                fontFamily: 'monospace',
+                padding: '0 2px',
+              }}>
+                <span>{formatTime(msg.timestamp)}</span>
+                {msg.role === 'assistant' && msg.id === finalAssistantMessageId && (
+                  <ChatMessageCopyButton
+                    copied={copiedMessageId === `assistant:${msg.id}`}
+                    errored={copyErrorMessageId === `assistant:${msg.id}`}
+                    onCopy={() => copyToClipboard(msg.text, { id: `assistant:${msg.id}`, label: 'assistant message' })}
+                  />
+                )}
               </div>
             </div>
           </div>
+          )
         ))}
         {optimistic.map(msg => (
           <div key={msg.id} style={{ display: 'flex', flexDirection: 'row-reverse', gap: '8px', alignItems: 'flex-end' }}>
@@ -384,25 +756,7 @@ export default function ChatThread({
               background: 'var(--purple-a12)', border: '1px solid var(--border-accent)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px',
             }}>{'\u{1F9AC}'}</div>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: '4px',
-              padding: '12px 16px',
-              background: 'var(--hover-bg)',
-              border: '1px solid var(--border)',
-              borderRadius: '18px 18px 18px 4px',
-              width: 'fit-content',
-              marginBottom: '8px',
-            }}>
-              {[0, 1, 2].map(i => (
-                <span key={i} style={{
-                  width: '8px', height: '8px',
-                  borderRadius: '50%',
-                  background: 'var(--text-muted)',
-                  display: 'inline-block',
-                  animation: `typingBounce 1.2s ease-in-out ${i * 0.2}s infinite`,
-                }} />
-              ))}
-            </div>
+            <ChatStreamingStatusCard />
           </div>
         )}
         <div ref={bottomRef} />

@@ -28,7 +28,7 @@ class MockWebSocket {
     this.sentMessages.push(data)
   }
 
-  close() {
+  close(_code?: number, _reason?: string) {
     this.readyState = MockWebSocket.CLOSED
     if (this.onclose) this.onclose({ code: 1000 })
   }
@@ -122,6 +122,14 @@ class MockMutationObserver {
   }
 }
 
+class MockApiError extends Error {
+  name = 'ApiError'
+
+  constructor(public status: number, public body: unknown) {
+    super(typeof body === 'string' ? body : `API ${status}`)
+  }
+}
+
 // ── vi.mock calls ────────────────────────────────────────────────────
 
 vi.mock('@xterm/xterm', () => ({ Terminal: MockTerminal }))
@@ -130,6 +138,9 @@ vi.mock('@xterm/addon-web-links', () => ({ WebLinksAddon: vi.fn() }))
 vi.mock('@xterm/xterm/css/xterm.css', () => ({}))
 vi.mock('@/lib/api', () => ({
   API_BASE: 'http://127.0.0.1:5000',
+  ApiError: MockApiError,
+  getRequestBaseForPath: vi.fn(() => 'http://127.0.0.1:5000'),
+  getRequestApiKeyForPath: vi.fn(() => 'terminal-key'),
   api: {
     get: vi.fn().mockResolvedValue({ active: 0, max: 5, available: 5 }),
   },
@@ -180,6 +191,7 @@ describe('useTerminal', () => {
     })
 
     expect(result.current.connected).toBe(true)
+    expect(result.current.status).toBe('connected')
     expect(result.current.error).toBeNull()
   })
 
@@ -233,7 +245,30 @@ describe('useTerminal', () => {
       ws.simulateMessage(JSON.stringify({ error: 'PTY spawn failed' }))
     })
 
-    expect(result.current.error).toBe('PTY spawn failed')
+    expect(result.current.error).toBe('Terminal backend reported: PTY spawn failed')
+    expect(result.current.status).toBe('error')
+  })
+
+  it('adds PTY startup context when a coded backend error envelope is received', async () => {
+    const { useTerminal } = await import('../useTerminal')
+    const containerRef = createContainerRef()
+
+    const { result } = renderHook(() => useTerminal(containerRef))
+    await act(async () => { await flushPromises() })
+
+    const ws = MockWebSocket.instances[0]
+    act(() => { ws.simulateOpen() })
+
+    act(() => {
+      ws.simulateMessage(JSON.stringify({
+        type: 'error',
+        code: 'pty_spawn_failed',
+        error: 'No such file or directory',
+      }))
+    })
+
+    expect(result.current.error).toBe('Terminal backend could not start a PTY session: No such file or directory')
+    expect(result.current.status).toBe('error')
   })
 
   it('sets connected=false on WebSocket close', async () => {
@@ -249,9 +284,10 @@ describe('useTerminal', () => {
 
     act(() => { ws.simulateClose(1000) })
     expect(result.current.connected).toBe(false)
+    expect(result.current.status).toBe('closed')
   })
 
-  it('sets error="Terminal connection failed" on close with code 1006 before open', async () => {
+  it('sets a backend/auth error on close with code 1006 before open', async () => {
     const { useTerminal } = await import('../useTerminal')
     const containerRef = createContainerRef()
 
@@ -262,8 +298,41 @@ describe('useTerminal', () => {
     // Close with 1006 WITHOUT ever calling simulateOpen
     act(() => { ws.simulateClose(1006) })
 
-    expect(result.current.error).toBe('Terminal connection failed')
+    expect(result.current.error).toBe('Terminal backend did not accept the websocket. Check that the backend is running and you are signed in.')
     expect(result.current.connected).toBe(false)
+    expect(result.current.status).toBe('error')
+  })
+
+  it('sets an auth-specific error when the terminal status preflight is unauthorized', async () => {
+    const { api, ApiError } = await import('@/lib/api')
+    ;(api.get as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new ApiError(401, { error: 'Authentication required' }),
+    )
+    const { useTerminal } = await import('../useTerminal')
+    const containerRef = createContainerRef()
+
+    const { result } = renderHook(() => useTerminal(containerRef))
+    await act(async () => { await flushPromises() })
+
+    expect(result.current.error).toBe('Terminal requires authentication. Sign in or refresh the local API key, then retry.')
+    expect(result.current.status).toBe('error')
+    expect(MockWebSocket.instances.length).toBe(0)
+  })
+
+  it('sets a route-specific error when the terminal route is missing', async () => {
+    const { api, ApiError } = await import('@/lib/api')
+    ;(api.get as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new ApiError(404, { error: 'not found' }),
+    )
+    const { useTerminal } = await import('../useTerminal')
+    const containerRef = createContainerRef()
+
+    const { result } = renderHook(() => useTerminal(containerRef))
+    await act(async () => { await flushPromises() })
+
+    expect(result.current.error).toBe('Terminal route is unavailable on this backend. Update or restart the ClawControl backend, then retry.')
+    expect(result.current.status).toBe('error')
+    expect(MockWebSocket.instances.length).toBe(0)
   })
 
   it('sends JSON {type:"input", data} to WS when terminal onData fires', async () => {
@@ -321,6 +390,151 @@ describe('useTerminal', () => {
     )
   })
 
+  it('sends initial command after the terminal opens', async () => {
+    const { useTerminal } = await import('../useTerminal')
+    const containerRef = createContainerRef()
+
+    renderHook(() => useTerminal(containerRef, { initialCommand: 'npm run dev' }))
+    await act(async () => { await flushPromises() })
+
+    const ws = MockWebSocket.instances[0]
+    act(() => { ws.simulateOpen() })
+
+    expect(ws.sentMessages).toContainEqual(
+      JSON.stringify({ type: 'input', data: 'npm run dev\n' })
+    )
+  })
+
+  it('passes cwd and processId as websocket query data', async () => {
+    const { useTerminal } = await import('../useTerminal')
+    const containerRef = createContainerRef()
+
+    renderHook(() => useTerminal(containerRef, {
+      cwd: '/Volumes/T7/projects/clawcontrol',
+      processId: 'chat-proc-1',
+    }))
+    await act(async () => { await flushPromises() })
+
+    expect(MockWebSocket.instances[0].url).toBe(
+      'ws://127.0.0.1:5000/api/terminal/ws?apiKey=terminal-key&cwd=%2FVolumes%2FT7%2Fprojects%2Fclawcontrol&processId=chat-proc-1',
+    )
+  })
+
+  it('passes structured terminal environment as websocket query data', async () => {
+    const { useTerminal } = await import('../useTerminal')
+    const containerRef = createContainerRef()
+
+    renderHook(() => useTerminal(containerRef, {
+      cwd: '/Volumes/T7/projects/clawcontrol',
+      processId: 'chat-proc-1',
+      env: {
+        CLAWCONTROL_PROJECT_PATH: '/Volumes/T7/projects/clawcontrol',
+        CLAWCONTROL_BRANCH: 'codex/terminal-env',
+        CLAWCONTROL_RUNTIME: 'Work locally',
+        EMPTY_VALUE: null,
+      },
+    }))
+    await act(async () => { await flushPromises() })
+
+    const url = new URL(MockWebSocket.instances[0].url)
+    expect(url.searchParams.get('apiKey')).toBe('terminal-key')
+    expect(url.searchParams.get('cwd')).toBe('/Volumes/T7/projects/clawcontrol')
+    expect(url.searchParams.get('processId')).toBe('chat-proc-1')
+    expect(JSON.parse(url.searchParams.get('env') || '{}')).toEqual({
+      CLAWCONTROL_PROJECT_PATH: '/Volumes/T7/projects/clawcontrol',
+      CLAWCONTROL_BRANCH: 'codex/terminal-env',
+      CLAWCONTROL_RUNTIME: 'Work locally',
+    })
+  })
+
+  it('tracks lifecycle messages without writing them into the terminal buffer', async () => {
+    const { useTerminal } = await import('../useTerminal')
+    const containerRef = createContainerRef()
+
+    const { result } = renderHook(() => useTerminal(containerRef, {
+      cwd: '/Volumes/T7/projects/clawcontrol',
+      processId: 'chat-proc-1',
+    }))
+    await act(async () => { await flushPromises() })
+
+    const ws = MockWebSocket.instances[0]
+    act(() => { ws.simulateOpen() })
+
+    act(() => {
+      ws.simulateMessage(JSON.stringify({
+        type: 'started',
+        processId: 'chat-proc-1',
+        cwd: '/Volumes/T7/projects/clawcontrol',
+      }))
+    })
+
+    expect(result.current.status).toBe('running')
+    expect(result.current.processId).toBe('chat-proc-1')
+    expect(result.current.cwd).toBe('/Volumes/T7/projects/clawcontrol')
+    expect(MockTerminal.instances[0].write).not.toHaveBeenCalledWith(expect.stringContaining('started'))
+
+    act(() => {
+      ws.simulateMessage(JSON.stringify({
+        type: 'closed',
+        processId: 'chat-proc-1',
+        reason: 'terminated',
+        exitCode: null,
+        exitSignal: null,
+      }))
+    })
+
+    expect(result.current.status).toBe('closed')
+    expect(result.current.closeReason).toBe('terminated')
+    expect(result.current.exitCode).toBeNull()
+    expect(result.current.exitSignal).toBeNull()
+  })
+
+  it('stops the PTY websocket and marks the terminal stopped', async () => {
+    const { useTerminal } = await import('../useTerminal')
+    const containerRef = createContainerRef()
+
+    const { result } = renderHook(() => useTerminal(containerRef))
+    await act(async () => { await flushPromises() })
+
+    const ws = MockWebSocket.instances[0]
+    act(() => { ws.simulateOpen() })
+
+    act(() => { result.current.stop() })
+
+    const terminateMessage = ws.sentMessages.map((message) => JSON.parse(message) as { type?: string; processId?: string })
+      .find((message) => message.type === 'terminate')
+    expect(terminateMessage?.processId).toMatch(/^chat-terminal-/)
+    expect(ws.readyState).toBe(MockWebSocket.CLOSED)
+    expect(result.current.connected).toBe(false)
+    expect(result.current.status).toBe('stopped')
+    expect(MockTerminal.instances[0].write).toHaveBeenCalledWith('\r\n[terminal stopped]\r\n')
+  })
+
+  it('restarts the terminal session and reruns the initial command', async () => {
+    const { useTerminal } = await import('../useTerminal')
+    const containerRef = createContainerRef()
+
+    const { result } = renderHook(() => useTerminal(containerRef, { initialCommand: 'npm run test' }))
+    await act(async () => { await flushPromises() })
+
+    const firstWs = MockWebSocket.instances[0]
+    act(() => { firstWs.simulateOpen() })
+
+    act(() => { result.current.restart() })
+    await act(async () => { await flushPromises() })
+
+    expect(firstWs.readyState).toBe(MockWebSocket.CLOSED)
+    expect(MockWebSocket.instances.length).toBe(2)
+
+    const secondWs = MockWebSocket.instances[1]
+    act(() => { secondWs.simulateOpen() })
+
+    expect(secondWs.sentMessages).toContainEqual(
+      JSON.stringify({ type: 'input', data: 'npm run test\n' })
+    )
+    expect(result.current.status).toBe('connected')
+  })
+
   it('sets error when capacity check returns available=0', async () => {
     const { api } = await import('@/lib/api')
     ;(api.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
@@ -334,6 +548,7 @@ describe('useTerminal', () => {
     await act(async () => { await flushPromises() })
 
     expect(result.current.error).toBe('Too many terminal sessions (max 5)')
+    expect(result.current.status).toBe('error')
     // No WebSocket should be created
     expect(MockWebSocket.instances.length).toBe(0)
   })

@@ -43,19 +43,22 @@ function detailForService(service?: HarnessServiceState): string | undefined {
 }
 
 export function useHarnessStatus(): UseHarnessStatusReturn {
-  if (isDemoMode()) {
-    return { status: 'not_configured', connected: false, isLoading: false, providerLabel: 'Harness' }
-  }
+  const demoMode = isDemoMode()
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data, isLoading } = useQuery<HarnessHealthResponse>({
     queryKey: queryKeys.harnessHealth,
     queryFn: () => api.get<HarnessHealthResponse>('/api/setup/status'),
     refetchInterval: 10_000,
     staleTime: 10_000,
     retry: 1,
+    enabled: !demoMode,
   })
   const providerLabel = 'Harness'
+
+  if (demoMode) {
+    return { status: 'not_configured', connected: false, isLoading: false, providerLabel }
+  }
+
   const service = data?.services?.harness
   const detail = detailForService(service)
 

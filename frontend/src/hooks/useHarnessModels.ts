@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
-import type { ModelsResponse } from '@/pages/harness/types'
+import type { ModelsResponse } from '@/features/harness/types'
 
 export function useHarnessModels() {
   const { data, isLoading, error } = useQuery<ModelsResponse>({

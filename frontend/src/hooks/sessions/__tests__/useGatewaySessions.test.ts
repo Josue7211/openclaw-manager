@@ -19,15 +19,14 @@ vi.mock('@/lib/hooks/useGatewaySSE', () => ({
   useGatewaySSE: (...args: unknown[]) => mockUseGatewaySSE(...args),
 }))
 
-import { useGatewaySessions } from '../useGatewaySessions'
+import { gatewaySessionsPath, useGatewaySessions } from '../useGatewaySessions'
 import { queryKeys } from '@/lib/query-keys'
 
-function createWrapper() {
-  const queryClient = new QueryClient({
+function createWrapper(queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
     },
-  })
+  })) {
   return function Wrapper({ children }: { children: React.ReactNode }) {
     return React.createElement(QueryClientProvider, { client: queryClient }, children)
   }
@@ -122,6 +121,68 @@ describe('useGatewaySessions', () => {
     expect(result.current.sessions[0].agentKey).toBe('agent-primary')
     expect(result.current.sessions[0].messageCount).toBe(5)
     expect(result.current.available).toBe(true)
+  })
+
+  it('builds scoped session URLs with repeated cwd filters', () => {
+    expect(gatewaySessionsPath({
+      cwd: ['/Volumes/T7/projects/clawcontrol', '/Users/josue/AgentShell', '/Users/josue/AgentShell'],
+      projectId: 'local:clawcontrol:stable',
+      projectIds: ['local:agent-shell:stable', 'local:clawcontrol:stable'],
+      project: 'clawcontrol',
+      branch: 'codex/chat-parity',
+      runtime: 'Work locally',
+      environmentId: 'local',
+      includeUnscoped: true,
+    })).toBe('/api/gateway/sessions?cwd=%2FUsers%2Fjosue%2FAgentShell&cwd=%2FVolumes%2FT7%2Fprojects%2Fclawcontrol&projectId=local%3Aagent-shell%3Astable&projectId=local%3Aclawcontrol%3Astable&project=clawcontrol&branch=codex%2Fchat-parity&runtime=Work+locally&environmentId=local&includeUnscoped=1')
+  })
+
+  it('requests scoped sessions when filters are provided', async () => {
+    const { isDemoMode } = await import('@/lib/demo-data')
+    vi.mocked(isDemoMode).mockReturnValue(false)
+
+    const { api } = await import('@/lib/api')
+    vi.mocked(api.get).mockResolvedValue({ ok: true, sessions: [] })
+
+    renderHook(() => useGatewaySessions({
+      cwd: ['/Volumes/T7/projects/clawcontrol'],
+      includeUnscoped: true,
+    }), {
+      wrapper: createWrapper(),
+    })
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith('/api/gateway/sessions?cwd=%2FVolumes%2FT7%2Fprojects%2Fclawcontrol&includeUnscoped=1')
+    })
+  })
+
+  it('invalidates gateway session queries when the shared chat session event fires', async () => {
+    const { isDemoMode } = await import('@/lib/demo-data')
+    vi.mocked(isDemoMode).mockReturnValue(false)
+
+    const { api } = await import('@/lib/api')
+    vi.mocked(api.get).mockResolvedValue({ ok: true, sessions: [] })
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+      },
+    })
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+
+    renderHook(() => useGatewaySessions({
+      cwd: ['/Volumes/T7/projects/clawcontrol'],
+      includeUnscoped: true,
+    }), {
+      wrapper: createWrapper(queryClient),
+    })
+
+    window.dispatchEvent(new CustomEvent('clawcontrol:chat-sessions-changed', {
+      detail: { sessionKey: 'drawer-chat' },
+    }))
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: queryKeys.gatewaySessions })
+    })
   })
 
   it('sorts sessions by lastActivity descending', async () => {

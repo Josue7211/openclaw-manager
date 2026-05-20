@@ -2,7 +2,7 @@ import React from 'react'
 import { Play, Pause, ArrowCounterClockwise, ArrowRight, Timer } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { usePomodoroWidget } from '@/lib/hooks/dashboard'
-import { MODE_LABELS } from '@/pages/pomodoro/types'
+import { MODE_LABELS } from '@/features/pomodoro/types'
 import type { WidgetProps } from '@/lib/widget-registry'
 
 function formatTime(seconds: number): string {

@@ -67,6 +67,9 @@ const _listeners = new Set<() => void>()
 let _cached: DashboardState = loadFromLocalStorage()
 const _undoStack: DashboardState[] = []
 const _redoStack: DashboardState[] = []
+let _draftBase: DashboardState | null = null
+const _draftUndoStack: DashboardState[] = []
+const _draftRedoStack: DashboardState[] = []
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -108,16 +111,29 @@ function _emit(): void {
   _listeners.forEach(fn => fn())
 }
 
-function _persist(): void {
+function _persist(force = false): void {
+  if (_draftBase && !force) return
   _cached.lastModified = new Date().toISOString()
   localStorage.setItem(STORAGE_KEY, JSON.stringify(_cached))
 }
 
 function _pushUndo(): void {
+  if (_draftBase) {
+    _draftUndoStack.push(structuredClone(_cached))
+    if (_draftUndoStack.length > MAX_UNDO) _draftUndoStack.shift()
+    _draftRedoStack.length = 0
+    return
+  }
   _undoStack.push(structuredClone(_cached))
   if (_undoStack.length > MAX_UNDO) _undoStack.shift()
   // New edit invalidates redo history
   _redoStack.length = 0
+}
+
+function _clearDraft(): void {
+  _draftBase = null
+  _draftUndoStack.length = 0
+  _draftRedoStack.length = 0
 }
 
 function resolveWidgetPluginId(page: DashboardPage, widgetId: string): string {
@@ -135,6 +151,72 @@ export function getDashboardState(): DashboardState {
 export function subscribeDashboard(cb: () => void): () => void {
   _listeners.add(cb)
   return () => { _listeners.delete(cb) }
+}
+
+export function hasDashboardDraft(): boolean {
+  return Boolean(_draftBase)
+}
+
+export function startDashboardDraft(): void {
+  if (_draftBase) return
+  _draftBase = structuredClone(_cached)
+  _draftUndoStack.length = 0
+  _draftRedoStack.length = 0
+}
+
+export function commitDashboardDraft(): boolean {
+  if (!_draftBase) return false
+  _persist(true)
+  _clearDraft()
+  _emit()
+  return true
+}
+
+export function discardDashboardDraft(): boolean {
+  if (!_draftBase) return false
+  _cached = _draftBase
+  _clearDraft()
+  _emit()
+  return true
+}
+
+export function undoDashboardDraft(): boolean {
+  if (!_draftBase) return false
+  const prev = _draftUndoStack.pop()
+  if (!prev) return false
+  _draftRedoStack.push(structuredClone(_cached))
+  _cached = prev
+  _emit()
+  return true
+}
+
+export function redoDashboardDraft(): boolean {
+  if (!_draftBase) return false
+  const next = _draftRedoStack.pop()
+  if (!next) return false
+  _draftUndoStack.push(structuredClone(_cached))
+  _cached = next
+  _emit()
+  return true
+}
+
+export function replaceDashboardDraftWidgetPlugin(widgetId: string, pluginId: string): boolean {
+  if (!_draftBase) return false
+  _cached = {
+    ..._cached,
+    pages: _cached.pages.map(page => {
+      if (!page.widgetConfigs[widgetId]) return page
+      return {
+        ...page,
+        widgetConfigs: {
+          ...page.widgetConfigs,
+          [widgetId]: { ...page.widgetConfigs[widgetId], _pluginId: pluginId },
+        },
+      }
+    }),
+  }
+  _emit()
+  return true
 }
 
 // ---------------------------------------------------------------------------

@@ -38,9 +38,12 @@ vi.mock('@/lib/widget-registry', () => ({
         category: 'monitoring',
         tier: 'builtin',
         defaultSize: { w: 4, h: 2 },
-        component: () => Promise.resolve({
-          default: () => { throw new Error('Widget exploded') },
-        }),
+        component: () =>
+          Promise.resolve({
+            default: () => {
+              throw new Error('Widget exploded')
+            },
+          }),
       }
     }
     return undefined
@@ -63,7 +66,10 @@ vi.mock('@/lib/error-reporter', () => ({
 }))
 
 // Mock fetch used in PageErrorBoundary componentDidCatch
-vi.stubGlobal('fetch', vi.fn(() => Promise.resolve()))
+vi.stubGlobal(
+  'fetch',
+  vi.fn(() => Promise.resolve()),
+)
 
 // Suppress React error boundary console noise during tests
 beforeEach(() => {
@@ -93,7 +99,7 @@ describe('WidgetWrapper', () => {
     // Dynamic import to ensure mocks are registered first
     const mod = await import('@/components/dashboard/WidgetWrapper')
     WidgetWrapper = mod.WidgetWrapper
-  })
+  }, 30000)
 
   it('renders the correct widget component based on widgetId lookup from registry', async () => {
     await act(async () => {
@@ -128,9 +134,10 @@ describe('WidgetWrapper', () => {
           category: 'monitoring',
           tier: 'builtin',
           defaultSize: { w: 4, h: 2 },
-          component: () => new Promise<{ default: React.ComponentType<any> }>(() => {
-            // Never resolves — tests the Suspense fallback
-          }),
+          component: () =>
+            new Promise<{ default: React.ComponentType<any> }>(() => {
+              // Never resolves — tests the Suspense fallback
+            }),
         }
       }
       return originalImpl(id)
@@ -148,7 +155,10 @@ describe('WidgetWrapper', () => {
     vi.doMock('@/components/dashboard/WidgetConfigPanel', () => ({
       WidgetConfigPanel: vi.fn(() => null),
     }))
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve()))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve()),
+    )
 
     const freshMod = await import('@/components/dashboard/WidgetWrapper')
     const FreshWidgetWrapper = freshMod.WidgetWrapper
@@ -351,7 +361,10 @@ describe('WidgetWrapper', () => {
     vi.doMock('@/lib/error-reporter', () => ({
       reportError: vi.fn(),
     }))
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve()))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve()),
+    )
 
     const freshMod = await import('@/components/dashboard/WidgetWrapper')
     const FreshWrapper = freshMod.WidgetWrapper

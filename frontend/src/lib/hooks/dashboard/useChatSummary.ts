@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { isDemoMode } from '@/lib/demo-data'
 import { queryKeys } from '@/lib/query-keys'
-import type { ChatMessage } from '@/pages/chat/types'
+import type { ChatMessage } from '@/features/chat/types'
 
 interface ChatThread {
   id: string

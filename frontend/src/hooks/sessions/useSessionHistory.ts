@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode } from '@/lib/demo-data'
-import type { SessionHistoryResponse } from '@/pages/sessions/types'
+import type { SessionHistoryResponse } from '@/features/sessions/types'
 
 export function useSessionHistory(sessionId: string | null, limit = 50) {
   const demo = isDemoMode()

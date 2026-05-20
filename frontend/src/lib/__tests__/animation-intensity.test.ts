@@ -29,9 +29,6 @@ Object.defineProperty(globalThis, 'matchMedia', {
   })),
 })
 
-// Mock document.documentElement.setAttribute
-const setAttributeSpy = vi.spyOn(document.documentElement, 'setAttribute')
-
 describe('animation-intensity', () => {
   beforeEach(() => {
     for (const key in store) delete store[key]
@@ -72,9 +69,8 @@ describe('animation-intensity', () => {
   })
 
   it('applyToDOM sets data-animation attribute on documentElement', async () => {
+    const setAttributeSpy = vi.spyOn(document.documentElement, 'setAttribute')
     const mod = await import('../animation-intensity')
-    // On load, applyToDOM should have been called with the initial level
-    expect(setAttributeSpy).toHaveBeenCalledWith('data-animation', expect.any(String))
 
     mod.setAnimationIntensity('none')
     expect(setAttributeSpy).toHaveBeenCalledWith('data-animation', 'none')

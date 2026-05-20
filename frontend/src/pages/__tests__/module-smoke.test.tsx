@@ -120,7 +120,7 @@ vi.mock('@tauri-apps/api/event', () => ({
 }))
 
 // Demo data — use importOriginal to preserve all exports (DEMO_TODOS, DEMO_OPNSENSE, etc.)
-vi.mock('@/lib/demo-data', async (importOriginal) => {
+vi.mock('@/lib/demo-data', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/demo-data')>()
   return {
     ...actual,
@@ -214,6 +214,66 @@ vi.mock('@/lib/error-reporter', () => ({
 
 // Vault (notes)
 vi.mock('@/lib/vault', () => ({
+  applyNoteSuggestion: vi.fn(() => Promise.resolve(null)),
+  approveVaultCollaborationPairing: vi.fn(() => Promise.resolve(null)),
+  createVaultCollaborationHttpTransport: vi.fn(() => ({
+    getCrdtState: vi.fn(() => Promise.resolve(null)),
+    list: vi.fn(() => Promise.resolve([])),
+    publish: vi.fn(() => Promise.resolve(null)),
+    saveCrdtState: vi.fn(() => Promise.resolve(null)),
+  })),
+  createNoteComment: vi.fn(() => Promise.resolve(null)),
+  createNoteCommentReply: vi.fn(() => Promise.resolve(null)),
+  createNoteSuggestion: vi.fn(() => Promise.resolve(null)),
+  createNoteVersionCheckpoint: vi.fn(() => Promise.resolve(null)),
+  discardLocalDraft: vi.fn(),
+  exportEncryptedVault: vi.fn(() => Promise.resolve({ path: '/tmp/vault.zip' })),
+  getNoteComments: vi.fn(() => Promise.resolve([])),
+  getNoteRevision: vi.fn(() => Promise.resolve(null)),
+  getNoteRevisions: vi.fn(() => Promise.resolve([])),
+  getNoteSuggestions: vi.fn(() => Promise.resolve([])),
+  getRecoverableDrafts: vi.fn(() => []),
+  getVaultAuditEvents: vi.fn(() => Promise.resolve([])),
+  getVaultCollaborationCrdtState: vi.fn(() => Promise.resolve(null)),
+  getVaultCollaborationPairings: vi.fn(() => Promise.resolve([])),
+  getVaultStatus: vi.fn(() =>
+    Promise.resolve({
+      canonical_store: 'local_sqlite',
+      remote_required: false,
+      notes: 0,
+      folders: 0,
+      attachments: 0,
+      revisions: 0,
+      comments: 0,
+      suggestions: 0,
+      last_checkpoint_at: null,
+      last_sync_at: null,
+    }),
+  ),
+  getVaultSyncLedger: vi.fn(() =>
+    Promise.resolve({
+      pending_saves: [],
+      sync_states: [],
+    }),
+  ),
+  importEncryptedVault: vi.fn(() => Promise.resolve(null)),
+  labelNoteRevision: vi.fn(() => Promise.resolve(null)),
+  linkFirstPlainMention: vi.fn((content: string) => content),
+  listVaultCollaborationEvents: vi.fn(() => Promise.resolve([])),
+  noteIdFromTitle: vi.fn((title: string) => title.toLowerCase().replaceAll(' ', '-')),
+  normalizeFolderPath: vi.fn((path: string | null | undefined) => path?.trim() ?? null),
+  publishVaultCollaborationEvent: vi.fn(() => Promise.resolve(null)),
+  rejectNoteSuggestion: vi.fn(() => Promise.resolve(null)),
+  revokeVaultCollaborationPairing: vi.fn(() => Promise.resolve(null)),
+  resolveNoteComment: vi.fn(() => Promise.resolve(null)),
+  restoreLocalDraft: vi.fn(() => null),
+  restoreNoteRevision: vi.fn(() => Promise.resolve(null)),
+  rewriteWikilinkPath: vi.fn((content: string) => content),
+  rewriteWikilinks: vi.fn((content: string) => content),
+  saveVaultCollaborationCrdtState: vi.fn(() => Promise.resolve(null)),
+  saveLocalDraft: vi.fn(),
+  searchVaultNotes: vi.fn(() => Promise.resolve([])),
+  uploadAttachment: vi.fn(() => Promise.resolve(null)),
   vault: {
     listNotes: vi.fn(() => Promise.resolve([])),
     getNote: vi.fn(() => Promise.resolve(null)),
@@ -227,12 +287,22 @@ vi.mock('@/lib/vault', () => ({
 vi.mock('@/hooks/notes/useVault', () => ({
   useVault: vi.fn(() => ({
     notes: [],
+    folders: [],
     loading: false,
+    syncing: false,
     error: null,
     refresh: vi.fn(),
     createNote: vi.fn(),
+    createFolder: vi.fn(),
     updateNote: vi.fn(),
+    moveNote: vi.fn(),
     deleteNote: vi.fn(),
+    trashNote: vi.fn(),
+    trashFolder: vi.fn(),
+    restoreTrashedNote: vi.fn(),
+    restoreTrashedFolder: vi.fn(),
+    emptyTrash: vi.fn(),
+    deleteFolder: vi.fn(),
   })),
 }))
 
@@ -318,7 +388,7 @@ vi.mock('@/hooks/useHarnessModels', () => ({
 }))
 
 // Dashboard store — use importOriginal to keep all exports, override stateful hooks
-vi.mock('@/lib/dashboard-store', async (importOriginal) => {
+vi.mock('@/lib/dashboard-store', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/dashboard-store')>()
   const defaultPage = { id: 'default', name: 'Main', layouts: {}, order: 0 }
   const defaultState = {
@@ -413,6 +483,7 @@ vi.mock('@/components/CommandPalette', () => ({
 
 // Preferences sync
 vi.mock('@/lib/preferences-sync', () => ({
+  CHAT_WORKSPACE_PREFERENCES_CHANGED_EVENT: 'clawcontrol:chat-workspace-preferences-changed',
   syncPreferences: vi.fn(),
   loadRemotePreferences: vi.fn(() => Promise.resolve()),
 }))
@@ -441,11 +512,16 @@ vi.mock('@/lib/widget-registry', () => ({
 }))
 
 // Stub fetch globally for any components that use raw fetch
-vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
-  ok: true,
-  json: () => Promise.resolve({}),
-  text: () => Promise.resolve(''),
-})))
+vi.stubGlobal(
+  'fetch',
+  vi.fn(() =>
+    Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({}),
+      text: () => Promise.resolve(''),
+    }),
+  ),
+)
 
 // Stub jsdom-missing APIs
 // scrollIntoView is not implemented in jsdom
@@ -453,11 +529,14 @@ Element.prototype.scrollIntoView = vi.fn()
 Element.prototype.scrollTo = vi.fn()
 
 // ResizeObserver is not available in jsdom
-vi.stubGlobal('ResizeObserver', class ResizeObserver {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-})
+vi.stubGlobal(
+  'ResizeObserver',
+  class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+)
 
 /* ─── Route-to-import mapping (mirrors main.tsx) ──────────────────────── */
 
@@ -469,12 +548,20 @@ const MODULE_PAGE_MAP: Record<string, () => Promise<{ default: React.ComponentTy
   '/reminders': () => import('../Reminders'),
   '/email': () => import('../Email'),
   '/jobs': () => import('../JobHunter'),
+  '/growth-ops': () => import('../GrowthOps'),
   '/training': () => import('../Training'),
   '/training/clients': () => import('../Training'),
   '/training/calendar': () => import('../Training'),
   '/training/forms': () => import('../Training'),
   '/pomodoro': () => import('../Pomodoro'),
-  '/homelab': () => import('../HomeLab'),
+  '/homelab': () => import('../homelab/HomeLabOverview'),
+  '/homelab/proxmox': () => import('../homelab/ProxmoxModule'),
+  '/homelab/portainer': () => import('../homelab/PortainerModule'),
+  '/homelab/network': () => import('../homelab/NetworkModule'),
+  '/homelab/storage': () => import('../homelab/StorageBackupsModule'),
+  '/homelab/power': () => import('../homelab/PowerHardwareModule'),
+  '/homelab/services': () => import('../homelab/ServicesModule'),
+  '/homelab/activity': () => import('../homelab/ActivitySettingsModule'),
   '/media': () => import('../MediaRadar'),
   '/dashboard': () => import('../Dashboard'),
   '/missions': () => import('../Missions'),
@@ -500,9 +587,7 @@ function TestWrapper({ children, route }: { children: React.ReactNode; route: st
       <ToastProvider>
         <MemoryRouter initialEntries={[route]}>
           <ErrorBoundary>
-            <Suspense fallback={<div>Loading...</div>}>
-              {children}
-            </Suspense>
+            <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
           </ErrorBoundary>
         </MemoryRouter>
       </ToastProvider>
@@ -530,10 +615,9 @@ describe('Sidebar module smoke tests', () => {
   it('every module has a page import mapping', () => {
     const mappedRoutes = Object.keys(MODULE_PAGE_MAP)
     for (const mod of APP_MODULES) {
-      expect(
-        mappedRoutes,
-        `Module "${mod.id}" (route: ${mod.route}) has no entry in MODULE_PAGE_MAP`,
-      ).toContain(mod.route)
+      expect(mappedRoutes, `Module "${mod.id}" (route: ${mod.route}) has no entry in MODULE_PAGE_MAP`).toContain(
+        mod.route,
+      )
     }
   })
 

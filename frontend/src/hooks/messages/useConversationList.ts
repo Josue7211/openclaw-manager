@@ -3,40 +3,11 @@ import { api, ApiError } from '@/lib/api'
 import { isDemoMode } from '@/lib/demo-data'
 import { ensureAvatarBatchCheck, ensureConversationAvatarPreload } from '@/components/messages/ContactAvatar'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
+import { contactLabel, isIMessage } from '@/features/messages/utils'
 import { getReadOverrides } from './readOverrides'
-import type { Conversation, ServiceFilter } from '@/pages/messages/types'
+import type { Conversation, ServiceFilter } from '@/features/messages/types'
 
-function isIMessage(conv: Conversation): boolean {
-  const svc = conv.service?.toLowerCase() || ''
-  const guidLower = conv.guid?.toLowerCase() || ''
-  if (svc.includes('imessage') || guidLower.startsWith('imessage')) return true
-  if (svc === 'any' || guidLower.startsWith('any;')) {
-    const hasExplicitSms = conv.participants?.some(p => p.service?.toLowerCase() === 'sms')
-    if (!hasExplicitSms) return true
-  }
-  if (conv.participants?.length > 1 &&
-    conv.participants.every(p => {
-      const ps = p.service?.toLowerCase() || ''
-      return ps.includes('imessage') || ps === 'any'
-    })) return true
-  return false
-}
-
-export function contactLabel(conv: Conversation): string {
-  if (conv.displayName) return conv.displayName
-  const id = conv.chatId || conv.participants?.[0]?.address || conv.guid
-  if (id.startsWith('+1') && id.length === 12) {
-    return `(${id.slice(2, 5)}) ${id.slice(5, 8)}-${id.slice(8)}`
-  }
-  if (id.startsWith('+') && id.length > 10) {
-    const digits = id.replace(/\D/g, '')
-    if (digits.length === 11 && digits.startsWith('1')) {
-      return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`
-    }
-    return id
-  }
-  return id
-}
+export { contactLabel }
 
 export function useConversationList() {
   const [conversations, setConversations] = useState<Conversation[]>([])

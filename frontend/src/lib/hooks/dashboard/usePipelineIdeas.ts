@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode } from '@/lib/demo-data'
-import type { Idea } from '@/pages/pipeline/types'
+import type { Idea } from '@/features/pipeline/types'
 
 const DEMO_IDEAS: Idea[] = [
   { id: 'demo-i1', title: 'Auto-triage incoming issues', description: 'Use AI to classify and route new issues', why: 'Saves time', effort: 'medium', impact: 'high', category: 'routing', status: 'pending', created_at: new Date(Date.now() - 3_600_000).toISOString() },

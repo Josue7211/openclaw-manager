@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { isDemoMode } from '@/lib/demo-data'
-import type { CronJob } from '@/pages/crons/types'
+import type { CronJob } from '@/features/crons/types'
 
 const CRONS_KEY = ['crons'] as const
 

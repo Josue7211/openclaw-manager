@@ -40,8 +40,30 @@ vi.mock('@/pages/Messages', () => ({ default: () => <div data-testid="page-messa
 vi.mock('@/pages/Pomodoro', () => ({ default: () => <div data-testid="page-pomodoro">Pomodoro</div> }))
 vi.mock('@/pages/Email', () => ({ default: () => <div data-testid="page-email">Email</div> }))
 vi.mock('@/pages/JobHunter', () => ({ default: () => <div data-testid="page-jobs">Career Ops</div> }))
+vi.mock('@/pages/GrowthOps', () => ({ default: () => <div data-testid="page-growth-ops">Growth Ops</div> }))
 vi.mock('@/pages/Training', () => ({ default: () => <div data-testid="page-training">Training</div> }))
-vi.mock('@/pages/HomeLab', () => ({ default: () => <div data-testid="page-homelab">HomeLab</div> }))
+vi.mock('@/pages/homelab/HomeLabOverview', () => ({ default: () => <div data-testid="page-homelab">HomeLab</div> }))
+vi.mock('@/pages/homelab/ProxmoxModule', () => ({
+  default: () => <div data-testid="page-homelab-proxmox">Proxmox</div>,
+}))
+vi.mock('@/pages/homelab/PortainerModule', () => ({
+  default: () => <div data-testid="page-homelab-portainer">Portainer</div>,
+}))
+vi.mock('@/pages/homelab/NetworkModule', () => ({
+  default: () => <div data-testid="page-homelab-network">Network</div>,
+}))
+vi.mock('@/pages/homelab/StorageBackupsModule', () => ({
+  default: () => <div data-testid="page-homelab-storage">Storage</div>,
+}))
+vi.mock('@/pages/homelab/PowerHardwareModule', () => ({
+  default: () => <div data-testid="page-homelab-power">Power</div>,
+}))
+vi.mock('@/pages/homelab/ServicesModule', () => ({
+  default: () => <div data-testid="page-homelab-services">Services</div>,
+}))
+vi.mock('@/pages/homelab/ActivitySettingsModule', () => ({
+  default: () => <div data-testid="page-homelab-activity">Activity Settings</div>,
+}))
 vi.mock('@/pages/MediaRadar', () => ({ default: () => <div data-testid="page-media">MediaRadar</div> }))
 vi.mock('@/pages/Missions', () => ({ default: () => <div data-testid="page-missions">Missions</div> }))
 vi.mock('@/pages/Harness', () => ({ default: () => <div data-testid="page-harness">Harness</div> }))
@@ -60,9 +82,18 @@ vi.mock('@/pages/Capture', () => ({ default: () => <div data-testid="page-captur
 vi.mock('@/pages/Settings', () => ({ default: () => <div data-testid="page-settings">Settings</div> }))
 vi.mock('@/pages/Search', () => ({ default: () => <div data-testid="page-search">Search</div> }))
 vi.mock('@/pages/Login', () => ({ default: () => <div data-testid="page-login">Login</div> }))
-vi.mock('@/pages/TrainingPublicIntake', () => ({ default: () => <div data-testid="page-training-public-intake">TrainingPublicIntake</div> }))
+vi.mock('@/pages/TrainingPublicIntake', () => ({
+  default: () => <div data-testid="page-training-public-intake">TrainingPublicIntake</div>,
+}))
 vi.mock('@/pages/CustomPage', () => ({ default: () => <div data-testid="page-custom">CustomPage</div> }))
-vi.mock('@/pages/NotFound', () => ({ default: () => <div data-testid="page-notfound"><div>404</div><h2>Page not found</h2></div> }))
+vi.mock('@/pages/NotFound', () => ({
+  default: () => (
+    <div data-testid="page-notfound">
+      <div>404</div>
+      <h2>Page not found</h2>
+    </div>
+  ),
+}))
 
 // Mock shell components
 vi.mock('@/components/AuthGuard', () => ({
@@ -87,7 +118,7 @@ vi.mock('@/components/Skeleton', () => ({
 
 // Tauri internals: force browser mode
 beforeAll(() => {
-  (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = undefined
+  ;(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = undefined
 })
 
 // ============================================================
@@ -105,8 +136,16 @@ const Messages = lazy(() => import('@/pages/Messages'))
 const Pomodoro = lazy(() => import('@/pages/Pomodoro'))
 const Email = lazy(() => import('@/pages/Email'))
 const JobHunter = lazy(() => import('@/pages/JobHunter'))
+const GrowthOps = lazy(() => import('@/pages/GrowthOps'))
 const Training = lazy(() => import('@/pages/Training'))
-const HomeLab = lazy(() => import('@/pages/HomeLab'))
+const HomeLabOverview = lazy(() => import('@/pages/homelab/HomeLabOverview'))
+const HomeLabProxmox = lazy(() => import('@/pages/homelab/ProxmoxModule'))
+const HomeLabPortainer = lazy(() => import('@/pages/homelab/PortainerModule'))
+const HomeLabNetwork = lazy(() => import('@/pages/homelab/NetworkModule'))
+const HomeLabStorage = lazy(() => import('@/pages/homelab/StorageBackupsModule'))
+const HomeLabPower = lazy(() => import('@/pages/homelab/PowerHardwareModule'))
+const HomeLabServices = lazy(() => import('@/pages/homelab/ServicesModule'))
+const HomeLabActivity = lazy(() => import('@/pages/homelab/ActivitySettingsModule'))
 const MediaRadar = lazy(() => import('@/pages/MediaRadar'))
 const Missions = lazy(() => import('@/pages/Missions'))
 const Harness = lazy(() => import('@/pages/Harness'))
@@ -133,9 +172,9 @@ const NotFound = lazy(() => import('@/pages/NotFound'))
 interface RouteEntry {
   path: string
   type: 'page' | 'redirect'
-  target?: string   // for redirects: where Navigate goes
-  testId?: string   // expected data-testid of the rendered page
-  guarded: boolean  // inside AuthGuard/LayoutShell wrapper
+  target?: string // for redirects: where Navigate goes
+  testId?: string // expected data-testid of the rendered page
+  guarded: boolean // inside AuthGuard/LayoutShell wrapper
 }
 
 /**
@@ -160,8 +199,16 @@ const ROUTES: RouteEntry[] = [
   { path: '/pomodoro', type: 'page', testId: 'page-pomodoro', guarded: true },
   { path: '/email', type: 'page', testId: 'page-email', guarded: true },
   { path: '/jobs', type: 'page', testId: 'page-jobs', guarded: true },
+  { path: '/growth-ops', type: 'page', testId: 'page-growth-ops', guarded: true },
   { path: '/training/*', type: 'page', testId: 'page-training', guarded: true },
   { path: '/homelab', type: 'page', testId: 'page-homelab', guarded: true },
+  { path: '/homelab/proxmox', type: 'page', testId: 'page-homelab-proxmox', guarded: true },
+  { path: '/homelab/portainer', type: 'page', testId: 'page-homelab-portainer', guarded: true },
+  { path: '/homelab/network', type: 'page', testId: 'page-homelab-network', guarded: true },
+  { path: '/homelab/storage', type: 'page', testId: 'page-homelab-storage', guarded: true },
+  { path: '/homelab/power', type: 'page', testId: 'page-homelab-power', guarded: true },
+  { path: '/homelab/services', type: 'page', testId: 'page-homelab-services', guarded: true },
+  { path: '/homelab/activity', type: 'page', testId: 'page-homelab-activity', guarded: true },
   { path: '/media', type: 'page', testId: 'page-media', guarded: true },
   { path: '/missions', type: 'page', testId: 'page-missions', guarded: true },
   { path: '/harness', type: 'page', testId: 'page-harness', guarded: true },
@@ -207,44 +254,332 @@ function renderRoute(routePath: string) {
       <MemoryRouter initialEntries={[routePath]}>
         <Suspense fallback={<div data-testid="suspense-fallback">Loading...</div>}>
           <Routes>
-            <Route path="/login" element={<Suspense fallback={null}><Login /></Suspense>} />
-            <Route path="/form/:token" element={<Suspense fallback={null}><TrainingPublicIntake /></Suspense>} />
-            <Route path="/training/intake/:token" element={<Suspense fallback={null}><TrainingPublicIntake /></Suspense>} />
+            <Route
+              path="/login"
+              element={
+                <Suspense fallback={null}>
+                  <Login />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/form/:token"
+              element={
+                <Suspense fallback={null}>
+                  <TrainingPublicIntake />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/training/intake/:token"
+              element={
+                <Suspense fallback={null}>
+                  <TrainingPublicIntake />
+                </Suspense>
+              }
+            />
             <Route element={<Outlet />}>
-              <Route path="/" element={<Suspense fallback={null}><Personal /></Suspense>} />
+              <Route
+                path="/"
+                element={
+                  <Suspense fallback={null}>
+                    <Personal />
+                  </Suspense>
+                }
+              />
               <Route path="/personal" element={<Navigate to="/" replace />} />
-              <Route path="/dashboard" element={<Suspense fallback={null}><Dashboard /></Suspense>} />
-              <Route path="/chat" element={<Suspense fallback={null}><Chat /></Suspense>} />
-              <Route path="/builder" element={<Suspense fallback={null}><Builder /></Suspense>} />
-              <Route path="/todos" element={<Suspense fallback={null}><Todos /></Suspense>} />
-              <Route path="/calendar" element={<Suspense fallback={null}><Calendar /></Suspense>} />
-              <Route path="/reminders" element={<Suspense fallback={null}><Reminders /></Suspense>} />
-              <Route path="/messages" element={<Suspense fallback={null}><Messages /></Suspense>} />
-              <Route path="/pomodoro" element={<Suspense fallback={null}><Pomodoro /></Suspense>} />
-              <Route path="/email" element={<Suspense fallback={null}><Email /></Suspense>} />
-              <Route path="/jobs" element={<Suspense fallback={null}><JobHunter /></Suspense>} />
-              <Route path="/training/*" element={<Suspense fallback={null}><Training /></Suspense>} />
-              <Route path="/homelab" element={<Suspense fallback={null}><HomeLab /></Suspense>} />
-              <Route path="/media" element={<Suspense fallback={null}><MediaRadar /></Suspense>} />
-              <Route path="/missions" element={<Suspense fallback={null}><Missions /></Suspense>} />
-              <Route path="/harness" element={<Suspense fallback={null}><Harness /></Suspense>} />
+              <Route
+                path="/dashboard"
+                element={
+                  <Suspense fallback={null}>
+                    <Dashboard />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/chat"
+                element={
+                  <Suspense fallback={null}>
+                    <Chat />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/builder"
+                element={
+                  <Suspense fallback={null}>
+                    <Builder />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/todos"
+                element={
+                  <Suspense fallback={null}>
+                    <Todos />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/calendar"
+                element={
+                  <Suspense fallback={null}>
+                    <Calendar />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/reminders"
+                element={
+                  <Suspense fallback={null}>
+                    <Reminders />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/messages"
+                element={
+                  <Suspense fallback={null}>
+                    <Messages />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/pomodoro"
+                element={
+                  <Suspense fallback={null}>
+                    <Pomodoro />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/email"
+                element={
+                  <Suspense fallback={null}>
+                    <Email />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/jobs"
+                element={
+                  <Suspense fallback={null}>
+                    <JobHunter />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/growth-ops"
+                element={
+                  <Suspense fallback={null}>
+                    <GrowthOps />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/training/*"
+                element={
+                  <Suspense fallback={null}>
+                    <Training />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/homelab"
+                element={
+                  <Suspense fallback={null}>
+                    <HomeLabOverview />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/homelab/proxmox"
+                element={
+                  <Suspense fallback={null}>
+                    <HomeLabProxmox />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/homelab/portainer"
+                element={
+                  <Suspense fallback={null}>
+                    <HomeLabPortainer />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/homelab/network"
+                element={
+                  <Suspense fallback={null}>
+                    <HomeLabNetwork />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/homelab/storage"
+                element={
+                  <Suspense fallback={null}>
+                    <HomeLabStorage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/homelab/power"
+                element={
+                  <Suspense fallback={null}>
+                    <HomeLabPower />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/homelab/services"
+                element={
+                  <Suspense fallback={null}>
+                    <HomeLabServices />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/homelab/activity"
+                element={
+                  <Suspense fallback={null}>
+                    <HomeLabActivity />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/media"
+                element={
+                  <Suspense fallback={null}>
+                    <MediaRadar />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/missions"
+                element={
+                  <Suspense fallback={null}>
+                    <Missions />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/harness"
+                element={
+                  <Suspense fallback={null}>
+                    <Harness />
+                  </Suspense>
+                }
+              />
               <Route path="/openclaw" element={<Navigate to="/harness" replace />} />
               <Route path="/agents" element={<Navigate to="/harness" replace />} />
-              <Route path="/memory" element={<Suspense fallback={null}><Memory /></Suspense>} />
+              <Route
+                path="/memory"
+                element={
+                  <Suspense fallback={null}>
+                    <Memory />
+                  </Suspense>
+                }
+              />
               <Route path="/crons" element={<Navigate to="/harness" replace />} />
-              <Route path="/pipeline" element={<Suspense fallback={null}><Pipeline /></Suspense>} />
-              <Route path="/knowledge" element={<Suspense fallback={null}><KnowledgeBase /></Suspense>} />
-              <Route path="/notes" element={<Suspense fallback={null}><Notes /></Suspense>} />
+              <Route
+                path="/pipeline"
+                element={
+                  <Suspense fallback={null}>
+                    <Pipeline />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/knowledge"
+                element={
+                  <Suspense fallback={null}>
+                    <KnowledgeBase />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/notes"
+                element={
+                  <Suspense fallback={null}>
+                    <Notes />
+                  </Suspense>
+                }
+              />
               <Route path="/sessions" element={<Navigate to="/chat" replace />} />
-              <Route path="/remote" element={<Suspense fallback={null}><RemoteViewer /></Suspense>} />
-              <Route path="/approvals" element={<Suspense fallback={null}><Approvals /></Suspense>} />
-              <Route path="/activity" element={<Suspense fallback={null}><Activity /></Suspense>} />
-              <Route path="/ideas" element={<Suspense fallback={null}><Ideas /></Suspense>} />
-              <Route path="/capture" element={<Suspense fallback={null}><Capture /></Suspense>} />
-              <Route path="/settings" element={<Suspense fallback={null}><Settings /></Suspense>} />
-              <Route path="/search" element={<Suspense fallback={null}><Search /></Suspense>} />
-              <Route path="/custom/:id" element={<Suspense fallback={null}><CustomPage /></Suspense>} />
-              <Route path="*" element={<Suspense fallback={null}><NotFound /></Suspense>} />
+              <Route
+                path="/remote"
+                element={
+                  <Suspense fallback={null}>
+                    <RemoteViewer />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/approvals"
+                element={
+                  <Suspense fallback={null}>
+                    <Approvals />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/activity"
+                element={
+                  <Suspense fallback={null}>
+                    <Activity />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/ideas"
+                element={
+                  <Suspense fallback={null}>
+                    <Ideas />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/capture"
+                element={
+                  <Suspense fallback={null}>
+                    <Capture />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <Suspense fallback={null}>
+                    <Settings />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/search"
+                element={
+                  <Suspense fallback={null}>
+                    <Search />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/custom/:id"
+                element={
+                  <Suspense fallback={null}>
+                    <CustomPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="*"
+                element={
+                  <Suspense fallback={null}>
+                    <NotFound />
+                  </Suspense>
+                }
+              />
             </Route>
           </Routes>
         </Suspense>
@@ -274,8 +609,8 @@ describe('Route Audit', () => {
   // ----------------------------------------------------------
   describe('sync guard', () => {
     it('ROUTES array covers every path defined in main.tsx', () => {
-      const mainTsxPath = path.resolve(__dirname, '..', 'main.tsx')
-      const source = fs.readFileSync(mainTsxPath, 'utf-8')
+      const appTsxPath = path.resolve(__dirname, '..', 'App.tsx')
+      const source = fs.readFileSync(appTsxPath, 'utf-8')
 
       // Extract all path="..." values from Route elements
       const pathRegex = /path="([^"]+)"/g
@@ -305,23 +640,23 @@ describe('Route Audit', () => {
   describe('page routes render correct component', () => {
     const pageRoutes = ROUTES.filter(r => r.type === 'page' && r.path !== '*' && r.path !== '/custom/:id')
 
-    it.each(pageRoutes.map(r => [r.path, r.testId!]))(
-      '%s renders %s',
-      async (routePath, expectedTestId) => {
-        renderRoute(routePath)
+    it.each(pageRoutes.map(r => [r.path, r.testId!]))('%s renders %s', async (routePath, expectedTestId) => {
+      renderRoute(routePath)
 
-        await waitFor(() => {
+      await waitFor(
+        () => {
           expect(screen.getByTestId(expectedTestId)).toBeInTheDocument()
-        }, { timeout: 3000 })
+        },
+        { timeout: 3000 },
+      )
 
-        // No ErrorBoundary crash screen
-        expect(screen.queryByText('Something went wrong')).not.toBeInTheDocument()
-        // No PageErrorBoundary crash screen
-        expect(screen.queryByText('This page crashed')).not.toBeInTheDocument()
-        // Not blank
-        expect(document.body.textContent?.trim().length).toBeGreaterThan(0)
-      },
-    )
+      // No ErrorBoundary crash screen
+      expect(screen.queryByText('Something went wrong')).not.toBeInTheDocument()
+      // No PageErrorBoundary crash screen
+      expect(screen.queryByText('This page crashed')).not.toBeInTheDocument()
+      // Not blank
+      expect(document.body.textContent?.trim().length).toBeGreaterThan(0)
+    })
   })
 
   // ----------------------------------------------------------
@@ -331,9 +666,12 @@ describe('Route Audit', () => {
     it('/custom/test-id renders page-custom', async () => {
       renderRoute('/custom/test-id')
 
-      await waitFor(() => {
-        expect(screen.getByTestId('page-custom')).toBeInTheDocument()
-      }, { timeout: 3000 })
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('page-custom')).toBeInTheDocument()
+        },
+        { timeout: 3000 },
+      )
 
       expect(screen.queryByText('Something went wrong')).not.toBeInTheDocument()
       expect(screen.queryByText('This page crashed')).not.toBeInTheDocument()
@@ -351,9 +689,12 @@ describe('Route Audit', () => {
       async (routePath, _targetPath, expectedTestId) => {
         renderRoute(routePath)
 
-        await waitFor(() => {
-          expect(screen.getByTestId(expectedTestId)).toBeInTheDocument()
-        }, { timeout: 3000 })
+        await waitFor(
+          () => {
+            expect(screen.getByTestId(expectedTestId)).toBeInTheDocument()
+          },
+          { timeout: 3000 },
+        )
 
         // No error boundaries on the target page
         expect(screen.queryByText('Something went wrong')).not.toBeInTheDocument()
@@ -369,9 +710,12 @@ describe('Route Audit', () => {
     it('renders NotFound with 404 for unknown paths', async () => {
       renderRoute('/nonexistent-route-xyz')
 
-      await waitFor(() => {
-        expect(screen.getByTestId('page-notfound')).toBeInTheDocument()
-      }, { timeout: 3000 })
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('page-notfound')).toBeInTheDocument()
+        },
+        { timeout: 3000 },
+      )
 
       expect(screen.getByText('404')).toBeInTheDocument()
       expect(screen.getByText('Page not found')).toBeInTheDocument()
@@ -397,7 +741,14 @@ describe('Route Audit', () => {
       ['Pomodoro', () => import('@/pages/Pomodoro')],
       ['Email', () => import('@/pages/Email')],
       ['JobHunter', () => import('@/pages/JobHunter')],
-      ['HomeLab', () => import('@/pages/HomeLab')],
+      ['HomeLabOverview', () => import('@/pages/homelab/HomeLabOverview')],
+      ['HomeLabProxmox', () => import('@/pages/homelab/ProxmoxModule')],
+      ['HomeLabPortainer', () => import('@/pages/homelab/PortainerModule')],
+      ['HomeLabNetwork', () => import('@/pages/homelab/NetworkModule')],
+      ['HomeLabStorage', () => import('@/pages/homelab/StorageBackupsModule')],
+      ['HomeLabPower', () => import('@/pages/homelab/PowerHardwareModule')],
+      ['HomeLabServices', () => import('@/pages/homelab/ServicesModule')],
+      ['HomeLabActivity', () => import('@/pages/homelab/ActivitySettingsModule')],
       ['MediaRadar', () => import('@/pages/MediaRadar')],
       ['Missions', () => import('@/pages/Missions')],
       ['Harness', () => import('@/pages/Harness')],

@@ -1,6 +1,6 @@
 import { useAgentCache } from './useAgentCache'
 import { isDemoMode } from '@/lib/demo-data'
-import type { HeartbeatData } from '@/pages/dashboard/types'
+import type { HeartbeatData } from '@/features/dashboard/types'
 
 const DEMO_HEARTBEAT: HeartbeatData = {
   lastCheck: new Date().toISOString(),

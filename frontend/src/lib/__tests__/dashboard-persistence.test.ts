@@ -14,7 +14,7 @@ vi.mock('../api', () => ({
 }))
 
 vi.mock('../theme-store', () => ({
-  applyThemeFromState: vi.fn(),
+  hydrateThemeState: vi.fn(),
 }))
 
 vi.mock('../modules', () => ({

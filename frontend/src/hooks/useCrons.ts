@@ -4,7 +4,7 @@ import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode } from '@/lib/demo-data'
 import { useGatewaySSE } from '@/lib/hooks/useGatewaySSE'
-import type { CronJob, CronSchedule } from '@/pages/crons/types'
+import type { CronJob, CronSchedule } from '@/features/crons/types'
 
 interface CronsResponse {
   jobs: CronJob[]

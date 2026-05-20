@@ -3,8 +3,10 @@ import { reportError } from './error-reporter'
 const API_BASE_STORAGE_KEY = 'backend-api-base'
 const CONFIGURED_BACKEND_BASE_STORAGE_KEY = 'configured-backend-base'
 const ENV_API_BASE = import.meta.env.VITE_API_BASE?.trim()
+const ENV_TRAINING_API_BASE = import.meta.env.VITE_TRAINING_API_BASE?.trim()
 const DEFAULT_API_BASE = ENV_API_BASE || 'http://127.0.0.1:3010'
 const DEFAULT_LOCAL_API_BASE = ENV_API_BASE || 'http://127.0.0.1:3010'
+const DEFAULT_TRAINING_API_BASE = ENV_TRAINING_API_BASE || 'https://coaching.aparcedo.org'
 const LOCAL_DESKTOP_ONLY_PATH_PREFIXES = [
   '/api/auth',
   '/api/chat',
@@ -182,12 +184,22 @@ export function getLocalApiKey(): string | undefined {
   return _localApiKey ?? _apiKey
 }
 
+export function getRemoteApiKey(): string | undefined {
+  return _remoteApiKey ?? (isTauriDesktop() ? undefined : _apiKey)
+}
+
 function isLocalDesktopOnlyPath(path: string): boolean {
+  if (path.startsWith('/api/training')) return false
   if (path.startsWith('/api/')) return true
   return LOCAL_DESKTOP_ONLY_PATH_PREFIXES.some(prefix => path.startsWith(prefix))
 }
 
 export function getRequestBaseForPath(path: string): string {
+  if (path.startsWith('/api/training')) {
+    const configured = normalizeApiBase(CONFIGURED_BACKEND_BASE)
+    const localDefault = normalizeApiBase(DEFAULT_LOCAL_API_BASE)
+    return configured && configured !== localDefault ? configured : normalizeApiBase(DEFAULT_TRAINING_API_BASE)
+  }
   if (isTauriDesktop() && isLocalDesktopOnlyPath(path)) {
     return normalizeApiBase(DEFAULT_LOCAL_API_BASE)
   }

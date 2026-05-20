@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ChatTeardrop, MagnifyingGlass } from '@phosphor-icons/react'
+import { ChatTeardrop, MagnifyingGlass, Plus } from '@phosphor-icons/react'
 import { isDemoMode } from '@/lib/demo-data'
 import { useGatewaySessions } from '@/hooks/sessions/useGatewaySessions'
 import { useSessionMutations } from '@/hooks/sessions/useSessionMutations'
@@ -15,9 +15,10 @@ interface SessionListProps {
   onDeleteSelected: (key: string) => void
   title?: string
   headerAction?: ReactNode
+  onNewSession?: () => void
 }
 
-export function SessionList({ selectedId, onSelect, onDeleteSelected, title = 'Sessions', headerAction }: SessionListProps) {
+export function SessionList({ selectedId, onSelect, onDeleteSelected, title = 'Sessions', headerAction, onNewSession }: SessionListProps) {
   const demo = isDemoMode()
   const { sessions, available, isLoading } = useGatewaySessions()
   const { providerLabel, detail } = useHarnessStatus()
@@ -67,7 +68,7 @@ export function SessionList({ selectedId, onSelect, onDeleteSelected, title = 'S
         </span>
         <GatewayStatusDot size={7} />
         {headerAction && (
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
             {headerAction}
           </div>
         )}
@@ -117,7 +118,11 @@ export function SessionList({ selectedId, onSelect, onDeleteSelected, title = 'S
         display: 'flex',
         flexDirection: 'column',
         gap: '2px',
-      }}>
+      }}
+      role="listbox"
+      aria-label={`${title} list`}
+      aria-busy={isLoading || undefined}
+      >
         {/* Demo mode banner */}
         {demo && (
           <div
@@ -158,7 +163,15 @@ export function SessionList({ selectedId, onSelect, onDeleteSelected, title = 'S
 
         {/* Loading state — skeleton cards */}
         {isLoading && (
-          <>
+          <div
+            role="status"
+            aria-label={`Loading ${title.toLowerCase()}`}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '2px',
+            }}
+          >
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
@@ -176,7 +189,7 @@ export function SessionList({ selectedId, onSelect, onDeleteSelected, title = 'S
                 <div style={{ height: '12px', width: '50%', borderRadius: '4px', background: 'var(--border)', animation: 'shimmer 1.5s ease-in-out infinite', animationDelay: '0.3s' }} />
               </div>
             ))}
-          </>
+          </div>
         )}
 
         {/* Empty state */}
@@ -198,6 +211,28 @@ export function SessionList({ selectedId, onSelect, onDeleteSelected, title = 'S
             <div style={{ fontSize: '12px', textAlign: 'center' }}>
               Start a new chat to create your first session
             </div>
+            {onNewSession && (
+              <button
+                type="button"
+                onClick={onNewSession}
+                style={{
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  background: 'var(--accent-solid)',
+                  color: 'var(--text-on-color)',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: '7px 10px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <Plus size={13} />
+                New chat
+              </button>
+            )}
           </div>
         )}
 

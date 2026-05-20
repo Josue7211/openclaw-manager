@@ -20,13 +20,21 @@ import {
 } from '@/lib/model-favorites'
 import { buildModuleBuilderSystemPrompt } from './module-builder-prompt'
 import { buildLiveAppContext } from './live-app-context'
+import { CHAT_IMAGE_LIMIT } from './constants'
+import { CHAT_FALLBACK_PROVIDER_OPTIONS } from './providers'
+import { selectableChatProviderOptions } from '@/chat/t3-adapters/providerSnapshots'
 
-import { type ChatMessage, type OptimisticMsg, type ModelsResponse, cleanMessages, cleanText, isSlashCommand } from './types'
+import { type ChatMessage, type OptimisticMsg, type ModelsResponse, type ChatProviderId, cleanMessages, cleanText, isSlashCommand } from './types'
 
-const MODULE_BUILDER_RE = /\b(openui|generative ui|module|modules|widget|widgets|dashboard card|dashboard widget|installable|primitive|primitives)\b/i
+const MODULE_BUILDER_EXPLICIT_RE = /\b(openui|generative ui|module builder|dashboard card|dashboard widget|installable primitive|installable primitives)\b/i
+const MODULE_BUILDER_ACTION_RE = /\b(build|make|create|generate|design|add|insert|place|install|put|show)\b/i
+const MODULE_BUILDER_SURFACE_RE = /\b(module|modules|widget|widgets|card|panel|page|component|dashboard|ui|primitive|primitives)\b/i
+const TRANSCRIPT_DUPLICATE_WINDOW_MS = 30_000
+const CHAT_PROVIDER_STORAGE_KEY = 'chat-provider'
 
 function shouldUseModuleBuilderPrompt(text: string): boolean {
-  return MODULE_BUILDER_RE.test(text)
+  return MODULE_BUILDER_EXPLICIT_RE.test(text)
+    || (MODULE_BUILDER_ACTION_RE.test(text) && MODULE_BUILDER_SURFACE_RE.test(text))
 }
 
 function chatHistoryPath(sessionKey: string | null): string {
@@ -45,8 +53,57 @@ function displayUserTextFromStoredPrompt(value: string): string {
   return match?.[1]?.trim() || text
 }
 
+function messageTimestampMs(message: ChatMessage): number | null {
+  const value = new Date(message.timestamp).getTime()
+  return Number.isFinite(value) ? value : null
+}
+
+function messageImageSignature(message: ChatMessage): string {
+  return (message.images || []).join('\n')
+}
+
+function messageStableIds(message: ChatMessage): string[] {
+  return [
+    message.transcriptId,
+    message.turnId,
+    message.toolCallId ? `tool:${message.toolCallId}` : undefined,
+    message.id,
+  ].filter((value): value is string => Boolean(value?.trim()))
+}
+
+function isDuplicateTranscriptMessage(existing: ChatMessage, candidate: ChatMessage): boolean {
+  const existingStableIds = new Set(messageStableIds(existing))
+  if (messageStableIds(candidate).some((id) => existingStableIds.has(id))) return true
+  if (existing.role !== candidate.role) return false
+  if (existing.text !== candidate.text) return false
+  if (messageImageSignature(existing) !== messageImageSignature(candidate)) return false
+
+  const existingTime = messageTimestampMs(existing)
+  const candidateTime = messageTimestampMs(candidate)
+  if (existingTime === null || candidateTime === null) return false
+  return Math.abs(existingTime - candidateTime) <= TRANSCRIPT_DUPLICATE_WINDOW_MS
+}
+
+function dedupeTranscriptMessages(messages: ChatMessage[]): ChatMessage[] {
+  const result: ChatMessage[] = []
+  for (const message of messages) {
+    if (result.some((existing) => isDuplicateTranscriptMessage(existing, message))) continue
+    result.push(message)
+  }
+  return result
+}
+
 interface ChatHistoryItem {
   id?: string
+  itemId?: string
+  messageId?: string
+  transcriptId?: string
+  turnId?: string
+  callId?: string
+  toolCallId?: string
+  tool_call_id?: string
+  toolName?: string
+  tool_name?: string
   role?: string
   text?: string
   content?: string
@@ -62,13 +119,54 @@ interface ChatHistoryResponse {
 interface ChatSendResponse {
   ok?: boolean
   sessionKey?: string | null
+  reply?: string | null
+  provider?: string | null
 }
 
 interface ChatRequestContext {
+  projectId?: string
   project?: string
+  projectRoot?: string
   workingDir?: string
+  environmentId?: string
   branch?: string
   runtime?: string
+}
+
+export function buildChatRequestPayload(input: {
+  text: string
+  images: string[]
+  model: string
+  provider: ChatProviderId
+  providerIsModelBacked: boolean
+  liveContext?: string
+  systemPrompt?: string
+}) {
+  const payload: {
+    text: string
+    images: string[]
+    provider: ChatProviderId
+    model?: string
+    liveContext?: string
+    system_prompt?: string
+  } = {
+    text: input.text,
+    images: input.images,
+    provider: input.provider,
+  }
+
+  if (input.liveContext !== undefined) {
+    payload.liveContext = input.liveContext
+  }
+
+  if (input.providerIsModelBacked) {
+    payload.model = input.model
+    if (input.systemPrompt) {
+      payload.system_prompt = input.systemPrompt
+    }
+  }
+
+  return payload
 }
 
 async function captureLiveContext(text: string, context?: ChatRequestContext): Promise<string> {
@@ -82,27 +180,35 @@ async function captureLiveContext(text: string, context?: ChatRequestContext): P
 }
 
 function normalizeHistoryMessages(items: ChatHistoryItem[] = []): ChatMessage[] {
-  return items.flatMap((item, index) => {
-    if (item.role !== 'user' && item.role !== 'assistant') return []
+  return dedupeTranscriptMessages(items.flatMap((item, index) => {
+    if (item.role !== 'user' && item.role !== 'assistant' && item.role !== 'tool') return []
     const rawText = cleanText(String(item.text ?? item.content ?? ''))
     const text = item.role === 'user' ? displayUserTextFromStoredPrompt(rawText) : rawText
-    if (!text) return []
+    if (!text && item.role !== 'tool') return []
+    const toolCallId = item.toolCallId || item.tool_call_id || item.callId
+    const transcriptId = item.transcriptId || item.itemId || item.messageId
+    const id = item.id || transcriptId || (toolCallId ? `tool-${toolCallId}` : undefined) || `${item.role}-${item.timestamp ?? 'no-time'}-${index}`
     return [{
-      id: item.id || `${item.role}-${item.timestamp ?? 'no-time'}-${index}`,
+      id,
       role: item.role,
       text,
       timestamp: item.timestamp || new Date(0).toISOString(),
       images: item.images,
+      transcriptId,
+      turnId: item.turnId,
+      toolCallId,
+      toolName: item.toolName || item.tool_name,
     }]
-  })
+  }))
 }
 
 export function useChatState(
   sessionKey: string | null = null,
-  options: { onSessionKey?: (key: string) => void; context?: ChatRequestContext } = {},
+  options: { onSessionKey?: (key: string) => void; blank?: boolean; context?: ChatRequestContext; newChat?: boolean } = {},
 ) {
   const queryClient = useQueryClient()
   const _demo = isDemoMode()
+  const blank = Boolean(options.blank)
   const [messages, setMessages]   = useState<ChatMessage[]>(_demo ? DEMO_CHAT_MESSAGES : [])
   const [input, setInput]         = useState('')
   const [images, setImages]       = useState<string[]>([])
@@ -125,6 +231,7 @@ export function useChatState(
   const [notConfigured, setNotConfigured] = useState(false)
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [model, setModelLocal] = useLocalStorageState('chat-model', '')
+  const [provider, setProviderLocal] = useLocalStorageState<ChatProviderId>(CHAT_PROVIDER_STORAGE_KEY, 'hermes')
   const [primaryModel, setPrimaryModel] = useLocalStorageState(CHAT_PRIMARY_MODEL_STORAGE_KEY, '')
   const [favoriteModelIds, setFavoriteModelIds] = useLocalStorageState<string[]>(CHAT_FAVORITE_MODELS_STORAGE_KEY, [])
   const [favoriteModelsVersion, setFavoriteModelsVersion] = useLocalStorageState<number>(CHAT_FAVORITE_MODELS_VERSION_STORAGE_KEY, 0)
@@ -185,11 +292,28 @@ export function useChatState(
   const visibleModels = modelsData?.models?.length
     ? getChatFavoriteModels(modelsData.models, favoriteModelIds, model)
     : []
+  const providers = modelsData
+    ? selectableChatProviderOptions({
+        providers: modelsData.providers,
+        models: modelsData.models,
+      })
+    : CHAT_FALLBACK_PROVIDER_OPTIONS
+  const runtimeProvidersReady = Boolean(modelsData)
+  const providerIsSelectable = providers.some((candidate) => candidate.id === provider)
+  const resolvedProvider = providerIsSelectable ? provider : 'hermes'
+  const providerIsModelBacked = providers.find((candidate) => candidate.id === resolvedProvider)?.modelBacked ?? true
+
+  useEffect(() => {
+    if (!runtimeProvidersReady) return
+    if (provider !== resolvedProvider) {
+      setProviderLocal(resolvedProvider)
+    }
+  }, [provider, resolvedProvider, runtimeProvidersReady, setProviderLocal])
 
   // Keep the local picker on a valid model without blindly forcing server-side changes.
   // Server model changes are posted in a separate effect so we don't create drift loops.
   useEffect(() => {
-    if (!modelsData?.models?.length) return
+    if (!providerIsModelBacked || !modelsData?.models?.length) return
 
     const availableIds = modelsData.models.map(m => m.id)
     const isExactMatch = availableIds.includes(model)
@@ -205,10 +329,10 @@ export function useChatState(
     if (model !== nextModel) {
       setModelLocal(nextModel)
     }
-  }, [modelsData, model, primaryModel, setModelLocal])
+  }, [modelsData, model, primaryModel, providerIsModelBacked, setModelLocal])
 
   useEffect(() => {
-    if (!modelsData?.models?.length || !model) return
+    if (!providerIsModelBacked || !modelsData?.models?.length || !model) return
     if (!modelsData.models.some(candidate => candidate.id === model)) return
 
     if (modelsData.currentModel === model) {
@@ -233,14 +357,14 @@ export function useChatState(
     return () => {
       cancelled = true
     }
-  }, [model, modelsData])
+  }, [model, modelsData, providerIsModelBacked])
 
   // When user switches model, call the API to actually change it
   const setModel = useCallback((newModel: string) => {
     setModelLocal(newModel)
     setPrimaryModel(newModel)
     lastPostedModelRef.current = newModel
-    if (!_demo) {
+    if (!_demo && providerIsModelBacked) {
       api.patch<{ appliedChatModel?: boolean }>('/api/harness/runtime-config', {
         chatPrimaryModel: newModel,
       }).then((result) => {
@@ -253,7 +377,13 @@ export function useChatState(
         lastPostedModelRef.current = ''
       })
     }
-  }, [_demo, setModelLocal, setPrimaryModel])
+  }, [_demo, providerIsModelBacked, setModelLocal, setPrimaryModel])
+  const setProvider = useCallback((newProvider: string) => {
+    const next = providers.some((candidate) => candidate.id === newProvider)
+      ? newProvider as ChatProviderId
+      : 'hermes'
+    setProviderLocal(next)
+  }, [providers, setProviderLocal])
   const sendingRef                = useRef(false)
   const failCountRef              = useRef(0)
   const lastUserMsgTimeRef        = useRef<number>(0)
@@ -276,8 +406,8 @@ export function useChatState(
     setIsTyping(false)
     setSystemMsg(null)
     setHistoryError(null)
-    setMounted(false)
-  }, [_demo, sessionKey])
+    setMounted(blank)
+  }, [_demo, blank, sessionKey])
 
   // ── Keep imagesRef in sync with committed images state ──
   useEffect(() => { imagesRef.current = images }, [images])
@@ -316,11 +446,14 @@ export function useChatState(
   // Helper: reconcile an array of incoming messages into state
   const reconcileMessages = useCallback((incoming: ChatMessage[], mode: 'append' | 'replace' = 'append') => {
     if (mode === 'replace') {
-      setMessages(incoming)
+      setMessages(prev => {
+        const localMessages = prev.filter(message => message.localOnly)
+        return dedupeTranscriptMessages([...incoming, ...localMessages])
+      })
     } else {
       setMessages(prev => {
         const existingIds = new Set(prev.map(m => m.id))
-        const newMsgs = incoming.filter(m => !existingIds.has(m.id))
+        const newMsgs = incoming.filter(m => !existingIds.has(m.id) && !prev.some(existing => isDuplicateTranscriptMessage(existing, m)))
         if (newMsgs.length === 0) return prev
         return [...prev, ...newMsgs]
       })
@@ -353,6 +486,7 @@ export function useChatState(
 
   // -- WebSocket: receive individual new messages in real time --
   const onWsMessage = useCallback((msg: WsMessage) => {
+    if (blank) return
     const cleaned = cleanMessages([msg as ChatMessage])
     const sessionStart = sessionKey ? null : localStorage.getItem('session-start')
     let filtered = cleaned
@@ -369,7 +503,7 @@ export function useChatState(
     setHistoryError(null)
 
     reconcileMessages(filtered)
-  }, [mounted, reconcileMessages, sessionKey])
+  }, [blank, mounted, reconcileMessages, sessionKey])
 
   const { connected: wsConnected, usingFallback } = useChatSocket({
     onMessage: onWsMessage,
@@ -379,7 +513,7 @@ export function useChatState(
         setHistoryError(null)
       }
     },
-    enabled: !_demo,
+    enabled: !_demo && !blank,
     sessionKey,
   })
 
@@ -387,7 +521,7 @@ export function useChatState(
   const { data: historyData, dataUpdatedAt, isError: historyIsError, error: historyQueryError } = useQuery<ChatHistoryResponse>({
     queryKey: sessionKey ? ['chat', 'history', sessionKey] : queryKeys.chatHistory,
     queryFn: () => api.get<ChatHistoryResponse>(chatHistoryPath(sessionKey)),
-    enabled: !_demo,
+    enabled: !_demo && !blank,
     refetchInterval: (query) => {
       if (wsConnected && !usingFallback) return false
       return query.state.error ? Math.min((backoffRef.current *= 2), 30000) : ((backoffRef.current = 5000), 5000)
@@ -409,13 +543,13 @@ export function useChatState(
 
   // ── Reconcile incoming history (initial load + polling fallback) ──
   useEffect(() => {
+    if (blank) return
     if (!historyData) return
     if (!mounted) setMounted(true)
 
     if (
       historyData.error === 'harness_not_configured'
       || historyData.error === 'hermes_not_configured'
-      || historyData.error === 'openclaw_not_configured'
     ) {
       setNotConfigured(true)
       setConnected(false)
@@ -435,7 +569,7 @@ export function useChatState(
     setHistoryError(null)
 
     reconcileMessages(incoming, 'replace')
-  }, [historyData, dataUpdatedAt, reconcileMessages, sessionKey])
+  }, [blank, historyData, dataUpdatedAt, reconcileMessages, sessionKey])
 
   // ── Paste image ──
   useEffect(() => {
@@ -451,12 +585,27 @@ export function useChatState(
     return () => window.removeEventListener('paste', handler)
   }, [])
 
+  const showImageLimitNotice = useCallback(() => {
+    setSystemMsg(`You can attach up to ${CHAT_IMAGE_LIMIT} images at once.`)
+    setTimeout(() => {
+      setSystemMsg(current => current === `You can attach up to ${CHAT_IMAGE_LIMIT} images at once.` ? null : current)
+    }, 3500)
+  }, [])
+
+  const remainingImageSlots = useCallback(() => (
+    Math.max(0, CHAT_IMAGE_LIMIT - imagesRef.current.length - pendingReadsRef.current)
+  ), [])
+
   const readImageFile = (file: File) => {
+    if (remainingImageSlots() <= 0) {
+      showImageLimitNotice()
+      return
+    }
     pendingReadsRef.current += 1
     const reader = new FileReader()
     reader.onload = e => {
       const b64 = e.target?.result as string
-      imagesRef.current = [...imagesRef.current, b64]
+      imagesRef.current = [...imagesRef.current, b64].slice(0, CHAT_IMAGE_LIMIT)
       pendingReadsRef.current -= 1
       const isLast = pendingReadsRef.current === 0
       const currentImgs = [...imagesRef.current]
@@ -481,14 +630,22 @@ export function useChatState(
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    Array.from(e.target.files || []).forEach(readImageFile)
+    const files = Array.from(e.target.files || []).filter(file => file.type.startsWith('image/'))
+    const selected = files.slice(0, remainingImageSlots())
+    selected.forEach(readImageFile)
+    if (selected.length < files.length) showImageLimitNotice()
     e.target.value = ''
   }
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
-    Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/')).forEach(readImageFile)
-  }, [])
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = 'copy'
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
+    const selected = files.slice(0, remainingImageSlots())
+    selected.forEach(readImageFile)
+    if (selected.length < files.length) showImageLimitNotice()
+  }, [remainingImageSlots, showImageLimitNotice])
 
   const postChatRequest = useCallback(async (payload: unknown, signal: AbortSignal) => {
     const path = '/api/chat'
@@ -505,7 +662,16 @@ export function useChatState(
 
     if (!res.ok) {
       const text = await res.text().catch(() => '')
-      throw new Error(text || `HTTP ${res.status}`)
+      let message = text
+      try {
+        const parsed = JSON.parse(text) as { error?: unknown; provider?: unknown }
+        const errorText = typeof parsed.error === 'string' ? parsed.error : ''
+        const providerText = typeof parsed.provider === 'string' ? parsed.provider : ''
+        message = errorText && providerText
+          ? `${providerText}: ${errorText}`
+          : errorText || text
+      } catch { /* keep raw response text */ }
+      throw new Error(message || `HTTP ${res.status}`)
     }
 
     const contentType = res.headers.get('content-type') || ''
@@ -548,7 +714,14 @@ export function useChatState(
       setSystemMsg('\u2500\u2500 Starting fresh session\u2026 \u2500\u2500')
       setMessages([])
       setOptimistic([])
-      api.post('/api/chat', withSessionKey({ text, images: [], model }, sessionKey)).catch((err) => {
+      const payload = buildChatRequestPayload({
+        text,
+        images: [],
+        model,
+        provider: resolvedProvider,
+        providerIsModelBacked,
+      })
+      api.post('/api/chat', withSessionKey({ ...payload, newChat: options.newChat && !sessionKey, ...options.context }, sessionKey)).catch((err) => {
         console.error('Slash command failed:', err)
         setSystemMsg('Failed to send command \u2014 try again')
         setTimeout(() => setSystemMsg(null), 4000)
@@ -626,17 +799,17 @@ export function useChatState(
     })
 
     liveContextPromise.then((liveContext) => {
-      const payload = builderMode
-        ? {
-            text,
-            images: imgs,
-            model,
-            system_prompt: buildModuleBuilderSystemPrompt(),
-            liveContext,
-          }
-        : { text, images: imgs, model, liveContext }
+      const payload = buildChatRequestPayload({
+        text,
+        images: imgs,
+        model,
+        provider: resolvedProvider,
+        providerIsModelBacked,
+        systemPrompt: builderMode ? buildModuleBuilderSystemPrompt() : undefined,
+        liveContext,
+      })
 
-      return postChatRequest(withSessionKey(payload, sessionKey), controller.signal)
+      return postChatRequest(withSessionKey({ ...payload, newChat: options.newChat && !sessionKey, ...options.context }, sessionKey), controller.signal)
     })
       .then((response: ChatSendResponse | undefined) => {
         if (controller.signal.aborted || abortRequestedRef.current) return
@@ -644,16 +817,42 @@ export function useChatState(
         if (nextSessionKey && !sessionKey) {
           options.onSessionKey?.(nextSessionKey)
         }
+        const directReply = response?.reply?.trim()
+        if (directReply) {
+          const timestamp = new Date().toISOString()
+          setMessages(prev => [...prev, {
+            id: `direct-user-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            role: 'user',
+            text,
+            images: imgs.length > 0 ? imgs : undefined,
+            timestamp,
+            localOnly: true,
+          }, {
+            id: `direct-assistant-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            role: 'assistant',
+            text: directReply,
+            timestamp: new Date().toISOString(),
+            localOnly: true,
+          }])
+          setOptimistic(prev => prev.filter(m => m.id !== msgId))
+          setIsTyping(false)
+          setConnected(true)
+        } else {
+          finalizeSendAccepted()
+        }
         queryClient.invalidateQueries({ queryKey: queryKeys.gatewaySessions })
         sendingRef.current = false
         setSending(false)
-        finalizeSendAccepted()
       })
       .catch((err) => {
         if (controller.signal.aborted || abortRequestedRef.current) return
         sendingRef.current = false
         setSending(false)
         setOptimistic(prev => prev.map(m => m.id === msgId ? { ...m, status: 'error' } : m))
+        setSystemMsg(err instanceof Error ? err.message : 'Chat send failed')
+        setTimeout(() => {
+          setSystemMsg(current => current === (err instanceof Error ? err.message : 'Chat send failed') ? null : current)
+        }, 6000)
         console.error('Chat send failed:', err)
       })
       .finally(() => {
@@ -683,7 +882,33 @@ export function useChatState(
     setOptimistic(prev => prev.map(m => m.id === msg.id ? { ...m, status: 'sending' } : m))
     try {
       const liveContext = await captureLiveContext(msg.text, options.context).catch(() => '')
-      await api.post('/api/chat', withSessionKey({ text: msg.text, images: msg.images || [], model, liveContext }, sessionKey))
+      const payload = buildChatRequestPayload({
+        text: msg.text,
+        images: msg.images || [],
+        model,
+        provider: resolvedProvider,
+        providerIsModelBacked,
+        liveContext,
+      })
+      const response = await api.post<ChatSendResponse>('/api/chat', withSessionKey({ ...payload, newChat: options.newChat && !sessionKey, ...options.context }, sessionKey))
+      const directReply = response?.reply?.trim()
+      if (directReply) {
+        const timestamp = new Date().toISOString()
+        setMessages(prev => [...prev, {
+          id: `direct-retry-user-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          role: 'user',
+          text: msg.text,
+          images: msg.images?.length ? msg.images : undefined,
+          timestamp,
+          localOnly: true,
+        }, {
+          id: `direct-retry-assistant-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          role: 'assistant',
+          text: directReply,
+          timestamp: new Date().toISOString(),
+          localOnly: true,
+        }])
+      }
       queryClient.invalidateQueries({ queryKey: queryKeys.gatewaySessions })
       setOptimistic(prev => prev.map(m => m.id === msg.id ? { ...m, status: 'sent' } : m))
       setTimeout(() => setOptimistic(prev => prev.filter(m => m.id !== msg.id)), 2000)
@@ -693,6 +918,11 @@ export function useChatState(
   }
 
   const retryHistoryLoad = () => {
+    if (blank) {
+      setMessages([])
+      setMounted(true)
+      return
+    }
     setHistoryError(null)
     api.get<ChatHistoryResponse>(chatHistoryPath(sessionKey))
       .then(d => {
@@ -721,6 +951,8 @@ export function useChatState(
     notConfigured,
     historyError,
     model, setModel,
+    provider: resolvedProvider, setProvider,
+    providers,
     modelsData,
     visibleModels,
     wsConnected,

@@ -5,6 +5,15 @@ export type ProseMirrorDoc = JSONContent
 export { splitFrontmatter }
 
 type InlineNode = NonNullable<JSONContent['content']>[number]
+export const PAGE_BREAK_MARKDOWN = '<!-- pagebreak -->'
+export const TOC_START_MARKER = '<!-- toc:start -->'
+export const TOC_END_MARKER = '<!-- toc:end -->'
+
+interface TocHeading {
+  level: number
+  text: string
+  slug: string
+}
 
 export function markdownToDoc(markdown: string): ProseMirrorDoc {
   const { body } = splitFrontmatter(markdown)
@@ -59,6 +68,12 @@ export function markdownToDoc(markdown: string): ProseMirrorDoc {
       continue
     }
 
+    if (isPageBreakLine(trimmed)) {
+      content.push({ type: 'pageBreak' })
+      index += 1
+      continue
+    }
+
     if (/^---+$/.test(trimmed)) {
       content.push({ type: 'horizontalRule' })
       index += 1
@@ -67,12 +82,14 @@ export function markdownToDoc(markdown: string): ProseMirrorDoc {
 
     const imageEmbed = trimmed.match(/^!\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/)
     if (imageEmbed && isImagePath(imageEmbed[1])) {
+      const image = parseObsidianImageParts(imageEmbed[1], imageEmbed[2])
       content.push({
         type: 'image',
         attrs: {
-          src: `/api/vault/media?id=${encodeURIComponent(imageEmbed[1].trim())}`,
-          alt: imageEmbed[2]?.trim() || imageEmbed[1].trim(),
-          title: imageEmbed[1].trim(),
+          src: `/api/vault/local/media?id=${encodeURIComponent(image.target)}`,
+          alt: image.alt || image.target,
+          title: image.target,
+          width: image.width,
         },
       })
       index += 1
@@ -158,6 +175,14 @@ export function normalizeMarkdownFixture(markdown: string): string {
   return markdown.replace(/\r\n/g, '\n').replace(/[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').trim()
 }
 
+export function upsertMarkdownTableOfContents(markdown: string): string {
+  const { frontmatter, body } = splitFrontmatter(markdown)
+  const headings = collectTocHeadings(body)
+  const toc = renderTableOfContents(headings)
+  const nextBody = replaceExistingTableOfContents(body, toc) ?? insertTableOfContents(body, toc)
+  return mergeFrontmatter(frontmatter, nextBody.trimEnd())
+}
+
 function docContentToMarkdown(content: JSONContent[]): string {
   return content.map(nodeToMarkdown).filter((part) => part.length > 0).join('\n\n')
 }
@@ -178,6 +203,7 @@ function nodeToMarkdown(node: JSONContent): string {
     return docContentToMarkdown(children).split('\n').map((line) => `> ${line}`).join('\n')
   }
   if (node.type === 'codeBlock') return `\`\`\`${node.attrs?.language || ''}\n${node.text || inlineMarkdown(children)}\n\`\`\``
+  if (node.type === 'pageBreak') return PAGE_BREAK_MARKDOWN
   if (node.type === 'horizontalRule') return '---'
   if (node.type === 'image') return imageMarkdown(node)
   if (node.type === 'table') return tableMarkdown(node)
@@ -191,7 +217,8 @@ function listItemMarkdown(item: JSONContent, marker: string): string {
 
 function inlineContent(text: string): InlineNode[] {
   const nodes: InlineNode[] = []
-  const pattern = /(!?\[\[([^\]|]+)(?:\|([^\]]+))?\]\])|(!\[([^\]]*)\]\(([^)]+)\))|(\[([^\]]+)\]\(([^)]+)\))|(`[^`]+`)|(\*\*[^*]+\*\*)|(~~[^~]+~~)|(\*[^*]+\*)/g
+  const pattern =
+    /(!?\[\[[^\]]+\]\])|(!\[[^\]]*\]\([^)]+\))|(\[[^\]]+\]\([^)]+\))|(<span\s+style="color:\s*#[0-9a-fA-F]{3,8};?">[^<]+<\/span>)|(<mark(?:\s+data-color="#[0-9a-fA-F]{3,8}")?(?:\s+style="background-color:\s*#[0-9a-fA-F]{3,8};?")?>[^<]+<\/mark>)|(<u>[^<]+<\/u>)|(==[^=]+==)|(`[^`]+`)|(\*\*\*[^*]+\*\*\*)|(\*\*[^*]+\*\*)|(~~[^~]+~~)|(\*[^*]+\*)/g
   let last = 0
   let match: RegExpExecArray | null
   while ((match = pattern.exec(text)) !== null) {
@@ -200,15 +227,31 @@ function inlineContent(text: string): InlineNode[] {
     if (raw.startsWith('![[')) {
       nodes.push({ type: 'text', text: raw })
     } else if (raw.startsWith('[[')) {
-      const target = match[2].trim()
-      const label = (match[3] || target).trim()
+      const wikilink = raw.match(/^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/)
+      const target = (wikilink?.[1] || raw.slice(2, -2)).trim()
+      const label = (wikilink?.[2] || target).trim()
       nodes.push({ type: 'text', text: label, marks: [{ type: 'link', attrs: { href: `#note:${encodeURIComponent(target)}` } }] })
     } else if (raw.startsWith('![')) {
       nodes.push({ type: 'text', text: raw })
     } else if (raw.startsWith('[')) {
-      nodes.push({ type: 'text', text: match[8], marks: [{ type: 'link', attrs: { href: match[9] } }] })
+      const link = raw.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
+      nodes.push({ type: 'text', text: link?.[1] || raw, marks: [{ type: 'link', attrs: { href: link?.[2] || '' } }] })
+    } else if (raw.startsWith('<span')) {
+      const color = raw.match(/color:\s*(#[0-9a-fA-F]{3,8})/)?.[1]
+      const value = raw.replace(/^<span[^>]*>/, '').replace(/<\/span>$/, '')
+      nodes.push({ type: 'text', text: value, marks: color ? [{ type: 'textStyle', attrs: { color } }] : undefined })
+    } else if (raw.startsWith('<mark')) {
+      const color = raw.match(/(?:data-color|background-color):?\s*=?["']?(#[0-9a-fA-F]{3,8})/)?.[1]
+      const value = raw.replace(/^<mark[^>]*>/, '').replace(/<\/mark>$/, '')
+      nodes.push({ type: 'text', text: value, marks: [{ type: 'highlight', attrs: color ? { color } : {} }] })
+    } else if (raw.startsWith('<u>')) {
+      nodes.push({ type: 'text', text: raw.slice(3, -4), marks: [{ type: 'underline' }] })
+    } else if (raw.startsWith('==')) {
+      nodes.push({ type: 'text', text: raw.slice(2, -2), marks: [{ type: 'highlight' }] })
     } else if (raw.startsWith('`')) {
       nodes.push({ type: 'text', text: raw.slice(1, -1), marks: [{ type: 'code' }] })
+    } else if (raw.startsWith('***')) {
+      nodes.push({ type: 'text', text: raw.slice(3, -3), marks: [{ type: 'bold' }, { type: 'italic' }] })
     } else if (raw.startsWith('**')) {
       nodes.push({ type: 'text', text: raw.slice(2, -2), marks: [{ type: 'bold' }] })
     } else if (raw.startsWith('~~')) {
@@ -240,6 +283,14 @@ function inlineMarkdown(content: JSONContent[]): string {
       if (mark.type === 'bold') text = `**${text}**`
       if (mark.type === 'italic') text = `*${text}*`
       if (mark.type === 'strike') text = `~~${text}~~`
+      if (mark.type === 'underline') text = `<u>${text}</u>`
+      if (mark.type === 'highlight') {
+        const color = typeof mark.attrs?.color === 'string' ? mark.attrs.color : ''
+        text = color ? `<mark data-color="${color}" style="background-color: ${color}">${text}</mark>` : `==${text}==`
+      }
+      if (mark.type === 'textStyle' && typeof mark.attrs?.color === 'string') {
+        text = `<span style="color: ${mark.attrs.color}">${text}</span>`
+      }
     }
     return text
   }).join('')
@@ -249,11 +300,41 @@ function imageMarkdown(node: JSONContent): string {
   const src = String(node.attrs?.src || '')
   const alt = String(node.attrs?.alt || 'image')
   const title = String(node.attrs?.title || '')
-  if (src.startsWith('/api/vault/media?id=')) {
-    const target = decodeURIComponent(src.slice('/api/vault/media?id='.length))
+  const mediaPrefix = src.startsWith('/api/vault/local/media?id=')
+    ? '/api/vault/local/media?id='
+    : src.startsWith('/api/vault/media?id=')
+      ? '/api/vault/media?id='
+      : ''
+  if (mediaPrefix) {
+    const target = decodeURIComponent(src.slice(mediaPrefix.length))
+    const width = normalizeImageWidth(node.attrs?.width)
+    if (width && alt && alt !== target) return `![[${target}|${alt}|${width}]]`
+    if (width) return `![[${target}|${width}]]`
     return alt && alt !== target ? `![[${target}|${alt}]]` : `![[${target}]]`
   }
   return `![${alt}](${src}${title ? ` "${title}"` : ''})`
+}
+
+function parseObsidianImageParts(target: string, rawMeta = ''): { target: string; alt: string; width?: number } {
+  const parts = rawMeta.split('|').map((part) => part.trim()).filter(Boolean)
+  const firstWidth = parts.find((part) => normalizeImageWidth(part))
+  const alt = parts.find((part) => part !== firstWidth) || ''
+  return {
+    target: target.trim(),
+    alt,
+    width: normalizeImageWidth(firstWidth),
+  }
+}
+
+function normalizeImageWidth(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return clampImageWidth(value)
+  if (typeof value !== 'string') return undefined
+  const match = value.trim().match(/^(\d{2,4})(?:px)?(?:x\d{2,4})?$/i)
+  return match ? clampImageWidth(Number(match[1])) : undefined
+}
+
+function clampImageWidth(value: number): number {
+  return Math.max(80, Math.min(1400, Math.round(value)))
 }
 
 function tableNode(rows: string[][]): JSONContent {
@@ -293,10 +374,93 @@ function isBlockStart(line: string): boolean {
     || /^[-*]\s+/.test(trimmed)
     || /^\d+\.\s+/.test(trimmed)
     || /^>\s?/.test(line)
+    || isPageBreakLine(trimmed)
     || /^---+$/.test(trimmed)
     || /^\|.+\|$/.test(trimmed)
 }
 
+function isPageBreakLine(trimmed: string): boolean {
+  return trimmed === PAGE_BREAK_MARKDOWN || trimmed === '[[pagebreak]]'
+}
+
 function isImagePath(path: string): boolean {
   return /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(path.trim())
+}
+
+function collectTocHeadings(markdown: string): TocHeading[] {
+  const slugs = new Map<string, number>()
+  const headings: TocHeading[] = []
+  let seenHeading = false
+  for (const line of markdown.replace(/\r\n/g, '\n').split('\n')) {
+    const match = line.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/)
+    if (!match) continue
+    const level = Math.min(match[1].length, 6)
+    const text = stripInlineMarkdown(match[2]).trim()
+    if (!text || /^table of contents$/i.test(text)) continue
+    if (!seenHeading && level === 1) {
+      seenHeading = true
+      continue
+    }
+    seenHeading = true
+    const baseSlug = slugifyHeading(text) || 'section'
+    const count = slugs.get(baseSlug) || 0
+    slugs.set(baseSlug, count + 1)
+    headings.push({
+      level,
+      text,
+      slug: count > 0 ? `${baseSlug}-${count}` : baseSlug,
+    })
+  }
+  return headings
+}
+
+function renderTableOfContents(headings: TocHeading[]): string {
+  const baseLevel = headings.reduce((level, heading) => Math.min(level, heading.level), 6)
+  const entries = headings.length
+    ? headings.map((heading) => `${'  '.repeat(Math.max(0, heading.level - baseLevel))}- [${escapeTocLabel(heading.text)}](#${heading.slug})`).join('\n')
+    : '- No headings yet'
+  return `${TOC_START_MARKER}\n${entries}\n${TOC_END_MARKER}`
+}
+
+function replaceExistingTableOfContents(markdown: string, toc: string): string | null {
+  const pattern = new RegExp(`${escapeRegExp(TOC_START_MARKER)}[\\s\\S]*?${escapeRegExp(TOC_END_MARKER)}`)
+  return pattern.test(markdown) ? markdown.replace(pattern, toc) : null
+}
+
+function insertTableOfContents(markdown: string, toc: string): string {
+  const lines = markdown.replace(/\r\n/g, '\n').split('\n')
+  const firstHeadingIndex = lines.findIndex((line) => /^#\s+/.test(line))
+  if (firstHeadingIndex >= 0) {
+    const insertAt = firstHeadingIndex + 1
+    while (lines[insertAt] === '') lines.splice(insertAt, 1)
+    lines.splice(insertAt, 0, '', '## Table of Contents', '', toc, '')
+    return lines.join('\n')
+  }
+  const body = markdown.trim()
+  return body ? `## Table of Contents\n\n${toc}\n\n${body}` : `## Table of Contents\n\n${toc}`
+}
+
+function stripInlineMarkdown(text: string): string {
+  return text
+    .replace(/!\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_match, target, label) => label || target)
+    .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_match, target, label) => label || target)
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[`*_~]/g, '')
+}
+
+function slugifyHeading(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/['"]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function escapeTocLabel(text: string): string {
+  return text.replace(/\\/g, '\\\\').replace(/\]/g, '\\]')
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

@@ -57,6 +57,23 @@ describe('theme-store', () => {
     expect(getThemeState().mode).toBe('system')
   })
 
+  it('cycleThemeMode persists through synced theme-state instead of legacy theme key', async () => {
+    const { cycleThemeMode, getThemeState } = await import('../theme-store')
+
+    const next = cycleThemeMode()
+
+    expect(next).toBe('light')
+    expect(getThemeState().mode).toBe('light')
+    expect(localStorageMock.setItem).toHaveBeenCalledWith(
+      'theme-state',
+      expect.stringContaining('"mode":"light"')
+    )
+    expect(localStorageMock.setItem).not.toHaveBeenCalledWith(
+      'theme',
+      expect.any(String)
+    )
+  })
+
   it('setAccentOverride stores override for current active theme', async () => {
     const { getThemeState, setAccentOverride } = await import('../theme-store')
     setAccentOverride('#ff0000')
@@ -106,6 +123,88 @@ describe('theme-store', () => {
     expect(state.mode).toBe('light')
     expect(state.activeThemeId).toBe('nord')
     expect(state.overrides.nord.accent).toBe('#88c0d0')
+  })
+
+  it('promotes legacy theme mode over stale theme-state on load', async () => {
+    store['theme-state'] = JSON.stringify({
+      mode: 'dark',
+      activeThemeId: 'default-dark',
+      overrides: {},
+      customThemes: [],
+      lastModified: 100,
+    })
+    store.theme = JSON.stringify('light')
+
+    const { getThemeState } = await import('../theme-store')
+
+    const state = getThemeState()
+    expect(state.mode).toBe('light')
+    expect(state.activeThemeId).toBe('default-light')
+    expect(state.lastModified).toBeGreaterThan(100)
+    expect(store.theme).toBeUndefined()
+    expect(localStorageMock.setItem).toHaveBeenCalledWith(
+      'theme-state',
+      expect.stringContaining('"mode":"light"')
+    )
+    expect(localStorageMock.removeItem).toHaveBeenCalledWith('theme')
+  })
+
+  it('promotes legacy theme mode when theme-state is missing', async () => {
+    store.theme = JSON.stringify('system')
+
+    const { getThemeState } = await import('../theme-store')
+
+    const state = getThemeState()
+    expect(state.mode).toBe('system')
+    expect(state.activeThemeId).toBe('default-dark')
+    expect(store.theme).toBeUndefined()
+    expect(localStorageMock.setItem).toHaveBeenCalledWith(
+      'theme-state',
+      expect.stringContaining('"mode":"system"')
+    )
+  })
+
+  it('previews page theme overrides without persisting until commit', async () => {
+    const {
+      commitThemeDraft,
+      getThemeState,
+      setPageOverride,
+      startThemeDraft,
+    } = await import('../theme-store')
+
+    vi.clearAllMocks()
+    startThemeDraft()
+    setPageOverride('/todos', 'dracula')
+
+    expect(getThemeState().pageOverrides?.['/todos']).toBe('dracula')
+    expect(localStorageMock.setItem).not.toHaveBeenCalledWith('theme-state', expect.stringContaining('dracula'))
+
+    expect(commitThemeDraft()).toBe(true)
+    expect(localStorageMock.setItem).toHaveBeenCalledWith('theme-state', expect.stringContaining('"/todos":"dracula"'))
+  })
+
+  it('supports undo, redo, and discard for theme drafts', async () => {
+    const {
+      discardThemeDraft,
+      getThemeState,
+      redoThemeDraft,
+      setPageOverride,
+      startThemeDraft,
+      undoThemeDraft,
+    } = await import('../theme-store')
+
+    startThemeDraft()
+    setPageOverride('/todos', 'dracula')
+    expect(getThemeState().pageOverrides?.['/todos']).toBe('dracula')
+
+    expect(undoThemeDraft()).toBe(true)
+    expect(getThemeState().pageOverrides?.['/todos']).toBeUndefined()
+
+    expect(redoThemeDraft()).toBe(true)
+    expect(getThemeState().pageOverrides?.['/todos']).toBe('dracula')
+
+    expect(discardThemeDraft()).toBe(true)
+    expect(getThemeState().pageOverrides?.['/todos']).toBeUndefined()
   })
 })
 

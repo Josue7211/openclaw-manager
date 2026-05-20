@@ -1,13 +1,18 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render } from '@testing-library/react'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import MarkdownBubble from '../MarkdownBubble'
 
-// Mock clipboard API
-Object.assign(navigator, {
-  clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
-})
+let clipboardWriteText: ReturnType<typeof vi.fn>
 
 describe('MarkdownBubble', () => {
+  beforeEach(() => {
+    clipboardWriteText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    })
+  })
+
   it('renders plain markdown text', () => {
     const { container } = render(<MarkdownBubble>{'Hello **world**'}</MarkdownBubble>)
     const bubble = container.querySelector('.md-bubble')
@@ -30,6 +35,29 @@ describe('MarkdownBubble', () => {
     expect(btn).not.toBeNull()
     expect(btn?.textContent).toBe('Copy')
     expect(btn?.getAttribute('aria-label')).toBe('Copy code')
+  })
+
+  it('copies code blocks through the shared clipboard flow', async () => {
+    const code = '```python\nprint("hello")\n```'
+    render(<MarkdownBubble>{code}</MarkdownBubble>)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy code' }))
+
+    await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledWith('print("hello")'))
+    expect(screen.getByRole('button', { name: 'Copied code' })).toBeInTheDocument()
+  })
+
+  it('reports blocked code copy without throwing', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: undefined,
+    })
+    const code = '```bash\nnpm test\n```'
+    render(<MarkdownBubble>{code}</MarkdownBubble>)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy code' }))
+
+    expect(await screen.findByRole('button', { name: 'Copy failed' })).toBeInTheDocument()
   })
 
   it('renders language label in code header', () => {

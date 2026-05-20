@@ -22,7 +22,7 @@ vi.mock('@/lib/hooks/useGatewaySSE', () => ({
 }))
 
 import { useCrons } from '../useCrons'
-import type { CronJob } from '@/pages/crons/types'
+import type { CronJob } from '@/features/crons/types'
 import { queryKeys } from '@/lib/query-keys'
 
 const mockJob: CronJob = {

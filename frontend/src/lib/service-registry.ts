@@ -1,15 +1,5 @@
 import type React from 'react'
-import {
-  ChatText,
-  Robot,
-  Desktop,
-  FilmStrip,
-  Envelope,
-  CalendarDots,
-  Bell,
-  Brain,
-  Key,
-} from '@phosphor-icons/react'
+import { ChatText, Robot, Desktop, FilmStrip, Envelope, CalendarDots, Bell, Brain, Key } from '@phosphor-icons/react'
 
 export interface FieldDef {
   label: string
@@ -63,7 +53,12 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
     skipLabel: "Skip — I don't have a Mac",
     fields: [
       { label: 'BlueBubbles Host URL', keychainKey: 'bluebubbles.host', placeholder: 'http://100.x.x.x:1234' },
-      { label: 'BlueBubbles Password', keychainKey: 'bluebubbles.password', placeholder: 'Desktop password', secret: true },
+      {
+        label: 'BlueBubbles Password',
+        keychainKey: 'bluebubbles.password',
+        placeholder: 'Desktop password',
+        secret: true,
+      },
     ],
     services: [{ name: 'bluebubbles', fieldKeys: ['bluebubbles.host', 'bluebubbles.password'] }],
     testKey: 'bluebubbles',
@@ -81,7 +76,9 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
       { label: 'Harness WebSocket URL', keychainKey: 'harness.ws', placeholder: 'ws://100.x.x.x:18789/ws' },
       { label: 'Harness Password', keychainKey: 'harness.password', placeholder: 'Password', secret: true },
     ],
-    services: [{ name: 'harness', fieldKeys: ['harness.api-url', 'harness.api-key', 'harness.ws', 'harness.password'] }],
+    services: [
+      { name: 'harness', fieldKeys: ['harness.api-url', 'harness.api-key', 'harness.ws', 'harness.password'] },
+    ],
     testKey: 'harness',
   },
   {
@@ -92,25 +89,58 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
     moduleIds: [],
     optional: false,
     fields: [
-      { label: 'Agent Secrets URL', keychainKey: 'agentsecrets.url', placeholder: 'http://100.x.x.x:4815 or https://secrets.example.com' },
-      { label: 'Agent Secrets Client API Key', keychainKey: 'agentsecrets.client-api-key', placeholder: 'Client API key', secret: true },
-      { label: 'Agent Secrets Approver API Key', keychainKey: 'agentsecrets.approver-api-key', placeholder: 'Approver API key', secret: true },
+      {
+        label: 'Agent Secrets URL',
+        keychainKey: 'agentsecrets.url',
+        placeholder: 'http://100.x.x.x:4815 or https://secrets.example.com',
+      },
+      {
+        label: 'Agent Secrets Client API Key',
+        keychainKey: 'agentsecrets.client-api-key',
+        placeholder: 'Client API key',
+        secret: true,
+      },
+      {
+        label: 'Agent Secrets Approver API Key',
+        keychainKey: 'agentsecrets.approver-api-key',
+        placeholder: 'Approver API key',
+        secret: true,
+      },
     ],
-    services: [{ name: 'agentsecrets', fieldKeys: ['agentsecrets.url', 'agentsecrets.client-api-key', 'agentsecrets.approver-api-key'] }],
+    services: [
+      {
+        name: 'agentsecrets',
+        fieldKeys: ['agentsecrets.url', 'agentsecrets.client-api-key', 'agentsecrets.approver-api-key'],
+      },
+    ],
     testKey: 'agentsecrets',
   },
   {
     id: 'homelab',
     title: 'Home Lab',
-    description: 'Proxmox virtualization and OPNsense firewall monitoring.',
+    description: 'Proxmox, Portainer, OPNsense, storage, power, and host-service control.',
     icon: Desktop,
-    moduleIds: ['homelab'],
+    moduleIds: [
+      'homelab',
+      'homelab-proxmox',
+      'homelab-portainer',
+      'homelab-network',
+      'homelab-storage',
+      'homelab-power',
+      'homelab-services',
+      'homelab-activity',
+    ],
     optional: true,
     skipLabel: "Skip — I don't have a homelab",
     fields: [
       { label: 'Proxmox Host URL', keychainKey: 'proxmox.host', placeholder: 'https://100.x.x.x:8006' },
       { label: 'Proxmox Token ID', keychainKey: 'proxmox.token-id', placeholder: 'user@pam!token-name' },
-      { label: 'Proxmox Token Secret', keychainKey: 'proxmox.token-secret', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', secret: true },
+      {
+        label: 'Proxmox Token Secret',
+        keychainKey: 'proxmox.token-secret',
+        placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+        secret: true,
+      },
       { label: 'OPNsense Host URL', keychainKey: 'opnsense.host', placeholder: 'https://100.x.x.x' },
       { label: 'OPNsense API Key', keychainKey: 'opnsense.key', placeholder: 'API key', secret: true },
       { label: 'OPNsense API Secret', keychainKey: 'opnsense.secret', placeholder: 'API secret', secret: true },
@@ -123,7 +153,7 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
   },
   {
     id: 'media',
-    title: 'Media Radar',
+    title: 'Media Command',
     description: 'Plex plus ARR stack control for media search, queue, and calendar.',
     icon: FilmStrip,
     moduleIds: ['media'],
@@ -132,14 +162,25 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
     fields: [
       { label: 'Plex URL', keychainKey: 'plex.url', placeholder: 'http://100.x.x.x:32400' },
       { label: 'Plex Token', keychainKey: 'plex.token', placeholder: 'X-Plex-Token value', secret: true },
+      { label: 'Jellyfin URL', keychainKey: 'jellyfin.url', placeholder: 'http://100.x.x.x:8096' },
+      { label: 'Jellyfin API Key', keychainKey: 'jellyfin.api-key', placeholder: 'API key', secret: true },
+      { label: 'Emby URL', keychainKey: 'emby.url', placeholder: 'http://100.x.x.x:8096' },
+      { label: 'Emby API Key', keychainKey: 'emby.api-key', placeholder: 'API key', secret: true },
       { label: 'Sonarr URL', keychainKey: 'sonarr.url', placeholder: 'http://100.x.x.x:8989' },
       { label: 'Sonarr API Key', keychainKey: 'sonarr.api-key', placeholder: 'API key', secret: true },
       { label: 'Radarr URL', keychainKey: 'radarr.url', placeholder: 'http://100.x.x.x:7878' },
       { label: 'Radarr API Key', keychainKey: 'radarr.api-key', placeholder: 'API key', secret: true },
       { label: 'Lidarr URL', keychainKey: 'lidarr.url', placeholder: 'http://100.x.x.x:8686' },
       { label: 'Lidarr API Key', keychainKey: 'lidarr.api-key', placeholder: 'API key', secret: true },
+      { label: 'Readarr URL', keychainKey: 'readarr.url', placeholder: 'http://100.x.x.x:8787' },
+      { label: 'Readarr API Key', keychainKey: 'readarr.api-key', placeholder: 'API key', secret: true },
+      { label: 'Whisparr URL', keychainKey: 'whisparr.url', placeholder: 'http://100.x.x.x:6969' },
+      { label: 'Whisparr API Key', keychainKey: 'whisparr.api-key', placeholder: 'API key', secret: true },
+      { label: 'Mylar URL', keychainKey: 'mylar.url', placeholder: 'http://100.x.x.x:8090' },
+      { label: 'Mylar API Key', keychainKey: 'mylar.api-key', placeholder: 'API key', secret: true },
       { label: 'Prowlarr URL', keychainKey: 'prowlarr.url', placeholder: 'http://100.x.x.x:9696' },
       { label: 'Prowlarr API Key', keychainKey: 'prowlarr.api-key', placeholder: 'API key', secret: true },
+      { label: 'FlareSolverr URL', keychainKey: 'flaresolverr.url', placeholder: 'http://100.x.x.x:8191' },
       { label: 'Bazarr URL', keychainKey: 'bazarr.url', placeholder: 'http://100.x.x.x:6767' },
       { label: 'Bazarr API Key', keychainKey: 'bazarr.api-key', placeholder: 'API key', secret: true },
       { label: 'Overseerr URL', keychainKey: 'overseerr.url', placeholder: 'http://100.x.x.x:5055' },
@@ -165,13 +206,33 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
       { label: 'Unraid API Key', keychainKey: 'unraid.api-key', placeholder: 'API key', secret: true },
       { label: 'Wizarr URL', keychainKey: 'wizarr.url', placeholder: 'http://100.x.x.x:5690' },
       { label: 'Wizarr API Key', keychainKey: 'wizarr.api-key', placeholder: 'API key', secret: true },
+      { label: 'autobrr URL', keychainKey: 'autobrr.url', placeholder: 'http://100.x.x.x:7474' },
+      { label: 'autobrr API Key', keychainKey: 'autobrr.api-key', placeholder: 'API key', secret: true },
+      { label: 'Recyclarr URL', keychainKey: 'recyclarr.url', placeholder: 'http://100.x.x.x' },
+      { label: 'Recyclarr API Key', keychainKey: 'recyclarr.api-key', placeholder: 'API key', secret: true },
+      { label: 'Kometa URL', keychainKey: 'kometa.url', placeholder: 'http://100.x.x.x' },
+      { label: 'Kometa API Key', keychainKey: 'kometa.api-key', placeholder: 'API key', secret: true },
+      { label: 'SSH Host', keychainKey: 'ssh.host', placeholder: '100.x.x.x' },
+      { label: 'SSH User', keychainKey: 'ssh.user', placeholder: 'username' },
+      { label: 'SSH Password', keychainKey: 'ssh.password', placeholder: 'password', secret: true },
+      { label: 'SSH Key Path', keychainKey: 'ssh.key-path', placeholder: '~/.ssh/id_ed25519' },
+      { label: 'SFTP Host', keychainKey: 'sftp.host', placeholder: '100.x.x.x' },
+      { label: 'SFTP User', keychainKey: 'sftp.user', placeholder: 'username' },
+      { label: 'SFTP Password', keychainKey: 'sftp.password', placeholder: 'password', secret: true },
+      { label: 'SFTP Key Path', keychainKey: 'sftp.key-path', placeholder: '~/.ssh/id_ed25519' },
     ],
     services: [
       { name: 'plex', fieldKeys: ['plex.url', 'plex.token'] },
+      { name: 'jellyfin', fieldKeys: ['jellyfin.url', 'jellyfin.api-key'] },
+      { name: 'emby', fieldKeys: ['emby.url', 'emby.api-key'] },
       { name: 'sonarr', fieldKeys: ['sonarr.url', 'sonarr.api-key'] },
       { name: 'radarr', fieldKeys: ['radarr.url', 'radarr.api-key'] },
       { name: 'lidarr', fieldKeys: ['lidarr.url', 'lidarr.api-key'] },
+      { name: 'readarr', fieldKeys: ['readarr.url', 'readarr.api-key'] },
+      { name: 'whisparr', fieldKeys: ['whisparr.url', 'whisparr.api-key'] },
+      { name: 'mylar', fieldKeys: ['mylar.url', 'mylar.api-key'] },
       { name: 'prowlarr', fieldKeys: ['prowlarr.url', 'prowlarr.api-key'] },
+      { name: 'flaresolverr', fieldKeys: ['flaresolverr.url'] },
       { name: 'bazarr', fieldKeys: ['bazarr.url', 'bazarr.api-key'] },
       { name: 'overseerr', fieldKeys: ['overseerr.url', 'overseerr.api-key'] },
       { name: 'jellyseerr', fieldKeys: ['jellyseerr.url', 'jellyseerr.api-key'] },
@@ -183,6 +244,11 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
       { name: 'deluge', fieldKeys: ['deluge.url', 'deluge.password'] },
       { name: 'unraid', fieldKeys: ['unraid.url', 'unraid.api-key'] },
       { name: 'wizarr', fieldKeys: ['wizarr.url', 'wizarr.api-key'] },
+      { name: 'autobrr', fieldKeys: ['autobrr.url', 'autobrr.api-key'] },
+      { name: 'recyclarr', fieldKeys: ['recyclarr.url', 'recyclarr.api-key'] },
+      { name: 'kometa', fieldKeys: ['kometa.url', 'kometa.api-key'] },
+      { name: 'ssh', fieldKeys: ['ssh.host', 'ssh.user', 'ssh.password', 'ssh.key-path'] },
+      { name: 'sftp', fieldKeys: ['sftp.host', 'sftp.user', 'sftp.password', 'sftp.key-path'] },
     ],
   },
   {
@@ -197,11 +263,25 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
       { label: 'IMAP Host', keychainKey: 'email.host', placeholder: '127.0.0.1 or imap.example.com' },
       { label: 'IMAP Port', keychainKey: 'email.port', placeholder: '993' },
       { label: 'IMAP Username', keychainKey: 'email.user', placeholder: 'you@example.com' },
-      { label: 'IMAP Password', keychainKey: 'email.password', placeholder: 'App password or bridge password', secret: true },
+      {
+        label: 'IMAP Password',
+        keychainKey: 'email.password',
+        placeholder: 'App password or bridge password',
+        secret: true,
+      },
       { label: 'Mailbox Provider', keychainKey: 'email.provider', placeholder: 'proton, gmail, icloud, outlook, imap' },
       { label: 'Mailbox Label', keychainKey: 'email.label', placeholder: 'Personal, Work, Aparcedo' },
-      { label: 'AgentMail API Key', keychainKey: 'agentmail.api-key', placeholder: 'Agent access API key', secret: true },
-      { label: 'Default AgentMail Access Inbox ID', keychainKey: 'agentmail.default-inbox-id', placeholder: 'inbox_xxx' },
+      {
+        label: 'AgentMail API Key',
+        keychainKey: 'agentmail.api-key',
+        placeholder: 'Agent access API key',
+        secret: true,
+      },
+      {
+        label: 'Default AgentMail Access Inbox ID',
+        keychainKey: 'agentmail.default-inbox-id',
+        placeholder: 'inbox_xxx',
+      },
       { label: 'Default Account Address', keychainKey: 'agentmail.default-address', placeholder: 'josue@aparcedo.org' },
     ],
     services: [
@@ -252,9 +332,7 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
     moduleIds: [],
     optional: true,
     skipLabel: 'Skip — no Anthropic key',
-    fields: [
-      { label: 'Anthropic API Key', keychainKey: 'anthropic.api-key', placeholder: 'sk-ant-...', secret: true },
-    ],
+    fields: [{ label: 'Anthropic API Key', keychainKey: 'anthropic.api-key', placeholder: 'sk-ant-...', secret: true }],
     services: [{ name: 'anthropic', fieldKeys: ['anthropic.api-key'] }],
   },
   {
@@ -268,11 +346,13 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
     fields: [
       { label: 'LightRAG Base URL', keychainKey: 'lightrag.base-url', placeholder: 'http://your-lightrag-host:9621' },
       { label: 'LightRAG API Key', keychainKey: 'lightrag.api-key', placeholder: 'API key', secret: true },
+      { label: 'LightRAG LLM API Key', keychainKey: 'lightrag.llm-api-key', placeholder: 'Codex LB or OpenAI-compatible key', secret: true },
+      { label: 'LightRAG Embedding API Key', keychainKey: 'lightrag.embedding-api-key', placeholder: 'Embedding provider key', secret: true },
       { label: 'memd RAG Sidecar URL', keychainKey: 'memd.rag-url', placeholder: 'http://100.x.x.x:9000' },
       { label: 'RAGAnything/MinerU URL', keychainKey: 'raganything.url', placeholder: 'http://100.x.x.x:8010' },
     ],
     services: [
-      { name: 'lightrag', fieldKeys: ['lightrag.base-url', 'lightrag.api-key'] },
+      { name: 'lightrag', fieldKeys: ['lightrag.base-url', 'lightrag.api-key', 'lightrag.llm-api-key', 'lightrag.embedding-api-key'] },
       { name: 'memd', fieldKeys: ['memd.rag-url'] },
       { name: 'raganything', fieldKeys: ['raganything.url'] },
     ],
@@ -335,8 +415,18 @@ export const CONNECTION_SETTINGS: ConnectionSettingDef[] = [
     urlKeychainKey: 'agentsecrets.url',
     urlPlaceholder: 'http://100.x.x.x:4815 or https://secrets.example.com',
     credentialFields: [
-      { label: 'Client API Key', keychainKey: 'agentsecrets.client-api-key', placeholder: 'Client API key', secret: true },
-      { label: 'Approver API Key', keychainKey: 'agentsecrets.approver-api-key', placeholder: 'Approver API key', secret: true },
+      {
+        label: 'Client API Key',
+        keychainKey: 'agentsecrets.client-api-key',
+        placeholder: 'Client API key',
+        secret: true,
+      },
+      {
+        label: 'Approver API Key',
+        keychainKey: 'agentsecrets.approver-api-key',
+        placeholder: 'Approver API key',
+        secret: true,
+      },
     ],
     expectedHostPreferenceKey: 'agentsecrets.expected-host',
     expectedHostPlaceholder: 'e.g. secrets-host',
@@ -360,7 +450,9 @@ export function keychainKeyToCredKey(keychainKey: string): string {
   return credPart.replace(/-/g, '_')
 }
 
-export function buildServiceCredentialMap(entries: Array<ServiceCredentialsEntry>): Record<string, Record<string, string>> {
+export function buildServiceCredentialMap(
+  entries: Array<ServiceCredentialsEntry>,
+): Record<string, Record<string, string>> {
   const grouped: Record<string, Record<string, string>> = {}
 
   for (const { service, keychainKey, value } of entries) {

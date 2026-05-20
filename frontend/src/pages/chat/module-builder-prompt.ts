@@ -82,6 +82,9 @@ Generate valid JSON matching the ModuleProposal shape below. If the user asks fo
 - MUST set \`backendContract.requested\` to true only when the proposal explicitly needs backend schema or query/mutation work
 - MUST keep backend contract summaries concrete and short
 - MUST include backend contract models, queries, and mutations only when \`backendContract.requested\` is true
+- MUST use the supplied ClawControl live app context for any "current", "actual", "my", "today", or "upcoming" facts
+- MUST NOT invent appointments, todos, reminders, messages, emails, metrics, or placeholder records when live context does not include them
+- MUST state missing live data as unavailable in \`fallbackMessage\` or \`dataRequirements\` instead of filling plausible fake examples
 
 ## ModuleProposal Shape
 

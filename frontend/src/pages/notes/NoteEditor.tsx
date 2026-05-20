@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, memo, type ElementType } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, memo, type ElementType } from 'react'
 import { Columns, Eye, FileText, LinkSimple, ListBullets, MagnifyingGlass, PenNib, Tag } from '@phosphor-icons/react'
 import {
   EditorView,
@@ -11,7 +11,6 @@ import {
 } from '@codemirror/view'
 import type { DecorationSet, ViewUpdate } from '@codemirror/view'
 import { EditorState, RangeSetBuilder, Compartment } from '@codemirror/state'
-import { API_BASE } from '@/lib/api'
 import { noteIdFromTitle, parseFrontmatter, uploadAttachment } from '@/lib/vault'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
@@ -26,12 +25,15 @@ import {
 import { tags } from '@lezer/highlight'
 import { searchKeymap, highlightSelectionMatches, openSearchPanel } from '@codemirror/search'
 import { autocompletion, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
-import type { VaultNote } from './types'
+import type { NoteReviewMarker, NoteSelectionAnchor, VaultNote } from './types'
 import EditorToolbar, { toggleWrap, toggleWrapPair, insertLink } from './EditorToolbar'
 import { wikilinkCompletions } from './wikilinkCompletion'
 import { slashCommandCompletions } from './slashCommands'
 import DocumentEditor from './DocumentEditor'
 import { markdownToSafeHtml, setFrontmatterProperty } from './export'
+import { resolveTextReviewRanges } from './reviewAnchors'
+import { documentStats, type DocumentStats } from './documentStats'
+import { DEFAULT_NOTES_EDITOR_PREFERENCES, markdownFontSizePx, markdownWidthPx, normalizeNotesEditorPreferences, type NotesEditorPreferences } from './notesPreferences'
 
 // --- Image embed widget for ![[image.png]] syntax ---
 
@@ -93,7 +95,7 @@ function buildImageDecorations(view: EditorView): DecorationSet {
     while ((match = IMAGE_EMBED_RE.exec(line.text)) !== null) {
       const filename = match[1].trim()
       if (!IMAGE_EXTENSIONS.test(filename)) continue
-      const src = `${API_BASE}/api/vault/media?id=${encodeURIComponent(filename)}`
+      const src = `/api/vault/local/media?id=${encodeURIComponent(filename)}`
       builder.add(
         line.to,
         line.to,
@@ -124,6 +126,29 @@ const imageEmbedPlugin = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations },
 )
 
+function markdownReviewDecorations(markers: NoteReviewMarker[] = [], activeId: string | null = null) {
+  return EditorView.decorations.of((view) => {
+    const builder = new RangeSetBuilder<Decoration>()
+    const ranges = resolveTextReviewRanges(view.state.doc.toString(), markers, activeId, 'markdown')
+    for (const range of ranges) {
+      builder.add(
+        range.from,
+        range.to,
+        Decoration.mark({
+          class: [
+            range.kind === 'comment' ? 'cm-review-comment' : 'cm-review-suggestion',
+            range.active ? 'cm-review-active' : '',
+          ].filter(Boolean).join(' '),
+          attributes: {
+            'data-review-id': range.id,
+          },
+        }),
+      )
+    }
+    return builder.finish()
+  })
+}
+
 const mcTheme = EditorView.theme(
   {
     '&': {
@@ -148,6 +173,21 @@ const mcTheme = EditorView.theme(
     },
     '&.cm-focused .cm-selectionBackground': {
       background: 'var(--accent-a30) !important',
+    },
+    '.cm-review-comment, .cm-review-suggestion': {
+      borderRadius: '2px',
+      boxShadow: 'inset 0 -2px 0 color-mix(in srgb, var(--accent) 54%, transparent)',
+    },
+    '.cm-review-comment': {
+      background: 'color-mix(in srgb, var(--accent) 16%, transparent)',
+    },
+    '.cm-review-suggestion': {
+      background: 'color-mix(in srgb, var(--green) 18%, transparent)',
+      boxShadow: 'inset 0 -2px 0 color-mix(in srgb, var(--green) 54%, transparent)',
+    },
+    '.cm-review-active': {
+      outline: '1px solid var(--accent-dim)',
+      background: 'color-mix(in srgb, var(--accent) 28%, transparent)',
     },
     '.cm-activeLine': {
       background: 'transparent',
@@ -294,12 +334,32 @@ const mcHighlighting = HighlightStyle.define([
   { tag: tags.punctuation, color: 'var(--cyan)' },
 ])
 
+function markdownPreferenceExtension(preferences: NotesEditorPreferences) {
+  return [
+    EditorView.theme({
+      '&': {
+        fontSize: `${markdownFontSizePx(preferences.markdownFontSize)}px`,
+      },
+      '.cm-content': {
+        maxWidth: `${markdownWidthPx(preferences.markdownWidth)}px`,
+      },
+    }),
+    EditorView.contentAttributes.of({
+      spellcheck: String(preferences.spellcheck),
+    }),
+  ]
+}
+
 interface NoteEditorProps {
   note: VaultNote
   onChange: (content: string) => void
   onWikilinkClick: (link: string) => void
   allNoteTitles?: string[]
   allNotes?: VaultNote[]
+  onSelectionChange?: (anchor: NoteSelectionAnchor) => void
+  reviewMarkers?: NoteReviewMarker[]
+  activeReviewId?: string | null
+  preferences?: NotesEditorPreferences
 }
 
 interface HeadingInfo {
@@ -316,19 +376,36 @@ const DOCUMENT_INFO_FIELDS = [
   { key: 'author', label: 'Author', placeholder: 'Your name' },
 ] as const
 
-export default memo(function NoteEditor({ note, onChange, onWikilinkClick, allNoteTitles = [], allNotes = [] }: NoteEditorProps) {
+export default memo(function NoteEditor({
+  note,
+  onChange,
+  onWikilinkClick,
+  allNoteTitles = [],
+  allNotes = [],
+  onSelectionChange,
+  reviewMarkers = [],
+  activeReviewId = null,
+  preferences = DEFAULT_NOTES_EDITOR_PREFERENCES,
+}: NoteEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
   const onWikilinkClickRef = useRef(onWikilinkClick)
+  const onSelectionChangeRef = useRef(onSelectionChange)
   const noteIdRef = useRef(note._id)
   const autocompleteCompartment = useRef(new Compartment())
+  const reviewCompartment = useRef(new Compartment())
+  const preferenceCompartment = useRef(new Compartment())
+  const effectivePreferences = normalizeNotesEditorPreferences(preferences)
   const [draftContent, setDraftContent] = useState(note.content)
-  const [docMode, setDocMode] = useState<'doc' | 'source' | 'split' | 'read'>('doc')
+  const [docMode, setDocMode] = useState<'doc' | 'source' | 'split' | 'read'>(effectivePreferences.defaultMode)
   const [inspectorOpen, setInspectorOpen] = useState(false)
+  const [wordCountOpen, setWordCountOpen] = useState(false)
+  const [selectionText, setSelectionText] = useState('')
 
   onChangeRef.current = onChange
   onWikilinkClickRef.current = onWikilinkClick
+  onSelectionChangeRef.current = onSelectionChange
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -338,6 +415,24 @@ export default memo(function NoteEditor({ note, onChange, onWikilinkClick, allNo
         const nextContent = update.state.doc.toString()
         setDraftContent(nextContent)
         onChangeRef.current(nextContent)
+      }
+      if (update.selectionSet || update.docChanged) {
+        const selection = update.state.selection.main
+        const from = Math.min(selection.from, selection.to)
+        const to = Math.max(selection.from, selection.to)
+        const fromLine = update.state.doc.lineAt(from)
+        const toLine = update.state.doc.lineAt(to)
+        const quote = from === to ? '' : update.state.doc.sliceString(from, to)
+        setSelectionText(quote)
+        onSelectionChangeRef.current?.({
+          scope: from === to ? 'cursor' : 'selection',
+          mode: 'markdown',
+          start: from,
+          end: to,
+          from_line: fromLine.number,
+          to_line: toLine.number,
+          quote,
+        })
       }
     })
 
@@ -396,6 +491,8 @@ export default memo(function NoteEditor({ note, onChange, onWikilinkClick, allNo
         updateListener,
         clickHandler,
         imageEmbedPlugin,
+        reviewCompartment.current.of(markdownReviewDecorations(reviewMarkers, activeReviewId)),
+        preferenceCompartment.current.of(markdownPreferenceExtension(effectivePreferences)),
         EditorView.lineWrapping,
       ],
     })
@@ -408,6 +505,18 @@ export default memo(function NoteEditor({ note, onChange, onWikilinkClick, allNo
     return () => { view.destroy(); viewRef.current = null }
      
   }, [note._id])
+
+  useEffect(() => {
+    setDocMode(effectivePreferences.defaultMode)
+  }, [effectivePreferences.defaultMode, note._id])
+
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    view.dispatch({
+      effects: preferenceCompartment.current.reconfigure(markdownPreferenceExtension(effectivePreferences)),
+    })
+  }, [effectivePreferences.markdownFontSize, effectivePreferences.markdownWidth, effectivePreferences.spellcheck])
 
   useEffect(() => {
     const view = viewRef.current
@@ -446,19 +555,35 @@ export default memo(function NoteEditor({ note, onChange, onWikilinkClick, allNo
     })
   }, [allNoteTitles])
 
-  const stats = useMemo(() => {
-    const trimmed = draftContent.trim()
-    const words = trimmed ? trimmed.split(/\s+/).length : 0
-    const links = new Set([...draftContent.matchAll(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g)].map((m) => m[1].trim())).size
-    const tags = new Set([...draftContent.matchAll(/(?:^|\s)#([a-zA-Z][\w/-]*)/g)].map((m) => m[1])).size
-    return {
-      words,
-      chars: draftContent.length,
-      lines: draftContent.split('\n').length,
-      links,
-      tags,
-    }
-  }, [draftContent])
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    view.dispatch({
+      effects: reviewCompartment.current.reconfigure(markdownReviewDecorations(reviewMarkers, activeReviewId)),
+    })
+  }, [activeReviewId, reviewMarkers])
+
+  useEffect(() => {
+    if (!activeReviewId) return
+    const view = viewRef.current
+    const marker = reviewMarkers.find((item) => item.id === activeReviewId)
+    if (!view || !marker) return
+    const [range] = resolveTextReviewRanges(view.state.doc.toString(), [marker], activeReviewId, 'markdown')
+    if (!range) return
+    view.dispatch({
+      selection: { anchor: range.from, head: range.to },
+      effects: EditorView.scrollIntoView(range.from, { y: 'center' }),
+    })
+    view.focus()
+  }, [activeReviewId, reviewMarkers])
+
+  const stats = useMemo(() => documentStats(draftContent), [draftContent])
+  const selectionStats = useMemo(() => selectionText.trim() ? documentStats(selectionText) : null, [selectionText])
+
+  const handleSelectionChange = useCallback((anchor: NoteSelectionAnchor) => {
+    setSelectionText(anchor.scope === 'selection' ? anchor.quote ?? '' : '')
+    onSelectionChangeRef.current?.(anchor)
+  }, [])
 
   const headings = useMemo<HeadingInfo[]>(() => {
     return draftContent
@@ -511,7 +636,10 @@ export default memo(function NoteEditor({ note, onChange, onWikilinkClick, allNo
   }, [allNotes, note.links])
 
   const previewContent = useMemo(() => expandNoteEmbeds(draftContent, allNotes, note._id), [allNotes, draftContent, note._id])
-  const previewHtml = useMemo(() => markdownToSafeHtml(previewContent), [previewContent])
+  const previewHtml = useMemo(
+    () => markdownToSafeHtml(previewContent, { notes: allNotes, currentId: note._id }),
+    [allNotes, note._id, previewContent],
+  )
 
   const jumpToHeading = (lineNumber: number) => {
     if (docMode === 'read') setDocMode('source')
@@ -552,6 +680,9 @@ export default memo(function NoteEditor({ note, onChange, onWikilinkClick, allNo
             noteId={note._id}
             allNotes={allNotes}
             mode={docMode}
+            onSelectionChange={handleSelectionChange}
+            reviewMarkers={reviewMarkers}
+            activeReviewId={activeReviewId}
             onMarkdownChange={(nextContent) => {
               setDraftContent(nextContent)
               onChangeRef.current(nextContent)
@@ -586,7 +717,7 @@ export default memo(function NoteEditor({ note, onChange, onWikilinkClick, allNo
           >
             <div
               className="md-display-content"
-              style={{ maxWidth: 760, margin: '0 auto', color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.6 }}
+              style={{ maxWidth: markdownWidthPx(effectivePreferences.markdownWidth) + 80, margin: '0 auto', color: 'var(--text-primary)', fontSize: markdownFontSizePx(effectivePreferences.markdownFontSize), lineHeight: 1.6 }}
               dangerouslySetInnerHTML={{ __html: previewHtml }}
             />
           </div>
@@ -836,13 +967,37 @@ export default memo(function NoteEditor({ note, onChange, onWikilinkClick, allNo
           </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span>{stats.words} words</span>
+          <button
+            type="button"
+            onClick={() => setWordCountOpen(true)}
+            title="Word count"
+            aria-label="Open word count"
+            style={{
+              border: 'none',
+              borderRadius: 'var(--radius-sm)',
+              background: 'transparent',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              font: 'inherit',
+              fontSize: 11,
+              padding: '3px 5px',
+            }}
+          >
+            {stats.words} words
+          </button>
           <span>{stats.chars} chars</span>
           <span>{stats.lines} lines</span>
           <span>{stats.links} links</span>
           <span>{stats.tags} tags</span>
         </div>
       </div>
+      {wordCountOpen && (
+        <WordCountDialog
+          stats={stats}
+          selectionStats={selectionStats}
+          onClose={() => setWordCountOpen(false)}
+        />
+      )}
     </div>
   )
 })
@@ -861,6 +1016,116 @@ function expandNoteEmbeds(content: string, allNotes: VaultNote[], currentId: str
       .join('\n')
     return `\n> [!note] ${embedded.title || rawTarget}\n${body.split('\n').map((line) => `> ${line}`).join('\n')}\n`
   })
+}
+
+function WordCountDialog({
+  stats,
+  selectionStats,
+  onClose,
+}: {
+  stats: DocumentStats
+  selectionStats: DocumentStats | null
+  onClose: () => void
+}) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Word count"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 'var(--z-modal)',
+        display: 'grid',
+        placeItems: 'center',
+        background: 'rgba(0, 0, 0, 0.34)',
+        backdropFilter: 'blur(8px)',
+      }}
+    >
+      <section
+        style={{
+          width: 'min(420px, calc(100vw - 32px))',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-md)',
+          background: 'var(--bg-panel)',
+          boxShadow: '0 24px 80px var(--overlay-heavy)',
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ color: 'var(--text-primary)', fontSize: 15, fontWeight: 650 }}>Word count</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>Document and current selection</div>
+        </div>
+        <div style={{ padding: 14, display: 'grid', gap: 12 }}>
+          <WordCountSection title="Document" stats={stats} />
+          <WordCountSection title="Selection" stats={selectionStats} emptyLabel="No selected text" />
+        </div>
+        <div style={{ padding: 12, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: 'var(--bg-white-04)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              padding: '7px 12px',
+              fontSize: 12,
+            }}
+          >
+            Close
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function WordCountSection({
+  title,
+  stats,
+  emptyLabel,
+}: {
+  title: string
+  stats: DocumentStats | null
+  emptyLabel?: string
+}) {
+  const rows = stats ? [
+    ['Words', stats.words],
+    ['Characters', stats.chars],
+    ['Characters excluding spaces', stats.charsNoSpaces],
+    ['Paragraphs', stats.paragraphs],
+    ['Lines', stats.lines],
+    ['Estimated pages', stats.estimatedPages],
+  ] : []
+
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+      <div style={{ padding: '7px 9px', color: 'var(--text-muted)', fontSize: 11, fontWeight: 650, borderBottom: '1px solid var(--border)' }}>
+        {title}
+      </div>
+      {!stats ? (
+        <div style={{ padding: 10, color: 'var(--text-muted)', fontSize: 12 }}>{emptyLabel || 'No text'}</div>
+      ) : rows.map(([label, value]) => (
+        <div key={label} style={{ display: 'flex', gap: 12, padding: '7px 9px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ flex: 1, minWidth: 0, color: 'var(--text-muted)', fontSize: 12 }}>{label}</div>
+          <div style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 650 }}>{value}</div>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function PanelHeading({

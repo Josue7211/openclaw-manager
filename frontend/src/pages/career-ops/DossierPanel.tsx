@@ -1,5 +1,5 @@
-import type { OpportunityDossier } from '@/pages/job-hunter-types'
-import { badgeStyle, formatDate } from '@/pages/job-hunter-domain'
+import type { OpportunityDossier } from '@/features/career-ops/types'
+import { badgeStyle, formatDate } from '@/features/career-ops/domain'
 
 function renderList(items: string[], empty: string) {
   if (items.length === 0) {
@@ -251,6 +251,44 @@ export function DossierPanel({ dossier }: { dossier: OpportunityDossier | null }
                 </div>
                 {renderList(dossier.assets.interviewPrompts, 'No interview prompts captured yet.')}
               </div>
+              {dossier.assets.callScript ? (
+                <div>
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      color: 'var(--text-muted)',
+                      marginBottom: '6px',
+                    }}
+                  >
+                    Call or visit script
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    {dossier.assets.callScript}
+                  </div>
+                </div>
+              ) : null}
+              {dossier.assets.followUpNote ? (
+                <div>
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      color: 'var(--text-muted)',
+                      marginBottom: '6px',
+                    }}
+                  >
+                    Same-day follow-up
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    {dossier.assets.followUpNote}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 

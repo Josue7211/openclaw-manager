@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
-import type { UsageData } from '@/pages/harness/types'
+import type { UsageData } from '@/features/harness/types'
 
 export function useHarnessUsage() {
   const { data, isLoading, error } = useQuery<UsageData>({

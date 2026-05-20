@@ -19,6 +19,12 @@ interface SemanticResult {
   snippet?: string
   score?: number
   backend?: string
+  references?: Array<Record<string, unknown>>
+}
+
+interface RagChatMessage {
+  role: 'user' | 'assistant'
+  content: string
 }
 
 interface RagStatus {
@@ -67,6 +73,37 @@ interface RagGraph {
 type GraphLayoutMode = 'force' | 'radial' | 'compact'
 type GraphLabelMode = 'auto' | 'all' | 'none'
 const GRAPH_PANEL_HEIGHT = 'clamp(640px, calc(100dvh - 280px), 1120px)'
+const GRAPH_LABEL_STOP_WORDS = new Set([
+  'a',
+  'an',
+  'are',
+  'can',
+  'for',
+  'how',
+  'in',
+  'inside',
+  'is',
+  'me',
+  'on',
+  'of',
+  'show',
+  'tell',
+  'the',
+  'to',
+  'what',
+  'where',
+  'who',
+])
+
+export function normalizeGraphLabelSearchQuery(query: string): string {
+  return query
+    .toLowerCase()
+    .replace(/[^a-z0-9_\-\s]/g, ' ')
+    .split(/\s+/)
+    .map(part => part.trim())
+    .filter(part => part.length > 1 && !GRAPH_LABEL_STOP_WORDS.has(part))
+    .join(' ')
+}
 
 function controlStyle(): React.CSSProperties {
   return {
@@ -96,7 +133,9 @@ export default function KnowledgePage() {
   const [graphLabelMode, setGraphLabelMode] = useState<GraphLabelMode>('auto')
   const [graphParticles, setGraphParticles] = useState(false)
   const [showModal, setShowModal] = useState(false)
+  const [chatHistory, setChatHistory] = useState<RagChatMessage[]>([])
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastRecordedAnswerRef = useRef('')
 
   const { data: ragStatus } = useQuery<RagStatus>({
     queryKey: ['rag-status'],
@@ -120,10 +159,12 @@ export default function KnowledgePage() {
       const resp = await api.post<{ results?: SemanticResult[]; data?: { results?: SemanticResult[] } }>('/api/rag/search', {
         query: debouncedSearch,
         limit: 12,
+        conversation_history: chatHistory.slice(-6),
+        history_turns: 3,
       })
       return resp.results || resp.data?.results || []
     },
-    enabled: debouncedSearch.length >= 2 && !!ragStatus?.reachable,
+    enabled: debouncedSearch.length >= 2,
     staleTime: 60_000,
   })
 
@@ -132,11 +173,13 @@ export default function KnowledgePage() {
     queryFn: async () => {
       const params = new URLSearchParams()
       params.set('limit', '80')
-      if (debouncedSearch.length >= 2) params.set('q', debouncedSearch)
+      if (debouncedSearch.length >= 2) {
+        params.set('q', normalizeGraphLabelSearchQuery(debouncedSearch) || debouncedSearch)
+      }
       const resp = await api.get<{ labels?: string[] }>(`/api/rag/graph/labels?${params}`)
       return resp.labels || []
     },
-    enabled: !!ragStatus?.reachable,
+    enabled: ragStatus?.reachable !== false,
     staleTime: 60_000,
   })
 
@@ -157,7 +200,7 @@ export default function KnowledgePage() {
       const resp = await api.get<{ graph?: RagGraph }>(`/api/rag/graph?${params}`)
       return resp.graph || { nodes: [], edges: [] }
     },
-    enabled: !!activeGraphLabel && !!ragStatus?.reachable,
+    enabled: !!activeGraphLabel && ragStatus?.reachable !== false,
     staleTime: 60_000,
   })
 
@@ -166,7 +209,22 @@ export default function KnowledgePage() {
   const ragCounts = ragStatus?.statusCounts?.status_counts
   const ragCount = ragCounts?.all || ragCounts?.processed
   const hasQuery = debouncedSearch.length >= 2
-  const hasResults = entries.length > 0 || ragResults.length > 0
+  const searchResults = ragResults
+  const answerResult = searchResults.find(result => result.backend === 'lightrag' || result.name === 'LightRAG answer')
+  const answerText = answerResult?.content || answerResult?.snippet || ''
+  const showChatAnswer = hasQuery || ragLoading || !!answerResult || !!ragError
+
+  useEffect(() => {
+    if (!debouncedSearch || ragLoading || !answerText) return
+    const answerKey = `${debouncedSearch}\n${answerText}`
+    if (lastRecordedAnswerRef.current === answerKey) return
+    lastRecordedAnswerRef.current = answerKey
+    setChatHistory(prev => ([
+      ...prev,
+      { role: 'user' as const, content: debouncedSearch },
+      { role: 'assistant' as const, content: answerText },
+    ] satisfies RagChatMessage[]).slice(-6))
+  }, [answerText, debouncedSearch, ragLoading])
   const ragStatusText = !ragStatus?.configured
     ? 'Built-in memd ready'
     : ragStatus.reachable
@@ -412,77 +470,73 @@ export default function KnowledgePage() {
         </div>
       )}
 
-      {(hasQuery || hasResults || isLoading || ragLoading || ragError) && (
-      <div aria-live="polite" aria-busy={isLoading || ragLoading} style={{ marginBottom: '18px' }}>
-        {(isLoading || ragLoading) && hasQuery ? (
-          <SkeletonList count={3} lines={3} layout="grid" />
-        ) : !hasResults && hasQuery ? (
-          <EmptyState icon={BookOpen} title="No knowledge matches" />
-        ) : (
+      {showChatAnswer && (
+        <div
+          aria-live="polite"
+          aria-busy={ragLoading}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            marginBottom: '18px',
+          }}
+        >
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-            gap: '12px',
+            alignSelf: 'stretch',
+            padding: '14px',
+            borderRadius: '8px',
+            border: '1px solid var(--border)',
+            background: 'var(--bg-panel)',
+            color: 'var(--text-primary)',
           }}>
-            {entries.map(entry => (
-              <EntryCard key={entry.id} entry={entry} onSelect={handleSelectEntry} />
-            ))}
-            {ragResults.map((result, index) => {
-              const title = result.name || result.path || `Knowledge result ${index + 1}`
-              const content = result.snippet || result.content || ''
-              return (
-                <button
-                  key={`${title}-${index}`}
-                  type="button"
-                  onClick={() => setSelected({
-                    id: `rag-${index}`,
-                    title,
-                    content: result.content || result.snippet || '',
-                    tags: [result.backend === 'memd-local' ? 'memd' : 'lightrag'],
-                    source_url: result.path || undefined,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                  } as KnowledgeEntry)}
-                  style={{
-                    textAlign: 'left',
-                    padding: '14px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border)',
-                    background: 'var(--bg-panel)',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
-                    font: 'inherit',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '8px' }}>
-                    <strong style={{ fontSize: '13px', lineHeight: 1.3 }}>{title}</strong>
-                    {typeof result.score === 'number' && (
-                      <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{result.score.toFixed(2)}</span>
-                    )}
-                  </div>
-                  <p style={{
-                    margin: 0,
-                    color: 'var(--text-secondary)',
-                    fontSize: '12px',
-                    lineHeight: 1.5,
-                    display: '-webkit-box',
-                    WebkitLineClamp: 4,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                  }}>
-                    {content}
-                  </p>
-                </button>
-              )
-            })}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <Sparkle size={13} style={{ color: 'var(--accent)' }} />
+              <strong style={{ fontSize: '12px' }}>LightRAG answer</strong>
+            </div>
+            <div style={{
+              color: answerText ? 'var(--text-secondary)' : 'var(--text-muted)',
+              fontSize: '13px',
+              lineHeight: 1.6,
+              whiteSpace: 'pre-wrap',
+            }}>
+              {answerText || (ragLoading ? 'Searching LightRAG...' : 'No LightRAG answer returned.')}
+            </div>
+            {Array.isArray(answerResult?.references) && answerResult.references.length > 0 && (
+              <div style={{ marginTop: '12px', color: 'var(--text-muted)', fontSize: '11px' }}>
+                {answerResult.references.length} reference{answerResult.references.length === 1 ? '' : 's'}
+              </div>
+            )}
           </div>
-        )}
-        {ragError && (
-          <div style={{ marginTop: '10px', color: 'var(--text-muted)', fontSize: '12px' }}>
-            Knowledge search unavailable.
-          </div>
-        )}
-      </div>
+
+          {ragError && (
+            <div style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
+              Knowledge search unavailable.
+            </div>
+          )}
+        </div>
+      )}
+
+      {(entries.length > 0 || (isLoading && !hasQuery)) && (
+        <div style={{ marginBottom: '18px' }}>
+          {entries.length > 0 && hasQuery && (
+            <div style={{ color: 'var(--text-muted)', fontSize: '12px', fontWeight: 700, marginBottom: '8px' }}>
+              Local knowledge
+            </div>
+          )}
+          {entries.length > 0 ? (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+              gap: '12px',
+            }}>
+              {entries.map(entry => (
+                <EntryCard key={entry.id} entry={entry} onSelect={handleSelectEntry} />
+              ))}
+            </div>
+          ) : (
+            <SkeletonList count={3} lines={3} layout="grid" />
+          )}
+        </div>
       )}
 
       <div style={{

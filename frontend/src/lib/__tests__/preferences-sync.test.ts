@@ -14,7 +14,7 @@ vi.mock('../api', () => ({
 }))
 
 vi.mock('../theme-store', () => ({
-  applyThemeFromState: vi.fn(),
+  hydrateThemeState: vi.fn(),
 }))
 
 vi.mock('../modules', () => ({
@@ -45,11 +45,12 @@ async function loadModules() {
   const modulesModule = await import('../modules')
 
   return {
+    CHAT_WORKSPACE_PREFERENCES_CHANGED_EVENT: prefSync.CHAT_WORKSPACE_PREFERENCES_CHANGED_EVENT,
     initPreferencesSync: prefSync.initPreferencesSync,
     setPreferencesSyncAuthenticated: prefSync.setPreferencesSyncAuthenticated,
     apiGet: apiModule.api.get as ReturnType<typeof vi.fn>,
     apiPatch: apiModule.api.patch as ReturnType<typeof vi.fn>,
-    applyThemeFromState: themeStoreModule.applyThemeFromState as ReturnType<typeof vi.fn>,
+    hydrateThemeState: themeStoreModule.hydrateThemeState as ReturnType<typeof vi.fn>,
     notifyModulesChanged: modulesModule.notifyModulesChanged as ReturnType<typeof vi.fn>,
   }
 }
@@ -114,8 +115,8 @@ describe('initPreferencesSync', () => {
     warnSpy.mockRestore()
   })
 
-  it('applies theme-state side effect from remote (light mode)', async () => {
-    const { initPreferencesSync, apiGet, applyThemeFromState } = await loadModules()
+  it('hydrates theme-state side effect from remote (light mode)', async () => {
+    const { initPreferencesSync, apiGet, hydrateThemeState } = await loadModules()
     apiGet.mockResolvedValue({
       ok: true,
       data: { 'theme-state': { mode: 'light', activeThemeId: 'default-light', overrides: {}, customThemes: [] } },
@@ -123,11 +124,11 @@ describe('initPreferencesSync', () => {
 
     await initPreferencesSync()
 
-    expect(applyThemeFromState).toHaveBeenCalled()
+    expect(hydrateThemeState).toHaveBeenCalledWith({ mode: 'light', activeThemeId: 'default-light', overrides: {}, customThemes: [] })
   })
 
-  it('applies theme-state side effect from remote (dark mode)', async () => {
-    const { initPreferencesSync, apiGet, applyThemeFromState } = await loadModules()
+  it('hydrates theme-state side effect from remote (dark mode)', async () => {
+    const { initPreferencesSync, apiGet, hydrateThemeState } = await loadModules()
     apiGet.mockResolvedValue({
       ok: true,
       data: { 'theme-state': { mode: 'dark', activeThemeId: 'default-dark', overrides: {}, customThemes: [] } },
@@ -135,7 +136,108 @@ describe('initPreferencesSync', () => {
 
     await initPreferencesSync()
 
-    expect(applyThemeFromState).toHaveBeenCalled()
+    expect(hydrateThemeState).toHaveBeenCalledWith({ mode: 'dark', activeThemeId: 'default-dark', overrides: {}, customThemes: [] })
+  })
+
+  it('syncs chat workspace preferences and notifies Chat to rehydrate projects', async () => {
+    const {
+      CHAT_WORKSPACE_PREFERENCES_CHANGED_EVENT,
+      initPreferencesSync,
+      apiGet,
+    } = await loadModules()
+    const eventSpy = vi.fn()
+    window.addEventListener(CHAT_WORKSPACE_PREFERENCES_CHANGED_EVENT, eventSpy)
+    apiGet.mockResolvedValue({
+      ok: true,
+      data: {
+        'chat-added-projects': [{
+          name: 'AgentShell',
+          path: '/Users/josue/AgentShell',
+          branches: ['main'],
+          currentBranch: 'main',
+        }],
+        'chat-project-scripts': {
+          '/Users/josue/AgentShell': [{ id: 'dev', name: 'Dev', command: 'npm run dev' }],
+        },
+        'chat-project-grouping-mode': 'repository',
+      },
+    })
+
+    await initPreferencesSync()
+
+    expect(JSON.parse(localStorage.getItem('chat-added-projects') || '[]')).toEqual([
+      expect.objectContaining({ name: 'AgentShell', path: '/Users/josue/AgentShell' }),
+    ])
+    expect(JSON.parse(localStorage.getItem('chat-project-scripts') || '{}')).toEqual({
+      '/Users/josue/AgentShell': [expect.objectContaining({ name: 'Dev', command: 'npm run dev' })],
+    })
+    expect(eventSpy).toHaveBeenCalledTimes(1)
+    window.removeEventListener(CHAT_WORKSPACE_PREFERENCES_CHANGED_EVENT, eventSpy)
+  })
+
+  it('keeps newer local theme-state and restores it to remote', async () => {
+    const localTheme = {
+      mode: 'dark',
+      activeThemeId: 'gruvbox-dark',
+      overrides: {},
+      customThemes: [],
+      lastModified: 200,
+    }
+    localStorage.setItem('theme-state', JSON.stringify(localTheme))
+    const { initPreferencesSync, apiGet, apiPatch, hydrateThemeState } = await loadModules()
+    apiGet.mockResolvedValue({
+      ok: true,
+      data: {
+        'theme-state': {
+          mode: 'dark',
+          activeThemeId: 'default-dark',
+          overrides: {},
+          customThemes: [],
+          lastModified: 100,
+        },
+      },
+    })
+    apiPatch.mockResolvedValue({ ok: true })
+
+    await initPreferencesSync()
+
+    const state = JSON.parse(localStorage.getItem('theme-state')!)
+    expect(state.activeThemeId).toBe('gruvbox-dark')
+    expect(hydrateThemeState).not.toHaveBeenCalled()
+    expect(apiPatch).toHaveBeenCalledWith('/api/user-preferences', {
+      preferences: expect.objectContaining({
+        'theme-state': localTheme,
+      }),
+    })
+  })
+
+  it('applies newer remote theme-state over local theme-state', async () => {
+    localStorage.setItem('theme-state', JSON.stringify({
+      mode: 'dark',
+      activeThemeId: 'gruvbox-dark',
+      overrides: {},
+      customThemes: [],
+      lastModified: 100,
+    }))
+    const { initPreferencesSync, apiGet, apiPatch, hydrateThemeState } = await loadModules()
+    const remoteTheme = {
+      mode: 'dark',
+      activeThemeId: 'default-dark',
+      overrides: {},
+      customThemes: [],
+      lastModified: 200,
+    }
+    apiGet.mockResolvedValue({
+      ok: true,
+      data: { 'theme-state': remoteTheme },
+    })
+
+    await initPreferencesSync()
+
+    const state = JSON.parse(localStorage.getItem('theme-state')!)
+    expect(state.activeThemeId).toBe('default-dark')
+    expect(hydrateThemeState).toHaveBeenCalledWith(remoteTheme)
+    expect(apiPatch).not.toHaveBeenCalled()
   })
 
   it('notifies modules store when remote includes enabled-modules', async () => {
@@ -175,12 +277,12 @@ describe('initPreferencesSync', () => {
   })
 
   it('does not apply side effects when remote is empty', async () => {
-    const { initPreferencesSync, apiGet, applyThemeFromState, notifyModulesChanged } = await loadModules()
+    const { initPreferencesSync, apiGet, hydrateThemeState, notifyModulesChanged } = await loadModules()
     apiGet.mockResolvedValue({ ok: true, data: {} })
 
     await initPreferencesSync()
 
-    expect(applyThemeFromState).not.toHaveBeenCalled()
+    expect(hydrateThemeState).not.toHaveBeenCalled()
     expect(notifyModulesChanged).not.toHaveBeenCalled()
   })
 

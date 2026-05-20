@@ -4,10 +4,18 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 const store: Record<string, string> = {}
 const localStorageMock = {
   getItem: vi.fn((key: string) => store[key] ?? null),
-  setItem: vi.fn((key: string, value: string) => { store[key] = value }),
-  removeItem: vi.fn((key: string) => { delete store[key] }),
-  clear: vi.fn(() => { for (const key in store) delete store[key] }),
-  get length() { return Object.keys(store).length },
+  setItem: vi.fn((key: string, value: string) => {
+    store[key] = value
+  }),
+  removeItem: vi.fn((key: string) => {
+    delete store[key]
+  }),
+  clear: vi.fn(() => {
+    for (const key in store) delete store[key]
+  }),
+  get length() {
+    return Object.keys(store).length
+  },
   key: vi.fn((i: number) => Object.keys(store)[i] ?? null),
 }
 
@@ -104,7 +112,7 @@ describe('wizard-store', () => {
       activeBundle: 'essentials',
       selectedThemeId: 'default-dark',
       selectedMode: 'dark',
-      createdAt: Date.now() - (25 * 60 * 60 * 1000), // 25 hours ago
+      createdAt: Date.now() - 25 * 60 * 60 * 1000, // 25 hours ago
     }
     store['wizard-state'] = JSON.stringify(oldState)
 
@@ -119,10 +127,7 @@ describe('wizard-store', () => {
     const { getWizardState, setWizardStep } = await import('../wizard-store')
     setWizardStep(4)
     expect(getWizardState().currentStep).toBe(4)
-    expect(localStorageMock.setItem).toHaveBeenCalledWith(
-      'wizard-state',
-      expect.stringContaining('"currentStep":4')
-    )
+    expect(localStorageMock.setItem).toHaveBeenCalledWith('wizard-state', expect.stringContaining('"currentStep":4'))
   })
 
   it('updateWizardField updates field and persists', async () => {
@@ -131,7 +136,7 @@ describe('wizard-store', () => {
     expect(getWizardState().supabaseUrl).toBe('https://supabase.example.com')
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       'wizard-state',
-      expect.stringContaining('"supabaseUrl":"https://supabase.example.com"')
+      expect.stringContaining('"supabaseUrl":"https://supabase.example.com"'),
     )
   })
 
@@ -145,7 +150,8 @@ describe('wizard-store', () => {
   })
 
   it('markSetupCompleteForAccount() updates setup completion subscribers', async () => {
-    const { markSetupCompleteForAccount, subscribeSetupCompletion, shouldAutoOpenWizard } = await import('../wizard-store')
+    const { markSetupCompleteForAccount, subscribeSetupCompletion, shouldAutoOpenWizard } =
+      await import('../wizard-store')
     const listener = vi.fn()
     const unsub = subscribeSetupCompletion(listener)
     markSetupCompleteForAccount('user-2')
@@ -277,8 +283,9 @@ describe('wizard-store', () => {
 
   it('PRESET_BUNDLES maps bundle names to module arrays', async () => {
     const { PRESET_BUNDLES } = await import('../wizard-store')
+    const { APP_MODULES } = await import('../modules')
     expect(PRESET_BUNDLES.essentials).toEqual(['chat', 'todos', 'calendar', 'dashboard', 'notes'])
     expect(PRESET_BUNDLES.minimal).toEqual(['dashboard', 'chat'])
-    expect(PRESET_BUNDLES.full).toHaveLength(21)
+    expect(PRESET_BUNDLES.full).toEqual(APP_MODULES.map(m => m.id))
   })
 })

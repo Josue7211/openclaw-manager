@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { VaultFolder, VaultNote } from '@/pages/notes/types'
+import type { VaultFolder, VaultNote } from '@/features/notes/types'
 import {
   getAllNotes,
   getAllFolders,
@@ -9,9 +9,15 @@ import {
   moveNote as vaultMoveNote,
   deleteFolder as vaultDeleteFolder,
   deleteNote as vaultDelete,
+  emptyTrash as vaultEmptyTrash,
+  trashNote as vaultTrash,
+  trashFolder as vaultTrashFolder,
+  restoreTrashedNote as vaultRestoreTrashed,
+  restoreTrashedFolder as vaultRestoreTrashedFolder,
   startSync,
   stopSync,
 } from '@/lib/vault'
+import { isNotesTrashPath, normalizeNotesFolderPath } from '@/features/notes/trash'
 
 export function useVault() {
   const [notes, setNotes] = useState<VaultNote[]>([])
@@ -102,6 +108,65 @@ export function useVault() {
     [],
   )
 
+  const trashNote = useCallback(
+    async (id: string) => {
+      const now = Date.now()
+      setNotes((prev) =>
+        prev.map((note) => {
+          if (note._id !== id) return note
+          const folder = normalizeNotesFolderPath(note.folder)
+          const origin = isNotesTrashPath(folder)
+            ? folder.split('/').slice(1).join('/')
+            : folder
+          return {
+            ...note,
+            folder: origin ? `Trash/${origin}` : 'Trash',
+            trash_origin_path: note.trash_origin_path ?? origin,
+            trashed_at: note.trashed_at ?? now,
+            updated_at: now,
+          }
+        }),
+      )
+      await vaultTrash(id)
+      await refresh()
+    },
+    [refresh],
+  )
+
+  const restoreTrashedNote = useCallback(
+    async (id: string, folder?: string) => {
+      const restored = await vaultRestoreTrashed(id, folder)
+      await refresh()
+      return restored
+    },
+    [refresh],
+  )
+
+  const emptyTrash = useCallback(
+    async () => {
+      const deleted = await vaultEmptyTrash()
+      await refresh()
+      return deleted
+    },
+    [refresh],
+  )
+
+  const trashFolder = useCallback(
+    async (path: string) => {
+      await vaultTrashFolder(path)
+      await refresh()
+    },
+    [refresh],
+  )
+
+  const restoreTrashedFolder = useCallback(
+    async (path: string) => {
+      await vaultRestoreTrashedFolder(path)
+      await refresh()
+    },
+    [refresh],
+  )
+
   const moveNote = useCallback(
     async (id: string, folder: string = '') => {
       const moved = await vaultMoveNote(id, folder)
@@ -131,6 +196,11 @@ export function useVault() {
     updateNote,
     moveNote,
     deleteNote,
+    trashNote,
+    trashFolder,
+    restoreTrashedNote,
+    restoreTrashedFolder,
+    emptyTrash,
     deleteFolder,
   }
 }

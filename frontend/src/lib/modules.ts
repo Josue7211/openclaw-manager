@@ -9,16 +9,97 @@ interface AppModule {
 }
 
 export const APP_MODULES: AppModule[] = [
-  { id: 'messages', name: 'Messages', description: 'iMessage via BlueBubbles', icon: 'Smartphone', route: '/messages', platform: 'macos' },
+  {
+    id: 'messages',
+    name: 'Messages',
+    description: 'iMessage via BlueBubbles',
+    icon: 'Smartphone',
+    route: '/messages',
+    platform: 'macos',
+  },
   { id: 'chat', name: 'Chat', description: 'AI chat with agents', icon: 'MessageCircle', route: '/chat' },
   { id: 'todos', name: 'Todos', description: 'Task management', icon: 'CheckSquare', route: '/todos' },
   { id: 'calendar', name: 'Calendar', description: 'Calendar (CalDAV)', icon: 'CalendarDays', route: '/calendar' },
   { id: 'reminders', name: 'Reminders', description: 'Apple Reminders (CalDAV)', icon: 'Bell', route: '/reminders' },
-  { id: 'email', name: 'Email', description: 'Mail client for real accounts with AgentMail access', icon: 'Mail', route: '/email' },
-  { id: 'job-hunter', name: 'Career Ops', description: 'Opportunity dossiers and search operations', icon: 'MagnifyingGlass', route: '/jobs' },
+  {
+    id: 'email',
+    name: 'Email',
+    description: 'Mail client for real accounts with AgentMail access',
+    icon: 'Mail',
+    route: '/email',
+  },
+  {
+    id: 'job-hunter',
+    name: 'Career Ops',
+    description: 'Opportunity dossiers and search operations',
+    icon: 'MagnifyingGlass',
+    route: '/jobs',
+  },
+  {
+    id: 'growth-ops',
+    name: 'Growth Ops',
+    description: 'Approval-gated social content queue',
+    icon: 'TrendingUp',
+    route: '/growth-ops',
+  },
   { id: 'pomodoro', name: 'Pomodoro', description: 'Focus timer', icon: 'Timer', route: '/pomodoro' },
-  { id: 'homelab', name: 'Home Lab', description: 'Proxmox + OPNsense', icon: 'Server', route: '/homelab' },
-  { id: 'media', name: 'Media Radar', description: 'Plex + Sonarr + Radarr', icon: 'Film', route: '/media' },
+  {
+    id: 'homelab',
+    name: 'Overview',
+    description: 'HomeLab fleet health and quick actions',
+    icon: 'LayoutDashboard',
+    route: '/homelab',
+  },
+  {
+    id: 'homelab-proxmox',
+    name: 'Proxmox',
+    description: 'Nodes, VMs, LXCs, storage, tasks, and guest controls',
+    icon: 'Server',
+    route: '/homelab/proxmox',
+  },
+  {
+    id: 'homelab-portainer',
+    name: 'Portainer',
+    description: 'Docker endpoints, stacks, containers, images, volumes, and networks',
+    icon: 'Container',
+    route: '/homelab/portainer',
+  },
+  {
+    id: 'homelab-network',
+    name: 'Network',
+    description: 'OPNsense interfaces, gateways, DHCP, DNS, and firewall status',
+    icon: 'ShieldCheck',
+    route: '/homelab/network',
+  },
+  {
+    id: 'homelab-storage',
+    name: 'Storage/Backups',
+    description: 'Storage pools, NAS, snapshots, backups, and restore points',
+    icon: 'HardDrive',
+    route: '/homelab/storage',
+  },
+  {
+    id: 'homelab-power',
+    name: 'Power/Hardware',
+    description: 'UPS, host power, sensors, and hardware controls',
+    icon: 'Activity',
+    route: '/homelab/power',
+  },
+  {
+    id: 'homelab-services',
+    name: 'Services',
+    description: 'DNS, tunnels, host services, and generic controllable resources',
+    icon: 'Wrench',
+    route: '/homelab/services',
+  },
+  {
+    id: 'homelab-activity',
+    name: 'Activity/Settings',
+    description: 'Provider diagnostics, credentials, task history, and control guardrails',
+    icon: 'Clock',
+    route: '/homelab/activity',
+  },
+  { id: 'media', name: 'Media Command', description: 'ARR, requests, downloads, streams', icon: 'Film', route: '/media' },
   { id: 'dashboard', name: 'Dashboard', description: 'Agent dashboard', icon: 'LayoutDashboard', route: '/dashboard' },
   { id: 'missions', name: 'Missions', description: 'Agent missions', icon: 'Target', route: '/missions' },
   { id: 'harness', name: 'Harness', description: 'Agent management, usage & tools', icon: 'Bot', route: '/harness' },
@@ -26,14 +107,66 @@ export const APP_MODULES: AppModule[] = [
   { id: 'pipeline', name: 'Pipeline', description: 'Code review pipeline', icon: 'GitBranch', route: '/pipeline' },
   { id: 'knowledge', name: 'Knowledge', description: 'Documentation', icon: 'BookOpen', route: '/knowledge' },
   { id: 'notes', name: 'Notes', description: 'Personal notes', icon: 'FileText', route: '/notes' },
-  { id: 'training', name: 'Training Dashboard', description: 'Personal training operations dashboard', icon: 'Dumbbell', route: '/training' },
-  { id: 'training-clients', name: 'Clients', description: 'Client profiles, assessments, injuries, supplements, and workout notes', icon: 'Users', route: '/training/clients' },
-  { id: 'training-calendar', name: 'Calendar', description: 'Personal training schedule and client session calendar', icon: 'CalendarDays', route: '/training/calendar' },
-  { id: 'training-forms', name: 'Forms', description: 'Client intake and update form templates', icon: 'ClipboardList', route: '/training/forms' },
-  { id: 'sessions', name: 'Sessions', description: 'Claude Code session monitor', icon: 'Terminal', route: '/sessions', requiresConfig: ['HARNESS_API_URL'] },
-  { id: 'remote-viewer', name: 'Remote Viewer', description: 'Harness VM desktop (Moonlight)', icon: 'Monitor', route: '/remote', requiresConfig: ['SUNSHINE_HOST'] },
-  { id: 'approvals', name: 'Approvals', description: 'Execution approval queue', icon: 'ShieldCheck', route: '/approvals', requiresConfig: ['HARNESS_WS'] },
-  { id: 'activity', name: 'Activity', description: 'Real-time event feed', icon: 'Pulse', route: '/activity', requiresConfig: ['HARNESS_WS'] },
+  {
+    id: 'training',
+    name: 'Training Dashboard',
+    description: 'Personal training operations dashboard',
+    icon: 'Dumbbell',
+    route: '/training',
+  },
+  {
+    id: 'training-clients',
+    name: 'Clients',
+    description: 'Client profiles, assessments, injuries, supplements, and workout notes',
+    icon: 'Users',
+    route: '/training/clients',
+  },
+  {
+    id: 'training-calendar',
+    name: 'Calendar',
+    description: 'Personal training schedule and client session calendar',
+    icon: 'CalendarDays',
+    route: '/training/calendar',
+  },
+  {
+    id: 'training-forms',
+    name: 'Forms',
+    description: 'Client intake and update form templates',
+    icon: 'ClipboardList',
+    route: '/training/forms',
+  },
+  {
+    id: 'sessions',
+    name: 'Sessions',
+    description: 'Claude Code session monitor',
+    icon: 'Terminal',
+    route: '/sessions',
+    requiresConfig: ['HARNESS_API_URL'],
+  },
+  {
+    id: 'remote-viewer',
+    name: 'Remote Viewer',
+    description: 'Harness VM desktop (Moonlight)',
+    icon: 'Monitor',
+    route: '/remote',
+    requiresConfig: ['SUNSHINE_HOST'],
+  },
+  {
+    id: 'approvals',
+    name: 'Approvals',
+    description: 'Execution approval queue',
+    icon: 'ShieldCheck',
+    route: '/approvals',
+    requiresConfig: ['HARNESS_WS'],
+  },
+  {
+    id: 'activity',
+    name: 'Activity',
+    description: 'Real-time event feed',
+    icon: 'Pulse',
+    route: '/activity',
+    requiresConfig: ['HARNESS_WS'],
+  },
 ]
 
 const STORAGE_KEY = 'enabled-modules'
@@ -62,7 +195,9 @@ let _cached: string[] = (() => {
         return parsed
       }
     }
-  } catch { /* fall through */ }
+  } catch {
+    /* fall through */
+  }
   return ALL_MODULE_IDS
 })()
 
@@ -84,5 +219,7 @@ export function notifyModulesChanged(): void {
 /** Subscribe to module changes (for useSyncExternalStore) */
 export function subscribeModules(callback: () => void): () => void {
   _listeners.add(callback)
-  return () => { _listeners.delete(callback) }
+  return () => {
+    _listeners.delete(callback)
+  }
 }

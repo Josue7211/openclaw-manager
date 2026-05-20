@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { isDemoMode, DEMO_CONVERSATIONS } from '@/lib/demo-data'
-import type { Conversation } from '@/pages/messages/types'
+import type { Conversation } from '@/features/messages/types'
 
 const MESSAGES_SUMMARY_KEY = ['messages-summary'] as const
 

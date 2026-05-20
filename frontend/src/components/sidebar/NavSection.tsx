@@ -28,12 +28,11 @@ interface NavSectionProps {
   editingValue?: string
   onEditingComplete?: (val?: string) => void
   onEditingCancel?: () => void
-  onDragStart?: (href: string, catId: string) => void
-  onDragOver?: (catId: string, idx: number) => void
-  onDrop?: (catId: string, idx: number) => void
-  onDragEnd?: () => void
+  onItemPointerDown?: (href: string, catId: string, e: React.PointerEvent) => void
+  onCategoryPointerDown?: (catId: string, e: React.PointerEvent) => void
   dragOverIdx?: number | null
   dragHref?: string | null
+  suppressClickHref?: string | null
   overrideColors?: Record<string, string>
   categoryOverrideColor?: string
   unreadCounts?: Record<string, number>
@@ -57,12 +56,11 @@ const NavSection = React.memo(function NavSection({
   editingValue,
   onEditingComplete,
   onEditingCancel,
-  onDragStart: onItemDragStart,
-  onDragOver: onItemDragOver,
-  onDrop: onItemDrop,
-  onDragEnd: onItemDragEnd,
+  onItemPointerDown,
+  onCategoryPointerDown,
   dragOverIdx,
   dragHref,
+  suppressClickHref,
   overrideColors,
   categoryOverrideColor,
   unreadCounts,
@@ -76,6 +74,7 @@ const NavSection = React.memo(function NavSection({
   const hasUnreadChild = !open && items.some(item => (unreadCounts?.[item.href] || 0) > 0)
   const labelOpacity = width >= 80 ? 1 : width <= 64 ? 0 : (width - 64) / 16
   const labelHeight = width >= 80 ? 36 : width <= 64 ? 0 : ((width - 64) / 16) * 36
+  const emptyCategoryDropActive = !!categoryId && items.length === 0 && dragOverIdx === 0 && !!dragHref
 
   return (
     <div style={{ marginBottom: collapsed ? '2px' : '4px' }}>
@@ -90,11 +89,18 @@ const NavSection = React.memo(function NavSection({
         >
           <button
             onClick={onToggle}
+            data-sidebar-category-header={categoryId ? 'true' : undefined}
+            data-sidebar-cat-id={categoryId}
+            onPointerDown={categoryId ? (e) => onCategoryPointerDown?.(categoryId, e) : undefined}
             onContextMenu={categoryId && onCategoryContextMenu ? (e) => {
               e.preventDefault()
               onCategoryContextMenu(categoryId, e)
             } : undefined}
-            style={sectionLabelBtnStyle}
+            style={{
+              ...sectionLabelBtnStyle,
+              background: emptyCategoryDropActive ? 'var(--accent-a10, rgba(255,255,255,0.08))' : sectionLabelBtnStyle.background,
+              borderRadius: emptyCategoryDropActive ? '8px' : sectionLabelBtnStyle.borderRadius,
+            }}
             onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-secondary)')}
             onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
           >
@@ -204,18 +210,17 @@ const NavSection = React.memo(function NavSection({
                   title={!collapsed && navCharsVisible < itemLabel.length ? itemLabel : undefined}
                   aria-label={collapsed ? itemLabel : undefined}
                   aria-describedby={tooltipId}
-                  draggable={!!categoryId}
-                  onDragStart={categoryId ? () => onItemDragStart?.(href, categoryId) : undefined}
-                  onDragOver={categoryId ? (e) => {
-                    e.preventDefault()
-                    onItemDragOver?.(categoryId, idx)
-                  } : undefined}
-                  onDrop={categoryId ? (e) => {
-                    e.preventDefault()
-                    onItemDrop?.(categoryId, idx)
-                  } : undefined}
-                  onDragEnd={onItemDragEnd}
-                  onClick={() => {
+                  draggable={false}
+                  data-sidebar-item="true"
+                  data-sidebar-cat-id={categoryId}
+                  data-sidebar-href={href}
+                  onPointerDown={categoryId ? (e) => onItemPointerDown?.(href, categoryId, e) : undefined}
+                  onClick={(e) => {
+                    if (suppressClickHref === href) {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      return
+                    }
                     markRead(href)
                     onHoverItem(href)
                   }}

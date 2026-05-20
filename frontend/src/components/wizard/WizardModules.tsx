@@ -29,11 +29,7 @@ import {
   UsersThree,
   ClipboardText,
 } from '@phosphor-icons/react'
-import {
-  useWizardState,
-  updateWizardField,
-  PRESET_BUNDLES,
-} from '@/lib/wizard-store'
+import { useWizardState, updateWizardField, PRESET_BUNDLES } from '@/lib/wizard-store'
 import { APP_MODULES } from '@/lib/modules'
 
 // ---------------------------------------------------------------------------
@@ -56,6 +52,13 @@ const ICON_MAP: Record<string, React.ElementType> = {
   'training-forms': ClipboardText,
   dashboard: SquaresFour,
   homelab: Desktop,
+  'homelab-proxmox': Desktop,
+  'homelab-portainer': Desktop,
+  'homelab-network': Desktop,
+  'homelab-storage': FileText,
+  'homelab-power': Desktop,
+  'homelab-services': Desktop,
+  'homelab-activity': CalendarDots,
   media: FilmStrip,
   missions: Target,
   agents: Robot,
@@ -85,7 +88,18 @@ const CATEGORIES: CategoryDef[] = [
   },
   {
     label: 'Infrastructure',
-    moduleIds: ['dashboard', 'homelab', 'media'],
+    moduleIds: [
+      'dashboard',
+      'homelab',
+      'homelab-proxmox',
+      'homelab-portainer',
+      'homelab-network',
+      'homelab-storage',
+      'homelab-power',
+      'homelab-services',
+      'homelab-activity',
+      'media',
+    ],
   },
   {
     label: 'Agents',
@@ -185,10 +199,7 @@ const ModuleToggle = memo(function ModuleToggle({
 export default function WizardModules() {
   const wizard = useWizardState()
 
-  const isModuleEnabled = useCallback(
-    (id: string) => wizard.enabledModules.includes(id),
-    [wizard.enabledModules],
-  )
+  const isModuleEnabled = useCallback((id: string) => wizard.enabledModules.includes(id), [wizard.enabledModules])
 
   /**
    * Determine if a module is unavailable based on wizard test results.
@@ -211,19 +222,14 @@ export default function WizardModules() {
     [wizard.testResults],
   )
 
-  const handlePresetClick = useCallback(
-    (preset: 'essentials' | 'full' | 'minimal') => {
-      updateWizardField('activeBundle', preset)
-      updateWizardField('enabledModules', [...PRESET_BUNDLES[preset]])
-    },
-    [],
-  )
+  const handlePresetClick = useCallback((preset: 'essentials' | 'full' | 'minimal') => {
+    updateWizardField('activeBundle', preset)
+    updateWizardField('enabledModules', [...PRESET_BUNDLES[preset]])
+  }, [])
 
   const handleToggle = useCallback(
     (moduleId: string, enabled: boolean) => {
-      const next = enabled
-        ? [...wizard.enabledModules, moduleId]
-        : wizard.enabledModules.filter(id => id !== moduleId)
+      const next = enabled ? [...wizard.enabledModules, moduleId] : wizard.enabledModules.filter(id => id !== moduleId)
       updateWizardField('enabledModules', next)
       // Deselect active bundle when toggling individually
       if (wizard.activeBundle !== null) {
@@ -295,9 +301,7 @@ export default function WizardModules() {
 
       {/* Module card grid grouped by category */}
       {CATEGORIES.map(({ label, moduleIds }) => {
-        const modules = moduleIds
-          .map(id => APP_MODULES.find(m => m.id === id))
-          .filter(Boolean) as typeof APP_MODULES
+        const modules = moduleIds.map(id => APP_MODULES.find(m => m.id === id)).filter(Boolean) as typeof APP_MODULES
 
         if (modules.length === 0) return null
 
@@ -330,9 +334,7 @@ export default function WizardModules() {
                 const unavailableReason = getUnavailableReason(mod.id)
                 const isUnavailable = unavailableReason !== null
                 const Icon = ICON_MAP[mod.id] || SquaresFour
-                const describedById = isUnavailable
-                  ? `unavailable-${mod.id}`
-                  : undefined
+                const describedById = isUnavailable ? `unavailable-${mod.id}` : undefined
 
                 return (
                   <label
@@ -354,8 +356,7 @@ export default function WizardModules() {
                       if (!isUnavailable) {
                         e.currentTarget.style.background = 'var(--bg-card-hover)'
                         e.currentTarget.style.transform = 'translateY(-1px)'
-                        e.currentTarget.style.boxShadow =
-                          '0 4px 12px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06)'
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06)'
                       }
                     }}
                     onMouseLeave={e => {
@@ -376,9 +377,7 @@ export default function WizardModules() {
                         size={24}
                         weight="regular"
                         style={{
-                          color: isUnavailable
-                            ? 'var(--text-muted)'
-                            : 'var(--text-primary)',
+                          color: isUnavailable ? 'var(--text-muted)' : 'var(--text-primary)',
                           flexShrink: 0,
                         }}
                       />

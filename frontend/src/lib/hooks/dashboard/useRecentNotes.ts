@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { isDemoMode } from '@/lib/demo-data'
-import type { VaultNote } from '@/pages/notes/types'
+import type { VaultNote } from '@/features/notes/types'
 
 const VAULT_NOTES_KEY = ['vault-notes'] as const
 

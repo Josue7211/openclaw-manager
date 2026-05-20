@@ -175,7 +175,7 @@ export function useMessagesSSE({
         return
       }
       connecting = false
-      es.onmessage = async (ev) => {
+      es.onmessage = async ev => {
         lastEventAt = Date.now()
         try {
           const event: SSEEvent = JSON.parse(ev.data)
@@ -217,7 +217,10 @@ export function useMessagesSSE({
               if (!senderName) {
                 const norm = normalize(senderAddr)
                 for (const [k, v] of Object.entries(contactLookupRef.current)) {
-                  if (normalize(k) === norm) { senderName = v; break }
+                  if (normalize(k) === norm) {
+                    senderName = v
+                    break
+                  }
                 }
               }
               if (!senderName) senderName = senderAddr
@@ -244,7 +247,11 @@ export function useMessagesSSE({
                 }
 
                 // System notification
-                if (localStorage.getItem('system-notifs') !== 'false' && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                if (
+                  localStorage.getItem('system-notifs') !== 'false' &&
+                  typeof Notification !== 'undefined' &&
+                  Notification.permission === 'granted'
+                ) {
                   new Notification(senderName, { body: preview, tag: 'mc-msg-' + msg.guid })
                 }
 
@@ -260,13 +267,20 @@ export function useMessagesSSE({
             debouncedRefreshConvos()
           } else if (event.type === 'typing') {
             const msg = event.data
-            const chatGuids = msg.chats?.map((c: { guid: string }) => c.guid) ??
-              [msg.chatGuid, msg.chat?.guid, msg.guid].filter((value): value is string => typeof value === 'string')
+            const nestedChatGuid =
+              msg.chat && typeof msg.chat === 'object' && 'guid' in msg.chat
+                ? (msg.chat as { guid?: unknown }).guid
+                : undefined
+            const chatGuids =
+              msg.chats?.map((c: { guid: string }) => c.guid) ??
+              [msg.chatGuid, nestedChatGuid, msg.guid].filter((value): value is string => typeof value === 'string')
             onTypingRef.current(chatGuids, msg)
           } else if (event.type === 'refresh-convos') {
             debouncedRefreshConvos()
           }
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
       es.onerror = () => {
         closeStream()

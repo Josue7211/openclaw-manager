@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { useToast } from '@/components/ui/Toast'
-import type { GatewaySessionsResponse } from '@/pages/sessions/types'
+import type { GatewaySessionsResponse } from '@/features/sessions/types'
 
 interface RenameArgs {
   key: string

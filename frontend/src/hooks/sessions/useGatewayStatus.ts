@@ -24,18 +24,20 @@ export interface UseGatewayStatusReturn {
  * In demo mode, short-circuits to not_configured without making API calls.
  */
 export function useGatewayStatus(): UseGatewayStatusReturn {
-  if (isDemoMode()) {
-    return { status: 'not_configured', connected: false, isLoading: false, protocol: null, reconnectAttempt: 0 }
-  }
+  const demoMode = isDemoMode()
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data, isLoading } = useQuery<GatewayStatusResponse>({
     queryKey: ['gateway', 'status'],
     queryFn: () => api.get<GatewayStatusResponse>('/api/gateway/status'),
     refetchInterval: 10_000,
     staleTime: 10_000,
     retry: 1,
+    enabled: !demoMode,
   })
+
+  if (demoMode) {
+    return { status: 'not_configured', connected: false, isLoading: false, protocol: null, reconnectAttempt: 0 }
+  }
 
   return {
     status: data?.status ?? 'not_configured',

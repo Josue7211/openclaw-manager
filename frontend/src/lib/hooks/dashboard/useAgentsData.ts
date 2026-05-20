@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useAgentCache } from './useAgentCache'
 import { isDemoMode, DEMO_AGENTS } from '@/lib/demo-data'
-import type { AgentsData, AgentInfo } from '@/pages/dashboard/types'
+import type { AgentsData, AgentInfo } from '@/features/dashboard/types'
 
 export function useAgentsData() {
   const _demo = isDemoMode()

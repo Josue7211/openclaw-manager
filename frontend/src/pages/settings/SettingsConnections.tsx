@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense, useRef } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense, useMemo, useRef } from 'react'
 import { Warning } from '@phosphor-icons/react'
 import {
   api,
@@ -15,10 +15,13 @@ import { resetWizard as resetSetupWizard } from '@/lib/wizard-store'
 import { Button } from '@/components/ui/Button'
 import {
   CONNECTION_SETTINGS,
+  SERVICE_GROUPS,
+  buildCredentialMap,
   type ConnectionSettingId,
+  type FieldDef,
   keychainKeyToCredKey,
 } from '@/lib/service-registry'
-import type { ApiSuccess, HomelabConfigData } from '@/pages/homelab/types'
+import type { ApiSuccess, HomelabConfigData, PortainerConfigInfo } from '@/pages/homelab/types'
 import { row, rowLast, val, inputStyle, sectionLabel } from './shared'
 
 const OnboardingWelcome = lazy(() => import('@/components/OnboardingWelcome'))
@@ -32,6 +35,7 @@ interface HomelabConfigForm {
   opnsenseHost: string
   opnsenseKey: string
   opnsenseSecret: string
+  portainerInstances: Array<PortainerConfigInfo & { token: string }>
 }
 
 interface SyncedSecret {
@@ -49,6 +53,13 @@ type SecretResponse =
   | Record<string, unknown>
   | null
 
+interface ServiceSetupTarget {
+  id: string
+  label: string
+  groupTitle: string
+  fields: FieldDef[]
+}
+
 function emptyConnectionRecord(): Record<ConnectionSettingId, CredentialMap> {
   return Object.fromEntries(
     CONNECTION_SETTINGS.map(setting => [setting.id, {}])
@@ -62,6 +73,26 @@ const emptyHomelabForm: HomelabConfigForm = {
   opnsenseHost: '',
   opnsenseKey: '',
   opnsenseSecret: '',
+  portainerInstances: [],
+}
+
+function parseSyncedPortainerInstances(value: string | undefined): Array<PortainerConfigInfo & { token: string }> {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value) as Array<Partial<PortainerConfigInfo> & { token?: string }>
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .map((item, index) => ({
+        id: item.id || `portainer-${index + 1}`,
+        name: item.name || `Portainer ${index + 1}`,
+        url: item.url || '',
+        token_set: !!item.token,
+        token: item.token || '',
+      }))
+      .filter(item => item.url || item.name)
+  } catch {
+    return []
+  }
 }
 
 function extractCredentials(response: SecretResponse): CredentialMap {
@@ -90,8 +121,69 @@ function extractCredentials(response: SecretResponse): CredentialMap {
   )
 }
 
+function envNameForKeychainKey(keychainKey: string): string {
+  return keychainKey.replace(/\./g, '_').replace(/-/g, '_').toUpperCase()
+}
+
+function labelFromServiceId(serviceId: string): string {
+  return serviceId
+    .split(/[-_]/g)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+function fieldFromKey(serviceId: string, key: string): FieldDef {
+  const envPrefix = `${serviceId.replace(/-/g, '_').toUpperCase()}_`
+  const keySuffix = key.startsWith(envPrefix) ? key.slice(envPrefix.length) : key
+  const normalized = key.includes('.') ? key : `${serviceId}.${keySuffix.toLowerCase().replace(/_/g, '-')}`
+  const suffix = normalized.split('.').slice(1).join(' ') || normalized
+  const label = `${labelFromServiceId(serviceId)} ${suffix.replace(/[-_]/g, ' ').replace(/\b\w/g, char => char.toUpperCase())}`
+  return {
+    label,
+    keychainKey: normalized,
+    placeholder: suffix.includes('url') || suffix.includes('host') ? `http://100.x.x.x` : label,
+    secret: /key|token|password|secret/i.test(suffix),
+  }
+}
+
+function findServiceSetupTarget(serviceId: string, requestedKeys: string[]): ServiceSetupTarget | null {
+  if (!serviceId) return null
+  const normalizedService = serviceId.toLowerCase()
+  const group = SERVICE_GROUPS.find(item => item.services.some(service => service.name === normalizedService))
+  const service = group?.services.find(item => item.name === normalizedService)
+  const keys = service?.fieldKeys.length ? service.fieldKeys : requestedKeys
+  const fields = keys.map(key => {
+    const matchingField = group?.fields.find(field =>
+      field.keychainKey === key
+      || envNameForKeychainKey(field.keychainKey) === key
+      || keychainKeyToCredKey(field.keychainKey) === key
+    )
+    return matchingField ?? fieldFromKey(normalizedService, key)
+  })
+  const uniqueFields = fields.filter((field, index, all) =>
+    all.findIndex(candidate => candidate.keychainKey === field.keychainKey) === index
+  )
+  if (uniqueFields.length === 0) return null
+  return {
+    id: normalizedService,
+    label: labelFromServiceId(normalizedService),
+    groupTitle: group?.title ?? 'Service',
+    fields: uniqueFields,
+  }
+}
+
 export default function SettingsConnections() {
   const suppressNextBackendRefreshRef = useRef(false)
+  const setupParams = useMemo(() => new URLSearchParams(window.location.search), [])
+  const serviceSetupTarget = useMemo(() => {
+    const serviceId = setupParams.get('service')?.trim() ?? ''
+    const requestedKeys = (setupParams.get('keys') ?? '')
+      .split(',')
+      .map(key => key.trim())
+      .filter(Boolean)
+    return findServiceSetupTarget(serviceId, requestedKeys)
+  }, [setupParams])
   const [connectionUrls, setConnectionUrls] = useState<Record<ConnectionSettingId, string>>({
     bluebubbles: '',
     harness: '',
@@ -146,6 +238,9 @@ export default function SettingsConnections() {
     missing: string[]
   }>(null)
   const [backendStatusMessage, setBackendStatusMessage] = useState<string | null>(null)
+  const [serviceSetupValues, setServiceSetupValues] = useState<CredentialMap>({})
+  const [serviceSetupSaving, setServiceSetupSaving] = useState(false)
+  const [serviceSetupStatus, setServiceSetupStatus] = useState<string | null>(null)
 
   const saveSecretMutation = useSaveSecret()
 
@@ -172,6 +267,88 @@ export default function SettingsConnections() {
     setHomelabStatus(null)
   }, [])
 
+  const updatePortainerInstance = useCallback((
+    index: number,
+    key: keyof (PortainerConfigInfo & { token: string }),
+    value: string,
+  ) => {
+    setHomelabForm(prev => ({
+      ...prev,
+      portainerInstances: prev.portainerInstances.map((item, i) => i === index ? { ...item, [key]: value } : item),
+    }))
+    setHomelabStatus(null)
+  }, [])
+
+  const updateServiceSetupValue = useCallback((keychainKey: string, value: string) => {
+    setServiceSetupValues(prev => ({ ...prev, [keychainKey]: value }))
+    setServiceSetupStatus(null)
+  }, [])
+
+  useEffect(() => {
+    if (!serviceSetupTarget) return
+    api.get<SecretResponse>(`/api/secrets/${serviceSetupTarget.id}`).then(response => {
+      const credentials = extractCredentials(response)
+      const loadedValues = Object.fromEntries(
+        serviceSetupTarget.fields.map(field => {
+          const credKey = keychainKeyToCredKey(field.keychainKey)
+          return [field.keychainKey, field.secret ? '' : credentials[credKey] || '']
+        })
+      )
+      setServiceSetupValues(loadedValues)
+    }).catch(() => {})
+  }, [serviceSetupTarget])
+
+  const saveServiceSetup = useCallback(async () => {
+    if (!serviceSetupTarget) return
+    const credentials = buildCredentialMap(
+      serviceSetupTarget.fields.map(field => [field.keychainKey, serviceSetupValues[field.keychainKey]])
+    )
+    if (Object.keys(credentials).length === 0) {
+      setServiceSetupStatus('Add at least one value first.')
+      return
+    }
+
+    setServiceSetupSaving(true)
+    setServiceSetupStatus(null)
+    try {
+      const existing = extractCredentials(await api.get<SecretResponse>(`/api/secrets/${serviceSetupTarget.id}`).catch(() => null))
+      await api.put(`/api/secrets/${serviceSetupTarget.id}`, { credentials: { ...existing, ...credentials } })
+      if (window.__TAURI_INTERNALS__) {
+        const { invoke } = await import('@tauri-apps/api/core')
+        await Promise.all(
+          serviceSetupTarget.fields
+            .map(field => ({ key: field.keychainKey, value: serviceSetupValues[field.keychainKey]?.trim() ?? '' }))
+            .filter(item => item.value)
+            .map(item => invoke('set_secret', item))
+        ).catch(() => {})
+      }
+      setServiceSetupStatus('Saved. Restart to apply changes.')
+    } catch (e: unknown) {
+      setServiceSetupStatus(`Error: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setServiceSetupSaving(false)
+    }
+  }, [serviceSetupTarget, serviceSetupValues])
+
+  const addPortainerInstance = useCallback(() => {
+    setHomelabForm(prev => ({
+      ...prev,
+      portainerInstances: [
+        ...prev.portainerInstances,
+        { id: `portainer-${Date.now()}`, name: 'Portainer', url: '', token: '', token_set: false },
+      ],
+    }))
+    setHomelabStatus(null)
+  }, [])
+
+  const removePortainerInstance = useCallback((index: number) => {
+    setHomelabForm(prev => ({
+      ...prev,
+      portainerInstances: prev.portainerInstances.filter((_, i) => i !== index),
+    }))
+    setHomelabStatus(null)
+  }, [])
+
   const applyHomelabConfig = useCallback((config: HomelabConfigData | null) => {
     if (!config) return
     setHomelabConfig(config)
@@ -180,10 +357,13 @@ export default function SettingsConnections() {
       proxmoxHost: prev.proxmoxHost || config.local.proxmox_host || '',
       proxmoxTokenId: prev.proxmoxTokenId || config.local.proxmox_token_id || '',
       opnsenseHost: prev.opnsenseHost || config.local.opnsense_host || '',
+      portainerInstances: prev.portainerInstances.length
+        ? prev.portainerInstances
+        : (config.local.portainer_instances ?? []).map(item => ({ ...item, token: '' })),
     }))
   }, [])
 
-  const loadSyncedHomelabCredentials = useCallback(async (service: 'proxmox' | 'opnsense') => {
+  const loadSyncedHomelabCredentials = useCallback(async (service: 'proxmox' | 'opnsense' | 'portainer') => {
     const response = await api.get<ApiSuccess<SyncedSecret>>(`/api/secrets/${service}`).catch(() => null)
     return response?.data?.credentials ?? null
   }, [])
@@ -279,9 +459,10 @@ export default function SettingsConnections() {
       const localResponse = await api.get<ApiSuccess<HomelabConfigData>>('/api/homelab/config').catch(() => null)
       if (!cancelled) applyHomelabConfig(localResponse?.data ?? null)
 
-      const [syncedProxmox, syncedOPNsense] = await Promise.all([
+      const [syncedProxmox, syncedOPNsense, syncedPortainer] = await Promise.all([
         loadSyncedHomelabCredentials('proxmox'),
         loadSyncedHomelabCredentials('opnsense'),
+        loadSyncedHomelabCredentials('portainer'),
       ])
 
       if (cancelled) return
@@ -293,6 +474,9 @@ export default function SettingsConnections() {
         opnsenseHost: syncedOPNsense?.host || prev.opnsenseHost,
         opnsenseKey: syncedOPNsense?.key || prev.opnsenseKey,
         opnsenseSecret: syncedOPNsense?.secret || prev.opnsenseSecret,
+        portainerInstances: parseSyncedPortainerInstances(syncedPortainer?.instances).length
+          ? parseSyncedPortainerInstances(syncedPortainer?.instances)
+          : prev.portainerInstances,
       }))
     }
 
@@ -483,10 +667,16 @@ export default function SettingsConnections() {
     setHomelabSaving(true)
     setHomelabStatus(null)
     try {
-      const localPayload: Record<string, string> = {
+      const localPayload: Record<string, unknown> = {
         proxmox_host: homelabForm.proxmoxHost,
         proxmox_token_id: homelabForm.proxmoxTokenId,
         opnsense_host: homelabForm.opnsenseHost,
+        portainer_instances: homelabForm.portainerInstances.map(item => ({
+          id: item.id,
+          name: item.name,
+          url: item.url,
+          token: item.token.trim(),
+        })),
       }
       if (homelabForm.proxmoxTokenSecret.trim()) localPayload.proxmox_token_secret = homelabForm.proxmoxTokenSecret
       if (homelabForm.opnsenseKey.trim()) localPayload.opnsense_key = homelabForm.opnsenseKey
@@ -500,10 +690,12 @@ export default function SettingsConnections() {
       const localSyncComplete = !!localSync
         && localSync.data.synced.includes('proxmox')
         && localSync.data.synced.includes('opnsense')
+        && (homelabForm.portainerInstances.length === 0 || localSync.data.synced.includes('portainer'))
 
-      const [existingProxmox, existingOPNsense] = localSync ? [null, null] : await Promise.all([
+      const [existingProxmox, existingOPNsense, existingPortainer] = localSync ? [null, null, null] : await Promise.all([
         loadSyncedHomelabCredentials('proxmox').catch(() => null),
         loadSyncedHomelabCredentials('opnsense').catch(() => null),
+        loadSyncedHomelabCredentials('portainer').catch(() => null),
       ])
 
       const proxmoxCredentials: Record<string, string> = {
@@ -519,6 +711,18 @@ export default function SettingsConnections() {
       }
       if (homelabForm.opnsenseKey.trim()) opnsenseCredentials.key = homelabForm.opnsenseKey.trim()
       if (homelabForm.opnsenseSecret.trim()) opnsenseCredentials.secret = homelabForm.opnsenseSecret.trim()
+      const existingPortainerInstances = parseSyncedPortainerInstances(existingPortainer?.instances)
+      const portainerCredentials = {
+        instances: JSON.stringify(homelabForm.portainerInstances.map(item => {
+          const existing = existingPortainerInstances.find(saved => saved.id === item.id)
+          return {
+            id: item.id,
+            name: item.name.trim(),
+            url: item.url.trim(),
+            token: item.token.trim() || existing?.token || '',
+          }
+        }).filter(item => item.name && item.url)),
+      }
 
       const directSyncAllowed = !localSync
         && !!(proxmoxCredentials.token_secret || homelabForm.proxmoxTokenSecret.trim())
@@ -528,11 +732,18 @@ export default function SettingsConnections() {
         ? await Promise.allSettled([
             api.put('/api/secrets/proxmox', { credentials: proxmoxCredentials }),
             api.put('/api/secrets/opnsense', { credentials: opnsenseCredentials }),
+            api.put('/api/secrets/portainer', { credentials: portainerCredentials }),
           ])
         : []
       const syncOk = localSyncComplete || (directSyncAllowed && syncResults.every(result => result.status === 'fulfilled'))
 
-      setHomelabForm(prev => ({ ...prev, proxmoxTokenSecret: '', opnsenseKey: '', opnsenseSecret: '' }))
+      setHomelabForm(prev => ({
+        ...prev,
+        proxmoxTokenSecret: '',
+        opnsenseKey: '',
+        opnsenseSecret: '',
+        portainerInstances: prev.portainerInstances.map(item => ({ ...item, token: '', token_set: item.token_set || !!item.token.trim() })),
+      }))
       setHomelabStatus(syncOk
         ? 'Saved locally and synced.'
         : 'Saved locally. Sign in to sync encrypted secrets.')
@@ -617,6 +828,51 @@ export default function SettingsConnections() {
         Configure URLs for external services. Credentials are encrypted and stored in Supabase with a local keychain fallback.
         Set expected Tailscale hostnames to verify peer identity.
       </p>
+
+      {serviceSetupTarget && (
+        <div style={{ border: '1px solid rgba(255,182,87,0.35)', background: 'rgba(255,182,87,0.06)', borderRadius: '8px', padding: '12px', marginBottom: '18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#ffb657' }}>
+                {serviceSetupTarget.groupTitle}
+              </div>
+              <div style={{ fontSize: '14px', fontWeight: 850, color: 'var(--text-primary)', marginTop: '3px' }}>
+                {serviceSetupTarget.label} setup
+              </div>
+            </div>
+            <Button variant="primary" onClick={() => void saveServiceSetup()} disabled={serviceSetupSaving} style={{ fontSize: '12px', padding: '7px 12px' }}>
+              {serviceSetupSaving ? 'Saving...' : `Save ${serviceSetupTarget.label}`}
+            </Button>
+          </div>
+          <div style={{ display: 'grid', gap: '6px' }}>
+            {serviceSetupTarget.fields.map(field => {
+              return (
+                <div key={field.keychainKey} style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 1fr) minmax(220px, 280px)', alignItems: 'center', gap: '8px' }}>
+                  <div>
+                    <span style={{ fontSize: '12px', color: 'var(--text-primary)' }}>{field.label}</span>
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: '2px' }}>
+                      {field.keychainKey}
+                    </div>
+                  </div>
+                  <input
+                    type={field.secret ? 'password' : field.type || 'text'}
+                    style={{ ...inputStyle, width: '100%', fontFamily: field.secret ? 'monospace' : inputStyle.fontFamily, fontSize: '11px' }}
+                    value={serviceSetupValues[field.keychainKey] ?? ''}
+                    onChange={e => updateServiceSetupValue(field.keychainKey, e.target.value)}
+                    placeholder={field.placeholder}
+                    aria-label={field.label}
+                  />
+                </div>
+              )
+            })}
+          </div>
+          {serviceSetupStatus && (
+            <div style={{ fontSize: '11px', fontFamily: 'monospace', color: serviceSetupStatus.startsWith('Error') ? 'var(--red)' : 'var(--secondary)', marginTop: '10px' }}>
+              {serviceSetupStatus}
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ ...sectionLabel, marginTop: '0' }}>Backend Server</div>
       <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 16px' }}>
@@ -809,6 +1065,49 @@ export default function SettingsConnections() {
             placeholder={homelabConfig?.local.opnsense_secret_set ? 'API secret saved; paste new value to replace' : 'API secret'}
             aria-label="OPNsense API Secret"
           />
+        </div>
+      </div>
+
+      <div style={rowLast}>
+        <div style={{ flex: 1 }}>
+          <span>Portainer Instances</span>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+            {homelabConfig?.api_configured.portainer ? 'Ready' : 'Add one or more Portainer URLs and API tokens'}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', minWidth: '320px' }}>
+          {homelabForm.portainerInstances.map((instance, index) => (
+            <div key={instance.id || index} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', width: '100%' }}>
+              <input
+                style={{ ...inputStyle, width: '100%' }}
+                value={instance.name}
+                onChange={e => updatePortainerInstance(index, 'name', e.target.value)}
+                placeholder="Primary Portainer"
+                aria-label={`Portainer ${index + 1} name`}
+              />
+              <input
+                style={{ ...inputStyle, width: '100%' }}
+                value={instance.url}
+                onChange={e => updatePortainerInstance(index, 'url', e.target.value)}
+                placeholder="https://100.x.x.x:9443"
+                aria-label={`Portainer ${index + 1} URL`}
+              />
+              <input
+                type="password"
+                style={{ ...inputStyle, width: '100%', fontFamily: 'monospace', fontSize: '11px' }}
+                value={instance.token}
+                onChange={e => updatePortainerInstance(index, 'token', e.target.value)}
+                placeholder={instance.token_set ? 'API token saved; paste to replace' : 'API token'}
+                aria-label={`Portainer ${index + 1} API token`}
+              />
+              <Button variant="ghost" onClick={() => removePortainerInstance(index)} style={{ fontSize: '11px', padding: '6px 8px' }}>
+                Remove
+              </Button>
+            </div>
+          ))}
+          <Button variant="secondary" onClick={addPortainerInstance} style={{ fontSize: '12px', padding: '7px 12px' }}>
+            Add Portainer
+          </Button>
         </div>
       </div>
 

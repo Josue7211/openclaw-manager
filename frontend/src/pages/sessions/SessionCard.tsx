@@ -34,6 +34,8 @@ function ContextMenu({
   onDelete: () => void
   onClose: () => void
 }) {
+  const menuRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -41,6 +43,10 @@ function ContextMenu({
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [onClose])
+
+  useEffect(() => {
+    menuRef.current?.focus()
+  }, [])
 
   const menuX = Math.min(x, window.innerWidth - 200)
   const menuY = Math.min(y, window.innerHeight - 160)
@@ -59,7 +65,10 @@ function ContextMenu({
       />
       {/* Menu */}
       <div
+        ref={menuRef}
         role="menu"
+        aria-label="Session actions"
+        tabIndex={-1}
         style={{
           position: 'fixed',
           left: menuX,
@@ -174,10 +183,18 @@ export const SessionCard = React.memo(function SessionCard({
 
   return (
     <>
-      <button
-        type="button"
+      <div
+        role="option"
+        tabIndex={0}
         onClick={onSelect}
-        aria-pressed={selected}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return
+          if (e.target !== e.currentTarget) return
+          e.preventDefault()
+          onSelect()
+        }}
+        aria-selected={selected}
+        aria-label={`${sessionLabel}, ${messageCount} message${messageCount === 1 ? '' : 's'}`}
         onContextMenu={(e) => {
           e.preventDefault()
           e.stopPropagation()
@@ -185,6 +202,12 @@ export const SessionCard = React.memo(function SessionCard({
         }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
+        onFocus={() => setHovered(true)}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+            setHovered(false)
+          }
+        }}
         style={{
           background: selected ? 'var(--active-bg)' : 'transparent',
           border: `1px solid ${selected ? 'var(--accent)33' : 'transparent'}`,
@@ -207,7 +230,10 @@ export const SessionCard = React.memo(function SessionCard({
         <button
           ref={dotsRef}
           type="button"
-          aria-label="Session actions"
+          aria-label={`Session actions for ${sessionLabel}`}
+          aria-haspopup="menu"
+          aria-expanded={Boolean(menuPos)}
+          title={`Session actions for ${sessionLabel}`}
           onClick={(e) => {
             e.stopPropagation()
             const rect = (e.target as HTMLElement).getBoundingClientRect()
@@ -308,7 +334,7 @@ export const SessionCard = React.memo(function SessionCard({
             <SecondsAgo sinceMs={lastActivityMs} />
           </span>
         </div>
-      </button>
+      </div>
 
       {/* Context menu */}
       {menuPos && (
