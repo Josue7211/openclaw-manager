@@ -45,7 +45,7 @@ pub fn initialize_logging() {
     use tracing_subscriber::prelude::*;
 
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| "mission_control=info".into());
+        .unwrap_or_else(|_| "clawctrl=info".into());
 
     let stdout_layer = tracing_subscriber::fmt::layer().with_target(true);
     let file_layer = logging::FileLogLayer::new();

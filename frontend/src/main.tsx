@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import { runMigrations } from './lib/migrations'
+import { applyThemeFromState } from './lib/theme-store'
 
 window.addEventListener('unhandledrejection', (event) => {
   const reason = String(event.reason?.message ?? event.reason ?? '')
@@ -11,6 +12,7 @@ window.addEventListener('unhandledrejection', (event) => {
 })
 
 runMigrations()
+applyThemeFromState()
 
 const root = document.getElementById('root')
 

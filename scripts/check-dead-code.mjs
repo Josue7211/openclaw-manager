@@ -10,7 +10,7 @@ const baseline = {
   dependencies: 0,
   devDependencies: 0,
   unlisted: 0,
-  exports: 140,
+  exports: 139,
   types: 113,
   duplicates: 0,
   unresolved: 0,
