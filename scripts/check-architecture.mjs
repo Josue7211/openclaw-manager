@@ -39,12 +39,6 @@ const reusableLayerPrefixes = [
   'frontend/src/lib/',
 ]
 
-const allowedPageImports = [
-  '@/pages/chat/live-app-context',
-  '@/pages/Settings',
-  '@/pages/settings/',
-]
-
 const allowedWidgetImports = [
   '@/pages/dashboard/',
 ]
@@ -52,6 +46,21 @@ const allowedWidgetImports = [
 const problems = []
 const maxSourceBytes = 260 * 1024
 const maxPageBytes = 240 * 1024
+const maxUnbaselinedPageLines = 1200
+const pageLineBaselines = new Map(Object.entries({
+  'frontend/src/pages/notes/Notes.tsx': 6731,
+  'frontend/src/pages/Training.tsx': 3799,
+  'frontend/src/pages/JobHunter.tsx': 3549,
+  'frontend/src/pages/MediaRadar.tsx': 3242,
+  'frontend/src/pages/HomeLab.tsx': 1883,
+  'frontend/src/pages/settings/SettingsModules.tsx': 1852,
+  'frontend/src/pages/Email.tsx': 1448,
+  'frontend/src/pages/Chat.tsx': 1273,
+  'frontend/src/pages/notes/FileTree.tsx': 1259,
+  'frontend/src/pages/settings/SettingsConnections.tsx': 1255,
+  'frontend/src/pages/Memory.tsx': 1240,
+  'frontend/src/pages/Messages.tsx': 1201,
+}))
 
 function rel(file) {
   return path.relative(root, file).replaceAll(path.sep, '/')
@@ -116,6 +125,17 @@ walk(root, (fullPath, stats) => {
   const inReusableLayer = reusableLayerPrefixes.some(prefix => relative.startsWith(prefix))
   const source = readFileSync(fullPath, 'utf8')
 
+  if (relative.startsWith('frontend/src/pages/') && !relative.includes('/__tests__/')) {
+    const lineCount = source.endsWith('\n') ? source.split('\n').length - 1 : source.split('\n').length
+    const baseline = pageLineBaselines.get(relative)
+    if (typeof baseline === 'number' && lineCount > baseline) {
+      problems.push(`${relative} grew from ${baseline} to ${lineCount} lines; extract page logic into features before adding more`)
+    }
+    if (typeof baseline !== 'number' && lineCount > maxUnbaselinedPageLines) {
+      problems.push(`${relative} has ${lineCount} lines; page files above ${maxUnbaselinedPageLines} lines need an explicit baseline or extraction`)
+    }
+  }
+
   if (relative.startsWith('frontend/src/features/')) {
     const [, featureName] = relative.match(/^frontend\/src\/features\/([^/]+)\//) ?? []
     if (featureName && !existsSync(path.join(root, 'frontend/src/features', featureName, 'index.ts'))) {
@@ -142,9 +162,8 @@ walk(root, (fullPath, stats) => {
   for (const match of source.matchAll(importPattern)) {
     const specifier = match[1]
     const allowed =
-      allowedPageImports.some(prefix => specifier === prefix || specifier.startsWith(prefix)) ||
-      (relative.startsWith('frontend/src/lib/widget-registry.ts') &&
-        allowedWidgetImports.some(prefix => specifier.startsWith(prefix)))
+      relative.startsWith('frontend/src/lib/widget-registry.ts') &&
+      allowedWidgetImports.some(prefix => specifier.startsWith(prefix))
 
     if (!allowed) {
       problems.push(`${relative} imports page-owned module ${specifier}`)
