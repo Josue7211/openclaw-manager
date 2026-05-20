@@ -1,27 +1,37 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
-import path from 'path'
+import path from 'node:path'
 
 export default defineConfig({
-  base: process.env.VITE_ASSET_BASE ?? './',
   plugins: [react()],
-  resolve: {
-    alias: { '@': path.resolve(__dirname, './src') }
-  },
-  server: { host: '127.0.0.1', port: 5174, strictPort: true },
   build: {
-    target: 'esnext',
     rollupOptions: {
-      external: [/^@tauri-apps\//],
       output: {
         manualChunks(id) {
-          if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/') || id.includes('node_modules/react-router')) return 'react'
-          if (id.includes('node_modules/@tanstack')) return 'query'
-          if (id.includes('node_modules/lucide-react')) return 'icons'
-          if (id.includes('node_modules/@xterm')) return 'xterm'
+          const normalized = id.replaceAll('\\', '/')
+          if (!normalized.includes('/node_modules/')) return undefined
+          if (normalized.includes('/@tiptap/')) return 'vendor-tiptap'
+          if (normalized.includes('/@xterm/')) return 'vendor-terminal'
+          if (normalized.includes('/@novnc/novnc/')) return 'vendor-remote'
+          if (normalized.includes('/react-force-graph-2d/') || normalized.includes('/force-graph/')) return 'vendor-graph'
+          if (normalized.includes('/@phosphor-icons/')) return 'vendor-icons'
+          if (normalized.includes('/react/') || normalized.includes('/react-dom/') || normalized.includes('/react-router-dom/')) {
+            return 'vendor-react'
+          }
+          return undefined
         },
       },
     },
   },
-  envPrefix: 'VITE_'
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, 'src'),
+    },
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: './src/test/setup.ts',
+    restoreMocks: true,
+  },
 })

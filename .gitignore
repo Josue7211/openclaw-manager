@@ -1,63 +1,35 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Dependencies
+node_modules/
+frontend/node_modules/
 
-# dependencies
-/node_modules
-frontend/node_modules
+# Build outputs
+dist/
+frontend/dist/
+target/
+src-tauri/target/
+.cargo-target/
 
-# testing
-/coverage
-frontend/coverage/
+# Test and tool caches
+coverage/
+.nyc_output/
+.pytest_cache/
+.vitest/
+.vite/
 
-# production
-/build
-frontend/dist
-
-# misc
+# Local environment and runtime state
+.env
+.env.*
+!.env.example
 .DS_Store
 ._*
-.AppleDouble/
-*.pem
-.memd/
-.superpowers/
-dogfood-output/
 
-# databases
-*.db
-*.sqlite
-*.sqlite3
+# Local planning/agent state
+.claude/worktrees/
+.codex/environments/
+.memd/logs/
+.memd/compiled/
 
-# debug / logs
-*.log
-npm-debug.log*
-.pnpm-debug.log*
-
-# env files
-.env*
-!.env.example
-
-# IDEs
-.vscode/
-.idea/
-
-# typescript
-*.tsbuildinfo
-
-# Tauri
-.cargo-target/
-src-tauri/target/
-src-tauri/gen/
-src-tauri/binaries/*
-!src-tauri/binaries/.gitkeep
-src-tauri/resources/*
-!src-tauri/resources/.gitkeep
-
-# Claude Code
-.claude/
-CLAUDE.md
-
-# Playwright MCP
-.playwright-mcp/
-
-# Supabase
-supabase/.temp/
-.security/
+# Platform/editor noise
+*.swp
+*.swo
+*~

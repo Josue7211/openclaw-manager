@@ -1,28 +1,16 @@
 {
-  "name": "clawctrl",
-  "version": "0.1.0",
+  "name": "clawcontrol-workspace",
   "private": true,
-  "license": "AGPL-3.0-or-later",
-  "engines": {
-    "node": ">=20.0.0",
-    "npm": ">=10.0.0"
-  },
+  "type": "module",
   "scripts": {
-    "dev": "cd frontend && npm run dev",
-    "build": "cd frontend && npm run build",
-    "tauri": "node ./node_modules/@tauri-apps/cli/tauri.js",
-    "tauri:dev": "WEBKIT_DISABLE_DMABUF_RENDERER=1 node ./node_modules/@tauri-apps/cli/tauri.js dev",
-    "tauri:build": "node ./node_modules/@tauri-apps/cli/tauri.js build",
-    "stack:env": "node scripts/generate-full-stack-env.mjs",
-    "stack:check": "node scripts/check-full-stack-config.mjs",
-    "remote:repair": "bash scripts/repair-remote-viewer.sh",
-    "db:tunnel": "ssh -f -N -L 15432:172.18.0.4:5432 -L 15433:172.18.0.7:8080 \"${DB_TUNNEL_HOST:-db-host}\" && echo 'DB tunnels up (postgres :15432, pg-meta :15433)'",
-    "db:push": "PGSSLMODE=disable supabase db push --db-url \"$(grep SUPABASE_DB_URL .env.local | cut -d= -f2-)\"",
-    "db:pull": "PGSSLMODE=disable supabase db pull --db-url \"$(grep SUPABASE_DB_URL .env.local | cut -d= -f2-)\"",
-    "db:types": "curl -s 'http://localhost:15433/generators/typescript?included_schemas=public' > frontend/src/lib/database.types.ts && echo 'Types generated → frontend/src/lib/database.types.ts'",
-    "db:diff": "PGSSLMODE=disable supabase db diff --db-url \"$(grep SUPABASE_DB_URL .env.local | cut -d= -f2-)\""
-  },
-  "devDependencies": {
-    "@tauri-apps/cli": "^2.10.1"
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build",
+    "frontend:test": "npm --prefix frontend run test",
+    "frontend:typecheck": "npm --prefix frontend run typecheck",
+    "check:architecture": "node scripts/check-architecture.mjs",
+    "check:bundle": "node scripts/check-bundle-size.mjs",
+    "check:tauri": "cargo check --manifest-path src-tauri/Cargo.toml --bin clawcontrol-backend",
+    "check": "npm run check:architecture && npm --prefix frontend run typecheck && npm run check:bundle",
+    "check:all": "npm run check && npm --prefix frontend run test && npm run check:tauri"
   }
 }
