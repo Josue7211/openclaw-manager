@@ -47,7 +47,7 @@ const pageLineBaselines = new Map(Object.entries({
   'frontend/src/pages/notes/Notes.tsx': 6087,
   'frontend/src/pages/Training.tsx': 3120,
   'frontend/src/pages/JobHunter.tsx': 3549,
-  'frontend/src/pages/MediaRadar.tsx': 3242,
+  'frontend/src/pages/MediaRadar.tsx': 2598,
   'frontend/src/pages/HomeLab.tsx': 1883,
   'frontend/src/pages/settings/SettingsModules.tsx': 1852,
   'frontend/src/pages/Email.tsx': 1448,

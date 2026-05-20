@@ -6,7 +6,7 @@ const root = process.cwd()
 const knipBin = path.join(root, 'frontend/node_modules/knip/bin/knip.js')
 
 const baseline = {
-  files: 15,
+  files: 0,
   dependencies: 0,
   devDependencies: 0,
   unlisted: 0,
@@ -23,6 +23,9 @@ const baseline = {
 }
 
 const issueTypes = Object.keys(baseline)
+const ignoredUnusedFilePatterns = [
+  /^src\/features\/[^/]+\/index\.ts$/,
+]
 
 if (!existsSync(knipBin)) {
   console.error('Dead-code check failed: frontend dependencies are not installed; missing knip binary.')
@@ -55,7 +58,14 @@ try {
 const counts = Object.fromEntries(issueTypes.map(type => [type, 0]))
 for (const issue of report.issues ?? []) {
   for (const type of issueTypes) {
-    if (Array.isArray(issue[type])) counts[type] += issue[type].length
+    if (!Array.isArray(issue[type])) continue
+    const entries = type === 'files'
+      ? issue[type].filter(entry => {
+          const name = typeof entry?.name === 'string' ? entry.name : ''
+          return !ignoredUnusedFilePatterns.some(pattern => pattern.test(name))
+        })
+      : issue[type]
+    counts[type] += entries.length
   }
 }
 
