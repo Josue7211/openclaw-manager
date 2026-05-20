@@ -27,6 +27,14 @@ struct RagSearchBody {
     project: Option<String>,
     namespace: Option<String>,
     mode: Option<String>,
+    conversation_history: Option<Vec<RagChatMessage>>,
+    history_turns: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct RagChatMessage {
+    role: String,
+    content: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -83,10 +91,20 @@ fn read_dev_env_value(key: &str) -> Option<String> {
     None
 }
 
+fn normalize_graph_label_query(query: &str) -> String {
+    query
+        .split(|ch: char| !(ch.is_alphanumeric() || ch == '-' || ch == '_' || ch == '.'))
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 fn rag_request(state: &AppState, method: reqwest::Method, url: String) -> reqwest::RequestBuilder {
     let mut req = state.http.request(method, url);
     if let Some(api_key) = rag_api_key(state) {
-        req = req.header("Authorization", format!("Bearer {api_key}"));
+        req = req
+            .header("Authorization", format!("Bearer {api_key}"))
+            .header("X-API-Key", api_key);
     }
     req
 }
@@ -177,19 +195,10 @@ async fn rag_search(
         })));
     }
 
-    let (backend, results) = match search_lightrag(&state, &base_url, query, limit).await {
-        Ok(results) => ("lightrag", results),
-        Err(error) => {
-            tracing::warn!("External RAG failed, falling back to local memd: {error:?}");
-            (
-                "memd-local",
-                search_local_memd(&state, &session.user_id, query, limit).await?,
-            )
-        }
-    };
+    let results = search_lightrag(&state, &base_url, &body, query, limit).await?;
     Ok(Json(json!({
         "ok": true,
-        "backend": backend,
+        "backend": "lightrag",
         "results": results,
         "data": { "results": results },
     })))
@@ -212,9 +221,15 @@ async fn rag_graph_labels(
 
     let limit = params.limit.unwrap_or(50).clamp(1, 100);
     let url = if let Some(q) = params.q.as_deref().map(str::trim).filter(|q| !q.is_empty()) {
+        let normalized = normalize_graph_label_query(q);
+        let search = if normalized.is_empty() {
+            q
+        } else {
+            &normalized
+        };
         format!(
             "{base_url}/graph/label/search?q={}&limit={limit}",
-            urlencoding::encode(q)
+            urlencoding::encode(search)
         )
     } else {
         format!("{base_url}/graph/label/popular?limit={limit}")
@@ -518,14 +533,25 @@ async fn search_sidecar(
     query: &str,
     limit: usize,
 ) -> Result<Vec<Value>, AppError> {
-    let mode = body.mode.as_deref().unwrap_or("auto");
+    let mode = body.mode.as_deref().unwrap_or("mix");
     let payload = json!({
         "query": query,
         "project": body.project.clone(),
         "namespace": body.namespace.clone(),
         "mode": mode,
         "limit": limit,
-        "include_cross_modal": true,
+        "top_k": 40,
+        "chunk_top_k": 10,
+        "max_entity_tokens": 10000,
+        "max_relation_tokens": 10000,
+        "max_total_tokens": 32000,
+        "only_need_context": false,
+        "only_need_prompt": false,
+        "response_type": "Multiple Paragraphs",
+        "stream": true,
+        "conversation_history": lightrag_conversation_history(body),
+        "history_turns": body.history_turns.unwrap_or(0),
+        "include_references": true,
     });
     let value = post_json(state, format!("{base_url}/v1/retrieve"), payload).await?;
     let items = value
@@ -543,12 +569,25 @@ async fn search_sidecar(
                 .unwrap_or("")
                 .to_string();
             let source = item.get("source").and_then(Value::as_str).unwrap_or("");
+            let name = item
+                .get("name")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .unwrap_or_else(|| {
+                    if source.is_empty() {
+                        format!("LightRAG result {}", index + 1)
+                    } else {
+                        source.to_string()
+                    }
+                });
             json!({
-                "name": if source.is_empty() { format!("LightRAG result {}", index + 1) } else { source.to_string() },
+                "name": name,
                 "path": source,
                 "content": content,
                 "snippet": snippet(&content),
                 "score": item.get("score").and_then(Value::as_f64).unwrap_or(0.0),
+                "backend": item.get("backend").and_then(Value::as_str).unwrap_or("lightrag"),
+                "references": item.get("references").cloned().unwrap_or_else(|| json!([])),
             })
         })
         .collect())
@@ -557,21 +596,63 @@ async fn search_sidecar(
 async fn search_lightrag(
     state: &AppState,
     base_url: &str,
+    body: &RagSearchBody,
     query: &str,
     limit: usize,
 ) -> Result<Vec<Value>, AppError> {
-    let payload = json!({
+    let payload = lightrag_ui_query_payload(body, query);
+    let value = post_lightrag_ndjson(state, format!("{base_url}/query/stream"), payload).await?;
+    Ok(normalize_lightrag_answer(value, limit))
+}
+
+fn lightrag_ui_query_payload(body: &RagSearchBody, query: &str) -> Value {
+    let history_turns = body.history_turns.unwrap_or(0);
+    let conversation_history = lightrag_conversation_history(body);
+
+    json!({
         "query": query,
-        "mode": "hybrid",
-        "top_k": limit,
-    });
-    let value = post_json(state, format!("{base_url}/query"), payload).await?;
-    Ok(normalize_lightrag_results(value, limit))
+        "mode": body.mode.as_deref().unwrap_or("mix"),
+        "top_k": 40,
+        "chunk_top_k": 10,
+        "max_entity_tokens": 10000,
+        "max_relation_tokens": 10000,
+        "max_total_tokens": 32000,
+        "only_need_context": false,
+        "only_need_prompt": false,
+        "response_type": "Multiple Paragraphs",
+        "stream": true,
+        "conversation_history": conversation_history,
+        "history_turns": history_turns,
+        "include_references": true,
+    })
+}
+
+fn lightrag_conversation_history(body: &RagSearchBody) -> Vec<Value> {
+    let history_turns = body.history_turns.unwrap_or(0);
+    if history_turns == 0 {
+        return Vec::new();
+    }
+    body.conversation_history
+        .clone()
+        .unwrap_or_default()
+        .into_iter()
+        .rev()
+        .take(history_turns.saturating_mul(2))
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .map(|message| {
+            json!({
+                "role": message.role,
+                "content": message.content,
+            })
+        })
+        .collect()
 }
 
 async fn post_json(state: &AppState, url: String, payload: Value) -> Result<Value, AppError> {
     let response = rag_request(state, reqwest::Method::POST, url)
-        .timeout(Duration::from_secs(45))
+        .timeout(Duration::from_secs(30))
         .header("Content-Type", "application/json")
         .json(&payload)
         .send()
@@ -596,81 +677,79 @@ async fn post_json(state: &AppState, url: String, payload: Value) -> Result<Valu
         .map_err(|error| AppError::Internal(error.into()))
 }
 
-fn normalize_lightrag_results(value: Value, limit: usize) -> Vec<Value> {
-    if let Some(results) = value
-        .get("results")
-        .or_else(|| value.get("items"))
-        .and_then(Value::as_array)
-    {
-        return results
-            .iter()
-            .take(limit)
-            .enumerate()
-            .map(|(index, item)| normalize_result_item(item, index))
-            .collect();
+async fn post_lightrag_ndjson(
+    state: &AppState,
+    url: String,
+    payload: Value,
+) -> Result<Value, AppError> {
+    let response = rag_request(state, reqwest::Method::POST, url)
+        .timeout(Duration::from_secs(120))
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/x-ndjson")
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|error| {
+            tracing::warn!(error = %error, "LightRAG query stream request failed");
+            AppError::BadRequest("LightRAG query failed".into())
+        })?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        tracing::warn!(%status, body = %crate::routes::gateway::sanitize_error_body(&body), "LightRAG query stream returned non-success");
+        return Err(AppError::BadRequest("LightRAG query failed".into()));
     }
 
-    let text = value
-        .as_str()
-        .map(str::to_string)
-        .or_else(|| {
-            value
-                .get("response")
-                .and_then(Value::as_str)
-                .map(str::to_string)
-        })
-        .or_else(|| {
-            value
-                .get("result")
-                .and_then(Value::as_str)
-                .map(str::to_string)
-        })
-        .or_else(|| {
-            value
-                .get("answer")
-                .and_then(Value::as_str)
-                .map(str::to_string)
-        })
-        .or_else(|| {
-            value
-                .get("data")
-                .and_then(Value::as_str)
-                .map(str::to_string)
-        })
-        .unwrap_or_else(|| value.to_string());
-
-    if text.trim().is_empty() {
-        Vec::new()
-    } else {
-        vec![json!({
-            "name": "LightRAG answer",
-            "path": "",
-            "content": text,
-            "snippet": snippet(&text),
-            "score": 1.0,
-        })]
-    }
+    let text = response
+        .text()
+        .await
+        .map_err(|error| AppError::Internal(error.into()))?;
+    parse_lightrag_ndjson(&text)
 }
 
-fn normalize_result_item(item: &Value, index: usize) -> Value {
-    let content = ["content", "text", "chunk_content", "snippet", "description"]
-        .iter()
-        .filter_map(|key| item.get(*key).and_then(Value::as_str))
-        .find(|value| !value.trim().is_empty())
+fn parse_lightrag_ndjson(text: &str) -> Result<Value, AppError> {
+    let mut answer = String::new();
+    let mut references: Vec<Value> = Vec::new();
+    for line in text.lines().map(str::trim).filter(|line| !line.is_empty()) {
+        let value: Value = serde_json::from_str(line)
+            .map_err(|error| AppError::Internal(anyhow::anyhow!(error)))?;
+        if let Some(error) = value.get("error").and_then(Value::as_str) {
+            return Err(AppError::BadRequest(error.to_string()));
+        }
+        if let Some(chunk) = value.get("response").and_then(Value::as_str) {
+            answer.push_str(chunk);
+        }
+        if let Some(items) = value.get("references").and_then(Value::as_array) {
+            references.extend(items.iter().cloned());
+        }
+    }
+    Ok(json!({
+        "response": answer,
+        "references": references,
+    }))
+}
+
+fn normalize_lightrag_answer(value: Value, _limit: usize) -> Vec<Value> {
+    let text = value
+        .get("response")
+        .and_then(Value::as_str)
         .unwrap_or("")
+        .trim()
         .to_string();
-    let source = ["source", "source_id", "file_path", "path", "id"]
-        .iter()
-        .filter_map(|key| item.get(*key).and_then(Value::as_str))
-        .find(|value| !value.trim().is_empty())
-        .unwrap_or("");
-    json!({
-        "name": if source.is_empty() { format!("LightRAG result {}", index + 1) } else { source.to_string() },
-        "path": source,
-        "content": content,
-        "snippet": snippet(&content),
-        "score": item.get("score").or_else(|| item.get("similarity")).and_then(Value::as_f64).unwrap_or(0.0),
-    })
+    if text.is_empty() {
+        return Vec::new();
+    }
+
+    vec![json!({
+        "name": "LightRAG answer",
+        "path": "",
+        "content": text,
+        "snippet": snippet(&text),
+        "score": 1.0,
+        "backend": "lightrag",
+        "references": value.get("references").cloned().unwrap_or_else(|| json!([])),
+    })]
 }
 
 fn snippet(content: &str) -> String {
@@ -679,5 +758,110 @@ fn snippet(content: &str) -> String {
         trimmed.to_string()
     } else {
         format!("{}...", trimmed.chars().take(240).collect::<String>())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lightrag_payload_matches_webui_chat_defaults() {
+        let body = RagSearchBody {
+            query: "what is in the media vm".to_string(),
+            limit: Some(12),
+            project: None,
+            namespace: None,
+            mode: None,
+            conversation_history: None,
+            history_turns: None,
+        };
+        let payload = lightrag_ui_query_payload(&body, &body.query);
+
+        assert_eq!(payload["query"], "what is in the media vm");
+        assert_eq!(payload["mode"], "mix");
+        assert_eq!(payload["top_k"], 40);
+        assert_eq!(payload["chunk_top_k"], 10);
+        assert_eq!(payload["max_entity_tokens"], 10000);
+        assert_eq!(payload["max_relation_tokens"], 10000);
+        assert_eq!(payload["max_total_tokens"], 32000);
+        assert_eq!(payload["response_type"], "Multiple Paragraphs");
+        assert_eq!(payload["stream"], true);
+        assert_eq!(payload["only_need_context"], false);
+        assert_eq!(payload["only_need_prompt"], false);
+        assert_eq!(payload["history_turns"], 0);
+        assert_eq!(payload["conversation_history"], json!([]));
+        assert_eq!(payload["include_references"], true);
+        assert!(payload.get("enable_rerank").is_none());
+    }
+
+    #[test]
+    fn lightrag_payload_caps_conversation_history_by_turns() {
+        let body = RagSearchBody {
+            query: "and what runs there".to_string(),
+            limit: Some(12),
+            project: None,
+            namespace: None,
+            mode: None,
+            history_turns: Some(1),
+            conversation_history: Some(vec![
+                RagChatMessage {
+                    role: "user".to_string(),
+                    content: "old question".to_string(),
+                },
+                RagChatMessage {
+                    role: "assistant".to_string(),
+                    content: "old answer".to_string(),
+                },
+                RagChatMessage {
+                    role: "user".to_string(),
+                    content: "recent question".to_string(),
+                },
+                RagChatMessage {
+                    role: "assistant".to_string(),
+                    content: "recent answer".to_string(),
+                },
+            ]),
+        };
+        let payload = lightrag_ui_query_payload(&body, &body.query);
+
+        assert_eq!(payload["history_turns"], 1);
+        assert_eq!(
+            payload["conversation_history"],
+            json!([
+                {"role": "user", "content": "recent question"},
+                {"role": "assistant", "content": "recent answer"},
+            ])
+        );
+    }
+
+    #[test]
+    fn lightrag_ndjson_chunks_combine_into_answer_with_references() {
+        let parsed = parse_lightrag_ndjson(
+            "{\"references\":[{\"file_path\":\"media.md\"}]}\n{\"response\":\"The Media VM \"}\n{\"response\":\"runs Plex.\"}\n",
+        )
+        .expect("ndjson parses");
+
+        assert_eq!(parsed["response"], "The Media VM runs Plex.");
+        assert_eq!(parsed["references"][0]["file_path"], "media.md");
+    }
+
+    #[test]
+    fn lightrag_chat_answer_is_single_answer_result() {
+        let results = normalize_lightrag_answer(
+            json!({
+                "response": "The Media VM runs Plex, Sonarr, and Radarr.",
+                "references": [{"file_path": "media.md"}],
+            }),
+            12,
+        );
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0]["name"], "LightRAG answer");
+        assert_eq!(results[0]["backend"], "lightrag");
+        assert_eq!(
+            results[0]["content"],
+            "The Media VM runs Plex, Sonarr, and Radarr."
+        );
     }
 }

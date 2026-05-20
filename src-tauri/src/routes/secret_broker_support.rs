@@ -253,7 +253,7 @@ mod tests {
         assert!(transport_policy_error("http://127.0.0.1:4815").is_none());
         assert!(transport_policy_error("http://192.168.1.20:4815").is_none());
         assert!(transport_policy_error("http://100.104.154.24:4815").is_none());
-        assert!(transport_policy_error("http://openclaw-vm:4815").is_none());
+        assert!(transport_policy_error("http://agent-vm:4815").is_none());
     }
 
     #[test]

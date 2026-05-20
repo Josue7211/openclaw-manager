@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, RawQuery, State},
     routing::{get, patch, post},
     Json, Router,
 };
@@ -302,6 +302,240 @@ async fn gateway_activity(
 
 // ── Sessions route ─────────────────────────────────────────────────────────
 
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+struct GatewaySessionFilters {
+    cwd: Vec<String>,
+    project_ids: Vec<String>,
+    projects: Vec<String>,
+    branches: Vec<String>,
+    runtimes: Vec<String>,
+    environment_ids: Vec<String>,
+    include_unscoped: bool,
+}
+
+impl GatewaySessionFilters {
+    fn from_query(query: &str) -> Self {
+        let mut filters = Self::default();
+        for (key, value) in url::form_urlencoded::parse(query.as_bytes()) {
+            let value = value.trim();
+            if value.is_empty() {
+                continue;
+            }
+            match key.as_ref() {
+                "cwd" | "workingDir" | "working_dir" | "projectRoot" | "project_root"
+                | "projectPath" | "project_path" | "workspacePath" | "workspace_path"
+                | "workspaceRoot" | "workspace_root" | "repositoryRoot" | "repository_root"
+                | "repoRoot" | "repo_root" | "root" => {
+                    filters.cwd.push(normalize_session_path(value));
+                }
+                "project" | "projectName" | "project_name" => {
+                    filters.projects.push(value.to_ascii_lowercase());
+                }
+                "projectId" | "project_id" => {
+                    filters.project_ids.push(value.to_ascii_lowercase());
+                }
+                "branch" => filters.branches.push(value.to_ascii_lowercase()),
+                "runtime" => filters.runtimes.push(value.to_ascii_lowercase()),
+                "environmentId" | "environment_id" | "env" => {
+                    filters.environment_ids.push(value.to_ascii_lowercase());
+                }
+                "includeUnscoped" | "include_unscoped" => {
+                    filters.include_unscoped = matches!(
+                        value.to_ascii_lowercase().as_str(),
+                        "1" | "true" | "yes" | "on"
+                    );
+                }
+                _ => {}
+            }
+        }
+        filters.cwd.sort();
+        filters.cwd.dedup();
+        filters.project_ids.sort();
+        filters.project_ids.dedup();
+        filters.projects.sort();
+        filters.projects.dedup();
+        filters.branches.sort();
+        filters.branches.dedup();
+        filters.runtimes.sort();
+        filters.runtimes.dedup();
+        filters.environment_ids.sort();
+        filters.environment_ids.dedup();
+        filters
+    }
+
+    fn has_scoping_filters(&self) -> bool {
+        !self.cwd.is_empty()
+            || !self.project_ids.is_empty()
+            || !self.projects.is_empty()
+            || !self.branches.is_empty()
+            || !self.runtimes.is_empty()
+            || !self.environment_ids.is_empty()
+    }
+}
+
+fn normalize_session_path(path: &str) -> String {
+    let normalized = path.trim().replace('\\', "/");
+    if normalized == "/" {
+        return normalized;
+    }
+    normalized.trim_end_matches('/').to_ascii_lowercase()
+}
+
+fn session_field<'a>(session: &'a Value, keys: &[&str]) -> Option<&'a str> {
+    const CONTAINERS: &[&str] = &["metadata", "context", "projectContext", "workspace"];
+
+    for key in keys {
+        if let Some(value) = session
+            .get(*key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            return Some(value);
+        }
+
+        for container in CONTAINERS {
+            if let Some(value) = session
+                .get(*container)
+                .and_then(Value::as_object)
+                .and_then(|object| object.get(*key))
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+            {
+                return Some(value);
+            }
+        }
+    }
+
+    None
+}
+
+fn session_is_unscoped(session: &Value) -> bool {
+    session_field(
+        session,
+        &[
+            "projectRoot",
+            "project_root",
+            "workingDir",
+            "working_dir",
+            "cwd",
+            "projectPath",
+            "project_path",
+            "workspacePath",
+            "workspace_path",
+            "workspaceRoot",
+            "workspace_root",
+            "repositoryRoot",
+            "repository_root",
+            "repoRoot",
+            "repo_root",
+            "root",
+            "path",
+            "projectId",
+            "project_id",
+            "project",
+            "projectName",
+            "project_name",
+            "branch",
+            "runtime",
+            "environmentId",
+            "environment_id",
+        ],
+    )
+    .is_none()
+}
+
+fn session_matches_path(session: &Value, roots: &[String]) -> bool {
+    if roots.is_empty() {
+        return true;
+    }
+    let Some(path) = session_field(
+        session,
+        &[
+            "projectRoot",
+            "project_root",
+            "workingDir",
+            "working_dir",
+            "cwd",
+            "projectPath",
+            "project_path",
+            "workspacePath",
+            "workspace_path",
+            "workspaceRoot",
+            "workspace_root",
+            "repositoryRoot",
+            "repository_root",
+            "repoRoot",
+            "repo_root",
+            "root",
+            "path",
+        ],
+    ) else {
+        return false;
+    };
+    let path = normalize_session_path(path);
+    roots
+        .iter()
+        .any(|root| path == *root || path.starts_with(&format!("{root}/")))
+}
+
+fn session_matches_text_filter(session: &Value, keys: &[&str], values: &[String]) -> bool {
+    if values.is_empty() {
+        return true;
+    }
+    let Some(value) = session_field(session, keys) else {
+        return false;
+    };
+    let value = value.to_ascii_lowercase();
+    values.iter().any(|filter| value == *filter)
+}
+
+fn session_matches_workspace_identity(session: &Value, filters: &GatewaySessionFilters) -> bool {
+    if filters.cwd.is_empty() && filters.project_ids.is_empty() {
+        return true;
+    }
+    let path_matches = !filters.cwd.is_empty() && session_matches_path(session, &filters.cwd);
+    let project_id_matches = !filters.project_ids.is_empty()
+        && session_matches_text_filter(session, &["projectId", "project_id"], &filters.project_ids);
+    path_matches || project_id_matches
+}
+
+fn session_matches_filters(session: &Value, filters: &GatewaySessionFilters) -> bool {
+    if filters.include_unscoped && session_is_unscoped(session) {
+        return true;
+    }
+    session_matches_workspace_identity(session, filters)
+        && session_matches_text_filter(
+            session,
+            &["project", "projectName", "project_name"],
+            &filters.projects,
+        )
+        && session_matches_text_filter(session, &["branch"], &filters.branches)
+        && session_matches_text_filter(session, &["runtime"], &filters.runtimes)
+        && session_matches_text_filter(
+            session,
+            &["environmentId", "environment_id"],
+            &filters.environment_ids,
+        )
+}
+
+fn filter_gateway_sessions(sessions: Value, filters: &GatewaySessionFilters) -> Value {
+    if !filters.has_scoping_filters() {
+        return sessions;
+    }
+    let Some(items) = sessions.as_array() else {
+        return sessions;
+    };
+    Value::Array(
+        items
+            .iter()
+            .filter(|session| session_matches_filters(session, filters))
+            .cloned()
+            .collect(),
+    )
+}
+
 /// `GET /api/gateway/sessions`
 ///
 /// Proxies `sessions.list` through the configured harness API.
@@ -310,6 +544,7 @@ async fn gateway_activity(
 async fn gateway_sessions(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
+    RawQuery(raw_query): RawQuery,
 ) -> Result<Json<Value>, AppError> {
     let payload = gateway_forward(&state, Method::GET, "/sessions", None)
         .await
@@ -326,6 +561,8 @@ async fn gateway_sessions(
         .get("sessions")
         .cloned()
         .unwrap_or_else(|| serde_json::json!([]));
+    let filters = GatewaySessionFilters::from_query(raw_query.as_deref().unwrap_or(""));
+    let sessions = filter_gateway_sessions(sessions, &filters);
 
     Ok(Json(json!({ "ok": true, "sessions": sessions })))
 }
@@ -552,11 +789,11 @@ mod tests {
 
     #[test]
     fn sanitize_strips_file_paths() {
-        let input = "error reading /home/josue/.config/openclaw/keys";
+        let input = "error reading /home/josue/.config/provider/keys";
         let result = sanitize_error_body(input);
         assert!(result.contains("[path]"), "expected [path] in: {result}");
         assert!(
-            !result.contains("/home/josue/.config/openclaw/keys"),
+            !result.contains("/home/josue/.config/provider/keys"),
             "file path leaked: {result}"
         );
     }
@@ -621,5 +858,160 @@ mod tests {
     fn validate_path_accepts_session_key_paths() {
         assert!(validate_gateway_path("/sessions/sess-123").is_ok());
         assert!(validate_gateway_path("/sessions/sess-123/compact").is_ok());
+    }
+
+    // -- gateway session filter tests --
+
+    #[test]
+    fn session_filters_parse_repeated_workspace_roots() {
+        let filters = GatewaySessionFilters::from_query(
+            "cwd=%2FVolumes%2FT7%2Fprojects%2Fclawcontrol&cwd=/Users/josue/clawcontrol&includeUnscoped=1",
+        );
+
+        assert_eq!(
+            filters.cwd,
+            vec![
+                "/users/josue/clawcontrol".to_string(),
+                "/volumes/t7/projects/clawcontrol".to_string(),
+            ]
+        );
+        assert!(filters.include_unscoped);
+    }
+
+    #[test]
+    fn session_filters_scope_by_workspace_root_and_keep_unscoped() {
+        let sessions = json!([
+            {
+                "key": "claw",
+                "workingDir": "/Volumes/T7/projects/clawcontrol",
+                "project": "clawcontrol"
+            },
+            {
+                "key": "nested",
+                "cwd": "/Volumes/T7/projects/clawcontrol/frontend",
+                "project": "clawcontrol"
+            },
+            {
+                "key": "project-root",
+                "projectRoot": "/Volumes/T7/projects/clawcontrol",
+                "project": "clawcontrol"
+            },
+            {
+                "key": "nested-metadata-root",
+                "metadata": {
+                    "projectRoot": "/Volumes/T7/projects/clawcontrol",
+                    "project": "clawcontrol"
+                }
+            },
+            {
+                "key": "other",
+                "workingDir": "/Users/josue/AgentShell",
+                "project": "AgentShell"
+            },
+            {
+                "key": "unscoped",
+                "label": "Untitled"
+            }
+        ]);
+        let filters = GatewaySessionFilters::from_query(
+            "cwd=/Volumes/T7/projects/clawcontrol&includeUnscoped=true",
+        );
+
+        let filtered = filter_gateway_sessions(sessions, &filters);
+        let keys: Vec<&str> = filtered
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|session| session.get("key").and_then(Value::as_str))
+            .collect();
+
+        assert_eq!(
+            keys,
+            vec![
+                "claw",
+                "nested",
+                "project-root",
+                "nested-metadata-root",
+                "unscoped"
+            ]
+        );
+    }
+
+    #[test]
+    fn session_filters_require_matching_metadata_dimensions() {
+        let sessions = json!([
+            {
+                "key": "match",
+                "workingDir": "/Volumes/T7/projects/clawcontrol",
+                "projectId": "local:clawcontrol:stable",
+                "project": "clawcontrol",
+                "branch": "codex/chat-parity",
+                "runtime": "Work locally",
+                "environmentId": "local"
+            },
+            {
+                "key": "match-by-project-id",
+                "projectId": "local:clawcontrol:stable",
+                "project": "clawcontrol",
+                "branch": "codex/chat-parity",
+                "runtime": "Work locally",
+                "environmentId": "local"
+            },
+            {
+                "key": "match-by-cwd-without-project-id",
+                "workingDir": "/Volumes/T7/projects/clawcontrol",
+                "project": "clawcontrol",
+                "branch": "codex/chat-parity",
+                "runtime": "Work locally",
+                "environmentId": "local"
+            },
+            {
+                "key": "wrong-project-id",
+                "workingDir": "/tmp/other-project",
+                "projectId": "local:other:stable",
+                "project": "clawcontrol",
+                "branch": "codex/chat-parity",
+                "runtime": "Work locally",
+                "environmentId": "local"
+            },
+            {
+                "key": "wrong-branch",
+                "workingDir": "/Volumes/T7/projects/clawcontrol",
+                "projectId": "local:clawcontrol:stable",
+                "project": "clawcontrol",
+                "branch": "main",
+                "runtime": "Work locally",
+                "environmentId": "local"
+            },
+            {
+                "key": "wrong-env",
+                "workingDir": "/Volumes/T7/projects/clawcontrol",
+                "projectId": "local:clawcontrol:stable",
+                "project": "clawcontrol",
+                "branch": "codex/chat-parity",
+                "runtime": "Work locally",
+                "environmentId": "remote"
+            }
+        ]);
+        let filters = GatewaySessionFilters::from_query(
+            "cwd=/Volumes/T7/projects/clawcontrol&projectId=local%3Aclawcontrol%3Astable&project=clawcontrol&branch=codex%2Fchat-parity&runtime=Work%20locally&environmentId=local",
+        );
+
+        let filtered = filter_gateway_sessions(sessions, &filters);
+        let keys: Vec<&str> = filtered
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|session| session.get("key").and_then(Value::as_str))
+            .collect();
+
+        assert_eq!(
+            keys,
+            vec![
+                "match",
+                "match-by-project-id",
+                "match-by-cwd-without-project-id"
+            ]
+        );
     }
 }

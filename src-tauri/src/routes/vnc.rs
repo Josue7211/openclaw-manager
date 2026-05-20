@@ -26,7 +26,7 @@ const VNC_SECURITY_NONE: u8 = 1;
 const LOCAL_TUNNEL_SERVICE: &str = "openclaw-vnc-tunnel.service";
 const LEGACY_LOCAL_TUNNEL_SERVICE: &str = "openclaw-sunshine-tunnel.service";
 const REMOTE_VNC_SERVICE: &str = "clawcontrol-vnc.service";
-const REMOTE_VNC_HOST: &str = "openclaw-vm";
+const REMOTE_VNC_HOST: &str = "agent-vm";
 const DEFAULT_VNC_HOST: &str = "127.0.0.1";
 const DEFAULT_VNC_PORT: u16 = 5901;
 const DEFAULT_SUNSHINE_PORT: u16 = 47990;
@@ -516,6 +516,7 @@ async fn run_repair_command(program: &str, args: &[&str]) -> Result<Value, Strin
     }))
 }
 
+#[cfg(target_os = "macos")]
 async fn run_optional_repair_command(program: &str, args: &[&str]) -> Value {
     match tokio::time::timeout(
         Duration::from_secs(5),
@@ -810,7 +811,7 @@ mod tests {
                 "port": 5901,
                 "address": "127.0.0.1:5901",
                 "configured": false,
-                "repairHost": "openclaw-vm",
+                "repairHost": "agent-vm",
                 "vncService": "clawcontrol-vnc.service",
                 "tunnelService": "openclaw-vnc-tunnel.service"
             },
@@ -841,7 +842,7 @@ mod tests {
     }
 
     #[test]
-    fn vnc_target_uses_openclaw_host_for_loopback_repair() {
+    fn vnc_target_uses_configured_host_for_loopback_repair() {
         let target = VncTarget::from_raw_with_repair_host(
             Some("127.0.0.1:5901".to_string()),
             Some("100.104.154.24".to_string()),
@@ -853,13 +854,13 @@ mod tests {
 
     #[test]
     fn vnc_target_accepts_configured_host_and_port() {
-        let target = VncTarget::from_raw(Some("vnc://openclaw-vm:5902".to_string()));
+        let target = VncTarget::from_raw(Some("vnc://agent-vm:5902".to_string()));
 
-        assert_eq!(target.host, "openclaw-vm");
+        assert_eq!(target.host, "agent-vm");
         assert_eq!(target.port, 5902);
-        assert_eq!(target.address, "openclaw-vm:5902");
+        assert_eq!(target.address, "agent-vm:5902");
         assert!(target.configured);
-        assert_eq!(target.repair_host(), "openclaw-vm");
+        assert_eq!(target.repair_host(), "agent-vm");
     }
 
     #[test]
@@ -869,8 +870,8 @@ mod tests {
             Some("100.104.154.24".to_string())
         );
         assert_eq!(
-            harness_host_from_url(Some("openclaw.tail8fd5f4.ts.net:3939".to_string())),
-            Some("openclaw.tail8fd5f4.ts.net".to_string())
+            harness_host_from_url(Some("agent-vm.tail8fd5f4.ts.net:3939".to_string())),
+            Some("agent-vm.tail8fd5f4.ts.net".to_string())
         );
     }
 

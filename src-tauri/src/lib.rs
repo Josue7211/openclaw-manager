@@ -18,6 +18,7 @@ pub mod supabase;
 pub mod sync;
 pub mod tailscale;
 pub mod validation;
+pub mod vendor;
 
 pub fn initialize_process_runtime() {
     #[cfg(unix)]

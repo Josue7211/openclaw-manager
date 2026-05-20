@@ -108,8 +108,26 @@ fn normalize_folder_path(path: &str) -> Result<String, AppError> {
         .filter(|part| !part.is_empty())
         .map(|part| {
             part.chars()
-                .filter(|ch| !matches!(ch, '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '\0'))
+                .filter(|ch| {
+                    !matches!(
+                        ch,
+                        '\\' | ':'
+                            | '*'
+                            | '?'
+                            | '"'
+                            | '<'
+                            | '>'
+                            | '|'
+                            | '\0'
+                            | '\u{200B}'
+                            | '\u{200C}'
+                            | '\u{200D}'
+                            | '\u{FEFF}'
+                    ) && !ch.is_control()
+                })
                 .collect::<String>()
+                .trim()
+                .to_string()
         })
         .filter(|part| !part.is_empty() && part != "." && part != "..")
         .collect();
@@ -718,7 +736,7 @@ async fn put_note(
 /// DELETE /api/vault/notes/:id?rev=xxx — delete a note
 #[derive(Deserialize)]
 struct DeleteQuery {
-    rev: String,
+    rev: Option<String>,
 }
 
 async fn delete_note(
@@ -732,9 +750,18 @@ async fn delete_note(
         return Err(AppError::BadRequest("Invalid document ID".into()));
     }
     let encoded = urlencoding::encode(&id);
+    let rev = match q.rev {
+        Some(rev) => rev,
+        None => couch_get(&state, &encoded)
+            .await?
+            .get("_rev")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| AppError::BadRequest("Document revision required".into()))?
+            .to_string(),
+    };
     let result = couch_delete(
         &state,
-        &format!("{encoded}?rev={}", urlencoding::encode(&q.rev)),
+        &format!("{encoded}?rev={}", urlencoding::encode(&rev)),
     )
     .await?;
     Ok(success_json(result))
@@ -759,6 +786,18 @@ struct DocQuery {
 
 #[derive(Deserialize)]
 struct DocDeleteQuery {
+    id: String,
+    rev: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct RevisionQuery {
+    id: String,
+    rev: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct RestoreRevisionBody {
     id: String,
     rev: String,
 }
@@ -801,6 +840,77 @@ async fn delete_doc_by_query(
         Query(DeleteQuery { rev: q.rev }),
     )
     .await
+}
+
+async fn get_revisions_by_query(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+    Query(q): Query<RevisionQuery>,
+) -> Result<Json<Value>, AppError> {
+    ensure_couch_config(&state, &session).await;
+    if q.id.contains("..") || q.id.starts_with('_') {
+        return Err(AppError::BadRequest("Invalid document ID".into()));
+    }
+    let encoded = urlencoding::encode(&q.id);
+    let doc = couch_get(&state, &format!("{encoded}?revs_info=true")).await?;
+    Ok(success_json(json!({
+        "id": q.id,
+        "current_rev": doc.get("_rev").cloned().unwrap_or(Value::Null),
+        "revisions": doc.get("_revs_info").cloned().unwrap_or_else(|| json!([])),
+    })))
+}
+
+async fn get_revision_by_query(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+    Query(q): Query<RevisionQuery>,
+) -> Result<Json<Value>, AppError> {
+    ensure_couch_config(&state, &session).await;
+    if q.id.contains("..") || q.id.starts_with('_') {
+        return Err(AppError::BadRequest("Invalid document ID".into()));
+    }
+    let Some(rev) = q.rev else {
+        return Err(AppError::BadRequest("Revision required".into()));
+    };
+    let encoded = urlencoding::encode(&q.id);
+    let doc = couch_get(
+        &state,
+        &format!("{encoded}?rev={}", urlencoding::encode(&rev)),
+    )
+    .await?;
+    Ok(success_json(json!({ "revision": doc })))
+}
+
+async fn restore_revision(
+    State(state): State<AppState>,
+    RequireAuth(session): RequireAuth,
+    Json(body): Json<RestoreRevisionBody>,
+) -> Result<Json<Value>, AppError> {
+    ensure_couch_config(&state, &session).await;
+    if body.id.contains("..") || body.id.starts_with('_') {
+        return Err(AppError::BadRequest("Invalid document ID".into()));
+    }
+    let encoded = urlencoding::encode(&body.id);
+    let current = couch_get(&state, &encoded).await?;
+    let current_rev = current
+        .get("_rev")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::BadRequest("Current revision required".into()))?;
+    let mut revision = couch_get(
+        &state,
+        &format!("{encoded}?rev={}", urlencoding::encode(&body.rev)),
+    )
+    .await?;
+    let Some(obj) = revision.as_object_mut() else {
+        return Err(AppError::BadRequest("Revision document is invalid".into()));
+    };
+    obj.insert("_rev".to_string(), json!(current_rev));
+    obj.insert(
+        "updated_at".to_string(),
+        json!(chrono::Utc::now().timestamp_millis()),
+    );
+    let result = couch_put(&state, &encoded, revision).await?;
+    Ok(success_json(result))
 }
 
 async fn post_attachment(
@@ -908,6 +1018,9 @@ pub fn router() -> Router<AppState> {
         .route("/vault/media/{id}", get(get_media_by_id))
         .route("/vault/media", get(get_media_by_query))
         .route("/vault/attachment", axum::routing::post(post_attachment))
+        .route("/vault/revisions", get(get_revisions_by_query))
+        .route("/vault/revision", get(get_revision_by_query))
+        .route("/vault/restore", axum::routing::post(restore_revision))
         .route(
             "/vault/doc",
             get(get_doc_by_query)
@@ -925,6 +1038,10 @@ mod tests {
         let path = normalize_folder_path(" Projects / Daily Notes ").unwrap();
 
         assert_eq!(path, "Projects/Daily Notes");
+        assert_eq!(
+            normalize_folder_path(" Home\u{200B}work /\u{FEFF} Commands ").unwrap(),
+            "Homework/Commands"
+        );
     }
 
     #[test]

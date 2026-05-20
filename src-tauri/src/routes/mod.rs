@@ -11,6 +11,7 @@ pub mod auth;
 pub mod cache;
 pub mod calendar;
 pub mod captures;
+pub mod career;
 pub mod changelog;
 pub mod chat;
 pub mod claude_sessions;
@@ -22,6 +23,7 @@ pub mod export;
 pub mod gateway;
 pub mod gateway_events;
 pub mod generated_modules;
+pub mod growth;
 pub mod homelab;
 pub mod ideas;
 pub mod jobs;
@@ -54,6 +56,7 @@ pub mod training;
 pub mod user_secrets;
 pub mod util;
 pub mod vault;
+pub mod vault_local;
 pub mod vnc;
 pub mod wizard;
 pub mod workflow_notes;
@@ -67,6 +70,7 @@ pub fn router() -> Router<AppState> {
         .merge(agent_shell::router())
         .merge(approvals::router())
         .merge(generated_modules::router())
+        .merge(growth::router())
         .nest("/auth", auth::router())
         .merge(calendar::router())
         .nest("/chat", chat::router())
@@ -82,6 +86,7 @@ pub fn router() -> Router<AppState> {
         .merge(messages::router())
         .merge(cache::router())
         .merge(captures::router())
+        .merge(career::router())
         .merge(changelog::router())
         .merge(crons::router())
         .merge(ideas::router())
@@ -110,6 +115,7 @@ pub fn router() -> Router<AppState> {
         .merge(terminal::router())
         .merge(claude_sessions::router())
         .merge(user_secrets::router())
+        .merge(vault_local::router())
         .merge(vault::router())
         .merge(vnc::router())
         .merge(wizard::router())

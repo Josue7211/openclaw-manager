@@ -339,6 +339,12 @@ async fn migrate_secrets(
         ("ANTHROPIC_API_KEY", "anthropic", "api_key"),
         ("LIGHTRAG_BASE_URL", "lightrag", "base_url"),
         ("LIGHTRAG_API_KEY", "lightrag", "api_key"),
+        ("LIGHTRAG_LLM_BINDING_API_KEY", "lightrag", "llm_api_key"),
+        (
+            "LIGHTRAG_EMBEDDING_BINDING_API_KEY",
+            "lightrag",
+            "embedding_api_key",
+        ),
         ("MEMD_RAG_URL", "memd", "rag_url"),
         ("RAGANYTHING_URL", "raganything", "url"),
         ("MINERU_URL", "mineru", "url"),

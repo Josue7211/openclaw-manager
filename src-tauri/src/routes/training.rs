@@ -7,7 +7,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::error::{success_json, AppError};
-use crate::server::{AppState, RequireAuth};
+use crate::server::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -36,11 +36,9 @@ struct CreateIntakeLinkBody {
     expires_in_days: Option<i64>,
 }
 
-async fn list_intake_links(
-    State(state): State<AppState>,
-    RequireAuth(session): RequireAuth,
-) -> Result<Json<Value>, AppError> {
+async fn list_intake_links(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
     ensure_intake_link_metadata_columns(&state).await?;
+    let user_id = coaching_user_id();
     let rows: Vec<(
         String,
         String,
@@ -59,7 +57,7 @@ async fn list_intake_links(
          WHERE user_id = ? \
          ORDER BY created_at DESC",
     )
-    .bind(&session.user_id)
+    .bind(&user_id)
     .fetch_all(&state.db)
     .await?;
 
@@ -103,10 +101,10 @@ async fn list_intake_links(
 
 async fn create_intake_link(
     State(state): State<AppState>,
-    RequireAuth(session): RequireAuth,
     Json(body): Json<CreateIntakeLinkBody>,
 ) -> Result<Json<Value>, AppError> {
     ensure_intake_link_metadata_columns(&state).await?;
+    let user_id = coaching_user_id();
     let title = body.title.trim();
     if title.is_empty() {
         return Err(AppError::BadRequest("title required".into()));
@@ -136,7 +134,7 @@ async fn create_intake_link(
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)",
     )
     .bind(&id)
-    .bind(&session.user_id)
+    .bind(&user_id)
     .bind(&token)
     .bind(title)
     .bind(&fields_json)
@@ -167,10 +165,9 @@ async fn create_intake_link(
     })))
 }
 
-async fn list_intake_submissions(
-    State(state): State<AppState>,
-    RequireAuth(session): RequireAuth,
-) -> Result<Json<Value>, AppError> {
+async fn list_intake_submissions(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    ensure_intake_link_metadata_columns(&state).await?;
+    let user_id = coaching_user_id();
     let rows: Vec<(
         String,
         String,
@@ -189,7 +186,7 @@ async fn list_intake_submissions(
              WHERE s.user_id = ? \
              ORDER BY s.created_at DESC",
         )
-        .bind(&session.user_id)
+        .bind(&user_id)
         .fetch_all(&state.db)
         .await?;
 
@@ -229,10 +226,10 @@ async fn list_intake_submissions(
 
 async fn mark_submission_applied(
     State(state): State<AppState>,
-    RequireAuth(session): RequireAuth,
     Path(id): Path<String>,
 ) -> Result<Json<Value>, AppError> {
     let now = chrono::Utc::now().to_rfc3339();
+    let user_id = coaching_user_id();
     sqlx::query(
         "UPDATE training_intake_submissions \
          SET reviewed_at = COALESCE(reviewed_at, ?), applied_at = ? \
@@ -241,7 +238,7 @@ async fn mark_submission_applied(
     .bind(&now)
     .bind(&now)
     .bind(&id)
-    .bind(&session.user_id)
+    .bind(&user_id)
     .execute(&state.db)
     .await?;
 
@@ -355,6 +352,14 @@ fn normalize_language(language: Option<&str>) -> String {
         "spanish" | "es" | "español" | "espanol" => "es".to_string(),
         _ => "en".to_string(),
     }
+}
+
+fn coaching_user_id() -> String {
+    std::env::var("COACHING_USER_ID")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "user-1".to_string())
 }
 
 fn is_expired(expires_at: &str) -> bool {

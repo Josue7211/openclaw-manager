@@ -1,4 +1,234 @@
+use base64::Engine as _;
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatProjectScript {
+    pub id: String,
+    pub name: String,
+    pub command: String,
+    pub cwd: Option<String>,
+    pub icon: Option<String>,
+    pub run_on_worktree_create: Option<bool>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatWorkspaceProjectPatch {
+    pub name: Option<String>,
+    pub machine_label: Option<String>,
+    pub scripts: Option<Vec<ChatProjectScript>>,
+    pub grouping_override: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatWorkspaceProject {
+    pub id: Option<String>,
+    pub name: String,
+    pub path: String,
+    pub branches: Vec<String>,
+    pub current_branch: Option<String>,
+    pub machine_label: Option<String>,
+    pub scripts: Option<Vec<ChatProjectScript>>,
+    pub grouping_override: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatWorkspaceContext {
+    pub projects: Vec<ChatWorkspaceProject>,
+    pub runtime_modes: Vec<String>,
+}
+
+fn basename(path: &Path) -> String {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or("Project")
+        .to_string()
+}
+
+fn machine_label_for_path(path: &Path) -> String {
+    let text = path.to_string_lossy();
+    if text.starts_with("/run/media/") {
+        return text.split('/').nth(3).unwrap_or("External").to_string();
+    }
+    if text.starts_with("/Volumes/") {
+        return text.split('/').nth(2).unwrap_or("External").to_string();
+    }
+    if text.starts_with("/home/") {
+        return "Linux".to_string();
+    }
+    if text.starts_with("/Users/") {
+        return "Local Mac".to_string();
+    }
+    "Local".to_string()
+}
+
+fn current_git_branch(path: &Path) -> Option<String> {
+    let output = std::process::Command::new("git")
+        .args([
+            "-C",
+            &path.to_string_lossy(),
+            "rev-parse",
+            "--abbrev-ref",
+            "HEAD",
+        ])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if branch.is_empty() || branch == "HEAD" {
+        None
+    } else {
+        Some(branch)
+    }
+}
+
+fn chat_project_id(path: &Path) -> String {
+    let mut id = String::from("local-");
+    for byte in path.to_string_lossy().as_bytes() {
+        use std::fmt::Write as _;
+        let _ = write!(id, "{byte:02x}");
+    }
+    id
+}
+
+fn normalize_chat_workspace_project(path: PathBuf) -> ChatWorkspaceProject {
+    let branch = current_git_branch(&path).unwrap_or_else(|| "main".to_string());
+    ChatWorkspaceProject {
+        id: Some(chat_project_id(&path)),
+        name: basename(&path),
+        path: path.to_string_lossy().into_owned(),
+        branches: vec![branch.clone()],
+        current_branch: Some(branch),
+        machine_label: Some(machine_label_for_path(&path)),
+        scripts: None,
+        grouping_override: None,
+    }
+}
+
+fn workspace_store_path() -> PathBuf {
+    crate::app_paths::resolve_app_data_dir().join("chat-workspace-projects.json")
+}
+
+fn read_workspace_store() -> Result<Vec<ChatWorkspaceProject>, String> {
+    let path = workspace_store_path();
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let text = std::fs::read_to_string(&path).map_err(|err| err.to_string())?;
+    serde_json::from_str(&text).map_err(|err| err.to_string())
+}
+
+fn write_workspace_store(projects: &[ChatWorkspaceProject]) -> Result<(), String> {
+    let path = workspace_store_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    }
+    let text = serde_json::to_string_pretty(projects).map_err(|err| err.to_string())?;
+    std::fs::write(path, text).map_err(|err| err.to_string())
+}
+
+pub fn read_dropped_image_data_url(path: impl AsRef<str>) -> Result<String, String> {
+    let path = Path::new(path.as_ref());
+    let ext = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let mime = match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        _ => return Err("unsupported image type".to_string()),
+    };
+    let bytes = std::fs::read(path).map_err(|err| err.to_string())?;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+    Ok(format!("data:{mime};base64,{encoded}"))
+}
+
+pub fn get_chat_workspace_context() -> ChatWorkspaceContext {
+    let mut projects = Vec::new();
+    if let Ok(current) = std::env::current_dir() {
+        projects.push(normalize_chat_workspace_project(current));
+    }
+    if let Ok(stored) = read_workspace_store() {
+        for project in stored {
+            if !projects
+                .iter()
+                .any(|candidate| candidate.path == project.path)
+            {
+                projects.push(project);
+            }
+        }
+    }
+    ChatWorkspaceContext {
+        projects,
+        runtime_modes: vec!["Work locally".to_string()],
+    }
+}
+
+pub fn load_stored_chat_workspace_projects() -> Result<Vec<ChatWorkspaceProject>, String> {
+    read_workspace_store()
+}
+
+pub fn add_stored_chat_workspace_project(path: String) -> Result<ChatWorkspaceProject, String> {
+    let path = PathBuf::from(path);
+    let project = normalize_chat_workspace_project(path);
+    let mut projects = read_workspace_store()?;
+    projects.retain(|candidate| candidate.path != project.path && candidate.id != project.id);
+    projects.push(project.clone());
+    write_workspace_store(&projects)?;
+    Ok(project)
+}
+
+pub fn update_stored_chat_workspace_project(
+    id_or_path: String,
+    patch: ChatWorkspaceProjectPatch,
+) -> Result<(ChatWorkspaceProject, Vec<ChatWorkspaceProject>), String> {
+    let mut projects = read_workspace_store()?;
+    let index = projects
+        .iter()
+        .position(|project| {
+            project.id.as_deref() == Some(id_or_path.as_str()) || project.path == id_or_path
+        })
+        .ok_or_else(|| "workspace project not found".to_string())?;
+
+    if let Some(name) = patch.name {
+        projects[index].name = name;
+    }
+    if let Some(machine_label) = patch.machine_label {
+        projects[index].machine_label = Some(machine_label);
+    }
+    if let Some(scripts) = patch.scripts {
+        projects[index].scripts = Some(scripts);
+    }
+    if let Some(grouping_override) = patch.grouping_override {
+        projects[index].grouping_override = Some(grouping_override);
+    }
+
+    let project = projects[index].clone();
+    write_workspace_store(&projects)?;
+    Ok((project, projects))
+}
+
+pub fn remove_stored_chat_workspace_project(
+    id_or_path: String,
+) -> Result<Vec<ChatWorkspaceProject>, String> {
+    let mut projects = read_workspace_store()?;
+    projects.retain(|project| {
+        project.id.as_deref() != Some(id_or_path.as_str()) && project.path != id_or_path
+    });
+    write_workspace_store(&projects)?;
+    Ok(projects)
+}
 
 /// Return the configured harness data directory.
 #[tauri::command]

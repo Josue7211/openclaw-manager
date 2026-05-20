@@ -432,6 +432,42 @@ impl SupabaseClient {
             .context("supabase upsert_as_user: failed to parse JSON")
     }
 
+    /// Like `upsert_as_user` with an explicit PostgREST `on_conflict` target.
+    pub async fn upsert_as_user_on_conflict(
+        &self,
+        table: &str,
+        on_conflict: &str,
+        body: Value,
+        jwt: &str,
+    ) -> anyhow::Result<Value> {
+        let url = format!("{}?on_conflict={}", self.rest_url(table), on_conflict);
+        let resp = self
+            .auth_headers_as_user(self.http.post(url), jwt)
+            .header("Content-Type", "application/json")
+            .header(
+                "Prefer",
+                "return=representation,resolution=merge-duplicates",
+            )
+            .json(&body)
+            .send()
+            .await
+            .context("supabase upsert_as_user_on_conflict request failed")?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let body_text = resp.text().await.unwrap_or_default();
+            let truncated = safe_truncate(&body_text, 200);
+            warn!("supabase upsert_as_user_on_conflict {table} returned {status}: {truncated}");
+            return Err(anyhow!(
+                "supabase upsert_as_user_on_conflict {table}: {status} — {truncated}"
+            ));
+        }
+
+        resp.json::<Value>()
+            .await
+            .context("supabase upsert_as_user_on_conflict: failed to parse JSON")
+    }
+
     /// Like `update` but authenticates as the user identified by `jwt`.
     pub async fn update_as_user(
         &self,

@@ -556,6 +556,28 @@ const LIGHTRAG_FIELDS: &[SyncFieldSpec] = &[
         label: "API key",
         required: false,
     },
+    SyncFieldSpec {
+        keys: &[
+            "llm_api_key",
+            "llm-api-key",
+            "llm_binding_api_key",
+            "llm-binding-api-key",
+        ],
+        env_var: "LIGHTRAG_LLM_BINDING_API_KEY",
+        label: "LLM API key",
+        required: false,
+    },
+    SyncFieldSpec {
+        keys: &[
+            "embedding_api_key",
+            "embedding-api-key",
+            "embedding_binding_api_key",
+            "embedding-binding-api-key",
+        ],
+        env_var: "LIGHTRAG_EMBEDDING_BINDING_API_KEY",
+        label: "Embedding API key",
+        required: false,
+    },
 ];
 const MEMD_FIELDS: &[SyncFieldSpec] = &[SyncFieldSpec {
     keys: &["rag_url", "rag-url"],
@@ -757,7 +779,37 @@ fn env_var_for_service_field(
     service_credential_to_env_var(service, key)
 }
 
+fn is_insecure_dev_session(session: &UserSession) -> bool {
+    #[cfg(debug_assertions)]
+    {
+        session.access_token == "dev-token" && session.user_id == "dev-user"
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = session;
+        false
+    }
+}
+
 async fn account_sync_status_payload(state: &AppState, session: &UserSession) -> Value {
+    if is_insecure_dev_session(session) {
+        return json!({
+            "authenticated": true,
+            "mfa_verified": true,
+            "has_cached_key": true,
+            "has_synced_services": false,
+            "synced_service_count": 0,
+            "hydrated_service_count": 0,
+            "services": [],
+            "service_details": [],
+            "requires_unlock": false,
+            "ready": true,
+            "recovery_key_configured": false,
+            "needs_recovery_key": false,
+            "setup_doctor_required": false,
+        });
+    }
+
     let sb = match SupabaseClient::from_state(state) {
         Ok(sb) => Some(sb),
         Err(e) => {
@@ -984,6 +1036,14 @@ async fn account_sync_recovery_status(
     State(state): State<AppState>,
     RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
+    if is_insecure_dev_session(&session) {
+        return Ok(Json(json!({
+            "ok": true,
+            "configured": false,
+            "latest": Value::Null,
+        })));
+    }
+
     let sb = SupabaseClient::from_state(&state)?;
     let rows = sb
         .select_as_user(
@@ -1595,6 +1655,9 @@ pub(crate) fn service_credential_to_env_var(service: &str, key: &str) -> Option<
         ("opnsense", "host") => Some("OPNSENSE_HOST"),
         ("opnsense", "key") => Some("OPNSENSE_KEY"),
         ("opnsense", "secret") => Some("OPNSENSE_SECRET"),
+        ("portainer", "instances" | "instances_json" | "instances-json") => {
+            Some("PORTAINER_INSTANCES")
+        }
         // Plex
         ("plex", "url") => Some("PLEX_URL"),
         ("plex", "token") => Some("PLEX_TOKEN"),
@@ -1638,6 +1701,31 @@ pub(crate) fn service_credential_to_env_var(service: &str, key: &str) -> Option<
         ("unraid", "api_key" | "api-key") => Some("UNRAID_API_KEY"),
         ("wizarr", "url") => Some("WIZARR_URL"),
         ("wizarr", "api_key" | "api-key") => Some("WIZARR_API_KEY"),
+        ("jellyfin", "url") => Some("JELLYFIN_URL"),
+        ("jellyfin", "api_key" | "api-key") => Some("JELLYFIN_API_KEY"),
+        ("emby", "url") => Some("EMBY_URL"),
+        ("emby", "api_key" | "api-key") => Some("EMBY_API_KEY"),
+        ("readarr", "url") => Some("READARR_URL"),
+        ("readarr", "api_key" | "api-key") => Some("READARR_API_KEY"),
+        ("whisparr", "url") => Some("WHISPARR_URL"),
+        ("whisparr", "api_key" | "api-key") => Some("WHISPARR_API_KEY"),
+        ("mylar", "url") => Some("MYLAR_URL"),
+        ("mylar", "api_key" | "api-key") => Some("MYLAR_API_KEY"),
+        ("autobrr", "url") => Some("AUTOBRR_URL"),
+        ("autobrr", "api_key" | "api-key") => Some("AUTOBRR_API_KEY"),
+        ("recyclarr", "url") => Some("RECYCLARR_URL"),
+        ("recyclarr", "api_key" | "api-key") => Some("RECYCLARR_API_KEY"),
+        ("kometa", "url") => Some("KOMETA_URL"),
+        ("kometa", "api_key" | "api-key") => Some("KOMETA_API_KEY"),
+        ("flaresolverr", "url") => Some("FLARESOLVERR_URL"),
+        ("ssh", "host") => Some("SSH_HOST"),
+        ("ssh", "user" | "username") => Some("SSH_USER"),
+        ("ssh", "password") => Some("SSH_PASSWORD"),
+        ("ssh", "key_path" | "key-path") => Some("SSH_KEY_PATH"),
+        ("sftp", "host") => Some("SFTP_HOST"),
+        ("sftp", "user" | "username") => Some("SFTP_USER"),
+        ("sftp", "password") => Some("SFTP_PASSWORD"),
+        ("sftp", "key_path" | "key-path") => Some("SFTP_KEY_PATH"),
         // Email
         ("email", "host") => Some("EMAIL_HOST"),
         ("email", "port") => Some("EMAIL_PORT"),
@@ -1679,6 +1767,17 @@ pub(crate) fn service_credential_to_env_var(service: &str, key: &str) -> Option<
         // LightRAG / memd RAG sidecar
         ("lightrag", "url" | "base_url" | "base-url") => Some("LIGHTRAG_BASE_URL"),
         ("lightrag", "api_key" | "api-key") => Some("LIGHTRAG_API_KEY"),
+        (
+            "lightrag",
+            "llm_api_key" | "llm-api-key" | "llm_binding_api_key" | "llm-binding-api-key",
+        ) => Some("LIGHTRAG_LLM_BINDING_API_KEY"),
+        (
+            "lightrag",
+            "embedding_api_key"
+            | "embedding-api-key"
+            | "embedding_binding_api_key"
+            | "embedding-binding-api-key",
+        ) => Some("LIGHTRAG_EMBEDDING_BINDING_API_KEY"),
         ("memd", "rag_url" | "rag-url") => Some("MEMD_RAG_URL"),
         ("raganything", "url") => Some("RAGANYTHING_URL"),
         ("mineru", "url") => Some("MINERU_URL"),
@@ -1748,6 +1847,11 @@ async fn delete_unrecoverable_user_secret(
 /// This function logs but never returns errors — secrets may not be migrated
 /// yet, and the OS keychain provides a working fallback.
 pub async fn load_user_secrets(state: &AppState, session: &UserSession) {
+    if is_insecure_dev_session(session) {
+        tracing::debug!("skipping user_secrets load for insecure dev session");
+        return;
+    }
+
     // Skip if no encryption key is available (e.g. OAuth login without password)
     if session.encryption_key.is_empty() {
         tracing::debug!("skipping user_secrets load: no encryption key (OAuth login)");
@@ -1958,6 +2062,7 @@ fn sync_env_to_service_fields() -> &'static [(&'static str, &'static str, &'stat
         ("OPNSENSE_HOST", "opnsense", "host"),
         ("OPNSENSE_KEY", "opnsense", "key"),
         ("OPNSENSE_SECRET", "opnsense", "secret"),
+        ("PORTAINER_INSTANCES", "portainer", "instances"),
         ("PLEX_URL", "plex", "url"),
         ("PLEX_TOKEN", "plex", "token"),
         ("SONARR_URL", "sonarr", "url"),
@@ -1995,6 +2100,31 @@ fn sync_env_to_service_fields() -> &'static [(&'static str, &'static str, &'stat
         ("UNRAID_API_KEY", "unraid", "api_key"),
         ("WIZARR_URL", "wizarr", "url"),
         ("WIZARR_API_KEY", "wizarr", "api_key"),
+        ("JELLYFIN_URL", "jellyfin", "url"),
+        ("JELLYFIN_API_KEY", "jellyfin", "api_key"),
+        ("EMBY_URL", "emby", "url"),
+        ("EMBY_API_KEY", "emby", "api_key"),
+        ("READARR_URL", "readarr", "url"),
+        ("READARR_API_KEY", "readarr", "api_key"),
+        ("WHISPARR_URL", "whisparr", "url"),
+        ("WHISPARR_API_KEY", "whisparr", "api_key"),
+        ("MYLAR_URL", "mylar", "url"),
+        ("MYLAR_API_KEY", "mylar", "api_key"),
+        ("AUTOBRR_URL", "autobrr", "url"),
+        ("AUTOBRR_API_KEY", "autobrr", "api_key"),
+        ("RECYCLARR_URL", "recyclarr", "url"),
+        ("RECYCLARR_API_KEY", "recyclarr", "api_key"),
+        ("KOMETA_URL", "kometa", "url"),
+        ("KOMETA_API_KEY", "kometa", "api_key"),
+        ("FLARESOLVERR_URL", "flaresolverr", "url"),
+        ("SSH_HOST", "ssh", "host"),
+        ("SSH_USER", "ssh", "user"),
+        ("SSH_PASSWORD", "ssh", "password"),
+        ("SSH_KEY_PATH", "ssh", "key_path"),
+        ("SFTP_HOST", "sftp", "host"),
+        ("SFTP_USER", "sftp", "user"),
+        ("SFTP_PASSWORD", "sftp", "password"),
+        ("SFTP_KEY_PATH", "sftp", "key_path"),
         ("EMAIL_HOST", "email", "host"),
         ("EMAIL_PORT", "email", "port"),
         ("EMAIL_USER", "email", "user"),
@@ -2016,6 +2146,12 @@ fn sync_env_to_service_fields() -> &'static [(&'static str, &'static str, &'stat
         ("ANTHROPIC_API_KEY", "anthropic", "api_key"),
         ("LIGHTRAG_BASE_URL", "lightrag", "base_url"),
         ("LIGHTRAG_API_KEY", "lightrag", "api_key"),
+        ("LIGHTRAG_LLM_BINDING_API_KEY", "lightrag", "llm_api_key"),
+        (
+            "LIGHTRAG_EMBEDDING_BINDING_API_KEY",
+            "lightrag",
+            "embedding_api_key",
+        ),
         ("MEMD_RAG_URL", "memd", "rag_url"),
         ("RAGANYTHING_URL", "raganything", "url"),
         ("MINERU_URL", "mineru", "url"),
@@ -2094,6 +2230,11 @@ async fn promote_missing_keychain_secrets(
     session: &UserSession,
     sb: &SupabaseClient,
 ) {
+    if is_insecure_dev_session(session) {
+        tracing::debug!("skipping local secret promotion for insecure dev session");
+        return;
+    }
+
     if session.encryption_key.is_empty() {
         return;
     }
@@ -2427,7 +2568,25 @@ async fn get_session(State(state): State<AppState>) -> Json<Value> {
                 "available_mfa_methods": s.available_mfa_methods,
             }))
         }
-        None => Json(json!({ "authenticated": false })),
+        None => {
+            #[cfg(debug_assertions)]
+            if matches!(
+                std::env::var("ALLOW_INSECURE_DEV_AUTH_BYPASS")
+                    .ok()
+                    .as_deref(),
+                Some("1" | "true" | "TRUE" | "True")
+            ) {
+                return Json(json!({
+                    "authenticated": true,
+                    "user": { "id": "dev-user", "email": "dev@localhost" },
+                    "mfa_required": false,
+                    "mfa_verified": true,
+                    "available_mfa_methods": [],
+                }));
+            }
+
+            Json(json!({ "authenticated": false }))
+        }
     }
 }
 
@@ -3866,6 +4025,25 @@ mod tests {
         assert!(escaped.contains("&quot;&gt;&lt;script&gt;"));
     }
 
+    #[test]
+    fn detects_insecure_dev_session() {
+        let session = UserSession {
+            access_token: "dev-token".to_string(),
+            refresh_token: "dev-refresh".to_string(),
+            user_id: "dev-user".to_string(),
+            email: "dev@localhost".to_string(),
+            expires_at: epoch_secs() + 3600,
+            encryption_key: vec![0; 32],
+            mfa_verified: true,
+            factor_id: None,
+            factor_type: None,
+            available_mfa_methods: vec![],
+            created_at: epoch_secs(),
+        };
+
+        assert!(is_insecure_dev_session(&session));
+    }
+
     // ---- service_credential_to_env_var ----
 
     #[test]
@@ -4050,9 +4228,35 @@ mod tests {
             "openclaw",
             "proxmox",
             "opnsense",
+            "portainer",
             "plex",
+            "jellyfin",
+            "emby",
             "sonarr",
             "radarr",
+            "lidarr",
+            "readarr",
+            "whisparr",
+            "mylar",
+            "prowlarr",
+            "bazarr",
+            "overseerr",
+            "jellyseerr",
+            "tautulli",
+            "jellystat",
+            "qbittorrent",
+            "sabnzbd",
+            "nzbget",
+            "transmission",
+            "deluge",
+            "unraid",
+            "wizarr",
+            "autobrr",
+            "recyclarr",
+            "kometa",
+            "flaresolverr",
+            "ssh",
+            "sftp",
             "email",
             "agentmail",
             "caldav",
@@ -4075,6 +4279,7 @@ mod tests {
                 "token-id",
                 "token_secret",
                 "token-secret",
+                "instances",
                 "username",
                 "user",
                 "port",
