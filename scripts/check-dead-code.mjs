@@ -6,13 +6,13 @@ const root = process.cwd()
 const knipBin = path.join(root, 'frontend/node_modules/knip/bin/knip.js')
 
 const baseline = {
-  files: 33,
+  files: 15,
   dependencies: 10,
   devDependencies: 7,
   unlisted: 0,
-  exports: 155,
+  exports: 153,
   types: 113,
-  duplicates: 1,
+  duplicates: 0,
   unresolved: 0,
   binaries: 0,
   catalog: 0,

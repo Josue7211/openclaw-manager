@@ -180,9 +180,6 @@ export function compileOpenUiProposalSource(proposal: ModuleProposal): string {
 `
 }
 
-export const compileOpenUiWidgetSource = compileOpenUiProposalSource
-export const compileProposalToWidgetSource = compileOpenUiProposalSource
-
 export function proposalToGeneratedModule(
   proposal: ModuleProposal,
 ): Pick<GeneratedModule, 'name' | 'description' | 'source' | 'configSchema' | 'defaultSize'> {
