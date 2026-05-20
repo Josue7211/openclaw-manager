@@ -66,7 +66,7 @@ function GuardedLayout() {
   )
 }
 
-export function AppRoutes() {
+function AppRoutes() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>

@@ -116,7 +116,7 @@ export function buildCanvasLinks(data: CanvasData, notes: VaultNote[]): CanvasLi
   return Array.from(links.values())
 }
 
-export function emptyCanvas(): CanvasData {
+function emptyCanvas(): CanvasData {
   return { version: 1, nodes: [] }
 }
 

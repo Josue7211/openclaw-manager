@@ -36,7 +36,7 @@ function toChatProviderOption(provider: SharedChatProviderOption): ChatProviderO
 
 export const CHAT_PROVIDER_OPTIONS: ChatProviderOption[] = SHARED_CHAT_PROVIDER_OPTIONS.map(toChatProviderOption)
 
-export const CHAT_FALLBACK_PROVIDER_OPTION: ChatProviderOption = CHAT_PROVIDER_OPTIONS
+const CHAT_FALLBACK_PROVIDER_OPTION: ChatProviderOption = CHAT_PROVIDER_OPTIONS
   .find(provider => provider.id === 'hermes')
   ?? toChatProviderOption({
     id: 'hermes',

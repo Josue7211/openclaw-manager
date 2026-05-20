@@ -5,9 +5,9 @@ export type ProseMirrorDoc = JSONContent
 export { splitFrontmatter }
 
 type InlineNode = NonNullable<JSONContent['content']>[number]
-export const PAGE_BREAK_MARKDOWN = '<!-- pagebreak -->'
-export const TOC_START_MARKER = '<!-- toc:start -->'
-export const TOC_END_MARKER = '<!-- toc:end -->'
+const PAGE_BREAK_MARKDOWN = '<!-- pagebreak -->'
+const TOC_START_MARKER = '<!-- toc:start -->'
+const TOC_END_MARKER = '<!-- toc:end -->'
 
 interface TocHeading {
   level: number
@@ -166,7 +166,7 @@ export function docToMarkdown(doc: ProseMirrorDoc, frontmatter = ''): string {
   return mergeFrontmatter(frontmatter, body)
 }
 
-export function mergeFrontmatter(frontmatter: string, body: string): string {
+function mergeFrontmatter(frontmatter: string, body: string): string {
   if (!frontmatter) return body
   return `${frontmatter}${body}`
 }

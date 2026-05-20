@@ -17,7 +17,7 @@ function subscribe(listener: () => void) {
   return () => { listeners.delete(listener) }
 }
 
-export function formatAge(sinceMs: number): string {
+function formatAge(sinceMs: number): string {
   const seconds = Math.max(0, Math.floor((Date.now() - sinceMs) / 1000))
   if (seconds < 60) return `${seconds}s ago`
 

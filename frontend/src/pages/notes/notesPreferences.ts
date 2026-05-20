@@ -62,11 +62,11 @@ export function normalizeNotesEditorPreferences(value: Partial<NotesEditorPrefer
   }
 }
 
-export function normalizeNotesRemoteCollaborationBaseUrl(value: unknown): string {
+function normalizeNotesRemoteCollaborationBaseUrl(value: unknown): string {
   return typeof value === 'string' ? value.trim().replace(/\/+$/, '') : ''
 }
 
-export function normalizeNotesRemoteCollaborationPairingKey(value: unknown): string {
+function normalizeNotesRemoteCollaborationPairingKey(value: unknown): string {
   if (typeof value !== 'string') return ''
   return value.trim().replace(/\s+/g, '').slice(0, 240)
 }

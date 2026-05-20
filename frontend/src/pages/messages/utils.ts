@@ -1,6 +1,5 @@
 export {
   URL_RE,
-  contactLabel,
   extractFirstUrl,
   formatTime,
   formatTimestamp,

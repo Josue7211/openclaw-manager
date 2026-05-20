@@ -1,7 +1,7 @@
 import type { GraphData, VaultNote } from './types'
 import { matchesNoteSearch } from './searchFilters'
 
-export function graphCluster(note: VaultNote): string {
+function graphCluster(note: VaultNote): string {
   return note.tags[0] || note.folder || (note.type === 'attachment' ? 'attachments' : 'vault')
 }
 
