@@ -9,8 +9,9 @@
     "frontend:typecheck": "npm --prefix frontend run typecheck",
     "check:architecture": "node scripts/check-architecture.mjs",
     "check:bundle": "node scripts/check-bundle-size.mjs",
+    "check:dead-code": "node scripts/check-dead-code.mjs",
     "check:tauri": "cargo check --manifest-path src-tauri/Cargo.toml --bin clawcontrol-backend",
-    "check": "npm run check:architecture && npm --prefix frontend run typecheck && npm run check:bundle",
+    "check": "npm run check:architecture && npm --prefix frontend run typecheck && npm run check:bundle && npm run check:dead-code",
     "check:all": "npm run check && npm --prefix frontend run test && npm run check:tauri"
   }
 }
