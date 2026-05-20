@@ -7,8 +7,8 @@ const knipBin = path.join(root, 'frontend/node_modules/knip/bin/knip.js')
 
 const baseline = {
   files: 15,
-  dependencies: 10,
-  devDependencies: 7,
+  dependencies: 0,
+  devDependencies: 0,
   unlisted: 0,
   exports: 153,
   types: 113,
