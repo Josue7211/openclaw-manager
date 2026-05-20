@@ -44,7 +44,7 @@ const maxSourceBytes = 260 * 1024
 const maxPageBytes = 240 * 1024
 const maxUnbaselinedPageLines = 1200
 const pageLineBaselines = new Map(Object.entries({
-  'frontend/src/pages/notes/Notes.tsx': 6412,
+  'frontend/src/pages/notes/Notes.tsx': 6087,
   'frontend/src/pages/Training.tsx': 3120,
   'frontend/src/pages/JobHunter.tsx': 3549,
   'frontend/src/pages/MediaRadar.tsx': 3242,

@@ -32,7 +32,7 @@ import { slashCommandCompletions } from './slashCommands'
 import DocumentEditor from './DocumentEditor'
 import { markdownToSafeHtml, setFrontmatterProperty } from './export'
 import { resolveTextReviewRanges } from './reviewAnchors'
-import { documentStats, type DocumentStats } from './documentStats'
+import { documentStats, type DocumentStats } from '@/features/notes/documentStats'
 import { DEFAULT_NOTES_EDITOR_PREFERENCES, markdownFontSizePx, markdownWidthPx, normalizeNotesEditorPreferences, type NotesEditorPreferences } from './notesPreferences'
 
 // --- Image embed widget for ![[image.png]] syntax ---

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildDocumentInfo, formatDocumentInfoValue } from '../documentInfo'
+import { buildDocumentInfo, formatDocumentInfoValue } from '@/features/notes/documentInfo'
 import type { VaultNote } from '../types'
 
 function note(overrides: Partial<VaultNote> = {}): VaultNote {

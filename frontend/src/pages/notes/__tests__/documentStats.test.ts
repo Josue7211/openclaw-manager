@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { documentStats, markdownToPlainText } from '../documentStats'
+import { documentStats, markdownToPlainText } from '@/features/notes/documentStats'
 
 describe('documentStats', () => {
   it('counts document words without frontmatter or Markdown syntax', () => {
