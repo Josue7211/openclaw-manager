@@ -9,7 +9,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 import { setSidebarTitleText, getSidebarTitleText } from '@/lib/sidebar-settings'
-import { sectionLabel, inputStyle } from '@/pages/settings/shared'
+import { sectionLabel, inputStyle } from '@/features/settings/shared'
 import { X } from '@phosphor-icons/react'
 
 // ---------------------------------------------------------------------------

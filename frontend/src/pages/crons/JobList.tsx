@@ -1,6 +1,6 @@
 import { Clock, PencilSimple, Trash } from '@phosphor-icons/react'
 import { SkeletonList } from '@/components/Skeleton'
-import Toggle from '@/pages/settings/Toggle'
+import Toggle from '@/features/settings/Toggle'
 import type { CronJob } from './types'
 import { COLORS, humanSchedule, relativeTime } from './types'
 

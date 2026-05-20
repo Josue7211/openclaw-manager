@@ -5,7 +5,7 @@ import {
   getBindingMod, keyToModifier, modLabel,
 } from '@/lib/keybindings'
 import { Button } from '@/components/ui/Button'
-import { row, sectionLabel } from './shared'
+import { row, sectionLabel } from '@/features/settings/shared'
 
 export default function SettingsKeybindings() {
   const bindings = useSyncExternalStore(subscribeKeybindings, getKeybindings)

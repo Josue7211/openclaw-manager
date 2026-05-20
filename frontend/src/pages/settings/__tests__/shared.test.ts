@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { row, rowLast, val, inputStyle, btnStyle, btnSecondary, sectionLabel } from '../shared'
+import { row, rowLast, val, inputStyle, btnStyle, btnSecondary, sectionLabel } from '@/features/settings/shared'
 
 describe('settings/shared style constants', () => {
   describe('row', () => {

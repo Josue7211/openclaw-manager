@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CHAT_SETTINGS_SHORTCUTS } from '../settingsShortcuts'
-import { SETTINGS_SECTION_KEYS } from '@/pages/Settings'
+import { SETTINGS_SECTION_KEYS } from '@/features/settings/sections'
 
 describe('chat settings shortcut adapter', () => {
   it('exposes the required account/settings popover entries', () => {

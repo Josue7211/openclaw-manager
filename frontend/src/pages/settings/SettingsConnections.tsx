@@ -22,7 +22,7 @@ import {
   keychainKeyToCredKey,
 } from '@/lib/service-registry'
 import type { ApiSuccess, HomelabConfigData, PortainerConfigInfo } from '@/pages/homelab/types'
-import { row, rowLast, val, inputStyle, sectionLabel } from './shared'
+import { row, rowLast, val, inputStyle, sectionLabel } from '@/features/settings/shared'
 
 const OnboardingWelcome = lazy(() => import('@/components/OnboardingWelcome'))
 

@@ -20,7 +20,7 @@ import {
   addCustomTheme,
   setActiveTheme,
 } from '@/lib/theme-store'
-import { sectionLabel, row, btnStyle, btnSecondary } from '@/pages/settings/shared'
+import { sectionLabel, row, btnStyle, btnSecondary } from '@/features/settings/shared'
 import { DownloadSimple, UploadSimple, Copy, FloppyDisk, Check } from '@phosphor-icons/react'
 
 // ---------------------------------------------------------------------------

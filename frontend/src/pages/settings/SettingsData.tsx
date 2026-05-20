@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { Button } from '@/components/ui/Button'
-import { row, rowLast, sectionLabel } from './shared'
+import { row, rowLast, sectionLabel } from '@/features/settings/shared'
 
 export default function SettingsData() {
   const [importStatus, setImportStatus] = useState<string | null>(null)

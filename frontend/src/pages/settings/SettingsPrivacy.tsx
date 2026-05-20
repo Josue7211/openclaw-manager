@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
-import Toggle from './Toggle'
+import Toggle from '@/features/settings/Toggle'
 import { Button } from '@/components/ui/Button'
-import { row, rowLast, sectionLabel } from './shared'
+import { row, rowLast, sectionLabel } from '@/features/settings/shared'
 import { api, API_BASE, getApiKey } from '@/lib/api'
 import { Database, HardDrive, NotePencil } from '@phosphor-icons/react'
 

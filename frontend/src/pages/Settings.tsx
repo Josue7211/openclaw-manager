@@ -7,7 +7,8 @@ import { useQuery } from '@tanstack/react-query'
 
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
-import { row, rowLast, val, btnSecondary, sectionLabel } from './settings/shared'
+import { row, rowLast, val, btnSecondary, sectionLabel } from '@/features/settings/shared'
+import { SETTINGS_SECTION_KEYS, type SettingsSection } from '@/features/settings/sections'
 import { CodexLbSection, ProvidersSection, UsageSection } from './settings/ChatParitySections'
 
 // ── Lazy-loaded section components ──────────────────────────────────────────
@@ -20,24 +21,7 @@ const SettingsNotifications = lazy(() => import('./settings/SettingsNotification
 const SettingsPrivacy = lazy(() => import('./settings/SettingsPrivacy'))
 const SettingsStatus = lazy(() => import('./settings/SettingsStatus'))
 
-export const SETTINGS_SECTION_KEYS = [
-  'agent',
-  'gateway',
-  'app',
-  'user',
-  'connections',
-  'usage',
-  'providers',
-  'codex-lb',
-  'display',
-  'keybindings',
-  'modules',
-  'notifications',
-  'privacy',
-  'status',
-] as const
-
-export type SettingsSection = typeof SETTINGS_SECTION_KEYS[number]
+export { SETTINGS_SECTION_KEYS, type SettingsSection } from '@/features/settings/sections'
 
 const SECTIONS: { key: SettingsSection; label: string; icon: React.ElementType; group: string }[] = [
   { key: 'agent', label: 'Agent', icon: Lightning, group: 'General' },

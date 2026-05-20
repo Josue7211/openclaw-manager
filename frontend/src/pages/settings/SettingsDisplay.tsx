@@ -37,8 +37,8 @@ import BrandingSettings from '@/components/BrandingSettings'
 import ThemeImportExport from '@/components/ThemeImportExport'
 import ThemeScheduler from '@/components/ThemeScheduler'
 import CustomCssEditor from '@/components/CustomCssEditor'
-import Toggle from './Toggle'
-import { btnSecondary } from './shared'
+import Toggle from '@/features/settings/Toggle'
+import { btnSecondary } from '@/features/settings/shared'
 import { PushPin, PushPinSlash, Trash, ArrowCounterClockwise } from '@phosphor-icons/react'
 
 // ---------------------------------------------------------------------------

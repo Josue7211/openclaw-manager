@@ -12,8 +12,8 @@ import { getSidebarHeaderVisible, setSidebarHeaderVisible, getSidebarDefaultWidt
 import { setTitleBarVisible, setTitleBarAutoHide, getTitleBarVisible, getTitleBarAutoHide, subscribeTitleBarSettings } from '@/lib/titlebar-settings'
 import { ContextMenu, type ContextMenuState } from '@/components/ContextMenu'
 import { ResizablePanel, type PanelRect } from '@/components/ResizablePanel'
-import Toggle from './Toggle'
-import { row, btnSecondary, sectionLabel } from './shared'
+import Toggle from '@/features/settings/Toggle'
+import { row, btnSecondary, sectionLabel } from '@/features/settings/shared'
 import { GeneratedModulesSection } from './GeneratedModulesSection'
 import { ModuleProposalsSection } from './ModuleProposalsSection'
 

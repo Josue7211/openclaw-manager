@@ -18,7 +18,7 @@ import {
   setGlobalFontOverride,
 } from '@/lib/theme-store'
 import { applyFonts, applyFontScale } from '@/lib/theme-engine'
-import { sectionLabel, row } from '@/pages/settings/shared'
+import { sectionLabel, row } from '@/features/settings/shared'
 
 // ---------------------------------------------------------------------------
 // Constants

@@ -11,7 +11,7 @@ import { BUILT_IN_THEMES } from '@/lib/theme-definitions'
 import type { ThemeSchedule } from '@/lib/theme-definitions'
 import { approximateSunTimes } from '@/lib/theme-scheduling'
 import { setSchedule, useThemeState } from '@/lib/theme-store'
-import Toggle from '@/pages/settings/Toggle'
+import Toggle from '@/features/settings/Toggle'
 import { Trash } from '@phosphor-icons/react'
 
 // ---------------------------------------------------------------------------

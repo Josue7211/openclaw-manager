@@ -3,9 +3,9 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
-import Toggle from './Toggle'
+import Toggle from '@/features/settings/Toggle'
 import { Button } from '@/components/ui/Button'
-import { row, rowLast, inputStyle, sectionLabel } from './shared'
+import { row, rowLast, inputStyle, sectionLabel } from '@/features/settings/shared'
 
 interface Pref {
   key: string

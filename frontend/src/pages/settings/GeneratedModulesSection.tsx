@@ -10,8 +10,8 @@ import {
   getGeneratedModuleVersions,
 } from '@/lib/generated-module-store'
 import type { GeneratedModule, GeneratedModuleVersion } from '@/lib/generated-module-types'
-import Toggle from './Toggle'
-import { btnSecondary, sectionLabel } from './shared'
+import Toggle from '@/features/settings/Toggle'
+import { btnSecondary, sectionLabel } from '@/features/settings/shared'
 
 const GeneratedModuleCard = memo(function GeneratedModuleCard({ module }: { module: GeneratedModule }) {
   const queryClient = useQueryClient()

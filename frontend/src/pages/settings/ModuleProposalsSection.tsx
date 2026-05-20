@@ -3,7 +3,7 @@ import { Sparkle } from '@phosphor-icons/react'
 import { useQuery } from '@tanstack/react-query'
 import { listModuleProposals, type StoredModuleProposal } from '@/lib/module-proposal-store'
 import { queryKeys } from '@/lib/query-keys'
-import { sectionLabel } from './shared'
+import { sectionLabel } from '@/features/settings/shared'
 
 const STATUS_STYLES: Record<string, { fg: string; bg: string; border: string }> = {
   draft: {
