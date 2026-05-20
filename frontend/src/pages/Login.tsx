@@ -10,7 +10,10 @@ import {
   api,
   API_BASE_CHANGED_EVENT,
   CONFIGURED_BACKEND_BASE_CHANGED_EVENT,
+  getConfiguredBackendBase,
   getRequestBaseForPath,
+  setApiBase,
+  setConfiguredBackendBase,
 } from '@/lib/api'
 import { viewReducer, initialViewState } from './login/shared'
 import { MainView } from './login/MainView'
@@ -36,6 +39,10 @@ function formatLoginError(err: unknown, fallback: string): string {
   if (message === 'Invalid TOTP code entered') return 'That verification code was not accepted. Try the latest code from your authenticator app.'
   if (message.startsWith('API ')) return fallback
   return message
+}
+
+function normalizeBackendBase(value: string): string {
+  return value.trim().replace(/\/+$/, '')
 }
 
 interface LoginSetupStatus {
@@ -68,7 +75,13 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [sessionProbeFailed, setSessionProbeFailed] = useState(false)
   const [backendBase, setBackendBase] = useState(() => getRequestBaseForPath('/api/auth/session'))
+  const [configuredBackendInput, setConfiguredBackendInput] = useState(() => getConfiguredBackendBase())
   const [setupStatus, setSetupStatus] = useState<LoginSetupStatus | null>(null)
+  const [showConnectionSetup, setShowConnectionSetup] = useState(false)
+  const [supabaseUrl, setSupabaseUrl] = useState('')
+  const [supabaseAnonKey, setSupabaseAnonKey] = useState('')
+  const [setupSaving, setSetupSaving] = useState(false)
+  const [setupNotice, setSetupNotice] = useState('')
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const rawNext = searchParams.get('next') || '/'
@@ -160,6 +173,54 @@ export default function LoginPage() {
     }
   }
 
+  function handleUseConfiguredBackend() {
+    const normalized = normalizeBackendBase(configuredBackendInput || backendBase)
+    if (!normalized) return
+    setConfiguredBackendBase(normalized)
+    setApiBase(normalized)
+    setConfiguredBackendInput(normalized)
+    setSetupNotice('Backend URL saved.')
+    setError('')
+    void checkSession()
+    void refreshSetupStatus()
+  }
+
+  async function handleSaveSupabase(e: React.FormEvent) {
+    e.preventDefault()
+    setSetupSaving(true)
+    setSetupNotice('')
+    setError('')
+    try {
+      const url = normalizeBackendBase(supabaseUrl)
+      const anonKey = supabaseAnonKey.trim()
+      if (!url || !anonKey) {
+        setSetupNotice('Supabase URL and anon key are required.')
+        return
+      }
+      const result = await api.post<{ saved?: number; errors?: string[] }>('/api/wizard/save-credentials', {
+        services: {
+          supabase: {
+            url,
+            anon_key: anonKey,
+          },
+        },
+      })
+      if (result.errors?.length) {
+        setSetupNotice(result.errors[0] ?? 'Could not save Supabase settings.')
+        return
+      }
+      setSupabaseUrl('')
+      setSupabaseAnonKey('')
+      setSetupNotice('Supabase settings saved. Sign-in is available after the backend refreshes.')
+      await refreshSetupStatus()
+      await checkSession()
+    } catch (err) {
+      setSetupNotice(formatLoginError(err, 'Could not save Supabase settings.'))
+    } finally {
+      setSetupSaving(false)
+    }
+  }
+
   // On mount, ALWAYS check session — if logged in but MFA not verified, show MFA
   const mfaParam = searchParams.get('mfa')
   useEffect(() => {
@@ -170,6 +231,7 @@ export default function LoginPage() {
   useEffect(() => {
     const onBackendChanged = () => {
       setBackendBase(getRequestBaseForPath('/api/auth/session'))
+      setConfiguredBackendInput(getConfiguredBackendBase())
       setSessionProbeFailed(false)
       setError('')
       void checkSession()
@@ -387,8 +449,29 @@ export default function LoginPage() {
     google: !!setupStatus?.capabilities?.google_oauth,
   }
   const setupMessage = setupStatus && !supabaseConfigured
-    ? 'Sign-in is not configured. Set Supabase URL and anon key, then restart.'
+    ? 'Sign-in is missing Supabase settings. Open connection setup to add them.'
     : ''
+  const connectionInputStyle = {
+    width: '100%',
+    padding: '10px 12px',
+    borderRadius: '10px',
+    border: '1px solid var(--border)',
+    background: 'var(--bg-elevated)',
+    color: 'var(--text-primary)',
+    fontFamily: 'var(--font-mono)',
+    fontSize: '12px',
+    outline: 'none',
+    boxSizing: 'border-box' as const,
+  }
+  const connectionButtonStyle = {
+    border: '1px solid var(--border)',
+    borderRadius: '10px',
+    background: 'var(--bg-elevated)',
+    color: 'var(--text-primary)',
+    padding: '8px 10px',
+    fontSize: '12px',
+    cursor: 'pointer',
+  }
 
   return (
     <div style={{
@@ -423,7 +506,7 @@ export default function LoginPage() {
 
       <div style={{
         width: '100%',
-        maxWidth: '380px',
+        maxWidth: showConnectionSetup ? '440px' : '380px',
         padding: '24px 32px 40px',
         background: 'var(--bg-card)',
         backdropFilter: 'blur(24px)',
@@ -465,7 +548,7 @@ export default function LoginPage() {
             marginBottom: '12px',
             maxWidth: '100%',
           }}>
-            <span>Backend</span>
+            <span>{isTauriApp ? 'Desktop backend' : 'Backend'}</span>
             <span style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {backendBase}
             </span>
@@ -509,6 +592,108 @@ export default function LoginPage() {
             animation: 'fadeInUp 0.3s ease both',
           }}>
             {error || setupMessage}
+          </div>
+        )}
+
+        {view === 'main' && (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+          }}>
+            <button
+              type="button"
+              onClick={() => {
+                setShowConnectionSetup(value => !value)
+                setSetupNotice('')
+              }}
+              style={{
+                ...connectionButtonStyle,
+                alignSelf: 'center',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              {showConnectionSetup ? 'Hide connection setup' : 'Connection setup'}
+            </button>
+
+            {showConnectionSetup && (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                padding: '12px',
+                borderRadius: '12px',
+                border: '1px solid var(--border)',
+                background: 'var(--bg-elevated)',
+              }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                  Configured backend URL
+                  <input
+                    value={configuredBackendInput}
+                    onChange={event => setConfiguredBackendInput(event.target.value)}
+                    placeholder="http://127.0.0.1:3010"
+                    style={connectionInputStyle}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={handleUseConfiguredBackend}
+                  style={connectionButtonStyle}
+                >
+                  Save backend URL
+                </button>
+
+                {!supabaseConfigured && (
+                  <form onSubmit={handleSaveSupabase} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                      Supabase URL
+                      <input
+                        value={supabaseUrl}
+                        onChange={event => setSupabaseUrl(event.target.value)}
+                        placeholder="https://your-project.supabase.co"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        style={connectionInputStyle}
+                      />
+                    </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                      Supabase anon key
+                      <input
+                        value={supabaseAnonKey}
+                        onChange={event => setSupabaseAnonKey(event.target.value)}
+                        placeholder="eyJ..."
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        style={connectionInputStyle}
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      disabled={setupSaving}
+                      style={{
+                        ...connectionButtonStyle,
+                        opacity: setupSaving ? 0.6 : 1,
+                        cursor: setupSaving ? 'wait' : 'pointer',
+                      }}
+                    >
+                      {setupSaving ? 'Saving...' : 'Save Supabase settings'}
+                    </button>
+                  </form>
+                )}
+
+                {setupNotice && (
+                  <div style={{
+                    color: setupNotice.includes('saved') || setupNotice.includes('available') ? 'var(--green-bright)' : 'var(--red)',
+                    fontSize: '11px',
+                    textAlign: 'center',
+                    lineHeight: 1.5,
+                  }}>
+                    {setupNotice}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

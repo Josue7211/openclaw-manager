@@ -13,6 +13,8 @@ vi.mock('@/lib/api', () => ({
   getApiBase: vi.fn(() => 'http://127.0.0.1:5000'),
   getConfiguredBackendBase: vi.fn(() => 'http://127.0.0.1:5000'),
   getRequestBaseForPath: vi.fn(() => 'http://127.0.0.1:5000'),
+  setApiBase: vi.fn(),
+  setConfiguredBackendBase: vi.fn(),
 }))
 
 vi.mock('@/lib/tauri', () => ({
@@ -25,7 +27,7 @@ vi.mock('@/lib/webauthn', () => ({
 }))
 
 import LoginPage from '../Login'
-import { api } from '@/lib/api'
+import { api, setApiBase, setConfiguredBackendBase } from '@/lib/api'
 import { openInBrowser } from '@/lib/tauri'
 
 function renderLogin(initialEntry = '/login') {
@@ -69,10 +71,51 @@ describe('LoginPage', () => {
 
     renderLogin()
 
-    expect(await screen.findByText('Sign-in is not configured. Set Supabase URL and anon key, then restart.')).toBeInTheDocument()
+    expect(await screen.findByText('Sign-in is missing Supabase settings. Open connection setup to add them.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'GitHub not configured' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Google not configured' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Email not configured' })).toBeDisabled()
+  })
+
+  it('saves backend and Supabase settings from the login setup panel', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/api/setup/status') {
+        return {
+          capabilities: { github_oauth: false, google_oauth: false },
+          services: { supabase: { configured: false, reachable: false } },
+          missing: ['supabase'],
+        }
+      }
+      return { authenticated: false }
+    })
+    vi.mocked(api.post).mockResolvedValue({ saved: 2 })
+
+    renderLogin()
+
+    await user.click(await screen.findByRole('button', { name: 'Connection setup' }))
+    const backendInput = screen.getByLabelText('Configured backend URL')
+    await user.clear(backendInput)
+    await user.type(backendInput, 'http://server.test:3010/')
+    await user.click(screen.getByRole('button', { name: 'Save backend URL' }))
+
+    expect(setConfiguredBackendBase).toHaveBeenCalledWith('http://server.test:3010')
+    expect(setApiBase).toHaveBeenCalledWith('http://server.test:3010')
+
+    await user.type(screen.getByLabelText('Supabase URL'), 'https://supabase.test/')
+    await user.type(screen.getByLabelText('Supabase anon key'), 'anon-key')
+    await user.click(screen.getByRole('button', { name: 'Save Supabase settings' }))
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/api/wizard/save-credentials', {
+        services: {
+          supabase: {
+            url: 'https://supabase.test',
+            anon_key: 'anon-key',
+          },
+        },
+      })
+    })
   })
 
   it('shows a product error when OAuth start fails with a raw API status', async () => {
