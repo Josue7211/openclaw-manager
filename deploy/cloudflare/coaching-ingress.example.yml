@@ -1,7 +1,0 @@
-ingress:
-  - hostname: coaching.aparcedo.org
-    path: /api/training/public/*
-    service: http://127.0.0.1:3010
-  - hostname: coaching.aparcedo.org
-    service: http://127.0.0.1:8088
-  - service: http_status:404
