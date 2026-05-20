@@ -12,6 +12,7 @@ vi.mock('@/lib/api', () => ({
   CONFIGURED_BACKEND_BASE_CHANGED_EVENT: 'configured-backend-base-changed',
   getApiBase: vi.fn(() => 'http://127.0.0.1:5000'),
   getConfiguredBackendBase: vi.fn(() => 'http://127.0.0.1:5000'),
+  getRequestBaseForPath: vi.fn(() => 'http://127.0.0.1:5000'),
 }))
 
 vi.mock('@/lib/tauri', () => ({

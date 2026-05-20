@@ -29,6 +29,7 @@ afterEach(() => {
   setDesktopApiKeys({})
   localStorage.clear()
   delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
+  delete (globalThis as typeof globalThis & { isTauri?: boolean }).isTauri
 })
 
 function mockFetch(response: {
@@ -133,6 +134,23 @@ describe('api', () => {
       value: {},
       configurable: true,
     })
+    setApiBase('http://remote-backend.test')
+    setDesktopApiKeys({ localApiKey: 'local-key', remoteApiKey: 'remote-key' })
+    mockFetch({ ok: true, json: () => Promise.resolve({ authenticated: false }) })
+
+    await api.get('/api/auth/session')
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:3010/api/auth/session',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ 'X-API-Key': 'local-key' }),
+      }),
+    )
+  })
+
+  it('detects desktop runtime through the Tauri v2 global marker', async () => {
+    ;(globalThis as typeof globalThis & { isTauri?: boolean }).isTauri = true
     setApiBase('http://remote-backend.test')
     setDesktopApiKeys({ localApiKey: 'local-key', remoteApiKey: 'remote-key' })
     mockFetch({ ok: true, json: () => Promise.resolve({ authenticated: false }) })

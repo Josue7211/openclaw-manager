@@ -6,7 +6,12 @@ import { useState, useEffect, useReducer } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { openInBrowser } from '@/lib/tauri'
 
-import { api, CONFIGURED_BACKEND_BASE_CHANGED_EVENT, getConfiguredBackendBase } from '@/lib/api'
+import {
+  api,
+  API_BASE_CHANGED_EVENT,
+  CONFIGURED_BACKEND_BASE_CHANGED_EVENT,
+  getRequestBaseForPath,
+} from '@/lib/api'
 import { viewReducer, initialViewState } from './login/shared'
 import { MainView } from './login/MainView'
 import { EmailForm } from './login/EmailForm'
@@ -33,7 +38,8 @@ function formatLoginError(err: unknown, fallback: string): string {
 }
 
 export default function LoginPage() {
-  const isTauriApp = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
+  const runtime = globalThis as typeof globalThis & { isTauri?: boolean }
+  const isTauriApp = typeof window !== 'undefined' && (!!window.__TAURI_INTERNALS__ || runtime.isTauri === true)
   const [viewState, dispatch] = useReducer(viewReducer, initialViewState)
   const { view, mfaFactorId, mfaQr, mfaSecret, availableMethods } = viewState
 
@@ -46,7 +52,7 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [sessionProbeFailed, setSessionProbeFailed] = useState(false)
-  const [backendBase, setBackendBase] = useState(getConfiguredBackendBase())
+  const [backendBase, setBackendBase] = useState(() => getRequestBaseForPath('/api/auth/session'))
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const rawNext = searchParams.get('next') || '/'
@@ -137,14 +143,18 @@ export default function LoginPage() {
 
   useEffect(() => {
     const onBackendChanged = () => {
-      setBackendBase(getConfiguredBackendBase())
+      setBackendBase(getRequestBaseForPath('/api/auth/session'))
       setSessionProbeFailed(false)
       setError('')
       void checkSession()
     }
 
     window.addEventListener(CONFIGURED_BACKEND_BASE_CHANGED_EVENT, onBackendChanged)
-    return () => window.removeEventListener(CONFIGURED_BACKEND_BASE_CHANGED_EVENT, onBackendChanged)
+    window.addEventListener(API_BASE_CHANGED_EVENT, onBackendChanged)
+    return () => {
+      window.removeEventListener(CONFIGURED_BACKEND_BASE_CHANGED_EVENT, onBackendChanged)
+      window.removeEventListener(API_BASE_CHANGED_EVENT, onBackendChanged)
+    }
   }, [next])
 
   useEffect(() => {
@@ -479,7 +489,7 @@ export default function LoginPage() {
             flexDirection: 'column',
             gap: '8px',
           }}>
-            <span>Cannot reach the selected backend right now.</span>
+            <span>{isTauriApp ? 'Cannot reach the desktop backend right now.' : 'Cannot reach the selected backend right now.'}</span>
             <button
               type="button"
               onClick={() => { void checkSession() }}

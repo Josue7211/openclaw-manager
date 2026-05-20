@@ -40,7 +40,8 @@ function normalizeApiBase(value: string): string {
 }
 
 function isTauriDesktop(): boolean {
-  return typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
+  const runtime = globalThis as typeof globalThis & { isTauri?: boolean }
+  return typeof window !== 'undefined' && (!!window.__TAURI_INTERNALS__ || runtime.isTauri === true)
 }
 
 function loadApiBase(): string {
