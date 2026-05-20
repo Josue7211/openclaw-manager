@@ -10,6 +10,7 @@ import {
   serviceForPath,
   serviceErrorLabel,
   setApiBase,
+  setConfiguredBackendBase,
   setDesktopApiKeys,
 } from '../api'
 
@@ -27,6 +28,8 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks()
   setDesktopApiKeys({})
+  setApiBase('http://127.0.0.1:3010')
+  setConfiguredBackendBase('http://127.0.0.1:3010')
   localStorage.clear()
   delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
   delete (globalThis as typeof globalThis & { isTauri?: boolean }).isTauri
@@ -129,7 +132,7 @@ describe('api', () => {
     )
   })
 
-  it('routes desktop auth through the same local backend as protected app modules', async () => {
+  it('routes desktop auth through the local backend when no remote backend is configured', async () => {
     Object.defineProperty(window, '__TAURI_INTERNALS__', {
       value: {},
       configurable: true,
@@ -149,8 +152,12 @@ describe('api', () => {
     )
   })
 
-  it('detects desktop runtime through the Tauri v2 global marker', async () => {
-    ;(globalThis as typeof globalThis & { isTauri?: boolean }).isTauri = true
+  it('routes desktop auth through the configured remote backend when one is selected', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      value: {},
+      configurable: true,
+    })
+    setConfiguredBackendBase('http://remote-backend.test')
     setApiBase('http://remote-backend.test')
     setDesktopApiKeys({ localApiKey: 'local-key', remoteApiKey: 'remote-key' })
     mockFetch({ ok: true, json: () => Promise.resolve({ authenticated: false }) })
@@ -158,10 +165,28 @@ describe('api', () => {
     await api.get('/api/auth/session')
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      'http://127.0.0.1:3010/api/auth/session',
+      'http://remote-backend.test/api/auth/session',
       expect.objectContaining({
         method: 'GET',
-        headers: expect.objectContaining({ 'X-API-Key': 'local-key' }),
+        headers: expect.objectContaining({ 'X-API-Key': 'remote-key' }),
+      }),
+    )
+  })
+
+  it('detects desktop runtime through the Tauri v2 global marker without overriding a remote backend', async () => {
+    ;(globalThis as typeof globalThis & { isTauri?: boolean }).isTauri = true
+    setConfiguredBackendBase('http://remote-backend.test')
+    setApiBase('http://remote-backend.test')
+    setDesktopApiKeys({ localApiKey: 'local-key', remoteApiKey: 'remote-key' })
+    mockFetch({ ok: true, json: () => Promise.resolve({ authenticated: false }) })
+
+    await api.get('/api/auth/session')
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'http://remote-backend.test/api/auth/session',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ 'X-API-Key': 'remote-key' }),
       }),
     )
   })

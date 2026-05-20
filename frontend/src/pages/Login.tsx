@@ -571,7 +571,8 @@ export default function LoginPage() {
             color: 'var(--text-muted)',
             fontFamily: 'var(--font-mono)',
           }}>
-            {view === 'main' && 'Sign in to continue'}
+            {view === 'main' && !showConnectionSetup && 'Sign in to continue'}
+            {view === 'main' && showConnectionSetup && 'Connection setup'}
             {view === 'email' && 'Sign in with email'}
             {view === 'mfa' && 'Verify your identity'}
             {view === 'mfa-enroll' && 'Set up two-factor authentication'}
@@ -580,7 +581,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {(error || setupMessage) && (
+        {!showConnectionSetup && (error || setupMessage) && (
           <div style={{
             fontSize: '12px',
             color: 'var(--red)',
@@ -595,29 +596,8 @@ export default function LoginPage() {
           </div>
         )}
 
-        {view === 'main' && (
+        {view === 'main' && showConnectionSetup && (
           <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '10px',
-          }}>
-            <button
-              type="button"
-              onClick={() => {
-                setShowConnectionSetup(value => !value)
-                setSetupNotice('')
-              }}
-              style={{
-                ...connectionButtonStyle,
-                alignSelf: 'center',
-                color: 'var(--text-secondary)',
-              }}
-            >
-              {showConnectionSetup ? 'Hide connection setup' : 'Connection setup'}
-            </button>
-
-            {showConnectionSetup && (
-              <div style={{
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '12px',
@@ -626,72 +606,70 @@ export default function LoginPage() {
                 border: '1px solid var(--border)',
                 background: 'var(--bg-elevated)',
               }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px', color: 'var(--text-muted)' }}>
+              Configured backend URL
+              <input
+                value={configuredBackendInput}
+                onChange={event => setConfiguredBackendInput(event.target.value)}
+                placeholder="http://100.x.x.x:3000"
+                style={connectionInputStyle}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={handleUseConfiguredBackend}
+              style={connectionButtonStyle}
+            >
+              Save backend URL
+            </button>
+
+            {!supabaseConfigured && (
+              <form onSubmit={handleSaveSupabase} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                  Configured backend URL
+                  Supabase URL
                   <input
-                    value={configuredBackendInput}
-                    onChange={event => setConfiguredBackendInput(event.target.value)}
-                    placeholder="http://127.0.0.1:3010"
+                    value={supabaseUrl}
+                    onChange={event => setSupabaseUrl(event.target.value)}
+                    placeholder="https://your-project.supabase.co"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    style={connectionInputStyle}
+                  />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                  Supabase anon key
+                  <input
+                    value={supabaseAnonKey}
+                    onChange={event => setSupabaseAnonKey(event.target.value)}
+                    placeholder="eyJ..."
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     style={connectionInputStyle}
                   />
                 </label>
                 <button
-                  type="button"
-                  onClick={handleUseConfiguredBackend}
-                  style={connectionButtonStyle}
+                  type="submit"
+                  disabled={setupSaving}
+                  style={{
+                    ...connectionButtonStyle,
+                    opacity: setupSaving ? 0.6 : 1,
+                    cursor: setupSaving ? 'wait' : 'pointer',
+                  }}
                 >
-                  Save backend URL
+                  {setupSaving ? 'Saving...' : 'Save Supabase settings'}
                 </button>
+              </form>
+            )}
 
-                {!supabaseConfigured && (
-                  <form onSubmit={handleSaveSupabase} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                      Supabase URL
-                      <input
-                        value={supabaseUrl}
-                        onChange={event => setSupabaseUrl(event.target.value)}
-                        placeholder="https://your-project.supabase.co"
-                        autoCapitalize="none"
-                        autoCorrect="off"
-                        style={connectionInputStyle}
-                      />
-                    </label>
-                    <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                      Supabase anon key
-                      <input
-                        value={supabaseAnonKey}
-                        onChange={event => setSupabaseAnonKey(event.target.value)}
-                        placeholder="eyJ..."
-                        autoCapitalize="none"
-                        autoCorrect="off"
-                        spellCheck={false}
-                        style={connectionInputStyle}
-                      />
-                    </label>
-                    <button
-                      type="submit"
-                      disabled={setupSaving}
-                      style={{
-                        ...connectionButtonStyle,
-                        opacity: setupSaving ? 0.6 : 1,
-                        cursor: setupSaving ? 'wait' : 'pointer',
-                      }}
-                    >
-                      {setupSaving ? 'Saving...' : 'Save Supabase settings'}
-                    </button>
-                  </form>
-                )}
-
-                {setupNotice && (
-                  <div style={{
-                    color: setupNotice.includes('saved') || setupNotice.includes('available') ? 'var(--green-bright)' : 'var(--red)',
-                    fontSize: '11px',
-                    textAlign: 'center',
-                    lineHeight: 1.5,
-                  }}>
-                    {setupNotice}
-                  </div>
-                )}
+            {setupNotice && (
+              <div style={{
+                color: setupNotice.includes('saved') || setupNotice.includes('available') ? 'var(--green-bright)' : 'var(--red)',
+                fontSize: '11px',
+                textAlign: 'center',
+                lineHeight: 1.5,
+              }}>
+                {setupNotice}
               </div>
             )}
           </div>
@@ -730,7 +708,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        {view === 'main' && (
+        {view === 'main' && !showConnectionSetup && (
           <MainView
             loading={loading}
             authConfigured={supabaseConfigured}
@@ -738,6 +716,30 @@ export default function LoginPage() {
             onOAuth={handleOAuth}
             onShowEmail={() => { dispatch({ type: 'SHOW_EMAIL' }); setError('') }}
           />
+        )}
+
+        {view === 'main' && (
+          <button
+            type="button"
+            onClick={() => {
+              setShowConnectionSetup(value => !value)
+              setSetupNotice('')
+              setError('')
+            }}
+            style={{
+              alignSelf: 'center',
+              border: 0,
+              background: 'transparent',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              fontSize: '11px',
+              padding: 0,
+              textDecoration: 'underline',
+              textUnderlineOffset: '3px',
+            }}
+          >
+            {showConnectionSetup ? 'Back to sign in' : 'Connection setup'}
+          </button>
         )}
 
         {view === 'email' && (
