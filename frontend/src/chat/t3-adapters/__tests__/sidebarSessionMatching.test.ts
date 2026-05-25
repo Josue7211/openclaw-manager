@@ -6,6 +6,7 @@ import {
 
 const project = {
   id: 'local:clawcontrol',
+  environmentId: 'local',
   name: 'clawcontrol',
   path: '/Volumes/T7/projects/clawcontrol',
   root: '/Volumes/T7/projects',
@@ -30,6 +31,47 @@ describe('T3 sidebar session matching adapter', () => {
     }, project)).toBe(false)
   })
 
+  it('matches path-like project ids after normalization', () => {
+    expect(sessionMatchesProject({
+      key: 'thread-path-project-id',
+      projectId: '/Volumes/T7/projects/clawcontrol/',
+      environmentId: 'local',
+    }, project)).toBe(true)
+  })
+
+  it('does not match explicit environment mismatches by cwd or project name', () => {
+    expect(sessionMatchesProject({
+      key: 'remote-project-id-collision',
+      projectId: 'local:clawcontrol',
+      environmentId: 'remote-vm',
+    }, project)).toBe(false)
+
+    expect(sessionMatchesProject({
+      key: 'remote-cwd-collision',
+      environmentId: 'remote-vm',
+      workingDir: '/Volumes/T7/projects/clawcontrol/frontend',
+    }, project)).toBe(false)
+
+    expect(sessionMatchesProject({
+      key: 'remote-name-collision',
+      environmentId: 'remote-vm',
+      project: 'clawcontrol',
+    }, project)).toBe(false)
+  })
+
+  it('matches project id collisions only when environment identity is compatible', () => {
+    expect(sessionMatchesProject({
+      key: 'same-env-project-id-collision',
+      projectId: 'local:clawcontrol',
+      environmentId: 'LOCAL',
+    }, project)).toBe(true)
+
+    expect(sessionMatchesProject({
+      key: 'legacy-project-id-without-env',
+      projectId: 'local:clawcontrol',
+    }, project)).toBe(true)
+  })
+
   it('matches project-owned chats by normalized project roots, including nested metadata', () => {
     expect(sessionMatchesProject({
       key: 'thread-2',
@@ -44,6 +86,32 @@ describe('T3 sidebar session matching adapter', () => {
         workingDir: '/volumes/t7/projects/clawcontrol',
       },
     }, project)).toBe(true)
+  })
+
+  it('prefers concrete working directories over broad project roots when both are present', () => {
+    const webProject = {
+      ...project,
+      id: 'local:web',
+      name: 'web',
+      path: '/repo/apps/web',
+      root: '/repo',
+    }
+    const apiProject = {
+      ...project,
+      id: 'local:api',
+      name: 'api',
+      path: '/repo/apps/api',
+      root: '/repo',
+    }
+    const session = {
+      key: 'monorepo-web-thread',
+      projectRoot: '/repo',
+      workingDir: '/repo/apps/web',
+      environmentId: 'local',
+    }
+
+    expect(sessionMatchesProject(session, webProject)).toBe(true)
+    expect(sessionMatchesProject(session, apiProject)).toBe(false)
   })
 
   it('keeps unrelated chats out of project groups so only those can reach Recent', () => {

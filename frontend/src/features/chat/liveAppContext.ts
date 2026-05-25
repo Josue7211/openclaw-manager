@@ -1,9 +1,6 @@
-interface ChatRequestContext {
-  project?: string
-  workingDir?: string
-  branch?: string
-  runtime?: string
-}
+import type { ChatExecutionContext } from './types'
+
+type ChatRequestContext = ChatExecutionContext
 
 interface LiveAppContextOptions {
   requestText: string
@@ -274,8 +271,11 @@ export async function buildLiveAppContext(apiGet: ApiGet, options: LiveAppContex
     `captured_at: ${new Date().toISOString()}`,
     `route: ${options.route || 'unknown'}`,
     `page_title: ${options.pageTitle || 'unknown'}`,
+    `project_id: ${context.projectId || 'unknown'}`,
     `project: ${context.project || 'unknown'}`,
+    `project_root: ${context.projectRoot || 'unknown'}`,
     `working_dir: ${context.workingDir || 'unknown'}`,
+    `environment_id: ${context.environmentId || 'unknown'}`,
     `branch: ${context.branch || 'unknown'}`,
     `runtime: ${context.runtime || 'unknown'}`,
     `user_request: ${compactLine(options.requestText, 240)}`,

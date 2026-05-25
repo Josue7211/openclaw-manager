@@ -104,6 +104,8 @@ export function applyTertiaryColor(color: string): void {
   el.style.setProperty('--accent-secondary', color)
   el.style.setProperty('--accent-secondary-dim', dim)
   el.style.setProperty('--accent-secondary-bright', bright)
+  el.style.setProperty('--blue', color)
+  el.style.setProperty('--blue-solid', color)
   el.style.setProperty('--blue-bright', bright)
 }
 

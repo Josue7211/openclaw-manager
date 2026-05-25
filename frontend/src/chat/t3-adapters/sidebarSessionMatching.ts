@@ -10,6 +10,7 @@ export interface SidebarSessionLike {
 
 export interface SidebarProjectLike {
   id?: string | null
+  environmentId?: string | null
   name: string
   path: string
   root?: string | null
@@ -54,8 +55,6 @@ export function sessionString(session: SidebarSessionLike, keys: string[]): stri
 
 export function sessionWorkingDir(session: SidebarSessionLike): string | null {
   return sessionString(session, [
-    'projectRoot',
-    'project_root',
     'workingDir',
     'working_dir',
     'cwd',
@@ -63,6 +62,13 @@ export function sessionWorkingDir(session: SidebarSessionLike): string | null {
     'project_path',
     'workspacePath',
     'workspace_path',
+  ])
+}
+
+export function sessionProjectRoot(session: SidebarSessionLike): string | null {
+  return sessionString(session, [
+    'projectRoot',
+    'project_root',
     'workspaceRoot',
     'workspace_root',
     'repositoryRoot',
@@ -82,8 +88,16 @@ export function sessionProjectId(session: SidebarSessionLike): string | null {
   return sessionString(session, ['projectId', 'project_id', 'projectRef', 'project_ref'])
 }
 
+export function sessionEnvironmentId(session: SidebarSessionLike): string | null {
+  return sessionString(session, ['environmentId', 'environment_id', 'env', 'environment'])
+}
+
 function normalizeProjectPath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/g, '').toLowerCase()
+}
+
+function normalizeEnvironmentId(value: string | null | undefined): string {
+  return value?.trim().toLowerCase() || ''
 }
 
 export function sessionMatchesProject(
@@ -92,14 +106,37 @@ export function sessionMatchesProject(
 ): boolean {
   const projectId = project.id?.trim()
   const sessionId = sessionProjectId(session)
-  if (projectId && sessionId) return projectId === sessionId
+  const sessionEnv = normalizeEnvironmentId(sessionEnvironmentId(session))
+  const projectEnv = normalizeEnvironmentId(project.environmentId)
+  const environmentMatches = !sessionEnv || !projectEnv || sessionEnv === projectEnv
 
   const cwd = sessionWorkingDir(session)
+  const root = sessionProjectRoot(session)
   const normalizedCwd = cwd ? normalizeProjectPath(cwd) : ''
+  const normalizedSessionRoot = root ? normalizeProjectPath(root) : ''
   const normalizedPath = normalizeProjectPath(project.path)
   const normalizedRoot = normalizeProjectPath(project.root || '')
+  const projectPathIsRoot = Boolean(normalizedRoot && normalizedPath === normalizedRoot)
+  const normalizedSessionId = sessionId ? normalizeProjectPath(sessionId) : ''
+
+  if (projectId && sessionId) {
+    if (projectId === sessionId) return environmentMatches
+    if (
+      environmentMatches
+      && normalizedSessionId
+      && (normalizedSessionId === normalizedPath || (normalizedRoot && normalizedSessionId === normalizedRoot))
+    ) {
+      return true
+    }
+    return false
+  }
+
+  if (!environmentMatches) return false
+
   if (normalizedCwd && (normalizedCwd === normalizedPath || normalizedCwd.startsWith(`${normalizedPath}/`))) return true
-  if (normalizedCwd && normalizedRoot && (normalizedCwd === normalizedRoot || normalizedCwd.startsWith(`${normalizedRoot}/`))) return true
+  if (normalizedCwd && projectPathIsRoot && (normalizedCwd === normalizedRoot || normalizedCwd.startsWith(`${normalizedRoot}/`))) return true
+  if (!normalizedCwd && normalizedSessionRoot && (normalizedSessionRoot === normalizedPath || normalizedSessionRoot.startsWith(`${normalizedPath}/`))) return true
+  if (!normalizedCwd && normalizedSessionRoot && projectPathIsRoot && normalizedSessionRoot === normalizedRoot) return true
 
   const projectName = sessionProjectName(session)
   const identityName = project.repositoryIdentity?.displayName || project.repositoryIdentity?.name

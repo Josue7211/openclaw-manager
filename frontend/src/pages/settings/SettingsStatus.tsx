@@ -172,8 +172,8 @@ function setupReadinessColor(setupStatus: SetupStatusData): string {
 function formatMissingSetup(missing: string[]): string {
   if (missing.length === 0) return 'Everything required is configured'
   const labels: Record<string, string> = {
-	    harness: 'Harness',
-	    harness_auth: 'Harness auth',
+	    harness: 'Hermes Agent',
+	    harness_auth: 'Hermes Agent auth',
     agentsecrets: 'Agent Secrets',
     supabase: 'Supabase',
     memd: 'memd',
@@ -468,7 +468,7 @@ export default memo(function SettingsStatus() {
     { key: 'agentshell', label: 'Agent Shell', data: services?.agentshell },
     { key: 'agentsecrets', label: 'Agent Secrets', data: services?.agentsecrets },
     { key: 'memd', label: 'memd', data: services?.memd },
-    { key: 'harness', label: 'Harness', data: services?.harness },
+    { key: 'harness', label: 'Hermes Agent', data: services?.harness },
     { key: 'supabase', label: 'Supabase', data: services?.supabase },
   ]
   const pendingHandoffs = handoffs?.requests ?? []
@@ -989,7 +989,7 @@ export default memo(function SettingsStatus() {
                     ? 'none'
                     : `0 0 6px var(--red-500-a25)`,
               }} />
-	              <span style={{ fontWeight: 500 }}>Harness Gateway</span>
+	              <span style={{ fontWeight: 500 }}>Hermes Agent Gateway</span>
             </div>
             <span style={{
               fontSize: '11px', fontWeight: 500,

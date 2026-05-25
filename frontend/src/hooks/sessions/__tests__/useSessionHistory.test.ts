@@ -14,7 +14,7 @@ vi.mock('@/lib/demo-data', () => ({
   isDemoMode: vi.fn(() => false),
 }))
 
-import { useSessionHistory } from '../useSessionHistory'
+import { sessionHistoryPath, useSessionHistory } from '../useSessionHistory'
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -58,6 +58,38 @@ describe('useSessionHistory', () => {
 
     expect(api.get).toHaveBeenCalledWith(
       expect.stringContaining('/api/gateway/sessions/sess-abc/history'),
+    )
+  })
+
+  it('includes environment scope in the history endpoint and cache identity', async () => {
+    const { api } = await import('@/lib/api')
+    vi.mocked(api.get).mockResolvedValue({ messages: [], hasMore: false })
+
+    const { result, rerender } = renderHook(
+      ({ environmentId }: { environmentId: string | null }) => useSessionHistory('shared-thread', 50, environmentId),
+      {
+        initialProps: { environmentId: 'desktop' },
+        wrapper: createWrapper(),
+      },
+    )
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+    expect(api.get).toHaveBeenCalledWith('/api/gateway/sessions/shared-thread/history?limit=50&environmentId=desktop')
+
+    vi.mocked(api.get).mockClear()
+    vi.mocked(api.get).mockResolvedValue({ messages: [], hasMore: false })
+    rerender({ environmentId: 'local' })
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith('/api/gateway/sessions/shared-thread/history?limit=50&environmentId=local')
+    })
+  })
+
+  it('builds an encoded session history path', () => {
+    expect(sessionHistoryPath('shared/thread', 100, 'desktop vm')).toBe(
+      '/api/gateway/sessions/shared%2Fthread/history?limit=100&environmentId=desktop+vm',
     )
   })
 

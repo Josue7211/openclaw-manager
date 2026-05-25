@@ -1,4 +1,4 @@
-//! SSE endpoint that bridges Harness gateway WebSocket events to the frontend.
+//! SSE endpoint that bridges Hermes Agent gateway WebSocket events to the frontend.
 //!
 //! `GET /gateway/events` returns a long-lived Server-Sent Events stream that
 //! subscribes to the `GatewayWsClient` broadcast channel and forwards all

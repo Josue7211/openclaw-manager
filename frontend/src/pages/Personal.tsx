@@ -24,6 +24,15 @@ const RecycleBin = React.lazy(() =>
   import('@/components/dashboard/RecycleBin').then(m => ({ default: m.RecycleBin }))
 )
 
+const DEFAULT_HOME_WIDGET_IDS = new Set([
+  'todos-home',
+  'calendar-home',
+  'pomodoro-home',
+  'knowledge-home',
+  'missions-home',
+  'memory-home',
+])
+
 // ---------------------------------------------------------------------------
 // Greeting helper
 // ---------------------------------------------------------------------------
@@ -67,6 +76,69 @@ export default function Personal() {
     }
   }, [activePage])
 
+  // Merge legacy Reminders home card into Tasks. This removes persisted
+  // reminders widget instances so Home presents one task surface.
+  useEffect(() => {
+    if (!activePage) return
+
+    const reminderWidgetIds = new Set(
+      Object.entries(activePage.widgetConfigs)
+        .filter(([, config]) => String(config?._pluginId ?? '') === 'reminders')
+        .map(([widgetId]) => widgetId),
+    )
+    if (reminderWidgetIds.size === 0) return
+
+    const state = getHomeState()
+    setHomeState({
+      ...state,
+      pages: state.pages.map(page => {
+        if (page.id !== activePage.id) return page
+        const widgetConfigs = { ...page.widgetConfigs }
+        for (const widgetId of reminderWidgetIds) delete widgetConfigs[widgetId]
+        const layouts = Object.fromEntries(
+          Object.entries(page.layouts).map(([breakpoint, items]) => [
+            breakpoint,
+            items.filter(item => !reminderWidgetIds.has(item.i)),
+          ]),
+        )
+        return { ...page, layouts, widgetConfigs }
+      }),
+    })
+  }, [activePage])
+
+  // Clean up the oversized interim layout used while Todos and Reminders were
+  // being merged. Only reset the stock Home dashboard, not custom layouts.
+  useEffect(() => {
+    if (!activePage) return
+
+    const widgetIds = Object.keys(activePage.widgetConfigs)
+    const isStockHome =
+      widgetIds.length > 0 &&
+      widgetIds.every(widgetId => DEFAULT_HOME_WIDGET_IDS.has(widgetId))
+    if (!isStockHome) return
+
+    const lgLayout = activePage.layouts.lg ?? activePage.layouts.xl ?? []
+    const todos = lgLayout.find(item => item.i === 'todos-home')
+    const calendar = lgLayout.find(item => item.i === 'calendar-home')
+    const pomodoro = lgLayout.find(item => item.i === 'pomodoro-home')
+    const needsCompactDefault =
+      (todos && todos.w > 4) ||
+      (calendar && calendar.w > 4) ||
+      (pomodoro && pomodoro.w < 4)
+    if (!needsCompactDefault) return
+
+    const defaults = generateHomeDefaultLayout()
+    const state = getHomeState()
+    setHomeState({
+      ...state,
+      pages: state.pages.map(p =>
+        p.id === activePage.id
+          ? { ...p, layouts: defaults.layouts, widgetConfigs: defaults.widgetConfigs }
+          : p
+      ),
+    })
+  }, [activePage])
+
   // Collect placed widget plugin IDs for the picker's "already added" check.
   const placedWidgetIds = useMemo(() => {
     if (!activePage?.layouts) return []
@@ -107,7 +179,17 @@ export default function Personal() {
             onOpenPicker={() => setPickerOpen(true)}
             onToggleEdit={setHomeEditMode}
             onUndo={handleUndo}
-          />
+          >
+            <React.Suspense fallback={null}>
+              <RecycleBin
+                items={homeState.recycleBin}
+                visible={homeState.editMode}
+                placement="toolbar"
+                onRestore={restoreHomeWidget}
+                onClearAll={clearHomeRecycleBin}
+              />
+            </React.Suspense>
+          </DashboardEditBar>
         </div>
       </div>
 
@@ -147,15 +229,6 @@ export default function Personal() {
         />
       </React.Suspense>
 
-      {/* Recycle Bin drawer (lazy-loaded) */}
-      <React.Suspense fallback={null}>
-        <RecycleBin
-          items={homeState.recycleBin}
-          visible={homeState.editMode}
-          onRestore={restoreHomeWidget}
-          onClearAll={clearHomeRecycleBin}
-        />
-      </React.Suspense>
     </div>
   )
 }

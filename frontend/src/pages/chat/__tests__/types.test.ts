@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   cleanText,
   cleanMessages,
+  CHAT_SLASH_COMMANDS,
   SLASH_CMDS,
   isSlashCommand,
 } from '../types'
@@ -120,6 +121,10 @@ describe('isSlashCommand', () => {
     expect(isSlashCommand('/Reset')).toBe(true)
   })
 
+  it('trims command whitespace', () => {
+    expect(isSlashCommand('  /clear  ')).toBe(true)
+  })
+
   it('rejects unknown slash commands', () => {
     expect(isSlashCommand('/help')).toBe(false)
     expect(isSlashCommand('/quit')).toBe(false)
@@ -146,6 +151,14 @@ describe('SLASH_CMDS', () => {
 
   it('has exactly 3 entries', () => {
     expect(SLASH_CMDS).toHaveLength(3)
+  })
+
+  it('exposes metadata for the composer command palette', () => {
+    expect(CHAT_SLASH_COMMANDS).toEqual([
+      expect.objectContaining({ command: '/new', label: 'New chat' }),
+      expect.objectContaining({ command: '/reset', label: 'Reset chat' }),
+      expect.objectContaining({ command: '/clear', label: 'Clear chat' }),
+    ])
   })
 })
 

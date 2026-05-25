@@ -1,0 +1,138 @@
+{
+  "version": 1,
+  "updated_at": "2026-05-22T01:39:07.110691323+00:00",
+  "records": [
+    {
+      "id": "clawcontrol:calendar:current",
+      "source_app": "clawcontrol",
+      "module": "calendar",
+      "scope": "current",
+      "visibility": "private",
+      "privacy": "approved",
+      "approved": true,
+      "agentsecrets_approved": false,
+      "labels": [
+        "live-app-state",
+        "calendar"
+      ],
+      "summary": "calendar: not loaded before send timeout",
+      "payload": {
+        "summary": "calendar: not loaded before send timeout"
+      },
+      "payload_hash": "30f3276511db6487d2f91e273a165b0bffac011cd0c9b1af47485fd73dcf12b6",
+      "captured_at": "2026-05-22T01:39:07.110691323+00:00",
+      "updated_at": "2026-05-22T01:39:07.110691323+00:00",
+      "expires_at": "2026-05-22T01:40:37.110691323+00:00"
+    },
+    {
+      "id": "clawcontrol:todos:current",
+      "source_app": "clawcontrol",
+      "module": "todos",
+      "scope": "current",
+      "visibility": "private",
+      "privacy": "approved",
+      "approved": true,
+      "agentsecrets_approved": false,
+      "labels": [
+        "live-app-state",
+        "todos"
+      ],
+      "summary": "todos: loaded; open=0 total=0",
+      "payload": {
+        "todos": []
+      },
+      "payload_hash": "54896c0c191395e8a2b68fead3b241ffc26beb7a7a813ce00fe6af622ac90add",
+      "captured_at": "2026-05-22T01:39:07.110691323+00:00",
+      "updated_at": "2026-05-22T01:39:07.110691323+00:00",
+      "expires_at": "2026-05-22T01:40:37.110691323+00:00"
+    },
+    {
+      "id": "clawcontrol:reminders:current",
+      "source_app": "clawcontrol",
+      "module": "reminders",
+      "scope": "current",
+      "visibility": "private",
+      "privacy": "approved",
+      "approved": true,
+      "agentsecrets_approved": false,
+      "labels": [
+        "live-app-state",
+        "reminders"
+      ],
+      "summary": "reminders: not loaded before send timeout",
+      "payload": {
+        "summary": "reminders: not loaded before send timeout"
+      },
+      "payload_hash": "8e1e5da186cf8f6442f9f43671898170831b63e3f858c77d6c29b2c1f98ee71f",
+      "captured_at": "2026-05-22T01:39:07.110691323+00:00",
+      "updated_at": "2026-05-22T01:39:07.110691323+00:00",
+      "expires_at": "2026-05-22T01:40:37.110691323+00:00"
+    },
+    {
+      "id": "clawcontrol:missions:current",
+      "source_app": "clawcontrol",
+      "module": "missions",
+      "scope": "current",
+      "visibility": "private",
+      "privacy": "approved",
+      "approved": true,
+      "agentsecrets_approved": false,
+      "labels": [
+        "live-app-state",
+        "missions"
+      ],
+      "summary": "missions: loaded; count=0",
+      "payload": {
+        "missions": []
+      },
+      "payload_hash": "fa3a8f230c9c9eb953eb113a076eca92b3b9d5475d3da69a9a7bdbb2e7409639",
+      "captured_at": "2026-05-22T01:39:07.110691323+00:00",
+      "updated_at": "2026-05-22T01:39:07.110691323+00:00",
+      "expires_at": "2026-05-22T01:40:37.110691323+00:00"
+    },
+    {
+      "id": "clawcontrol:email:current",
+      "source_app": "clawcontrol",
+      "module": "email",
+      "scope": "current",
+      "visibility": "private",
+      "privacy": "metadata",
+      "approved": false,
+      "agentsecrets_approved": false,
+      "labels": [
+        "live-app-state",
+        "email"
+      ],
+      "summary": "email: loaded; inbox_items=0",
+      "payload": {
+        "summary": "email: loaded; inbox_items=0"
+      },
+      "payload_hash": "97200f55b005f39eb25942da4596916c63b48f15dcc81ab50bc91760df44a135",
+      "captured_at": "2026-05-22T01:39:07.110691323+00:00",
+      "updated_at": "2026-05-22T01:39:07.110691323+00:00",
+      "expires_at": "2026-05-22T01:40:37.110691323+00:00"
+    },
+    {
+      "id": "clawcontrol:messages:current",
+      "source_app": "clawcontrol",
+      "module": "messages",
+      "scope": "current",
+      "visibility": "private",
+      "privacy": "metadata",
+      "approved": false,
+      "agentsecrets_approved": false,
+      "labels": [
+        "live-app-state",
+        "messages"
+      ],
+      "summary": "messages: not loaded before send timeout",
+      "payload": {
+        "summary": "messages: not loaded before send timeout"
+      },
+      "payload_hash": "2f79eefa671a764ed626beef3bee4cfbcb36924251296a26f45194c93a116299",
+      "captured_at": "2026-05-22T01:39:07.110691323+00:00",
+      "updated_at": "2026-05-22T01:39:07.110691323+00:00",
+      "expires_at": "2026-05-22T01:40:37.110691323+00:00"
+    }
+  ]
+}

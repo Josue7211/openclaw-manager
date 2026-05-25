@@ -3,14 +3,23 @@ import { useGatewaySessions } from '@/hooks/sessions/useGatewaySessions'
 import { SessionList } from './SessionList'
 import { SessionHistoryPanel } from './SessionHistoryPanel'
 
+function sessionScopeKey(key: string | null, environmentId?: string | null): string | null {
+  if (!key) return null
+  const environment = environmentId?.trim()
+  return environment ? `${environment}:${key}` : key
+}
+
 export default function SessionsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string | null>(null)
   const [listWidth, setListWidth] = useState(320)
   const { sessions } = useGatewaySessions()
 
   const selectedSession = useMemo(
-    () => sessions.find((s) => s.key === selectedId) ?? null,
-    [sessions, selectedId],
+    () => sessions.find((s) => (
+      sessionScopeKey(s.key, s.environmentId) === sessionScopeKey(selectedId, selectedEnvironmentId)
+    )) ?? null,
+    [sessions, selectedEnvironmentId, selectedId],
   )
 
   const handleResize = useCallback((e: React.MouseEvent) => {
@@ -54,9 +63,16 @@ export default function SessionsPage() {
       }}>
         <SessionList
           selectedId={selectedId}
-          onSelect={setSelectedId}
-          onDeleteSelected={(key) => {
-            if (selectedId === key) setSelectedId(null)
+          selectedEnvironmentId={selectedEnvironmentId}
+          onSelect={(key, environmentId) => {
+            setSelectedId(key)
+            setSelectedEnvironmentId(environmentId?.trim() || null)
+          }}
+          onDeleteSelected={(key, environmentId) => {
+            if (sessionScopeKey(selectedId, selectedEnvironmentId) === sessionScopeKey(key, environmentId)) {
+              setSelectedId(null)
+              setSelectedEnvironmentId(null)
+            }
           }}
         />
       </div>
@@ -89,7 +105,8 @@ export default function SessionsPage() {
         {selectedSession != null ? (
           <SessionHistoryPanel
             sessionId={selectedSession.key as string}
-            key={`history-${selectedSession.key as string}`}
+            environmentId={selectedSession.environmentId}
+            key={`history-${sessionScopeKey(selectedSession.key as string, selectedSession.environmentId)}`}
           />
         ) : (
           <div style={{

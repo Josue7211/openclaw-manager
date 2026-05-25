@@ -7,6 +7,7 @@ import {
   loadProjectSortOrder,
   loadSidebarCollapsed,
   loadStoredValue,
+  hasStoredValue,
   saveProjectGroupingMode,
   saveProjectSortOrder,
   saveSidebarCollapsed,
@@ -27,6 +28,8 @@ describe('T3 sidebar preference adapter', () => {
     saveStoredValue('chat-test-key', 'value')
     expect(loadStoredValue('chat-test-key', 'fallback')).toBe('value')
     expect(loadStoredValue('missing-key', 'fallback')).toBe('fallback')
+    expect(hasStoredValue('chat-test-key')).toBe(true)
+    expect(hasStoredValue('missing-key')).toBe(false)
   })
 
   it('normalizes project grouping and sort preferences', () => {

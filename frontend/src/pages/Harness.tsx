@@ -24,6 +24,7 @@ import { JobList } from './crons/JobList'
 import { CronFormModal } from './crons/CronFormModal'
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
+import { HermesLogsTab, HermesOverviewTab, HermesPlatformsTab, HermesSessionsTab } from './harness/HermesControlTabs'
 
 // Lazy-load new read-only tabs (not needed until clicked)
 const UsageTab = lazy(() => import('./harness/UsageTab'))
@@ -31,15 +32,19 @@ const ModelsTab = lazy(() => import('./harness/ModelsTab'))
 const ToolsTab = lazy(() => import('./harness/ToolsTab'))
 const SkillsTab = lazy(() => import('./harness/SkillsTab'))
 
-type TabKey = 'agents' | 'crons' | 'usage' | 'models' | 'tools' | 'skills'
+type TabKey = 'overview' | 'agents' | 'sessions' | 'logs' | 'crons' | 'usage' | 'models' | 'tools' | 'skills' | 'platforms'
 
 const tabDefs: { key: TabKey; label: string }[] = [
+  { key: 'overview', label: 'Overview' },
   { key: 'agents', label: 'Agents' },
+  { key: 'sessions', label: 'Sessions' },
+  { key: 'logs', label: 'Logs' },
   { key: 'crons', label: 'Crons' },
   { key: 'usage', label: 'Usage' },
   { key: 'models', label: 'Models' },
   { key: 'tools', label: 'Tools' },
   { key: 'skills', label: 'Skills' },
+  { key: 'platforms', label: 'Platforms' },
 ]
 
 function SectionFallback() {
@@ -356,7 +361,7 @@ function CronsTabContent() {
 // --- Main Harness Page ---
 
 export default function HarnessPage() {
-  const [tab, setTab] = useState<TabKey>('agents')
+  const [tab, setTab] = useState<TabKey>('overview')
 
   const { connected: healthy, status: harnessStatus, providerLabel } = useHarnessStatus()
   const harnessStatusValue: HarnessHealthStatus =
@@ -412,7 +417,10 @@ export default function HarnessPage() {
 
       {/* Tab content */}
       <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+        {tab === 'overview' && <HermesOverviewTab />}
         {tab === 'agents' && <AgentsTabContent harnessHealthy={healthy} />}
+        {tab === 'sessions' && <HermesSessionsTab />}
+        {tab === 'logs' && <HermesLogsTab />}
         {tab === 'crons' && <CronsTabContent />}
         {tab === 'usage' && (
           <Suspense fallback={<SectionFallback />}>
@@ -434,6 +442,7 @@ export default function HarnessPage() {
             <SkillsTab healthy={healthy} status={harnessStatusValue} />
           </Suspense>
         )}
+        {tab === 'platforms' && <HermesPlatformsTab />}
       </div>
     </div>
   )

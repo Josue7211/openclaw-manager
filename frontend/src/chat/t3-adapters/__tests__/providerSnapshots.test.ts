@@ -10,35 +10,43 @@ const models = [
 ]
 
 describe('T3 chat provider snapshot adapter', () => {
-  it('keeps Hermes model-backed and local providers direct without inherited models', () => {
+  it('defaults to Hermes Agent only when the backend does not advertise local providers', () => {
+    const snapshots = normalizeChatProviderSnapshots({
+      providers: [{ id: 'hermes', name: 'Hermes Agent', ready: true, selectable: true }],
+      models,
+    })
+
+    expect(snapshots.map(provider => provider.instanceId)).toEqual(['hermes'])
+    expect(selectableChatProviderOptions({
+      providers: [{ id: 'hermes', name: 'Hermes Agent', ready: true, selectable: true }],
+      models,
+    })).toEqual([
+      expect.objectContaining({ id: 'hermes', name: 'Hermes Agent', modelBacked: true, local: false }),
+    ])
+  })
+
+  it('ignores legacy local provider entries while keeping Hermes models', () => {
     const providers = [
-      { id: 'hermes', name: 'Hermes', ready: true, selectable: true },
+      { id: 'hermes', name: 'Hermes Agent', ready: true, selectable: true },
       { id: 'claudeAgent', name: 'Claude Code', ready: true, selectable: true },
       { id: 'codex-cli', name: 'Codex CLI', ready: true, selectable: true },
     ]
 
     const snapshots = normalizeChatProviderSnapshots({ providers, models })
     const hermes = snapshots.find(provider => provider.instanceId === 'hermes')
-    const claude = snapshots.find(provider => provider.instanceId === 'claudeAgent')
-    const codexCli = snapshots.find(provider => provider.instanceId === 'codex-cli')
 
+    expect(snapshots.map(provider => provider.instanceId)).toEqual(['hermes'])
     expect(hermes?.driver).toBe('hermes')
     expect(hermes?.models.map(model => model.slug)).toEqual(['gpt-5.5', 'o3'])
-    expect(claude?.driver).toBe('claudeAgent')
-    expect(claude?.models).toEqual([])
-    expect(codexCli?.driver).toBe('codex-cli')
-    expect(codexCli?.models).toEqual([])
 
     expect(selectableChatProviderOptions({ providers, models })).toEqual([
       expect.objectContaining({ id: 'hermes', modelBacked: true, local: false }),
-      expect.objectContaining({ id: 'claudeAgent', modelBacked: false, local: true }),
-      expect.objectContaining({ id: 'codex-cli', modelBacked: false, local: true }),
     ])
   })
 
-  it('hides unavailable local providers from chat while preserving their settings snapshots', () => {
+  it('keeps unavailable Hermes visible with readiness detail', () => {
     const providers = [
-      { id: 'hermes', name: 'Hermes', ready: true, selectable: true },
+      { id: 'hermes', name: 'Hermes Agent', ready: false, selectable: true, detail: 'Hermes missing' },
       { id: 'claudeAgent', name: 'Claude Code', ready: false, selectable: false, detail: 'Claude missing' },
       { id: 'codex-cli', name: 'Codex CLI', ready: true, selectable: true },
       { id: 'openclaw', name: 'OpenClaw', ready: true, selectable: true },
@@ -46,15 +54,42 @@ describe('T3 chat provider snapshot adapter', () => {
 
     const snapshots = normalizeChatProviderSnapshots({ providers, models })
 
-    expect(snapshots.map(provider => provider.instanceId)).toEqual(['hermes', 'claudeAgent', 'codex-cli'])
-    expect(snapshots.find(provider => provider.instanceId === 'claudeAgent')).toMatchObject({
+    expect(snapshots.map(provider => provider.instanceId)).toEqual(['hermes'])
+    expect(snapshots.find(provider => provider.instanceId === 'hermes')).toMatchObject({
       enabled: false,
       availability: 'unavailable',
-      unavailableReason: 'Claude missing',
+      unavailableReason: 'Hermes missing',
     })
-    expect(selectableChatProviderOptions({ providers, models }).map(provider => provider.id)).toEqual([
-      'hermes',
-      'codex-cli',
+    expect(selectableChatProviderOptions({ providers, models })).toEqual([
+      expect.objectContaining({ id: 'hermes', available: false, unavailableReason: 'Hermes missing' }),
+    ])
+  })
+
+  it('normalizes legacy readiness details before exposing Hermes status', () => {
+    expect(selectableChatProviderOptions({
+      providers: [
+        { id: 'hermes', name: 'Hermes Agent', ready: false, selectable: true, detail: 'harness_not_configured' },
+      ],
+      models,
+    })).toEqual([
+      expect.objectContaining({
+        id: 'hermes',
+        available: false,
+        unavailableReason: 'Hermes Agent is not configured. Open Settings > Connections to connect it.',
+      }),
+    ])
+
+    expect(selectableChatProviderOptions({
+      providers: [
+        { id: 'hermes', name: 'Hermes Agent', ready: false, selectable: true, detail: 'Claude Code is not installed' },
+      ],
+      models,
+    })).toEqual([
+      expect.objectContaining({
+        id: 'hermes',
+        available: false,
+        unavailableReason: 'Hermes Agent is the active agent right now.',
+      }),
     ])
   })
 })

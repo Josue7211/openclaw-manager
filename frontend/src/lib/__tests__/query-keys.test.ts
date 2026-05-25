@@ -101,6 +101,12 @@ describe('queryKeys', () => {
       expect(queryKeys.missionEvents('m-123')).toEqual(['mission-events', 'm-123'])
     })
 
+    it('sessionHistory() scopes by environment when provided', () => {
+      expect(queryKeys.sessionHistory('shared-thread', 'desktop')).toEqual(['session-history', 'shared-thread', 'desktop'])
+      expect(queryKeys.sessionHistory('shared-thread', null)).toEqual(['session-history', 'shared-thread', ''])
+      expect(queryKeys.sessionHistory('shared-thread')).toEqual(['session-history', 'shared-thread'])
+    })
+
     it('secrets.list() returns ["secrets"]', () => {
       expect(queryKeys.secrets.list()).toEqual(['secrets'])
     })

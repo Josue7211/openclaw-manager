@@ -11,15 +11,14 @@ vi.mock('@/lib/api', () => ({
 }))
 
 /**
- * Mirrors the inline useQuery pattern from Harness.tsx (line 361-365) and
- * Agents.tsx (line 23-28) that queries /api/harness/health.
+ * Mirrors the inline useQuery pattern that queries the Hermes Agent health route.
  */
 function useHarnessHealth() {
   return useQuery({
     queryKey: ['harness', 'health'],
     queryFn: () =>
       import('@/lib/api').then(({ api }) =>
-        api.get<{ ok: boolean; status: string; gateway?: boolean }>('/api/harness/health'),
+        api.get<{ ok: boolean; status: string; gateway?: boolean }>('/api/hermes/health'),
       ),
     staleTime: 30_000,
   })
@@ -36,7 +35,7 @@ function createWrapper() {
   }
 }
 
-describe('Harness health query (/api/harness/health)', () => {
+describe('Hermes Agent health query (/api/hermes/health)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })

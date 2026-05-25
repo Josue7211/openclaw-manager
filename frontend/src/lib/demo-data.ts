@@ -9,7 +9,7 @@ import { isWizardDemoMode } from './wizard-store'
 export const DEMO_TODOS: Todo[] = [
   { id: 'demo-1', text: 'Set up Supabase instance', done: false, due_date: new Date().toISOString().slice(0, 10) },
   { id: 'demo-2', text: 'Configure BlueBubbles on Mac', done: false, due_date: new Date(Date.now() + 86400000).toISOString().slice(0, 10) },
-  { id: 'demo-3', text: 'Connect a harness AI backend', done: false },
+  { id: 'demo-3', text: 'Connect Hermes Agent', done: false },
   { id: 'demo-4', text: 'Customize sidebar modules', done: false },
   { id: 'demo-5', text: 'Explore clawctrl features', done: true },
   { id: 'demo-6', text: 'Read the setup guide', done: true },
@@ -171,7 +171,7 @@ export const DEMO_CHAT_MESSAGES: DemoChatMessage[] = [
   {
     id: 'demo-chat-2',
     role: 'assistant',
-    text: 'clawctrl is your personal command center. It brings together:\n\n- **iMessage** via BlueBubbles (requires a Mac)\n- **AI Chat** through a harness backend\n- **Task management** with real-time sync\n- **Homelab monitoring** (Proxmox, OPNsense)\n- **Agent orchestration** for automated workflows\n\nEach module is optional — enable only what you have set up. Head to **Settings > Connections** to configure your services.',
+    text: 'clawctrl is your personal command center. It brings together:\n\n- **iMessage** via BlueBubbles (requires a Mac)\n- **AI Chat** through Hermes Agent\n- **Task management** with real-time sync\n- **Homelab monitoring** (Proxmox, OPNsense)\n- **Agent orchestration** for automated workflows\n\nEach module is optional — enable only what you have set up. Head to **Settings > Connections** to configure your services.',
     timestamp: new Date(Date.now() - 290000).toISOString(),
   },
   {

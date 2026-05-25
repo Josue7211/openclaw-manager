@@ -996,13 +996,18 @@ fn memd_base_url(state: &AppState) -> Option<String> {
 fn local_bundle_memory_count() -> Option<usize> {
     let root = current_project_root()?;
     let raw_spine = root.join(".memd/state/raw-spine.jsonl");
-    let content = std::fs::read_to_string(raw_spine).ok()?;
-    Some(
-        content
+    if let Ok(content) = std::fs::read_to_string(raw_spine) {
+        let count = content
             .lines()
             .filter(|line| !line.trim().is_empty())
-            .count(),
-    )
+            .count();
+        if count > 0 {
+            return Some(count);
+        }
+    }
+
+    let compiled_count = collect_compiled_memd_files(&root).len();
+    Some(compiled_count)
 }
 
 async fn fetch_memd_health_payload(
@@ -1567,6 +1572,88 @@ fn local_bundle_item_to_entry(item: &Value, index: usize) -> Option<Value> {
     }))
 }
 
+fn collect_compiled_memd_files(root: &Path) -> Vec<PathBuf> {
+    fn visit(dir: &Path, files: &mut Vec<PathBuf>) {
+        let Ok(entries) = fs::read_dir(dir) else {
+            return;
+        };
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                visit(&path, files);
+            } else if path.extension().and_then(|ext| ext.to_str()) == Some("md") {
+                files.push(path);
+            }
+        }
+    }
+
+    let mut files = Vec::new();
+    for rel in [".memd/compiled/memory", ".memd/compiled/events"] {
+        visit(&root.join(rel), &mut files);
+    }
+    files.sort();
+    files
+}
+
+fn compiled_memd_file_to_entry(root: &Path, path: &Path, index: usize) -> Option<Value> {
+    let content = fs::read_to_string(path).ok()?;
+    let content = content.trim().to_string();
+    if content.is_empty() {
+        return None;
+    }
+
+    let rel_path = path
+        .strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/");
+    let mut hasher = Sha256::new();
+    hasher.update(rel_path.as_bytes());
+    let digest = hasher.finalize();
+    let id = format!(
+        "compiled-{:02x}{:02x}{:02x}{:02x}-{index}",
+        digest[0], digest[1], digest[2], digest[3]
+    );
+    let kind = if rel_path.contains("/events/") {
+        "event"
+    } else {
+        "memory"
+    };
+    let title = first_content_line(&content);
+    let snippet: String = content.chars().take(240).collect();
+
+    Some(json!({
+        "id": id,
+        "scope": {
+            "kind": "bundle",
+            "name": "local",
+            "description": ".memd compiled bundle",
+        },
+        "kind": kind,
+        "title": title,
+        "content": content,
+        "summary": snippet,
+        "source": "memd-bundle",
+        "confidence": 100,
+        "priority": 0,
+        "retentionDays": 0,
+        "version": 1,
+        "status": "active",
+        "metadata": {
+            "path": rel_path,
+            "bundle": "compiled",
+        },
+        "createdAt": "",
+        "updatedAt": "",
+        "archivedAt": null,
+        "name": title,
+        "path": rel_path,
+        "snippet": snippet,
+        "score": 1,
+    }))
+}
+
 trait EmptyStringExt {
     fn if_empty_then(self, fallback: impl FnOnce() -> String) -> String;
 }
@@ -1616,10 +1703,6 @@ fn query_bundle_memd(body: &QueryBody) -> Result<Option<Json<Value>>, AppError> 
     let Some(root) = current_project_root() else {
         return Ok(None);
     };
-    let raw_spine = root.join(".memd/state/raw-spine.jsonl");
-    let Ok(content) = std::fs::read_to_string(raw_spine) else {
-        return Ok(None);
-    };
     let limit = normalize_limit(body.limit, 10, 100) as usize;
     let needle = body
         .query
@@ -1627,16 +1710,41 @@ fn query_bundle_memd(body: &QueryBody) -> Result<Option<Json<Value>>, AppError> 
         .unwrap_or_default()
         .trim()
         .to_lowercase();
+    let allowed_kinds: std::collections::HashSet<String> = body
+        .kinds
+        .as_ref()
+        .into_iter()
+        .flatten()
+        .map(|kind| kind.trim().to_lowercase())
+        .filter(|kind| !kind.is_empty())
+        .collect();
+    let allowed_statuses: std::collections::HashSet<String> = body
+        .statuses
+        .as_ref()
+        .into_iter()
+        .flatten()
+        .map(|status| status.trim().to_lowercase())
+        .filter(|status| !status.is_empty())
+        .collect();
     let mut seen = std::collections::HashSet::new();
-    let entries: Vec<Value> = content
-        .lines()
-        .enumerate()
-        .filter_map(|(index, line)| {
-            serde_json::from_str::<Value>(line)
-                .ok()
-                .map(|item| (index, item))
+
+    let raw_spine = root.join(".memd/state/raw-spine.jsonl");
+    let mut entries: Vec<Value> = std::fs::read_to_string(raw_spine)
+        .ok()
+        .into_iter()
+        .flat_map(|content| {
+            content
+                .lines()
+                .enumerate()
+                .filter_map(|(index, line)| {
+                    serde_json::from_str::<Value>(line)
+                        .ok()
+                        .map(|item| (index, item))
+                })
+                .filter_map(|(index, item)| local_bundle_item_to_entry(&item, index))
+                .collect::<Vec<_>>()
         })
-        .filter_map(|(index, item)| local_bundle_item_to_entry(&item, index))
+        .filter(|entry| entry_matches_filters(entry, &allowed_kinds, &allowed_statuses))
         .filter(|entry| entry_matches_query(entry, &needle))
         .filter(|entry| {
             entry
@@ -1649,6 +1757,25 @@ fn query_bundle_memd(body: &QueryBody) -> Result<Option<Json<Value>>, AppError> 
         .collect();
 
     if entries.is_empty() {
+        seen.clear();
+        entries = collect_compiled_memd_files(&root)
+            .iter()
+            .enumerate()
+            .filter_map(|(index, path)| compiled_memd_file_to_entry(&root, path, index))
+            .filter(|entry| entry_matches_filters(entry, &allowed_kinds, &allowed_statuses))
+            .filter(|entry| entry_matches_query(entry, &needle))
+            .filter(|entry| {
+                entry
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .map(|id| seen.insert(id.to_string()))
+                    .unwrap_or(true)
+            })
+            .take(limit)
+            .collect();
+    }
+
+    if entries.is_empty() {
         return Ok(None);
     }
 
@@ -1658,6 +1785,36 @@ fn query_bundle_memd(body: &QueryBody) -> Result<Option<Json<Value>>, AppError> 
         "source": "memd-bundle",
         "baseUrl": null,
     }))))
+}
+
+fn entry_matches_filters(
+    entry: &Value,
+    allowed_kinds: &std::collections::HashSet<String>,
+    allowed_statuses: &std::collections::HashSet<String>,
+) -> bool {
+    if !allowed_kinds.is_empty() {
+        let kind = entry
+            .get("kind")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_lowercase();
+        if !allowed_kinds.contains(&kind) {
+            return false;
+        }
+    }
+
+    if !allowed_statuses.is_empty() {
+        let status = entry
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_lowercase();
+        if !allowed_statuses.contains(&status) {
+            return false;
+        }
+    }
+
+    true
 }
 
 fn sanitize_filter_list(values: Option<&Vec<String>>, max_items: usize) -> Vec<String> {

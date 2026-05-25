@@ -9,22 +9,53 @@ const DEFAULT_LOCAL_API_BASE = 'http://127.0.0.1:3010'
 const DEFAULT_TRAINING_API_BASE = ENV_TRAINING_API_BASE || 'https://coaching.aparcedo.org'
 const LOCAL_DESKTOP_ONLY_PATH_PREFIXES = [
   '/api/auth',
+  '/api/cache-refresh',
+  '/api/calendar',
+  '/api/capture',
+  '/api/changelog',
   '/api/chat',
+  '/api/deploy',
   '/api/email',
-  '/api/mail-accounts',
+  '/api/events-token',
   '/api/agents',
+  '/api/approvals',
+  '/api/career',
   '/api/crons',
   '/api/generated-modules',
   '/api/gateway',
+  '/api/growth',
   '/api/homelab',
+  '/api/ideas',
+  '/api/knowledge',
+  '/api/koel',
+  '/api/mail-accounts',
   '/api/media',
+  '/api/memd',
+  '/api/memory',
+  '/api/messages',
+  '/api/missions',
   '/api/module-proposals',
-  '/api/hermes',
   '/api/harness',
+  '/api/hermes',
+  '/api/notify',
   '/api/openclaw',
+  '/api/pipeline-events',
+  '/api/processes',
   '/api/rag',
+  '/api/reminders',
   '/api/remote',
+  '/api/retrospectives',
+  '/api/secrets',
+  '/api/stale',
+  '/api/status',
+  '/api/subagents',
+  '/api/terminal',
+  '/api/todos',
+  '/api/user-preferences',
+  '/api/vault',
   '/api/vnc',
+  '/api/workflow-notes',
+  '/api/workspace',
 ]
 export const API_BASE_CHANGED_EVENT = 'backend-api-base-changed'
 export const CONFIGURED_BACKEND_BASE_CHANGED_EVENT = 'configured-backend-base-changed'
@@ -41,7 +72,7 @@ function normalizeApiBase(value: string): string {
 
 function isTauriDesktop(): boolean {
   const runtime = globalThis as typeof globalThis & { isTauri?: boolean }
-  return typeof window !== 'undefined' && (!!window.__TAURI_INTERNALS__ || runtime.isTauri === true)
+  return typeof window !== 'undefined' && (!!window.__TAURI_INTERNALS__ || runtime.isTauri === true || !!_localApiKey)
 }
 
 function loadApiBase(): string {
@@ -110,12 +141,12 @@ export function resolveDesktopApiBootstrap(config: DesktopApiBootstrapConfig): D
   }
 }
 
-export type ServiceName = 'BlueBubbles' | 'Harness' | 'Backend'
+export type ServiceName = 'BlueBubbles' | 'Hermes Agent' | 'Backend'
 
 /** Determine which upstream service a path routes to */
 export function serviceForPath(path: string): ServiceName {
   if (path.startsWith('/api/messages')) return 'BlueBubbles'
-  if (path.startsWith('/api/chat'))     return 'Harness'
+  if (path.startsWith('/api/chat'))     return 'Hermes Agent'
   return 'Backend'
 }
 
@@ -123,7 +154,7 @@ export function serviceForPath(path: string): ServiceName {
 export function serviceErrorLabel(service: ServiceName): string {
   switch (service) {
     case 'BlueBubbles': return 'BlueBubbles unreachable'
-    case 'Harness':     return 'Harness unreachable'
+    case 'Hermes Agent': return 'Hermes Agent unreachable'
     default:            return 'Service unavailable'
   }
 }
@@ -188,9 +219,6 @@ export function getRemoteApiKey(): string | undefined {
 
 function isLocalDesktopOnlyPath(path: string): boolean {
   if (path.startsWith('/api/training')) return false
-  const configured = normalizeApiBase(CONFIGURED_BACKEND_BASE)
-  const localDefault = normalizeApiBase(DEFAULT_LOCAL_API_BASE)
-  if (configured && configured !== localDefault) return false
   return LOCAL_DESKTOP_ONLY_PATH_PREFIXES.some(prefix => path.startsWith(prefix))
 }
 
@@ -300,6 +328,7 @@ async function request<T>(method: string, path: string, body?: unknown, retriedA
     method,
     headers,
   }
+  if (method === 'GET') opts.cache = 'no-store'
   if (body !== undefined) opts.body = JSON.stringify(body)
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 30000)

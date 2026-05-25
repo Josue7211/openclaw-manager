@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
 const { stableKeybindings, stableTourState, stableThemeState, stableSidebarConfig } = vi.hoisted(() => ({
-  stableKeybindings: {},
+  stableKeybindings: [],
   stableTourState: { active: false },
   stableThemeState: { pageOverrides: {}, categoryOverrides: {}, customThemes: [], schedule: { type: 'none' } },
   stableSidebarConfig: { categories: [], customNames: {}, customModules: [] },
@@ -119,12 +119,13 @@ vi.mock('@/hooks/useApprovals', () => ({
 
 import LayoutShell from '../LayoutShell'
 
-function renderShell() {
+function renderShell(initialPath = '/') {
   return render(
-    <MemoryRouter initialEntries={['/']}>
+    <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
         <Route element={<LayoutShell />}>
           <Route index element={<div>Home content</div>} />
+          <Route path="/media" element={<div>Media content</div>} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -161,5 +162,14 @@ describe('LayoutShell assistant dock', () => {
       expect(screen.queryByTestId('global-assistant-dock')).not.toBeInTheDocument()
       expect(screen.getByTestId('mock-sidebar')).toHaveAttribute('data-width', '260')
     })
+  })
+
+  it('keeps the desktop app shell around the media command route', () => {
+    renderShell('/media')
+
+    expect(screen.getByTestId('mock-sidebar')).toBeInTheDocument()
+    expect(screen.getByText('Media content')).toBeInTheDocument()
+    expect(screen.getByTestId('main-content')).toHaveStyle({ background: 'var(--bg-base)' })
+    expect(screen.getByTestId('main-content').firstElementChild).toHaveStyle({ padding: '0px' })
   })
 })

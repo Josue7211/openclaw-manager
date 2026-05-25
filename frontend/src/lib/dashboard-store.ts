@@ -7,7 +7,7 @@
  */
 
 import { useSyncExternalStore } from 'react'
-import { addLayoutItemAcrossBreakpoints } from './dashboard-layout'
+import { addLayoutItemAcrossBreakpoints, normalizeLayouts } from './dashboard-layout'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -94,13 +94,43 @@ function createInitialState(): DashboardState {
   }
 }
 
+function normalizeSinglePageState(state: DashboardState): DashboardState {
+  const fallback = createInitialState()
+  const sourcePage =
+    state.pages.find(page => page.name.toLowerCase() === 'home') ??
+    state.pages.find(page => page.id === state.activePageId) ??
+    state.pages[0] ??
+    fallback.pages[0]
+
+  const homePage: DashboardPage = {
+    ...sourcePage,
+    name: 'Home',
+    sortOrder: 0,
+    layouts: normalizeLayouts(sourcePage.layouts ?? {}),
+    widgetConfigs: sourcePage.widgetConfigs ?? {},
+  }
+
+  return {
+    ...state,
+    pages: [homePage],
+    activePageId: homePage.id,
+  }
+}
+
 function loadFromLocalStorage(): DashboardState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as DashboardState
       if (parsed && Array.isArray(parsed.pages) && parsed.pages.length > 0) {
-        return parsed
+        return normalizeSinglePageState({
+          ...parsed,
+          pages: parsed.pages.map(page => ({
+            ...page,
+            layouts: normalizeLayouts(page.layouts ?? {}),
+            widgetConfigs: page.widgetConfigs ?? {},
+          })),
+        })
       }
     }
   } catch { /* fall through */ }

@@ -20,10 +20,10 @@ import {
 import type { HarnessHealthStatus } from '../Harness'
 
 function OfflineState({ status, noun }: { status: HarnessHealthStatus; noun: string }) {
-  const title = status === 'not_configured' ? 'Harness not configured' : 'Harness offline'
+  const title = status === 'not_configured' ? 'Hermes Agent not configured' : 'Hermes Agent offline'
   const detail = status === 'not_configured'
-    ? `Set HARNESS_API_URL in Settings > Connections to view ${noun}.`
-    : `clawctrl cannot reach the harness right now. Check the upstream service and try again.`
+    ? `Set HERMES_API_URL in Settings > Connections to view ${noun}.`
+    : `clawctrl cannot reach Hermes Agent right now. Check the upstream service and try again.`
 
   return (
     <div style={{ padding: '40px 20px', textAlign: 'center' }}>
@@ -65,7 +65,7 @@ function ModelsContent() {
       chatPrimaryModel?: string | null
       heartbeatModel?: string | null
       favoriteModels?: string[]
-    }>('/api/harness/runtime-config').then((config) => {
+    }>('/api/hermes/runtime-config').then((config) => {
       if (cancelled) return
       if (typeof config.chatPrimaryModel === 'string' && config.chatPrimaryModel !== primaryModel) {
         setPrimaryModel(config.chatPrimaryModel)
@@ -89,7 +89,7 @@ function ModelsContent() {
     favoriteModels?: string[]
   }) => {
     try {
-      await api.patch('/api/harness/runtime-config', next)
+      await api.patch('/api/hermes/runtime-config', next)
     } catch {
       // Local preferences remain authoritative while the backend is offline.
     }
@@ -177,7 +177,7 @@ function ModelsContent() {
         color: 'var(--text-secondary)',
         fontSize: '12px',
       }}>
-        Configure the harness model policy here instead of relying on hidden app defaults.
+        Configure the Hermes Agent model policy here instead of relying on hidden app defaults.
       </div>
       <div style={{
         display: 'grid',
@@ -200,7 +200,7 @@ function ModelsContent() {
           <ModelSelector
             value={primaryModel}
             onChange={(value) => { void handlePrimaryModelChange(value) }}
-            placeholder="Pick the default harness chat model"
+            placeholder="Pick the default Hermes Agent chat model"
           />
         </div>
         <div style={{
@@ -213,7 +213,7 @@ function ModelsContent() {
             Heartbeat model preference
           </div>
           <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-            Your selected lightweight model for heartbeat and background harness work.
+            Your selected lightweight model for heartbeat and background Hermes Agent work.
           </div>
           <ModelSelector
             value={heartbeatModel}

@@ -53,7 +53,7 @@ describe('useHarnessModels', () => {
 
     expect(result.current.models).toEqual(mockData)
     expect(result.current.error).toBeNull()
-    expect(api.get).toHaveBeenCalledWith('/api/harness/models')
+    expect(api.get).toHaveBeenCalledWith('/api/hermes/models')
   })
 
   it('starts in loading state', () => {

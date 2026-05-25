@@ -30,40 +30,23 @@ vi.mock('../DashboardGrid', () => ({
 
 // Mock DashboardEditBar
 vi.mock('@/components/dashboard/DashboardEditBar', () => ({
-  DashboardEditBar: ({ editMode, onOpenPicker }: { editMode: boolean; onOpenPicker: () => void }) => (
+  DashboardEditBar: ({
+    editMode,
+    onOpenPicker,
+    children,
+  }: {
+    editMode: boolean
+    onOpenPicker: () => void
+    children?: React.ReactNode
+  }) => (
     <div data-testid="dashboard-edit-bar" data-edit={String(editMode)}>
       <button data-testid="open-picker-btn" onClick={onOpenPicker}>
         Add Widget
       </button>
+      {children}
     </div>
   ),
   useLongPress: () => ({}),
-}))
-
-// Mock DashboardTabs
-vi.mock('@/components/dashboard/DashboardTabs', () => ({
-  DashboardTabs: ({
-    pages,
-    activePageId,
-    editMode,
-    dotIndicatorsEnabled,
-  }: {
-    pages: Array<{ id: string; name: string }>
-    activePageId: string
-    editMode: boolean
-    dotIndicatorsEnabled: boolean
-  }) => (
-    <div
-      data-testid="dashboard-tabs"
-      data-active={activePageId}
-      data-edit={String(editMode)}
-      data-dots={String(dotIndicatorsEnabled)}
-    >
-      {pages.map(p => (
-        <span key={p.id}>{p.name}</span>
-      ))}
-    </div>
-  ),
 }))
 
 // Mock DashboardHeader
@@ -265,14 +248,13 @@ describe('Dashboard Integration', () => {
     Dashboard = mod.default
   }, 30000)
 
-  it('renders all sub-components: header, edit bar, tabs, grid', async () => {
+  it('renders dashboard header, edit bar, and grid', async () => {
     await act(async () => {
       render(<Dashboard />)
     })
 
     expect(screen.getByTestId('dashboard-header')).toBeInTheDocument()
     expect(screen.getByTestId('dashboard-edit-bar')).toBeInTheDocument()
-    expect(screen.getByTestId('dashboard-tabs')).toBeInTheDocument()
     expect(screen.getByTestId('dashboard-grid')).toBeInTheDocument()
   })
 
@@ -285,17 +267,6 @@ describe('Dashboard Integration', () => {
     expect(grid.dataset.pageId).toBe('home')
     expect(grid.dataset.edit).toBe('false')
     expect(grid.dataset.wobble).toBe('true')
-  })
-
-  it('passes dashboard state props to DashboardTabs', async () => {
-    await act(async () => {
-      render(<Dashboard />)
-    })
-
-    const tabs = screen.getByTestId('dashboard-tabs')
-    expect(tabs.dataset.active).toBe('home')
-    expect(tabs.dataset.edit).toBe('false')
-    expect(tabs.dataset.dots).toBe('false')
   })
 
   it('shows BackendErrorBanner when backendError exists', async () => {
@@ -412,7 +383,7 @@ describe('Dashboard Integration', () => {
       pages: [
         {
           id: 'empty-page',
-          name: 'New Page',
+          name: 'Home',
           sortOrder: 0,
           layouts: {} as Record<string, { i: string; x: number; y: number; w: number; h: number }[]>,
           widgetConfigs: {} as Record<string, Record<string, unknown>>,

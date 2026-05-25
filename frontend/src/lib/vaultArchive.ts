@@ -56,6 +56,14 @@ export function verifyMarkdownVaultArchive(buffer: ArrayBuffer | Uint8Array): Va
       if (manifest?.version !== 1) {
         errors.push('Archive manifest version is not supported')
       }
+      if (manifest?.plugin_metadata) {
+        if (manifest.plugin_metadata.schema !== 'clawcontrol-vault-plugin-index') {
+          errors.push('Archive plugin metadata schema is not supported')
+        }
+        if (manifest.plugin_metadata.version !== 1) {
+          errors.push('Archive plugin metadata version is not supported')
+        }
+      }
     } catch {
       errors.push('Archive manifest is not valid JSON')
     }
@@ -65,12 +73,18 @@ export function verifyMarkdownVaultArchive(buffer: ArrayBuffer | Uint8Array): Va
     if (!isSafeTarPath(entry.path)) errors.push(`Unsafe archive path: ${entry.path}`)
   }
 
-  const noteCount = entries.filter(
+  for (const path of duplicatePaths(entries.map(entry => entry.path))) {
+    errors.push(`Archive contains duplicate path: ${path}`)
+  }
+
+  const noteEntries = entries.filter(
     entry => entry.path !== MANIFEST_PATH && entry.path.toLowerCase().endsWith('.md'),
-  ).length
-  const attachmentCount = entries.filter(
+  )
+  const attachmentEntries = entries.filter(
     entry => entry.path !== MANIFEST_PATH && !entry.path.toLowerCase().endsWith('.md'),
-  ).length
+  )
+  const noteCount = noteEntries.length
+  const attachmentCount = attachmentEntries.length
   if (typeof manifest?.notes === 'number' && manifest.notes !== noteCount) {
     errors.push(`Manifest notes count ${manifest.notes} does not match archive count ${noteCount}`)
   }
@@ -78,8 +92,45 @@ export function verifyMarkdownVaultArchive(buffer: ArrayBuffer | Uint8Array): Va
     errors.push(`Manifest attachments count ${manifest.attachments} does not match archive count ${attachmentCount}`)
   }
   const entryPaths = new Set(entries.map(entry => entry.path))
-  for (const attachmentId of manifestAttachmentIds(manifest)) {
+  const manifestDocumentPaths = manifestDocumentIds(manifest)
+  for (const path of duplicatePaths(manifestDocumentPaths)) {
+    errors.push(`Manifest contains duplicate document metadata path: ${path}`)
+  }
+  if (typeof manifest?.notes === 'number' && manifest.notes > 0 && manifestDocumentPaths.length === 0) {
+    errors.push('Archive manifest is missing document metadata')
+  }
+  if (typeof manifest?.notes === 'number' && manifestDocumentPaths.length > 0 && manifestDocumentPaths.length !== manifest.notes) {
+    errors.push(`Manifest document metadata count ${manifestDocumentPaths.length} does not match manifest notes count ${manifest.notes}`)
+  }
+  for (const documentId of manifestDocumentPaths) {
+    if (!isSafeTarPath(documentId)) errors.push(`Unsafe manifest document path: ${documentId}`)
+    if (!entryPaths.has(documentId)) errors.push(`Manifest document missing from archive: ${documentId}`)
+  }
+  const manifestDocumentSet = new Set(manifestDocumentPaths)
+  for (const entry of noteEntries) {
+    if (!manifestDocumentSet.has(entry.path)) errors.push(`Archive note missing from manifest metadata: ${entry.path}`)
+  }
+
+  const manifestAttachmentPaths = manifestAttachmentIds(manifest)
+  for (const path of duplicatePaths(manifestAttachmentPaths)) {
+    errors.push(`Manifest contains duplicate attachment metadata path: ${path}`)
+  }
+  if (typeof manifest?.attachments === 'number' && manifest.attachments > 0 && manifestAttachmentPaths.length === 0) {
+    errors.push('Archive manifest is missing attachment metadata')
+  }
+  if (typeof manifest?.attachments === 'number' && manifestAttachmentPaths.length > 0 && manifestAttachmentPaths.length !== manifest.attachments) {
+    errors.push(`Manifest attachment metadata count ${manifestAttachmentPaths.length} does not match manifest attachments count ${manifest.attachments}`)
+  }
+  for (const attachmentId of manifestAttachmentPaths) {
+    if (!isSafeTarPath(attachmentId)) errors.push(`Unsafe manifest attachment path: ${attachmentId}`)
     if (!entryPaths.has(attachmentId)) errors.push(`Manifest attachment missing from archive: ${attachmentId}`)
+  }
+  const manifestAttachmentSet = new Set(manifestAttachmentPaths)
+  for (const entry of attachmentEntries) {
+    if (!manifestAttachmentSet.has(entry.path)) errors.push(`Archive attachment missing from manifest metadata: ${entry.path}`)
+  }
+  for (const sizeError of manifestAttachmentSizeErrors(manifest, entries)) {
+    errors.push(sizeError)
   }
 
   return {
@@ -131,6 +182,34 @@ function isSafeTarPath(path: string): boolean {
   return path.split('/').every(part => part && part !== '.' && part !== '..')
 }
 
+function duplicatePaths(paths: string[]): string[] {
+  const seen = new Set<string>()
+  const duplicates = new Set<string>()
+  for (const path of paths) {
+    if (seen.has(path)) duplicates.add(path)
+    seen.add(path)
+  }
+  return [...duplicates]
+}
+
+function manifestDocumentIds(manifest: VaultArchiveVerification['manifest']): string[] {
+  const documents = manifest?.plugin_metadata?.documents
+  if (!Array.isArray(documents)) return []
+  return documents
+    .map(document => {
+      if (!document || typeof document !== 'object') return undefined
+      const { id, path } = document as { id?: unknown; path?: unknown }
+      const value = typeof id === 'string' && id.trim()
+        ? id
+        : typeof path === 'string' && path.trim()
+          ? path
+          : undefined
+      if (!value) return undefined
+      return value.toLowerCase().endsWith('.md') ? value : `${value}.md`
+    })
+    .filter((id): id is string => Boolean(id))
+}
+
 function manifestAttachmentIds(manifest: VaultArchiveVerification['manifest']): string[] {
   const attachments = manifest?.plugin_metadata?.attachments
   if (!Array.isArray(attachments)) return []
@@ -141,4 +220,25 @@ function manifestAttachmentIds(manifest: VaultArchiveVerification['manifest']): 
       return typeof id === 'string' && id.trim() ? id : undefined
     })
     .filter((id): id is string => Boolean(id))
+}
+
+function manifestAttachmentSizeErrors(manifest: VaultArchiveVerification['manifest'], entries: TarEntry[]): string[] {
+  const attachments = manifest?.plugin_metadata?.attachments
+  if (!Array.isArray(attachments)) return []
+  const entryByPath = new Map(entries.map(entry => [entry.path, entry]))
+  const errors: string[] = []
+  for (const attachment of attachments) {
+    if (!attachment || typeof attachment !== 'object') continue
+    const { id, size } = attachment as { id?: unknown; size?: unknown }
+    if (typeof id !== 'string' || !id.trim() || typeof size === 'undefined' || size === null) continue
+    if (typeof size !== 'number' || !Number.isFinite(size) || size < 0) {
+      errors.push(`Manifest attachment size is invalid: ${id}`)
+      continue
+    }
+    const entry = entryByPath.get(id)
+    if (entry && entry.data.byteLength !== size) {
+      errors.push(`Manifest attachment size ${size} does not match archive size ${entry.data.byteLength}: ${id}`)
+    }
+  }
+  return errors
 }

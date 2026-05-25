@@ -19,6 +19,7 @@
     "core:window:allow-set-fullscreen",
     "core:window:allow-is-fullscreen",
     "core:window:allow-start-dragging",
+    "dialog:allow-open",
     "notification:default",
     {
       "identifier": "shell:allow-open",

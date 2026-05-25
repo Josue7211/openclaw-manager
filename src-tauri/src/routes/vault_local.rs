@@ -13,6 +13,8 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use sqlx::{sqlite::SqliteRow, Row};
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
+use std::path::{Path as FsPath, PathBuf};
 
 use crate::error::{success_json, AppError};
 use crate::routes::util::random_uuid;
@@ -70,6 +72,12 @@ struct AuditQuery {
 #[derive(Deserialize)]
 struct SyncLedgerQuery {
     limit: Option<i64>,
+}
+
+#[derive(Deserialize)]
+struct ResolveSyncConflictBody {
+    provider: String,
+    remote_id: String,
 }
 
 #[derive(Deserialize)]
@@ -745,6 +753,23 @@ fn parse_json(text: String, fallback: Value) -> Value {
     serde_json::from_str(&text).unwrap_or(fallback)
 }
 
+fn markdown_content_from_document(doc: &Value) -> &str {
+    let fields = ["content", "content_markdown", "markdown", "body", "text"];
+    let mut first_string = "";
+    for field in fields {
+        let Some(value) = doc.get(field).and_then(Value::as_str) else {
+            continue;
+        };
+        if first_string.is_empty() {
+            first_string = value;
+        }
+        if !value.is_empty() {
+            return value;
+        }
+    }
+    first_string
+}
+
 fn row_to_note(row: &SqliteRow) -> Result<Value, AppError> {
     let id: String = row.try_get("id")?;
     let folder_path: String = row.try_get("folder_path")?;
@@ -1095,10 +1120,7 @@ async fn import_document(state: &AppState, doc: &Value) -> Result<bool, AppError
         })
         .trim();
     let title = if title.is_empty() { "Untitled" } else { title };
-    let content = doc
-        .get("content")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
+    let content = markdown_content_from_document(doc);
     let folder = normalize_folder_path(
         doc.get("folder")
             .and_then(Value::as_str)
@@ -1114,6 +1136,17 @@ async fn import_document(state: &AppState, doc: &Value) -> Result<bool, AppError
         .map(normalize_folder_path)
         .filter(|path| !path.is_empty());
     let content_checksum = checksum(content);
+
+    sqlx::query(
+        "UPDATE vault_documents SET deleted_at = ?, updated_at = ? \
+         WHERE lower(id) = lower(?) AND id <> ? AND deleted_at IS NULL",
+    )
+    .bind(now)
+    .bind(now)
+    .bind(id)
+    .bind(id)
+    .execute(&state.db)
+    .await?;
 
     sqlx::query(
         "INSERT INTO vault_documents \
@@ -1165,10 +1198,157 @@ async fn import_document(state: &AppState, doc: &Value) -> Result<bool, AppError
     Ok(true)
 }
 
+fn configured_obsidian_vault_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+
+    if let Ok(path) = std::env::var("CLAWCONTROL_OBSIDIAN_VAULT_PATH") {
+        let trimmed = path.trim();
+        if !trimmed.is_empty() {
+            paths.push(PathBuf::from(trimmed));
+        }
+    }
+
+    if let Some(config_dir) = dirs::config_dir() {
+        let obsidian_config = config_dir.join("obsidian").join("obsidian.json");
+        if let Ok(raw) = fs::read_to_string(obsidian_config) {
+            if let Ok(value) = serde_json::from_str::<Value>(&raw) {
+                if let Some(vaults) = value.get("vaults").and_then(Value::as_object) {
+                    let mut vaults: Vec<&Value> = vaults.values().collect();
+                    vaults.sort_by_key(|vault| {
+                        vault
+                            .get("ts")
+                            .and_then(Value::as_i64)
+                            .map(|ts| -ts)
+                            .unwrap_or(0)
+                    });
+                    for vault in vaults {
+                        if let Some(path) = vault.get("path").and_then(Value::as_str) {
+                            paths.push(PathBuf::from(path));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let mut seen = BTreeSet::new();
+    paths
+        .into_iter()
+        .filter(|path| path.is_dir())
+        .filter(|path| seen.insert(path.to_string_lossy().to_string()))
+        .collect()
+}
+
+fn is_hidden_vault_component(path: &FsPath) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name.starts_with('.') || name == "node_modules")
+        .unwrap_or(false)
+}
+
+fn collect_markdown_files(root: &FsPath, current: &FsPath, files: &mut Vec<PathBuf>) {
+    let Ok(entries) = fs::read_dir(current) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if is_hidden_vault_component(&path) {
+            continue;
+        }
+        if path.is_dir() {
+            collect_markdown_files(root, &path, files);
+            continue;
+        }
+        if path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext.eq_ignore_ascii_case("md"))
+            .unwrap_or(false)
+            && path.strip_prefix(root).is_ok()
+        {
+            files.push(path);
+        }
+    }
+}
+
+fn markdown_file_to_import_note(root: &FsPath, path: &FsPath) -> Option<Value> {
+    let relative = path.strip_prefix(root).ok()?;
+    let id = relative.to_string_lossy().replace('\\', "/");
+    if id.is_empty() || id.contains("..") || id.contains("/.obsidian/") {
+        return None;
+    }
+    let content = fs::read_to_string(path).ok()?;
+    let metadata = fs::metadata(path).ok();
+    let updated_at = metadata
+        .and_then(|meta| meta.modified().ok())
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|duration| duration.as_millis().min(i64::MAX as u128) as i64)
+        .unwrap_or_else(now_millis);
+    let folder = relative
+        .parent()
+        .map(|parent| parent.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_default();
+    let title = relative
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or("Untitled");
+
+    Some(json!({
+        "_id": id,
+        "path": id,
+        "title": title,
+        "content": content,
+        "folder": folder,
+        "created_at": updated_at,
+        "updated_at": updated_at,
+    }))
+}
+
+async fn maybe_import_sparse_obsidian_vault(state: &AppState) -> Result<(), AppError> {
+    let existing_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM vault_documents WHERE deleted_at IS NULL AND id NOT LIKE '.clawcontrol/%'",
+    )
+    .fetch_one(&state.db)
+    .await?;
+
+    for root in configured_obsidian_vault_paths() {
+        let mut markdown_files = Vec::new();
+        collect_markdown_files(&root, &root, &mut markdown_files);
+        if markdown_files.len() as i64 <= existing_count {
+            continue;
+        }
+
+        let mut imported = 0usize;
+        for path in markdown_files {
+            let Some(note) = markdown_file_to_import_note(&root, &path) else {
+                continue;
+            };
+            if import_document(state, &note).await? {
+                imported += 1;
+            }
+        }
+
+        if imported > 0 {
+            tracing::info!(
+                vault = %root.display(),
+                imported,
+                existing_count,
+                "local vault was sparse; imported markdown files from Obsidian vault"
+            );
+        }
+        break;
+    }
+
+    Ok(())
+}
+
 async fn list_documents(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
+    maybe_import_sparse_obsidian_vault(&state).await?;
+
     let rows = sqlx::query(
         "SELECT id, path, title, kind, content_markdown, folder_path, tags_json, links_json, \
                 aliases_json, properties_json, created_at, updated_at, trashed_at, trash_origin_path \
@@ -2485,6 +2665,68 @@ async fn list_sync_ledger(
     Ok(success_json(json!({
         "pending_saves": pending_saves,
         "sync_states": sync_states,
+    })))
+}
+
+async fn resolve_sync_conflict(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Json(body): Json<ResolveSyncConflictBody>,
+) -> Result<Json<Value>, AppError> {
+    let provider = body.provider.trim();
+    let remote_id = body.remote_id.trim();
+    if provider.is_empty() || remote_id.is_empty() {
+        return Err(AppError::BadRequest(
+            "Provider and remote ID are required".into(),
+        ));
+    }
+
+    let row = sqlx::query(
+        "SELECT local_id, remote_rev, conflict_state \
+         FROM vault_sync_state \
+         WHERE provider = ? AND remote_id = ?",
+    )
+    .bind(provider)
+    .bind(remote_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Sync conflict not found".into()))?;
+
+    let local_id: String = row.try_get("local_id")?;
+    let remote_rev: Option<String> = row.try_get("remote_rev")?;
+    let previous_state: String = row.try_get("conflict_state")?;
+    let resolved_at = now_millis();
+
+    sqlx::query(
+        "UPDATE vault_sync_state \
+         SET conflict_state = 'clean', conflict_json = '{}', last_synced_at = COALESCE(last_synced_at, ?) \
+         WHERE provider = ? AND remote_id = ?",
+    )
+    .bind(resolved_at)
+    .bind(provider)
+    .bind(remote_id)
+    .execute(&state.db)
+    .await?;
+
+    write_audit(
+        &state,
+        Some(&local_id),
+        "sync_conflict_resolved",
+        json!({
+            "provider": provider,
+            "remote_id": remote_id,
+            "remote_rev": remote_rev,
+            "previous_state": previous_state,
+            "resolution": "review_suggestion_created",
+        }),
+    )
+    .await?;
+
+    Ok(success_json(json!({
+        "provider": provider,
+        "remote_id": remote_id,
+        "local_id": local_id,
+        "resolved_at": resolved_at,
     })))
 }
 
@@ -4666,6 +4908,10 @@ pub fn router() -> Router<AppState> {
         .route("/vault/local/audit", get(list_audit_events))
         .route("/vault/local/sync-ledger", get(list_sync_ledger))
         .route(
+            "/vault/local/sync-ledger/resolve",
+            axum::routing::post(resolve_sync_conflict),
+        )
+        .route(
             "/vault/local/collaboration/events",
             get(list_collaboration_events).post(create_collaboration_event),
         )
@@ -4803,6 +5049,31 @@ mod tests {
 
         assert!(indexed.contains("status"));
         assert!(indexed.contains("Launch Plan"));
+    }
+
+    #[test]
+    fn import_markdown_content_accepts_legacy_body_fields() {
+        assert_eq!(
+            markdown_content_from_document(&json!({
+                "content": "",
+                "content_markdown": "# From content_markdown",
+                "markdown": "# From markdown",
+            })),
+            "# From content_markdown"
+        );
+        assert_eq!(
+            markdown_content_from_document(&json!({
+                "markdown": "# From markdown",
+            })),
+            "# From markdown"
+        );
+        assert_eq!(
+            markdown_content_from_document(&json!({
+                "content": "",
+                "body": "",
+            })),
+            ""
+        );
     }
 
     #[test]

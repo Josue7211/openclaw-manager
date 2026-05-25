@@ -1,5 +1,5 @@
-import HomeLab from '../HomeLab'
+import PortainerConsolePage from './portainer/PortainerConsolePage'
 
 export default function PortainerModule() {
-  return <HomeLab module="portainer" />
+  return <PortainerConsolePage />
 }

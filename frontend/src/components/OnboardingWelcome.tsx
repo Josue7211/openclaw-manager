@@ -133,7 +133,7 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
       >
         <SetupFeature icon={Database} title="Supabase" desc="Database and authentication (required)" />
         <SetupFeature icon={Key} title="Agent Secrets" desc="Safe secrets service (required)" />
-        <SetupFeature icon={Robot} title="AI & Chat" desc="Harness runtime, Anthropic (optional)" />
+        <SetupFeature icon={Robot} title="AI & Chat" desc="Hermes Agent runtime, Anthropic (optional)" />
         <SetupFeature icon={ChatText} title="Messages" desc="iMessage via BlueBubbles (Mac only)" />
         <SetupFeature icon={Desktop} title="Services" desc="Homelab, Media, Email, Calendar, Notifications" />
       </div>

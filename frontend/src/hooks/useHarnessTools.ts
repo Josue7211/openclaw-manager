@@ -6,7 +6,7 @@ import type { ToolsResponse } from '@/features/harness/types'
 export function useHarnessTools() {
   const { data, isLoading, error } = useQuery<ToolsResponse>({
     queryKey: queryKeys.harnessTools,
-    queryFn: () => api.get<ToolsResponse>('/api/harness/tools'),
+    queryFn: () => api.get<ToolsResponse>('/api/hermes/tools'),
     refetchInterval: 30_000,
     staleTime: 30_000,
   })

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { isDemoMode } from '@/lib/demo-data'
 
-export type GatewayConnectionStatus = 'connected' | 'disconnected' | 'reconnecting' | 'not_configured'
+export type GatewayConnectionStatus = 'connected' | 'connecting' | 'disconnected' | 'reconnecting' | 'not_configured'
 
 export interface GatewayStatusResponse {
   connected: boolean

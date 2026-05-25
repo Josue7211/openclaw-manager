@@ -4,6 +4,7 @@ export interface ChatMessage {
   text: string
   timestamp: string
   images?: string[]
+  contextFiles?: ChatContextFileAttachment[]
   localOnly?: boolean
   transcriptId?: string
   turnId?: string
@@ -11,13 +12,39 @@ export interface ChatMessage {
   toolName?: string
 }
 
-export type MsgStatus = 'sending' | 'sent' | 'permanent' | 'error'
+export interface ChatContextFileAttachment {
+  id: string
+  name: string
+  path?: string
+  mimeType?: string
+  size?: number
+  content: string
+  truncated?: boolean
+}
+
+export interface ChatExecutionContext {
+  projectId?: string
+  project?: string
+  projectRoot?: string
+  workingDir?: string
+  environmentId?: string
+  branch?: string
+  runtime?: string
+}
+
+export type MsgStatus = 'sending' | 'sent' | 'permanent' | 'error' | 'cancelled'
 
 export interface OptimisticMsg {
   id: string
   text: string
   status: MsgStatus
   images?: string[]
+  contextFiles?: ChatContextFileAttachment[]
+  provider?: ChatProviderId
+  model?: string
+  providerIsModelBacked?: boolean
+  context?: ChatExecutionContext
+  error?: string
 }
 
 export interface ModelOption {
@@ -28,7 +55,7 @@ export interface ModelOption {
   contextWindow?: number
 }
 
-export type ChatProviderId = 'hermes' | 'claudeAgent' | 'codex-cli' | (string & {})
+export type ChatProviderId = 'hermes' | (string & {})
 
 export interface ChatProviderOption {
   id: ChatProviderId
@@ -37,6 +64,7 @@ export interface ChatProviderOption {
   local: boolean
   modelBacked: boolean
   available?: boolean
+  unavailableReason?: string
 }
 
 export interface ChatProviderWireOption {
@@ -69,5 +97,13 @@ export function cleanMessages(msgs: ChatMessage[]): ChatMessage[] {
   return msgs.map(m => ({ ...m, text: cleanText(m.text) }))
 }
 
-export const SLASH_CMDS = ['/new', '/reset', '/clear']
-export const isSlashCommand = (value: string) => SLASH_CMDS.includes(value.toLowerCase())
+export const CHAT_SLASH_COMMANDS = [
+  { command: '/new', label: 'New chat', description: 'Start fresh' },
+  { command: '/reset', label: 'Reset chat', description: 'Reset session' },
+  { command: '/clear', label: 'Clear chat', description: 'Clear local view' },
+] as const
+
+export const SLASH_CMDS = CHAT_SLASH_COMMANDS.map(item => item.command)
+export const isSlashCommand = (value: string) => (
+  (SLASH_CMDS as readonly string[]).includes(value.trim().toLowerCase())
+)

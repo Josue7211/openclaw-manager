@@ -1,84 +1,153 @@
-import React, { useState, useMemo } from 'react'
-import { CheckSquare, ArrowRight } from '@phosphor-icons/react'
+import React, { useMemo, useState } from 'react'
+import { ArrowRight, CheckSquare } from '@phosphor-icons/react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
+
 import { SkeletonRows } from '@/components/Skeleton'
+import { api } from '@/lib/api'
+import { isDemoMode } from '@/lib/demo-data'
+import { useRemindersWidget } from '@/lib/hooks/dashboard/useRemindersWidget'
 import { useTodosWidget } from '@/lib/hooks/dashboard/useTodosWidget'
 import type { WidgetProps } from '@/lib/widget-registry'
-import type { Todo } from '@/lib/types'
+import type { Reminder, Todo } from '@/lib/types'
+
+type WidgetTask = {
+  key: string
+  id: string
+  source: 'todo' | 'reminder'
+  title: string
+  completed: boolean
+  dueDate?: string | null
+}
 
 export const TodosWidget = React.memo(function TodosWidget({ size, config }: WidgetProps) {
-  const { todos, focusTodos, pendingCount, addMutation, toggleMutation, mounted } = useTodosWidget()
+  const { todos, focusTodos, pendingCount, toggleMutation, mounted } = useTodosWidget()
+  const {
+    reminders,
+    todayReminders,
+    pendingCount: reminderPendingCount,
+    toggleReminder,
+    mounted: remindersMounted,
+    isError: remindersQueryError,
+    bridgeError,
+  } = useRemindersWidget()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const demo = isDemoMode()
   const [newText, setNewText] = useState('')
 
   const maxItems = Number(config.maxItems ?? 5)
   const showCompleted = Boolean(config.showCompleted ?? false)
   const filter = String(config.filter ?? 'focus')
-
   const compact = size.w <= 3
-  const displayTodos = useMemo(() => {
-    let items: Todo[]
+  const remindersUnavailable = !demo && (remindersQueryError || Boolean(bridgeError))
+
+  const createReminderMutation = useMutation({
+    mutationFn: async (title: string) => {
+      await api.post('/api/reminders', {
+        title,
+        dueDate: null,
+        list: 'Reminders',
+        priority: 0,
+        notes: '',
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reminders'] })
+    },
+  })
+
+  const displayTasks = useMemo(() => {
+    let todoItems: Todo[]
     if (filter === 'focus') {
-      items = focusTodos
+      todoItems = focusTodos
     } else if (filter === 'pending') {
-      items = todos.filter((t: Todo) => !t.done)
+      todoItems = todos.filter((todo: Todo) => !todo.done)
     } else {
-      items = todos
+      todoItems = todos
     }
-    if (!showCompleted) items = items.filter((t: Todo) => !t.done)
+    if (!showCompleted) todoItems = todoItems.filter((todo: Todo) => !todo.done)
+
+    const reminderItems = filter === 'focus'
+      ? (todayReminders.length > 0 ? todayReminders : reminders.filter((reminder: Reminder) => !reminder.completed))
+      : reminders.filter((reminder: Reminder) => showCompleted || !reminder.completed)
+
+    const tasks: WidgetTask[] = [
+      ...todoItems.map((todo): WidgetTask => ({
+        key: `todo:${todo.id}`,
+        id: todo.id,
+        source: 'todo',
+        title: todo.text,
+        completed: todo.done,
+        dueDate: todo.due_date,
+      })),
+      ...reminderItems.map((reminder): WidgetTask => ({
+        key: `reminder:${reminder.id}`,
+        id: reminder.id,
+        source: 'reminder',
+        title: reminder.title,
+        completed: reminder.completed,
+        dueDate: reminder.dueDate,
+      })),
+    ].sort((a, b) => {
+      if (a.completed !== b.completed) return a.completed ? 1 : -1
+      if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate)
+      if (a.dueDate && !b.dueDate) return -1
+      if (!a.dueDate && b.dueDate) return 1
+      return a.title.localeCompare(b.title)
+    })
+
     const limit = compact ? Math.min(maxItems, 3) : maxItems
-    return items.slice(0, limit)
-  }, [todos, focusTodos, maxItems, showCompleted, filter, compact])
+    return tasks.slice(0, limit)
+  }, [compact, filter, focusTodos, maxItems, reminders, showCompleted, todayReminders, todos])
 
   const handleAdd = () => {
     const text = newText.trim()
-    if (!text) return
-    addMutation.mutate(text)
+    if (!text || remindersUnavailable) return
+    if (!demo) createReminderMutation.mutate(text)
     setNewText('')
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
       handleAdd()
     }
   }
 
   return (
     <div className="card" style={{ padding: '16px', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
         <CheckSquare size={14} style={{ color: 'var(--accent)' }} />
         <span style={{
           fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)',
           letterSpacing: '0.1em', textTransform: 'uppercase', flex: 1,
         }}>
-          {compact ? "Today's Focus" : "Today's Focus"}
+          Reminders
         </span>
-        {mounted && pendingCount > 0 && (
+        {mounted && (pendingCount + reminderPendingCount) > 0 && (
           <span style={{
             fontSize: '10px', padding: '2px 6px', borderRadius: '8px',
             background: 'var(--accent)', color: 'var(--text-on-accent)',
             fontWeight: 600, lineHeight: 1,
           }}>
-            {pendingCount}
+            {pendingCount + reminderPendingCount}
           </span>
         )}
       </div>
 
-      {/* Content */}
-      {!mounted ? (
+      {!mounted || !remindersMounted ? (
         <SkeletonRows count={3} />
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', minHeight: 0 }}>
-          {displayTodos.length === 0 ? (
+          {displayTasks.length === 0 ? (
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic', padding: '8px 0' }}>
-              No focus tasks for today
+              No reminders for today
             </div>
           ) : (
-            displayTodos.map((todo: Todo) => (
+            displayTasks.map((task) => (
               <label
-                key={todo.id}
+                key={task.key}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px',
                   borderRadius: '8px', cursor: 'pointer', transition: 'background 0.15s',
@@ -87,57 +156,63 @@ export const TodosWidget = React.memo(function TodosWidget({ size, config }: Wid
               >
                 <input
                   type="checkbox"
-                  checked={todo.done}
-                  onChange={() => toggleMutation.mutate({ id: todo.id, done: todo.done })}
-                  aria-label={`Toggle ${todo.text}`}
-                  style={{
-                    width: '14px', height: '14px', accentColor: 'var(--accent)',
+                  checked={task.completed}
+                  onChange={() => {
+                    if (task.source === 'todo') {
+                      toggleMutation.mutate({ id: task.id, done: task.completed })
+                    } else {
+                      toggleReminder(task.id, task.completed)
+                    }
+                  }}
+                  aria-label={`Toggle ${task.title}`}
+                style={{
+                  width: '14px', height: '14px', accentColor: 'var(--accent)',
                     cursor: 'pointer', flexShrink: 0,
                   }}
                 />
                 <span style={{
-                  fontSize: '12px', color: todo.done ? 'var(--text-muted)' : 'var(--text-primary)',
-                  textDecoration: todo.done ? 'line-through' : 'none',
+                  fontSize: '12px', color: task.completed ? 'var(--text-muted)' : 'var(--text-primary)',
+                  textDecoration: task.completed ? 'line-through' : 'none',
                   flex: 1, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                 }}>
-                  {todo.text}
+                  {task.title}
                 </span>
-                {todo.due_date && (
+                {task.dueDate && (
                   <span style={{
                     fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0,
                     fontFamily: 'monospace',
                   }}>
-                    {formatDueDate(todo.due_date)}
+                    {formatDueDate(task.dueDate)}
                   </span>
                 )}
               </label>
             ))
           )}
 
-          {/* Add input (full view only) */}
           {!compact && (
             <div style={{ marginTop: '8px' }}>
               <input
                 type="text"
                 value={newText}
-                onChange={e => setNewText(e.target.value)}
+                onChange={event => setNewText(event.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Add a todo..."
-                aria-label="Add a new todo"
+                disabled={remindersUnavailable || createReminderMutation.isPending}
+                placeholder={remindersUnavailable ? 'Reminders unavailable' : 'Add a reminder...'}
+                aria-label="Add a new reminder"
                 style={{
                   width: '100%', fontSize: '12px', padding: '6px 8px',
                   background: 'var(--bg-white-03)', border: '1px solid var(--border)',
                   borderRadius: '8px', color: 'var(--text-primary)', outline: 'none',
+                  cursor: remindersUnavailable ? 'not-allowed' : 'text',
                 }}
               />
             </div>
           )}
 
-          {/* View all link */}
           <button
             onClick={() => navigate('/todos')}
-            aria-label="View all todos"
+            aria-label="View all reminders"
             style={{
               display: 'flex', alignItems: 'center', gap: '4px', marginTop: 'auto',
               paddingTop: '8px', fontSize: '11px', color: 'var(--accent)',
@@ -157,5 +232,5 @@ function formatDueDate(dateStr: string): string {
   if (dateStr === today) return 'Today'
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
   if (dateStr < yesterday) return 'Overdue'
-  return dateStr.slice(5) // MM-DD
+  return dateStr.slice(5)
 }

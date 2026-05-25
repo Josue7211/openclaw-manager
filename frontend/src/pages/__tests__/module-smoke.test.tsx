@@ -439,10 +439,6 @@ vi.mock('@/components/dashboard/DashboardEditBar', () => ({
   useLongPress: () => ({}),
 }))
 
-vi.mock('@/components/dashboard/DashboardTabs', () => ({
-  DashboardTabs: () => <div data-testid="dashboard-tabs" />,
-}))
-
 vi.mock('@/pages/dashboard/IdeaDetailPanel', () => ({
   IdeaDetailPanel: () => null,
 }))

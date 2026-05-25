@@ -1,12 +1,12 @@
 export type {
-  ClaudeSession,
+  HermesSession,
   GatewaySessionsResponse,
 } from '@/chat/t3-adapters/gatewaySessionTypes'
 
 export type SessionStatus = 'running' | 'completed' | 'failed' | 'unknown'
 
 export interface SessionListResponse {
-  sessions: import('@/chat/t3-adapters/gatewaySessionTypes').ClaudeSession[]
+  sessions: import('@/chat/t3-adapters/gatewaySessionTypes').HermesSession[]
   available?: boolean
   error?: string
 }

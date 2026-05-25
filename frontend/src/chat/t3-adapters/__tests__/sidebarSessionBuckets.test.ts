@@ -53,4 +53,44 @@ describe('T3 sidebar session buckets adapter', () => {
 
     expect(buckets.unscopedRecentSessions).toEqual([])
   })
+
+  it('scopes project-owned bucket keys by environment when thread ids collide', () => {
+    const localProject = {
+      projects: [{
+        id: 'local:clawcontrol',
+        name: 'clawcontrol',
+        path: '/Volumes/T7/projects/clawcontrol',
+        environmentId: 'local',
+      }],
+    }
+    const remoteProject = {
+      projects: [{
+        id: 'desktop:agent-shell',
+        name: 'AgentShell',
+        path: '/Users/josue/AgentShell',
+        environmentId: 'desktop',
+      }],
+    }
+    const localSession = {
+      key: 'shared-thread',
+      label: 'Local shared thread',
+      workingDir: '/Volumes/T7/projects/clawcontrol',
+      environmentId: 'local',
+    }
+    const remoteSession = {
+      key: 'shared-thread',
+      label: 'Desktop shared thread',
+      workingDir: '/Users/josue/AgentShell',
+      environmentId: 'desktop',
+    }
+
+    const buckets = splitProjectScopedSessions({
+      sessions: [localSession, remoteSession],
+      recentSessions: [localSession, remoteSession],
+      projects: [localProject, remoteProject],
+    })
+
+    expect([...buckets.projectScopedSessionKeys]).toEqual(['local:shared-thread', 'desktop:shared-thread'])
+    expect(buckets.unscopedRecentSessions).toEqual([])
+  })
 })

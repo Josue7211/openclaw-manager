@@ -19,7 +19,7 @@ function priorityLabel(p?: number): string {
 }
 
 export const RemindersWidget = React.memo(function RemindersWidget({ config }: WidgetProps) {
-  const { reminders, todayReminders, pendingCount, toggleReminder, mounted, isError } = useRemindersWidget()
+  const { reminders, todayReminders, pendingCount, toggleReminder, mounted, isError, bridgeError } = useRemindersWidget()
   const navigate = useNavigate()
 
   const maxItems = Number(config.maxItems ?? 5)
@@ -65,11 +65,11 @@ export const RemindersWidget = React.memo(function RemindersWidget({ config }: W
       {/* Content */}
       {!mounted ? (
         <SkeletonRows count={3} />
-      ) : isError ? (
+      ) : isError || bridgeError ? (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px 0' }}>
           <WarningCircle size={20} style={{ color: 'var(--text-muted)' }} />
           <span style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
-            Mac Bridge not reachable
+            {bridgeError === 'bridge_not_configured' ? 'Mac Bridge not connected' : 'Mac Bridge not reachable'}
           </span>
           <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', opacity: 0.7 }}>
             Configure in Settings

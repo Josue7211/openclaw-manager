@@ -3,13 +3,11 @@ import { within } from '@testing-library/dom'
 import { describe, expect, it } from 'vitest'
 import ProviderSettingsPanel from '../ProviderSettingsPanel'
 import {
-  claudeProviderSnapshot,
-  codexCliProviderSnapshot,
   hermesProviderSnapshot,
 } from '@/chat/t3-adapters/providerSnapshots'
 
 describe('T3 copied ProviderSettingsPanel adapter', () => {
-  it('shows Hermes, Claude Code, and Codex CLI readiness without OpenClaw', () => {
+  it('shows Hermes Agent readiness without legacy local providers or OpenClaw', () => {
     render(
       <ProviderSettingsPanel
         providers={[
@@ -17,33 +15,21 @@ describe('T3 copied ProviderSettingsPanel adapter', () => {
             { id: 'gpt-5.5', name: 'GPT 5.5', provider: 'codex-lb', local: false },
           ], {
             ready: true,
-            detail: 'Hermes/Codex LB configured',
-          }),
-          claudeProviderSnapshot({
-            ready: true,
-            detail: 'Claude Code command found: claude',
-          }),
-          codexCliProviderSnapshot({
-            ready: false,
-            detail: 'Codex CLI command not found: codex',
+            detail: 'Hermes Agent configured',
           }),
         ]}
       />,
     )
 
-    expect(screen.getByText('Chat Providers')).toBeInTheDocument()
-    expect(screen.getByLabelText('Hermes provider status')).toBeInTheDocument()
-    expect(screen.getByLabelText('Claude Code provider status')).toBeInTheDocument()
-    expect(screen.getByLabelText('Codex CLI provider status')).toBeInTheDocument()
+    expect(screen.getByLabelText('Hermes Agent readiness')).toBeInTheDocument()
+    expect(screen.getByText('1 configured')).toBeInTheDocument()
+    expect(screen.getByLabelText('Hermes Agent status')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Legacy local agent provider status')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Legacy local CLI provider status')).not.toBeInTheDocument()
     expect(screen.queryByText('OpenClaw')).not.toBeInTheDocument()
-    expect(screen.getByText('Hermes/Codex LB configured')).toBeInTheDocument()
-    expect(screen.getByText('Claude Code command found: claude')).toBeInTheDocument()
-    expect(screen.getByText('Codex CLI command not found: codex')).toBeInTheDocument()
-    expect(screen.getAllByText('Ready')).toHaveLength(2)
-    expect(screen.getByText('Needs setup')).toBeInTheDocument()
-    expect(screen.getAllByText('Shown in chat')).toHaveLength(2)
-    expect(screen.getByText('Hidden from chat')).toBeInTheDocument()
-    expect(within(screen.getByLabelText('Hermes provider status')).getByText('1 available')).toBeInTheDocument()
-    expect(within(screen.getByLabelText('Claude Code provider status')).getByText('Direct local provider, no model selection')).toBeInTheDocument()
+    expect(screen.getByText('Hermes Agent configured')).toBeInTheDocument()
+    expect(screen.getAllByText('Ready')).toHaveLength(1)
+    expect(screen.getAllByText('Available in chat')).toHaveLength(1)
+    expect(within(screen.getByLabelText('Hermes Agent status')).getByText('1 available')).toBeInTheDocument()
   })
 })

@@ -60,6 +60,21 @@ vi.mock('@/lib/hooks/useLocalStorageState', () => ({
   useLocalStorageState: vi.fn(() => ['test-model', vi.fn()]),
 }))
 
+vi.mock('@/features/chat/liveAppContext', () => ({
+  buildLiveAppContext: vi.fn(async () => 'builder live context'),
+}))
+
+vi.mock('@/chat/t3-adapters/sidebarPreferences', () => ({
+  CHAT_SELECTED_BRANCH_KEY: 'chat-selected-branch',
+  CHAT_SELECTED_PROJECT_PATH_KEY: 'chat-selected-project-path',
+  CHAT_SELECTED_RUNTIME_KEY: 'chat-selected-runtime',
+  loadStoredValue: vi.fn(() => ''),
+}))
+
+vi.mock('@/chat/t3-adapters/projectWorkspace', () => ({
+  loadChatWorkspaceContext: vi.fn(async () => ({ projects: [], runtimeModes: ['Work locally'] })),
+}))
+
 // ---------------------------------------------------------------------------
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
@@ -74,6 +89,7 @@ import ModuleBuilderTab from '../ModuleBuilderTab'
 import { ModuleApprovalBar } from '../ModuleApprovalBar'
 import { api } from '@/lib/api'
 import { createModuleProposal, listModuleProposals } from '@/lib/module-proposal-store'
+import { loadChatWorkspaceContext } from '@/chat/t3-adapters/projectWorkspace'
 
 // ---------------------------------------------------------------------------
 // Tests: module-builder-prompt.ts
@@ -115,7 +131,7 @@ describe('module-builder-prompt', () => {
       expect(prompt).toContain('MUST NOT output executable code')
       expect(prompt).toContain('MUST NOT invent backend endpoints')
       expect(prompt).toContain('read-only')
-      expect(prompt).toContain('OpenUI module proposal')
+      expect(prompt).toContain('Hermes Agent module proposal')
     })
   })
 
@@ -328,13 +344,63 @@ describe('ModuleBuilderTab', () => {
       expect(api.post).toHaveBeenCalledWith('/api/chat', expect.objectContaining({
         text: expect.stringContaining('User request: Build a revenue widget'),
         system_prompt: expect.stringContaining('ModuleProposal'),
+        sessionKey: 'module-builder',
       }))
     })
 
     expect(await screen.findByText(/Build a revenue widget/)).toBeInTheDocument()
     expect(await screen.findByText('Module Proposal')).toBeInTheDocument()
     expect((await screen.findAllByText(/Revenue snapshot/)).length).toBeGreaterThan(0)
-    expect(api.get).toHaveBeenCalledWith('/api/chat/history')
+    expect(api.get).toHaveBeenCalledWith('/api/gateway/sessions/module-builder/history?limit=500')
+  })
+
+  it('scopes module builder chat to the selected workspace environment', async () => {
+    const now = Date.now()
+    const assistantTimestamp = new Date(now + 2_000).toISOString()
+
+    vi.mocked(loadChatWorkspaceContext).mockResolvedValueOnce({
+      projects: [{
+        id: 'remote:agent-shell',
+        name: 'AgentShell',
+        path: '/Users/josue/AgentShell',
+        root: '/Users/josue/AgentShell',
+        environmentId: 'desktop',
+        currentBranch: 'main',
+        branches: ['main'],
+      }],
+      runtimeModes: ['Work locally'],
+    })
+    vi.mocked(api.get)
+      .mockResolvedValueOnce({ messages: [] })
+      .mockResolvedValue({
+        messages: [
+          {
+            id: 'assistant-1',
+            role: 'assistant',
+            text: '```json\n{"id":"env-widget","version":1,"title":"Env Widget","description":"Env scoped.","userIntent":"Show env.","targetType":"widget","installTarget":"dashboard","category":"ops","capabilities":[],"dataRequirements":[],"actions":[],"layout":{"w":3,"h":2},"tree":{"primitive":"StatCard","props":{"title":"Env","value":"desktop"}},"createdAt":"2026-04-18T10:00:01.000Z"}\n```',
+            timestamp: assistantTimestamp,
+          },
+        ],
+      })
+    vi.mocked(api.post).mockResolvedValue({ ok: true })
+
+    render(<ModuleBuilderTab />)
+
+    fireEvent.change(screen.getByLabelText('Module description'), {
+      target: { value: 'Build an environment widget' },
+    })
+    fireEvent.click(screen.getByLabelText('Send message'))
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/api/chat', expect.objectContaining({
+        sessionKey: 'module-builder',
+        environmentId: 'desktop',
+        workingDir: '/Users/josue/AgentShell',
+        projectRoot: '/Users/josue/AgentShell',
+        project: 'AgentShell',
+      }))
+    })
+    expect(api.get).toHaveBeenCalledWith('/api/gateway/sessions/module-builder/history?limit=500&environmentId=desktop')
   })
 
   it('shows a timeout error when chat accepts the request but no reply lands in history', async () => {

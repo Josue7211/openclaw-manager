@@ -330,7 +330,7 @@ describe('useTerminal', () => {
     const { result } = renderHook(() => useTerminal(containerRef))
     await act(async () => { await flushPromises() })
 
-    expect(result.current.error).toBe('Terminal route is unavailable on this backend. Update or restart the ClawControl backend, then retry.')
+    expect(result.current.error).toBe('Terminal route is unavailable on this local backend. Update or restart the Hermes Agent workspace backend, then retry.')
     expect(result.current.status).toBe('error')
     expect(MockWebSocket.instances.length).toBe(0)
   })

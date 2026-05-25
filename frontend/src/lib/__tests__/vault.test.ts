@@ -218,6 +218,264 @@ describe('vault notes', () => {
     expect(notes[0].content).toContain('Ship notes')
   })
 
+  it('hydrates title-only document list entries before showing notes', async () => {
+    apiMock.get.mockImplementation(async (path: string) => {
+      if (path === '/api/vault/local/documents') {
+        return {
+          data: {
+            notes: [
+              {
+                _id: 'Projects/roadmap.md',
+                title: 'Roadmap',
+                content: '',
+                folder: 'Projects',
+                tags: [],
+                links: [],
+                created_at: 1,
+                updated_at: 2,
+              },
+            ],
+            attachments: [],
+          },
+        }
+      }
+      if (path === '/api/vault/local/doc?id=Projects%2Froadmap.md') {
+        return {
+          data: {
+            _id: 'Projects/roadmap.md',
+            title: 'Roadmap',
+            content: '# Roadmap\n\nLaunch plan',
+            folder: 'Projects',
+            tags: [],
+            links: [],
+            created_at: 1,
+            updated_at: 2,
+          },
+        }
+      }
+      return { data: { folders: [] } }
+    })
+    const { getAllNotes } = await loadVault()
+
+    const notes = await getAllNotes()
+
+    expect(apiMock.get).toHaveBeenCalledWith('/api/vault/local/doc?id=Projects%2Froadmap.md')
+    expect(notes).toEqual([
+      expect.objectContaining({
+        _id: 'Projects/roadmap.md',
+        content: '# Roadmap\n\nLaunch plan',
+      }),
+    ])
+  })
+
+  it('reads Markdown body fields from local vault records so notes do not appear blank', async () => {
+    apiMock.get.mockImplementation(async (path: string) => {
+      if (path === '/api/vault/local/documents') {
+        return {
+          data: {
+            notes: [
+              {
+                _id: 'Projects/roadmap.md',
+                type: 'note',
+                title: 'Roadmap',
+                content_markdown: '# Roadmap\n\nStored in content_markdown.',
+                folder: 'Projects',
+                tags: [],
+                links: [],
+                aliases: [],
+                created_at: 1,
+                updated_at: 2,
+              },
+              {
+                _id: 'Inbox/idea.md',
+                type: 'note',
+                title: 'Idea',
+                markdown: '# Idea\n\nStored in markdown.',
+                folder: 'Inbox',
+                tags: [],
+                links: [],
+                aliases: [],
+                created_at: 1,
+                updated_at: 3,
+              },
+            ],
+            attachments: [],
+          },
+        }
+      }
+      throw new Error(`Unexpected request: ${path}`)
+    })
+    const { getAllNotes, isCachedTitleOnlyNote } = await loadVault()
+
+    const notes = await getAllNotes()
+
+    expect(notes.map(note => note.content)).toEqual([
+      '# Idea\n\nStored in markdown.',
+      '# Roadmap\n\nStored in content_markdown.',
+    ])
+    expect(notes.some(isCachedTitleOnlyNote)).toBe(false)
+    expect(apiMock.get.mock.calls.some(([path]) => String(path).startsWith('/api/vault/local/doc?id='))).toBe(false)
+  })
+
+  it('hydrates cached title-only notes when the document list is temporarily unavailable', async () => {
+    localStorage.setItem('mc-notes-meta', JSON.stringify([
+      {
+        _id: 'Inbox/project-brief.md',
+        title: 'Project Brief',
+        folder: 'Inbox',
+        tags: [],
+        links: [],
+        created_at: 1,
+        updated_at: 2,
+      },
+    ]))
+    apiMock.get.mockImplementation(async (path: string) => {
+      if (path === '/api/vault/local/documents') throw new Error('list offline')
+      if (path === '/api/vault/local/doc?id=Inbox%2Fproject-brief.md') {
+        return {
+          data: {
+            _id: 'Inbox/project-brief.md',
+            title: 'Project Brief',
+            content: '# Brief\n\nRecovered body',
+            folder: 'Inbox',
+            tags: [],
+            links: [],
+            created_at: 1,
+            updated_at: 2,
+          },
+        }
+      }
+      return { data: { folders: [] } }
+    })
+    const { getAllNotes } = await loadVault()
+
+    const notes = await getAllNotes()
+
+    expect(notes).toEqual([
+      expect.objectContaining({
+        _id: 'Inbox/project-brief.md',
+        content: '# Brief\n\nRecovered body',
+      }),
+    ])
+  })
+
+  it('keeps cached notes visible when a successful local list omits them', async () => {
+    localStorage.setItem('mc-notes-meta', JSON.stringify([
+      {
+        _id: 'Inbox/visible.md',
+        title: 'Visible',
+        folder: 'Inbox',
+        tags: [],
+        links: [],
+        aliases: [],
+        created_at: 1,
+        updated_at: 2,
+      },
+      {
+        _id: 'Projects/missing.md',
+        title: 'Missing from list',
+        folder: 'Projects',
+        tags: [],
+        links: [],
+        aliases: [],
+        created_at: 1,
+        updated_at: 3,
+      },
+    ]))
+    apiMock.get.mockImplementation(async (path: string) => {
+      if (path === '/api/vault/local/documents') {
+        return {
+          data: {
+            notes: [
+              {
+                _id: 'Inbox/visible.md',
+                type: 'note',
+                title: 'Visible',
+                content: '# Visible',
+                folder: 'Inbox',
+                tags: [],
+                links: [],
+                aliases: [],
+                created_at: 1,
+                updated_at: 2,
+              },
+            ],
+            attachments: [],
+          },
+        }
+      }
+      throw new Error(`Unexpected request: ${path}`)
+    })
+    const { getAllNotes, isCachedTitleOnlyNote } = await loadVault()
+
+    const notes = await getAllNotes()
+
+    expect(notes.map(note => note._id)).toEqual(['Projects/missing.md', 'Inbox/visible.md'])
+    expect(notes.find(note => note._id === 'Inbox/visible.md')).toEqual(expect.objectContaining({ content: '# Visible' }))
+    expect(isCachedTitleOnlyNote(notes.find(note => note._id === 'Projects/missing.md')!)).toBe(true)
+  })
+
+  it('blocks saves from title-only cache records so blank editors cannot overwrite note bodies', async () => {
+    localStorage.setItem('mc-notes-meta', JSON.stringify([
+      {
+        _id: 'Inbox/project-brief.md',
+        title: 'Project Brief',
+        folder: 'Inbox',
+        tags: [],
+        links: [],
+        created_at: 1,
+        updated_at: 2,
+      },
+    ]))
+    apiMock.get.mockImplementation(async (path: string) => {
+      if (path === '/api/vault/local/documents') throw new Error('list offline')
+      if (path === '/api/vault/local/doc?id=Inbox%2Fproject-brief.md') throw new Error('body offline')
+      return { data: { folders: [] } }
+    })
+    const { getAllNotes, putNote } = await loadVault()
+
+    const notes = await getAllNotes()
+
+    expect(notes[0]).toEqual(expect.objectContaining({ content_status: 'cached_title_only' }))
+    await expect(putNote({ ...notes[0], content: '' })).rejects.toThrow('Cannot save this note until its body has loaded')
+    expect(apiMock.put).not.toHaveBeenCalled()
+  })
+
+  it('hides internal ClawControl sync documents from visible notes', async () => {
+    apiMock.get.mockResolvedValue({
+      data: {
+        notes: [
+          {
+            _id: '.clawcontrol/data-views.md',
+            title: 'ClawControl data views',
+            content: '# Internal',
+            folder: '.clawcontrol',
+            tags: [],
+            links: [],
+            created_at: 1,
+            updated_at: 2,
+          },
+          {
+            _id: 'Projects/roadmap.md',
+            title: 'Roadmap',
+            content: '# Roadmap',
+            folder: 'Projects',
+            tags: [],
+            links: [],
+            created_at: 1,
+            updated_at: 2,
+          },
+        ],
+        attachments: [],
+      },
+    })
+    const { getAllNotes } = await loadVault()
+
+    expect(await getAllNotes()).toEqual([
+      expect.objectContaining({ _id: 'Projects/roadmap.md' }),
+    ])
+  })
+
   it('keeps private writes local-only when the local vault write fails', async () => {
     apiMock.put.mockRejectedValue(new Error('local vault offline'))
     const { createNote, getRecoverableDrafts } = await loadVault()
@@ -322,6 +580,45 @@ describe('vault notes', () => {
     ])
   })
 
+  it('does not let an empty local draft hide fetched backend content', async () => {
+    localStorage.setItem('mc-notes-drafts', JSON.stringify([
+      {
+        id: 'Inbox/project-brief.md',
+        content: '',
+        updated_at: 999,
+      },
+    ]))
+    apiMock.get.mockResolvedValue({
+      data: {
+        notes: [
+          {
+            _id: 'Inbox/project-brief.md',
+            title: 'Project Brief',
+            content: '# Brief\n\nVisible backend body',
+            folder: 'Inbox',
+            tags: [],
+            links: [],
+            aliases: [],
+            created_at: 1,
+            updated_at: 2,
+          },
+        ],
+        attachments: [],
+      },
+    })
+    const { getAllNotes, getRecoverableDrafts } = await loadVault()
+
+    const notes = await getAllNotes()
+
+    expect(notes).toEqual([
+      expect.objectContaining({
+        _id: 'Inbox/project-brief.md',
+        content: '# Brief\n\nVisible backend body',
+      }),
+    ])
+    expect(getRecoverableDrafts()).toEqual([])
+  })
+
   it('does not require CouchDB when the local vault list is unavailable', async () => {
     apiMock.get.mockRejectedValue(new Error('local vault unavailable'))
     const { getAllNotes } = await loadVault()
@@ -331,6 +628,323 @@ describe('vault notes', () => {
     expect(apiMock.get).toHaveBeenCalledTimes(1)
     expect(apiMock.get).toHaveBeenCalledWith('/api/vault/local/documents')
     expect(apiMock.get.mock.calls.some(([path]) => String(path).startsWith('/api/vault/notes'))).toBe(false)
+  })
+
+  it('retries local vault hydration after serving title-only cached metadata', async () => {
+    localStorage.setItem(
+      'mc-notes-meta',
+      JSON.stringify([
+        {
+          _id: 'Inbox/recovered.md',
+          title: 'Recovered',
+          folder: 'Inbox',
+          tags: [],
+          links: [],
+          aliases: [],
+          created_at: 1,
+          updated_at: 2,
+        },
+      ]),
+    )
+    let documentListCalls = 0
+    apiMock.get.mockImplementation(async (path: string) => {
+      if (path === '/api/vault/local/documents') {
+        documentListCalls += 1
+        if (documentListCalls === 1) throw new Error('local vault warming up')
+        return {
+          data: {
+            notes: [
+              {
+                _id: 'Inbox/recovered.md',
+                type: 'note',
+                title: 'Recovered',
+                content: '# Real body\n\nLoaded after retry.',
+                folder: 'Inbox',
+                tags: [],
+                links: [],
+                aliases: [],
+                created_at: 1,
+                updated_at: 3,
+              },
+            ],
+            attachments: [],
+          },
+        }
+      }
+      throw new Error('document body still warming up')
+    })
+    const { getAllNotes } = await loadVault()
+
+    await expect(getAllNotes()).resolves.toEqual([
+      expect.objectContaining({
+        _id: 'Inbox/recovered.md',
+        title: 'Recovered',
+        content: '',
+      }),
+    ])
+    await expect(getAllNotes()).resolves.toEqual([
+      expect.objectContaining({
+        _id: 'Inbox/recovered.md',
+        title: 'Recovered',
+        content: '# Real body\n\nLoaded after retry.',
+      }),
+    ])
+
+    expect(apiMock.get).toHaveBeenNthCalledWith(1, '/api/vault/local/documents')
+    expect(apiMock.get).toHaveBeenNthCalledWith(2, '/api/vault/local/doc?id=Inbox%2Frecovered.md')
+    expect(apiMock.get).toHaveBeenNthCalledWith(3, '/api/vault/local/documents')
+    expect(apiMock.get.mock.calls.some(([path]) => String(path).startsWith('/api/vault/notes'))).toBe(false)
+  })
+
+  it('keeps retrying local vault body hydration when the document list only has empty bodies', async () => {
+    let bodyCalls = 0
+    apiMock.get.mockImplementation(async (path: string) => {
+      if (path === '/api/vault/local/documents') {
+        return {
+          data: {
+            notes: [
+              {
+                _id: 'Inbox/recovered.md',
+                type: 'note',
+                title: 'Recovered',
+                content: '',
+                folder: 'Inbox',
+                tags: [],
+                links: [],
+                aliases: [],
+                created_at: 1,
+                updated_at: 2,
+              },
+            ],
+            attachments: [],
+          },
+        }
+      }
+      if (path === '/api/vault/local/doc?id=Inbox%2Frecovered.md') {
+        bodyCalls += 1
+        if (bodyCalls === 1) throw new Error('document body still warming up')
+        return {
+          data: {
+            _id: 'Inbox/recovered.md',
+            type: 'note',
+            title: 'Recovered',
+            content: '# Real body\n\nLoaded after retry.',
+            folder: 'Inbox',
+            tags: [],
+            links: [],
+            aliases: [],
+            created_at: 1,
+            updated_at: 3,
+          },
+        }
+      }
+      throw new Error(`Unexpected request: ${path}`)
+    })
+    const { getAllNotes } = await loadVault()
+
+    await expect(getAllNotes()).resolves.toEqual([
+      expect.objectContaining({
+        _id: 'Inbox/recovered.md',
+        title: 'Recovered',
+        content: '',
+      }),
+    ])
+    await expect(getAllNotes()).resolves.toEqual([
+      expect.objectContaining({
+        _id: 'Inbox/recovered.md',
+        title: 'Recovered',
+        content: '# Real body\n\nLoaded after retry.',
+      }),
+    ])
+
+    expect(apiMock.get.mock.calls.filter(([path]) => path === '/api/vault/local/documents')).toHaveLength(2)
+    expect(apiMock.get.mock.calls.filter(([path]) => path === '/api/vault/local/doc?id=Inbox%2Frecovered.md')).toHaveLength(2)
+    expect(apiMock.get.mock.calls.some(([path]) => String(path).startsWith('/api/vault/notes'))).toBe(false)
+  })
+
+  it('keeps multi-note all-empty hydration title-only so blank cache records do not become editable', async () => {
+    apiMock.get.mockImplementation(async (path: string) => {
+      if (path === '/api/vault/local/documents') {
+        return {
+          data: {
+            notes: [
+              {
+                _id: 'Inbox/one.md',
+                type: 'note',
+                title: 'One',
+                content: '',
+                folder: 'Inbox',
+                tags: [],
+                links: [],
+                aliases: [],
+                created_at: 1,
+                updated_at: 2,
+              },
+              {
+                _id: 'Inbox/two.md',
+                type: 'note',
+                title: 'Two',
+                content: '',
+                folder: 'Inbox',
+                tags: [],
+                links: [],
+                aliases: [],
+                created_at: 1,
+                updated_at: 3,
+              },
+            ],
+            attachments: [],
+          },
+        }
+      }
+      if (path === '/api/vault/local/doc?id=Inbox%2Fone.md') {
+        return {
+          data: {
+            _id: 'Inbox/one.md',
+            type: 'note',
+            title: 'One',
+            content: '',
+            folder: 'Inbox',
+            tags: [],
+            links: [],
+            aliases: [],
+            created_at: 1,
+            updated_at: 2,
+          },
+        }
+      }
+      if (path === '/api/vault/local/doc?id=Inbox%2Ftwo.md') {
+        return {
+          data: {
+            _id: 'Inbox/two.md',
+            type: 'note',
+            title: 'Two',
+            content: '',
+            folder: 'Inbox',
+            tags: [],
+            links: [],
+            aliases: [],
+            created_at: 1,
+            updated_at: 3,
+          },
+        }
+      }
+      throw new Error(`Unexpected request: ${path}`)
+    })
+    const { getAllNotes, isCachedTitleOnlyNote } = await loadVault()
+
+    const notes = await getAllNotes()
+
+    expect(notes).toHaveLength(2)
+    expect(notes.map(note => note.content)).toEqual(['', ''])
+    expect(notes.every(isCachedTitleOnlyNote)).toBe(true)
+  })
+
+  it('refetches a legacy all-empty in-memory cache before exposing blank notes', async () => {
+    apiMock.get.mockImplementation(async (path: string) => {
+      if (path === '/api/vault/local/documents') {
+        return {
+          data: {
+            notes: [
+              {
+                _id: 'Inbox/one.md',
+                type: 'note',
+                title: 'One',
+                content: '# One\n\nReal body',
+                folder: 'Inbox',
+                tags: [],
+                links: [],
+                aliases: [],
+                created_at: 1,
+                updated_at: 2,
+              },
+              {
+                _id: 'Inbox/two.md',
+                type: 'note',
+                title: 'Two',
+                content: '# Two\n\nReal body',
+                folder: 'Inbox',
+                tags: [],
+                links: [],
+                aliases: [],
+                created_at: 1,
+                updated_at: 3,
+              },
+            ],
+            attachments: [],
+          },
+        }
+      }
+      throw new Error(`Unexpected request: ${path}`)
+    })
+    apiMock.put.mockResolvedValue({ data: { rev: 'local-blank' } })
+    const { getAllNotes, putNote } = await loadVault()
+
+    const loaded = await getAllNotes()
+    await putNote({ ...loaded[0], content: '' })
+    await putNote({ ...loaded[1], content: '' })
+
+    const recovered = await getAllNotes()
+
+    expect(apiMock.get.mock.calls.filter(([path]) => path === '/api/vault/local/documents')).toHaveLength(2)
+    expect(recovered.map(note => note.content)).toEqual([
+      '# Two\n\nReal body',
+      '# One\n\nReal body',
+    ])
+  })
+
+  it('still allows a single intentionally blank note to open for editing', async () => {
+    apiMock.get.mockImplementation(async (path: string) => {
+      if (path === '/api/vault/local/documents') {
+        return {
+          data: {
+            notes: [
+              {
+                _id: 'Inbox/blank.md',
+                type: 'note',
+                title: 'Blank',
+                content: '',
+                folder: 'Inbox',
+                tags: [],
+                links: [],
+                aliases: [],
+                created_at: 1,
+                updated_at: 2,
+              },
+            ],
+            attachments: [],
+          },
+        }
+      }
+      if (path === '/api/vault/local/doc?id=Inbox%2Fblank.md') {
+        return {
+          data: {
+            _id: 'Inbox/blank.md',
+            type: 'note',
+            title: 'Blank',
+            content: '',
+            folder: 'Inbox',
+            tags: [],
+            links: [],
+            aliases: [],
+            created_at: 1,
+            updated_at: 2,
+          },
+        }
+      }
+      throw new Error(`Unexpected request: ${path}`)
+    })
+    const { getAllNotes, isCachedTitleOnlyNote } = await loadVault()
+
+    const notes = await getAllNotes()
+
+    expect(notes).toEqual([
+      expect.objectContaining({
+        _id: 'Inbox/blank.md',
+        content: '',
+      }),
+    ])
+    expect(isCachedTitleOnlyNote(notes[0])).toBe(false)
   })
 
   it('moves a note by creating the new doc and deleting the old doc', async () => {
@@ -583,6 +1197,17 @@ describe('vault notes', () => {
         conflict_state: 'conflict',
       }),
     )
+  })
+
+  it('resolves a reviewed local vault sync conflict', async () => {
+    const { resolveVaultSyncConflict } = await loadVault()
+
+    await resolveVaultSyncConflict('remote-vault', 'remote/Projects/roadmap.md')
+
+    expect(apiMock.post).toHaveBeenCalledWith('/api/vault/local/sync-ledger/resolve', {
+      provider: 'remote-vault',
+      remote_id: 'remote/Projects/roadmap.md',
+    })
   })
 
   it('creates an explicit HTTP collaboration provider for remote CRDT transport', async () => {
@@ -1160,6 +1785,91 @@ describe('vault notes', () => {
     expect(folders).toEqual([expect.objectContaining({ path: 'Legacy' })])
   })
 
+  it('recovers legacy markdown bodies when the local vault contains only unsafe blank imports', async () => {
+    apiMock.get.mockImplementation(async (path: string) => {
+      if (path === '/api/vault/local/documents') {
+        return {
+          data: {
+            notes: [
+              {
+                _id: 'Legacy/one.md',
+                type: 'note',
+                title: 'One',
+                content: '',
+                folder: 'Legacy',
+                tags: [],
+                links: [],
+                aliases: [],
+                created_at: 1,
+                updated_at: 2,
+              },
+              {
+                _id: 'Legacy/two.md',
+                type: 'note',
+                title: 'Two',
+                content: '',
+                folder: 'Legacy',
+                tags: [],
+                links: [],
+                aliases: [],
+                created_at: 1,
+                updated_at: 3,
+              },
+            ],
+            attachments: [],
+          },
+        }
+      }
+      if (String(path).startsWith('/api/vault/local/doc?id=')) throw new Error('blank local body')
+      if (path === '/api/vault/notes') {
+        return {
+          data: {
+            notes: [
+              {
+                _id: 'Legacy/one.md',
+                title: 'One',
+                content_markdown: '# One\n\nRecovered from legacy markdown.',
+                folder: 'Legacy',
+                tags: [],
+                links: [],
+                created_at: 1,
+                updated_at: 2,
+              },
+              {
+                _id: 'Legacy/two.md',
+                title: 'Two',
+                markdown: '# Two\n\nRecovered from legacy markdown.',
+                folder: 'Legacy',
+                tags: [],
+                links: [],
+                created_at: 1,
+                updated_at: 3,
+              },
+            ],
+          },
+        }
+      }
+      if (path === '/api/vault/folders') return { data: { folders: [] } }
+      throw new Error(`Unexpected request: ${path}`)
+    })
+    apiMock.post.mockResolvedValue({ data: { imported_notes: 2 } })
+    const { getAllNotes } = await loadVault()
+
+    const notes = await getAllNotes()
+
+    expect(notes.map(note => note.content)).toEqual([
+      '# Two\n\nRecovered from legacy markdown.',
+      '# One\n\nRecovered from legacy markdown.',
+    ])
+    expect(apiMock.post).toHaveBeenCalledWith('/api/vault/local/import', {
+      notes: [
+        expect.objectContaining({ _id: 'Legacy/one.md', content: '# One\n\nRecovered from legacy markdown.' }),
+        expect.objectContaining({ _id: 'Legacy/two.md', content: '# Two\n\nRecovered from legacy markdown.' }),
+      ],
+      folders: [],
+    })
+  })
+
   it('searches notes through the local vault FTS endpoint', async () => {
     apiMock.get.mockResolvedValue({
       data: {
@@ -1567,6 +2277,9 @@ describe('vault notes', () => {
 
     expect(linkFirstPlainMention('Roadmap connects to delivery. Roadmap stays.', 'Roadmap')).toBe(
       '[[Roadmap]] connects to delivery. Roadmap stays.',
+    )
+    expect(linkFirstPlainMention('Alpha connects to delivery.', 'Alpha', 'Project Alpha')).toBe(
+      '[[Project Alpha|Alpha]] connects to delivery.',
     )
   })
 })

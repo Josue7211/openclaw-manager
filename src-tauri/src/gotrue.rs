@@ -64,8 +64,9 @@ pub struct MfaFactor {
 
 /// REST client for the GoTrue (Supabase Auth) API.
 ///
-/// All requests carry the `apikey` header. Authenticated endpoints additionally
-/// carry a `Bearer` token in the `Authorization` header.
+/// All unauthenticated auth requests carry the public Supabase key in both
+/// `apikey` and `Authorization: Bearer ...`. Authenticated endpoints carry
+/// the same `apikey` plus the user JWT in `Authorization`.
 #[derive(Clone, Debug)]
 pub struct GoTrueClient {
     http: Client,
@@ -99,10 +100,17 @@ impl GoTrueClient {
             .filter(|value| !value.trim().is_empty())
             .or_else(|| {
                 state
+                    .secret("VITE_SUPABASE_ANON_KEY")
+                    .filter(|value| !value.trim().is_empty())
+            })
+            .or_else(|| {
+                state
                     .secret("SUPABASE_SERVICE_ROLE_KEY")
                     .filter(|value| !value.trim().is_empty())
             })
-            .context("SUPABASE_ANON_KEY or SUPABASE_SERVICE_ROLE_KEY not set")?;
+            .context(
+                "SUPABASE_ANON_KEY, VITE_SUPABASE_ANON_KEY, or SUPABASE_SERVICE_ROLE_KEY not set",
+            )?;
         Ok(Self::new(&url, &key))
     }
 
@@ -110,7 +118,9 @@ impl GoTrueClient {
 
     /// Attach the `apikey` header (project-level auth).
     fn auth_request(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
-        builder.header("apikey", &self.api_key)
+        builder
+            .header("apikey", &self.api_key)
+            .header("Authorization", format!("Bearer {}", self.api_key))
     }
 
     /// Attach both the `apikey` header and a user-level `Authorization: Bearer` header.

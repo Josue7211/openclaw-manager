@@ -12,7 +12,7 @@ type SharedChatProviderOption = {
 const SHARED_CHAT_PROVIDER_OPTIONS = sharedChatProviders as SharedChatProviderOption[]
 
 function toChatProviderId(id: string): ChatProviderId {
-  if (id === 'hermes' || id === 'claudeAgent' || id === 'codex-cli') {
+  if (id === 'hermes') {
     return id
   }
   throw new Error(`Unsupported shared chat provider id: ${id}`)
@@ -40,8 +40,8 @@ const CHAT_FALLBACK_PROVIDER_OPTION: ChatProviderOption = CHAT_PROVIDER_OPTIONS
   .find(provider => provider.id === 'hermes')
   ?? toChatProviderOption({
     id: 'hermes',
-    name: 'Hermes',
-    description: 'Codex LB backed chat',
+    name: 'Hermes Agent',
+    description: 'Hermes Agent workspace chat',
     local: false,
     modelBacked: true,
   })

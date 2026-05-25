@@ -8,8 +8,9 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { queryKeys } from '@/lib/query-keys'
 import { row, rowLast, val, btnSecondary, sectionLabel } from '@/features/settings/shared'
-import { SETTINGS_SECTION_KEYS, type SettingsSection } from '@/features/settings/sections'
-import { CodexLbSection, ProvidersSection, UsageSection } from './settings/ChatParitySections'
+import { normalizeSettingsSection, SETTINGS_SECTION_KEYS, type SettingsSection } from '@/features/settings/sections'
+import { ProvidersSection, UsageSection } from './settings/ChatParitySections'
+import { HermesAgentSection } from './settings/HermesAgentControlSection'
 
 // ── Lazy-loaded section components ──────────────────────────────────────────
 const SettingsUser = lazy(() => import('./settings/SettingsUser'))
@@ -31,7 +32,7 @@ const SECTIONS: { key: SettingsSection; label: string; icon: React.ElementType; 
   { key: 'connections', label: 'Connections', icon: Plug, group: 'General' },
   { key: 'usage', label: 'Usage', icon: Lightning, group: 'Chat' },
   { key: 'providers', label: 'Providers', icon: Plug, group: 'Chat' },
-  { key: 'codex-lb', label: 'Codex LB', icon: Desktop, group: 'Chat' },
+  { key: 'hermes-agent', label: 'Hermes Agent', icon: Desktop, group: 'Chat' },
   { key: 'display', label: 'Personalization', icon: Palette, group: 'App Gear' },
   { key: 'keybindings', label: 'Keybinds', icon: Keyboard, group: 'App Gear' },
   { key: 'modules', label: 'Sidebar', icon: SquaresFour, group: 'App Gear' },
@@ -73,7 +74,7 @@ const AppSection = memo(function AppSection() {
       <div style={sectionLabel}>clawctrl</div>
       <div style={row}><span>Host</span><span style={val}>{window.location.host}</span></div>
       <div style={row}><span>Poll interval</span><span style={val}>2s</span></div>
-      <div style={row}><span>Session file</span><span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace', fontSize: '11px' }}>HARNESS_DIR/agents/main/sessions/</span></div>
+      <div style={row}><span>Session file</span><span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace', fontSize: '11px' }}>HERMES_DIR/agents/main/sessions/</span></div>
 
       <div style={{ ...sectionLabel, marginTop: '24px' }}>Logging</div>
       <div style={row}>
@@ -149,7 +150,7 @@ function SectionFallback() {
 export default function SettingsPage() {
   const [searchParams] = useSearchParams()
   const setupMfaRequired = searchParams.get('setup_mfa') === '1'
-  const initialSection = searchParams.get('section') as SettingsSection | null
+  const initialSection = normalizeSettingsSection(searchParams.get('section'))
   const [selected, setSelected] = useState<SettingsSection | null>(initialSection)
   const [focusedSectionIndex, setFocusedSectionIndex] = useState(-1)
   const [userName, setUserName] = useLocalStorageState('user-name', 'User')
@@ -179,7 +180,7 @@ export default function SettingsPage() {
   })
 
   useEffect(() => {
-    const section = searchParams.get('section') as SettingsSection | null
+    const section = normalizeSettingsSection(searchParams.get('section'))
     if (section && SECTIONS.some(item => item.key === section)) {
       setSelected(section)
     }
@@ -211,8 +212,8 @@ export default function SettingsPage() {
         return (
           <div>
             <div style={sectionLabel}>Gateway Connection</div>
-            <div style={row}><span>WebSocket</span><span style={val}>{import.meta.env.VITE_HARNESS_WS || 'not configured'}</span></div>
-            <div style={row}><span>HTTP</span><span style={val}>{import.meta.env.VITE_HARNESS_HTTP || 'not configured'}</span></div>
+            <div style={row}><span>WebSocket</span><span style={val}>{import.meta.env.VITE_HERMES_WS || import.meta.env.VITE_HARNESS_WS || 'not configured'}</span></div>
+            <div style={row}><span>HTTP</span><span style={val}>{import.meta.env.VITE_HERMES_HTTP || import.meta.env.VITE_HERMES_API_URL || import.meta.env.VITE_HARNESS_HTTP || 'not configured'}</span></div>
             <div style={rowLast}><span>Auth</span><span style={val}>password</span></div>
           </div>
         )
@@ -240,8 +241,9 @@ export default function SettingsPage() {
         return <UsageSection />
       case 'providers':
         return <ProvidersSection />
+      case 'hermes-agent':
       case 'codex-lb':
-        return <CodexLbSection />
+        return <HermesAgentSection />
       case 'display':
         return (
           <Suspense fallback={<SectionFallback />}>
@@ -345,18 +347,24 @@ export default function SettingsPage() {
                     style={{
                       display: 'flex', alignItems: 'center', gap: '10px', width: '100%',
                       padding: '8px 16px', borderRadius: '10px', marginBottom: '2px',
-                      background: active ? 'var(--active-bg)' : isFocused ? 'var(--accent-a10)' : 'transparent',
-                      border: 'none', color: active ? 'var(--text-on-color)' : 'var(--text-secondary)',
+                      background: active ? 'var(--accent-a12)' : isFocused ? 'var(--accent-a10)' : 'transparent',
+                      border: active ? '1px solid var(--accent-a25)' : '1px solid transparent',
+                      color: active ? 'var(--accent-bright)' : 'var(--text-secondary)',
                       fontSize: '13px', fontWeight: active ? 600 : 450, cursor: 'pointer',
                       textAlign: 'left', whiteSpace: 'nowrap',
-                      transition: 'all 0.15s',
-                      outline: isFocused ? '1px solid var(--accent-a40)' : 'none',
-                      outlineOffset: '-1px',
+                      transition: 'background 0.15s, border-color 0.15s, color 0.15s',
+                      outline: 'none',
                     }}
-                    onMouseEnter={e => { if (!active) { e.currentTarget.style.background = isFocused ? 'var(--accent-a10)' : 'var(--hover-bg)'; e.currentTarget.style.color = 'var(--text-primary)' } }}
-                    onMouseLeave={e => { e.currentTarget.style.background = active ? 'var(--active-bg)' : isFocused ? 'var(--accent-a10)' : 'transparent'; e.currentTarget.style.color = active ? 'var(--text-on-color)' : 'var(--text-secondary)' }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = active ? 'var(--accent-a12)' : isFocused ? 'var(--accent-a10)' : 'var(--hover-bg)'
+                      e.currentTarget.style.color = active ? 'var(--accent-bright)' : 'var(--text-primary)'
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = active ? 'var(--accent-a12)' : isFocused ? 'var(--accent-a10)' : 'transparent'
+                      e.currentTarget.style.color = active ? 'var(--accent-bright)' : 'var(--text-secondary)'
+                    }}
                   >
-                    <s.icon size={16} style={{ flexShrink: 0, color: active ? 'var(--accent)' : undefined }} />
+                    <s.icon size={16} style={{ flexShrink: 0, color: active ? 'var(--accent-bright)' : undefined }} />
                     {s.label}
                     {!selected && <CaretRight size={14} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />}
                   </button>
@@ -400,7 +408,11 @@ export default function SettingsPage() {
             minHeight: 0,
           }}>
             <div style={{
-              ...(selected === 'modules' ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : { maxWidth: '600px' }),
+              ...(
+                selected === 'modules' || selected === 'hermes-agent' || selected === 'codex-lb'
+                  ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }
+                  : { maxWidth: '600px' }
+              ),
             }}>
               {renderDetail()}
             </div>

@@ -15,24 +15,69 @@ use crate::server::{AppState, RequireAuth};
 
 // ── Credential helpers ──────────────────────────────────────────────────────
 
-/// Look up the active harness API base URL from secrets.
+/// Look up the active Hermes Agent API base URL from secrets.
 /// Provider-specific env keys are fallback aliases.
 pub(crate) fn harness_api_url(state: &AppState) -> Option<String> {
-    state.secret_first(&["HARNESS_API_URL", "HERMES_API_URL", "OPENCLAW_API_URL"])
+    harness_api_config(state).map(|(_, url)| url)
 }
 
-/// Look up the active harness API key from secrets.
-/// Provider-specific env keys are fallback aliases.
-pub(crate) fn harness_api_key(state: &AppState) -> String {
-    state
-        .secret_first(&[
+fn harness_api_config(state: &AppState) -> Option<(&'static str, String)> {
+    harness_api_configs(state).into_iter().next()
+}
+
+pub(crate) fn harness_api_configs(state: &AppState) -> Vec<(&'static str, String)> {
+    let mut seen = std::collections::HashSet::new();
+    ["HERMES_API_URL", "HARNESS_API_URL", "OPENCLAW_API_URL"]
+        .into_iter()
+        .filter_map(|key| {
+            state
+                .secret(key)
+                .filter(|url| !url.trim().is_empty())
+                .map(|url| (key, url.trim_end_matches('/').to_string()))
+        })
+        .filter(|(_, url)| {
+            let normalized = url.to_ascii_lowercase();
+            seen.insert(normalized)
+        })
+        .collect()
+}
+
+pub(crate) fn harness_api_key_for_config(state: &AppState, config_key: &str) -> String {
+    let candidates: &[&str] = match config_key {
+        "HERMES_API_URL" => &[
+            "HERMES_API_KEY",
+            "HERMES_PASSWORD",
+            "HARNESS_API_KEY",
+            "HARNESS_PASSWORD",
+            "OPENCLAW_API_KEY",
+            "OPENCLAW_PASSWORD",
+        ],
+        "OPENCLAW_API_URL" => &[
+            "OPENCLAW_API_KEY",
+            "OPENCLAW_PASSWORD",
+            "HERMES_API_KEY",
+            "HERMES_PASSWORD",
+            "HARNESS_API_KEY",
+            "HARNESS_PASSWORD",
+        ],
+        _ => &[
             "HARNESS_API_KEY",
             "HARNESS_PASSWORD",
             "HERMES_API_KEY",
             "HERMES_PASSWORD",
             "OPENCLAW_API_KEY",
             "OPENCLAW_PASSWORD",
-        ])
+        ],
+    };
+
+    state.secret_first(candidates).unwrap_or_default()
+}
+
+/// Look up the active Hermes Agent API key from secrets.
+/// Provider-specific env keys are fallback aliases.
+pub(crate) fn harness_api_key(state: &AppState) -> String {
+    harness_api_config(state)
+        .map(|(key, _)| harness_api_key_for_config(state, key))
         .unwrap_or_default()
 }
 
@@ -107,11 +152,35 @@ pub(crate) fn sanitize_error_body(body: &str) -> String {
     }
 }
 
+fn parse_gateway_json_body(
+    method: &Method,
+    path: &str,
+    status: reqwest::StatusCode,
+    text: &str,
+) -> Result<Value, AppError> {
+    if text.trim().is_empty() {
+        tracing::error!("[gateway] {method} {path} -> {status}: empty response body");
+        return Err(AppError::BadRequest(format!(
+            "Hermes Agent: {path} returned an empty response"
+        )));
+    }
+
+    serde_json::from_str::<Value>(text).map_err(|e| {
+        let safe_preview = sanitize_error_body(text);
+        tracing::error!(
+            "[gateway] {method} {path} -> {status}: invalid JSON response: {e}; body: {safe_preview}"
+        );
+        AppError::BadRequest(format!(
+            "Hermes Agent: {path} returned invalid JSON"
+        ))
+    })
+}
+
 // ── Gateway forward ─────────────────────────────────────────────────────────
 
-/// Forward an HTTP request to the configured harness API.
+/// Forward an HTTP request to the configured Hermes Agent API.
 ///
-/// This is the single chokepoint for harness API communication.
+/// This is the single chokepoint for Hermes Agent API communication.
 /// Uses `state.http` (bare reqwest client with connection pooling) rather
 /// than `state.harness` (ServiceClient) because:
 /// - ServiceClient retries on 5xx, which is dangerous for writes (POST/DELETE)
@@ -129,59 +198,125 @@ pub(crate) async fn gateway_forward(
 ) -> Result<Value, AppError> {
     validate_gateway_path(path)?;
 
-    let base = harness_api_url(state).ok_or_else(|| {
-        AppError::BadRequest(
-            "Harness API not configured. Set HARNESS_API_URL in Settings > Connections.".into(),
-        )
-    })?;
-
-    let api_key = harness_api_key(state);
-    let url = format!("{base}{path}");
-
-    let mut req = state
-        .http
-        .request(method.clone(), &url)
-        .header("Content-Type", "application/json")
-        .timeout(Duration::from_secs(30));
-
-    if !api_key.is_empty() {
-        req = req.header("Authorization", format!("Bearer {api_key}"));
+    let configs = harness_api_configs(state);
+    if configs.is_empty() {
+        return Err(AppError::BadRequest(
+            "Hermes Agent API not configured. Set HERMES_API_URL in Settings > Connections.".into(),
+        ));
     }
 
-    if let Some(b) = body {
-        req = req.json(&b);
-    }
+    let mut last_error: Option<AppError> = None;
+    let can_fallback = method == Method::GET || path == "/chat/model";
 
-    let res = req.send().await.map_err(|e| {
-        tracing::error!("[gateway] request to {path} failed: {e}");
-        AppError::Internal(anyhow::anyhow!("Failed to reach harness API"))
-    })?;
+    for (index, (config_key, base)) in configs.iter().enumerate() {
+        let api_key = harness_api_key_for_config(state, config_key);
+        let url = format!("{base}{path}");
 
-    let status = res.status();
+        let mut req = state
+            .http
+            .request(method.clone(), &url)
+            .header("Content-Type", "application/json")
+            .header(reqwest::header::ACCEPT, "application/json")
+            .timeout(Duration::from_secs(30));
 
-    if !status.is_success() {
-        let text = res.text().await.unwrap_or_default();
-        tracing::error!("[gateway] {method} {path} -> {status}: {text}");
-        let safe_msg = sanitize_error_body(&text);
-
-        if status.is_client_error() {
-            return Err(AppError::BadRequest(format!("Harness: {safe_msg}")));
+        if !api_key.is_empty() {
+            req = req.header("Authorization", format!("Bearer {api_key}"));
         }
-        // 5xx — hide from client
-        return Err(AppError::Internal(anyhow::anyhow!("Harness API error")));
+
+        if let Some(cookie) = state
+            .secret("CODEX_LB_DASHBOARD_COOKIE")
+            .filter(|value| !value.trim().is_empty())
+        {
+            req = req.header(reqwest::header::COOKIE, cookie);
+        }
+
+        if let Some(b) = body.clone() {
+            req = req.json(&b);
+        }
+
+        let res = match req.send().await {
+            Ok(res) => res,
+            Err(e) => {
+                tracing::error!("[gateway] request to {path} via {config_key} failed: {e}");
+                let err = AppError::Internal(anyhow::anyhow!("Failed to reach Hermes Agent API"));
+                if can_fallback && index + 1 < configs.len() {
+                    last_error = Some(err);
+                    continue;
+                }
+                return Err(err);
+            }
+        };
+
+        let status = res.status();
+        let text = res.text().await.unwrap_or_default();
+
+        if !status.is_success() {
+            tracing::error!("[gateway] {method} {path} via {config_key} -> {status}: {text}");
+            let safe_msg = sanitize_error_body(&text);
+
+            if status.is_client_error() {
+                let err = AppError::BadRequest(format!("Hermes Agent: {safe_msg}"));
+                if can_fallback
+                    && index + 1 < configs.len()
+                    && matches!(status.as_u16(), 401 | 403 | 404 | 405)
+                {
+                    last_error = Some(err);
+                    continue;
+                }
+                return Err(err);
+            }
+            let err = AppError::Internal(anyhow::anyhow!("Hermes Agent API error"));
+            if can_fallback && index + 1 < configs.len() {
+                last_error = Some(err);
+                continue;
+            }
+            return Err(err);
+        }
+
+        if text.trim().is_empty() {
+            let err =
+                AppError::BadRequest(format!("Hermes Agent: {path} returned an empty response"));
+            if can_fallback && index + 1 < configs.len() {
+                tracing::debug!(
+                    "[gateway] {method} {path} via {config_key} -> {status}: empty response; trying next configured gateway"
+                );
+                last_error = Some(err);
+                continue;
+            }
+            return parse_gateway_json_body(&method, path, status, &text);
+        }
+
+        match serde_json::from_str::<Value>(&text) {
+            Ok(value) => return Ok(value),
+            Err(e) => {
+                let err =
+                    AppError::BadRequest(format!("Hermes Agent: {path} returned invalid JSON"));
+                if can_fallback && index + 1 < configs.len() {
+                    let safe_preview = sanitize_error_body(&text);
+                    tracing::debug!(
+                        "[gateway] {method} {path} via {config_key} -> {status}: invalid JSON response: {e}; body: {safe_preview}; trying next configured gateway"
+                    );
+                    last_error = Some(err);
+                    continue;
+                }
+                return parse_gateway_json_body(&method, path, status, &text);
+            }
+        }
     }
 
-    res.json::<Value>()
-        .await
-        .map_err(|e| AppError::Internal(e.into()))
+    Err(last_error.unwrap_or_else(|| {
+        AppError::BadRequest(
+            "Hermes Agent API not configured. Set HERMES_API_URL in Settings > Connections.".into(),
+        )
+    }))
 }
 
 // ── Health route ────────────────────────────────────────────────────────────
 
-/// `GET /api/harness/health`
+/// `GET /api/hermes/health`
 ///
 /// Returns HTTP 200 always. The `ok` field indicates connectivity:
-/// - `{ "ok": false, "status": "not_configured" }` — no harness API URL set
+/// - `{ "ok": false, "status": "not_configured" }` — no Hermes Agent API URL set
 /// - `{ "ok": true,  "status": "connected" }`      — upstream /health returned 2xx
 /// - `{ "ok": false, "status": "unreachable" }`     — upstream unreachable or non-2xx
 async fn harness_health(
@@ -200,6 +335,7 @@ async fn harness_health(
     let health_res = state
         .http
         .get(&health_url)
+        .header(reqwest::header::ACCEPT, "application/json")
         .timeout(Duration::from_secs(5))
         .send()
         .await;
@@ -217,7 +353,7 @@ async fn harness_health(
                 .get("provider")
                 .or_else(|| body.get("platform"))
                 .and_then(Value::as_str)
-                .unwrap_or("Harness"),
+                .unwrap_or("Hermes Agent"),
         })));
     }
 
@@ -228,6 +364,7 @@ async fn harness_health(
             match state
                 .http
                 .get(&auth_url)
+                .header(reqwest::header::ACCEPT, "application/json")
                 .header("Authorization", format!("Bearer {api_key}"))
                 .timeout(Duration::from_secs(5))
                 .send()
@@ -246,7 +383,7 @@ async fn harness_health(
                             .get("provider")
                             .or_else(|| body.get("platform"))
                             .and_then(Value::as_str)
-                            .unwrap_or("Harness"),
+                            .unwrap_or("Hermes Agent"),
                     })));
                 }
                 _ => return Ok(Json(json!({"ok": false, "status": "unreachable"}))),
@@ -262,7 +399,7 @@ async fn harness_health(
                 .get("provider")
                 .or_else(|| body.get("platform"))
                 .and_then(Value::as_str)
-                .unwrap_or("Harness"),
+                .unwrap_or("Hermes Agent"),
         })));
     }
 
@@ -271,7 +408,7 @@ async fn harness_health(
         .or_else(|| body.get("platform"))
         .and_then(Value::as_str)
         .filter(|value| !value.trim().is_empty())
-        .unwrap_or("Harness");
+        .unwrap_or("Hermes Agent");
     Ok(Json(json!({
         "ok": true,
         "status": "connected",
@@ -306,6 +443,7 @@ async fn gateway_activity(
 struct GatewaySessionFilters {
     cwd: Vec<String>,
     project_ids: Vec<String>,
+    project_id_paths: Vec<String>,
     projects: Vec<String>,
     branches: Vec<String>,
     runtimes: Vec<String>,
@@ -332,7 +470,13 @@ impl GatewaySessionFilters {
                     filters.projects.push(value.to_ascii_lowercase());
                 }
                 "projectId" | "project_id" => {
-                    filters.project_ids.push(value.to_ascii_lowercase());
+                    if looks_like_session_path(value) {
+                        let path = normalize_session_path(value);
+                        filters.cwd.push(path.clone());
+                        filters.project_id_paths.push(path);
+                    } else {
+                        filters.project_ids.push(value.to_ascii_lowercase());
+                    }
                 }
                 "branch" => filters.branches.push(value.to_ascii_lowercase()),
                 "runtime" => filters.runtimes.push(value.to_ascii_lowercase()),
@@ -352,6 +496,8 @@ impl GatewaySessionFilters {
         filters.cwd.dedup();
         filters.project_ids.sort();
         filters.project_ids.dedup();
+        filters.project_id_paths.sort();
+        filters.project_id_paths.dedup();
         filters.projects.sort();
         filters.projects.dedup();
         filters.branches.sort();
@@ -366,11 +512,20 @@ impl GatewaySessionFilters {
     fn has_scoping_filters(&self) -> bool {
         !self.cwd.is_empty()
             || !self.project_ids.is_empty()
+            || !self.project_id_paths.is_empty()
             || !self.projects.is_empty()
             || !self.branches.is_empty()
             || !self.runtimes.is_empty()
             || !self.environment_ids.is_empty()
     }
+}
+
+fn looks_like_session_path(path: &str) -> bool {
+    let trimmed = path.trim();
+    trimmed.contains('/')
+        || trimmed.contains('\\')
+        || trimmed.starts_with('~')
+        || matches!(trimmed.as_bytes(), [drive, b':', ..] if drive.is_ascii_alphabetic())
 }
 
 fn normalize_session_path(path: &str) -> String {
@@ -434,6 +589,8 @@ fn session_is_unscoped(session: &Value) -> bool {
             "path",
             "projectId",
             "project_id",
+            "projectRef",
+            "project_ref",
             "project",
             "projectName",
             "project_name",
@@ -441,9 +598,18 @@ fn session_is_unscoped(session: &Value) -> bool {
             "runtime",
             "environmentId",
             "environment_id",
+            "env",
+            "environment",
         ],
     )
     .is_none()
+}
+
+fn normalized_path_matches_roots(path: &str, roots: &[String]) -> bool {
+    let path = normalize_session_path(path);
+    roots
+        .iter()
+        .any(|root| path == *root || path.starts_with(&format!("{root}/")))
 }
 
 fn session_matches_path(session: &Value, roots: &[String]) -> bool {
@@ -474,10 +640,7 @@ fn session_matches_path(session: &Value, roots: &[String]) -> bool {
     ) else {
         return false;
     };
-    let path = normalize_session_path(path);
-    roots
-        .iter()
-        .any(|root| path == *root || path.starts_with(&format!("{root}/")))
+    normalized_path_matches_roots(path, roots)
 }
 
 fn session_matches_text_filter(session: &Value, keys: &[&str], values: &[String]) -> bool {
@@ -491,14 +654,58 @@ fn session_matches_text_filter(session: &Value, keys: &[&str], values: &[String]
     values.iter().any(|filter| value == *filter)
 }
 
-fn session_matches_workspace_identity(session: &Value, filters: &GatewaySessionFilters) -> bool {
-    if filters.cwd.is_empty() && filters.project_ids.is_empty() {
+fn session_project_id(session: &Value) -> Option<&str> {
+    session_field(
+        session,
+        &["projectId", "project_id", "projectRef", "project_ref"],
+    )
+}
+
+fn session_project_id_matches_text_filter(session: &Value, values: &[String]) -> bool {
+    if values.is_empty() {
         return true;
     }
-    let path_matches = !filters.cwd.is_empty() && session_matches_path(session, &filters.cwd);
+    let Some(value) = session_project_id(session) else {
+        return false;
+    };
+    let value = value.to_ascii_lowercase();
+    values.iter().any(|filter| value == *filter)
+}
+
+fn session_project_id_matches_path_filter(session: &Value, roots: &[String]) -> bool {
+    let Some(project_id) = session_project_id(session) else {
+        return false;
+    };
+    normalized_path_matches_roots(project_id, roots)
+}
+
+fn session_matches_workspace_identity(session: &Value, filters: &GatewaySessionFilters) -> bool {
+    if filters.cwd.is_empty()
+        && filters.project_ids.is_empty()
+        && filters.project_id_paths.is_empty()
+    {
+        return true;
+    }
+    let path_matches = !filters.cwd.is_empty()
+        && (session_matches_path(session, &filters.cwd)
+            || session_project_id_matches_path_filter(session, &filters.cwd));
+    let project_id_path_matches = !filters.project_id_paths.is_empty()
+        && (session_matches_path(session, &filters.project_id_paths)
+            || session_project_id_matches_path_filter(session, &filters.project_id_paths));
     let project_id_matches = !filters.project_ids.is_empty()
-        && session_matches_text_filter(session, &["projectId", "project_id"], &filters.project_ids);
-    path_matches || project_id_matches
+        && session_project_id_matches_text_filter(session, &filters.project_ids);
+
+    if !filters.project_ids.is_empty() && session_project_id(session).is_some() {
+        let project_id_path_matches_scope = (!filters.cwd.is_empty()
+            && session_project_id_matches_path_filter(session, &filters.cwd))
+            || (!filters.project_id_paths.is_empty()
+                && session_project_id_matches_path_filter(session, &filters.project_id_paths));
+        if !project_id_matches && !project_id_path_matches_scope {
+            return false;
+        }
+    }
+
+    path_matches || project_id_path_matches || project_id_matches
 }
 
 fn session_matches_filters(session: &Value, filters: &GatewaySessionFilters) -> bool {
@@ -515,7 +722,7 @@ fn session_matches_filters(session: &Value, filters: &GatewaySessionFilters) -> 
         && session_matches_text_filter(session, &["runtime"], &filters.runtimes)
         && session_matches_text_filter(
             session,
-            &["environmentId", "environment_id"],
+            &["environmentId", "environment_id", "env", "environment"],
             &filters.environment_ids,
         )
 }
@@ -538,7 +745,7 @@ fn filter_gateway_sessions(sessions: Value, filters: &GatewaySessionFilters) -> 
 
 /// `GET /api/gateway/sessions`
 ///
-/// Proxies `sessions.list` through the configured harness API.
+/// Proxies `sessions.list` through the configured Hermes Agent API.
 /// Returns the full sessions list without filtering (unlike /api/claude-sessions
 /// which filters by kind). Wraps the payload in a standard ok envelope.
 async fn gateway_sessions(
@@ -546,23 +753,30 @@ async fn gateway_sessions(
     RequireAuth(_session): RequireAuth,
     RawQuery(raw_query): RawQuery,
 ) -> Result<Json<Value>, AppError> {
-    let payload = gateway_forward(&state, Method::GET, "/sessions", None)
-        .await
-        .map_err(|e| {
+    let local_sessions = crate::commands::load_local_chat_session_summaries().unwrap_or_default();
+    let remote_sessions = match gateway_forward(&state, Method::GET, "/sessions", None).await {
+        Ok(payload) => payload
+            .get("sessions")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!([])),
+        Err(e) => {
             tracing::error!("[gateway] sessions.list failed: {e:?}");
-            match e {
-                AppError::BadRequest(_) => e,
-                _ => AppError::BadRequest("Gateway error: failed to fetch sessions".into()),
+            if local_sessions.is_empty() {
+                return Err(match e {
+                    AppError::BadRequest(_) => e,
+                    _ => AppError::BadRequest("Gateway error: failed to fetch sessions".into()),
+                });
             }
-        })?;
+            serde_json::json!([])
+        }
+    };
 
-    // The gateway returns { sessions: [...] } — extract and re-wrap in standard ok envelope
-    let sessions = payload
-        .get("sessions")
-        .cloned()
-        .unwrap_or_else(|| serde_json::json!([]));
+    let mut sessions = remote_sessions.as_array().cloned().unwrap_or_default();
+    if let Ok(Value::Array(local)) = serde_json::to_value(local_sessions) {
+        sessions.extend(local);
+    }
     let filters = GatewaySessionFilters::from_query(raw_query.as_deref().unwrap_or(""));
-    let sessions = filter_gateway_sessions(sessions, &filters);
+    let sessions = filter_gateway_sessions(Value::Array(sessions), &filters);
 
     Ok(Json(json!({ "ok": true, "sessions": sessions })))
 }
@@ -572,6 +786,8 @@ async fn gateway_sessions(
 #[derive(Debug, Deserialize)]
 struct HistoryQueryParams {
     limit: Option<u32>,
+    #[serde(rename = "environmentId", alias = "environment_id", alias = "env")]
+    environment_id: Option<String>,
 }
 
 /// `GET /api/gateway/sessions/:key/history`
@@ -589,49 +805,132 @@ async fn gateway_session_history(
         return Err(AppError::BadRequest("invalid session key".into()));
     }
 
+    if crate::commands::is_local_chat_session_key(&key) {
+        let limit = params.limit.map(|value| value.min(200) as usize);
+        let messages = crate::commands::local_chat_session_history_with_limit(&key, limit)
+            .map_err(AppError::BadRequest)?
+            .unwrap_or_default();
+        return Ok(Json(json!({ "messages": messages })));
+    }
+
     let encoded_key = crate::routes::util::percent_encode(&key);
 
-    let base = harness_api_url(&state).ok_or_else(|| {
-        AppError::BadRequest(
-            "Harness API not configured. Set HARNESS_API_URL in Settings > Connections.".into(),
-        )
-    })?;
+    let configs = harness_api_configs(&state);
+    if configs.is_empty() {
+        return Err(AppError::BadRequest(
+            "Hermes Agent API not configured. Set HERMES_API_URL in Settings > Connections.".into(),
+        ));
+    }
 
-    let api_key = harness_api_key(&state);
     let limit = params.limit.unwrap_or(50).min(200);
-    let url = format!("{base}/chat/history/{encoded_key}?limit={limit}");
+    let environment_id = params
+        .environment_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let path = format!("/chat/history/{key}");
+    let mut last_error: Option<AppError> = None;
 
-    let mut req = state
-        .http
-        .get(&url)
-        .header("Content-Type", "application/json")
-        .timeout(Duration::from_secs(30));
-
-    if !api_key.is_empty() {
-        req = req.header("Authorization", format!("Bearer {api_key}"));
-    }
-
-    let res = req.send().await.map_err(|e| {
-        tracing::error!("[gateway] session history for {key} failed: {e}");
-        AppError::Internal(anyhow::anyhow!("Failed to reach harness API"))
-    })?;
-
-    let status = res.status();
-
-    if !status.is_success() {
-        let text = res.text().await.unwrap_or_default();
-        tracing::error!("[gateway] GET /chat/history/{key} -> {status}: {text}");
-        let safe_msg = sanitize_error_body(&text);
-
-        if status.is_client_error() {
-            return Err(AppError::BadRequest(format!("Harness: {safe_msg}")));
+    for (index, (config_key, base)) in configs.iter().enumerate() {
+        let api_key = harness_api_key_for_config(&state, config_key);
+        let mut url = format!("{base}/chat/history/{encoded_key}?limit={limit}");
+        if let Some(environment_id) = environment_id {
+            url.push_str("&environmentId=");
+            url.push_str(&crate::routes::util::percent_encode(environment_id));
         }
-        return Err(AppError::Internal(anyhow::anyhow!("Harness API error")));
+
+        let mut req = state
+            .http
+            .get(&url)
+            .header("Content-Type", "application/json")
+            .header(reqwest::header::ACCEPT, "application/json")
+            .timeout(Duration::from_secs(30));
+
+        if !api_key.is_empty() {
+            req = req.header("Authorization", format!("Bearer {api_key}"));
+        }
+
+        if let Some(cookie) = state
+            .secret("CODEX_LB_DASHBOARD_COOKIE")
+            .filter(|value| !value.trim().is_empty())
+        {
+            req = req.header(reqwest::header::COOKIE, cookie);
+        }
+
+        let res = match req.send().await {
+            Ok(res) => res,
+            Err(e) => {
+                tracing::error!("[gateway] session history for {key} via {config_key} failed: {e}");
+                let err = AppError::Internal(anyhow::anyhow!("Failed to reach Hermes Agent API"));
+                if index + 1 < configs.len() {
+                    last_error = Some(err);
+                    continue;
+                }
+                return Err(err);
+            }
+        };
+
+        let status = res.status();
+        let text = res.text().await.unwrap_or_default();
+
+        if !status.is_success() {
+            tracing::error!(
+                "[gateway] GET /chat/history/{key} via {config_key} -> {status}: {text}"
+            );
+            let safe_msg = sanitize_error_body(&text);
+
+            if status.is_client_error() {
+                let err = AppError::BadRequest(format!("Hermes Agent: {safe_msg}"));
+                if index + 1 < configs.len() && matches!(status.as_u16(), 401 | 403 | 404) {
+                    last_error = Some(err);
+                    continue;
+                }
+                return Err(err);
+            }
+            let err = AppError::Internal(anyhow::anyhow!("Hermes Agent API error"));
+            if index + 1 < configs.len() {
+                last_error = Some(err);
+                continue;
+            }
+            return Err(err);
+        }
+
+        if text.trim().is_empty() {
+            let err =
+                AppError::BadRequest(format!("Hermes Agent: {path} returned an empty response"));
+            if index + 1 < configs.len() {
+                tracing::debug!(
+                    "[gateway] GET {path} via {config_key} -> {status}: empty response; trying next configured gateway"
+                );
+                last_error = Some(err);
+                continue;
+            }
+            return parse_gateway_json_body(&Method::GET, &path, status, &text).map(Json);
+        }
+
+        match serde_json::from_str::<Value>(&text) {
+            Ok(value) => return Ok(Json(value)),
+            Err(e) => {
+                let err =
+                    AppError::BadRequest(format!("Hermes Agent: {path} returned invalid JSON"));
+                if index + 1 < configs.len() {
+                    let safe_preview = sanitize_error_body(&text);
+                    tracing::debug!(
+                        "[gateway] GET {path} via {config_key} -> {status}: invalid JSON response: {e}; body: {safe_preview}; trying next configured gateway"
+                    );
+                    last_error = Some(err);
+                    continue;
+                }
+                return parse_gateway_json_body(&Method::GET, &path, status, &text).map(Json);
+            }
+        }
     }
 
-    let value: Value = res.json().await.map_err(|e| AppError::Internal(e.into()))?;
-
-    Ok(Json(value))
+    Err(last_error.unwrap_or_else(|| {
+        AppError::BadRequest(
+            "Hermes Agent API not configured. Set HERMES_API_URL in Settings > Connections.".into(),
+        )
+    }))
 }
 
 // ── Session mutation routes ────────────────────────────────────────────────
@@ -639,11 +938,13 @@ async fn gateway_session_history(
 #[derive(Debug, Deserialize)]
 struct PatchSessionBody {
     label: Option<String>,
+    pinned: Option<bool>,
+    favorite: Option<bool>,
 }
 
 /// `PATCH /api/gateway/sessions/:key`
 ///
-/// Rename a session by updating its label via the configured harness gateway.
+/// Patch session metadata via the configured harness gateway.
 async fn patch_session(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
@@ -654,20 +955,52 @@ async fn patch_session(
         return Err(AppError::BadRequest("invalid session key".into()));
     }
 
-    let label = body.label.as_deref().unwrap_or("").trim().to_string();
+    let label = body
+        .label
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    if label.is_none() && body.pinned.is_none() && body.favorite.is_none() {
+        return Err(AppError::BadRequest("session patch is empty".into()));
+    }
+    if crate::commands::is_local_chat_session_key(&key) {
+        let patched = crate::commands::patch_local_chat_session(
+            &key,
+            label.as_deref(),
+            body.pinned,
+            body.favorite,
+        )
+        .map_err(AppError::BadRequest)?;
+        if !patched {
+            return Err(AppError::BadRequest("local session not found".into()));
+        }
+        return Ok(Json(json!({ "ok": true })));
+    }
+
+    let mut payload = serde_json::Map::new();
+    if let Some(label) = label {
+        payload.insert("label".to_string(), json!(label));
+    }
+    if let Some(pinned) = body.pinned {
+        payload.insert("pinned".to_string(), json!(pinned));
+    }
+    if let Some(favorite) = body.favorite {
+        payload.insert("favorite".to_string(), json!(favorite));
+    }
 
     let payload = gateway_forward(
         &state,
         Method::PATCH,
         &format!("/sessions/{key}"),
-        Some(json!({ "label": label })),
+        Some(Value::Object(payload)),
     )
     .await
     .map_err(|e| {
         tracing::error!("[gateway] session patch failed: {e:?}");
         match e {
             AppError::BadRequest(_) => e,
-            _ => AppError::BadRequest("Gateway error: failed to rename session".into()),
+            _ => AppError::BadRequest("Gateway error: failed to patch session".into()),
         }
     })?;
 
@@ -684,6 +1017,15 @@ async fn delete_session(
 ) -> Result<Json<Value>, AppError> {
     if key.is_empty() || key.len() > 100 {
         return Err(AppError::BadRequest("invalid session key".into()));
+    }
+
+    if crate::commands::is_local_chat_session_key(&key) {
+        let removed =
+            crate::commands::delete_local_chat_session(&key).map_err(AppError::BadRequest)?;
+        if !removed {
+            return Err(AppError::BadRequest("local session not found".into()));
+        }
+        return Ok(Json(json!({ "ok": true })));
     }
 
     let payload = gateway_forward(&state, Method::DELETE, &format!("/sessions/{key}"), None)
@@ -709,6 +1051,13 @@ async fn compact_session(
 ) -> Result<Json<Value>, AppError> {
     if key.is_empty() || key.len() > 100 {
         return Err(AppError::BadRequest("invalid session key".into()));
+    }
+
+    if crate::commands::is_local_chat_session_key(&key) {
+        let result = crate::commands::compact_local_chat_session(&key)
+            .map_err(AppError::BadRequest)?
+            .ok_or_else(|| AppError::BadRequest("local session not found".into()))?;
+        return Ok(Json(json!({ "ok": true, "data": result })));
     }
 
     let payload = gateway_forward(
@@ -860,6 +1209,49 @@ mod tests {
         assert!(validate_gateway_path("/sessions/sess-123/compact").is_ok());
     }
 
+    #[test]
+    fn parses_gateway_json_body() {
+        let parsed = parse_gateway_json_body(
+            &Method::GET,
+            "/sessions",
+            reqwest::StatusCode::OK,
+            r#"{"sessions":[]}"#,
+        )
+        .expect("valid JSON should parse");
+
+        assert_eq!(parsed["sessions"], json!([]));
+    }
+
+    #[test]
+    fn rejects_empty_gateway_json_body() {
+        let err =
+            parse_gateway_json_body(&Method::GET, "/sessions", reqwest::StatusCode::OK, "   ")
+                .expect_err("empty body should fail");
+
+        match err {
+            AppError::BadRequest(message) => assert!(
+                message.contains("empty response"),
+                "unexpected error: {message}"
+            ),
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn rejects_invalid_gateway_json_body() {
+        let err =
+            parse_gateway_json_body(&Method::GET, "/sessions", reqwest::StatusCode::OK, "<html>")
+                .expect_err("invalid JSON should fail");
+
+        match err {
+            AppError::BadRequest(message) => assert!(
+                message.contains("invalid JSON"),
+                "unexpected error: {message}"
+            ),
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
     // -- gateway session filter tests --
 
     #[test]
@@ -876,6 +1268,64 @@ mod tests {
             ]
         );
         assert!(filters.include_unscoped);
+    }
+
+    #[test]
+    fn session_filters_treat_path_like_project_ids_as_workspace_roots() {
+        let filters =
+            GatewaySessionFilters::from_query("projectId=/Volumes/T7/projects/clawcontrol/");
+
+        assert_eq!(
+            filters.cwd,
+            vec!["/volumes/t7/projects/clawcontrol".to_string()]
+        );
+        assert_eq!(
+            filters.project_id_paths,
+            vec!["/volumes/t7/projects/clawcontrol".to_string()]
+        );
+        assert!(filters.project_ids.is_empty());
+
+        let sessions = json!([
+            {
+                "key": "working-dir",
+                "workingDir": "/Volumes/T7/projects/clawcontrol"
+            },
+            {
+                "key": "nested-working-dir",
+                "workingDir": "/Volumes/T7/projects/clawcontrol/frontend"
+            },
+            {
+                "key": "path-project-ref",
+                "projectRef": "/Volumes/T7/projects/clawcontrol"
+            },
+            {
+                "key": "stable-project-id-with-path",
+                "workingDir": "/Volumes/T7/projects/clawcontrol",
+                "projectId": "local:clawcontrol:stable"
+            },
+            {
+                "key": "other",
+                "workingDir": "/tmp/other-project"
+            }
+        ]);
+
+        let filtered = filter_gateway_sessions(sessions, &filters);
+        let keys: Vec<&str> = filtered
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|session| session.get("key").and_then(Value::as_str))
+            .collect();
+
+        assert_eq!(
+            keys,
+            vec![
+                "working-dir",
+                "nested-working-dir",
+                "path-project-ref",
+                "stable-project-id-with-path"
+            ]
+        );
     }
 
     #[test]
@@ -958,6 +1408,14 @@ mod tests {
                 "environmentId": "local"
             },
             {
+                "key": "match-by-project-ref",
+                "projectRef": "local:clawcontrol:stable",
+                "project": "clawcontrol",
+                "branch": "codex/chat-parity",
+                "runtime": "Work locally",
+                "env": "local"
+            },
+            {
                 "key": "match-by-cwd-without-project-id",
                 "workingDir": "/Volumes/T7/projects/clawcontrol",
                 "project": "clawcontrol",
@@ -968,6 +1426,15 @@ mod tests {
             {
                 "key": "wrong-project-id",
                 "workingDir": "/tmp/other-project",
+                "projectId": "local:other:stable",
+                "project": "clawcontrol",
+                "branch": "codex/chat-parity",
+                "runtime": "Work locally",
+                "environmentId": "local"
+            },
+            {
+                "key": "wrong-project-id-same-cwd",
+                "workingDir": "/Volumes/T7/projects/clawcontrol",
                 "projectId": "local:other:stable",
                 "project": "clawcontrol",
                 "branch": "codex/chat-parity",
@@ -1010,6 +1477,7 @@ mod tests {
             vec![
                 "match",
                 "match-by-project-id",
+                "match-by-project-ref",
                 "match-by-cwd-without-project-id"
             ]
         );

@@ -150,8 +150,11 @@ function fieldFromKey(serviceId: string, key: string): FieldDef {
 function findServiceSetupTarget(serviceId: string, requestedKeys: string[]): ServiceSetupTarget | null {
   if (!serviceId) return null
   const normalizedService = serviceId.toLowerCase()
+  const storageService = normalizedService === 'codex-lb' ? 'hermes-dashboard' : normalizedService
   const group = SERVICE_GROUPS.find(item => item.services.some(service => service.name === normalizedService))
+    ?? SERVICE_GROUPS.find(item => item.services.some(service => service.name === storageService))
   const service = group?.services.find(item => item.name === normalizedService)
+    ?? group?.services.find(item => item.name === storageService)
   const keys = service?.fieldKeys.length ? service.fieldKeys : requestedKeys
   const fields = keys.map(key => {
     const matchingField = group?.fields.find(field =>
@@ -166,8 +169,10 @@ function findServiceSetupTarget(serviceId: string, requestedKeys: string[]): Ser
   )
   if (uniqueFields.length === 0) return null
   return {
-    id: normalizedService,
-    label: labelFromServiceId(normalizedService),
+    id: storageService,
+    label: storageService === 'hermes-dashboard'
+      ? group?.title ?? labelFromServiceId(storageService)
+      : labelFromServiceId(normalizedService),
     groupTitle: group?.title ?? 'Service',
     fields: uniqueFields,
   }
@@ -187,6 +192,7 @@ export default function SettingsConnections() {
   const [connectionUrls, setConnectionUrls] = useState<Record<ConnectionSettingId, string>>({
     bluebubbles: '',
     harness: '',
+    'codex-lb': '',
     sunshine: '',
     vnc: '',
     agentsecrets: '',
@@ -197,6 +203,7 @@ export default function SettingsConnections() {
   const [expectedHosts, setExpectedHosts] = useState<Record<ConnectionSettingId, string>>({
     bluebubbles: '',
     harness: '',
+    'codex-lb': '',
     sunshine: '',
     vnc: '',
     agentsecrets: '',
@@ -400,6 +407,9 @@ export default function SettingsConnections() {
     const loadActiveConfig = api.get<{
       bluebubbles_url?: string
       harness_url?: string
+      codex_lb_url?: string
+      hermes_dashboard_api_url?: string
+      hermes_url?: string
       sunshine_url?: string
       vnc_url?: string
       agentsecrets_url?: string
@@ -409,7 +419,8 @@ export default function SettingsConnections() {
     Promise.all([loadKeychain, loadFromApi, loadActiveConfig]).then(([, apiSecrets, activeConfig]) => {
       const activeConfigMap: Record<ConnectionSettingId, string> = {
         bluebubbles: activeConfig?.bluebubbles_url || '',
-        harness: activeConfig?.harness_url || '',
+        harness: activeConfig?.hermes_url || activeConfig?.harness_url || '',
+        'codex-lb': activeConfig?.hermes_dashboard_api_url || activeConfig?.codex_lb_url || '',
         sunshine: activeConfig?.sunshine_url || '',
         vnc: activeConfig?.vnc_url || '',
         agentsecrets: activeConfig?.agentsecrets_url || '',
@@ -810,11 +821,11 @@ export default function SettingsConnections() {
       ? ` (${harnessStatus.status})`
       : ''
   const backendDetails = backendStatus
-    ? `Supabase ${backendStatus.services.supabase.reachable ? 'online' : backendStatus.services.supabase.configured ? 'configured but offline' : 'not configured'} • Harness ${harnessStatus?.reachable ? 'online' : harnessStatus?.configured ? 'configured but offline' : 'not configured'}${harnessDetail} • Agent Secrets ${agentSecretsStatus?.reachable ? 'online' : agentSecretsStatus?.configured ? 'configured but offline' : 'not configured'} • MemD ${backendStatus.services.memd.reachable ? 'online' : backendStatus.services.memd.configured ? 'configured but offline' : 'offline'}`
+    ? `Supabase ${backendStatus.services.supabase.reachable ? 'online' : backendStatus.services.supabase.configured ? 'configured but offline' : 'not configured'} • Hermes Agent ${harnessStatus?.reachable ? 'online' : harnessStatus?.configured ? 'configured but offline' : 'not configured'}${harnessDetail} • Agent Secrets ${agentSecretsStatus?.reachable ? 'online' : agentSecretsStatus?.configured ? 'configured but offline' : 'not configured'} • MemD ${backendStatus.services.memd.reachable ? 'online' : backendStatus.services.memd.configured ? 'configured but offline' : 'offline'}`
     : 'Run a backend check to validate the selected server.'
   const missingLabels: Record<string, string> = {
-    harness: 'Harness',
-    harness_auth: 'Harness auth',
+    harness: 'Hermes Agent',
+    harness_auth: 'Hermes Agent auth',
     agentsecrets: 'Agent Secrets',
     supabase: 'Supabase',
     memd: 'memd',
@@ -822,7 +833,7 @@ export default function SettingsConnections() {
 
   return (
     <div>
-      {isDemoMode() && (<div style={{ background: 'var(--warning-a08)', border: '1px solid var(--warning-a25)', borderRadius: 'var(--radius-md)', padding: '16px 20px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Warning size={16} style={{ color: 'var(--warning)', flexShrink: 0 }} /><span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--warning)' }}>You're in demo mode</span></div><p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>No services are connected. The app is showing sample data so you can explore the interface. To use real data, set the following environment variables and restart:</p><div style={{ background: 'var(--overlay-light)', borderRadius: '6px', padding: '10px 14px', fontFamily: 'monospace', fontSize: '11px', color: 'var(--text-primary)', lineHeight: 1.8 }}><div><span style={{ color: 'var(--accent)' }}>VITE_SUPABASE_URL</span>=https://your-project.supabase.co</div><div><span style={{ color: 'var(--accent)' }}>VITE_SUPABASE_ANON_KEY</span>=your-anon-key</div></div><p style={{ margin: 0, fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5 }}>Then configure BlueBubbles and Harness below (saved to OS keychain).</p></div>)}
+      {isDemoMode() && (<div style={{ background: 'var(--warning-a08)', border: '1px solid var(--warning-a25)', borderRadius: 'var(--radius-md)', padding: '16px 20px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Warning size={16} style={{ color: 'var(--warning)', flexShrink: 0 }} /><span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--warning)' }}>You're in demo mode</span></div><p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>No services are connected. The app is showing sample data so you can explore the interface. To use real data, set the following environment variables and restart:</p><div style={{ background: 'var(--overlay-light)', borderRadius: '6px', padding: '10px 14px', fontFamily: 'monospace', fontSize: '11px', color: 'var(--text-primary)', lineHeight: 1.8 }}><div><span style={{ color: 'var(--accent)' }}>VITE_SUPABASE_URL</span>=https://your-project.supabase.co</div><div><span style={{ color: 'var(--accent)' }}>VITE_SUPABASE_ANON_KEY</span>=your-anon-key</div></div><p style={{ margin: 0, fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5 }}>Then configure BlueBubbles and Hermes Agent below (saved to OS keychain).</p></div>)}
       <div style={sectionLabel}>Service Connections</div>
       <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 16px' }}>
         Configure URLs for external services. Credentials are encrypted and stored in Supabase with a local keychain fallback.

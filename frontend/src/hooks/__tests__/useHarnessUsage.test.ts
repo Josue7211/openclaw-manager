@@ -56,7 +56,7 @@ describe('useHarnessUsage', () => {
 
     expect(result.current.usage).toEqual(mockData)
     expect(result.current.error).toBeNull()
-    expect(api.get).toHaveBeenCalledWith('/api/harness/usage')
+    expect(api.get).toHaveBeenCalledWith('/api/hermes/usage')
   })
 
   it('returns empty usage when api returns minimal data', async () => {

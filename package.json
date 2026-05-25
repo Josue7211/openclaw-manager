@@ -11,6 +11,12 @@
     "check:bundle": "node scripts/check-bundle-size.mjs",
     "check:dead-code": "node scripts/check-dead-code.mjs",
     "check:tauri": "cargo check --manifest-path src-tauri/Cargo.toml --bin clawcontrol-backend",
+    "portainer:certify-live": "node scripts/portainer-live-certify.mjs",
+    "portainer:test-certify-readonly": "node scripts/test-portainer-live-certify-readonly.mjs",
+    "portainer:test-certify-disposable": "node scripts/test-portainer-live-certify-disposable.mjs",
+    "proxmox:certify-live": "node scripts/proxmox-live-certify.mjs",
+    "proxmox:test-certify-readonly": "node scripts/test-proxmox-live-certify-readonly.mjs",
+    "proxmox:test-certify-write": "node scripts/test-proxmox-live-certify-write.mjs",
     "check": "npm run check:architecture && npm --prefix frontend run typecheck && npm run check:bundle && npm run check:dead-code",
     "check:all": "npm run check && npm --prefix frontend run test && npm run check:tauri"
   }

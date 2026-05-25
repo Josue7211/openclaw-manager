@@ -26,7 +26,12 @@ describe('documentInfo', () => {
     expect(info.fullPath).toBe('Projects/Plan')
     expect(info.tags).toEqual(['strategy'])
     expect(info.aliases).toEqual(['Roadmap'])
-    expect(info.properties).toContainEqual({ key: 'owner', value: 'local, private' })
+    expect(info.properties).toContainEqual({ key: 'owner', value: 'local, private', kind: 'list' })
+    expect(buildDocumentInfo(note({ properties: { done: 'true', estimate: '3', due: '2026-05-21' } })).properties).toEqual([
+      { key: 'done', value: 'true', kind: 'checkbox' },
+      { key: 'estimate', value: '3', kind: 'number' },
+      { key: 'due', value: '2026-05-21', kind: 'date' },
+    ])
     expect(info.stats).toEqual(expect.objectContaining({ words: 5, links: 1, tags: 1 }))
   })
 

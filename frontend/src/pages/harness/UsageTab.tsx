@@ -1,23 +1,23 @@
 import { useMemo } from 'react'
-import { useCodexLbUsage } from '@/hooks/useCodexLbUsage'
+import { useHermesUsage } from '@/hooks/useHermesUsage'
 import { useBudgetAlerts } from '@/hooks/useBudgetAlerts'
 import BudgetSection from './BudgetSection'
 import type { UsageData, ModelUsage } from './types'
 import type { HarnessHealthStatus } from '../Harness'
 import {
-  formatCodexUsageCost,
-  formatCodexUsageNumber,
-  formatCodexUsagePercent,
-  formatCodexUsageReset,
-  type CodexLbUsageAccount,
-  type CodexLbUsageSummary,
-} from '@/lib/codex-lb-usage'
+  formatHermesUsageCost,
+  formatHermesUsageNumber,
+  formatHermesUsagePercent,
+  formatHermesUsageReset,
+  type HermesUsageAccount,
+  type HermesUsageSummary,
+} from '@/lib/hermes-usage'
 
 function OfflineState({ status, noun }: { status: HarnessHealthStatus; noun: string }) {
-  const title = status === 'not_configured' ? 'Harness not configured' : 'Harness offline'
+  const title = status === 'not_configured' ? 'Hermes Agent not configured' : 'Hermes Agent offline'
   const detail = status === 'not_configured'
-    ? `Set HARNESS_API_URL in Settings > Connections to view ${noun}.`
-    : `clawctrl cannot reach the harness right now. Check the upstream service and try again.`
+    ? `Set HERMES_API_URL in Settings > Connections to view ${noun}.`
+    : `clawctrl cannot reach Hermes Agent right now. Check the upstream service and try again.`
 
   return (
     <div style={{ padding: '40px 20px', textAlign: 'center' }}>
@@ -40,7 +40,7 @@ export default function UsageTab({ healthy, status = 'unknown' }: { healthy: boo
 }
 
 function UsageContent() {
-  const { rawUsage, usage, loading } = useCodexLbUsage()
+  const { rawUsage, usage, loading } = useHermesUsage()
   const { alert } = useBudgetAlerts(rawUsage ?? null)
 
   if (loading) {
@@ -75,13 +75,13 @@ function UsageContent() {
         gap: '12px',
         marginBottom: '24px',
       }}>
-        <StatCard label="Used" value={formatCodexUsageNumber(usage.used ?? usage.totalTokens)} />
-        <StatCard label="Remaining" value={formatCodexUsageNumber(usage.remaining)} />
-        <StatCard label="Total Cost" value={formatCodexUsageCost(usage.totalCost)} />
+        <StatCard label="Used" value={formatHermesUsageNumber(usage.used ?? usage.totalTokens)} />
+        <StatCard label="Remaining" value={formatHermesUsageNumber(usage.remaining)} />
+        <StatCard label="Total Cost" value={formatHermesUsageCost(usage.totalCost)} />
         <StatCard label="Period" value={usage.period ?? 'All time'} />
       </div>
 
-      <CodexLbLimitSummary usage={usage} />
+      <HermesLimitSummary usage={usage} />
 
       {/* Daily usage chart */}
       <DailyChart daily={rawUsage?.daily} />
@@ -89,7 +89,7 @@ function UsageContent() {
       {usage.accounts.length > 0 && (
         <div style={{ marginBottom: '24px' }}>
           <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '12px', marginTop: 0 }}>
-            Codex LB Accounts
+            Hermes Agent Accounts
           </h3>
           <AccountTable accounts={usage.accounts} />
         </div>
@@ -111,7 +111,7 @@ function UsageContent() {
   )
 }
 
-function CodexLbLimitSummary({ usage }: { usage: CodexLbUsageSummary }) {
+function HermesLimitSummary({ usage }: { usage: HermesUsageSummary }) {
   if (usage.windows.length === 0 && !usage.resetAt) return null
   return (
     <div style={{
@@ -125,16 +125,16 @@ function CodexLbLimitSummary({ usage }: { usage: CodexLbUsageSummary }) {
           key={window.id}
           label={`${window.label} limit`}
           value={window.limit !== undefined
-            ? `${formatCodexUsagePercent(window.percent)} of ${formatCodexUsageNumber(window.limit)}`
-            : formatCodexUsagePercent(window.percent)}
+            ? `${formatHermesUsagePercent(window.percent)} of ${formatHermesUsageNumber(window.limit)}`
+            : formatHermesUsagePercent(window.percent)}
         />
       ))}
-      {usage.resetAt && <StatCard label="Resets" value={formatCodexUsageReset(usage.resetAt)} />}
+      {usage.resetAt && <StatCard label="Resets" value={formatHermesUsageReset(usage.resetAt)} />}
     </div>
   )
 }
 
-function AccountTable({ accounts }: { accounts: CodexLbUsageAccount[] }) {
+function AccountTable({ accounts }: { accounts: HermesUsageAccount[] }) {
   return (
     <div style={{
       background: 'var(--bg-white-03)',
@@ -152,9 +152,9 @@ function AccountTable({ accounts }: { accounts: CodexLbUsageAccount[] }) {
           borderBottom: index < accounts.length - 1 ? '1px solid var(--hover-bg)' : 'none',
         }}>
           <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{account.label}</span>
-          <span style={{ fontSize: '13px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatCodexUsageNumber(account.remaining)}</span>
-          <span style={{ fontSize: '13px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatCodexUsageNumber(account.used)}</span>
-          <span style={{ fontSize: '13px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatCodexUsagePercent(account.percent)}</span>
+          <span style={{ fontSize: '13px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatHermesUsageNumber(account.remaining)}</span>
+          <span style={{ fontSize: '13px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatHermesUsageNumber(account.used)}</span>
+          <span style={{ fontSize: '13px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatHermesUsagePercent(account.percent)}</span>
         </div>
       ))}
     </div>

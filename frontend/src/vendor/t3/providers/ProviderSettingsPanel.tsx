@@ -27,22 +27,22 @@ export default function ProviderSettingsPanel({
   const entries = sortProviderInstanceEntries(deriveProviderInstanceEntries(providers))
 
   return (
-    <section aria-label="Chat provider readiness" style={{ display: 'grid', gap: 10 }}>
+    <section aria-label="Hermes Agent readiness" style={{ display: 'grid', gap: 10 }}>
       <div style={panelHeaderStyle}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Chat Providers</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Hermes Agent</div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
           {loading ? 'Checking...' : error ? 'Unavailable' : `${entries.length} configured`}
         </div>
       </div>
 
       {loading && (
-        <div style={emptyStateStyle}>Checking provider readiness...</div>
+        <div style={emptyStateStyle}>Checking Hermes Agent readiness...</div>
       )}
       {error && (
-        <div style={emptyStateStyle}>Provider status unavailable</div>
+        <div style={emptyStateStyle}>Hermes Agent status unavailable</div>
       )}
       {!loading && !error && entries.length === 0 && (
-        <div style={emptyStateStyle}>No providers reported</div>
+        <div style={emptyStateStyle}>Hermes Agent has not reported status yet</div>
       )}
 
       {!loading && !error && entries.map(entry => (

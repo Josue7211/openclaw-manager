@@ -114,6 +114,88 @@ describe('FileTree', () => {
     expect(screen.getByRole('button', { name: 'Expand HOMEWORK' })).toBeInTheDocument()
   })
 
+  it('expands ancestor folders for the selected note', () => {
+    renderFileTree({
+      notes: [
+        note({
+          _id: 'Projects/Alpha/brief.md',
+          title: 'brief',
+          folder: 'Projects/Alpha',
+        }),
+      ],
+      folders: [folder('Projects'), folder('Projects/Alpha')],
+      selectedId: 'Projects/Alpha/brief.md',
+    })
+
+    expect(screen.getByRole('button', { name: 'Collapse Projects' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Collapse Alpha' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'brief' })).toBeInTheDocument()
+  })
+
+  it('opens notes in a workspace side pane from the note context menu', () => {
+    const onOpenInSidePane = vi.fn()
+    renderFileTree({ onOpenInSidePane })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand HOMEWORK' }))
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'commands' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open in side pane' }))
+
+    expect(onOpenInSidePane).toHaveBeenCalledWith('HOMEWORK/commands.md')
+  })
+
+  it('renders nested tags with inherited parent counts', () => {
+    const { props } = renderFileTree({
+      notes: [
+        note({ _id: 'a.md', title: 'a', tags: ['project/alpha'] }),
+        note({ _id: 'b.md', title: 'b', tags: ['project/beta'] }),
+      ],
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter notes by tag #project (2)' }))
+
+    expect(props.onSearchChange).toHaveBeenCalledWith('#project')
+    expect(screen.getByRole('button', { name: 'Filter notes by tag #project/alpha (1)' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filter notes by tag #project/beta (1)' })).toBeInTheDocument()
+  })
+
+  it('exposes tag rename actions for direct tags', () => {
+    const onRenameTag = vi.fn()
+    renderFileTree({
+      notes: [
+        note({ _id: 'a.md', title: 'a', tags: ['project/alpha'] }),
+        note({ _id: 'b.md', title: 'b', tags: ['project/beta'] }),
+      ],
+      onRenameTag,
+    })
+
+    expect(screen.queryByRole('button', { name: 'Rename tag project' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename tag project/alpha' }))
+
+    expect(onRenameTag).toHaveBeenCalledWith('project/alpha')
+  })
+
+  it('ranks and highlights matching note titles during sidebar search', () => {
+    const { container } = renderFileTree({
+      notes: [
+        note({ _id: 'HOMEWORK/body.md', title: 'body', content: 'Roadmap reference', updated_at: 20 }),
+        note({ _id: 'HOMEWORK/roadmap.md', title: 'Roadmap', content: '', updated_at: 1 }),
+      ],
+      searchQuery: 'roadmap',
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand HOMEWORK' }))
+
+    const buttons = screen.getAllByRole('button')
+    const roadmapIndex = buttons.findIndex(button => button.textContent === 'Roadmap')
+    const bodyIndex = buttons.findIndex(button => button.textContent?.startsWith('body'))
+    expect(roadmapIndex).toBeGreaterThan(-1)
+    expect(bodyIndex).toBeGreaterThan(-1)
+    expect(roadmapIndex).toBeLessThan(bodyIndex)
+    expect(container.querySelector('mark')?.textContent).toBe('Roadmap')
+    expect(screen.getByTitle('Roadmap reference')).toBeInTheDocument()
+  })
+
   it('keeps Trash out of the main folder tree and expands it from the bottom control', () => {
     renderFileTree({
       notes: [

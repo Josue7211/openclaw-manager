@@ -70,6 +70,19 @@ interface RagGraph {
   is_truncated?: boolean
 }
 
+interface ForceGraphNode {
+  id: string
+  name: string
+  description: string
+  type: string
+  degree: number
+  val: number
+  x?: number
+  y?: number
+  fx?: number
+  fy?: number
+}
+
 type GraphLayoutMode = 'force' | 'radial' | 'compact'
 type GraphLabelMode = 'auto' | 'all' | 'none'
 const GRAPH_PANEL_HEIGHT = 'clamp(640px, calc(100dvh - 280px), 1120px)'
@@ -117,6 +130,25 @@ function controlStyle(): React.CSSProperties {
   }
 }
 
+function drawRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+  const r = Math.min(radius, width / 2, height / 2)
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.lineTo(x + width - r, y)
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r)
+  ctx.lineTo(x + width, y + height - r)
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height)
+  ctx.lineTo(x + r, y + height)
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r)
+  ctx.lineTo(x, y + r)
+  ctx.quadraticCurveTo(x, y, x + r, y)
+  ctx.closePath()
+}
+
+function normalizeEntryLookup(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
 export default function KnowledgePage() {
   const queryClient = useQueryClient()
   const graphPanelRef = useRef<HTMLDivElement>(null)
@@ -126,7 +158,9 @@ export default function KnowledgePage() {
   const [graphSeed, setGraphSeed] = useState('')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [selected, setSelected] = useState<KnowledgeEntry | null>(null)
+  const [selectedGraphNode, setSelectedGraphNode] = useState<ForceGraphNode | null>(null)
   const [graphSize, setGraphSize] = useState({ width: 920, height: 640 })
+  const [graphZoom, setGraphZoom] = useState(1)
   const [graphDepth, setGraphDepth] = useState(2)
   const [graphMaxNodes, setGraphMaxNodes] = useState(160)
   const [graphLayout, setGraphLayout] = useState<GraphLayoutMode>('force')
@@ -137,7 +171,7 @@ export default function KnowledgePage() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastRecordedAnswerRef = useRef('')
 
-  const { data: ragStatus } = useQuery<RagStatus>({
+  const { data: ragStatus, isLoading: ragStatusLoading, error: ragStatusError } = useQuery<RagStatus>({
     queryKey: ['rag-status'],
     queryFn: () => api.get<RagStatus>('/api/rag/status'),
     staleTime: 30_000,
@@ -179,7 +213,7 @@ export default function KnowledgePage() {
       const resp = await api.get<{ labels?: string[] }>(`/api/rag/graph/labels?${params}`)
       return resp.labels || []
     },
-    enabled: ragStatus?.reachable !== false,
+    enabled: ragStatus?.reachable === true,
     staleTime: 60_000,
   })
 
@@ -200,11 +234,19 @@ export default function KnowledgePage() {
       const resp = await api.get<{ graph?: RagGraph }>(`/api/rag/graph?${params}`)
       return resp.graph || { nodes: [], edges: [] }
     },
-    enabled: !!activeGraphLabel && ragStatus?.reachable !== false,
+    enabled: !!activeGraphLabel && ragStatus?.reachable === true,
     staleTime: 60_000,
   })
 
   const entries = entriesData?.entries ?? []
+  const entryLookup = useMemo(() => {
+    const lookup = new Map<string, KnowledgeEntry>()
+    for (const entry of entries) {
+      lookup.set(normalizeEntryLookup(entry.id), entry)
+      lookup.set(normalizeEntryLookup(entry.title), entry)
+    }
+    return lookup
+  }, [entries])
   const allTags = Array.from(new Set(entries.flatMap(e => e.tags || [])))
   const ragCounts = ragStatus?.statusCounts?.status_counts
   const ragCount = ragCounts?.all || ragCounts?.processed
@@ -225,11 +267,19 @@ export default function KnowledgePage() {
       { role: 'assistant' as const, content: answerText },
     ] satisfies RagChatMessage[]).slice(-6))
   }, [answerText, debouncedSearch, ragLoading])
-  const ragStatusText = !ragStatus?.configured
-    ? 'Built-in memd ready'
-    : ragStatus.reachable
-      ? `${ragStatus.backend || 'memd-local'} online${ragCount ? ` · ${ragCount} docs` : ''}`
-      : `${ragStatus.backend || 'memd-local'} offline`
+  const ragStatusText = ragStatusLoading
+    ? 'Checking memd...'
+    : ragStatusError
+      ? 'memd unavailable'
+      : !ragStatus?.configured
+        ? 'Built-in memd ready'
+        : ragStatus.reachable
+          ? `${ragStatus.backend || 'memd-local'} online${ragCount ? ` · ${ragCount} docs` : ''}`
+          : `${ragStatus.backend || 'memd-local'} offline`
+  const ragUnavailable = Boolean(ragStatusError) || ragStatus?.reachable === false
+  const ragUnavailableDescription = ragStatusError
+    ? 'Auth or desktop API setup is blocking the graph status request.'
+    : 'The backend reported the graph service offline.'
 
   const forceGraphData = useMemo(() => {
     const edgeCounts = new Map<string, number>()
@@ -237,7 +287,7 @@ export default function KnowledgePage() {
       edgeCounts.set(edge.source, (edgeCounts.get(edge.source) || 0) + 1)
       edgeCounts.set(edge.target, (edgeCounts.get(edge.target) || 0) + 1)
     }
-    const nodes = (ragGraph?.nodes || []).map((node, index) => {
+    const nodes: ForceGraphNode[] = (ragGraph?.nodes || []).map((node, index) => {
       const degree = edgeCounts.get(node.id) || 1
       const angle = (index / Math.max((ragGraph?.nodes || []).length, 1)) * Math.PI * 2
       const ring = 90 + Math.min(230, Math.sqrt(index + 1) * 34)
@@ -292,8 +342,12 @@ export default function KnowledgePage() {
   const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
     const x = node.x ?? 0
     const y = node.y ?? 0
-    const radius = Math.max(4, Math.sqrt(node.val || 4) * (graphLayout === 'compact' ? 2 : 2.35))
+    const scale = Math.max(globalScale, 0.001)
+    const isLinkedEntry = entryLookup.has(normalizeEntryLookup(node.id)) || entryLookup.has(normalizeEntryLookup(node.name || ''))
     const isSeed = node.id === activeGraphLabel
+    const screenRadius = Math.min(18, Math.max(7, Math.sqrt(node.val || 4) * (graphLayout === 'compact' ? 4.3 : 4.8)))
+    const radius = (screenRadius + (isSeed || isLinkedEntry ? 2 : 0)) / scale
+    const glowRadius = (isSeed ? 36 : isLinkedEntry ? 30 : 22) / scale
     const colorByType: Record<string, string> = {
       organization: '#38bdf8',
       equipment: '#f59e0b',
@@ -308,35 +362,38 @@ export default function KnowledgePage() {
     const stroke = isSeed ? '#fef08a' : 'rgba(226, 232, 240, 0.78)'
 
     ctx.beginPath()
-    ctx.arc(x, y, radius + (isSeed ? 8 : 4), 0, Math.PI * 2)
-    ctx.fillStyle = isSeed ? 'rgba(250, 204, 21, 0.16)' : 'rgba(125, 211, 252, 0.08)'
+    ctx.arc(x, y, glowRadius, 0, Math.PI * 2)
+    ctx.fillStyle = isSeed ? 'rgba(250, 204, 21, 0.16)' : isLinkedEntry ? 'rgba(52, 211, 153, 0.14)' : 'rgba(125, 211, 252, 0.08)'
     ctx.fill()
 
     ctx.beginPath()
     ctx.arc(x, y, radius, 0, Math.PI * 2)
     ctx.fillStyle = fill
     ctx.strokeStyle = stroke
-    ctx.lineWidth = isSeed ? 2 : 1
+    ctx.lineWidth = (isSeed || isLinkedEntry ? 2 : 1.2) / scale
     ctx.fill()
     ctx.stroke()
 
-    const showLabel = graphLabelMode === 'all' || (graphLabelMode === 'auto' && (isSeed || globalScale > 0.95 || radius > 8))
+    const showLabel = graphLabelMode === 'all' || (graphLabelMode === 'auto' && (isSeed || isLinkedEntry || globalScale > 0.85))
     if (!showLabel) return
     const label = String(node.name || node.id)
-    const shortLabel = label.length > 28 ? `${label.slice(0, 26)}...` : label
-    const fontSize = Math.max(10 / globalScale, 3.8)
+    const maxLabelLength = globalScale > 2 || isSeed || isLinkedEntry ? 34 : 22
+    const shortLabel = label.length > maxLabelLength ? `${label.slice(0, maxLabelLength - 1)}...` : label
+    const screenFontSize = isSeed || isLinkedEntry ? 13 : 11
+    const fontSize = screenFontSize / scale
     ctx.font = `${isSeed ? 700 : 600} ${fontSize}px Inter, system-ui, sans-serif`
     ctx.textAlign = 'center'
-    ctx.textBaseline = 'top'
-    const textY = y + radius + 4
+    ctx.textBaseline = 'middle'
+    const textY = y + radius + (screenFontSize + 8) / scale
     const metrics = ctx.measureText(shortLabel)
-    const padX = 4 / globalScale
-    const boxH = fontSize + 5 / globalScale
+    const padX = 6 / scale
+    const boxH = (screenFontSize + 7) / scale
     ctx.fillStyle = 'rgba(6, 8, 18, 0.78)'
-    ctx.fillRect(x - metrics.width / 2 - padX, textY - 1 / globalScale, metrics.width + padX * 2, boxH)
-    ctx.fillStyle = isSeed ? '#fef08a' : '#e5e7eb'
+    drawRoundRect(ctx, x - metrics.width / 2 - padX, textY - boxH / 2, metrics.width + padX * 2, boxH, 5 / scale)
+    ctx.fill()
+    ctx.fillStyle = isSeed ? '#fef08a' : isLinkedEntry ? '#bbf7d0' : '#e5e7eb'
     ctx.fillText(shortLabel, x, textY)
-  }, [activeGraphLabel, graphLabelMode, graphLayout])
+  }, [activeGraphLabel, entryLookup, graphLabelMode, graphLayout])
 
   useEffect(() => {
     if (graphLoading || forceGraphData.nodes.length === 0) return
@@ -386,8 +443,20 @@ export default function KnowledgePage() {
   }
 
   const handleSelectEntry = useCallback((entry: KnowledgeEntry) => {
+    setSelectedGraphNode(null)
     setSelected(entry)
   }, [])
+
+  const handleGraphNodeClick = useCallback((node: ForceGraphNode) => {
+    const matchingEntry = entryLookup.get(normalizeEntryLookup(node.id)) || entryLookup.get(normalizeEntryLookup(node.name || ''))
+    if (matchingEntry) {
+      setSelectedGraphNode(null)
+      setSelected(matchingEntry)
+      return
+    }
+    setSelected(null)
+    setSelectedGraphNode(node)
+  }, [entryLookup])
 
   return (
     <div style={{ width: '100%', paddingBottom: '28px' }}>
@@ -644,8 +713,12 @@ export default function KnowledgePage() {
             {ragGraph?.nodes && ` · ${ragGraph.nodes.length} nodes · ${(ragGraph.edges || []).length} edges`}
             {ragGraph?.is_truncated && ' · truncated'}
           </div>
-          {!ragStatus?.reachable ? (
-            <EmptyState icon={ShareNetwork} title="Knowledge graph unavailable" description="Check the backend route." />
+          {ragStatusLoading ? (
+            <div style={{ padding: '70px 18px 18px' }}>
+              <SkeletonList count={3} lines={2} layout="grid" />
+            </div>
+          ) : ragUnavailable ? (
+            <EmptyState icon={ShareNetwork} title="Knowledge graph not connected" description={ragUnavailableDescription} />
           ) : graphLoading ? (
             <div style={{ padding: '70px 18px 18px' }}>
               <SkeletonList count={3} lines={2} layout="grid" />
@@ -666,14 +739,14 @@ export default function KnowledgePage() {
               linkLabel={(link: any) => link.label}
               nodeCanvasObject={nodeCanvasObject}
               nodePointerAreaPaint={(node: any, color, ctx) => {
-                const radius = Math.max(8, Math.sqrt(node.val || 4) * 3.5)
+                const radius = Math.min(24, Math.max(12, Math.sqrt(node.val || 4) * 5)) / Math.max(graphZoom, 0.001)
                 ctx.beginPath()
                 ctx.arc(node.x ?? 0, node.y ?? 0, radius, 0, Math.PI * 2)
                 ctx.fillStyle = color
                 ctx.fill()
               }}
               linkColor={() => 'rgba(148, 163, 184, 0.22)'}
-              linkWidth={(link: any) => Math.max(0.7, Math.min((link.value || 1) * 0.8, 2.5))}
+              linkWidth={(link: any) => Math.max(0.1, Math.min((link.value || 1) * 0.8, 2.5) / Math.max(graphZoom, 0.75))}
               linkDirectionalParticles={graphParticles ? 1 : 0}
               linkDirectionalParticleWidth={1.1}
               linkDirectionalParticleSpeed={0.003}
@@ -684,8 +757,29 @@ export default function KnowledgePage() {
               enableNodeDrag
               enablePanInteraction
               enableZoomInteraction
-              onNodeClick={(node: any) => setGraphSeed(node.id)}
+              onZoom={(transform: { k?: number }) => setGraphZoom(transform.k ?? 1)}
+              onNodeClick={handleGraphNodeClick}
             />
+          )}
+
+          {selectedGraphNode && (
+            <div style={{ position: 'absolute', right: 12, top: 50, width: 'min(340px, calc(100% - 24px))', zIndex: 3, border: '1px solid var(--border)', borderRadius: '8px', background: 'rgba(7, 9, 16, 0.92)', boxShadow: '0 18px 44px rgba(0,0,0,0.32)', backdropFilter: 'blur(10px)', padding: '14px', color: 'var(--text-primary)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', marginBottom: '8px' }}>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, lineHeight: 1.35 }}>{selectedGraphNode.name || selectedGraphNode.id}</div>
+                  <div style={{ marginTop: '5px', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase' }}>{selectedGraphNode.type} · {selectedGraphNode.degree} link{selectedGraphNode.degree === 1 ? '' : 's'}</div>
+                </div>
+                <button type="button" aria-label="Close graph node details" onClick={() => setSelectedGraphNode(null)} style={{ width: 26, height: 26, borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '16px', lineHeight: 1 }}>
+                  ×
+                </button>
+              </div>
+              <div style={{ color: selectedGraphNode.description ? 'var(--text-secondary)' : 'var(--text-muted)', fontSize: '12px', lineHeight: 1.55, wordBreak: 'break-word' }}>
+                {selectedGraphNode.description || 'No description stored for this graph node.'}
+              </div>
+              <button type="button" onClick={() => { setGraphSeed(selectedGraphNode.id); setSelectedGraphNode(null) }} style={{ marginTop: '12px', height: '30px', padding: '0 10px', borderRadius: '7px', border: '1px solid var(--accent-a40)', background: 'var(--accent-a20)', color: 'var(--accent-bright)', cursor: 'pointer', fontSize: '12px', fontWeight: 800 }}>
+                Explore from here
+              </button>
+            </div>
           )}
         </section>
       </div>

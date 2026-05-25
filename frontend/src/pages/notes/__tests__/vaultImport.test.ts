@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { folderAncestors, planMarkdownVaultImport, rewriteImportedAttachmentEmbeds } from '../vaultImport'
+import { folderAncestors, planMarkdownVaultImport, readImportedNoteMarkdown, rewriteImportedAttachmentEmbeds } from '../vaultImport'
 
 function vaultFile(path: string, content = 'body', type = 'text/plain'): File {
   const file = new File([content], path.split('/').pop() || path, { type })
@@ -39,6 +39,19 @@ describe('planMarkdownVaultImport', () => {
     expect(plan.skipped).toBe(1)
   })
 
+  it('plans HTML and text files as notes instead of attachments', () => {
+    const plan = planMarkdownVaultImport([
+      vaultFile('Vault/Imports/Article.html', '<h1>Article</h1>', 'text/html'),
+      vaultFile('Vault/Imports/Transcript.txt', 'plain notes', 'text/plain'),
+    ])
+
+    expect(plan.notes.map(note => [note.title, note.folder, note.sourceType])).toEqual([
+      ['Article', 'Imports', 'html'],
+      ['Transcript', 'Imports', 'text'],
+    ])
+    expect(plan.attachments).toEqual([])
+  })
+
   it('expands folder ancestors for import setup', () => {
     expect(folderAncestors('Projects/Alpha/Assets')).toEqual([
       'Projects',
@@ -72,6 +85,31 @@ describe('planMarkdownVaultImport', () => {
 
     expect(rewriteImportedAttachmentEmbeds('![Diagram](diagram.png)', plan.notes[0], plan.attachments))
       .toBe('![[Projects/diagram.png|Diagram]]')
+  })
+
+  it('converts imported HTML notes to Markdown and rewrites local images to vault embeds', async () => {
+    const plan = planMarkdownVaultImport([
+      vaultFile(
+        'Vault/Articles/Launch.html',
+        '<h1>Launch</h1><p>Ship <strong>fast</strong> with <a href="https://example.test">docs</a>.</p><img src="diagram.png" alt="Diagram">',
+        'text/html',
+      ),
+      vaultFile('Vault/Articles/diagram.png', 'png', 'image/png'),
+    ])
+
+    await expect(readImportedNoteMarkdown(plan.notes[0], plan.attachments)).resolves.toBe(
+      '# Launch\n\nShip **fast** with [docs](https://example.test).\n\n![[Articles/diagram.png|Diagram]]',
+    )
+  })
+
+  it('wraps imported plain text with a note heading', async () => {
+    const plan = planMarkdownVaultImport([
+      vaultFile('Vault/Inbox/Transcript.txt', 'Line one\nLine two', 'text/plain'),
+    ])
+
+    await expect(readImportedNoteMarkdown(plan.notes[0], plan.attachments)).resolves.toBe(
+      '# Transcript\n\nLine one\nLine two',
+    )
   })
 
   it('uses indexed attachment lookup for large vault imports and keeps ambiguous basenames unchanged', () => {

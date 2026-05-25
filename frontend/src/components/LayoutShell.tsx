@@ -51,6 +51,7 @@ export default function LayoutShell() {
   const navigate = useNavigate()
   const isLogin = pathname === '/login' || pathname.startsWith('/auth/')
   const isChatRoute = pathname === '/chat'
+  const isMediaRoute = pathname === '/media'
   const isDemo = isDemoMode()
 
   const shouldShowSetupWizard = useSyncExternalStore(subscribeSetupCompletion, getSetupCompletionSnapshot)
@@ -62,7 +63,10 @@ export default function LayoutShell() {
   const [recoveryReminderKey, setRecoveryReminderKey] = useState<string | null>(null)
   const [sidebarWidth, setSidebarWidth] = useLocalStorageState('sidebar-width', 260)
   const [assistantOpen, setAssistantOpen] = useState(false)
+  const [assistantDockVisible, setAssistantDockVisible] = useState(false)
+  const [assistantDockClosing, setAssistantDockClosing] = useState(false)
   const [assistantWidth, setAssistantWidth] = useLocalStorageState('assistant-width', ASSISTANT_DEFAULT_WIDTH)
+  const [mediaMobileShell, setMediaMobileShell] = useState(false)
   const sidebarDraggingRef = useRef(false)
   const assistantCollapsedSidebarRef = useRef(false)
   const assistantPrevSidebarWidthRef = useRef(sidebarWidth)
@@ -81,6 +85,18 @@ export default function LayoutShell() {
   useEffect(() => {
     document.documentElement.dataset.clawRoute = pathname
   }, [pathname])
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') {
+      setMediaMobileShell(false)
+      return undefined
+    }
+    const mediaQuery = window.matchMedia('(max-width: 920px)')
+    const update = () => setMediaMobileShell(isMediaRoute && mediaQuery.matches)
+    update()
+    mediaQuery.addEventListener('change', update)
+    return () => mediaQuery.removeEventListener('change', update)
+  }, [isMediaRoute])
 
   useEffect(() => {
     if (!shouldShowSetupWizard) setShowWizard(false)
@@ -160,11 +176,26 @@ export default function LayoutShell() {
       }
       return
     }
-    if (assistantCollapsedSidebarRef.current) {
+    if (!assistantDockVisible && assistantCollapsedSidebarRef.current) {
       assistantCollapsedSidebarRef.current = false
       setSidebarWidth(Math.max(180, assistantPrevSidebarWidthRef.current))
     }
-  }, [assistantOpen, sidebarWidth, setSidebarWidth])
+  }, [assistantDockVisible, assistantOpen, sidebarWidth, setSidebarWidth])
+
+  useEffect(() => {
+    if (assistantOpen) {
+      setAssistantDockVisible(true)
+      setAssistantDockClosing(false)
+      return
+    }
+    if (!assistantDockVisible) return
+    setAssistantDockClosing(true)
+    const timeout = window.setTimeout(() => {
+      setAssistantDockVisible(false)
+      setAssistantDockClosing(false)
+    }, 240)
+    return () => window.clearTimeout(timeout)
+  }, [assistantDockVisible, assistantOpen])
 
   const handleAssistantResizeStart = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -354,6 +385,9 @@ export default function LayoutShell() {
     return <div><Outlet /></div>
   }
 
+  const mediaDedicatedShell = mediaMobileShell
+  const titleBarVisible = showTitleBar && !mediaMobileShell
+
   return (
     <IconContext.Provider value={iconContextValue}>
     <ToastProvider>
@@ -364,12 +398,13 @@ export default function LayoutShell() {
       overflow: 'hidden',
       position: 'relative',
       zIndex: 1,
+      background: 'var(--bg-base)',
     }}>
       <NavigationProgressBar />
       {/* Custom macOS-style title bar */}
       <>
         {/* Hover trigger zone when title bar is auto-hidden */}
-        {showTitleBar && (isFullscreen || autoHideTitleBar) && !titleBarHover && (
+        {titleBarVisible && (isFullscreen || autoHideTitleBar) && !titleBarHover && (
           <div
             onMouseEnter={() => setTitleBarHover(true)}
             style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '6px', zIndex: 9999 }}
@@ -379,11 +414,11 @@ export default function LayoutShell() {
           data-tauri-drag-region
           onMouseDown={handleTitleBarMouseDown}
           style={{
-            height: showTitleBar ? '30px' : '0px',
-            minHeight: showTitleBar ? '30px' : '0px',
-            opacity: showTitleBar ? 1 : 0,
+            height: titleBarVisible ? '30px' : '0px',
+            minHeight: titleBarVisible ? '30px' : '0px',
+            opacity: titleBarVisible ? 1 : 0,
             background: 'var(--bg-modal)',
-            borderBottom: showTitleBar ? '1px solid var(--border)' : 'none',
+            borderBottom: titleBarVisible ? '1px solid var(--border)' : 'none',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -391,14 +426,14 @@ export default function LayoutShell() {
             userSelect: 'none',
             flexShrink: 0,
             overflow: 'hidden',
-            position: (showTitleBar && (isFullscreen || autoHideTitleBar)) ? 'fixed' : 'relative',
+            position: (titleBarVisible && (isFullscreen || autoHideTitleBar)) ? 'fixed' : 'relative',
             top: 0,
             left: 0,
             right: 0,
-            zIndex: (showTitleBar && (isFullscreen || autoHideTitleBar)) ? 9999 : undefined,
-            transform: (showTitleBar && (isFullscreen || autoHideTitleBar)) && !titleBarHover ? 'translateY(-100%)' : 'translateY(0)',
+            zIndex: (titleBarVisible && (isFullscreen || autoHideTitleBar)) ? 9999 : undefined,
+            transform: (titleBarVisible && (isFullscreen || autoHideTitleBar)) && !titleBarHover ? 'translateY(-100%)' : 'translateY(0)',
             transition: 'height 0.3s ease, min-height 0.3s ease, opacity 0.3s ease, transform 0.4s var(--ease-spring)',
-            pointerEvents: showTitleBar ? 'auto' : 'none',
+            pointerEvents: titleBarVisible ? 'auto' : 'none',
           } as React.CSSProperties}
         >
           {/* Window controls — left side (macOS style) */}
@@ -453,7 +488,7 @@ export default function LayoutShell() {
           </div>
           {/* Title centered */}
           <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500 }}>
-            {titleText || 'Harness'}
+            {titleText || 'Hermes Agent'}
           </span>
         </div>
       </>
@@ -462,21 +497,20 @@ export default function LayoutShell() {
         flex: 1,
         overflow: 'hidden',
       }}>
-      <a href="#main-content" className="skip-link">
-        Skip to main content
-      </a>
-      <Sidebar
-        width={sidebarWidth}
-        onWidthChange={setSidebarWidth}
-        draggingRef={sidebarDraggingRef}
-        assistantOpen={assistantOpen}
-        onAssistantOpenChange={setAssistantOpen}
-      />
+      {!mediaDedicatedShell && (
+        <Sidebar
+          width={sidebarWidth}
+          onWidthChange={setSidebarWidth}
+          draggingRef={sidebarDraggingRef}
+          assistantOpen={assistantOpen}
+          onAssistantOpenChange={setAssistantOpen}
+        />
+      )}
       <main ref={mainRef} id="main-content" data-testid="main-content" data-tour="dashboard" style={{
         flex: 1,
         minWidth: 0,
         overflow: 'hidden',
-        background: 'transparent',
+        background: isMediaRoute ? 'var(--bg-base)' : 'transparent',
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
@@ -487,8 +521,10 @@ export default function LayoutShell() {
           flex: 1,
           minHeight: 0,
           overflowY: isChatRoute ? 'hidden' : 'auto',
+          overflowX: isMediaRoute ? 'hidden' : undefined,
           overscrollBehavior: isChatRoute ? 'contain' : undefined,
-          padding: '20px 28px',
+          padding: isMediaRoute ? '0' : '20px 28px',
+          background: isMediaRoute ? 'var(--bg-base)' : undefined,
           display: 'flex',
           flexDirection: 'column',
         }}>
@@ -564,15 +600,17 @@ export default function LayoutShell() {
           </div>
         )}
         <PageErrorBoundary key={pathname}>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%', minWidth: 0, minHeight: 0, position: 'relative', animation: 'pageEnter 0.15s ease-out both' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%', minWidth: 0, minHeight: 0, position: 'relative', animation: isMediaRoute ? 'none' : 'pageEnter 0.15s ease-out both' }}>
             <Outlet />
           </div>
         </PageErrorBoundary>
         </div>
       </main>
-      {assistantOpen && (
+      {assistantDockVisible && (
         <aside
           data-testid="global-assistant-dock"
+          className="global-assistant-dock-shell"
+          data-closing={assistantDockClosing ? 'true' : 'false'}
           style={{
             width: Math.max(ASSISTANT_MIN_WIDTH, Math.min(ASSISTANT_MAX_WIDTH, assistantWidth)),
             flex: '0 0 auto',
@@ -583,6 +621,10 @@ export default function LayoutShell() {
             background: 'var(--bg-panel)',
             display: 'flex',
             overflow: 'hidden',
+            pointerEvents: assistantDockClosing ? 'none' : 'auto',
+            animation: assistantDockClosing
+              ? 'assistantDockShellOut 240ms cubic-bezier(0.7, 0, 0.84, 0) both'
+              : 'assistantDockShellIn 300ms cubic-bezier(0.16, 1, 0.3, 1) both',
           }}
         >
           <GlobalAssistantDrawer

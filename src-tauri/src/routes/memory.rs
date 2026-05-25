@@ -23,9 +23,9 @@ async fn get_memory(
     let provider = harness_paths::provider_layout(&state);
     let workspace = harness_paths::workspace_dir(&state);
 
-    // Check for remote Harness API first
+    // Check for remote Hermes Agent API first
     if let Some(harness_url) = state
-        .secret_first(&["HARNESS_API_URL", "HERMES_API_URL", "OPENCLAW_API_URL"])
+        .secret_first(&["HERMES_API_URL", "HARNESS_API_URL", "OPENCLAW_API_URL"])
         .filter(|s| !s.is_empty())
     {
         let client = reqwest::Client::new();

@@ -69,6 +69,32 @@ function placeItem(items: LayoutItem[], item: LayoutItem, cols: number): LayoutI
   }
 }
 
+export function normalizeLayoutItems(items: LayoutItem[], cols: number): LayoutItem[] {
+  const placed: LayoutItem[] = []
+  const ordered = [...items].sort((a, b) => {
+    const ay = Number.isFinite(a.y) ? a.y : Number.POSITIVE_INFINITY
+    const by = Number.isFinite(b.y) ? b.y : Number.POSITIVE_INFINITY
+    return ay - by || a.x - b.x
+  })
+
+  for (const item of ordered) {
+    placed.push(placeItem(placed, item, cols))
+  }
+
+  return placed
+}
+
+export function normalizeLayouts(layouts: Record<string, LayoutItem[]>): Record<string, LayoutItem[]> {
+  const next: Record<string, LayoutItem[]> = {}
+
+  for (const [breakpoint, items] of Object.entries(layouts)) {
+    const cols = DEFAULT_COLS[breakpoint] ?? DEFAULT_COLS.lg
+    next[breakpoint] = normalizeLayoutItems(Array.isArray(items) ? items : [], cols)
+  }
+
+  return next
+}
+
 export function getLayoutBreakpoints(layouts: Record<string, LayoutItem[]>): string[] {
   const existing = Object.keys(layouts)
   return existing.length > 0 ? existing : [...DEFAULT_BREAKPOINTS]

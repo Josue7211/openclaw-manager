@@ -214,6 +214,7 @@ const NavSection = React.memo(function NavSection({
                   data-sidebar-item="true"
                   data-sidebar-cat-id={categoryId}
                   data-sidebar-href={href}
+                  data-active={active ? 'true' : undefined}
                   onPointerDown={categoryId ? (e) => onItemPointerDown?.(href, categoryId, e) : undefined}
                   onClick={(e) => {
                     if (suppressClickHref === href) {
@@ -237,13 +238,14 @@ const NavSection = React.memo(function NavSection({
                     padding: collapsed ? '9px 0' : '9px 16px',
                     borderRadius: '10px',
                     marginBottom: '2px',
-                    color: active ? 'var(--text-on-color)' : 'var(--text-secondary)',
-                    background: active ? 'var(--active-bg)' : 'transparent',
-                    border: 'none',
+                    color: active ? 'var(--accent-bright)' : 'var(--text-secondary)',
+                    background: active ? 'var(--accent-a12, rgba(167, 139, 250, 0.12))' : 'transparent',
+                    border: active ? '1px solid var(--accent-a25, rgba(167, 139, 250, 0.25))' : '1px solid transparent',
+                    boxShadow: 'none',
                     textDecoration: 'none',
                     fontSize: '13px',
                     fontWeight: active ? 600 : 450,
-                    transition: isDragging ? 'none' : 'background 0.25s var(--ease-spring), color 0.25s var(--ease-spring), transform 0.25s var(--ease-spring)',
+                    transition: isDragging ? 'none' : 'background 0.25s var(--ease-spring), border-color 0.25s var(--ease-spring), box-shadow 0.25s var(--ease-spring), color 0.25s var(--ease-spring), transform 0.25s var(--ease-spring)',
                     justifyContent: collapsed ? 'center' : 'flex-start',
                     position: 'relative',
                     animation: `fadeInUp 0.4s var(--ease-spring) ${(delayOffset + idx) * 30}ms both`,

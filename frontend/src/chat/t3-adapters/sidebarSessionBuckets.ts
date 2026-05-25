@@ -5,6 +5,7 @@
  */
 
 import {
+  sessionEnvironmentId,
   sessionMatchesLogicalProject,
   type SidebarLogicalProjectLike,
   type SidebarProjectLike,
@@ -14,6 +15,11 @@ import {
 export interface SidebarSessionBuckets<Session extends SidebarSessionLike> {
   projectScopedSessionKeys: Set<string>
   unscopedRecentSessions: Session[]
+}
+
+export function sidebarSessionScopeKey(session: SidebarSessionLike & { key: string }): string {
+  const environment = sessionEnvironmentId(session)?.trim().toLowerCase()
+  return environment ? `${environment}:${session.key}` : session.key
 }
 
 export function splitProjectScopedSessions<
@@ -27,14 +33,14 @@ export function splitProjectScopedSessions<
   const projectScopedSessionKeys = new Set<string>()
   for (const session of input.sessions) {
     if (input.projects.some(project => sessionMatchesLogicalProject(session, project))) {
-      projectScopedSessionKeys.add(session.key)
+      projectScopedSessionKeys.add(sidebarSessionScopeKey(session))
     }
   }
 
   return {
     projectScopedSessionKeys,
     unscopedRecentSessions: input.recentSessions.filter(
-      session => !projectScopedSessionKeys.has(session.key),
+      session => !projectScopedSessionKeys.has(sidebarSessionScopeKey(session)),
     ),
   }
 }

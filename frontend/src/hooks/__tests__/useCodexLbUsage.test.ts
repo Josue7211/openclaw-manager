@@ -33,7 +33,7 @@ describe('useCodexLbUsage', () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false))
     await waitFor(() => expect(result.current.usage?.remaining).toBe(50))
-    expect(api.get).toHaveBeenCalledWith('/api/harness/usage')
+    expect(api.get).toHaveBeenCalledWith('/api/hermes/usage')
     expect(localStorage.getItem(CODEX_LB_USAGE_CACHE_KEY)).toContain('total_tokens')
   })
 

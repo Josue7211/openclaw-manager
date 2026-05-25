@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, memo, type ElementType } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, memo, type ElementType, type MouseEvent } from 'react'
 import { Columns, Eye, FileText, LinkSimple, ListBullets, MagnifyingGlass, PenNib, Tag } from '@phosphor-icons/react'
 import {
   EditorView,
@@ -20,6 +20,8 @@ import {
   defaultHighlightStyle,
   HighlightStyle,
   bracketMatching,
+  foldGutter,
+  foldKeymap,
   indentOnInput,
 } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
@@ -28,17 +30,31 @@ import { autocompletion, closeBrackets, closeBracketsKeymap } from '@codemirror/
 import type { NoteReviewMarker, NoteSelectionAnchor, VaultNote } from './types'
 import EditorToolbar, { toggleWrap, toggleWrapPair, insertLink } from './EditorToolbar'
 import { wikilinkCompletions } from './wikilinkCompletion'
-import { slashCommandCompletions } from './slashCommands'
+import { buildingBlockCompletions, slashCommandCompletions } from './slashCommands'
 import DocumentEditor from './DocumentEditor'
 import { markdownToSafeHtml, setFrontmatterProperty } from './export'
-import { resolveTextReviewRanges } from './reviewAnchors'
+import { normalizeSelectionAnchor, resolveTextReviewRanges } from './reviewAnchors'
 import { documentStats, type DocumentStats } from '@/features/notes/documentStats'
 import { DEFAULT_NOTES_EDITOR_PREFERENCES, markdownFontSizePx, markdownWidthPx, normalizeNotesEditorPreferences, type NotesEditorPreferences } from './notesPreferences'
+import {
+  externalLinkTargetAtTextPosition,
+  externalPreviewForHref,
+  expandNoteEmbeds,
+  imageEmbedTargetAtTextPosition,
+  imagePreviewForTarget,
+  noteEmbedTargetAtTextPosition,
+  notePreviewForTarget,
+  noteTargetFromHref,
+  wikilinkTargetAtTextPosition,
+} from './noteLinkPreview'
+import { NoteLinkPreviewTooltip, type NoteLinkPreviewState } from './NoteLinkPreviewTooltip'
 
 // --- Image embed widget for ![[image.png]] syntax ---
 
 const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp|svg|bmp)$/i
 const IMAGE_EMBED_RE = /!\[\[([^\]]+)\]\]/g
+const INSPECTOR_OPEN_STORAGE_KEY = 'mc-notes-markdown-inspector-open'
+const MAX_SOURCE_TRACKED_CHANGE_PREVIEW_CHARS = 180
 
 class ImageWidget extends WidgetType {
   constructor(readonly src: string, readonly alt: string) {
@@ -128,25 +144,113 @@ const imageEmbedPlugin = ViewPlugin.fromClass(
 
 function markdownReviewDecorations(markers: NoteReviewMarker[] = [], activeId: string | null = null) {
   return EditorView.decorations.of((view) => {
-    const builder = new RangeSetBuilder<Decoration>()
+    const docText = view.state.doc.toString()
+    const docLength = docText.length
+    const decorations: Array<{ from: number; to: number; decoration: Decoration }> = []
+    const markerById = new Map(markers.map(marker => [marker.id, marker]))
     const ranges = resolveTextReviewRanges(view.state.doc.toString(), markers, activeId, 'markdown')
     for (const range of ranges) {
-      builder.add(
-        range.from,
-        range.to,
-        Decoration.mark({
+      const marker = markerById.get(range.id)
+      const isReplacement = range.kind === 'suggestion' && marker?.trackedChange?.type === 'replace'
+      decorations.push({
+        from: range.from,
+        to: range.to,
+        decoration: Decoration.mark({
           class: [
             range.kind === 'comment' ? 'cm-review-comment' : 'cm-review-suggestion',
+            isReplacement ? 'cm-review-tracked-delete' : '',
             range.active ? 'cm-review-active' : '',
           ].filter(Boolean).join(' '),
           attributes: {
             'data-review-id': range.id,
           },
         }),
-      )
+      })
+      if (range.kind === 'suggestion' && marker?.trackedChange?.after?.trim()) {
+        decorations.push({
+          from: range.to,
+          to: range.to,
+          decoration: Decoration.widget({
+            widget: new TrackedChangeWidget(marker.trackedChange.after, range.id, range.active),
+            side: 1,
+          }),
+        })
+      }
+    }
+
+    for (const marker of markers) {
+      if (marker.kind !== 'suggestion' || marker.trackedChange?.type !== 'replace_document' || !marker.trackedChange.after?.trim()) continue
+      const anchor = normalizeSelectionAnchor(marker.anchor)
+      if (!anchor || anchor.scope !== 'document') continue
+      decorations.push({
+        from: 0,
+        to: 0,
+        decoration: Decoration.widget({
+          widget: new TrackedChangeWidget(marker.trackedChange.after, marker.id, marker.id === activeId, 'replace_document'),
+          side: -1,
+        }),
+      })
+    }
+
+    for (const marker of markers) {
+      if (marker.kind !== 'suggestion' || marker.trackedChange?.type !== 'insert' || !marker.trackedChange.after?.trim()) continue
+      const anchor = normalizeSelectionAnchor(marker.anchor)
+      if (!anchor || anchor.scope !== 'cursor' || typeof anchor.start !== 'number') continue
+      const position = Math.max(0, Math.min(anchor.start, docLength))
+      decorations.push({
+        from: position,
+        to: position,
+        decoration: Decoration.widget({
+          widget: new TrackedChangeWidget(marker.trackedChange.after, marker.id, marker.id === activeId, 'insert'),
+          side: 1,
+        }),
+      })
+    }
+
+    decorations.sort((a, b) => a.from - b.from || a.to - b.to)
+    const builder = new RangeSetBuilder<Decoration>()
+    for (const item of decorations) {
+      builder.add(item.from, item.to, item.decoration)
     }
     return builder.finish()
   })
+}
+
+function compactSourceTrackedChangeText(value: string): string {
+  const text = value.replace(/\s+/g, ' ').trim()
+  if (text.length <= MAX_SOURCE_TRACKED_CHANGE_PREVIEW_CHARS) return text
+  return `${text.slice(0, MAX_SOURCE_TRACKED_CHANGE_PREVIEW_CHARS - 3).trimEnd()}...`
+}
+
+class TrackedChangeWidget extends WidgetType {
+  constructor(
+    readonly text: string,
+    readonly reviewId: string,
+    readonly active: boolean,
+    readonly type: 'insert' | 'replace_document' = 'insert',
+  ) {
+    super()
+  }
+
+  eq(other: TrackedChangeWidget) {
+    return this.text === other.text && this.reviewId === other.reviewId && this.active === other.active && this.type === other.type
+  }
+
+  toDOM() {
+    const element = document.createElement('span')
+    element.className = [
+      'cm-review-tracked-insert',
+      this.type === 'replace_document' ? 'cm-review-tracked-document' : '',
+      this.active ? 'cm-review-active' : '',
+    ].filter(Boolean).join(' ')
+    element.dataset.reviewId = this.reviewId
+    element.textContent = `${this.type === 'replace_document' ? 'Replace document' : '+'} ${compactSourceTrackedChangeText(this.text)}`
+    return element
+  }
+
+  ignoreEvent() {
+    return false
+  }
 }
 
 const mcTheme = EditorView.theme(
@@ -184,6 +288,33 @@ const mcTheme = EditorView.theme(
     '.cm-review-suggestion': {
       background: 'color-mix(in srgb, var(--green) 18%, transparent)',
       boxShadow: 'inset 0 -2px 0 color-mix(in srgb, var(--green) 54%, transparent)',
+    },
+    '.cm-review-tracked-delete': {
+      color: 'color-mix(in srgb, var(--text-primary) 62%, transparent)',
+      textDecoration: 'line-through',
+      textDecorationThickness: '2px',
+      textDecorationColor: 'color-mix(in srgb, var(--red, #ef4444) 72%, transparent)',
+      background: 'color-mix(in srgb, var(--red, #ef4444) 13%, transparent)',
+      boxShadow: 'inset 0 -2px 0 color-mix(in srgb, var(--red, #ef4444) 46%, transparent)',
+    },
+    '.cm-review-tracked-insert': {
+      display: 'inline',
+      marginLeft: '3px',
+      padding: '1px 4px',
+      borderRadius: '3px',
+      color: 'color-mix(in srgb, var(--green) 82%, var(--text-primary))',
+      background: 'color-mix(in srgb, var(--green) 16%, transparent)',
+      boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--green) 34%, transparent)',
+      fontWeight: '600',
+      whiteSpace: 'normal',
+    },
+    '.cm-review-tracked-document': {
+      display: 'block',
+      width: 'min(100%, 680px)',
+      margin: '0 auto 12px',
+      padding: '8px 10px',
+      borderLeft: '3px solid color-mix(in srgb, var(--green) 62%, transparent)',
+      color: 'var(--text-primary)',
     },
     '.cm-review-active': {
       outline: '1px solid var(--accent-dim)',
@@ -359,7 +490,13 @@ interface NoteEditorProps {
   onSelectionChange?: (anchor: NoteSelectionAnchor) => void
   reviewMarkers?: NoteReviewMarker[]
   activeReviewId?: string | null
+  onReviewMarkerSelect?: (id: string) => void
   preferences?: NotesEditorPreferences
+  jumpToLineRequest?: {
+    noteId: string
+    lineNumber: number
+    requestId: number
+  } | null
 }
 
 interface HeadingInfo {
@@ -380,32 +517,66 @@ export default memo(function NoteEditor({
   note,
   onChange,
   onWikilinkClick,
-  allNoteTitles = [],
   allNotes = [],
   onSelectionChange,
   reviewMarkers = [],
   activeReviewId = null,
+  onReviewMarkerSelect,
   preferences = DEFAULT_NOTES_EDITOR_PREFERENCES,
+  jumpToLineRequest = null,
 }: NoteEditorProps) {
+  const effectivePreferences = normalizeNotesEditorPreferences(preferences)
+  const rootRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
   const onWikilinkClickRef = useRef(onWikilinkClick)
   const onSelectionChangeRef = useRef(onSelectionChange)
+  const allNotesRef = useRef(allNotes)
+  const docModeRef = useRef<'doc' | 'source' | 'split' | 'read'>(effectivePreferences.defaultMode)
   const noteIdRef = useRef(note._id)
   const autocompleteCompartment = useRef(new Compartment())
   const reviewCompartment = useRef(new Compartment())
   const preferenceCompartment = useRef(new Compartment())
-  const effectivePreferences = normalizeNotesEditorPreferences(preferences)
   const [draftContent, setDraftContent] = useState(note.content)
   const [docMode, setDocMode] = useState<'doc' | 'source' | 'split' | 'read'>(effectivePreferences.defaultMode)
-  const [inspectorOpen, setInspectorOpen] = useState(false)
+  const [inspectorOpen, setInspectorOpen] = useState(() => localStorage.getItem(INSPECTOR_OPEN_STORAGE_KEY) === 'true')
   const [wordCountOpen, setWordCountOpen] = useState(false)
   const [selectionText, setSelectionText] = useState('')
+  const [linkPreview, setLinkPreview] = useState<NoteLinkPreviewState | null>(null)
 
   onChangeRef.current = onChange
   onWikilinkClickRef.current = onWikilinkClick
   onSelectionChangeRef.current = onSelectionChange
+  allNotesRef.current = allNotes
+  docModeRef.current = docMode
+
+  useEffect(() => {
+    localStorage.setItem(INSPECTOR_OPEN_STORAGE_KEY, inspectorOpen ? 'true' : 'false')
+  }, [inspectorOpen])
+
+  const openMarkdownSearch = useCallback(() => {
+    if (docModeRef.current === 'read') setDocMode('source')
+    requestAnimationFrame(() => {
+      const view = viewRef.current
+      if (!view) return
+      openSearchPanel(view)
+      view.focus()
+    })
+  }, [])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'f') return
+      const target = event.target as Node | null
+      if (!target || !rootRef.current?.contains(target)) return
+      if (docModeRef.current !== 'read') return
+      event.preventDefault()
+      openMarkdownSearch()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [openMarkdownSearch])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -436,21 +607,71 @@ export default memo(function NoteEditor({
       }
     })
 
-    const clickHandler = EditorView.domEventHandlers({
+    const wikilinkHandlers = EditorView.domEventHandlers({
       click(event, view) {
         const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
         if (pos === null) return false
         const line = view.state.doc.lineAt(pos)
-        const col = pos - line.from
-        const re = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g
-        let m
-        while ((m = re.exec(line.text)) !== null) {
-          if (col >= m.index && col <= m.index + m[0].length) {
-            event.preventDefault()
-            onWikilinkClickRef.current(m[1].trim())
-            return true
-          }
+        const column = pos - line.from
+        const target = wikilinkTargetAtTextPosition(line.text, column) ?? noteEmbedTargetAtTextPosition(line.text, column)
+        if (target) {
+          event.preventDefault()
+          setLinkPreview(null)
+          onWikilinkClickRef.current(target)
+          return true
         }
+        return false
+      },
+      mousemove(event, view) {
+        if (!(docModeRef.current === 'source' || docModeRef.current === 'split')) return false
+        const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+        if (pos === null) {
+          setLinkPreview(null)
+          return false
+        }
+        const line = view.state.doc.lineAt(pos)
+        const column = pos - line.from
+        const imageTarget = imageEmbedTargetAtTextPosition(line.text, column)
+        if (imageTarget) {
+          setLinkPreview({
+            preview: imagePreviewForTarget(imageTarget),
+            x: Math.min(event.clientX + 18, window.innerWidth - 340),
+            y: Math.min(event.clientY + 18, window.innerHeight - 260),
+          })
+          return false
+        }
+        const noteEmbedTarget = noteEmbedTargetAtTextPosition(line.text, column)
+        if (noteEmbedTarget) {
+          setLinkPreview({
+            preview: notePreviewForTarget(noteEmbedTarget, allNotesRef.current),
+            x: Math.min(event.clientX + 18, window.innerWidth - 340),
+            y: Math.min(event.clientY + 18, window.innerHeight - 210),
+          })
+          return false
+        }
+        const externalTarget = externalLinkTargetAtTextPosition(line.text, column)
+        if (externalTarget) {
+          setLinkPreview({
+            preview: externalPreviewForHref(externalTarget.href, externalTarget.label),
+            x: Math.min(event.clientX + 18, window.innerWidth - 340),
+            y: Math.min(event.clientY + 18, window.innerHeight - 210),
+          })
+          return false
+        }
+        const target = wikilinkTargetAtTextPosition(line.text, column)
+        if (!target) {
+          setLinkPreview(null)
+          return false
+        }
+        setLinkPreview({
+          preview: notePreviewForTarget(target, allNotesRef.current),
+          x: Math.min(event.clientX + 18, window.innerWidth - 340),
+          y: Math.min(event.clientY + 18, window.innerHeight - 210),
+        })
+        return false
+      },
+      mouseleave() {
+        setLinkPreview(null)
         return false
       },
     })
@@ -463,6 +684,7 @@ export default memo(function NoteEditor({
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
         history(),
+        foldGutter(),
         drawSelection(),
         bracketMatching(),
         closeBrackets(),
@@ -478,18 +700,19 @@ export default memo(function NoteEditor({
           { key: 'Mod-Shift-x', run: (v) => { toggleWrap(v, '~~'); return true } },
           ...defaultKeymap,
           ...historyKeymap,
+          ...foldKeymap,
           ...searchKeymap,
           ...closeBracketsKeymap,
           indentWithTab,
         ]),
         autocompleteCompartment.current.of(
           autocompletion({
-            override: [wikilinkCompletions(allNoteTitles), slashCommandCompletions],
+            override: [wikilinkCompletions(allNotes), slashCommandCompletions, buildingBlockCompletions(allNotes)],
             activateOnTyping: true,
           }),
         ),
         updateListener,
-        clickHandler,
+        wikilinkHandlers,
         imageEmbedPlugin,
         reviewCompartment.current.of(markdownReviewDecorations(reviewMarkers, activeReviewId)),
         preferenceCompartment.current.of(markdownPreferenceExtension(effectivePreferences)),
@@ -541,19 +764,19 @@ export default memo(function NoteEditor({
     })
   }, [docMode, draftContent, note._id])
 
-  // Update wikilink autocomplete when available note titles change
+  // Update wikilink autocomplete when note titles, aliases, headings, or block ids change
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
     view.dispatch({
       effects: autocompleteCompartment.current.reconfigure(
         autocompletion({
-          override: [wikilinkCompletions(allNoteTitles), slashCommandCompletions],
+          override: [wikilinkCompletions(allNotes), slashCommandCompletions, buildingBlockCompletions(allNotes)],
           activateOnTyping: true,
         }),
       ),
     })
-  }, [allNoteTitles])
+  }, [allNotes])
 
   useEffect(() => {
     const view = viewRef.current
@@ -641,12 +864,81 @@ export default memo(function NoteEditor({
     [allNotes, note._id, previewContent],
   )
 
+  const handlePreviewMouseMove = useCallback(
+    (event: MouseEvent<HTMLElement>) => {
+      const image = (event.target as HTMLElement).closest('img[src^="/api/vault/local/media"]')
+      if (image instanceof HTMLImageElement) {
+        const url = new URL(image.src, window.location.origin)
+        const id = url.searchParams.get('id')
+        if (id) {
+          setLinkPreview({
+            preview: imagePreviewForTarget({ target: id, alt: image.alt || id }),
+            x: Math.min(event.clientX + 18, window.innerWidth - 340),
+            y: Math.min(event.clientY + 18, window.innerHeight - 260),
+          })
+          return
+        }
+      }
+      const link = (event.target as HTMLElement).closest('a[href^="#note:"]')
+      const target = link instanceof HTMLAnchorElement ? noteTargetFromHref(link.getAttribute('href')) : null
+      if (target) {
+        setLinkPreview({
+          preview: notePreviewForTarget(target, allNotes),
+          x: Math.min(event.clientX + 18, window.innerWidth - 340),
+          y: Math.min(event.clientY + 18, window.innerHeight - 210),
+        })
+        return
+      }
+      const externalLink = (event.target as HTMLElement).closest('a[href^="http://"], a[href^="https://"]')
+      if (externalLink instanceof HTMLAnchorElement) {
+        setLinkPreview({
+          preview: externalPreviewForHref(externalLink.href, externalLink.textContent || undefined),
+          x: Math.min(event.clientX + 18, window.innerWidth - 340),
+          y: Math.min(event.clientY + 18, window.innerHeight - 210),
+        })
+        return
+      }
+      setLinkPreview(null)
+    },
+    [allNotes],
+  )
+
+  const handlePreviewClick = useCallback(
+    (event: MouseEvent<HTMLElement>) => {
+      const calloutTitle = (event.target as HTMLElement).closest('.note-callout-title')
+      const callout = calloutTitle?.closest('.note-callout')
+      if (callout instanceof HTMLElement && (
+        callout.classList.contains('note-callout-fold-collapsed') ||
+        callout.classList.contains('note-callout-fold-expanded')
+      )) {
+        event.preventDefault()
+        setLinkPreview(null)
+        const collapsed = callout.classList.contains('note-callout-fold-collapsed')
+        callout.classList.toggle('note-callout-fold-collapsed', !collapsed)
+        callout.classList.toggle('note-callout-fold-expanded', collapsed)
+        if (calloutTitle instanceof HTMLElement) {
+          calloutTitle.setAttribute('aria-expanded', collapsed ? 'true' : 'false')
+        }
+        return
+      }
+
+      const link = (event.target as HTMLElement).closest('a[href^="#note:"]')
+      const target = link instanceof HTMLAnchorElement ? noteTargetFromHref(link.getAttribute('href')) : null
+      if (!target) return
+      event.preventDefault()
+      setLinkPreview(null)
+      onWikilinkClick(target)
+    },
+    [onWikilinkClick],
+  )
+
   const jumpToHeading = (lineNumber: number) => {
-    if (docMode === 'read') setDocMode('source')
+    if (docMode !== 'source' && docMode !== 'split') setDocMode('source')
     requestAnimationFrame(() => {
       const view = viewRef.current
       if (!view) return
-      const line = view.state.doc.line(lineNumber)
+      const safeLineNumber = Math.max(1, Math.min(lineNumber, view.state.doc.lines))
+      const line = view.state.doc.line(safeLineNumber)
       view.dispatch({
         selection: { anchor: line.from },
         effects: EditorView.scrollIntoView(line.from, { y: 'center' }),
@@ -655,8 +947,14 @@ export default memo(function NoteEditor({
     })
   }
 
+  useEffect(() => {
+    if (!jumpToLineRequest || jumpToLineRequest.noteId !== note._id) return
+    jumpToHeading(jumpToLineRequest.lineNumber)
+  }, [jumpToLineRequest?.requestId, note._id])
+
   return (
     <div
+      ref={rootRef}
       style={{
         flex: 1,
         display: 'flex',
@@ -683,6 +981,7 @@ export default memo(function NoteEditor({
             onSelectionChange={handleSelectionChange}
             reviewMarkers={reviewMarkers}
             activeReviewId={activeReviewId}
+            onReviewMarkerSelect={onReviewMarkerSelect}
             onMarkdownChange={(nextContent) => {
               setDraftContent(nextContent)
               onChangeRef.current(nextContent)
@@ -693,13 +992,12 @@ export default memo(function NoteEditor({
         )}
         <div
           ref={containerRef}
+          className="note-editor-selectable"
           style={{
             flex: docMode === 'split' ? '1 1 50%' : 1,
             minWidth: 0,
             display: docMode === 'source' || docMode === 'split' ? 'block' : 'none',
             overflow: 'hidden',
-            userSelect: 'text',
-            WebkitUserSelect: 'text' as never,
           }}
         />
         {(docMode === 'split' || docMode === 'read') && (
@@ -711,9 +1009,10 @@ export default memo(function NoteEditor({
               borderLeft: docMode === 'split' ? '1px solid var(--border)' : 'none',
               padding: '12px 48px 80px',
               background: 'var(--bg-base)',
-              userSelect: 'text',
-              WebkitUserSelect: 'text',
             }}
+            onMouseMove={handlePreviewMouseMove}
+            onMouseLeave={() => setLinkPreview(null)}
+            onClick={handlePreviewClick}
           >
             <div
               className="md-display-content"
@@ -722,6 +1021,7 @@ export default memo(function NoteEditor({
             />
           </div>
         )}
+        {linkPreview && <NoteLinkPreviewTooltip preview={linkPreview} />}
         {inspectorOpen && (
           <div
             style={{
@@ -939,15 +1239,7 @@ export default memo(function NoteEditor({
           </button>
           <button
             type="button"
-            onClick={() => {
-              if (docMode === 'read') setDocMode('source')
-              requestAnimationFrame(() => {
-                const view = viewRef.current
-                if (!view) return
-                openSearchPanel(view)
-                view.focus()
-              })
-            }}
+            onClick={openMarkdownSearch}
             title="Find in note"
             aria-label="Find in note"
             style={{
@@ -1001,22 +1293,6 @@ export default memo(function NoteEditor({
     </div>
   )
 })
-
-function expandNoteEmbeds(content: string, allNotes: VaultNote[], currentId: string): string {
-  return content.replace(/!\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g, (match, rawTarget: string) => {
-    if (IMAGE_EXTENSIONS.test(rawTarget.trim())) return match
-    const id = noteIdFromTitle(rawTarget, allNotes)
-    const embedded = id ? allNotes.find((item) => item._id === id && item._id !== currentId && item.type === 'note') : null
-    if (!embedded) return match
-    const body = embedded.content
-      .replace(/^---[\s\S]*?\n---\s*/m, '')
-      .trim()
-      .split('\n')
-      .slice(0, 32)
-      .join('\n')
-    return `\n> [!note] ${embedded.title || rawTarget}\n${body.split('\n').map((line) => `> ${line}`).join('\n')}\n`
-  })
-}
 
 function WordCountDialog({
   stats,

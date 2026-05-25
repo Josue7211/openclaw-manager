@@ -6,7 +6,7 @@ import type { UsageData } from '@/features/harness/types'
 export function useHarnessUsage() {
   const { data, isLoading, error } = useQuery<UsageData>({
     queryKey: queryKeys.harnessUsage,
-    queryFn: () => api.get<UsageData>('/api/harness/usage'),
+    queryFn: () => api.get<UsageData>('/api/hermes/usage'),
     refetchInterval: 30_000,
     staleTime: 30_000,
   })

@@ -207,6 +207,8 @@ export function NotificationBell({ collapsed, textOpacity = 1 }: { collapsed: bo
         }}
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
         title={collapsed ? 'Notifications' : undefined}
+        className="hover-bg sidebar-utility-button"
+        data-active={open ? 'true' : undefined}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -214,10 +216,12 @@ export function NotificationBell({ collapsed, textOpacity = 1 }: { collapsed: bo
           width: '100%',
           padding: collapsed ? '10px 0' : '9px 16px',
           justifyContent: collapsed ? 'center' : 'flex-start',
-          background: open ? 'var(--active-bg)' : 'transparent',
-          border: 'none',
+          background: open ? 'var(--accent-a12, rgba(167, 139, 250, 0.12))' : 'transparent',
+          border: open
+            ? '1px solid var(--accent-a25, rgba(167, 139, 250, 0.25))'
+            : '1px solid transparent',
           borderRadius: '10px',
-          color: open ? 'var(--text-on-color)' : 'var(--text-secondary)',
+          color: open ? 'var(--accent-bright)' : 'var(--text-secondary)',
           cursor: 'pointer',
           position: 'relative',
           transition: 'all 0.25s var(--ease-spring)',
@@ -235,8 +239,9 @@ export function NotificationBell({ collapsed, textOpacity = 1 }: { collapsed: bo
           }
         }}
         onMouseLeave={e => {
-          e.currentTarget.style.background = open ? 'var(--active-bg)' : 'transparent'
-          e.currentTarget.style.color = open ? 'var(--text-on-color)' : 'var(--text-secondary)'
+          e.currentTarget.style.background = open ? 'var(--accent-a12, rgba(167, 139, 250, 0.12))' : 'transparent'
+          e.currentTarget.style.borderColor = open ? 'var(--accent-a25, rgba(167, 139, 250, 0.25))' : 'transparent'
+          e.currentTarget.style.color = open ? 'var(--accent-bright)' : 'var(--text-secondary)'
         }}
       >
         <Bell size={16} style={{ flexShrink: 0 }} />

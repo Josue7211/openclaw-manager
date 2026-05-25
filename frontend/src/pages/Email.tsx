@@ -65,10 +65,13 @@ type EmailQueryResponse = {
   threads?: MailThread[]
   emails?: Email[]
   error?: string
+  message?: string
   source?: string
   state?: 'ready' | 'empty' | 'error'
   account_id?: string
   agentmail_inbox_id?: string
+  imap_host?: string
+  imap_port?: number
 }
 
 function backendFolderFor(folder: Folder): string {
@@ -185,6 +188,7 @@ export default function EmailPage() {
   const agentmailError = emailsData?.source === 'agentmail' ? (emailsData.error ?? null) : null
   const imapSource = emailsData?.source === 'imap'
   const missingCreds = emailsData?.source !== 'agentmail' && emailsData?.error === 'missing_credentials'
+  const imapError = emailsData?.source === 'imap' && emailsData.error && emailsData.error !== 'missing_credentials'
   const agentmailConnectedEmpty =
     emailsData?.source === 'agentmail' &&
     !agentmailError &&
@@ -196,10 +200,9 @@ export default function EmailPage() {
     ? emailsError instanceof Error
       ? emailsError.message
       : 'Failed to fetch'
-    : emailsData?.source !== 'agentmail' && emailsData?.error && emailsData.error !== 'missing_credentials'
-      ? emailsData.error
-      : null
+    : null
   const agentmailStatusCopy = getAgentMailStatusCopy(emailsData, selectedAccount)
+  const imapStatusCopy = getImapStatusCopy(emailsData, selectedAccount)
 
   const invalidateAccounts = () => queryClient.invalidateQueries({ queryKey: queryKeys.emailAccounts })
   const invalidateEmails = useCallback(
@@ -354,6 +357,7 @@ export default function EmailPage() {
       !noMailAccounts &&
       (Boolean(agentmailError) ||
         missingCreds ||
+        imapError ||
         agentmailConnectedEmpty ||
         selectedThread !== null ||
         folder === 'Drafts'))
@@ -775,6 +779,9 @@ export default function EmailPage() {
                 onRetry={() => refetchEmails()}
               />
             )}
+            {!noMailAccounts && !loading && !error && !agentmailError && !missingCreds && imapError && (
+              <MailSourceState title={imapStatusCopy.title} body={imapStatusCopy.body} onRetry={() => refetchEmails()} />
+            )}
             {!noMailAccounts && !loading && !error && agentmailConnectedEmpty && (
               <AgentAccessEmptyList
                 account={selectedAccount}
@@ -782,26 +789,32 @@ export default function EmailPage() {
                 onSendTest={handleSendAgentMailTest}
               />
             )}
-            {!noMailAccounts && !loading && !error && !agentmailError && !missingCreds && !agentmailConnectedEmpty && (
-              <EmailList
-                threads={visibleThreads}
-                selectedAccountId={effectiveSelectedAccountId}
-                folder={folder}
-                onInvalidateEmails={invalidateEmails}
-                selectedThreadId={selectedThread?.id ?? null}
-                onSelectThread={thread => setSelectedThreadId(thread.id)}
-                starredIds={starredIds}
-                onToggleStar={toggleStar}
-                emptyTitle={search || unreadOnly || folder === 'Starred' ? 'No matching mail' : 'Inbox empty'}
-                emptyDescription={
-                  search || unreadOnly || folder === 'Starred'
-                    ? 'Clear filters to see the rest of this view.'
-                    : imapSource
-                      ? 'No messages returned from this mailbox yet.'
-                      : 'AgentMail is connected, but this view has no messages yet.'
-                }
-              />
-            )}
+            {!noMailAccounts &&
+              !loading &&
+              !error &&
+              !agentmailError &&
+              !missingCreds &&
+              !imapError &&
+              !agentmailConnectedEmpty && (
+                <EmailList
+                  threads={visibleThreads}
+                  selectedAccountId={effectiveSelectedAccountId}
+                  folder={folder}
+                  onInvalidateEmails={invalidateEmails}
+                  selectedThreadId={selectedThread?.id ?? null}
+                  onSelectThread={thread => setSelectedThreadId(thread.id)}
+                  starredIds={starredIds}
+                  onToggleStar={toggleStar}
+                  emptyTitle={search || unreadOnly || folder === 'Starred' ? 'No matching mail' : 'Inbox empty'}
+                  emptyDescription={
+                    search || unreadOnly || folder === 'Starred'
+                      ? 'Clear filters to see the rest of this view.'
+                      : imapSource
+                        ? 'No messages returned from this mailbox yet.'
+                        : 'AgentMail is connected, but this view has no messages yet.'
+                  }
+                />
+              )}
           </section>
         )}
 
@@ -842,6 +855,13 @@ export default function EmailPage() {
                     onRetry={() => refetchEmails()}
                   />
                 )}
+                {!noMailAccounts && !loading && !error && !agentmailError && !missingCreds && imapError && (
+                  <MailSourceState
+                    title={imapStatusCopy.panelTitle}
+                    body={imapStatusCopy.panelBody}
+                    onRetry={() => refetchEmails()}
+                  />
+                )}
                 {!noMailAccounts && !loading && !error && agentmailConnectedEmpty && (
                   <AgentAccessPanel
                     account={selectedAccount}
@@ -862,6 +882,7 @@ export default function EmailPage() {
                   !error &&
                   !agentmailError &&
                   !missingCreds &&
+                  !imapError &&
                   !agentmailConnectedEmpty &&
                   selectedThread && (
                     <ThreadPanel
@@ -875,7 +896,7 @@ export default function EmailPage() {
                       onClose={() => setSelectedThreadId(null)}
                     />
                   )}
-                {!loading && !error && !agentmailError && !missingCreds && folder === 'Drafts' && (
+                {!loading && !error && !agentmailError && !missingCreds && !imapError && folder === 'Drafts' && (
                   <DraftQueue drafts={drafts} />
                 )}
               </>
@@ -1117,6 +1138,46 @@ function getAgentMailStatusCopy(data: EmailQueryResponse | undefined, account: E
     body: 'AgentMail did not return a usable response for this inbox.',
     panelTitle: 'AgentMail unavailable',
     panelBody: 'Retry the linked AgentMail access inbox.',
+  }
+}
+
+function getImapStatusCopy(data: EmailQueryResponse | undefined, account: EmailAccount | null) {
+  const host = data?.imap_host || account?.imap_host || 'configured IMAP host'
+  const port = data?.imap_port || account?.imap_port || 993
+  const target = `${host}:${port}`
+
+  if (data?.error === 'imap_connection_refused') {
+    return {
+      title: 'Mail bridge is not running',
+      body: `The app reached ${target}, but nothing is listening there. Start Proton Mail Bridge or update this account's IMAP host and port, then retry.`,
+      panelTitle: 'Start the local mail bridge',
+      panelBody: `Direct inbox sync is configured for ${target}, and the connection was refused. Keep Proton Mail Bridge running before refreshing this inbox.`,
+    }
+  }
+
+  if (data?.error === 'imap_timeout') {
+    return {
+      title: 'IMAP timed out',
+      body: `The IMAP request to ${target} timed out. Check network/VPN state and retry.`,
+      panelTitle: 'IMAP did not respond',
+      panelBody: `The selected account is configured, but ${target} did not answer before timeout.`,
+    }
+  }
+
+  if (data?.error === 'unsupported_provider') {
+    return {
+      title: 'Unsupported mail provider',
+      body: 'Open Accounts and choose Proton, Gmail, iCloud, Outlook, Fastmail, or Custom IMAP.',
+      panelTitle: 'Fix provider type',
+      panelBody: 'This account cannot sync until its provider maps to an IMAP transport.',
+    }
+  }
+
+  return {
+    title: 'IMAP sync failed',
+    body: data?.message || `The selected account could not load mail from ${target}.`,
+    panelTitle: 'IMAP sync failed',
+    panelBody: data?.message || `The selected account could not load mail from ${target}.`,
   }
 }
 

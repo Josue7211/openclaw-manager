@@ -369,7 +369,7 @@ pub struct AppState {
     /// Pre-configured BlueBubbles service client. `None` when BLUEBUBBLES_HOST
     /// is not set (module disabled).
     pub bb: Option<ServiceClient>,
-    /// Pre-configured harness API service client. `None` when no harness URL
+    /// Pre-configured Hermes Agent API service client. `None` when no Hermes Agent URL
     /// is set. Field name stays for older route code.
     pub harness: Option<ServiceClient>,
     /// Gateway WebSocket client for receiving real-time harness events.
@@ -694,7 +694,8 @@ async fn verify_connection_security(secrets: &std::collections::HashMap<String, 
     let service_urls: &[(&str, &str)] = &[
         ("Supabase", "SUPABASE_URL"),
         ("BlueBubbles", "BLUEBUBBLES_HOST"),
-        ("Harness", "HARNESS_API_URL"),
+        ("Hermes Agent", "HERMES_API_URL"),
+        ("Harness legacy", "HARNESS_API_URL"),
         ("Proxmox", "PROXMOX_HOST"),
         ("OPNsense", "OPNSENSE_HOST"),
         ("CalDAV", "CALDAV_URL"),
@@ -761,14 +762,14 @@ pub async fn start(
     });
 
     let harness_url = secrets
-        .get("HARNESS_API_URL")
-        .or_else(|| secrets.get("HERMES_API_URL"))
+        .get("HERMES_API_URL")
+        .or_else(|| secrets.get("HARNESS_API_URL"))
         .or_else(|| secrets.get("OPENCLAW_API_URL"))
         .cloned()
         .filter(|s| !s.is_empty());
     let harness = harness_url.map(|url| {
-        tracing::info!("Harness service client configured");
-        ServiceClient::new("Harness", &url, 60)
+        tracing::info!("Hermes Agent service client configured");
+        ServiceClient::new("Hermes Agent", &url, 60)
     });
 
     let db = crate::db::init().await?;
@@ -843,6 +844,8 @@ pub async fn start(
     // These mirror the tracing warnings emitted in main.rs but persist in SQLite
     // for later inspection via GET /api/security-events.
     log_integrity_events(&state.db).await;
+
+    start_hermes_gateway_ws(&state);
 
     // Start the background sync engine (offline-first SQLite <-> Supabase)
     {
@@ -974,6 +977,43 @@ pub async fn start(
     Ok(())
 }
 
+fn start_hermes_gateway_ws(state: &AppState) {
+    let Some(gateway_ws) = state.gateway_ws.clone() else {
+        return;
+    };
+    let Some(ws_url) = hermes_gateway_ws_url(state) else {
+        return;
+    };
+    let auth_token = state.secret_first(&[
+        "HERMES_PASSWORD",
+        "HERMES_API_KEY",
+        "HARNESS_PASSWORD",
+        "HARNESS_API_KEY",
+        "OPENCLAW_PASSWORD",
+        "OPENCLAW_API_KEY",
+    ]);
+
+    tokio::spawn(async move {
+        gateway_ws.run(ws_url, auth_token).await;
+    });
+}
+
+fn hermes_gateway_ws_url(state: &AppState) -> Option<String> {
+    if let Some(ws_url) = state.secret_first(&["HERMES_WS", "HARNESS_WS"]) {
+        return Some(ws_url);
+    }
+
+    state
+        .secret_first(&["HERMES_API_URL", "HARNESS_API_URL", "OPENCLAW_API_URL"])
+        .map(|base| {
+            let ws_base = base
+                .trim_end_matches('/')
+                .replace("http://", "ws://")
+                .replace("https://", "wss://");
+            format!("{ws_base}/ws")
+        })
+}
+
 /// Middleware that injects the current [`UserSession`] into request extensions
 /// and auto-refreshes tokens that are within 60 seconds of expiry.
 ///
@@ -1020,14 +1060,9 @@ fn auth_route_skips_session_injection(path: &str) -> bool {
 /// Middleware that sets Cache-Control: no-store on all API responses.
 /// Prevents WebKitGTK from caching sensitive data to disk.
 async fn no_store_api_responses(req: Request<Body>, next: Next) -> Response {
+    let path = req.uri().path().to_string();
     let mut response = next.run(req).await;
-    response.headers_mut().insert(
-        axum::http::header::CACHE_CONTROL,
-        "no-store, no-cache, must-revalidate".parse().unwrap(),
-    );
-    response
-        .headers_mut()
-        .insert(axum::http::header::PRAGMA, "no-cache".parse().unwrap());
+    apply_api_response_cache_headers(&path, response.headers_mut());
     response
         .headers_mut()
         .insert("x-content-type-options", "nosniff".parse().unwrap());
@@ -1047,6 +1082,23 @@ async fn no_store_api_responses(req: Request<Body>, next: Next) -> Response {
         .headers_mut()
         .insert("cross-origin-opener-policy", "same-origin".parse().unwrap());
     response
+}
+
+fn apply_api_response_cache_headers(path: &str, headers: &mut axum::http::HeaderMap) {
+    if media_image_response_can_cache(path) {
+        headers.remove(axum::http::header::PRAGMA);
+        return;
+    }
+
+    headers.insert(
+        axum::http::header::CACHE_CONTROL,
+        "no-store, no-cache, must-revalidate".parse().unwrap(),
+    );
+    headers.insert(axum::http::header::PRAGMA, "no-cache".parse().unwrap());
+}
+
+fn media_image_response_can_cache(path: &str) -> bool {
+    path.starts_with("/api/media/image/")
 }
 
 /// Middleware that logs each incoming request with method, path, status, and duration.
@@ -1312,6 +1364,7 @@ async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
         || path.starts_with("/api/messages/attachment")
         || path.starts_with("/api/messages/sticker")
         || path.starts_with("/api/messages/webhook")
+        || path.starts_with("/api/media/image/")
         || path.starts_with("/api/vault/media")
     {
         return next.run(req).await;
@@ -1647,6 +1700,41 @@ mod tests {
         };
         slot = Some(new_session);
         assert!(slot.is_some());
+    }
+
+    #[test]
+    fn media_image_responses_keep_cache_headers() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            axum::http::header::CACHE_CONTROL,
+            "private, max-age=86400".parse().unwrap(),
+        );
+        headers.insert(axum::http::header::PRAGMA, "no-cache".parse().unwrap());
+
+        apply_api_response_cache_headers("/api/media/image/remote", &mut headers);
+
+        assert_eq!(
+            headers.get(axum::http::header::CACHE_CONTROL).unwrap(),
+            "private, max-age=86400"
+        );
+        assert!(!headers.contains_key(axum::http::header::PRAGMA));
+    }
+
+    #[test]
+    fn non_image_api_responses_are_no_store() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            axum::http::header::CACHE_CONTROL,
+            "private, max-age=86400".parse().unwrap(),
+        );
+
+        apply_api_response_cache_headers("/api/media/overview", &mut headers);
+
+        assert_eq!(
+            headers.get(axum::http::header::CACHE_CONTROL).unwrap(),
+            "no-store, no-cache, must-revalidate"
+        );
+        assert_eq!(headers.get(axum::http::header::PRAGMA).unwrap(), "no-cache");
     }
 
     // -- Connection security tests ----------------------------------------

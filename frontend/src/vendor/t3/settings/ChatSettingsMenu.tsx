@@ -12,7 +12,7 @@ import { CHAT_SETTINGS_SHORTCUTS, type ChatSettingsShortcut } from '@/chat/t3-ad
 function settingsShortcutIcon(shortcut: ChatSettingsShortcut) {
   if (shortcut.id === 'usage') return <Info size={13} />
   if (shortcut.id === 'providers') return <SlidersHorizontal size={13} />
-  if (shortcut.id === 'codex-lb') return <GitDiff size={13} />
+  if (shortcut.id === 'hermes-agent') return <GitDiff size={13} />
   return <Gear size={13} />
 }
 

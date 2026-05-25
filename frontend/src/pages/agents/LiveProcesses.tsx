@@ -139,7 +139,7 @@ export function LiveProcesses({ agents }: { agents: Agent[] }) {
                   <span style={{ fontSize: '14px' }}>{p.agentEmoji}</span>
                 )}
                 <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {p.agentName ?? 'claude'}
+                  {p.agentName ?? 'Hermes Agent'}
                 </span>
                 <span style={{ fontSize: '10px', fontFamily: 'monospace', color: 'var(--text-muted)' }}>
                   pid {p.pid}

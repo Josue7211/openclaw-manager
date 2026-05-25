@@ -6,6 +6,12 @@ import type { Reminder } from '@/lib/types'
 
 const REMINDERS_KEY = ['reminders'] as const
 
+type RemindersWidgetResponse = {
+  reminders?: Reminder[]
+  error?: string
+  message?: string
+}
+
 const DEMO_REMINDERS: Reminder[] = [
   { id: 'demo-r1', title: 'Review pull request', completed: false, priority: 1, list: 'Work', dueDate: new Date().toISOString().slice(0, 10) },
   { id: 'demo-r2', title: 'Buy groceries', completed: false, priority: 3, list: 'Personal', dueDate: new Date().toISOString().slice(0, 10) },
@@ -17,13 +23,14 @@ export function useRemindersWidget() {
   const _demo = isDemoMode()
   const queryClient = useQueryClient()
 
-  const { data, isSuccess, isError } = useQuery<{ reminders?: Reminder[] }>({
+  const { data, isSuccess, isError } = useQuery<RemindersWidgetResponse>({
     queryKey: REMINDERS_KEY,
-    queryFn: () => api.get<{ reminders?: Reminder[] }>('/api/reminders'),
+    queryFn: () => api.get<RemindersWidgetResponse>('/api/reminders'),
     enabled: !_demo,
   })
 
   const allReminders = _demo ? DEMO_REMINDERS : (data?.reminders ?? [])
+  const bridgeError = !_demo ? data?.error : undefined
 
   const todayReminders = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10)
@@ -72,5 +79,6 @@ export function useRemindersWidget() {
     toggleReminder,
     mounted: _demo || isSuccess || isError,
     isError,
+    bridgeError,
   }
 }

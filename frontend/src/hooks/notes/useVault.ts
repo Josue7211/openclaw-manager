@@ -14,13 +14,30 @@ import {
   trashFolder as vaultTrashFolder,
   restoreTrashedNote as vaultRestoreTrashed,
   restoreTrashedFolder as vaultRestoreTrashedFolder,
+  isCachedTitleOnlyNote,
   startSync,
   stopSync,
 } from '@/lib/vault'
 import { isNotesTrashPath, normalizeNotesFolderPath } from '@/features/notes/trash'
 
+const TITLE_ONLY_CACHE_MESSAGE =
+  'Only cached note titles are available right now. Connect the local vault and retry before editing so blank cache records do not overwrite real note bodies.'
+const FOLDER_LOAD_ERROR_MESSAGE =
+  'Notes loaded, but folders are temporarily unavailable. Retry sync to restore the folder tree.'
+const TITLE_ONLY_RETRY_BASE_MS = 1_500
+const TITLE_ONLY_RETRY_MAX_MS = 8_000
+
+function hasCachedTitleOnlyNotes(notes: VaultNote[]) {
+  return notes.some(isCachedTitleOnlyNote)
+}
+
+function errorMessage(err: unknown) {
+  return err instanceof Error ? err.message : 'Failed to load vault'
+}
+
 export function useVault() {
   const [notes, setNotes] = useState<VaultNote[]>([])
+  const [unavailableNotes, setUnavailableNotes] = useState<VaultNote[]>([])
   const [folders, setFolders] = useState<VaultFolder[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
@@ -29,16 +46,35 @@ export function useVault() {
 
   const refresh = useCallback(async () => {
     try {
-      const [all, allFolders] = await Promise.all([getAllNotes(), getAllFolders()])
+      const [notesResult, foldersResult] = await Promise.allSettled([getAllNotes({ force: true }), getAllFolders()])
+      if (notesResult.status === 'rejected') throw notesResult.reason
+      let all = notesResult.value
+      const allFolders = foldersResult.status === 'fulfilled' ? foldersResult.value : null
+      if (hasCachedTitleOnlyNotes(all)) {
+        all = await getAllNotes({ force: true })
+      }
+      const hasUnhydratedNotes = hasCachedTitleOnlyNotes(all)
+      const editableNotes = all.filter(note => !isCachedTitleOnlyNote(note))
+      const titleOnlyNotes = all.filter(isCachedTitleOnlyNote)
       if (mountedRef.current) {
-        setNotes(all)
-        setFolders(allFolders)
-        setError(null)
+        setNotes(editableNotes)
+        setUnavailableNotes(titleOnlyNotes)
+        if (allFolders) setFolders(allFolders)
+        if (foldersResult.status === 'rejected') {
+          console.warn('[useVault] folders refresh failed:', foldersResult.reason)
+        }
+        setError(
+          hasUnhydratedNotes
+            ? TITLE_ONLY_CACHE_MESSAGE
+            : foldersResult.status === 'rejected'
+              ? FOLDER_LOAD_ERROR_MESSAGE
+              : null,
+        )
       }
     } catch (err) {
       console.error('[useVault] refresh failed:', err)
       if (mountedRef.current) {
-        setError(err instanceof Error ? err.message : 'Failed to load vault')
+        setError(errorMessage(err))
       }
     }
   }, [])
@@ -69,6 +105,34 @@ export function useVault() {
       stopSync()
     }
   }, [refresh])
+
+  useEffect(() => {
+    if (loading || unavailableNotes.length === 0) return
+
+    let cancelled = false
+    let retryCount = 0
+    let retryTimer: number | null = null
+
+    const scheduleRetry = () => {
+      const delay = Math.min(
+        TITLE_ONLY_RETRY_BASE_MS * 2 ** retryCount,
+        TITLE_ONLY_RETRY_MAX_MS,
+      )
+      retryCount += 1
+      retryTimer = window.setTimeout(() => {
+        void refresh().finally(() => {
+          if (!cancelled) scheduleRetry()
+        })
+      }, delay)
+    }
+
+    scheduleRetry()
+
+    return () => {
+      cancelled = true
+      if (retryTimer !== null) window.clearTimeout(retryTimer)
+    }
+  }, [loading, refresh, unavailableNotes.length])
 
   const createNote = useCallback(
     async (title: string, folder: string = '', content: string = '') => {
@@ -186,6 +250,7 @@ export function useVault() {
 
   return {
     notes,
+    unavailableNotes,
     folders,
     loading,
     syncing,

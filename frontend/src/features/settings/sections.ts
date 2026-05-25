@@ -6,6 +6,7 @@ export const SETTINGS_SECTION_KEYS = [
   'connections',
   'usage',
   'providers',
+  'hermes-agent',
   'codex-lb',
   'display',
   'keybindings',
@@ -16,3 +17,11 @@ export const SETTINGS_SECTION_KEYS = [
 ] as const
 
 export type SettingsSection = typeof SETTINGS_SECTION_KEYS[number]
+
+export function normalizeSettingsSection(value: string | null | undefined): SettingsSection | null {
+  if (!value) return null
+  if (value === 'codex-lb') return 'hermes-agent'
+  return (SETTINGS_SECTION_KEYS as readonly string[]).includes(value)
+    ? value as SettingsSection
+    : null
+}

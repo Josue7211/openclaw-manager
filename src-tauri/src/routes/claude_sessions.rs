@@ -71,11 +71,10 @@ struct CreateSessionBody {
 // REST handlers
 // ---------------------------------------------------------------------------
 
-/// `GET /api/claude-sessions` -- list Claude Code sessions only.
+/// `GET /api/hermes/sessions` -- list Hermes Agent sessions.
 ///
-/// Filters the gateway response to sessions where `kind == "claude-code"`
-/// or the `agentId` field is present. Returns `{ available: false }` envelope
-/// when Harness VM is unreachable (instead of a hard error).
+/// Filters the gateway response to sessions with agent-backed metadata.
+/// Returns `{ available: false }` when Hermes Agent is unreachable.
 async fn list_sessions(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
@@ -105,7 +104,7 @@ async fn list_sessions(
         Err(_) => {
             // 503-equivalent: return error envelope instead of propagating
             Ok(Json(json!({
-                "error": "Harness VM unreachable",
+                "error": "Hermes Agent unreachable",
                 "available": false,
                 "sessions": []
             })))
@@ -113,7 +112,7 @@ async fn list_sessions(
     }
 }
 
-/// `GET /api/claude-sessions/:id` -- get session detail.
+/// `GET /api/hermes/sessions/:id` -- get session detail.
 async fn get_session(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
@@ -127,7 +126,7 @@ async fn get_session(
     Ok(Json(result))
 }
 
-/// `POST /api/claude-sessions` -- create a new Claude Code session.
+/// `POST /api/hermes/sessions` -- create a new Hermes Agent session.
 async fn create_session(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
@@ -152,7 +151,7 @@ async fn create_session(
     Ok(Json(result))
 }
 
-/// `POST /api/claude-sessions/:id/kill` -- terminate a session.
+/// `POST /api/hermes/sessions/:id/kill` -- terminate a session.
 async fn kill_session(
     State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
@@ -166,7 +165,7 @@ async fn kill_session(
     Ok(Json(result))
 }
 
-/// `GET /api/claude-sessions/status` -- CAS guard status for WebSocket streams.
+/// `GET /api/hermes/sessions/status` -- CAS guard status for WebSocket streams.
 async fn session_ws_status(RequireAuth(_session): RequireAuth) -> Json<Value> {
     let active = SESSION_WS_CONNECTIONS.load(Ordering::Acquire);
     let available = MAX_SESSION_WS_CONNECTIONS.saturating_sub(active);
@@ -181,8 +180,8 @@ async fn session_ws_status(RequireAuth(_session): RequireAuth) -> Json<Value> {
 // WebSocket upgrade handler
 // ---------------------------------------------------------------------------
 
-/// `GET /api/claude-sessions/:id/ws` -- upgrade to WebSocket and relay
-/// bidirectional frames to/from the upstream harness session stream.
+/// `GET /api/hermes/sessions/:id/ws` -- upgrade to WebSocket and relay
+/// bidirectional frames to/from the upstream Hermes Agent session stream.
 ///
 /// Returns bare `Response` (not `Result<Json<Value>, AppError>`) because
 /// `WebSocketUpgrade::on_upgrade` returns `Response`. This is the same
@@ -225,7 +224,7 @@ async fn ws_upgrade(
 // ---------------------------------------------------------------------------
 
 /// Relay frames between the client WebSocket (Axum) and an upstream
-/// WebSocket on the Harness VM (tokio-tungstenite).
+/// WebSocket on Hermes Agent (tokio-tungstenite).
 ///
 /// Both sides are async -- no OS threads needed (unlike terminal.rs PTY).
 /// The `_guard` is held for the lifetime of this function; on any exit
@@ -236,13 +235,13 @@ async fn handle_session_ws(
     session_id: String,
     _guard: SessionWsGuard,
 ) {
-    info!("claude-sessions: WS stream connecting for session {session_id}");
+    info!("hermes-sessions: WS stream connecting for session {session_id}");
 
-    // 1. Build upstream URL from the configured harness API URL.
+    // 1. Build upstream URL from the configured Hermes Agent API URL.
     let base_url = match harness_api_url(&state) {
         Some(url) => url,
         None => {
-            error!("claude-sessions: harness API URL not configured");
+            error!("hermes-sessions: Hermes Agent API URL not configured");
             return;
         }
     };
@@ -267,7 +266,7 @@ async fn handle_session_ws(
     {
         Ok(r) => r,
         Err(e) => {
-            error!("claude-sessions: failed to build upstream request: {e}");
+            error!("hermes-sessions: failed to build upstream request: {e}");
             return;
         }
     };
@@ -276,7 +275,7 @@ async fn handle_session_ws(
     let (upstream_ws, _response) = match tokio_tungstenite::connect_async(request).await {
         Ok(conn) => conn,
         Err(e) => {
-            error!("claude-sessions: upstream WS connect failed: {e}");
+            error!("hermes-sessions: upstream WS connect failed: {e}");
             // Send error to client before closing
             let (mut sender, _) = client_socket.split();
             let _ = sender
@@ -288,7 +287,7 @@ async fn handle_session_ws(
         }
     };
 
-    info!("claude-sessions: upstream WS connected for session {session_id}");
+    info!("hermes-sessions: upstream WS connected for session {session_id}");
 
     // 4. Split both sockets
     let (mut client_tx, mut client_rx) = client_socket.split();
@@ -351,7 +350,7 @@ async fn handle_session_ws(
         _ = client_to_up => {}
     }
 
-    info!("claude-sessions: WS stream ended for session {session_id}");
+    info!("hermes-sessions: WS stream ended for session {session_id}");
 }
 
 // ---------------------------------------------------------------------------
@@ -360,6 +359,14 @@ async fn handle_session_ws(
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route(
+            "/api/hermes/sessions",
+            get(list_sessions).post(create_session),
+        )
+        .route("/api/hermes/sessions/status", get(session_ws_status))
+        .route("/api/hermes/sessions/:id", get(get_session))
+        .route("/api/hermes/sessions/:id/kill", post(kill_session))
+        .route("/api/hermes/sessions/:id/ws", get(ws_upgrade))
         .route(
             "/api/claude-sessions",
             get(list_sessions).post(create_session),
@@ -378,6 +385,9 @@ pub fn router() -> Router<AppState> {
 mod tests {
     use super::super::gateway::validate_gateway_path;
     use super::*;
+    use std::sync::Mutex;
+
+    static SESSION_WS_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     // -- CreateSessionBody deserialization --
 
@@ -427,6 +437,7 @@ mod tests {
 
     #[test]
     fn session_ws_guard_acquires_up_to_max() {
+        let _lock = SESSION_WS_TEST_LOCK.lock().unwrap();
         // Reset counter to known state
         SESSION_WS_CONNECTIONS.store(0, Ordering::SeqCst);
 
@@ -461,6 +472,7 @@ mod tests {
 
     #[test]
     fn status_response_shape() {
+        let _lock = SESSION_WS_TEST_LOCK.lock().unwrap();
         SESSION_WS_CONNECTIONS.store(0, Ordering::SeqCst);
 
         let active = SESSION_WS_CONNECTIONS.load(Ordering::Acquire);

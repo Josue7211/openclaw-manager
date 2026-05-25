@@ -1,5 +1,5 @@
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react'
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import MediaRadar from '../MediaRadar'
 import { api } from '@/lib/api'
 
@@ -44,6 +44,7 @@ vi.mock('@/hooks/useTauriQuery', () => ({
           id: '18349',
           detail_ref: { service: 'plex', kind: 'movie', id: '18349' },
           year: 2008,
+          posterUrl: '/api/media/image/plex?path=%2Flibrary%2Fmetadata%2F18349%2Fthumb',
         },
       ],
       upcoming: [
@@ -54,6 +55,7 @@ vi.mock('@/hooks/useTauriQuery', () => ({
           kind: 'episode',
           id: '2327',
           detail_ref: { service: 'sonarr', kind: 'episode', id: '2327' },
+          images: [{ coverType: 'poster', remoteUrl: 'http://sonarr/posters/from-s04e05.jpg' }],
         },
       ],
       browse: [
@@ -104,12 +106,31 @@ vi.mock('@/hooks/useTauriQuery', () => ({
           serviceName: 'Sonarr',
           id: 1350935086,
           title: 'Georgie.and.Mandys.First.Marriage.S02E20.1080p.WEB-DL.H264-iND',
+          series: { title: "Georgie & Mandy's First Marriage" },
+          episode: { title: 'Guilt Boots', seasonNumber: 2, episodeNumber: 20 },
+          sourceTitle: 'Georgie.and.Mandys.First.Marriage.S02E20.1080p.WEB-DL.H264-iND',
+          episodeFile: { relativePath: "Season 02/Georgie and Mandy's First Marriage - S02E20 - Guilt Boots.mkv" },
           status: 'completed',
           trackedDownloadStatus: 'warning',
           timeleft: '00:00:00',
         },
       ],
-      calendar: [],
+      calendar: [
+        {
+          service: 'sonarr',
+          kind: 'episode',
+          id: 2327,
+          detail_ref: { service: 'sonarr', kind: 'episode', id: 2327 },
+          title: "What a Long Strange Trip It's Been",
+          airDateUtc: '2026-05-21T20:00:00Z',
+          series: {
+            title: 'FROM',
+            network: 'MGM+',
+            images: [{ coverType: 'fanart', remoteUrl: 'https://image.example/from-backdrop.jpg' }],
+          },
+          episode: { title: "What a Long Strange Trip It's Been", seasonNumber: 4, episodeNumber: 5, airDateUtc: '2026-05-21T20:00:00Z' },
+        },
+      ],
       wanted: [],
       history: [],
       indexers: [
@@ -224,6 +245,7 @@ vi.mock('@/hooks/useTauriQuery', () => ({
 }))
 
 vi.mock('@/lib/api', () => ({
+  getRequestBaseForPath: vi.fn(() => 'http://127.0.0.1:3010'),
   api: {
     get: vi.fn(),
     post: vi.fn(),
@@ -235,7 +257,9 @@ vi.mock('@/lib/api', () => ({
 
 describe('Media Command Center', () => {
   beforeEach(() => {
+    vi.unstubAllGlobals()
     vi.clearAllMocks()
+    window.localStorage.clear()
     vi.mocked(api.get).mockImplementation(path => {
       if (String(path).includes('/api/media/requests/discover')) {
         return Promise.resolve({
@@ -254,6 +278,8 @@ describe('Media Command Center', () => {
               name: 'Monarch: Legacy of Monsters',
               mediaType: 'tv',
               firstAirDate: '2023-11-17',
+              posterPath: '/poster.jpg',
+              overview: 'A family tracks secret monsters across generations.',
               mediaInfo: {
                 seasons: [
                   { seasonNumber: 1 },
@@ -273,6 +299,8 @@ describe('Media Command Center', () => {
               name: 'Severance',
               mediaType: 'tv',
               firstAirDate: '2022-02-17',
+              posterPath: '/severance-poster.jpg',
+              overview: 'Workers split their memories between office and home.',
               mediaInfo: {
                 seasons: [
                   { seasonNumber: 0 },
@@ -293,7 +321,14 @@ describe('Media Command Center', () => {
           title: 'Severance',
           year: 2022,
           monitored: true,
-          item: { title: 'Severance', year: 2022, network: 'Apple TV+', monitored: true },
+          item: {
+            title: 'Severance',
+            year: 2022,
+            network: 'Apple TV+',
+            monitored: true,
+            sourceTitle: 'Severance.S02E09.Cold.Harbor.1080p.WEB-DL',
+            episodeFile: { relativePath: 'Season 02/Severance - S02E09 - Cold Harbor.mkv' },
+          },
           queue: [{ service: 'sonarr', id: 99, title: 'Severance S02E01', status: 'downloading' }],
           wanted: [{ service: 'sonarr', id: 100, series: { title: 'Severance' }, episode: { title: 'Cold Harbor', seasonNumber: 2, episodeNumber: 9 } }],
           history: [{ service: 'sonarr', id: 101, sourceTitle: 'Severance.S02E01.1080p', eventType: 'grabbed' }],
@@ -312,21 +347,42 @@ describe('Media Command Center', () => {
     })
   })
 
-  it('keeps the sidebar service list scrollable and opens setup from more services', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('opens setup from the desktop Ops command without a duplicate sidebar', () => {
     render(<MediaRadar />)
 
-    const servicesHeader = screen.getByText('Services')
-    expect(servicesHeader.parentElement).toHaveStyle({ overflow: 'auto' })
-
-    fireEvent.click(screen.getByRole('button', { name: /\+3 more services/i }))
+    expect(screen.queryByText('Services')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Ops/i }))
 
     expect(screen.getByText('Service directory')).toBeInTheDocument()
+  })
+
+  it('uses the desktop summary tiles as navigation controls', () => {
+    render(<MediaRadar />)
+
+    const summary = document.getElementById('media-command')
+    expect(summary).not.toBeNull()
+
+    fireEvent.click(within(summary as HTMLElement).getByRole('button', { name: 'Open Library' }))
+    expect(screen.getByRole('tab', { name: /Library/i })).toHaveAttribute('aria-selected', 'true')
+
+    fireEvent.click(within(summary as HTMLElement).getByRole('button', { name: 'Open Requests' }))
+    expect(screen.getByRole('tab', { name: /Requests/i })).toHaveAttribute('aria-selected', 'true')
+
+    fireEvent.click(within(summary as HTMLElement).getByRole('button', { name: 'Open Detections' }))
+    expect(screen.getByRole('tab', { name: /Setup/i })).toHaveAttribute('aria-selected', 'true')
+
+    fireEvent.click(within(summary as HTMLElement).getByRole('button', { name: 'Open Downloads' }))
+    expect(screen.getByRole('tab', { name: /Downloads/i })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('groups setup services into Helmarr-style sections', () => {
     render(<MediaRadar />)
 
-    fireEvent.click(screen.getByRole('button', { name: /\+3 more services/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Ops/i }))
     fireEvent.click(screen.getByRole('button', { name: /All 21/i }))
 
     for (const group of ['Core ARR', 'Requests', 'Downloads', 'Indexers', 'Subtitles', 'Homelab']) {
@@ -337,7 +393,7 @@ describe('Media Command Center', () => {
   it('does not label unpublished detected services as missing credentials', () => {
     render(<MediaRadar />)
 
-    fireEvent.click(screen.getByRole('button', { name: /\+3 more services/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Ops/i }))
 
     const credentialsSection = screen.getByText('Detected, needs credentials').closest('section')
     expect(credentialsSection).not.toBeNull()
@@ -349,7 +405,7 @@ describe('Media Command Center', () => {
   it('links setup-needed services to exact Settings credentials', () => {
     render(<MediaRadar />)
 
-    fireEvent.click(screen.getByRole('button', { name: /\+3 more services/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Ops/i }))
 
     const credentialsSection = screen.getByText('Detected, needs credentials').closest('section')
     expect(credentialsSection).not.toBeNull()
@@ -393,7 +449,7 @@ describe('Media Command Center', () => {
     fireEvent.click(screen.getByLabelText('Remove queue item'))
     fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0])
 
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Remove Georgie.and.Mandys.First.Marriage.S02E20'))
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Remove Georgie & Mandy's First Marriage S02E20: Guilt Boots"))
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Remove Succession S03E03 The Disruption'))
     expect(api.del).not.toHaveBeenCalled()
     expect(api.post).not.toHaveBeenCalledWith(expect.stringContaining('/api/media/downloads/qbittorrent/abc123/remove'), expect.anything())
@@ -476,7 +532,7 @@ describe('Media Command Center', () => {
     fireEvent.click(screen.getByRole('button', { name: /Spanish \(Latino\) 1/i }))
     expect(screen.getByText(/No subtitle gaps in this filter/i)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Movies 1/i }))
-    expect(screen.getByText('Anomalisa')).toBeInTheDocument()
+    expect(screen.getAllByText('Anomalisa').length).toBeGreaterThan(0)
     expect(screen.getByText(/Bazarr · Spanish \(Latino\)/i)).toBeInTheDocument()
     expect(screen.getByText(/Radarr movie 9/i)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Search' }))
@@ -495,7 +551,7 @@ describe('Media Command Center', () => {
     fireEvent.change(screen.getByLabelText('Request search query'), { target: { value: 'severance' } })
     fireEvent.click(screen.getByRole('button', { name: 'Search' }))
 
-    expect(await screen.findByText('Severance')).toBeInTheDocument()
+    expect((await screen.findAllByText('Severance')).length).toBeGreaterThan(0)
     const seasons = screen.getByLabelText('Season numbers for Severance')
     expect(seasons).toHaveValue('1, 2, 3')
     fireEvent.change(seasons, { target: { value: '1, 3' } })
@@ -517,8 +573,8 @@ describe('Media Command Center', () => {
     vi.mocked(api.post).mockResolvedValue({})
     render(<MediaRadar />)
 
-    clickButtonText('Browse')
-    clickButtonText('Load')
+    fireEvent.click(screen.getByRole('tab', { name: /Browse/i }))
+    clickButtonText('Load suggestions')
 
     expect(await screen.findByText('Monarch: Legacy of Monsters')).toBeInTheDocument()
     expect(screen.getByText('215 found')).toBeInTheDocument()
@@ -537,6 +593,120 @@ describe('Media Command Center', () => {
     })
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Request Monarch: Legacy of Monsters through Overseerr'))
     confirm.mockRestore()
+  })
+
+  it('renders image-backed discovery cards when request metadata has posters', async () => {
+    const { container } = render(<MediaRadar />)
+
+    fireEvent.click(screen.getByRole('tab', { name: /Browse/i }))
+    clickButtonText('Load suggestions')
+
+    expect(await screen.findByText('Monarch: Legacy of Monsters')).toBeInTheDocument()
+    expect(container.querySelector('img[src="https://image.tmdb.org/t/p/w342/poster.jpg"]')).not.toBeNull()
+  })
+
+  it('uses Overseerr-style image search as the Browse entry flow', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    vi.mocked(api.post).mockResolvedValue({})
+    const { container } = render(<MediaRadar />)
+
+    fireEvent.click(screen.getByRole('tab', { name: /Browse/i }))
+    fireEvent.change(screen.getByLabelText('Add media request search query'), { target: { value: 'severance' } })
+    const addSection = screen.getByLabelText('Add media request search query').closest('section')
+    expect(addSection).not.toBeNull()
+    fireEvent.click(within(addSection as HTMLElement).getAllByRole('button', { name: /^Search$/i })[0])
+
+    expect((await screen.findAllByText('Severance')).length).toBeGreaterThan(0)
+    expect(container.querySelector('img[src="https://image.tmdb.org/t/p/w342/severance-poster.jpg"]')).not.toBeNull()
+    fireEvent.click(screen.getByText('Request').closest('button') as HTMLButtonElement)
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith('/api/media/requests/search?service=overseerr&query=severance')
+      expect(api.post).toHaveBeenCalledWith('/api/media/requests/overseerr', {
+        mediaId: 95396,
+        mediaType: 'tv',
+        seasons: [1, 2, 3],
+      })
+    })
+    confirm.mockRestore()
+  })
+
+  it('does not show season controls for movie request results normalized from kind', async () => {
+    vi.mocked(api.get).mockImplementation(path => {
+      if (String(path).includes('/api/media/requests/search')) {
+        return Promise.resolve({
+          service: 'overseerr',
+          results: [
+            {
+              id: 693134,
+              title: 'Dune: Part Two',
+              kind: 'movie',
+              year: 2024,
+              studio: 'Legendary',
+              posterPath: '/dune-poster.jpg',
+              overview: 'Paul Atreides unites with Chani and the Fremen.',
+            },
+          ],
+        })
+      }
+      return Promise.resolve({})
+    })
+    render(<MediaRadar />)
+
+    fireEvent.click(screen.getByRole('tab', { name: /Browse/i }))
+    fireEvent.change(screen.getByLabelText('Add media request search query'), { target: { value: 'dune' } })
+    const addSection = screen.getByLabelText('Add media request search query').closest('section')
+    expect(addSection).not.toBeNull()
+    fireEvent.click(within(addSection as HTMLElement).getAllByRole('button', { name: /^Search$/i })[0])
+
+    expect(await screen.findByText('Dune: Part Two')).toBeInTheDocument()
+    expect(screen.getByText(/movie · 2024 · Legendary/i)).toBeInTheDocument()
+    expect(screen.queryByText('SEASONS')).not.toBeInTheDocument()
+  })
+
+  it('uses Helmar-style mobile chrome with bottom tabs', () => {
+    vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
+      matches: query === '(max-width: 920px)',
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    })))
+
+    render(<MediaRadar />)
+
+    expect(screen.getByRole('button', { name: 'Default Network' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Mobile media command search')).toBeInTheDocument()
+    const nav = screen.getByRole('navigation', { name: 'Media mobile tabs' })
+    fireEvent.click(within(nav).getByRole('button', { name: /Calendar/i }))
+
+    expect(screen.getByText('1 releases')).toBeInTheDocument()
+    fireEvent.click(within(nav).getByRole('button', { name: /Activities/i }))
+    expect(screen.getAllByText('Succession S03E03 The Disruption').length).toBeGreaterThan(0)
+    vi.unstubAllGlobals()
+  })
+
+  it('shows mobile browse suggestions before a query', () => {
+    vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
+      matches: query === '(max-width: 920px)',
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    })))
+
+    render(<MediaRadar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    expect(screen.getAllByText('Browse & Search').length).toBeGreaterThan(0)
+    expect(screen.getByLabelText('Add media request search query')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Load suggestions' })).toBeInTheDocument()
   })
 
   it('only shows approve and decline actions for pending requests', () => {
@@ -589,6 +759,67 @@ describe('Media Command Center', () => {
     confirm.mockRestore()
   })
 
+  it('shows source and file metadata in the detail drawer', async () => {
+    render(<MediaRadar />)
+
+    fireEvent.click(screen.getByRole('tab', { name: /Browse/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Severance/i }))
+
+    const dialog = await screen.findByRole('dialog', { name: /media detail/i })
+    expect(within(dialog).getByText('Source and file')).toBeInTheDocument()
+    expect(within(dialog).getByText('Severance.S02E09.Cold.Harbor.1080p.WEB-DL')).toBeInTheDocument()
+    expect(within(dialog).getByText('Severance - S02E09 - Cold Harbor.mkv')).toBeInTheDocument()
+  })
+
+  it('opens seeded browse detail immediately while backend detail is still loading', async () => {
+    const defaultGet = vi.mocked(api.get).getMockImplementation()
+    vi.mocked(api.get).mockImplementation(path => {
+      if (String(path).includes('/api/media/detail/sonarr/')) {
+        return new Promise(() => undefined)
+      }
+      return defaultGet?.(path) ?? Promise.resolve({})
+    })
+
+    render(<MediaRadar />)
+
+    fireEvent.click(screen.getByRole('tab', { name: /Browse/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Severance/i }))
+
+    const dialog = await screen.findByRole('dialog', { name: /media detail/i })
+    expect(within(dialog).getAllByText('Severance').length).toBeGreaterThan(0)
+    expect(within(dialog).getByText(/Apple TV\+/i)).toBeInTheDocument()
+    expect(within(dialog).getByText((_, node) => node?.textContent === 'Poster missing')).toBeInTheDocument()
+    expect(within(dialog).getByText((_, node) => node?.textContent === 'Overview missing')).toBeInTheDocument()
+  })
+
+  it('lets setup warnings be ignored and restored per device', () => {
+    render(<MediaRadar />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Ops/i }))
+    const credentialsSection = screen.getByText('Detected, needs credentials').closest('section')
+    expect(credentialsSection).not.toBeNull()
+    fireEvent.click(within(credentialsSection as HTMLElement).getByRole('button', { name: 'Ignore Kometa warning' }))
+
+    expect(screen.queryByText('Detected, needs credentials')).not.toBeInTheDocument()
+    expect(window.localStorage.getItem('media-command-ignored-warnings:v1')).toContain('kometa')
+
+    fireEvent.click(screen.getByRole('button', { name: /Show ignored 1/i }))
+    expect(screen.getByText('Detected, needs credentials')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Restore all' }))
+    expect(window.localStorage.getItem('media-command-ignored-warnings:v1')).toBe('[]')
+  })
+
+  it('renders calendar cards with clear day chips and exact dates', () => {
+    render(<MediaRadar />)
+
+    fireEvent.click(screen.getByRole('tab', { name: /Calendar/i }))
+
+    expect(screen.getByText('FROM S04E05: What a Long Strange Trip It\'s Been')).toBeInTheDocument()
+    expect(screen.getByText('May')).toBeInTheDocument()
+    expect(screen.getByText('21')).toBeInTheDocument()
+    expect(screen.getByText(/Thu, May 21, 2026/i)).toBeInTheDocument()
+  })
+
   it('opens media detail from overview recently added and upcoming cards', async () => {
     render(<MediaRadar />)
 
@@ -599,12 +830,37 @@ describe('Media Command Center', () => {
     })
     expect(await screen.findByRole('dialog', { name: /media detail/i })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'x' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close media detail' }))
     fireEvent.click(screen.getByRole('button', { name: /FROM S04E05/i }))
 
     await waitFor(() => {
       expect(api.get).toHaveBeenCalledWith('/api/media/detail/sonarr/episode/2327')
     })
+    expect(await screen.findByText('Source and file')).toBeInTheDocument()
+    expect(screen.getByText('Severance.S02E09.Cold.Harbor.1080p.WEB-DL')).toBeInTheDocument()
+    expect(screen.getByText('Season 02/Severance - S02E09 - Cold Harbor.mkv')).toBeInTheDocument()
+  })
+
+  it('renders artwork for overview recently added and upcoming cards', () => {
+    const { container } = render(<MediaRadar />)
+
+    const poster = container.querySelector('img[src="http://127.0.0.1:3010/api/media/image/plex?path=%2Flibrary%2Fmetadata%2F18349%2Fthumb"]')
+    const upcoming = container.querySelector('img[src*="/api/media/image/remote?url=http%3A%2F%2Fsonarr%2Fposters%2Ffrom-s04e05.jpg"]')
+    expect(poster).not.toBeNull()
+    expect(upcoming).not.toBeNull()
+    expect(poster).toHaveAttribute('loading', 'lazy')
+    expect(upcoming).toHaveAttribute('loading', 'lazy')
+  })
+
+  it('falls back cleanly when artwork fails to load', () => {
+    const { container } = render(<MediaRadar />)
+    const poster = container.querySelector('img[src="http://127.0.0.1:3010/api/media/image/plex?path=%2Flibrary%2Fmetadata%2F18349%2Fthumb"]')
+    expect(poster).not.toBeNull()
+
+    fireEvent.error(poster as HTMLImageElement)
+
+    expect(container.querySelector('img[src="http://127.0.0.1:3010/api/media/image/plex?path=%2Flibrary%2Fmetadata%2F18349%2Fthumb"]')).toBeNull()
+    expect(screen.getAllByText('Poster unavailable').length).toBeGreaterThan(0)
   })
 
   it('filters browse library by title, network, and studio text', () => {
@@ -612,31 +868,31 @@ describe('Media Command Center', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: /Browse/i }))
     expect(screen.getAllByText('Severance').length).toBeGreaterThan(0)
-    expect(screen.getByText('Anomalisa')).toBeInTheDocument()
+    expect(screen.getAllByText('Anomalisa').length).toBeGreaterThan(0)
 
     fireEvent.change(screen.getByLabelText('Browse library search'), { target: { value: 'paramount' } })
 
     expect(screen.queryByText('Severance')).not.toBeInTheDocument()
-    expect(screen.getByText('Anomalisa')).toBeInTheDocument()
+    expect(screen.getAllByText('Anomalisa').length).toBeGreaterThan(0)
   })
 
   it('filters controllable library items by search, service, and monitored state', () => {
     render(<MediaRadar />)
 
     fireEvent.click(screen.getByRole('tab', { name: /Library/i }))
-    expect(screen.getByText('Severance')).toBeInTheDocument()
-    expect(screen.getByText('Anomalisa')).toBeInTheDocument()
+    expect(screen.getAllByText('Severance').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Anomalisa').length).toBeGreaterThan(0)
 
     fireEvent.change(screen.getByLabelText('Library search'), { target: { value: 'paramount' } })
     expect(screen.queryByText('Severance')).not.toBeInTheDocument()
-    expect(screen.getByText('Anomalisa')).toBeInTheDocument()
+    expect(screen.getAllByText('Anomalisa').length).toBeGreaterThan(0)
 
     fireEvent.click(screen.getByRole('button', { name: /^Monitored 1$/i }))
     expect(screen.getByText(/No library items match these filters/i)).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Library search'), { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: /^Unmonitored 1$/i }))
-    expect(screen.getByText('Anomalisa')).toBeInTheDocument()
+    expect(screen.getAllByText('Anomalisa').length).toBeGreaterThan(0)
     expect(screen.queryByText('Severance')).not.toBeInTheDocument()
   })
 })

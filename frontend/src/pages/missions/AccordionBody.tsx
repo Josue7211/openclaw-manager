@@ -222,7 +222,7 @@ export function AccordionBody({ missionId, mission, agent }: { missionId: string
     }}>
       <div style={{
         width: '20px', height: '20px', borderRadius: '50%',
-        border: '2px solid var(--purple-a30)',
+        border: '2px solid var(--accent-a30)',
         borderTopColor: 'var(--accent-bright)',
         animation: 'spin 0.8s linear infinite',
       }} />
@@ -275,10 +275,10 @@ export function AccordionBody({ missionId, mission, agent }: { missionId: string
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: '3px',
             fontSize: '10px', fontFamily: 'monospace',
-            background: 'var(--secondary-a12)',
-            border: '1px solid var(--cyan-a25)',
+            background: 'var(--tertiary-a08)',
+            border: '1px solid var(--tertiary-a25)',
             borderRadius: '10px', padding: '1px 6px',
-            color: 'var(--cyan)', flexShrink: 0,
+            color: 'var(--tertiary-bright)', flexShrink: 0,
           }}>
             <Cpu size={9} />
             {detectedModel.replace('claude-', '')}
@@ -350,7 +350,7 @@ export function AccordionBody({ missionId, mission, agent }: { missionId: string
           height: 'calc(100% + 8px)',
           background: 'var(--text-primary)',
           borderRadius: '2px',
-          boxShadow: '0 0 4px 1px var(--purple-a90), 0 0 8px 3px var(--purple-a40)',
+          boxShadow: '0 0 4px 1px var(--accent-a40), 0 0 8px 3px var(--accent-a30)',
           zIndex: 3,
           pointerEvents: 'none',
           transition: isDragging ? 'none' : 'left 0.1s ease',
@@ -365,7 +365,7 @@ export function AccordionBody({ missionId, mission, agent }: { missionId: string
             height: '5px',
             background: 'var(--text-primary)',
             borderRadius: '1px',
-            boxShadow: '0 0 6px 1px var(--purple-a90), 0 0 12px 2px var(--purple-a40)',
+            boxShadow: '0 0 6px 1px var(--accent-a40), 0 0 12px 2px var(--accent-a30)',
           }} />
         </div>
 
@@ -450,7 +450,7 @@ export function AccordionBody({ missionId, mission, agent }: { missionId: string
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             width: '22px', height: '22px', borderRadius: '50%',
             border: '1px solid var(--border)',
-            background: playing ? 'var(--purple-a15)' : 'var(--hover-bg)',
+            background: playing ? 'var(--accent-a15)' : 'var(--hover-bg)',
             color: playing ? 'var(--accent-bright)' : 'var(--text-secondary)',
             cursor: 'pointer', flexShrink: 0,
           }}

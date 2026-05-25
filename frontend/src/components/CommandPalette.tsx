@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate as useRouterNavigate, useLocation } from 'react-router-dom'
-import { MagnifyingGlass, Plus, Gear, ArrowRight, NotePencil, CheckSquare, Sun, Moon, BellSlash, Checks, DownloadSimple, ChatText, Target, CalendarDots, Envelope, Bell, BookOpen, FileText, SpinnerGap, MusicNote } from '@phosphor-icons/react'
+import { MagnifyingGlass, Plus, Gear, ArrowRight, NotePencil, CheckSquare, Sun, Moon, BellSlash, Checks, DownloadSimple, ChatText, Target, CalendarDots, Envelope, Bell, BookOpen, FileText, SpinnerGap, MusicNote, FolderPlus, FolderOpen } from '@phosphor-icons/react'
 import { allNavItems } from '@/lib/nav-items'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import { getKeybindings, subscribeKeybindings, formatKey } from '@/lib/keybindings'
@@ -12,7 +12,36 @@ import { markAllRead } from '@/components/NotificationCenter'
 import { formatContactLabel } from '@/lib/utils'
 import { api } from '@/lib/api'
 import { cycleThemeMode, useThemeState } from '@/lib/theme-store'
+import { chatSessionPath, notifyChatSessionsChanged, saveSelectedChatSessionKey } from '@/lib/chat-session-selection'
+import type { HermesSession, GatewaySessionsResponse } from '@/chat/t3-adapters/gatewaySessionTypes'
+import {
+  loadAddedProjects,
+  loadChatWorkspaceContext,
+  mergeWorkspaceProjects,
+  normalizeWorkspaceContext,
+  type ChatWorkspaceProject,
+} from '@/chat/t3-adapters/projectWorkspace'
+import {
+  attachChatSessionProjectRefs,
+  findProjectForSession,
+  loadChatSessionProjectRefs,
+} from '@/chat/t3-adapters/sessionProjectRefs'
+import {
+  sessionEnvironmentId,
+  sessionProjectId,
+  sessionProjectName,
+  sessionProjectRoot,
+  sessionWorkingDir,
+} from '@/chat/t3-adapters/sidebarSessionMatching'
+import {
+  projectEnvironmentDisplayLabel,
+  projectMachineLabel,
+  setProjectRouteParams,
+} from '@/chat/t3-adapters/projectSidebar'
+import { loadProjectSortOrder } from '@/chat/t3-adapters/sidebarPreferences'
 import type { KoelSearchResults } from '@/lib/types'
+
+const KOEL_SEARCH_ENABLED = import.meta.env.VITE_ENABLE_KOEL_SEARCH === 'true'
 
 interface PaletteItem {
   id: string
@@ -20,9 +49,11 @@ interface PaletteItem {
   icon?: React.ReactNode
   action: () => void
   shortcut?: string
-  category: 'page' | 'action' | 'conversation' | 'search'
+  category: 'page' | 'action' | 'project' | 'pinned-chat' | 'chat' | 'conversation' | 'search'
   /** Optional secondary text shown dimmer to the right of the label */
   hint?: string
+  /** Hidden searchable metadata that should not clutter the visible row. */
+  keywords?: string[]
 }
 
 /* ─── DND helpers ──────────────────────────────────────────────────────── */
@@ -103,6 +134,185 @@ function getRecentSnapshot(): RecentConversation[] {
   return _recentConversations
 }
 
+function sessionLastActivityMs(session: HermesSession): number {
+  const timestamp = new Date(session.lastActivity).getTime()
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+function isPinnedChatSession(session: HermesSession): boolean {
+  return session.pinned === true || session.favorite === true
+}
+
+function compareChatSessions(left: HermesSession, right: HermesSession): number {
+  if (isPinnedChatSession(left) !== isPinnedChatSession(right)) {
+    return isPinnedChatSession(left) ? -1 : 1
+  }
+  return sessionLastActivityMs(right) - sessionLastActivityMs(left)
+}
+
+function projectLastActivityMs(project: ChatWorkspaceProject, sessions: HermesSession[]): number {
+  let latest = 0
+  for (const session of sessions) {
+    if (findProjectForSession([project], session) !== project) continue
+    latest = Math.max(latest, sessionLastActivityMs(session))
+  }
+  return latest
+}
+
+function compareWorkspaceProjects(
+  left: ChatWorkspaceProject,
+  right: ChatWorkspaceProject,
+  sessions: HermesSession[],
+): number {
+  const sortOrder = loadProjectSortOrder()
+  if (sortOrder === 'recent') {
+    const activitySort = projectLastActivityMs(right, sessions) - projectLastActivityMs(left, sessions)
+    if (activitySort) return activitySort
+  }
+  if (sortOrder === 'machine') {
+    const machineSort = projectMachineLabel(left).localeCompare(projectMachineLabel(right))
+    if (machineSort) return machineSort
+  }
+  return left.name.localeCompare(right.name)
+    || left.path.localeCompare(right.path)
+}
+
+function chatSessionHint(session: HermesSession): string {
+  const workingDir = sessionWorkingDir(session) || sessionProjectRoot(session)
+  const branch = typeof session.branch === 'string' ? session.branch.trim() : ''
+  const runtime = typeof session.runtime === 'string' ? session.runtime.trim() : ''
+  const parts = [
+    isPinnedChatSession(session) ? 'Pinned' : '',
+    session.project,
+    workingDir ? projectLastPathSegment(workingDir) : '',
+    branch,
+    runtime,
+    session.environmentId,
+    session.messageCount > 0 ? `${session.messageCount} messages` : '',
+  ].map(part => part?.trim()).filter(Boolean)
+  return parts.join(' - ')
+}
+
+function projectLastPathSegment(path: string): string {
+  const normalized = path.trim().replace(/\\/g, '/').replace(/\/+$/g, '')
+  if (!normalized) return ''
+  const index = normalized.lastIndexOf('/')
+  return index >= 0 ? normalized.slice(index + 1) : normalized
+}
+
+function projectHint(project: ChatWorkspaceProject): string {
+  return [
+    projectEnvironmentDisplayLabel(project),
+    project.repositoryIdentity?.displayName,
+    project.repositoryIdentity?.name,
+    project.currentBranch || project.branches[0],
+    project.path,
+  ]
+    .map(part => part?.trim())
+    .filter((part, index, parts): part is string => Boolean(part && parts.indexOf(part) === index))
+    .join(' - ')
+}
+
+function searchableKeywords(values: unknown[]): string[] {
+  const keywords: string[] = []
+  const seen = new Set<string>()
+  const add = (value: unknown) => {
+    if (Array.isArray(value)) {
+      for (const nested of value) add(nested)
+      return
+    }
+    if (typeof value !== 'string') return
+    const keyword = value.trim()
+    if (!keyword) return
+    const key = keyword.toLowerCase()
+    if (seen.has(key)) return
+    seen.add(key)
+    keywords.push(keyword)
+  }
+  for (const value of values) add(value)
+  return keywords
+}
+
+function chatSessionKeywords(session: HermesSession): string[] {
+  return searchableKeywords([
+    session.key,
+    session.agentKey,
+    sessionProjectId(session),
+    sessionProjectName(session),
+    sessionWorkingDir(session),
+    sessionProjectRoot(session),
+    sessionEnvironmentId(session),
+    session.branch,
+    session.runtime,
+  ])
+}
+
+function projectKeywords(project: ChatWorkspaceProject): string[] {
+  const repository = project.repositoryIdentity
+  return searchableKeywords([
+    project.id,
+    project.path,
+    project.root,
+    project.environmentId,
+    project.machineLabel,
+    project.machine,
+    project.host,
+    project.group,
+    repository?.canonicalKey,
+    repository?.rootPath,
+    repository?.displayName,
+    repository?.name,
+    repository?.owner,
+    repository?.remoteName,
+    repository?.remoteUrl,
+    project.branches,
+    project.currentBranch,
+  ])
+}
+
+function chatProjectPath(project: ChatWorkspaceProject): string {
+  const params = new URLSearchParams()
+  params.set('new', '1')
+  setProjectRouteParams(params, project, {
+    branch: project.currentBranch || project.branches[0] || undefined,
+  })
+  return `/chat?${params.toString()}`
+}
+
+function projectFromSessionRouteMetadata(session: HermesSession): ChatWorkspaceProject | null {
+  const path = sessionWorkingDir(session) || sessionProjectRoot(session)
+  if (!path) return null
+  const branch = typeof session.branch === 'string' && session.branch.trim()
+    ? session.branch.trim()
+    : ''
+  return {
+    id: sessionProjectId(session),
+    environmentId: sessionEnvironmentId(session),
+    name: sessionProjectName(session) || projectLastPathSegment(path) || 'Project',
+    path,
+    root: sessionProjectRoot(session) || path,
+    branches: branch ? [branch] : ['main'],
+    currentBranch: branch || 'main',
+  }
+}
+
+function chatSessionProjectPath(session: HermesSession, project: ChatWorkspaceProject | null): string {
+  const environmentId = session.environmentId?.trim() || null
+  const path = chatSessionPath(session.key, environmentId)
+  if (!project) return path
+
+  const [pathname, search = ''] = path.split('?')
+  const params = new URLSearchParams(search)
+  const branch = typeof session.branch === 'string' && session.branch.trim()
+    ? session.branch.trim()
+    : (project.currentBranch || project.branches[0] || undefined)
+  const runtime = typeof session.runtime === 'string' && session.runtime.trim()
+    ? session.runtime.trim()
+    : undefined
+  setProjectRouteParams(params, project, { branch, runtime })
+  return `${pathname}?${params.toString()}`
+}
+
 
 /* ─── Component ────────────────────────────────────────────────────────── */
 
@@ -117,6 +327,8 @@ export default function CommandPalette({
   const [selectedIdx, setSelectedIdx] = useState(0)
   const [mounted, setMounted] = useState(false)
   const [searchResults, setSearchResults] = useState<PaletteItem[]>([])
+  const [recentChatSessions, setRecentChatSessions] = useState<HermesSession[]>([])
+  const [workspaceProjects, setWorkspaceProjects] = useState<ChatWorkspaceProject[]>([])
   const [searching, setSearching] = useState(false)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -141,6 +353,50 @@ export default function CommandPalette({
     }
   }, [open])
 
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+
+    api.get<GatewaySessionsResponse>('/api/gateway/sessions?includeUnscoped=1')
+      .then((response) => {
+        if (cancelled) return
+        const sessions = attachChatSessionProjectRefs(response.sessions ?? [], loadChatSessionProjectRefs())
+          .filter((session) => session.key?.trim())
+          .sort(compareChatSessions)
+        setRecentChatSessions(sessions)
+      })
+      .catch(() => {
+        if (!cancelled) setRecentChatSessions([])
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+
+    loadChatWorkspaceContext()
+      .then((response) => {
+        if (cancelled) return
+        const normalized = normalizeWorkspaceContext(response)
+        const merged = mergeWorkspaceProjects(normalized, loadAddedProjects())
+        setWorkspaceProjects(
+          merged.projects
+            .filter((project) => project.path.trim()),
+        )
+      })
+      .catch(() => {
+        if (!cancelled) setWorkspaceProjects([])
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [open])
+
   // Debounced global search via API
   useEffect(() => {
     if (!query.trim() || query.trim().length < 2) {
@@ -152,10 +408,11 @@ export default function CommandPalette({
     if (searchTimer.current) clearTimeout(searchTimer.current)
     searchTimer.current = setTimeout(async () => {
       try {
-        // Fire music search in parallel (independent, gracefully handles Koel being unavailable)
-        const musicPromise = api.get<{ data: KoelSearchResults }>(
-          `/api/koel/search?q=${encodeURIComponent(query.trim())}`
-        ).catch(() => null)
+        const musicPromise = KOEL_SEARCH_ENABLED
+          ? api.get<{ data: KoelSearchResults }>(
+              `/api/koel/search?q=${encodeURIComponent(query.trim())}`
+            ).catch(() => null)
+          : Promise.resolve(null)
 
         const data = await api.get<Record<string, unknown[]>>(`/api/search?q=${encodeURIComponent(query.trim())}`)
         const results: PaletteItem[] = []
@@ -243,12 +500,41 @@ export default function CommandPalette({
     [router, onClose],
   )
 
+  const startNewChat = useCallback(() => {
+    saveSelectedChatSessionKey(null)
+    notifyChatSessionsChanged({ sessionKey: null })
+    router(chatSessionPath(null))
+    onClose()
+  }, [router, onClose])
+
+  const openChatSession = useCallback((session: HermesSession) => {
+    const environmentId = session.environmentId?.trim() || null
+    const project = findProjectForSession(workspaceProjects, session) ?? projectFromSessionRouteMetadata(session)
+    saveSelectedChatSessionKey(session.key, environmentId)
+    notifyChatSessionsChanged({ sessionKey: session.key, environmentId })
+    router(chatSessionProjectPath(session, project))
+    onClose()
+  }, [router, onClose, workspaceProjects])
+
+  const openWorkspaceProject = useCallback((project: ChatWorkspaceProject) => {
+    saveSelectedChatSessionKey(null)
+    notifyChatSessionsChanged({ sessionKey: null })
+    router(chatProjectPath(project))
+    onClose()
+  }, [router, onClose])
+
   const bindings = useSyncExternalStore(subscribeKeybindings, getKeybindings)
   const recentConvs = useSyncExternalStore(subscribeRecent, getRecentSnapshot)
   const themeState = useThemeState()
   const isOnMessages = location.pathname === '/messages'
+  const sortedWorkspaceProjects = useMemo(
+    () => [...workspaceProjects]
+      .sort((left, right) => compareWorkspaceProjects(left, right, recentChatSessions)),
+    [workspaceProjects, recentChatSessions],
+  )
 
   const items: PaletteItem[] = useMemo(() => {
+    const hasQuery = Boolean(query.trim())
     // Build route->shortcut map from keybindings
     const routeShortcuts: Record<string, string> = {}
     for (const b of bindings) {
@@ -271,6 +557,24 @@ export default function CommandPalette({
 
     const actions: PaletteItem[] = [
       {
+        id: 'action-new-chat',
+        label: 'New chat',
+        icon: <ChatText size={16} />,
+        action: startNewChat,
+        category: 'action',
+      },
+      {
+        id: 'action-add-chat-project',
+        label: 'Add project folder',
+        icon: <FolderPlus size={16} />,
+        action: () => {
+          router('/chat?addProject=1')
+          onClose()
+        },
+        hint: 'chat',
+        category: 'action',
+      },
+      {
         id: 'action-new-message',
         label: 'New message',
         icon: <NotePencil size={16} />,
@@ -279,6 +583,30 @@ export default function CommandPalette({
           router('/messages?compose=1')
           onClose()
         },
+        category: 'action',
+      },
+      {
+        id: 'action-chat-providers',
+        label: 'Hermes models',
+        icon: <ChatText size={16} />,
+        action: () => navigate('/settings?section=providers'),
+        hint: 'settings',
+        category: 'action',
+      },
+      {
+        id: 'action-chat-usage',
+        label: 'Hermes usage',
+        icon: <Target size={16} />,
+        action: () => navigate('/settings?section=usage'),
+        hint: 'settings',
+        category: 'action',
+      },
+      {
+        id: 'action-hermes-agent-settings',
+        label: 'Hermes Agent settings',
+        icon: <Gear size={16} />,
+        action: () => navigate('/settings?section=hermes-agent'),
+        hint: 'settings',
         category: 'action',
       },
       {
@@ -350,6 +678,28 @@ export default function CommandPalette({
       },
     ]
 
+    const visibleChatSessions = hasQuery ? recentChatSessions : recentChatSessions.slice(0, 6)
+    const chatSessions: PaletteItem[] = visibleChatSessions.map((session) => ({
+      id: `chat-session-${session.environmentId || 'default'}-${session.key}`,
+      label: session.label || session.key,
+      icon: <ChatText size={16} />,
+      hint: chatSessionHint(session),
+      keywords: chatSessionKeywords(session),
+      action: () => openChatSession(session),
+      category: isPinnedChatSession(session) ? 'pinned-chat' as const : 'chat' as const,
+    }))
+
+    const visibleProjects = hasQuery ? sortedWorkspaceProjects : sortedWorkspaceProjects.slice(0, 8)
+    const projects: PaletteItem[] = visibleProjects.map((project) => ({
+      id: `project-${project.environmentId || 'local'}-${project.id || project.path}`,
+      label: project.name || projectLastPathSegment(project.path) || 'Project',
+      icon: <FolderOpen size={16} />,
+      hint: projectHint(project),
+      keywords: projectKeywords(project),
+      action: () => openWorkspaceProject(project),
+      category: 'project' as const,
+    }))
+
     // Build conversation items when on Messages page
     const conversations: PaletteItem[] = isOnMessages
       ? recentConvs.map((conv) => ({
@@ -370,15 +720,16 @@ export default function CommandPalette({
         }))
       : []
 
-    return [...pages, ...actions, ...conversations]
-  }, [navigate, bindings, isOnMessages, recentConvs, router, onClose, themeState.mode])
+    return [...pages, ...actions, ...projects, ...chatSessions, ...conversations]
+  }, [navigate, bindings, isOnMessages, query, recentConvs, recentChatSessions, sortedWorkspaceProjects, openChatSession, openWorkspaceProject, router, onClose, startNewChat, themeState.mode])
 
   const filtered = useMemo(() => {
     if (!query.trim()) return items
-    const q = query.toLowerCase()
+    const q = query.trim().toLowerCase()
     return items.filter((item) => {
       if (item.label.toLowerCase().includes(q)) return true
       if (item.hint && item.hint.toLowerCase().includes(q)) return true
+      if (item.keywords?.some((keyword) => keyword.toLowerCase().includes(q))) return true
       return false
     })
   }, [query, items])
@@ -392,6 +743,18 @@ export default function CommandPalette({
     () => filtered.filter((i) => i.category === 'action'),
     [filtered],
   )
+  const groupedChatSessions = useMemo(
+    () => filtered.filter((i) => i.category === 'chat'),
+    [filtered],
+  )
+  const groupedPinnedChatSessions = useMemo(
+    () => filtered.filter((i) => i.category === 'pinned-chat'),
+    [filtered],
+  )
+  const groupedProjects = useMemo(
+    () => filtered.filter((i) => i.category === 'project'),
+    [filtered],
+  )
   const groupedConversations = useMemo(
     () => filtered.filter((i) => i.category === 'conversation'),
     [filtered],
@@ -399,8 +762,8 @@ export default function CommandPalette({
 
   // Flat list for keyboard navigation
   const flatList = useMemo(
-    () => [...groupedPages, ...groupedActions, ...groupedConversations, ...searchResults],
-    [groupedPages, groupedActions, groupedConversations, searchResults],
+    () => [...groupedPages, ...groupedActions, ...groupedConversations, ...groupedProjects, ...groupedPinnedChatSessions, ...groupedChatSessions, ...searchResults],
+    [groupedPages, groupedActions, groupedConversations, groupedProjects, groupedPinnedChatSessions, groupedChatSessions, searchResults],
   )
 
   // Clamp selected index when list changes
@@ -691,6 +1054,126 @@ export default function CommandPalette({
                 Recent Conversations
               </div>
               {groupedConversations.map((item) => {
+                const idx = flatIdx++
+                const active = idx === selectedIdx
+                return (
+                  <PaletteRow
+                    key={item.id}
+                    item={item}
+                    active={active}
+                    dataIdx={idx}
+                    onMouseEnter={() => setSelectedIdx(idx)}
+                    onClick={() => item.action()}
+                  />
+                )
+              })}
+            </div>
+          )}
+
+          {groupedProjects.length > 0 && (
+            <div>
+              <div
+                style={{
+                  padding:
+                    (groupedPages.length > 0 || groupedActions.length > 0)
+                      ? '12px 18px 6px'
+                      : '8px 18px 6px',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  color: 'var(--text-muted)',
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  borderTop:
+                    (groupedPages.length > 0 || groupedActions.length > 0)
+                      ? '1px solid var(--bg-white-04)'
+                      : undefined,
+                  borderBottom: '1px solid var(--bg-white-04)',
+                  marginBottom: '2px',
+                }}
+              >
+                Projects
+              </div>
+              {groupedProjects.map((item) => {
+                const idx = flatIdx++
+                const active = idx === selectedIdx
+                return (
+                  <PaletteRow
+                    key={item.id}
+                    item={item}
+                    active={active}
+                    dataIdx={idx}
+                    onMouseEnter={() => setSelectedIdx(idx)}
+                    onClick={() => item.action()}
+                  />
+                )
+              })}
+            </div>
+          )}
+
+          {groupedPinnedChatSessions.length > 0 && (
+            <div>
+              <div
+                style={{
+                  padding:
+                    (groupedPages.length > 0 || groupedActions.length > 0 || groupedProjects.length > 0)
+                      ? '12px 18px 6px'
+                      : '8px 18px 6px',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  color: 'var(--text-muted)',
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  borderTop:
+                    (groupedPages.length > 0 || groupedActions.length > 0 || groupedProjects.length > 0)
+                      ? '1px solid var(--bg-white-04)'
+                      : undefined,
+                  borderBottom: '1px solid var(--bg-white-04)',
+                  marginBottom: '2px',
+                }}
+              >
+                Pinned Chats
+              </div>
+              {groupedPinnedChatSessions.map((item) => {
+                const idx = flatIdx++
+                const active = idx === selectedIdx
+                return (
+                  <PaletteRow
+                    key={item.id}
+                    item={item}
+                    active={active}
+                    dataIdx={idx}
+                    onMouseEnter={() => setSelectedIdx(idx)}
+                    onClick={() => item.action()}
+                  />
+                )
+              })}
+            </div>
+          )}
+
+          {groupedChatSessions.length > 0 && (
+            <div>
+              <div
+                style={{
+                  padding:
+                    (groupedPages.length > 0 || groupedActions.length > 0 || groupedProjects.length > 0 || groupedPinnedChatSessions.length > 0)
+                      ? '12px 18px 6px'
+                      : '8px 18px 6px',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  color: 'var(--text-muted)',
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  borderTop:
+                    (groupedPages.length > 0 || groupedActions.length > 0 || groupedProjects.length > 0 || groupedPinnedChatSessions.length > 0)
+                      ? '1px solid var(--bg-white-04)'
+                      : undefined,
+                  borderBottom: '1px solid var(--bg-white-04)',
+                  marginBottom: '2px',
+                }}
+              >
+                Recent Chats
+              </div>
+              {groupedChatSessions.map((item) => {
                 const idx = flatIdx++
                 const active = idx === selectedIdx
                 return (

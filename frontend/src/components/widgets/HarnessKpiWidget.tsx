@@ -45,7 +45,7 @@ export const HarnessKpiWidget = React.memo(function HarnessKpiWidget(_props: Wid
         <span style={{
           fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)',
           letterSpacing: '0.1em', textTransform: 'uppercase', flex: 1,
-        }}>Harness</span>
+        }}>Hermes Agent</span>
         {activeSessions > 0 && (
           <span style={{
             fontSize: '10px', padding: '2px 6px', borderRadius: '8px',
@@ -103,7 +103,7 @@ export const HarnessKpiWidget = React.memo(function HarnessKpiWidget(_props: Wid
       {/* View all link */}
       <button
         onClick={() => navigate('/harness')}
-        aria-label="View Harness details"
+        aria-label="View Hermes Agent details"
         style={{
           display: 'flex', alignItems: 'center', gap: '4px', marginTop: '8px',
           paddingTop: '8px', fontSize: '11px', color: 'var(--accent)',

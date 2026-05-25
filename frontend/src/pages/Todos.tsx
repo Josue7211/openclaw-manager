@@ -1,59 +1,195 @@
-
-
-
-import { useEffect, useState, useRef } from 'react'
-import { CheckSquare, Plus, Fire, ListChecks } from '@phosphor-icons/react'
-import { EmptyState } from '@/components/ui/EmptyState'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fire, ListChecks, Plus, Trash } from '@phosphor-icons/react'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { useQuery, useMutation } from '@tanstack/react-query'
-import { api } from '@/lib/api'
-import { emit } from '@/lib/event-bus'
-import { queryKeys } from '@/lib/query-keys'
-import { useTableRealtime } from '@/lib/hooks/useRealtimeSSE'
-import { todayISO } from '@/lib/utils'
-import { SkeletonList } from '@/components/Skeleton'
-import { useTodos } from '@/lib/hooks/useTodos'
-import { PageHeader } from '@/components/PageHeader'
-import { isDemoMode, DEMO_TODOS } from '@/lib/demo-data'
-import { DemoBadge } from '@/components/DemoModeBanner'
-import type { Todo } from '@/lib/types'
 
-function getDueDateStatus(due_date: string | null | undefined): 'overdue' | 'today' | 'future' | null {
-  if (!due_date) return null
+import { DemoBadge } from '@/components/DemoModeBanner'
+import { PageHeader } from '@/components/PageHeader'
+import { SkeletonList } from '@/components/Skeleton'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { api } from '@/lib/api'
+import { isDemoMode, DEMO_TODOS } from '@/lib/demo-data'
+import { emit } from '@/lib/event-bus'
+import { useTableRealtime } from '@/lib/hooks/useRealtimeSSE'
+import { useTodos } from '@/lib/hooks/useTodos'
+import { queryKeys } from '@/lib/query-keys'
+import type { Reminder, Todo } from '@/lib/types'
+import { todayISO } from '@/lib/utils'
+
+type TaskSource = 'todo' | 'reminder'
+type TaskFilter = 'all' | 'today' | 'scheduled' | 'flagged' | 'completed'
+
+interface RemindersResponse {
+  reminders?: Reminder[]
+  error?: string
+  message?: string
+}
+
+type UnifiedTask = {
+  key: string
+  id: string
+  source: TaskSource
+  title: string
+  completed: boolean
+  dueDate: string | null
+  createdAt: string
+  priority: number
+  notes?: string | null
+  list?: string
+}
+
+const DEMO_REMINDERS: Reminder[] = [
+  { id: 'demo-r1', title: 'Review pull request', completed: false, priority: 1, notes: null, list: 'Work', dueDate: new Date().toISOString().slice(0, 10) },
+  { id: 'demo-r2', title: 'Buy groceries', completed: false, priority: 9, notes: null, list: 'Personal', dueDate: new Date().toISOString().slice(0, 10) },
+  { id: 'demo-r3', title: 'Deploy staging build', completed: false, priority: 5, notes: 'Run integration tests first', list: 'Work', dueDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10) },
+]
+
+function getDueDateStatus(dueDate: string | null): 'overdue' | 'today' | 'future' | null {
+  if (!dueDate) return null
   const today = todayISO()
-  if (due_date < today) return 'overdue'
-  if (due_date === today) return 'today'
+  if (dueDate < today) return 'overdue'
+  if (dueDate === today) return 'today'
   return 'future'
 }
 
-function DueDateBadge({ due_date }: { due_date: string | null | undefined }) {
-  const status = getDueDateStatus(due_date)
-  if (!status || !due_date) return null
+function formatDueDate(dueDate: string | null): string | null {
+  if (!dueDate) return null
+  const status = getDueDateStatus(dueDate)
+  if (status === 'overdue') return 'Overdue'
+  if (status === 'today') return 'Today'
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+  if (dueDate === tomorrow) return 'Tomorrow'
+  return dueDate
+}
 
-  const styles: Record<string, { bg: string; color: string; label: string }> = {
-    overdue: { bg: 'var(--red-500-a12)', color: 'var(--red)', label: 'Overdue' },
-    today: { bg: 'var(--yellow-bright-a12)', color: 'var(--warning)', label: 'Today' },
-    future: { bg: 'var(--hover-bg)', color: 'var(--text-muted)', label: due_date },
+function dueColor(dueDate: string | null): string {
+  const status = getDueDateStatus(dueDate)
+  if (status === 'overdue') return 'var(--red)'
+  if (status === 'today') return 'var(--warning)'
+  return 'var(--text-muted)'
+}
+
+function toTodoTask(todo: Todo): UnifiedTask {
+  return {
+    key: `todo:${todo.id}`,
+    id: todo.id,
+    source: 'todo',
+    title: todo.text,
+    completed: todo.done,
+    dueDate: todo.due_date ?? null,
+    createdAt: todo.created_at ?? todo.createdAt ?? '',
+    priority: 0,
   }
-  const s = styles[status]
+}
+
+function toReminderTask(reminder: Reminder): UnifiedTask {
+  return {
+    key: `reminder:${reminder.id}`,
+    id: reminder.id,
+    source: 'reminder',
+    title: reminder.title,
+    completed: reminder.completed,
+    dueDate: reminder.dueDate ?? null,
+    createdAt: '',
+    priority: reminder.priority ?? 0,
+    notes: reminder.notes,
+    list: reminder.list,
+  }
+}
+
+function sortTasks(a: UnifiedTask, b: UnifiedTask): number {
+  if (a.completed !== b.completed) return a.completed ? 1 : -1
+  if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate)
+  if (a.dueDate && !b.dueDate) return -1
+  if (!a.dueDate && b.dueDate) return 1
+  if (a.priority !== b.priority) return a.priority === 1 ? -1 : b.priority === 1 ? 1 : 0
+  return a.createdAt.localeCompare(b.createdAt)
+}
+
+function TaskRow({
+  task,
+  onToggle,
+  onDelete,
+  deleting,
+}: {
+  task: UnifiedTask
+  onToggle: (task: UnifiedTask) => void
+  onDelete: (task: UnifiedTask) => void
+  deleting: boolean
+}) {
+  const due = formatDueDate(task.dueDate)
+
   return (
-    <span style={{
-      fontSize: '10px', fontWeight: 600, padding: '2px 7px', borderRadius: '999px',
-      background: s.bg, color: s.color, whiteSpace: 'nowrap', flexShrink: 0,
-    }}>
-      {s.label}
-    </span>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: '12px',
+        padding: '12px 14px',
+        background: task.completed ? 'var(--hover-bg)' : 'var(--bg-card)',
+        borderRadius: 'var(--radius-xl)',
+        border: '1px solid var(--border-hover)',
+        boxShadow: 'inset 0 1px 0 var(--bg-white-03)',
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={task.completed}
+        onChange={() => onToggle(task)}
+        aria-label={`Toggle "${task.title}"`}
+        style={{ cursor: 'pointer', accentColor: 'var(--accent)', width: '16px', height: '16px', flexShrink: 0, marginTop: '1px' }}
+      />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {task.priority === 1 && <span style={{ color: 'var(--red)', fontSize: '11px', fontWeight: 800 }}>!!</span>}
+          <span
+            style={{
+              fontSize: '13px',
+              color: task.completed ? 'var(--text-muted)' : 'var(--text-primary)',
+              textDecoration: task.completed ? 'line-through' : 'none',
+              lineHeight: 1.4,
+            }}
+          >
+            {task.title}
+          </span>
+        </div>
+        {task.notes && (
+          <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {task.notes}
+          </div>
+        )}
+      </div>
+      {due && (
+        <span style={{ fontSize: '11px', fontWeight: 600, color: dueColor(task.dueDate), flexShrink: 0, fontFamily: 'monospace', marginTop: '3px' }}>
+          {due}
+        </span>
+      )}
+      <button
+        onClick={() => onDelete(task)}
+        disabled={deleting}
+        className="btn-delete"
+        aria-label={`Delete "${task.title}"`}
+        style={{ flexShrink: 0 }}
+      >
+        <Trash size={13} />
+      </button>
+    </div>
   )
 }
 
 export default function TodosPage() {
-  const _demo = isDemoMode()
+  const demo = isDemoMode()
   const [searchParams, setSearchParams] = useSearchParams()
   const addInputRef = useRef<HTMLInputElement>(null)
-  const { addMutation, toggleMutation, deleteMutation, invalidateTodos } = useTodos()
+  const { toggleMutation, deleteMutation, invalidateTodos } = useTodos()
   const [localDemoTodos, setLocalDemoTodos] = useState<Todo[]>(DEMO_TODOS)
+  const [localDemoReminders, setLocalDemoReminders] = useState<Reminder[]>(DEMO_REMINDERS)
+  const [taskInput, setTaskInput] = useState('')
+  const [taskDueDate, setTaskDueDate] = useState('')
+  const [filter, setFilter] = useState<TaskFilter>('all')
+  const [mutationError, setMutationError] = useState<string | null>(null)
+  const [deletingKeys, setDeletingKeys] = useState<Set<string>>(() => new Set())
 
-  // Auto-focus add input when navigated with ?focus=add
   useEffect(() => {
     if (searchParams.get('focus') === 'add') {
       requestAnimationFrame(() => addInputRef.current?.focus())
@@ -61,24 +197,22 @@ export default function TodosPage() {
     }
   }, [searchParams, setSearchParams])
 
-  const { data: todosData, isLoading } = useQuery<{ todos: Todo[] }>({
+  const { data: todosData, isLoading: todosLoading } = useQuery<{ todos: Todo[] }>({
     queryKey: queryKeys.todos,
     queryFn: () => api.get<{ todos: Todo[] }>('/api/todos'),
-    enabled: !_demo,
+    enabled: !demo,
   })
 
-  const todos = _demo ? localDemoTodos : (todosData?.todos ?? [])
-  const [todoInput, setTodoInput] = useState('')
-  const [todoDueDate, setTodoDueDate] = useState('')
-  const [hasDueDateSupport, setHasDueDateSupport] = useState(true)
-  const [mutationError, setMutationError] = useState<string | null>(null)
-
-  // Detect due_date column support
-  useEffect(() => {
-    if (todos.length > 0 && 'due_date' in todos[0]) {
-      setHasDueDateSupport(true)
-    }
-  }, [todos])
+  const {
+    data: remindersData,
+    isLoading: remindersLoading,
+    isError: remindersQueryError,
+    refetch: refetchReminders,
+  } = useQuery<RemindersResponse>({
+    queryKey: ['reminders'],
+    queryFn: () => api.get<RemindersResponse>('/api/reminders'),
+    enabled: !demo,
+  })
 
   useTableRealtime('todos', {
     onEvent: () => {
@@ -87,150 +221,210 @@ export default function TodosPage() {
     },
   })
 
-  const updateDueDateMutation = useMutation({
-    mutationFn: async ({ id, due_date }: { id: string; due_date: string | null }) => {
-      await api.patch('/api/todos', { id, due_date: due_date || null })
+  const reminderToggleMutation = useMutation({
+    mutationFn: async ({ id, completed }: { id: string; completed: boolean }) => {
+      await api.patch('/api/reminders', { id, completed })
     },
-    onSuccess: () => invalidateTodos(),
+    onSuccess: () => refetchReminders(),
   })
 
-  const addTodo = async () => {
-    if (!todoInput.trim()) return
-    if (_demo) {
-      setLocalDemoTodos(prev => [...prev, {
-        id: `demo-${Date.now()}`,
-        text: todoInput.trim(),
-        done: false,
-        due_date: todoDueDate || null,
-      }])
-      setTodoInput('')
-      setTodoDueDate('')
-      return
-    }
-    try {
-      await addMutation.mutateAsync({ text: todoInput.trim(), due_date: todoDueDate || null })
-      setTodoInput('')
-      setTodoDueDate('')
-      setMutationError(null)
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Could not add todo')
-    }
-  }
+  const reminderCreateMutation = useMutation({
+    mutationFn: async () => {
+      await api.post('/api/reminders', {
+        title: taskInput.trim(),
+        dueDate: taskDueDate || null,
+        list: 'Reminders',
+        priority: 0,
+        notes: '',
+      })
+    },
+    onSuccess: () => refetchReminders(),
+  })
 
-  const toggleTodo = async (id: string, done: boolean) => {
-    if (_demo) {
-      setLocalDemoTodos(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))
-      return
-    }
-    try {
-      await toggleMutation.mutateAsync({ id, done })
-      setMutationError(null)
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Could not update todo')
-    }
-  }
+  const reminderDeleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.del(`/api/reminders?id=${encodeURIComponent(id)}`)
+    },
+    onSuccess: () => refetchReminders(),
+  })
 
-  const deleteTodo = async (id: string) => {
-    if (_demo) {
-      setLocalDemoTodos(prev => prev.filter(t => t.id !== id))
-      return
-    }
-    try {
-      await deleteMutation.mutateAsync(id)
-      setMutationError(null)
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Could not delete todo')
-    }
-  }
+  const todos = demo ? localDemoTodos : (todosData?.todos ?? [])
+  const reminders = demo ? localDemoReminders : (remindersData?.reminders ?? [])
+  const remindersUnavailable = !demo && (
+    remindersQueryError ||
+    remindersData?.error === 'bridge_unreachable' ||
+    remindersData?.error === 'bridge_not_configured' ||
+    remindersData?.error === 'missing_credentials'
+  )
 
-  const updateDueDate = async (id: string, due_date: string | null) => {
-    if (_demo) {
-      setLocalDemoTodos(prev => prev.map(t => t.id === id ? { ...t, due_date } : t))
-      return
-    }
-    try {
-      await updateDueDateMutation.mutateAsync({ id, due_date })
-      setMutationError(null)
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Could not update due date')
-    }
-  }
+  const tasks = useMemo(() => {
+    return [
+      ...todos.map(toTodoTask),
+      ...reminders.map(toReminderTask),
+    ].sort(sortTasks)
+  }, [todos, reminders])
 
-  const pending = todos.filter(t => !t.done)
-  const done = todos.filter(t => t.done)
   const today = todayISO()
+  const pendingTasks = tasks.filter(task => !task.completed)
+  const completedTasks = tasks.filter(task => task.completed)
+  const focusTasks = pendingTasks.filter(task => task.dueDate && task.dueDate <= today).slice(0, 3)
+  const focusKeys = new Set(focusTasks.map(task => task.key))
 
-  // Today's Focus: overdue + due today, sorted by due date asc, then creation date asc, top 3
-  const focusTodos = pending
-    .filter(t => t.due_date && t.due_date <= today)
-    .sort((a, b) => {
-      if (a.due_date! < b.due_date!) return -1
-      if (a.due_date! > b.due_date!) return 1
-      return (a.created_at || '').localeCompare(b.created_at || '')
-    })
-    .slice(0, 3)
+  const filteredTasks = useMemo(() => {
+    if (filter === 'completed') return completedTasks
+    let list = pendingTasks
+    if (filter === 'today') list = list.filter(task => task.dueDate && task.dueDate <= today)
+    if (filter === 'scheduled') list = list.filter(task => task.dueDate)
+    if (filter === 'flagged') list = list.filter(task => task.priority === 1)
+    return list
+  }, [completedTasks, filter, pendingTasks, today])
 
-  // Pending sorted by due date asc (nulls last), then creation date asc
-  const sortedPending = [...pending].sort((a, b) => {
-    if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date)
-    if (a.due_date && !b.due_date) return -1
-    if (!a.due_date && b.due_date) return 1
-    return (a.created_at || '').localeCompare(b.created_at || '')
-  })
+  const tabs: { id: TaskFilter; label: string; count: number }[] = [
+    { id: 'all', label: 'All', count: pendingTasks.length },
+    { id: 'today', label: 'Today', count: pendingTasks.filter(task => task.dueDate && task.dueDate <= today).length },
+    { id: 'scheduled', label: 'Scheduled', count: pendingTasks.filter(task => task.dueDate).length },
+    { id: 'flagged', label: 'Flagged', count: pendingTasks.filter(task => task.priority === 1).length },
+    { id: 'completed', label: 'Done', count: completedTasks.length },
+  ]
 
-  const focusIds = new Set(focusTodos.map(t => t.id))
+  const addTask = async () => {
+    const title = taskInput.trim()
+    if (!title) return
+    if (demo) {
+      setLocalDemoReminders(prev => [...prev, { id: `demo-r-${Date.now()}`, title, completed: false, dueDate: taskDueDate || null, priority: 0, notes: null, list: 'Reminders' }])
+      setTaskInput('')
+      setTaskDueDate('')
+      return
+    }
+    try {
+      await reminderCreateMutation.mutateAsync()
+      setTaskInput('')
+      setTaskDueDate('')
+      setMutationError(null)
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : 'Could not add reminder')
+    }
+  }
+
+  const toggleTask = async (task: UnifiedTask) => {
+    try {
+      if (demo) {
+        if (task.source === 'todo') {
+          setLocalDemoTodos(prev => prev.map(todo => todo.id === task.id ? { ...todo, done: !todo.done } : todo))
+        } else {
+          setLocalDemoReminders(prev => prev.map(reminder => reminder.id === task.id ? { ...reminder, completed: !reminder.completed } : reminder))
+        }
+        return
+      }
+      if (task.source === 'todo') {
+        await toggleMutation.mutateAsync({ id: task.id, done: task.completed })
+      } else {
+        await reminderToggleMutation.mutateAsync({ id: task.id, completed: !task.completed })
+      }
+      setMutationError(null)
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : `Could not update ${task.source}`)
+    }
+  }
+
+  const deleteTask = async (task: UnifiedTask) => {
+    setDeletingKeys(prev => new Set(prev).add(task.key))
+    try {
+      if (demo) {
+        if (task.source === 'todo') {
+          setLocalDemoTodos(prev => prev.filter(todo => todo.id !== task.id))
+        } else {
+          setLocalDemoReminders(prev => prev.filter(reminder => reminder.id !== task.id))
+        }
+        return
+      }
+      if (task.source === 'todo') {
+        await deleteMutation.mutateAsync(task.id)
+      } else {
+        await reminderDeleteMutation.mutateAsync(task.id)
+      }
+      setMutationError(null)
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : `Could not delete ${task.source}`)
+    } finally {
+      setDeletingKeys(prev => {
+        const next = new Set(prev)
+        next.delete(task.key)
+        return next
+      })
+    }
+  }
+
+  const loading = !demo && (todosLoading || remindersLoading)
+  const reminderAddDisabled = remindersUnavailable
 
   return (
     <div style={{ maxWidth: '960px', width: '100%' }}>
-      {/* Header */}
       <div style={{ marginBottom: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-          <CheckSquare size={20} style={{ color: 'var(--secondary)' }} />
-          <PageHeader defaultTitle="Todos" defaultSubtitle="real-time · personal task list" />
-          {_demo && <DemoBadge />}
-          {(!isLoading || _demo) && (
+          <ListChecks size={20} style={{ color: 'var(--secondary)' }} />
+          <PageHeader defaultTitle="Reminders" defaultSubtitle="one list" />
+          {demo && <DemoBadge />}
+          {!loading && (
             <span className="badge badge-green" style={{ marginLeft: '4px' }}>
-              {pending.length} pending
+              {pendingTasks.length} pending
             </span>
           )}
         </div>
       </div>
 
-      {/* Add input */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) 140px auto', gap: '8px', marginBottom: mutationError ? '10px' : '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) 140px auto', gap: '8px', marginBottom: mutationError || remindersUnavailable ? '10px' : '20px' }}>
         <input
           ref={addInputRef}
-          value={todoInput}
-          onChange={e => setTodoInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && addTodo()}
-          placeholder="Add a new task..."
-          aria-label="Add todo"
+          value={taskInput}
+          onChange={event => setTaskInput(event.target.value)}
+          onKeyDown={event => event.key === 'Enter' && !reminderAddDisabled && addTask()}
+          placeholder="Add a reminder..."
+          aria-label="Add reminder"
           style={{
-            flex: 1, background: 'var(--bg-card)', border: '1px solid var(--border)',
-            borderRadius: '10px', padding: '10px 14px', fontSize: '13px',
-            color: 'var(--text-primary)', outline: 'none',
+            minWidth: 0,
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-hover)',
+            borderRadius: 'var(--radius-xl)',
+            padding: '11px 15px',
+            fontSize: '13px',
+            color: 'var(--text-primary)',
+            outline: 'none',
+            boxShadow: 'inset 0 1px 0 var(--bg-white-03)',
           }}
         />
         <input
           type="date"
-          value={todoDueDate}
-          onChange={e => setTodoDueDate(e.target.value)}
-          aria-label="New todo due date"
+          value={taskDueDate}
+          onChange={event => setTaskDueDate(event.target.value)}
+          aria-label="Task due date"
           style={{
-            background: 'var(--bg-card)', border: '1px solid var(--border)',
-            borderRadius: '10px', padding: '9px 10px', fontSize: '12px',
-            color: 'var(--text-muted)', outline: 'none', colorScheme: 'dark',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-hover)',
+            borderRadius: 'var(--radius-xl)',
+            padding: '10px 12px',
+            fontSize: '12px',
+            color: 'var(--text-muted)',
+            outline: 'none',
+            colorScheme: 'dark',
+            boxShadow: 'inset 0 1px 0 var(--bg-white-03)',
           }}
         />
         <button
-          onClick={addTodo}
-          disabled={!todoInput.trim() || addMutation.isPending}
+          onClick={addTask}
+          disabled={!taskInput.trim() || reminderCreateMutation.isPending || reminderAddDisabled}
           style={{
-            background: !todoInput.trim() || addMutation.isPending ? 'var(--bg-elevated)' : 'var(--secondary)',
-            border: 'none', borderRadius: '10px',
-            color: !todoInput.trim() || addMutation.isPending ? 'var(--text-muted)' : 'var(--text-on-color)',
-            padding: '10px 16px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: '6px',
+            background: !taskInput.trim() || reminderAddDisabled ? 'var(--bg-elevated)' : 'var(--secondary)',
+            border: '1px solid var(--secondary-a25)',
+            borderRadius: 'var(--radius-xl)',
+            color: !taskInput.trim() || reminderAddDisabled ? 'var(--text-muted)' : 'var(--text-on-color)',
+            padding: '10px 16px',
+            fontSize: '13px',
+            fontWeight: 600,
+            cursor: !taskInput.trim() || reminderAddDisabled ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
           }}
         >
           <Plus size={14} />
@@ -238,135 +432,80 @@ export default function TodosPage() {
         </button>
       </div>
 
+      {remindersUnavailable && (
+        <div style={{ marginBottom: '14px', padding: '10px 12px', border: '1px solid var(--warning-a25)', borderRadius: '8px', background: 'var(--warning-a12)', color: 'var(--warning)', fontSize: '12px' }}>
+          Apple Reminders are unavailable.
+        </div>
+      )}
+
       {mutationError && (
-        <div style={{
-          marginBottom: '18px',
-          padding: '10px 12px',
-          border: '1px solid var(--red-500-a20)',
-          borderRadius: '8px',
-          background: 'var(--red-500-a12)',
-          color: 'var(--red)',
-          fontSize: '12px',
-        }}>
+        <div style={{ marginBottom: '14px', padding: '10px 12px', border: '1px solid var(--red-500-a20)', borderRadius: '8px', background: 'var(--red-500-a12)', color: 'var(--red)', fontSize: '12px' }}>
           {mutationError}
         </div>
       )}
 
-      <div aria-live="polite" aria-busy={isLoading && !_demo}>
-      {isLoading && !_demo ? (
-        <SkeletonList count={3} lines={3} />
-      ) : (
-        <>
-          {/* Today's Focus section */}
-          {focusTodos.length > 0 && (
-            <div style={{
-              marginBottom: '28px', padding: '16px 18px',
-              background: 'var(--red-500-a12)', borderRadius: '16px',
-              border: '1px solid var(--red-500-a20)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '12px' }}>
-                <Fire size={13} style={{ color: 'var(--red)' }} />
-                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                  Today&apos;s Focus
-                </span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
-                {focusTodos.map(t => (
-                  <div key={t.id} style={{
-                    display: 'flex', alignItems: 'center', gap: '10px',
-                    padding: '9px 12px', borderRadius: '10px',
-                    background: 'var(--bg-card)', border: '1px solid var(--red-500-a12)',
-                  }}>
-                    <input
-                      type="checkbox" checked={false} onChange={() => toggleTodo(t.id, t.done)}
-                      aria-label={`Mark "${t.text}" as done`}
-                      style={{ cursor: 'pointer', accentColor: 'var(--secondary)', width: '15px', height: '15px', flexShrink: 0 }}
-                    />
-                    <span style={{ flex: 1, fontSize: '13px', color: 'var(--text-primary)', lineHeight: 1.4 }}>{t.text}</span>
-                    <DueDateBadge due_date={t.due_date} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setFilter(tab.id)}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '20px',
+              fontSize: '12px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              background: filter === tab.id ? 'var(--secondary)' : 'var(--bg-panel)',
+              color: filter === tab.id ? 'var(--text-on-color)' : 'var(--text-secondary)',
+              border: filter === tab.id ? '1px solid var(--secondary)' : '1px solid var(--border)',
+            }}
+          >
+            {tab.label}
+            {tab.count > 0 && (
+              <span style={{ marginLeft: '6px', fontSize: '10px', fontWeight: 700, background: filter === tab.id ? 'var(--bg-white-25)' : 'var(--bg-base)', borderRadius: '10px', padding: '1px 6px' }}>
+                {tab.count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
 
-          {/* Pending todos */}
-          {pending.length > 0 && (
-            <div style={{ marginBottom: '24px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px' }}>
-                Pending — {pending.length}
+      <div aria-live="polite" aria-busy={loading}>
+        {loading ? (
+          <SkeletonList count={4} lines={3} />
+        ) : (
+          <>
+            {focusTasks.length > 0 && filter === 'all' && (
+              <div style={{ marginBottom: '28px', padding: '16px 18px', background: 'var(--red-500-a12)', borderRadius: '16px', border: '1px solid var(--red-500-a20)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '12px' }}>
+                  <Fire size={13} style={{ color: 'var(--red)' }} />
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                    Today&apos;s Focus
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                  {focusTasks.map(task => (
+                    <TaskRow key={task.key} task={task} onToggle={toggleTask} onDelete={deleteTask} deleting={deletingKeys.has(task.key)} />
+                  ))}
+                </div>
               </div>
+            )}
+
+            {filteredTasks.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {sortedPending.map(t => (
-                  <div key={t.id} style={{
-                    display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px',
-                    background: focusIds.has(t.id) ? 'var(--red-500-a12)' : 'var(--bg-card)',
-                    borderRadius: '10px',
-                    border: focusIds.has(t.id) ? '1px solid var(--red-500-a20)' : '1px solid var(--border)',
-                    transition: 'border-color 0.15s',
-                  }}>
-                    <input
-                      type="checkbox" checked={false} onChange={() => toggleTodo(t.id, t.done)}
-                      aria-label={`Mark "${t.text}" as done`}
-                      style={{ cursor: 'pointer', accentColor: 'var(--secondary)', width: '16px', height: '16px', flexShrink: 0 }}
-                    />
-                    <span style={{ flex: 1, fontSize: '13px', color: 'var(--text-primary)', lineHeight: 1.4 }}>{t.text}</span>
-                    {hasDueDateSupport && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                        <DueDateBadge due_date={t.due_date} />
-                        <input
-                          type="date"
-                          value={t.due_date || ''}
-                          onChange={e => updateDueDate(t.id, e.target.value || null)}
-                          title="Set due date"
-                          aria-label={`Set due date for "${t.text}"`}
-                          style={{
-                            background: 'var(--hover-bg)', border: '1px solid var(--border)',
-                            borderRadius: '10px', padding: '3px 6px', fontSize: '11px',
-                            color: 'var(--text-muted)', cursor: 'pointer', outline: 'none',
-                            colorScheme: 'dark',
-                          }}
-                        />
-                      </div>
-                    )}
-                    <button onClick={() => deleteTodo(t.id)} className="btn-delete" aria-label="Delete todo">✕</button>
+                {filteredTasks.map(task => (
+                  <div key={task.key} style={{ opacity: focusKeys.has(task.key) && filter === 'all' ? 0.92 : 1 }}>
+                    <TaskRow task={task} onToggle={toggleTask} onDelete={deleteTask} deleting={deletingKeys.has(task.key)} />
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          {/* Done todos */}
-          {done.length > 0 && (
-            <div>
-              <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px' }}>
-                Completed — {done.length}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {done.map(t => (
-                  <div key={t.id} style={{
-                    display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px',
-                    background: 'var(--hover-bg)', borderRadius: '10px',
-                    border: '1px solid var(--secondary-a15)',
-                  }}>
-                    <input
-                      type="checkbox" checked onChange={() => toggleTodo(t.id, t.done)}
-                      aria-label={`Mark "${t.text}" as not done`}
-                      style={{ cursor: 'pointer', accentColor: 'var(--secondary)', width: '16px', height: '16px', flexShrink: 0 }}
-                    />
-                    <span style={{ flex: 1, fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'line-through', lineHeight: 1.4 }}>{t.text}</span>
-                    <button onClick={() => deleteTodo(t.id)} className="btn-delete" aria-label="Delete todo">✕</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {todos.length === 0 && (
-            <EmptyState icon={ListChecks} title="All clear" description="You have no tasks. Enjoy the free time." />
-          )}
-        </>
-      )}
+            ) : tasks.length === 0 ? (
+              <EmptyState icon={ListChecks} title="All clear" description="You have no reminders." />
+            ) : (
+              <EmptyState icon={ListChecks} title="Nothing here" description="No reminders match this filter." />
+            )}
+          </>
+        )}
       </div>
     </div>
   )

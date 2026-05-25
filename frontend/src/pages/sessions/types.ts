@@ -9,7 +9,7 @@ export type {
 } from '@/features/sessions/types'
 
 export type {
-  ClaudeSession,
+  HermesSession,
   GatewaySessionsResponse,
 } from '@/chat/t3-adapters/gatewaySessionTypes'
 

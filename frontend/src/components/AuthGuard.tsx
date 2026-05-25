@@ -21,6 +21,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>('loading')
   const location = useLocation()
   const syncInitRef = useRef(false)
+  const syncHydrateRef = useRef(false)
 
   useEffect(() => {
     async function checkAuth() {
@@ -49,6 +50,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         }>('/api/auth/session')
 
         if (!res.authenticated) {
+          syncInitRef.current = false
+          syncHydrateRef.current = false
           setPreferencesSyncAuthenticated(false)
           setState('unauthenticated')
           return
@@ -96,7 +99,10 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           return
         }
         if (sync?.ready && sync.has_cached_key) {
-          void hydrateAccountSync()
+          if (!syncHydrateRef.current) {
+            syncHydrateRef.current = true
+            void hydrateAccountSync()
+          }
         }
         setPreferencesSyncAuthenticated(true)
         setState('authenticated')
@@ -119,21 +125,36 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     const onBackendChanged = () => {
       syncInitRef.current = false
+      syncHydrateRef.current = false
       setPreferencesSyncAuthenticated(false)
       setState('loading')
       void checkAuth()
     }
     const onAuthRequired = () => {
       syncInitRef.current = false
+      syncHydrateRef.current = false
       setPreferencesSyncAuthenticated(false)
       setState('unauthenticated')
     }
 
     window.addEventListener(API_BASE_CHANGED_EVENT, onBackendChanged)
     window.addEventListener(AUTH_REQUIRED_EVENT, onAuthRequired)
-    const interval = setInterval(checkAuth, 30000)
+    const onFocus = () => {
+      void checkAuth()
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void checkAuth()
+      }
+    }
+
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    const interval = setInterval(checkAuth, 60000)
     return () => {
       clearInterval(interval)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
       window.removeEventListener(API_BASE_CHANGED_EVENT, onBackendChanged)
       window.removeEventListener(AUTH_REQUIRED_EVENT, onAuthRequired)
     }

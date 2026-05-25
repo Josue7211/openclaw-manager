@@ -11,7 +11,6 @@ const Chat = lazy(() => import('@/pages/Chat'))
 const Builder = lazy(() => import('@/pages/Builder'))
 const Todos = lazy(() => import('@/pages/Todos'))
 const Calendar = lazy(() => import('@/pages/Calendar'))
-const Reminders = lazy(() => import('@/pages/Reminders'))
 const Messages = lazy(() => import('@/pages/Messages'))
 const Pomodoro = lazy(() => import('@/pages/Pomodoro'))
 const Email = lazy(() => import('@/pages/Email'))
@@ -55,7 +54,7 @@ const queryClient = new QueryClient({
 })
 
 function PageLoader() {
-  return <div style={{ padding: 24, color: 'var(--text-muted)' }}>Loading...</div>
+  return <div role="status" aria-label="Loading page" style={{ display: 'contents' }} />
 }
 
 function GuardedLayout() {
@@ -82,7 +81,7 @@ function AppRoutes() {
             <Route path="/builder" element={<Builder />} />
             <Route path="/todos" element={<Todos />} />
             <Route path="/calendar" element={<Calendar />} />
-            <Route path="/reminders" element={<Reminders />} />
+            <Route path="/reminders" element={<Navigate to="/todos" replace />} />
             <Route path="/messages" element={<Messages />} />
             <Route path="/pomodoro" element={<Pomodoro />} />
             <Route path="/email" element={<Email />} />

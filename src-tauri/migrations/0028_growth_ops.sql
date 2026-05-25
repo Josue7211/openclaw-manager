@@ -82,6 +82,20 @@ CREATE TABLE IF NOT EXISTS growth_post_metric_snapshots (
 CREATE INDEX IF NOT EXISTS idx_growth_post_metric_snapshots_user_platform
     ON growth_post_metric_snapshots(user_id, platform, updated_at DESC);
 
+CREATE TABLE IF NOT EXISTS growth_quarantined_analytics_rows (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    platform TEXT CHECK (platform IS NULL OR platform IN ('tiktok', 'instagram', 'youtube')),
+    status TEXT NOT NULL DEFAULT 'quarantined',
+    payload TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    deleted_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_growth_quarantined_analytics_rows_user_platform
+    ON growth_quarantined_analytics_rows(user_id, platform, updated_at DESC);
+
 CREATE TABLE IF NOT EXISTS growth_connector_accounts (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,

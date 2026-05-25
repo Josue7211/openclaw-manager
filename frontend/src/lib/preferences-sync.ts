@@ -190,7 +190,7 @@ export async function initHarnessRuntimeConfig(): Promise<void> {
       chatPrimaryModel?: string | null
       heartbeatModel?: string | null
       favoriteModels?: string[]
-    }>('/api/harness/runtime-config')
+    }>('/api/hermes/runtime-config')
 
     _applyingRemote = true
     try {

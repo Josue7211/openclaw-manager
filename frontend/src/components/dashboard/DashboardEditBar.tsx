@@ -41,6 +41,7 @@ export function useLongPress(onLongPress: () => void, ms = 500) {
 interface DashboardEditBarProps {
   editMode: boolean
   onOpenPicker: () => void
+  children?: React.ReactNode
   /** Override: custom edit mode setter instead of dashboard-store setEditMode */
   onToggleEdit?: (editing: boolean) => void
   /** Override: custom undo handler instead of dashboard-store undoDashboard */
@@ -50,6 +51,7 @@ interface DashboardEditBarProps {
 export const DashboardEditBar = React.memo(function DashboardEditBar({
   editMode,
   onOpenPicker,
+  children,
   onToggleEdit,
   onUndo,
 }: DashboardEditBarProps) {
@@ -107,6 +109,7 @@ export const DashboardEditBar = React.memo(function DashboardEditBar({
           >
             <ArrowCounterClockwise size={16} />
           </Button>
+          {children}
         </>
       ) : (
         <button

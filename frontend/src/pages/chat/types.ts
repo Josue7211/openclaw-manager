@@ -1,5 +1,7 @@
 export type {
   ChatMessage,
+  ChatContextFileAttachment,
+  ChatExecutionContext,
   ChatProviderId,
   ChatProviderOption,
   ChatProviderWireOption,
@@ -10,6 +12,7 @@ export type {
 } from '@/features/chat/types'
 
 export {
+  CHAT_SLASH_COMMANDS,
   cleanMessages,
   cleanText,
   isSlashCommand,

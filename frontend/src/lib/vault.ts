@@ -366,6 +366,7 @@ const INTERNAL_PREFIXES = [
   'ps:',
   'ix:',
   'cc:',
+  '.clawcontrol/',
   '.obsidian/',
   '.obsidian-livesync/',
   'obsydian_livesync',
@@ -434,6 +435,17 @@ export function discardLocalDraft(id: string) {
   clearLocalDraft(id)
 }
 
+export function isCachedTitleOnlyNote(note: VaultNote): boolean {
+  return note.type === 'note' && note.content_status === 'cached_title_only'
+}
+
+function assertNoteBodyIsWritable(note: VaultNote) {
+  const cached = notesCache.get(note._id)
+  if (isCachedTitleOnlyNote(note) || (cached && isCachedTitleOnlyNote(cached))) {
+    throw new Error('Cannot save this note until its body has loaded from the local vault.')
+  }
+}
+
 function clearLocalDraft(id: string) {
   const drafts = loadDraftCache()
   if (!drafts.delete(id)) return
@@ -444,11 +456,50 @@ function applyLocalDraft(note: VaultNote): VaultNote {
   if (note.type !== 'note') return note
   const draft = loadDraftCache().get(note._id)
   if (!draft || (draft.updated_at < note.updated_at && note.content)) return note
+  if (draft.content.length === 0 && note.content.length > 0) {
+    clearLocalDraft(note._id)
+    return note
+  }
   return {
     ...note,
     content: draft.content,
+    content_status: draft.content.length > 0 ? undefined : note.content_status,
     updated_at: draft.updated_at,
   }
+}
+
+function looksLikeTitleOnlyNotes(notes: VaultNote[]): boolean {
+  const documentNotes = notes.filter(note => note.type === 'note')
+  return documentNotes.length > 0 && documentNotes.every(isCachedTitleOnlyNote)
+}
+
+function looksLikeUnsafeEmptyNoteCache(notes: VaultNote[]): boolean {
+  const documentNotes = notes.filter(note => note.type === 'note')
+  return (
+    documentNotes.length > 1 &&
+    documentNotes.every(note => note.content.length === 0)
+  )
+}
+
+function mergeBackendNotesWithCache(backendNotes: VaultNote[]): VaultNote[] {
+  if (backendNotes.length === 0 || notesCache.size === 0) return backendNotes
+
+  const byId = new Map(backendNotes.map(note => [note._id, note]))
+  const recovered: VaultNote[] = []
+
+  for (const cached of notesCache.values()) {
+    if (cached.type !== 'note' && cached.type !== 'attachment') continue
+    if (byId.has(cached._id)) continue
+    recovered.push(
+      cached.type === 'note'
+        ? { ...cached, content_status: 'cached_title_only' as const }
+        : cached,
+    )
+  }
+
+  if (recovered.length === 0) return backendNotes
+  console.warn('[vault] local document list omitted cached notes; keeping them visible as unavailable cache entries:', recovered.map(note => note._id))
+  return [...backendNotes, ...recovered]
 }
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -468,6 +519,11 @@ let syncInterval: ReturnType<typeof setInterval> | null = null
 let hasFetchedFromBackend = false
 let hasFetchedFoldersFromBackend = false
 
+interface NotesFetchResult {
+  notes: VaultNote[]
+  fetchedFromBackend: boolean
+}
+
 // Hydrate notes from meta cache on startup (content will be empty until fetched)
 for (const [id, meta] of metaCache) {
   notesCache.set(id, {
@@ -476,16 +532,29 @@ for (const [id, meta] of metaCache) {
     _rev: meta._rev,
     type: 'note',
     content: '',
+    content_status: 'cached_title_only',
     aliases: meta.aliases,
     properties: meta.properties,
   })
 }
 
 // Convert a CouchDB doc to a VaultNote
+function markdownContentFromDoc(doc: Record<string, unknown>): string {
+  const fields = ['content', 'content_markdown', 'markdown', 'body', 'text']
+  let firstString = ''
+  for (const field of fields) {
+    const value = doc[field]
+    if (typeof value !== 'string') continue
+    if (!firstString) firstString = value
+    if (value.length > 0) return value
+  }
+  return firstString
+}
+
 function docToNote(doc: Record<string, unknown>): VaultNote {
   const id = (doc._id as string) || ''
   const title = (doc.title as string) || id.replace(/\.md$/, '').split('/').pop() || id
-  const content = (doc.content as string) || (doc.body as string) || ''
+  const content = markdownContentFromDoc(doc)
   const frontmatter = parseFrontmatter(content)
   const storedFolder = (doc.folder as string) || (doc.path as string)?.split('/').slice(0, -1).join('/') || ''
   const tags = Array.isArray(doc.tags)
@@ -591,7 +660,7 @@ function attachmentRecordToNote(att: Record<string, unknown>): VaultNote | null 
 
 // --- Sync via backend proxy ---
 
-async function fetchAllFromBackend(): Promise<VaultNote[]> {
+async function fetchAllFromBackend(): Promise<NotesFetchResult> {
   let json: any
   let localOk = false
   try {
@@ -599,7 +668,9 @@ async function fetchAllFromBackend(): Promise<VaultNote[]> {
     localOk = true
   } catch (err) {
     console.warn('[vault] local document list failed, using local cache:', err)
-    return [...notesCache.values()]
+    const cached = await hydrateEmptyNoteBodies([...notesCache.values()])
+    for (const note of cached) notesCache.set(note._id, note)
+    return { notes: cached, fetchedFromBackend: false }
   }
   const payload = json?.data || json || {}
 
@@ -607,11 +678,11 @@ async function fetchAllFromBackend(): Promise<VaultNote[]> {
   const rawNotes = Array.isArray(payload.notes) ? payload.notes : Array.isArray(payload) ? payload : []
   const rawAttachments: Array<Record<string, unknown>> = Array.isArray(payload.attachments) ? payload.attachments : []
 
-  const notes = rawNotes.map(docToNote).filter((n: VaultNote) => !isInternalDoc(n._id))
+  let notes = rawNotes.map(docToNote).filter((n: VaultNote) => !isInternalDoc(n._id))
 
   if (localOk && notes.length === 0) {
     const imported = await importLegacyVaultIfPresent()
-    if (imported.length > 0) return imported
+    if (imported.length > 0) return { notes: imported, fetchedFromBackend: true }
   }
 
   for (const att of rawAttachments) {
@@ -619,7 +690,58 @@ async function fetchAllFromBackend(): Promise<VaultNote[]> {
     if (attachment) notes.push(attachment)
   }
 
-  return notes
+  notes = await hydrateEmptyNoteBodies(notes)
+  notes = mergeBackendNotesWithCache(notes)
+  if (localOk && looksLikeUnsafeEmptyNoteCache(notes)) {
+    const imported = await importLegacyVaultIfPresent()
+    if (imported.length > 0 && !looksLikeUnsafeEmptyNoteCache(imported)) {
+      return { notes: imported, fetchedFromBackend: true }
+    }
+  }
+
+  return { notes, fetchedFromBackend: true }
+}
+
+async function hydrateEmptyNoteBodies(notes: VaultNote[]): Promise<VaultNote[]> {
+  const candidates = notes.filter(note => note.type === 'note' && note.content.length === 0)
+  if (candidates.length === 0) return notes
+
+  const hydrated = new Map<string, VaultNote>()
+  const failed = new Set<string>()
+  await Promise.all(candidates.map(async (note) => {
+    try {
+      const result = await api.get<any>(`${LOCAL_VAULT_PREFIX}/doc?id=${encodeURIComponent(note._id)}`)
+      const payload = result?.data || result || {}
+      const fullNote = docToNote(payload)
+      if (fullNote._id === note._id) {
+        hydrated.set(
+          note._id,
+          fullNote.content.length === 0 ? { ...fullNote, content_status: 'confirmed_blank' } : fullNote,
+        )
+      }
+    } catch (err) {
+      failed.add(note._id)
+      console.warn(`[vault] note body hydration failed for ${note._id}:`, err)
+    }
+  }))
+
+  if (hydrated.size === 0 && failed.size === 0) return notes
+  const nextNotes: VaultNote[] = notes.map(note => {
+    const fullNote = hydrated.get(note._id)
+    if (fullNote) return fullNote
+    if (failed.has(note._id) && note.type === 'note' && note.content.length === 0) {
+      return { ...note, content_status: 'cached_title_only' as const }
+    }
+    return note
+  })
+  if (looksLikeUnsafeEmptyNoteCache(nextNotes)) {
+    return nextNotes.map(note => (
+      note.type === 'note' && note.content.length === 0
+        ? { ...note, content_status: 'cached_title_only' as const }
+        : note
+    ))
+  }
+  return nextNotes
 }
 
 async function importLegacyVaultIfPresent(): Promise<VaultNote[]> {
@@ -676,20 +798,24 @@ async function fetchFoldersFromBackend(): Promise<VaultFolder[]> {
 export function startSync(onChange?: () => void) {
   if (syncInterval) return
   syncInterval = setInterval(async () => {
-    const [notes, folders] = await Promise.all([fetchAllFromBackend(), fetchFoldersFromBackend()])
-    if (notes.length > 0 || folders.length > 0) {
-      notesCache.clear()
-      metaCache.clear()
-      for (const note of notes) {
-        const withDraft = applyLocalDraft(note)
-        notesCache.set(withDraft._id, withDraft)
-        metaCache.set(withDraft._id, toMeta(withDraft))
+    const [notesResult, folders] = await Promise.all([fetchAllFromBackend(), fetchFoldersFromBackend()])
+    const notes = notesResult.notes
+    if ((notesResult.fetchedFromBackend && notes.length > 0) || folders.length > 0) {
+      if (notesResult.fetchedFromBackend) {
+        hasFetchedFromBackend = true
+        notesCache.clear()
+        metaCache.clear()
+        for (const note of notes) {
+          const withDraft = applyLocalDraft(note)
+          notesCache.set(withDraft._id, withDraft)
+          metaCache.set(withDraft._id, toMeta(withDraft))
+        }
+        saveMetaCache(metaCache)
       }
       foldersCache.clear()
       for (const folder of folderListToMap(folders).values()) {
         foldersCache.set(folder.path, folder)
       }
-      saveMetaCache(metaCache)
       saveFolderCache(foldersCache)
       onChange?.()
     }
@@ -705,10 +831,15 @@ export function stopSync() {
 
 // --- CRUD ---
 
-export async function getAllNotes(): Promise<VaultNote[]> {
-  if (!hasFetchedFromBackend) {
-    const notes = await fetchAllFromBackend()
-    if (notes.length > 0) {
+export async function getAllNotes(options: { force?: boolean } = {}): Promise<VaultNote[]> {
+  const cachedNotes = [...notesCache.values()].filter(n => n.type === 'note' || n.type === 'attachment')
+  if (options.force || !hasFetchedFromBackend || looksLikeTitleOnlyNotes(cachedNotes) || looksLikeUnsafeEmptyNoteCache(cachedNotes)) {
+    const result = await fetchAllFromBackend()
+    if (result.fetchedFromBackend) {
+      hasFetchedFromBackend = !looksLikeTitleOnlyNotes(result.notes) && !looksLikeUnsafeEmptyNoteCache(result.notes)
+    }
+    const notes = result.notes
+    if (result.fetchedFromBackend && notes.length > 0) {
       notesCache.clear()
       for (const note of notes) {
         const withDraft = applyLocalDraft(note)
@@ -717,7 +848,6 @@ export async function getAllNotes(): Promise<VaultNote[]> {
       }
       saveMetaCache(metaCache)
     }
-    hasFetchedFromBackend = true
   }
   return [...notesCache.values()]
     .map(applyLocalDraft)
@@ -765,6 +895,8 @@ export async function restoreLocalDraft(id: string): Promise<VaultNote> {
 }
 
 export async function putNote(note: VaultNote): Promise<VaultNote> {
+  assertNoteBodyIsWritable(note)
+
   const now = Date.now()
   const frontmatter = parseFrontmatter(note.content)
   const links = extractWikilinks(note.content)
@@ -1094,6 +1226,13 @@ export async function getVaultSyncLedger(limit = 50): Promise<VaultSyncLedger> {
         }))
       : [],
   }
+}
+
+export async function resolveVaultSyncConflict(provider: string, remoteId: string): Promise<void> {
+  await api.post<any>(`${LOCAL_VAULT_PREFIX}/sync-ledger/resolve`, {
+    provider,
+    remote_id: remoteId,
+  })
 }
 
 export async function listVaultCollaborationEvents(id: string, since = 0): Promise<VaultCollaborationEvent[]> {
@@ -2039,12 +2178,16 @@ export function rewriteWikilinkPath(content: string, fromId: string, toId: strin
   })
 }
 
-export function linkFirstPlainMention(content: string, title: string): string {
-  const cleanTitle = title.trim()
-  if (!cleanTitle) return content
-  const escaped = cleanTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+export function linkFirstPlainMention(content: string, mentionText: string, targetTitle = mentionText): string {
+  const cleanMention = mentionText.trim()
+  const cleanTarget = targetTitle.trim()
+  if (!cleanMention || !cleanTarget) return content
+  const escaped = cleanMention.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const re = new RegExp(`(^|[^\\w\\[])(` + escaped + `)(?![^\\[]*\\]\\])`, 'i')
-  return content.replace(re, (_match, prefix: string, mention: string) => `${prefix}[[${mention}]]`)
+  return content.replace(re, (_match, prefix: string, mention: string) => {
+    const target = cleanTarget.toLowerCase() === mention.toLowerCase() ? mention : `${cleanTarget}|${mention}`
+    return `${prefix}[[${target}]]`
+  })
 }
 
 interface ParsedFrontmatter {

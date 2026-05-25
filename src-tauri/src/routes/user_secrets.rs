@@ -3,6 +3,7 @@ use axum::routing::get;
 use axum::{Json, Router};
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 
 use crate::error::{success_json, AppError};
 use crate::server::{AppState, RequireAuth};
@@ -119,20 +120,32 @@ async fn put_secret(
 
     let service = service.trim();
     sanitize_postgrest_value(service)?;
+    let sb = SupabaseClient::from_state(&state)?;
 
-    if !body.credentials.is_object() {
+    let Some(input_credentials) = body.credentials.as_object() else {
         return Err(AppError::BadRequest(
             "credentials must be a JSON object".into(),
         ));
+    };
+
+    let sanitized_credentials = sanitize_credentials(input_credentials);
+    if sanitized_credentials.is_empty() {
+        return Err(AppError::BadRequest(
+            "credentials must include at least one non-empty field".into(),
+        ));
     }
 
-    let json_bytes = serde_json::to_vec(&body.credentials)
+    let mut merged_credentials = existing_service_credentials(&sb, &session, service)
+        .await
+        .unwrap_or_default();
+    merge_partial_update_credentials(&mut merged_credentials, sanitized_credentials);
+
+    let credentials_value = Value::Object(merged_credentials.clone());
+    let json_bytes = serde_json::to_vec(&credentials_value)
         .map_err(|e| AppError::Internal(anyhow::anyhow!("failed to serialize credentials: {e}")))?;
 
     let (ciphertext, nonce) = crate::crypto::encrypt(&json_bytes, &session.encryption_key)
         .map_err(|e| AppError::Internal(anyhow::anyhow!("encryption failed: {e}")))?;
-
-    let sb = SupabaseClient::from_state(&state)?;
 
     let row = json!({
         "user_id": session.user_id,
@@ -145,8 +158,8 @@ async fn put_secret(
         .await?;
 
     let mut updated_secrets = std::collections::HashMap::new();
-    if let Some(credentials) = body.credentials.as_object() {
-        for (key, value) in credentials {
+    if !merged_credentials.is_empty() {
+        for (key, value) in &merged_credentials {
             if let Some(value) = value.as_str().filter(|value| !value.trim().is_empty()) {
                 if let Some(env_var) =
                     crate::routes::auth::service_credential_to_env_var(service, key.as_str())
@@ -221,7 +234,8 @@ async fn delete_secret(
 //
 // One-time migration: reads all secrets currently in AppState (loaded from OS
 // keychain at startup), groups them by service, encrypts each group, and
-// upserts into Supabase user_secrets. Skips services that already exist.
+// upserts into Supabase user_secrets. Existing service rows are preserved and
+// only missing/empty fields are filled from local credentials.
 
 async fn migrate_secrets(
     State(state): State<AppState>,
@@ -237,14 +251,18 @@ async fn migrate_secrets(
 
     // Fetch existing secrets to avoid overwriting
     let existing = sb
-        .select_as_user("user_secrets", "select=service", &session.access_token)
+        .select_as_user(
+            "user_secrets",
+            "select=service,encrypted_credentials,nonce",
+            &session.access_token,
+        )
         .await
         .unwrap_or(json!([]));
-    let existing_services: std::collections::HashSet<String> = existing
+    let existing_services: HashMap<String, Value> = existing
         .as_array()
         .unwrap_or(&vec![])
         .iter()
-        .filter_map(|r| r["service"].as_str().map(|s| s.to_string()))
+        .filter_map(|r| r["service"].as_str().map(|s| (s.to_string(), r.clone())))
         .collect();
 
     // Map env var names back to (service, credential_key) pairs
@@ -255,6 +273,12 @@ async fn migrate_secrets(
         ("HARNESS_API_KEY", "harness", "api_key"),
         ("HARNESS_WS", "harness", "ws"),
         ("HARNESS_PASSWORD", "harness", "password"),
+        ("CODEX_LB_API_URL", "codex-lb", "api_url"),
+        (
+            "CODEX_LB_DASHBOARD_PASSWORD",
+            "codex-lb",
+            "dashboard_password",
+        ),
         ("HERMES_API_URL", "hermes", "api_url"),
         ("HERMES_API_KEY", "hermes", "api_key"),
         ("HERMES_WS", "hermes", "ws"),
@@ -352,8 +376,7 @@ async fn migrate_secrets(
     ];
 
     // Group current secrets by service
-    let mut services: std::collections::HashMap<String, serde_json::Map<String, Value>> =
-        std::collections::HashMap::new();
+    let mut services: HashMap<String, serde_json::Map<String, Value>> = HashMap::new();
 
     for &(env_var, service, cred_key) in env_to_service {
         if let Some(value) = state.secret(env_var) {
@@ -370,10 +393,28 @@ async fn migrate_secrets(
     let mut skipped = 0usize;
 
     for (service, creds) in &services {
-        if existing_services.contains(service) {
-            tracing::debug!(service = %service, "skipping migration — already exists in user_secrets");
+        let mut creds = sanitize_credentials(creds);
+        if creds.is_empty() {
             skipped += 1;
             continue;
+        }
+
+        if let Some(row) = existing_services.get(service) {
+            let Ok(mut remote_creds) = decrypt_service_credentials(row, &session.encryption_key)
+            else {
+                tracing::warn!(
+                    service = %service,
+                    "skipping migration merge because existing synced secret could not be decrypted"
+                );
+                skipped += 1;
+                continue;
+            };
+            let changed = fill_missing_credentials(&mut remote_creds, creds);
+            if !changed {
+                skipped += 1;
+                continue;
+            }
+            creds = remote_creds;
         }
 
         let creds_value = Value::Object(creds.clone());
@@ -409,6 +450,99 @@ async fn migrate_secrets(
     })))
 }
 
+fn sanitize_credentials(
+    credentials: &serde_json::Map<String, Value>,
+) -> serde_json::Map<String, Value> {
+    credentials
+        .iter()
+        .filter_map(|(key, value)| match value {
+            Value::String(s) if !s.trim().is_empty() => {
+                Some((key.clone(), Value::String(s.trim().to_string())))
+            }
+            Value::Array(items) if !items.is_empty() => Some((key.clone(), value.clone())),
+            Value::Object(map) if !map.is_empty() => Some((key.clone(), value.clone())),
+            Value::Bool(_) | Value::Number(_) => Some((key.clone(), value.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+fn merge_partial_update_credentials(
+    existing: &mut serde_json::Map<String, Value>,
+    incoming: serde_json::Map<String, Value>,
+) -> bool {
+    let mut changed = false;
+    for (key, value) in incoming {
+        if existing.get(&key) != Some(&value) {
+            existing.insert(key, value);
+            changed = true;
+        }
+    }
+    changed
+}
+
+fn fill_missing_credentials(
+    existing: &mut serde_json::Map<String, Value>,
+    incoming: serde_json::Map<String, Value>,
+) -> bool {
+    let mut changed = false;
+    for (key, value) in incoming {
+        let existing_has_value = existing
+            .get(&key)
+            .and_then(Value::as_str)
+            .map(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| existing.get(&key).is_some());
+        if !existing_has_value {
+            existing.insert(key, value);
+            changed = true;
+        }
+    }
+    changed
+}
+
+fn decrypt_service_credentials(
+    row: &Value,
+    encryption_key: &[u8],
+) -> Result<serde_json::Map<String, Value>, AppError> {
+    let ciphertext = row["encrypted_credentials"]
+        .as_str()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("missing encrypted_credentials")))?;
+    let nonce = row["nonce"]
+        .as_str()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("missing nonce")))?;
+
+    let plaintext = crate::crypto::decrypt(ciphertext, nonce, encryption_key)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("decryption failed: {e}")))?;
+    let credentials: Value = serde_json::from_slice(&plaintext)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("invalid credentials JSON: {e}")))?;
+    let credentials = credentials
+        .as_object()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("credentials must be an object")))?;
+    Ok(sanitize_credentials(credentials))
+}
+
+async fn existing_service_credentials(
+    sb: &SupabaseClient,
+    session: &crate::server::UserSession,
+    service: &str,
+) -> Result<serde_json::Map<String, Value>, AppError> {
+    let rows = sb
+        .select_as_user(
+            "user_secrets",
+            &format!(
+                "select=service,encrypted_credentials,nonce&service=eq.{}&limit=1",
+                service
+            ),
+            &session.access_token,
+        )
+        .await?;
+    let row = rows
+        .as_array()
+        .and_then(|arr| arr.first())
+        .ok_or_else(|| AppError::NotFound(format!("no secret for service: {service}")))?;
+    decrypt_service_credentials(row, &session.encryption_key)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -428,6 +562,102 @@ mod tests {
         );
         assert!(body.is_ok());
         assert!(body.unwrap().credentials.is_object());
+    }
+
+    #[test]
+    fn sanitize_credentials_removes_empty_values() {
+        let credentials = json!({
+            "host": " http://100.89.236.13:1234 ",
+            "password": "",
+            "api_key": "   ",
+            "enabled": true
+        });
+        let sanitized = sanitize_credentials(credentials.as_object().unwrap());
+        assert_eq!(
+            sanitized.get("host").and_then(Value::as_str),
+            Some("http://100.89.236.13:1234")
+        );
+        assert_eq!(sanitized.get("enabled"), Some(&Value::Bool(true)));
+        assert!(!sanitized.contains_key("password"));
+        assert!(!sanitized.contains_key("api_key"));
+    }
+
+    #[test]
+    fn partial_update_credentials_preserves_omitted_remote_fields() {
+        let mut existing = json!({
+            "host": "http://old-host:1234",
+            "password": "saved-password"
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+        let incoming = json!({
+            "host": "http://100.89.236.13:1234"
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+
+        assert!(merge_partial_update_credentials(&mut existing, incoming));
+        assert_eq!(
+            existing.get("host").and_then(Value::as_str),
+            Some("http://100.89.236.13:1234")
+        );
+        assert_eq!(
+            existing.get("password").and_then(Value::as_str),
+            Some("saved-password")
+        );
+    }
+
+    #[test]
+    fn fill_missing_credentials_fills_empty_existing_fields() {
+        let mut existing = json!({
+            "host": "http://100.89.236.13:1234",
+            "password": ""
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+        let incoming = json!({
+            "password": "recovered-password"
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+
+        assert!(fill_missing_credentials(&mut existing, incoming));
+        assert_eq!(
+            existing.get("password").and_then(Value::as_str),
+            Some("recovered-password")
+        );
+    }
+
+    #[test]
+    fn fill_missing_credentials_preserves_nonempty_existing_fields() {
+        let mut existing = json!({
+            "host": "http://cloud-host:1234",
+            "password": "saved-password"
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+        let incoming = json!({
+            "host": "http://stale-local-host:1234",
+            "password": "local-password"
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+
+        assert!(!fill_missing_credentials(&mut existing, incoming));
+        assert_eq!(
+            existing.get("host").and_then(Value::as_str),
+            Some("http://cloud-host:1234")
+        );
+        assert_eq!(
+            existing.get("password").and_then(Value::as_str),
+            Some("saved-password")
+        );
     }
 
     #[test]

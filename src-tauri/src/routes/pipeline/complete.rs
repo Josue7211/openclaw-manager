@@ -223,7 +223,7 @@ pub(super) async fn pipeline_complete(
              1. Run \"git diff\" in the project directory to see what changed\n\
              2. Run \"npm run build\" to verify it compiles\n\
              3. Check for broken imports, logic errors, missing props, type errors\n\
-             4. If agent-browser is available, open the app and visually verify the changes look correct\n\n\
+             4. Visually verify in the correct runtime: use the real Tauri desktop window for desktop UI changes; use browser-harness only for browser-only pages.\n\n\
              When done, submit your review by running:\n\n\
              curl -X POST http://localhost:5000/api/pipeline/review \\\n\
                -H \"Content-Type: application/json\" \\\n\

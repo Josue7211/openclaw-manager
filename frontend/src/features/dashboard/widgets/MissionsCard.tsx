@@ -10,7 +10,7 @@ export const MissionsCard = React.memo(function MissionsCard() {
   return (
     <div className="card" style={{ padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-        <Target size={14} style={{ color: 'var(--red-bright)' }} />
+        <Target size={14} style={{ color: 'var(--accent)' }} />
         <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Missions</span>
       </div>
       {missions === undefined ? (
@@ -24,7 +24,7 @@ export const MissionsCard = React.memo(function MissionsCard() {
           ) : missions.map(m => (
             <div key={m.id} style={{
               display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px',
-              background: 'var(--bg-white-03)', borderRadius: '10px', border: '1px solid var(--border)', transition: 'all 0.2s var(--ease-spring)',
+              background: 'var(--accent-a10)', borderRadius: '10px', border: '1px solid var(--border-accent)', transition: 'all 0.2s var(--ease-spring)',
             }}>
               <span style={{ flex: 1, fontSize: '12px', color: 'var(--text-primary)' }}>{m.title}</span>
               <span style={{
@@ -46,7 +46,7 @@ export const MissionsCard = React.memo(function MissionsCard() {
           ))}
         </div>
         </div>
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '28px', background: 'linear-gradient(to bottom, transparent, var(--bg-card-solid))', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '28px', background: 'linear-gradient(to bottom, transparent, var(--bg-card))', pointerEvents: 'none' }} />
         </div>
       )}
     </div>

@@ -38,7 +38,7 @@ export function resolveTextReviewRanges(
     if (!anchor || anchor.scope !== 'selection') continue
 
     const direct = resolveDirectRange(text, anchor, preferredMode)
-    const fallback = direct ?? resolveQuoteRange(text, anchor.quote, occupiedQuotes)
+    const fallback = direct ?? resolveQuoteRange(text, anchor.quote, occupiedQuotes, anchor.start)
     if (!fallback) continue
 
     ranges.push({
@@ -73,12 +73,23 @@ function resolveQuoteRange(
   text: string,
   quote: string | undefined,
   occupiedQuotes: Map<string, number>,
+  preferredStart?: number,
 ): { from: number; to: number } | null {
   const needle = quote?.trim()
   if (!needle) return null
   const fromIndex = occupiedQuotes.get(needle) ?? 0
-  const index = text.indexOf(needle, fromIndex)
-  if (index < 0) return null
-  occupiedQuotes.set(needle, index + needle.length)
-  return { from: index, to: index + needle.length }
+  const matches: Array<{ from: number; to: number }> = []
+  let index = text.indexOf(needle, fromIndex)
+  while (index >= 0) {
+    matches.push({ from: index, to: index + needle.length })
+    index = text.indexOf(needle, index + Math.max(needle.length, 1))
+  }
+  if (matches.length === 0) return null
+  const range = typeof preferredStart === 'number'
+    ? matches.reduce((best, current) => (
+        Math.abs(current.from - preferredStart) < Math.abs(best.from - preferredStart) ? current : best
+      ))
+    : matches[0]
+  occupiedQuotes.set(needle, range.to)
+  return range
 }

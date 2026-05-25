@@ -25,25 +25,42 @@ type LegacyProvider = {
 }
 
 const nowIso = () => new Date(0).toISOString()
+const HERMES_NOT_CONFIGURED_MESSAGE = 'Hermes Agent is not configured. Open Settings > Connections to connect it.'
+const LEGACY_NOT_CONFIGURED_RE = /\b(?:harness_not_configured|harness\s+not\s+configured)\b/i
+const LEGACY_HARNESS_URL_RE = /\bHarness(?:\s+Agent)?\s+URL\s+is\s+not\s+configured\b/i
+const LEGACY_PROVIDER_RE = /\b(?:codex-cli|codex cli|claudeagent|claude code|openclaw)\b/i
+
+function normalizeHermesProviderDetail(detail?: string): string | undefined {
+  const trimmed = detail?.trim()
+  if (!trimmed) return undefined
+  if (LEGACY_NOT_CONFIGURED_RE.test(trimmed) || LEGACY_HARNESS_URL_RE.test(trimmed)) {
+    return HERMES_NOT_CONFIGURED_MESSAGE
+  }
+  if (LEGACY_PROVIDER_RE.test(trimmed)) {
+    return 'Hermes Agent is the active agent right now.'
+  }
+  return trimmed
+}
 
 export function hermesProviderSnapshot(
   models: ModelOption[] = [],
   input: { ready?: boolean; detail?: string } = {},
 ): ServerProvider {
   const ready = input.ready ?? true
+  const detail = normalizeHermesProviderDetail(input.detail)
   return {
     instanceId: 'hermes',
     driver: 'hermes',
-    displayName: 'Hermes',
+    displayName: 'Hermes Agent',
     enabled: ready,
     installed: ready,
     version: null,
     status: ready ? 'ready' : 'warning',
-    auth: { status: 'not-required', label: 'Codex LB', message: input.detail },
+    auth: { status: 'not-required', label: 'Hermes Agent', message: detail },
     checkedAt: nowIso(),
-    message: input.detail,
+    message: detail,
     availability: ready ? 'available' : 'unavailable',
-    unavailableReason: ready ? undefined : input.detail || 'Hermes/Codex LB is not configured.',
+    unavailableReason: ready ? undefined : detail || 'Hermes Agent is not configured.',
     models: models.map(model => ({
       slug: model.id,
       name: model.name,
@@ -56,62 +73,6 @@ export function hermesProviderSnapshot(
   }
 }
 
-export function claudeProviderSnapshot(input: {
-  ready?: boolean
-  detail?: string
-} = {}): ServerProvider {
-  const ready = Boolean(input.ready)
-  return {
-    instanceId: 'claudeAgent',
-    driver: 'claudeAgent',
-    displayName: 'Claude Code',
-    enabled: ready,
-    installed: ready,
-    version: null,
-    status: ready ? 'ready' : 'warning',
-    auth: {
-      status: ready ? 'authenticated' : 'unknown',
-      label: 'Claude Code',
-      message: input.detail,
-    },
-    checkedAt: nowIso(),
-    message: input.detail,
-    availability: ready ? 'available' : 'unavailable',
-    unavailableReason: ready ? undefined : input.detail || 'Claude Code is not configured.',
-    models: [],
-    slashCommands: [],
-    skills: [],
-  }
-}
-
-export function codexCliProviderSnapshot(input: {
-  ready?: boolean
-  detail?: string
-} = {}): ServerProvider {
-  const ready = Boolean(input.ready)
-  return {
-    instanceId: 'codex-cli',
-    driver: 'codex-cli',
-    displayName: 'Codex CLI',
-    enabled: ready,
-    installed: ready,
-    version: null,
-    status: ready ? 'ready' : 'warning',
-    auth: {
-      status: ready ? 'authenticated' : 'unknown',
-      label: 'Codex CLI',
-      message: input.detail,
-    },
-    checkedAt: nowIso(),
-    message: input.detail,
-    availability: ready ? 'available' : 'unavailable',
-    unavailableReason: ready ? undefined : input.detail || 'Codex CLI is not configured.',
-    models: [],
-    slashCommands: [],
-    skills: [],
-  }
-}
-
 export function normalizeChatProviderSnapshots(input: {
   providers?: LegacyProvider[]
   models?: ModelOption[]
@@ -119,22 +80,10 @@ export function normalizeChatProviderSnapshots(input: {
   const models = input.models ?? []
   const legacy = input.providers ?? []
   const hermes = legacy.find(provider => provider.id === 'hermes')
-  const claude = legacy.find(provider => (
-    provider.id === 'claudeAgent' || provider.id === 'claude-code'
-  ))
-  const codexCli = legacy.find(provider => provider.id === 'codex-cli')
   return [
     hermesProviderSnapshot(models, {
       ready: hermes ? Boolean(hermes.ready ?? hermes.selectable ?? true) : true,
       detail: hermes?.detail || hermes?.description,
-    }),
-    claudeProviderSnapshot({
-      ready: Boolean(claude && (claude.ready ?? claude.selectable ?? true)),
-      detail: claude?.detail || claude?.description,
-    }),
-    codexCliProviderSnapshot({
-      ready: Boolean(codexCli && (codexCli.ready ?? codexCli.selectable ?? true)),
-      detail: codexCli?.detail || codexCli?.description,
     }),
   ]
 }
@@ -146,7 +95,6 @@ export function selectableChatProviderOptions(input: {
   return sortProviderInstanceEntries(
     deriveProviderInstanceEntries(normalizeChatProviderSnapshots(input)),
   )
-    .filter(entry => entry.enabled && entry.isAvailable)
     .map(entry => ({
       id: entry.instanceId,
       name: entry.displayName,
@@ -154,7 +102,14 @@ export function selectableChatProviderOptions(input: {
         || entry.snapshot.auth.message
         || entry.snapshot.auth.label
         || entry.displayName,
-      local: entry.driverKind === 'claudeAgent' || entry.driverKind === 'codex-cli',
+      local: false,
       modelBacked: entry.driverKind === 'hermes',
+      available: entry.enabled && entry.isAvailable,
+      unavailableReason: entry.enabled && entry.isAvailable
+        ? undefined
+        : entry.snapshot.unavailableReason
+          || entry.snapshot.message
+          || entry.snapshot.auth.message
+          || `${entry.displayName} is not available.`,
     } satisfies ChatProviderOption))
 }

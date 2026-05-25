@@ -8,7 +8,7 @@ describe('chat settings shortcut adapter', () => {
       'Settings',
       'Usage remaining',
       'Providers',
-      'Codex LB',
+      'Hermes Agent',
     ])
   })
 

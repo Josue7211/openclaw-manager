@@ -55,7 +55,6 @@ import {
   softDeleteItem,
 } from '@/lib/sidebar-config'
 import { useUnreadCounts } from '@/lib/unread-store'
-import { getDashboardState, subscribeDashboard, setActivePage } from '@/lib/dashboard-store'
 import { queryKeys } from '@/lib/query-keys'
 import { api } from '@/lib/api'
 import { BUILT_IN_THEMES } from '@/lib/theme-definitions'
@@ -82,7 +81,7 @@ type SidebarDropTarget =
 const PREFETCH_ROUTES: Record<string, { key: readonly string[]; path: string }> = {
   '/': { key: queryKeys.todos, path: '/api/todos' },
   '/missions': { key: queryKeys.missions, path: '/api/missions' },
-  '/settings': { key: queryKeys.prefs, path: '/api/prefs' },
+  '/settings': { key: queryKeys.prefs, path: '/api/user-preferences' },
 }
 const SIDEBAR_DRAG_THRESHOLD = 6
 
@@ -107,6 +106,7 @@ export default function Sidebar({
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const settingsActive = pathname.startsWith('/settings')
 
   const [isDragging, setIsDragging] = useState(false)
   // Context menu state
@@ -148,9 +148,6 @@ export default function Sidebar({
 
   // Unread badge counts
   const unreadCounts = useUnreadCounts()
-
-  // Dashboard state for sub-items
-  const dashboardState = useSyncExternalStore(subscribeDashboard, getDashboardState)
 
   // Theme state for per-page/per-category overrides
   const themeState = useThemeState()
@@ -924,55 +921,6 @@ export default function Sidebar({
                     categoryOverrideColor={categoryOverrideColors[cat.id]}
                     unreadCounts={unreadCounts}
                   />
-                  {/* Dashboard page sub-items -- only when category contains /dashboard, multiple pages, expanded sidebar, and category is open */}
-                  {cat.items.some(i => i.href === '/dashboard') &&
-                    dashboardState.pages.length > 1 &&
-                    width > 120 &&
-                    !collapsed &&
-                    !(collapsedCats[cat.id] ?? false) && (
-                      <div style={{ paddingLeft: 28, marginBottom: 4 }}>
-                        {dashboardState.pages.map(page => (
-                          <button
-                            key={page.id}
-                            onClick={() => {
-                              setActivePage(page.id)
-                              if (pathname !== '/dashboard') navigate('/dashboard')
-                            }}
-                            aria-label={`Dashboard page: ${page.name}`}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              padding: '3px 12px',
-                              fontSize: '11px',
-                              color: page.id === dashboardState.activePageId ? 'var(--accent)' : 'var(--text-muted)',
-                              background: 'transparent',
-                              border: 'none',
-                              cursor: 'pointer',
-                              width: '100%',
-                              borderRadius: 6,
-                              textAlign: 'left',
-                              fontFamily: 'inherit',
-                              fontWeight: page.id === dashboardState.activePageId ? 600 : 400,
-                            }}
-                            className="hover-bg"
-                          >
-                            <span
-                              style={{
-                                width: 4,
-                                height: 4,
-                                borderRadius: '50%',
-                                background:
-                                  page.id === dashboardState.activePageId ? 'var(--accent)' : 'var(--text-muted)',
-                                flexShrink: 0,
-                                opacity: 0.6,
-                              }}
-                            />
-                            {page.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
                 </>
               )}
               {showCategoryDropAfter && <div style={categoryDropIndicatorStyle()} />}
@@ -1003,8 +951,9 @@ export default function Sidebar({
           <Link
             to="/settings"
             title="Gear"
-            className="hover-bg"
+            className="hover-bg sidebar-utility-button"
             data-tour="settings"
+            data-active={settingsActive ? 'true' : undefined}
             onMouseEnter={() => handleHoverItem('/settings')}
             style={{
               flex: collapsed ? undefined : 1,
@@ -1012,8 +961,11 @@ export default function Sidebar({
               alignItems: 'center',
               padding: '10px 0',
               borderRadius: '10px',
-              color: 'var(--text-secondary)',
-              background: 'transparent',
+              color: settingsActive ? 'var(--accent-bright)' : 'var(--text-secondary)',
+              background: settingsActive ? 'var(--accent-a12, rgba(167, 139, 250, 0.12))' : 'transparent',
+              border: settingsActive
+                ? '1px solid var(--accent-a25, rgba(167, 139, 250, 0.25))'
+                : '1px solid transparent',
               textDecoration: 'none',
               justifyContent: 'center',
             }}

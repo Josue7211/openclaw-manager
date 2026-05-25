@@ -103,11 +103,19 @@ pub fn run_desktop_app() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             secrets::get_secret,
             secrets::set_secret,
             secrets::get_modules,
             secrets::check_first_run,
+            commands::get_chat_workspace_context,
+            commands::get_chat_project_for_path,
+            commands::add_chat_workspace_project,
+            commands::update_chat_workspace_project,
+            commands::remove_chat_workspace_project,
+            commands::read_chat_image_data_urls,
+            commands::read_chat_context_files,
             commands::get_harness_dir,
             commands::get_openclaw_dir,
             commands::get_log_dir,

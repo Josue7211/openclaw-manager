@@ -7,14 +7,24 @@ import { Button } from '@/components/ui/Button'
 
 interface WizardConnectionTestProps {
   service: string
+  serviceLabel?: string
   url: string
   credentials: Record<string, string>
   onSuccess?: (latencyMs: number) => void
   onError?: (error: string) => void
 }
 
+function serviceDisplayLabel(service: string, explicitLabel?: string): string {
+  const label = explicitLabel?.trim()
+  if (label) return label
+  if (service === 'harness' || service === 'hermes') return 'Hermes Agent'
+  if (service === 'codex-lb') return 'Hermes Agent Dashboard'
+  return service
+}
+
 export const WizardConnectionTest = React.memo(function WizardConnectionTest({
   service,
+  serviceLabel,
   url,
   credentials,
   onSuccess,
@@ -24,6 +34,7 @@ export const WizardConnectionTest = React.memo(function WizardConnectionTest({
   const [latencyMs, setLatencyMs] = useState<number | undefined>()
   const [errorMsg, setErrorMsg] = useState<string | undefined>()
   const toast = useToast()
+  const displayLabel = serviceDisplayLabel(service, serviceLabel)
 
   const runTest = useCallback(async () => {
     if (!url.trim()) return
@@ -42,14 +53,14 @@ export const WizardConnectionTest = React.memo(function WizardConnectionTest({
         setStatus('success')
         setLatencyMs(ms)
         updateTestResult(service, { status: 'success', latencyMs: ms })
-        toast.show({ type: 'success', message: `Connected to ${service} (${ms}ms)` })
+        toast.show({ type: 'success', message: `Connected to ${displayLabel} (${ms}ms)` })
         onSuccess?.(ms)
       } else {
         const msg = result.error || 'Connection failed'
         setStatus('error')
         setErrorMsg(msg)
         updateTestResult(service, { status: 'error', error: msg })
-        toast.show({ type: 'error', message: `${service}: ${msg}` })
+        toast.show({ type: 'error', message: `${displayLabel}: ${msg}` })
         onError?.(msg)
       }
     } catch (e) {
@@ -57,10 +68,10 @@ export const WizardConnectionTest = React.memo(function WizardConnectionTest({
       setStatus('error')
       setErrorMsg(msg)
       updateTestResult(service, { status: 'error', error: msg })
-      toast.show({ type: 'error', message: `${service}: ${msg}` })
+      toast.show({ type: 'error', message: `${displayLabel}: ${msg}` })
       onError?.(msg)
     }
-  }, [service, url, credentials, onSuccess, onError, toast])
+  }, [service, url, credentials, onSuccess, onError, toast, displayLabel])
 
   // Button label and style based on state
   const buttonLabel = status === 'testing' ? 'Testing...' : status === 'success' ? 'Connected' : 'Test Connection'
@@ -79,7 +90,7 @@ export const WizardConnectionTest = React.memo(function WizardConnectionTest({
         variant="secondary"
         onClick={runTest}
         disabled={status === 'testing' || !url.trim()}
-        aria-label={`Test connection to ${service}`}
+        aria-label={`Test connection to ${displayLabel}`}
         style={{
           alignSelf: 'flex-start',
           fontSize: '13px',

@@ -35,7 +35,6 @@ vi.mock('@/pages/Chat', () => ({ default: () => <div data-testid="page-chat">Cha
 vi.mock('@/pages/Builder', () => ({ default: () => <div data-testid="page-builder">Builder</div> }))
 vi.mock('@/pages/Todos', () => ({ default: () => <div data-testid="page-todos">Todos</div> }))
 vi.mock('@/pages/Calendar', () => ({ default: () => <div data-testid="page-calendar">Calendar</div> }))
-vi.mock('@/pages/Reminders', () => ({ default: () => <div data-testid="page-reminders">Reminders</div> }))
 vi.mock('@/pages/Messages', () => ({ default: () => <div data-testid="page-messages">Messages</div> }))
 vi.mock('@/pages/Pomodoro', () => ({ default: () => <div data-testid="page-pomodoro">Pomodoro</div> }))
 vi.mock('@/pages/Email', () => ({ default: () => <div data-testid="page-email">Email</div> }))
@@ -131,7 +130,6 @@ const Chat = lazy(() => import('@/pages/Chat'))
 const Builder = lazy(() => import('@/pages/Builder'))
 const Todos = lazy(() => import('@/pages/Todos'))
 const Calendar = lazy(() => import('@/pages/Calendar'))
-const Reminders = lazy(() => import('@/pages/Reminders'))
 const Messages = lazy(() => import('@/pages/Messages'))
 const Pomodoro = lazy(() => import('@/pages/Pomodoro'))
 const Email = lazy(() => import('@/pages/Email'))
@@ -194,7 +192,7 @@ const ROUTES: RouteEntry[] = [
   { path: '/builder', type: 'page', testId: 'page-builder', guarded: true },
   { path: '/todos', type: 'page', testId: 'page-todos', guarded: true },
   { path: '/calendar', type: 'page', testId: 'page-calendar', guarded: true },
-  { path: '/reminders', type: 'page', testId: 'page-reminders', guarded: true },
+  { path: '/reminders', type: 'redirect', target: '/todos', testId: 'page-todos', guarded: true },
   { path: '/messages', type: 'page', testId: 'page-messages', guarded: true },
   { path: '/pomodoro', type: 'page', testId: 'page-pomodoro', guarded: true },
   { path: '/email', type: 'page', testId: 'page-email', guarded: true },
@@ -330,11 +328,7 @@ function renderRoute(routePath: string) {
               />
               <Route
                 path="/reminders"
-                element={
-                  <Suspense fallback={null}>
-                    <Reminders />
-                  </Suspense>
-                }
+                element={<Navigate to="/todos" replace />}
               />
               <Route
                 path="/messages"
@@ -736,7 +730,6 @@ describe('Route Audit', () => {
       ['Chat', () => import('@/pages/Chat')],
       ['Todos', () => import('@/pages/Todos')],
       ['Calendar', () => import('@/pages/Calendar')],
-      ['Reminders', () => import('@/pages/Reminders')],
       ['Messages', () => import('@/pages/Messages')],
       ['Pomodoro', () => import('@/pages/Pomodoro')],
       ['Email', () => import('@/pages/Email')],

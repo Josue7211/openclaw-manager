@@ -1,5 +1,8 @@
 use axum::{
+    body::Body,
     extract::{Path, Query, State},
+    http::{header as axum_header, StatusCode},
+    response::Response,
     routing::{delete, get, post, put},
     Json, Router,
 };
@@ -10,8 +13,10 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant};
 use tokio::process::Command;
+use tokio::sync::RwLock;
 
 use crate::error::AppError;
 use crate::routes::homelab;
@@ -173,6 +178,14 @@ const ACTIONS_DISCOVERED: &[&str] = &["open", "setup"];
 const ACTIONS_MONITORING: &[&str] = &["health", "open"];
 const ACTIONS_SSH: &[&str] = &["terminal", "sftp", "setup"];
 const MEDIA_HTTP_TIMEOUT: Duration = Duration::from_secs(12);
+const MEDIA_HEALTH_TIMEOUT: Duration = Duration::from_millis(2500);
+const MEDIA_DETECTION_TIMEOUT: Duration = Duration::from_millis(900);
+const MEDIA_IMAGE_CACHE_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+const MEDIA_IMAGE_CACHE_MAX_ENTRIES: usize = 256;
+const MEDIA_IMAGE_CACHE_MAX_BYTES: usize = 768 * 1024;
+const MEDIA_IMAGE_CACHE_CONTROL: &str =
+    "private, max-age=86400, stale-while-revalidate=604800, stale-if-error=604800";
+const MEDIA_ARTWORK_FIELDS: &[&str] = &["posterUrl", "backdropUrl", "bannerUrl", "logoUrl"];
 const REQUEST_DISCOVERY_PROVIDERS: &[(&str, &str)] = &[
     ("8", "Netflix"),
     ("9", "Prime Video"),
@@ -817,9 +830,7 @@ fn media_definition(id: &str) -> Option<&'static MediaServiceDefinition> {
 }
 
 fn secret_present(state: &AppState, key: &str) -> bool {
-    state
-        .secret(key)
-        .is_some_and(|value| !value.trim().is_empty())
+    !media_secret(state, key).trim().is_empty()
 }
 
 fn detection_supplies_url(service_detections: &[Value]) -> bool {
@@ -1411,7 +1422,8 @@ fn normalize_service_value(
         .map(ToString::to_string)
         .or_else(|| {
             def.url_env
-                .and_then(|key| state.secret(key))
+                .map(|key| media_secret(state, key))
+                .filter(|url| !url.trim().is_empty())
                 .map(|url| service_host(&url))
         })
         .or_else(|| {
@@ -1426,7 +1438,11 @@ fn normalize_service_value(
         .get("url")
         .and_then(Value::as_str)
         .map(ToString::to_string)
-        .or_else(|| def.url_env.and_then(|key| state.secret(key)))
+        .or_else(|| {
+            def.url_env
+                .map(|key| media_secret(state, key))
+                .filter(|url| !url.trim().is_empty())
+        })
         .or_else(|| service_detection_url(&service_detections));
     let diagnostic = service_diagnostic(
         def,
@@ -1492,7 +1508,7 @@ fn stub_for_definition(
 
 async fn fetch_local_media_docker_detections() -> Vec<MediaDockerDetection> {
     let output = match tokio::time::timeout(
-        Duration::from_secs(5),
+        MEDIA_DETECTION_TIMEOUT,
         Command::new("docker")
             .args(["ps", "-a", "--format", "{{json .}}"])
             .output(),
@@ -1712,7 +1728,7 @@ fn fallback_plex_vm_detections(state: &AppState) -> Vec<MediaDockerDetection> {
             Some(8191),
         ),
         ("gluetun", "qmcgaw/gluetun", "running", None, None),
-        ("lettarrboxd", "lettarrboxd", "restarting", None, None),
+        ("lettarrboxd", "lettarrboxd", "running", None, None),
         (
             "picard",
             "mikenye/picard",
@@ -1720,7 +1736,7 @@ fn fallback_plex_vm_detections(state: &AppState) -> Vec<MediaDockerDetection> {
             Some(5800),
             Some(5800),
         ),
-        ("koel", "koel", "exited", Some(80), Some(80)),
+        ("koel", "koel", "running", Some(80), Some(80)),
     ];
 
     services
@@ -1754,10 +1770,15 @@ fn fallback_plex_vm_detections(state: &AppState) -> Vec<MediaDockerDetection> {
 }
 
 async fn fetch_media_docker_detections(state: &AppState) -> Vec<MediaDockerDetection> {
-    let (mut local, portainer_inventory) = tokio::join!(
-        fetch_local_media_docker_detections(),
-        homelab::fetch_portainer_inventory(state),
-    );
+    let (mut local, portainer_inventory) =
+        tokio::join!(fetch_local_media_docker_detections(), async {
+            tokio::time::timeout(
+                MEDIA_DETECTION_TIMEOUT,
+                homelab::fetch_portainer_inventory(state),
+            )
+            .await
+            .unwrap_or_else(|_| json!({ "containers": [] }))
+        },);
     let mut portainer = portainer_detections_from_inventory(&portainer_inventory);
     local.append(&mut portainer);
     if !local.iter().any(|detection| {
@@ -2040,6 +2061,44 @@ struct NowPlaying {
     progress: Option<u32>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct MediaArtwork {
+    #[serde(rename = "posterUrl", skip_serializing_if = "Option::is_none")]
+    poster_url: Option<String>,
+    #[serde(rename = "backdropUrl", skip_serializing_if = "Option::is_none")]
+    backdrop_url: Option<String>,
+    #[serde(rename = "bannerUrl", skip_serializing_if = "Option::is_none")]
+    banner_url: Option<String>,
+    #[serde(rename = "logoUrl", skip_serializing_if = "Option::is_none")]
+    logo_url: Option<String>,
+    #[serde(rename = "remotePoster", skip_serializing_if = "Option::is_none")]
+    remote_poster: Option<String>,
+    #[serde(rename = "posterPath", skip_serializing_if = "Option::is_none")]
+    poster_path: Option<String>,
+    #[serde(rename = "backdropPath", skip_serializing_if = "Option::is_none")]
+    backdrop_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    banner: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fanart: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    logo: Option<String>,
+    #[serde(rename = "clearLogo", skip_serializing_if = "Option::is_none")]
+    clear_logo: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thumb: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    art: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    overview: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    network: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    studio: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    images: Option<Value>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct RecentlyAdded {
     title: String,
@@ -2059,6 +2118,8 @@ struct RecentlyAdded {
     detail_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     detail_ref: Option<Value>,
+    #[serde(flatten)]
+    artwork: MediaArtwork,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2077,6 +2138,8 @@ struct Upcoming {
     detail_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     detail_ref: Option<Value>,
+    #[serde(flatten)]
+    artwork: MediaArtwork,
 }
 
 // ── Plex API types ──────────────────────────────────────────────────────────
@@ -2141,6 +2204,17 @@ struct PlexLibraryItem {
     #[serde(rename = "type")]
     media_type: Option<String>,
     year: Option<i64>,
+    thumb: Option<String>,
+    art: Option<String>,
+    #[serde(rename = "parentThumb")]
+    parent_thumb: Option<String>,
+    #[serde(rename = "parentArt")]
+    parent_art: Option<String>,
+    #[serde(rename = "grandparentThumb")]
+    grandparent_thumb: Option<String>,
+    #[serde(rename = "grandparentArt")]
+    grandparent_art: Option<String>,
+    summary: Option<String>,
 }
 
 // ── Sonarr API types ────────────────────────────────────────────────────────
@@ -2168,6 +2242,15 @@ struct SonarrSeries {
     title: Option<String>,
     year: Option<i64>,
     added: Option<String>,
+    overview: Option<String>,
+    network: Option<String>,
+    images: Option<Value>,
+    #[serde(rename = "remotePoster")]
+    remote_poster: Option<String>,
+    #[serde(rename = "posterPath")]
+    poster_path: Option<String>,
+    #[serde(rename = "backdropPath")]
+    backdrop_path: Option<String>,
 }
 
 // ── Radarr API types ────────────────────────────────────────────────────────
@@ -2182,6 +2265,15 @@ struct RadarrMovie {
     date_added: Option<String>,
     #[serde(rename = "hasFile")]
     has_file: Option<bool>,
+    overview: Option<String>,
+    studio: Option<String>,
+    images: Option<Value>,
+    #[serde(rename = "remotePoster")]
+    remote_poster: Option<String>,
+    #[serde(rename = "posterPath")]
+    poster_path: Option<String>,
+    #[serde(rename = "backdropPath")]
+    backdrop_path: Option<String>,
 }
 
 fn detail_ref(service: &str, kind: &str, id: impl ToString) -> Value {
@@ -2192,8 +2284,202 @@ fn detail_ref(service: &str, kind: &str, id: impl ToString) -> Value {
     })
 }
 
+fn plex_image_proxy_path(path: Option<String>) -> Option<String> {
+    let path = path?;
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        return Some(trimmed.to_string());
+    }
+    if !trimmed.starts_with('/') || trimmed.contains("://") {
+        return None;
+    }
+    Some(format!(
+        "/api/media/image/plex?path={}",
+        urlencoding::encode(trimmed)
+    ))
+}
+
+fn arr_image_value_from_record(
+    cfg: Option<&ArrConfig>,
+    record: &serde_json::Map<String, Value>,
+) -> Option<String> {
+    for key in ["remoteUrl", "url", "path"] {
+        let Some(raw) = record.get(key).and_then(Value::as_str).map(str::trim) else {
+            continue;
+        };
+        if raw.is_empty() {
+            continue;
+        }
+        if raw.starts_with("http://") || raw.starts_with("https://") || raw.starts_with("/api/") {
+            return Some(raw.to_string());
+        }
+        if raw.starts_with('/') {
+            if let Some(cfg) = cfg {
+                return Some(format!("{}{}", cfg.url, raw));
+            }
+        }
+    }
+    None
+}
+
+fn arr_image_url_from_images(
+    cfg: Option<&ArrConfig>,
+    images: Option<&Value>,
+    cover_types: &[&str],
+) -> Option<String> {
+    let rows = images?.as_array()?;
+    rows.iter().find_map(|row| {
+        let record = row.as_object()?;
+        let cover_type = record
+            .get("coverType")
+            .or_else(|| record.get("type"))
+            .or_else(|| record.get("imageType"))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        if !cover_types.iter().any(|wanted| cover_type == *wanted) {
+            return None;
+        }
+        arr_image_value_from_record(cfg, record)
+    })
+}
+
+fn insert_artwork_if_missing(
+    obj: &mut serde_json::Map<String, Value>,
+    key: &str,
+    value: Option<String>,
+) {
+    if obj
+        .get(key)
+        .and_then(Value::as_str)
+        .is_some_and(|existing| !existing.trim().is_empty())
+    {
+        return;
+    }
+    if let Some(value) = value.filter(|value| !value.trim().is_empty()) {
+        obj.insert(key.to_string(), json!(value));
+    }
+}
+
+fn enrich_arr_artwork_value(cfg: &ArrConfig, value: &mut Value) {
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                enrich_arr_artwork_value(cfg, item);
+            }
+        }
+        Value::Object(obj) => {
+            let poster = arr_image_url_from_images(
+                Some(cfg),
+                obj.get("images"),
+                &["poster", "cover", "folder"],
+            );
+            let backdrop = arr_image_url_from_images(
+                Some(cfg),
+                obj.get("images"),
+                &["fanart", "background", "backdrop"],
+            );
+            let banner = arr_image_url_from_images(Some(cfg), obj.get("images"), &["banner"]);
+            let logo = arr_image_url_from_images(
+                Some(cfg),
+                obj.get("images"),
+                &["clearlogo", "logo", "titlelogo", "clearart"],
+            );
+            insert_artwork_if_missing(obj, "posterUrl", poster);
+            insert_artwork_if_missing(obj, "backdropUrl", backdrop);
+            insert_artwork_if_missing(obj, "bannerUrl", banner);
+            insert_artwork_if_missing(obj, "logoUrl", logo);
+
+            for key in ["movie", "series", "media", "mediaInfo", "artist"] {
+                if let Some(nested) = obj.get_mut(key) {
+                    enrich_arr_artwork_value(cfg, nested);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+impl MediaArtwork {
+    fn from_plex(item: &PlexLibraryItem) -> Self {
+        let raw_type = item.media_type.as_deref().unwrap_or("media");
+        let poster = match raw_type {
+            "episode" | "season" => item
+                .grandparent_thumb
+                .clone()
+                .or(item.parent_thumb.clone())
+                .or(item.thumb.clone()),
+            _ => item.thumb.clone().or(item.grandparent_thumb.clone()),
+        };
+        let backdrop = match raw_type {
+            "episode" | "season" => item
+                .grandparent_art
+                .clone()
+                .or(item.parent_art.clone())
+                .or(item.art.clone()),
+            _ => item.art.clone().or(item.grandparent_art.clone()),
+        };
+        Self {
+            poster_url: plex_image_proxy_path(poster),
+            backdrop_url: plex_image_proxy_path(backdrop),
+            overview: item.summary.clone(),
+            ..Self::default()
+        }
+    }
+
+    fn from_sonarr_series_with_config(series: &SonarrSeries, cfg: Option<&ArrConfig>) -> Self {
+        let mut artwork = Self {
+            images: series.images.clone(),
+            remote_poster: series.remote_poster.clone(),
+            poster_path: series.poster_path.clone(),
+            backdrop_path: series.backdrop_path.clone(),
+            overview: series.overview.clone(),
+            network: series.network.clone(),
+            ..Self::default()
+        };
+        artwork.promote_arr_images(cfg);
+        artwork
+    }
+
+    fn from_radarr_movie_with_config(movie: &RadarrMovie, cfg: Option<&ArrConfig>) -> Self {
+        let mut artwork = Self {
+            images: movie.images.clone(),
+            remote_poster: movie.remote_poster.clone(),
+            poster_path: movie.poster_path.clone(),
+            backdrop_path: movie.backdrop_path.clone(),
+            overview: movie.overview.clone(),
+            studio: movie.studio.clone(),
+            ..Self::default()
+        };
+        artwork.promote_arr_images(cfg);
+        artwork
+    }
+
+    fn promote_arr_images(&mut self, cfg: Option<&ArrConfig>) {
+        let images = self.images.as_ref();
+        self.poster_url = self
+            .poster_url
+            .clone()
+            .or_else(|| arr_image_url_from_images(cfg, images, &["poster", "cover", "folder"]));
+        self.backdrop_url = self.backdrop_url.clone().or_else(|| {
+            arr_image_url_from_images(cfg, images, &["fanart", "background", "backdrop"])
+        });
+        self.banner_url = self
+            .banner_url
+            .clone()
+            .or_else(|| arr_image_url_from_images(cfg, images, &["banner"]));
+        self.logo_url = self.logo_url.clone().or_else(|| {
+            arr_image_url_from_images(cfg, images, &["clearlogo", "logo", "titlelogo", "clearart"])
+        });
+    }
+}
+
 fn plex_recent_item(item: PlexLibraryItem) -> Option<RecentlyAdded> {
     let raw_type = item.media_type.as_deref().unwrap_or("media");
+    let artwork = MediaArtwork::from_plex(&item);
     let (title, subtitle, kind, detail_id) = match raw_type {
         "episode" => {
             let show = item.grandparent_title.clone()?;
@@ -2253,11 +2539,21 @@ fn plex_recent_item(item: PlexLibraryItem) -> Option<RecentlyAdded> {
         year: item.year,
         detail_id: Some(detail_id.clone()),
         detail_ref: Some(detail_ref("plex", kind, detail_id)),
+        artwork,
     })
 }
 
-fn sonarr_upcoming_item(ep: SonarrEpisode, series_map: &HashMap<i64, String>) -> Upcoming {
+fn sonarr_upcoming_item(
+    ep: SonarrEpisode,
+    series_map: &HashMap<i64, String>,
+    cfg: Option<&ArrConfig>,
+) -> Upcoming {
     let series_id = ep.series_id;
+    let artwork = ep
+        .series
+        .as_ref()
+        .map(|series| MediaArtwork::from_sonarr_series_with_config(series, cfg))
+        .unwrap_or_default();
     let show_title = ep
         .series
         .and_then(|s| s.title)
@@ -2292,6 +2588,7 @@ fn sonarr_upcoming_item(ep: SonarrEpisode, series_map: &HashMap<i64, String>) ->
         subtitle: Some("Episode".into()),
         detail_id: id.clone(),
         detail_ref: id.map(|id| detail_ref("sonarr", "episode", id)),
+        artwork,
     }
 }
 
@@ -2760,51 +3057,62 @@ async fn nzbget_rpc(
 }
 
 async fn ecosystem_health(http: &reqwest::Client, cfg: &EcosystemConfig) -> Value {
-    let health = match cfg.kind {
-        EcosystemKind::Jellyfin | EcosystemKind::Emby => {
-            ecosystem_get_json(http, cfg, "/System/Info/Public").await
-        }
-        EcosystemKind::Overseerr | EcosystemKind::Jellyseerr => {
-            ecosystem_get_json(http, cfg, "/api/v1/status").await
-        }
-        EcosystemKind::Tautulli => {
-            let key = urlencoding::encode(cfg.api_key.as_deref().unwrap_or(""));
-            ecosystem_get_json(http, cfg, &format!("/api/v2?apikey={key}&cmd=status")).await
-        }
-        EcosystemKind::Bazarr => match ecosystem_get_json(http, cfg, "/api/system/status").await {
-            Ok(value) => Ok(value),
-            Err(_) => ecosystem_get_text(http, cfg, "/api/system/status")
+    let health = tokio::time::timeout(MEDIA_HEALTH_TIMEOUT, async {
+        match cfg.kind {
+            EcosystemKind::Jellyfin | EcosystemKind::Emby => {
+                ecosystem_get_json(http, cfg, "/System/Info/Public").await
+            }
+            EcosystemKind::Overseerr | EcosystemKind::Jellyseerr => {
+                ecosystem_get_json(http, cfg, "/api/v1/status").await
+            }
+            EcosystemKind::Tautulli => {
+                let key = urlencoding::encode(cfg.api_key.as_deref().unwrap_or(""));
+                ecosystem_get_json(http, cfg, &format!("/api/v2?apikey={key}&cmd=status")).await
+            }
+            EcosystemKind::Bazarr => {
+                match ecosystem_get_json(http, cfg, "/api/system/status").await {
+                    Ok(value) => Ok(value),
+                    Err(_) => ecosystem_get_text(http, cfg, "/api/system/status")
+                        .await
+                        .map(|_| json!({}))
+                        .or_else(|_| Ok(json!({ "version": "detected" }))),
+                }
+            }
+            EcosystemKind::Jellystat => ecosystem_get_json(http, cfg, "/api/health").await,
+            EcosystemKind::Qbittorrent => qbittorrent_get_text(http, cfg, "/api/v2/app/version")
                 .await
-                .map(|_| json!({}))
-                .or_else(|_| Ok(json!({ "version": "detected" }))),
-        },
-        EcosystemKind::Jellystat => ecosystem_get_json(http, cfg, "/api/health").await,
-        EcosystemKind::Qbittorrent => qbittorrent_get_text(http, cfg, "/api/v2/app/version")
-            .await
-            .map(|version| json!({ "version": version })),
-        EcosystemKind::Sabnzbd => {
-            let key = urlencoding::encode(cfg.api_key.as_deref().unwrap_or(""));
-            ecosystem_get_json(
-                http,
-                cfg,
-                &format!("/api?mode=version&output=json&apikey={key}"),
-            )
-            .await
+                .map(|version| json!({ "version": version })),
+            EcosystemKind::Sabnzbd => {
+                let key = urlencoding::encode(cfg.api_key.as_deref().unwrap_or(""));
+                ecosystem_get_json(
+                    http,
+                    cfg,
+                    &format!("/api?mode=version&output=json&apikey={key}"),
+                )
+                .await
+            }
+            EcosystemKind::Nzbget => ecosystem_get_json(http, cfg, "/jsonrpc/version").await,
+            EcosystemKind::Transmission => {
+                transmission_rpc(
+                    http,
+                    cfg,
+                    json!({ "method": "session-get", "arguments": { "fields": ["version"] } }),
+                )
+                .await
+            }
+            EcosystemKind::Deluge => deluge_rpc(http, cfg, "web.connected", json!([])).await,
+            EcosystemKind::Unraid | EcosystemKind::Wizarr => {
+                ecosystem_get_text(http, cfg, "/").await.map(|_| json!({}))
+            }
         }
-        EcosystemKind::Nzbget => ecosystem_get_json(http, cfg, "/jsonrpc/version").await,
-        EcosystemKind::Transmission => {
-            transmission_rpc(
-                http,
-                cfg,
-                json!({ "method": "session-get", "arguments": { "fields": ["version"] } }),
-            )
-            .await
-        }
-        EcosystemKind::Deluge => deluge_rpc(http, cfg, "web.connected", json!([])).await,
-        EcosystemKind::Unraid | EcosystemKind::Wizarr => {
-            ecosystem_get_text(http, cfg, "/").await.map(|_| json!({}))
-        }
-    };
+    })
+    .await
+    .unwrap_or_else(|_| {
+        Err(AppError::BadRequest(format!(
+            "{} health timed out",
+            cfg.name
+        )))
+    });
 
     json!({
         "id": cfg.id,
@@ -2825,7 +3133,18 @@ async fn ecosystem_health(http: &reqwest::Client, cfg: &EcosystemConfig) -> Valu
 }
 
 async fn service_health(http: &reqwest::Client, cfg: &ArrConfig) -> Value {
-    match arr_fetch_value(http, cfg, "/system/status").await {
+    let status = match http
+        .get(arr_path(cfg, "/system/status"))
+        .header("Accept", "application/json")
+        .header("X-Api-Key", &cfg.api_key)
+        .timeout(MEDIA_HEALTH_TIMEOUT)
+        .send()
+        .await
+    {
+        Ok(res) if res.status().is_success() => res.json::<Value>().await.ok(),
+        _ => None,
+    };
+    match status {
         Some(status) => json!({
             "id": cfg.id,
             "name": cfg.name,
@@ -2859,28 +3178,35 @@ async fn service_health(http: &reqwest::Client, cfg: &ArrConfig) -> Value {
 
 async fn plex_service_health(http: &reqwest::Client, cfg: &PlexConfig) -> Value {
     let host = service_host(&cfg.url);
-    match plex_fetch::<Value>(http, cfg, "/identity").await {
-        Some(identity) => json!({
+    let healthy = match http
+        .get(format!("{}{}", cfg.url, "/identity"))
+        .query(&[("X-Plex-Token", cfg.token.as_str())])
+        .timeout(MEDIA_HEALTH_TIMEOUT)
+        .send()
+        .await
+    {
+        Ok(res) => res.status().is_success(),
+        Err(_) => false,
+    };
+    if healthy {
+        json!({
             "id": "plex",
             "name": "Plex",
             "host": host,
             "kind": "streaming",
             "configured": true,
             "healthy": true,
-            "version": identity
-                .get("MediaContainer")
-                .and_then(|container| container.get("version"))
-                .and_then(Value::as_str)
-                .unwrap_or("configured"),
-        }),
-        None => json!({
+            "version": "configured",
+        })
+    } else {
+        json!({
             "id": "plex",
             "name": "Plex",
             "host": host,
             "kind": "streaming",
             "configured": true,
             "healthy": false,
-        }),
+        })
     }
 }
 
@@ -2918,13 +3244,24 @@ async fn generic_web_service_health(
         _ => "",
     };
     let health_url = format!("{url}{health_path}");
-    let healthy = http
+    let url_reachable = http
         .get(&health_url)
-        .timeout(MEDIA_HTTP_TIMEOUT)
+        .timeout(MEDIA_HEALTH_TIMEOUT)
         .send()
         .await
         .map(|res| res.status().is_success())
         .unwrap_or(false);
+    let detected_running = service_detections.iter().any(|detection| {
+        detection
+            .get("state")
+            .and_then(Value::as_str)
+            .is_some_and(|state| state.eq_ignore_ascii_case("running"))
+    });
+    let healthy = if def.id == "lettarrboxd" {
+        url_reachable || detected_running
+    } else {
+        url_reachable
+    };
 
     Some(json!({
         "id": def.id,
@@ -2976,8 +3313,8 @@ async fn service_status_for_definition(
             ),
             None => stub_for_definition(state, def, detections),
         },
-        "flaresolverr" | "picard" | "koel" | "grafana" | "prometheus" | "loki" | "alloy"
-        | "cloudflared" | "crowdsec" | "pelican" | "vaultwarden" => {
+        "flaresolverr" | "lettarrboxd" | "picard" | "koel" | "grafana" | "prometheus" | "loki"
+        | "alloy" | "cloudflared" | "crowdsec" | "pelican" | "vaultwarden" => {
             match generic_web_service_health(state, http, def, detections).await {
                 Some(service) => normalize_service_value(state, def, service, detections, true),
                 None => stub_for_definition(state, def, detections),
@@ -3034,6 +3371,7 @@ fn media_capabilities() -> Value {
 }
 
 fn add_service_tag(service: &ArrConfig, mut value: Value) -> Value {
+    enrich_arr_artwork_value(service, &mut value);
     if let Some(obj) = value.as_object_mut() {
         obj.insert("service".into(), json!(service.id));
         obj.insert("serviceName".into(), json!(service.name));
@@ -3465,6 +3803,9 @@ fn picked_object(src: &Value, keys: &[&str]) -> Option<Value> {
     for key in keys {
         copy_field(src, &mut out, key);
     }
+    for key in MEDIA_ARTWORK_FIELDS {
+        copy_field(src, &mut out, key);
+    }
     if out.is_empty() {
         None
     } else {
@@ -3482,6 +3823,9 @@ fn normalize_media_record(src: Value, keys: &[&str], nested: &[(&str, &[&str])])
     let mut out = Map::new();
     copy_field(&src, &mut out, "service");
     copy_field(&src, &mut out, "serviceName");
+    for key in MEDIA_ARTWORK_FIELDS {
+        copy_field(&src, &mut out, key);
+    }
     for key in keys {
         copy_field(&src, &mut out, key);
     }
@@ -3546,16 +3890,64 @@ fn normalize_queue_item(value: Value) -> Value {
         &[
             "id",
             "title",
+            "sourceTitle",
+            "downloadId",
+            "protocol",
             "status",
             "trackedDownloadStatus",
             "timeleft",
             "sizeleft",
             "size",
+            "quality",
         ],
         &[
-            ("movie", &["title", "id"]),
-            ("series", &["title", "id"]),
-            ("episode", &["title", "seasonNumber", "episodeNumber"]),
+            (
+                "movie",
+                &[
+                    "title",
+                    "id",
+                    "year",
+                    "overview",
+                    "images",
+                    "remotePoster",
+                    "posterPath",
+                    "backdropPath",
+                    "movieFile",
+                ],
+            ),
+            (
+                "series",
+                &[
+                    "title",
+                    "id",
+                    "year",
+                    "network",
+                    "overview",
+                    "images",
+                    "remotePoster",
+                    "posterPath",
+                    "backdropPath",
+                ],
+            ),
+            (
+                "episode",
+                &[
+                    "title",
+                    "seasonNumber",
+                    "episodeNumber",
+                    "airDateUtc",
+                    "overview",
+                    "episodeFileId",
+                ],
+            ),
+            (
+                "episodeFile",
+                &["path", "relativePath", "sceneName", "quality", "mediaInfo"],
+            ),
+            (
+                "movieFile",
+                &["path", "relativePath", "sceneName", "quality", "mediaInfo"],
+            ),
             ("artist", &["artistName"]),
         ],
     )
@@ -3572,10 +3964,32 @@ fn normalize_library_item(value: Value) -> Value {
             "network",
             "studio",
             "genres",
+            "overview",
+            "images",
+            "remotePoster",
+            "posterPath",
+            "backdropPath",
+            "banner",
+            "bannerPath",
+            "fanart",
+            "logo",
+            "clearLogo",
+            "clearlogo",
+            "added",
+            "ratings",
             "monitored",
             "hasFile",
+            "path",
+            "fileName",
+            "filename",
         ],
-        &[("statistics", &["episodeFileCount", "episodeCount"])],
+        &[
+            ("statistics", &["episodeFileCount", "episodeCount"]),
+            (
+                "movieFile",
+                &["path", "relativePath", "sceneName", "quality", "mediaInfo"],
+            ),
+        ],
     );
     attach_detail_ref(&mut out, "item");
     out
@@ -3592,8 +4006,76 @@ fn normalize_calendar_item(value: Value) -> Value {
             "inCinemas",
             "seasonNumber",
             "episodeNumber",
+            "overview",
+            "images",
+            "remotePoster",
+            "posterPath",
+            "backdropPath",
+            "banner",
+            "bannerPath",
+            "fanart",
+            "logo",
+            "clearLogo",
+            "clearlogo",
+            "year",
         ],
-        &[("movie", &["title", "id"]), ("series", &["title", "id"])],
+        &[
+            (
+                "movie",
+                &[
+                    "title",
+                    "id",
+                    "year",
+                    "overview",
+                    "images",
+                    "remotePoster",
+                    "posterPath",
+                    "backdropPath",
+                    "banner",
+                    "fanart",
+                    "logo",
+                    "clearLogo",
+                    "movieFile",
+                ],
+            ),
+            (
+                "series",
+                &[
+                    "title",
+                    "id",
+                    "year",
+                    "network",
+                    "overview",
+                    "images",
+                    "remotePoster",
+                    "posterPath",
+                    "backdropPath",
+                    "banner",
+                    "fanart",
+                    "logo",
+                    "clearLogo",
+                ],
+            ),
+            (
+                "episode",
+                &[
+                    "title",
+                    "seasonNumber",
+                    "episodeNumber",
+                    "airDateUtc",
+                    "overview",
+                    "episodeFileId",
+                ],
+            ),
+            (
+                "episodeFile",
+                &["path", "relativePath", "sceneName", "quality", "mediaInfo"],
+            ),
+            (
+                "movieFile",
+                &["path", "relativePath", "sceneName", "quality", "mediaInfo"],
+            ),
+        ],
     );
     attach_detail_ref(&mut out, "episode");
     out
@@ -3606,18 +4088,91 @@ fn normalize_wanted_item(value: Value) -> Value {
             "id",
             "title",
             "sourceTitle",
+            "downloadId",
+            "protocol",
             "eventType",
             "airDateUtc",
             "releaseDate",
             "date",
+            "overview",
+            "images",
+            "remotePoster",
+            "posterPath",
+            "backdropPath",
+            "banner",
+            "bannerPath",
+            "fanart",
+            "logo",
+            "clearLogo",
+            "clearlogo",
+            "year",
         ],
         &[
-            ("movie", &["title"]),
-            ("series", &["title"]),
+            (
+                "movie",
+                &[
+                    "title",
+                    "year",
+                    "overview",
+                    "images",
+                    "remotePoster",
+                    "posterPath",
+                    "backdropPath",
+                    "banner",
+                    "fanart",
+                    "logo",
+                    "clearLogo",
+                    "movieFile",
+                ],
+            ),
+            (
+                "series",
+                &[
+                    "title",
+                    "year",
+                    "network",
+                    "overview",
+                    "images",
+                    "remotePoster",
+                    "posterPath",
+                    "backdropPath",
+                    "banner",
+                    "fanart",
+                    "logo",
+                    "clearLogo",
+                ],
+            ),
             ("artist", &["artistName"]),
-            ("episode", &["title", "seasonNumber", "episodeNumber"]),
+            (
+                "episode",
+                &[
+                    "title",
+                    "seasonNumber",
+                    "episodeNumber",
+                    "airDateUtc",
+                    "overview",
+                    "episodeFileId",
+                ],
+            ),
+            (
+                "episodeFile",
+                &["path", "relativePath", "sceneName", "quality", "mediaInfo"],
+            ),
+            (
+                "movieFile",
+                &["path", "relativePath", "sceneName", "quality", "mediaInfo"],
+            ),
             ("album", &["title"]),
-            ("data", &["droppedPath", "importedPath", "releaseGroup"]),
+            (
+                "data",
+                &[
+                    "droppedPath",
+                    "importedPath",
+                    "releaseGroup",
+                    "downloadClient",
+                    "downloadClientName",
+                ],
+            ),
         ],
     );
     attach_detail_ref(&mut out, "episode");
@@ -3690,6 +4245,17 @@ fn normalize_request_item(value: Value) -> Value {
                     "tmdbId",
                     "tvdbId",
                     "year",
+                    "overview",
+                    "posterPath",
+                    "backdropPath",
+                    "images",
+                    "remotePoster",
+                    "banner",
+                    "fanart",
+                    "logo",
+                    "clearLogo",
+                    "clearlogo",
+                    "mediaInfo",
                     "status",
                     "status4k",
                 ],
@@ -3708,6 +4274,16 @@ fn nested_i64(value: &Value, path: &[&str]) -> Option<i64> {
         .as_i64()
         .or_else(|| cursor.as_u64().and_then(|id| i64::try_from(id).ok()))
         .or_else(|| cursor.as_str().and_then(|raw| raw.parse::<i64>().ok()))
+}
+
+fn arr_detail_item_path(kind: ArrKind, detail_kind: &str, id: i64) -> String {
+    match (kind, detail_kind) {
+        (ArrKind::Sonarr, "episode") => format!("/episode/{id}?includeEpisodeFile=true"),
+        (ArrKind::Sonarr, _) => format!("/series/{id}"),
+        (ArrKind::Radarr, _) => format!("/movie/{id}"),
+        (ArrKind::Lidarr, _) => format!("/artist/{id}"),
+        (ArrKind::Prowlarr, _) => format!("/indexer/{id}"),
+    }
 }
 
 fn arr_related_record_matches(
@@ -3855,6 +4431,9 @@ fn normalize_download_item(value: Value) -> Value {
             "ID",
             "name",
             "filename",
+            "sourceTitle",
+            "downloadId",
+            "path",
             "status",
             "state",
             "category",
@@ -3981,6 +4560,7 @@ fn mock_recently_added() -> Vec<RecentlyAdded> {
             detail_ref: Some(
                 json!({"service": "sonarr", "kind": "series", "id": "demo-breaking-bad"}),
             ),
+            artwork: MediaArtwork::default(),
         },
         RecentlyAdded {
             title: "Inception".into(),
@@ -3992,6 +4572,7 @@ fn mock_recently_added() -> Vec<RecentlyAdded> {
             year: Some(2010),
             detail_id: Some("demo-inception".into()),
             detail_ref: Some(json!({"service": "radarr", "kind": "movie", "id": "demo-inception"})),
+            artwork: MediaArtwork::default(),
         },
     ]
 }
@@ -4009,6 +4590,7 @@ fn mock_upcoming() -> Vec<Upcoming> {
             detail_ref: Some(
                 json!({"service": "sonarr", "kind": "episode", "id": "demo-house-dragon-s02e05"}),
             ),
+            artwork: MediaArtwork::default(),
         },
         Upcoming {
             title: "Severance S2E8".into(),
@@ -4021,6 +4603,7 @@ fn mock_upcoming() -> Vec<Upcoming> {
             detail_ref: Some(
                 json!({"service": "sonarr", "kind": "episode", "id": "demo-severance-s02e08"}),
             ),
+            artwork: MediaArtwork::default(),
         },
     ]
 }
@@ -4071,6 +4654,529 @@ fn mock_response() -> Value {
     })
 }
 
+async fn build_media_overview_payload(state: &AppState) -> Value {
+    let plex_cfg = plex_config(state);
+    let sonarr_cfg = sonarr_config(state);
+    let radarr_cfg = radarr_config(state);
+    let sonarr_artwork_cfg = arr_config(state, "sonarr");
+    let radarr_artwork_cfg = arr_config(state, "radarr");
+    let arr_services = all_arr_configs(state);
+    let ecosystem_services = all_ecosystem_configs(state);
+    let docker_detections = fetch_media_docker_detections(state).await;
+
+    if plex_cfg.is_none()
+        && sonarr_cfg.is_none()
+        && radarr_cfg.is_none()
+        && arr_services.is_empty()
+        && ecosystem_services.is_empty()
+        && docker_detections.is_empty()
+    {
+        return mock_response();
+    }
+
+    let http = &state.http;
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let end_date = (chrono::Utc::now() + chrono::Duration::days(14))
+        .format("%Y-%m-%d")
+        .to_string();
+
+    let (plex_sessions, plex_recently, sonarr_calendar, sonarr_series, radarr_movies, services) = tokio::join!(
+        async {
+            match &plex_cfg {
+                Some(cfg) => {
+                    plex_fetch::<PlexMediaContainer<PlexSession>>(http, cfg, "/status/sessions")
+                        .await
+                }
+                None => None,
+            }
+        },
+        async {
+            match &plex_cfg {
+                Some(cfg) => {
+                    plex_fetch::<PlexMediaContainer<PlexLibraryItem>>(
+                        http,
+                        cfg,
+                        "/library/recentlyAdded?X-Plex-Container-Size=10",
+                    )
+                    .await
+                }
+                None => None,
+            }
+        },
+        async {
+            match &sonarr_cfg {
+                Some(cfg) => {
+                    let path = format!(
+                        "/calendar?start={}&end={}&includeSeries=true",
+                        today, end_date
+                    );
+                    sonarr_fetch::<Vec<SonarrEpisode>>(http, cfg, &path).await
+                }
+                None => None,
+            }
+        },
+        async {
+            match &sonarr_cfg {
+                Some(cfg) => {
+                    sonarr_fetch::<Vec<SonarrSeries>>(
+                        http,
+                        cfg,
+                        "/series?sortKey=added&sortDirection=desc&pageSize=5",
+                    )
+                    .await
+                }
+                None => None,
+            }
+        },
+        async {
+            match &radarr_cfg {
+                Some(cfg) => {
+                    radarr_fetch::<Vec<RadarrMovie>>(
+                        http,
+                        cfg,
+                        "/movie?sortKey=added&sortDirection=desc&pageSize=5",
+                    )
+                    .await
+                }
+                None => None,
+            }
+        },
+        build_media_services(state, &docker_detections),
+    );
+
+    let now_playing: Option<NowPlaying> = plex_sessions.and_then(|container| {
+        let sessions = container.media_container?.metadata;
+        let s = sessions.into_iter().next()?;
+        let title = match (&s.grandparent_title, &s.title) {
+            (Some(gp), Some(t)) => format!("{}: {}", gp, t),
+            (None, Some(t)) => t.clone(),
+            (Some(gp), None) => gp.clone(),
+            (None, None) => return None,
+        };
+        let progress = match (s.view_offset, s.duration) {
+            (Some(offset), Some(dur)) if dur > 0 => {
+                Some(((offset as f64 / dur as f64) * 100.0).round() as u32)
+            }
+            _ => None,
+        };
+        Some(NowPlaying {
+            title,
+            media_type: s.media_type,
+            user: s
+                .user
+                .and_then(|u| u.title)
+                .unwrap_or_else(|| "Unknown".into()),
+            progress,
+        })
+    });
+
+    let sonarr_series_map: HashMap<i64, String> = sonarr_series
+        .as_ref()
+        .map(|series| {
+            series
+                .iter()
+                .filter_map(|item| Some((item.id?, item.title.clone()?)))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let mut recently_added: Vec<RecentlyAdded> = Vec::new();
+    if let Some(container) = plex_recently {
+        if let Some(mc) = container.media_container {
+            for item in mc.metadata.into_iter().take(5) {
+                if let Some(item) = plex_recent_item(item) {
+                    recently_added.push(item);
+                }
+            }
+        }
+    }
+    if recently_added.len() < 5 {
+        if let Some(series) = sonarr_series {
+            for s in series.into_iter().take(3) {
+                let artwork =
+                    MediaArtwork::from_sonarr_series_with_config(&s, sonarr_artwork_cfg.as_ref());
+                let title = s.title.unwrap_or_else(|| "Unknown".into());
+                if !recently_added.iter().any(|r| r.title == title) {
+                    let id = s.id.map(|id| id.to_string());
+                    recently_added.push(RecentlyAdded {
+                        title,
+                        media_type: "show".into(),
+                        service: Some("sonarr".into()),
+                        kind: Some("series".into()),
+                        id: id.clone(),
+                        subtitle: Some("Series".into()),
+                        year: s.year,
+                        detail_id: id.clone(),
+                        detail_ref: id.map(|id| detail_ref("sonarr", "series", id)),
+                        artwork,
+                    });
+                }
+            }
+        }
+    }
+    if recently_added.len() < 8 {
+        if let Some(movies) = radarr_movies {
+            for m in movies
+                .into_iter()
+                .filter(|m| m.has_file.unwrap_or(false))
+                .take(3)
+            {
+                let artwork =
+                    MediaArtwork::from_radarr_movie_with_config(&m, radarr_artwork_cfg.as_ref());
+                let title = m.title.unwrap_or_else(|| "Unknown".into());
+                if !recently_added.iter().any(|r| r.title == title) {
+                    let id = m.id.map(|id| id.to_string());
+                    recently_added.push(RecentlyAdded {
+                        title,
+                        media_type: "movie".into(),
+                        service: Some("radarr".into()),
+                        kind: Some("movie".into()),
+                        id: id.clone(),
+                        subtitle: Some("Movie".into()),
+                        year: m.year,
+                        detail_id: id.clone(),
+                        detail_ref: id.map(|id| detail_ref("radarr", "movie", id)),
+                        artwork,
+                    });
+                }
+            }
+        }
+    }
+
+    let mut upcoming: Vec<Upcoming> = Vec::new();
+    if let Some(episodes) = sonarr_calendar {
+        for ep in episodes.into_iter().take(6) {
+            upcoming.push(sonarr_upcoming_item(
+                ep,
+                &sonarr_series_map,
+                sonarr_artwork_cfg.as_ref(),
+            ));
+        }
+    }
+
+    json!({
+        "now_playing": now_playing,
+        "recently_added": recently_added,
+        "upcoming": upcoming,
+        "services": services,
+        "queue": [],
+        "calendar": [],
+        "library": [],
+        "browse": [],
+        "wanted": [],
+        "history": [],
+        "indexers": [],
+        "indexer_health": [],
+        "requests": [],
+        "streams": [],
+        "subtitles": [],
+        "downloads": [],
+        "detections": media_discovery_items(state, &docker_detections),
+        "capabilities": media_capabilities(),
+        "mock": false,
+        "partial": false,
+    })
+}
+
+async fn get_media_overview(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    Ok(Json(build_media_overview_payload(&state).await))
+}
+
+#[derive(Debug, Deserialize)]
+struct PlexImageQuery {
+    path: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RemoteImageQuery {
+    url: String,
+}
+
+#[derive(Clone)]
+struct CachedMediaImage {
+    bytes: Arc<Vec<u8>>,
+    content_type: String,
+    fetched_at: Instant,
+}
+
+static MEDIA_IMAGE_CACHE: OnceLock<RwLock<HashMap<String, CachedMediaImage>>> = OnceLock::new();
+
+fn media_image_cache() -> &'static RwLock<HashMap<String, CachedMediaImage>> {
+    MEDIA_IMAGE_CACHE.get_or_init(|| RwLock::new(HashMap::new()))
+}
+
+fn media_image_response(
+    bytes: Arc<Vec<u8>>,
+    content_type: &str,
+    cache_status: &'static str,
+) -> Response {
+    let mut response = Response::new(Body::from(bytes.as_ref().clone()));
+    response.headers_mut().insert(
+        axum_header::CONTENT_TYPE,
+        content_type
+            .parse()
+            .unwrap_or_else(|_| axum_header::HeaderValue::from_static("image/jpeg")),
+    );
+    response.headers_mut().insert(
+        axum_header::CACHE_CONTROL,
+        axum_header::HeaderValue::from_static(MEDIA_IMAGE_CACHE_CONTROL),
+    );
+    response.headers_mut().insert(
+        "x-claw-media-image-cache",
+        axum_header::HeaderValue::from_static(cache_status),
+    );
+    response
+}
+
+async fn cached_media_image(cache_key: &str) -> Option<CachedMediaImage> {
+    let cache = media_image_cache().read().await;
+    cache
+        .get(cache_key)
+        .filter(|image| image.fetched_at.elapsed() < MEDIA_IMAGE_CACHE_TTL)
+        .cloned()
+}
+
+async fn store_media_image_cache(cache_key: String, bytes: Arc<Vec<u8>>, content_type: String) {
+    if bytes.len() > MEDIA_IMAGE_CACHE_MAX_BYTES {
+        return;
+    }
+    let mut cache = media_image_cache().write().await;
+    cache.retain(|_, image| image.fetched_at.elapsed() < MEDIA_IMAGE_CACHE_TTL);
+    if cache.len() >= MEDIA_IMAGE_CACHE_MAX_ENTRIES {
+        if let Some(oldest_key) = cache
+            .iter()
+            .min_by_key(|(_, image)| image.fetched_at)
+            .map(|(key, _)| key.clone())
+        {
+            cache.remove(&oldest_key);
+        }
+    }
+    cache.insert(
+        cache_key,
+        CachedMediaImage {
+            bytes,
+            content_type,
+            fetched_at: Instant::now(),
+        },
+    );
+}
+
+fn remote_artwork_url_allowed(raw_url: &str) -> bool {
+    let Ok(parsed) = url::Url::parse(raw_url.trim()) else {
+        return false;
+    };
+    if parsed.scheme() != "http" && parsed.scheme() != "https" {
+        return false;
+    }
+    let Some(host) = parsed.host_str().map(|host| host.to_ascii_lowercase()) else {
+        return false;
+    };
+    if matches!(host.as_str(), "localhost" | "127.0.0.1" | "::1") {
+        return false;
+    }
+    let allowed_suffixes = [
+        "thetvdb.com",
+        "fanart.tv",
+        "tmdb.org",
+        "themoviedb.org",
+        "gracenote.com",
+        "plex.tv",
+        "plex.direct",
+        "justwatch.com",
+        "media-amazon.com",
+        "mzstatic.com",
+    ];
+    allowed_suffixes
+        .iter()
+        .any(|suffix| host == *suffix || host.ends_with(&format!(".{suffix}")))
+}
+
+fn same_http_origin(left: &url::Url, right: &url::Url) -> bool {
+    left.scheme() == right.scheme()
+        && left.host_str() == right.host_str()
+        && left.port_or_known_default() == right.port_or_known_default()
+}
+
+fn remote_artwork_url_allowed_for_configured_origins(raw_url: &str, base_urls: &[String]) -> bool {
+    let Ok(parsed) = url::Url::parse(raw_url.trim()) else {
+        return false;
+    };
+    if parsed.scheme() != "http" && parsed.scheme() != "https" {
+        return false;
+    }
+    base_urls.iter().any(|base| {
+        url::Url::parse(base)
+            .map(|configured| same_http_origin(&parsed, &configured))
+            .unwrap_or(false)
+    })
+}
+
+fn configured_media_artwork_origins(state: &AppState) -> Vec<String> {
+    let mut origins = Vec::new();
+    if let Some(cfg) = plex_config(state) {
+        origins.push(cfg.url);
+    }
+    origins.extend(all_arr_configs(state).into_iter().map(|cfg| cfg.url));
+    origins.extend(all_ecosystem_configs(state).into_iter().map(|cfg| cfg.url));
+    origins
+}
+
+fn matching_arr_artwork_config(state: &AppState, raw_url: &str) -> Option<ArrConfig> {
+    let parsed = url::Url::parse(raw_url.trim()).ok()?;
+    all_arr_configs(state).into_iter().find(|cfg| {
+        url::Url::parse(&cfg.url)
+            .map(|configured| same_http_origin(&parsed, &configured))
+            .unwrap_or(false)
+    })
+}
+
+fn arr_artwork_request_url(cfg: &ArrConfig, raw_url: &str) -> String {
+    let Ok(parsed) = url::Url::parse(raw_url.trim()) else {
+        return raw_url.to_string();
+    };
+    if parsed.path().starts_with("/MediaCover/") {
+        let query = parsed
+            .query()
+            .map(|value| format!("?{value}"))
+            .unwrap_or_default();
+        return format!(
+            "{}/api/{}{}{}",
+            cfg.url,
+            cfg.api_version,
+            parsed.path(),
+            query
+        );
+    }
+    raw_url.to_string()
+}
+
+async fn proxy_plex_image(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Query(query): Query<PlexImageQuery>,
+) -> Result<Response, AppError> {
+    let cfg = plex_config(&state)
+        .ok_or_else(|| AppError::BadRequest("Plex credentials are not configured".into()))?;
+    let path = query.path.trim();
+    if path.is_empty() || !path.starts_with('/') || path.contains("://") {
+        return Err(AppError::BadRequest("Invalid Plex image path".into()));
+    }
+
+    let cache_key = format!("plex:{path}");
+    if let Some(cached) = cached_media_image(&cache_key).await {
+        return Ok(media_image_response(
+            cached.bytes,
+            &cached.content_type,
+            "hit",
+        ));
+    }
+
+    let url = format!("{}{}", cfg.url, path);
+    let separator = if url.contains('?') { '&' } else { '?' };
+    let full_url = format!("{}{}X-Plex-Token={}", url, separator, cfg.token);
+    let res = state
+        .http
+        .get(full_url)
+        .timeout(MEDIA_HTTP_TIMEOUT)
+        .send()
+        .await
+        .map_err(|err| AppError::BadRequest(format!("Plex image request failed: {err}")))?;
+
+    let status = StatusCode::from_u16(res.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+    let content_type = res
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("image/jpeg")
+        .to_string();
+    if !content_type.to_ascii_lowercase().starts_with("image/") {
+        return Err(AppError::BadRequest(
+            "Plex artwork response is not an image".into(),
+        ));
+    }
+    let bytes = res
+        .bytes()
+        .await
+        .map_err(|err| AppError::BadRequest(format!("Plex image read failed: {err}")))?;
+    let bytes = Arc::new(bytes.to_vec());
+
+    let mut response = media_image_response(Arc::clone(&bytes), &content_type, "miss");
+    *response.status_mut() = status;
+    if status.is_success() {
+        store_media_image_cache(cache_key, bytes, content_type).await;
+    }
+    Ok(response)
+}
+
+async fn proxy_remote_image(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Query(query): Query<RemoteImageQuery>,
+) -> Result<Response, AppError> {
+    let url = query.url.trim();
+    if !remote_artwork_url_allowed(url)
+        && !remote_artwork_url_allowed_for_configured_origins(
+            url,
+            &configured_media_artwork_origins(&state),
+        )
+    {
+        return Err(AppError::BadRequest(
+            "Remote artwork host is not allowed".into(),
+        ));
+    }
+
+    let cache_key = format!("remote:{url}");
+    if let Some(cached) = cached_media_image(&cache_key).await {
+        return Ok(media_image_response(
+            cached.bytes,
+            &cached.content_type,
+            "hit",
+        ));
+    }
+
+    let arr_cfg = matching_arr_artwork_config(&state, url);
+    let request_url = arr_cfg
+        .as_ref()
+        .map(|cfg| arr_artwork_request_url(cfg, url))
+        .unwrap_or_else(|| url.to_string());
+    let mut req = state.http.get(request_url).timeout(MEDIA_HTTP_TIMEOUT);
+    if let Some(cfg) = arr_cfg {
+        req = req.header("X-Api-Key", cfg.api_key);
+    }
+    let res = req
+        .send()
+        .await
+        .map_err(|err| AppError::BadRequest(format!("Remote artwork request failed: {err}")))?;
+
+    let status = StatusCode::from_u16(res.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+    let content_type = res
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("image/jpeg")
+        .to_string();
+    if !content_type.to_ascii_lowercase().starts_with("image/") {
+        return Err(AppError::BadRequest(
+            "Remote artwork response is not an image".into(),
+        ));
+    }
+    let bytes = res
+        .bytes()
+        .await
+        .map_err(|err| AppError::BadRequest(format!("Remote artwork read failed: {err}")))?;
+    let bytes = Arc::new(bytes.to_vec());
+
+    let mut response = media_image_response(Arc::clone(&bytes), &content_type, "miss");
+    *response.status_mut() = status;
+    if status.is_success() {
+        store_media_image_cache(cache_key, bytes, content_type).await;
+    }
+    Ok(response)
+}
+
 // ── GET /media ──────────────────────────────────────────────────────────────
 
 async fn get_media(
@@ -4080,6 +5186,8 @@ async fn get_media(
     let plex_cfg = plex_config(&state);
     let sonarr_cfg = sonarr_config(&state);
     let radarr_cfg = radarr_config(&state);
+    let sonarr_artwork_cfg = arr_config(&state, "sonarr");
+    let radarr_artwork_cfg = arr_config(&state, "radarr");
     let arr_services = all_arr_configs(&state);
     let ecosystem_services = all_ecosystem_configs(&state);
     let docker_detections = fetch_media_docker_detections(&state).await;
@@ -4134,7 +5242,10 @@ async fn get_media(
         async {
             match &sonarr_cfg {
                 Some(cfg) => {
-                    let path = format!("/calendar?start={}&end={}", today, end_date);
+                    let path = format!(
+                        "/calendar?start={}&end={}&includeSeries=true",
+                        today, end_date
+                    );
                     sonarr_fetch::<Vec<SonarrEpisode>>(http, cfg, &path).await
                 }
                 None => None,
@@ -4228,6 +5339,8 @@ async fn get_media(
     if recently_added.len() < 5 {
         if let Some(series) = sonarr_series {
             for s in series.into_iter().take(3) {
+                let artwork =
+                    MediaArtwork::from_sonarr_series_with_config(&s, sonarr_artwork_cfg.as_ref());
                 let title = s.title.unwrap_or_else(|| "Unknown".into());
                 if !recently_added.iter().any(|r| r.title == title) {
                     let id = s.id.map(|id| id.to_string());
@@ -4241,6 +5354,7 @@ async fn get_media(
                         year: s.year,
                         detail_id: id.clone(),
                         detail_ref: id.map(|id| detail_ref("sonarr", "series", id)),
+                        artwork,
                     });
                 }
             }
@@ -4255,6 +5369,8 @@ async fn get_media(
                 .filter(|m| m.has_file.unwrap_or(false))
                 .take(3)
             {
+                let artwork =
+                    MediaArtwork::from_radarr_movie_with_config(&m, radarr_artwork_cfg.as_ref());
                 let title = m.title.unwrap_or_else(|| "Unknown".into());
                 if !recently_added.iter().any(|r| r.title == title) {
                     let id = m.id.map(|id| id.to_string());
@@ -4268,6 +5384,7 @@ async fn get_media(
                         year: m.year,
                         detail_id: id.clone(),
                         detail_ref: id.map(|id| detail_ref("radarr", "movie", id)),
+                        artwork,
                     });
                 }
             }
@@ -4280,7 +5397,11 @@ async fn get_media(
 
     if let Some(episodes) = sonarr_calendar {
         for ep in episodes.into_iter().take(6) {
-            upcoming.push(sonarr_upcoming_item(ep, &sonarr_series_map));
+            upcoming.push(sonarr_upcoming_item(
+                ep,
+                &sonarr_series_map,
+                sonarr_artwork_cfg.as_ref(),
+            ));
         }
     }
 
@@ -4446,6 +5567,7 @@ async fn get_media_queue(
     for cfg in all_arr_configs(&state) {
         queue.extend(fetch_arr_queue(http, &cfg).await);
     }
+    let queue: Vec<Value> = queue.into_iter().map(normalize_queue_item).collect();
     Ok(Json(json!({ "queue": queue })))
 }
 
@@ -4462,6 +5584,7 @@ async fn get_media_calendar(
     for cfg in all_arr_configs(&state) {
         calendar.extend(fetch_arr_calendar(http, &cfg, &start, &end).await);
     }
+    let calendar: Vec<Value> = calendar.into_iter().map(normalize_calendar_item).collect();
     Ok(Json(json!({ "calendar": calendar })))
 }
 
@@ -4474,6 +5597,7 @@ async fn get_media_library(
     for cfg in all_arr_configs(&state) {
         library.extend(fetch_arr_library(http, &cfg).await);
     }
+    let library: Vec<Value> = library.into_iter().map(normalize_library_item).collect();
     Ok(Json(json!({ "library": library })))
 }
 
@@ -4486,6 +5610,7 @@ async fn get_media_wanted(
     for cfg in all_arr_configs(&state) {
         wanted.extend(fetch_arr_wanted(http, &cfg).await);
     }
+    let wanted: Vec<Value> = wanted.into_iter().map(normalize_wanted_item).collect();
     Ok(Json(json!({ "wanted": wanted })))
 }
 
@@ -4498,6 +5623,11 @@ async fn get_media_history(
     for cfg in all_arr_configs(&state) {
         history.extend(fetch_arr_history(http, &cfg).await);
     }
+    let history: Vec<Value> = history
+        .into_iter()
+        .take(100)
+        .map(normalize_wanted_item)
+        .collect();
     Ok(Json(json!({ "history": history })))
 }
 
@@ -4757,14 +5887,9 @@ async fn get_media_detail(
     let parsed_id = id
         .parse::<i64>()
         .map_err(|_| AppError::BadRequest(format!("Invalid media id: {id}")))?;
-    let path = match (cfg.kind, kind.as_str()) {
-        (ArrKind::Sonarr, "episode") => format!("/episode/{parsed_id}"),
-        (ArrKind::Sonarr, _) => format!("/series/{parsed_id}"),
-        (ArrKind::Radarr, _) => format!("/movie/{parsed_id}"),
-        (ArrKind::Lidarr, _) => format!("/artist/{parsed_id}"),
-        (ArrKind::Prowlarr, _) => format!("/indexer/{parsed_id}"),
-    };
-    let item = arr_request_value(&state.http, &cfg, Method::GET, &path, None).await?;
+    let path = arr_detail_item_path(cfg.kind, &kind, parsed_id);
+    let mut item = arr_request_value(&state.http, &cfg, Method::GET, &path, None).await?;
+    enrich_arr_artwork_value(&cfg, &mut item);
     let (title, subtitle) = arr_detail_title(&item, parsed_id);
     let related = arr_detail_context(&state.http, &cfg, &kind, parsed_id).await;
     Ok(Json(json!({
@@ -4832,7 +5957,7 @@ async fn search_media_requests(
 }
 
 fn normalize_request_discovery_item(item: Value) -> Value {
-    normalize_media_record(
+    let mut normalized = normalize_media_record(
         item,
         &[
             "id",
@@ -4844,12 +5969,27 @@ fn normalize_request_discovery_item(item: Value) -> Value {
             "firstAirDate",
             "posterPath",
             "backdropPath",
+            "images",
+            "remotePoster",
+            "banner",
+            "fanart",
+            "logo",
+            "clearLogo",
+            "clearlogo",
             "voteAverage",
             "popularity",
             "mediaInfo",
         ],
         &[],
-    )
+    );
+    if let Some(obj) = normalized.as_object_mut() {
+        if !obj.contains_key("title") {
+            if let Some(name) = obj.get("name").cloned() {
+                obj.insert("title".into(), name);
+            }
+        }
+    }
+    normalized
 }
 
 fn request_discovery_providers() -> Vec<Value> {
@@ -5219,6 +6359,236 @@ async fn media_command(
     let result =
         arr_request_value(&state.http, &cfg, Method::POST, "/command", Some(command)).await?;
     Ok(Json(json!({ "service": cfg.id, "command": result })))
+}
+
+fn media_homelab_ssh_hosts(state: &AppState) -> Vec<String> {
+    if let Some(raw) =
+        raw_media_env_value("HOMELAB_DOCKER_HOSTS").or_else(|| state.secret("HOMELAB_DOCKER_HOSTS"))
+    {
+        if let Ok(value) = serde_json::from_str::<Value>(&raw) {
+            if let Some(items) = value.as_array() {
+                let hosts = items
+                    .iter()
+                    .filter_map(|item| {
+                        item.get("host")
+                            .and_then(Value::as_str)
+                            .or_else(|| item.as_str())
+                            .map(str::trim)
+                            .filter(|host| !host.is_empty())
+                            .map(str::to_string)
+                    })
+                    .collect::<Vec<_>>();
+                if !hosts.is_empty() {
+                    return hosts;
+                }
+            }
+        }
+    }
+
+    let ssh_host = media_secret(state, "SSH_HOST");
+    (!ssh_host.trim().is_empty())
+        .then_some(ssh_host)
+        .or_else(|| state.secret("SSH_HOST"))
+        .filter(|host| !host.trim().is_empty())
+        .map(|host| vec![host])
+        .unwrap_or_else(|| vec!["agent-vm".to_string(), "proxmox".to_string()])
+}
+
+fn media_import_env_for_container(container: &str, key: &str) -> Option<&'static str> {
+    let service = container.to_ascii_lowercase();
+    let key = key.to_ascii_uppercase();
+    let service_id = [
+        "plex",
+        "sonarr",
+        "radarr",
+        "lidarr",
+        "prowlarr",
+        "bazarr",
+        "overseerr",
+        "jellyseerr",
+        "tautulli",
+        "qbittorrent",
+        "sabnzbd",
+        "nzbget",
+        "transmission",
+        "deluge",
+    ]
+    .into_iter()
+    .find(|candidate| service.contains(candidate))?;
+
+    match (service_id, key.as_str()) {
+        ("plex", "PLEX_TOKEN" | "TOKEN") => Some("PLEX_TOKEN"),
+        ("sonarr", "SONARR_API_KEY" | "API_KEY") => Some("SONARR_API_KEY"),
+        ("radarr", "RADARR_API_KEY" | "API_KEY") => Some("RADARR_API_KEY"),
+        ("lidarr", "LIDARR_API_KEY" | "API_KEY") => Some("LIDARR_API_KEY"),
+        ("prowlarr", "PROWLARR_API_KEY" | "API_KEY") => Some("PROWLARR_API_KEY"),
+        ("bazarr", "BAZARR_API_KEY" | "API_KEY") => Some("BAZARR_API_KEY"),
+        ("overseerr", "OVERSEERR_API_KEY" | "API_KEY") => Some("OVERSEERR_API_KEY"),
+        ("jellyseerr", "JELLYSEERR_API_KEY" | "API_KEY") => Some("JELLYSEERR_API_KEY"),
+        ("tautulli", "TAUTULLI_API_KEY" | "API_KEY") => Some("TAUTULLI_API_KEY"),
+        ("qbittorrent", "QBITTORRENT_USERNAME" | "USERNAME" | "USER") => {
+            Some("QBITTORRENT_USERNAME")
+        }
+        ("qbittorrent", "QBITTORRENT_PASSWORD" | "PASSWORD" | "PASS") => {
+            Some("QBITTORRENT_PASSWORD")
+        }
+        ("sabnzbd", "SABNZBD_API_KEY" | "API_KEY") => Some("SABNZBD_API_KEY"),
+        ("nzbget", "NZBGET_USERNAME" | "USERNAME" | "USER") => Some("NZBGET_USERNAME"),
+        ("nzbget", "NZBGET_PASSWORD" | "PASSWORD" | "PASS") => Some("NZBGET_PASSWORD"),
+        ("transmission", "TRANSMISSION_USERNAME" | "USERNAME" | "USER") => {
+            Some("TRANSMISSION_USERNAME")
+        }
+        ("transmission", "TRANSMISSION_PASSWORD" | "PASSWORD" | "PASS") => {
+            Some("TRANSMISSION_PASSWORD")
+        }
+        ("deluge", "DELUGE_PASSWORD" | "PASSWORD" | "PASS") => Some("DELUGE_PASSWORD"),
+        _ => None,
+    }
+}
+
+fn media_keyring_key_for_env(env_name: &str) -> Option<&'static str> {
+    crate::secrets::KEY_ENV_MAP
+        .iter()
+        .find_map(|(keyring_key, mapped_env)| (*mapped_env == env_name).then_some(*keyring_key))
+}
+
+fn media_service_for_env(env_name: &str) -> String {
+    env_name
+        .split('_')
+        .next()
+        .unwrap_or("media")
+        .to_ascii_lowercase()
+}
+
+async fn import_homelab_media_credentials(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let hosts = media_homelab_ssh_hosts(&state);
+    let docker_detections = fetch_media_docker_detections(&state).await;
+    let mut found: HashMap<String, String> = HashMap::new();
+    let mut errors = Vec::new();
+
+    let command = r#"sh -lc 'for c in $(docker ps --format "{{.Names}}" 2>/dev/null | grep -Ei "(plex|sonarr|radarr|lidarr|prowlarr|bazarr|overseerr|jellyseerr|tautulli|qbittorrent|sabnzbd|nzbget|transmission|deluge)" || true); do printf "__CONTAINER__=%s\n" "$c"; docker inspect "$c" --format "{{range .Config.Env}}{{println .}}{{end}}" 2>/dev/null; done'"#;
+
+    for host in hosts {
+        let output = tokio::time::timeout(
+            Duration::from_secs(10),
+            Command::new("ssh")
+                .arg("-o")
+                .arg("BatchMode=yes")
+                .arg("-o")
+                .arg("ConnectTimeout=6")
+                .arg(&host)
+                .arg(command)
+                .output(),
+        )
+        .await;
+
+        let output = match output {
+            Ok(Ok(output)) if output.status.success() => output,
+            Ok(Ok(output)) => {
+                errors.push(json!({
+                    "host": host,
+                    "code": "ssh_command_failed",
+                    "message": String::from_utf8_lossy(&output.stderr).lines().next().unwrap_or("SSH command failed"),
+                }));
+                continue;
+            }
+            Ok(Err(err)) => {
+                errors.push(
+                    json!({ "host": host, "code": "ssh_failed", "message": err.to_string() }),
+                );
+                continue;
+            }
+            Err(_) => {
+                errors.push(json!({ "host": host, "code": "ssh_timeout", "message": "SSH command timed out" }));
+                continue;
+            }
+        };
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut current_container = String::new();
+        for line in stdout.lines() {
+            if let Some(container) = line.strip_prefix("__CONTAINER__=") {
+                current_container = container.trim().to_string();
+                continue;
+            }
+            let Some((key, value)) = line.split_once('=') else {
+                continue;
+            };
+            let value = value.trim();
+            if value.is_empty() {
+                continue;
+            }
+            if let Some(env_name) = media_import_env_for_container(&current_container, key.trim()) {
+                found
+                    .entry(env_name.to_string())
+                    .or_insert_with(|| value.to_string());
+            }
+        }
+    }
+
+    for def in MEDIA_SERVICE_REGISTRY {
+        for env_name in def.required_envs {
+            let value = media_secret(&state, env_name);
+            if !value.trim().is_empty() {
+                found
+                    .entry((*env_name).to_string())
+                    .or_insert_with(|| value.trim().to_string());
+            }
+        }
+
+        let service_detections = detections_for_service(def, &docker_detections);
+        if let Some(url_env) = def.url_env {
+            if !found.contains_key(url_env) {
+                if let Some(detected_url) = service_detections
+                    .iter()
+                    .filter_map(|detection| detection.get("detected_url").and_then(Value::as_str))
+                    .next()
+                {
+                    found.insert(url_env.to_string(), detected_url.to_string());
+                }
+            }
+        }
+    }
+
+    let mut saved_envs = HashMap::new();
+    let mut saved = Vec::new();
+    let mut failed = Vec::new();
+    for (env_name, value) in found {
+        let Some(keyring_key) = media_keyring_key_for_env(&env_name) else {
+            continue;
+        };
+        match crate::secrets::set_secret(keyring_key.to_string(), value.clone()) {
+            Ok(()) => {
+                saved_envs.insert(env_name.clone(), value);
+                saved.push(json!({
+                    "service": media_service_for_env(&env_name),
+                    "key": env_name.to_ascii_lowercase(),
+                    "status": "saved",
+                }));
+            }
+            Err(err) => {
+                failed.push(json!({
+                    "service": media_service_for_env(&env_name),
+                    "key": env_name.to_ascii_lowercase(),
+                    "status": "failed",
+                    "message": err,
+                }));
+            }
+        }
+    }
+
+    if !saved_envs.is_empty() {
+        state.merge_secrets(saved_envs);
+    }
+
+    Ok(Json(json!({
+        "saved": saved,
+        "failed": failed,
+        "errors": errors,
+    })))
 }
 
 async fn delete_media_queue_item(
@@ -5621,8 +6991,11 @@ async fn action_media_download(
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(get_media))
+        .route("/overview", get(get_media_overview))
         .route("/services", get(get_media_services))
         .route("/discover", get(get_media_discover))
+        .route("/image/plex", get(proxy_plex_image))
+        .route("/image/remote", get(proxy_remote_image))
         .route("/queue", get(get_media_queue))
         .route("/queue/:service/:id", delete(delete_media_queue_item))
         .route("/calendar", get(get_media_calendar))
@@ -5645,6 +7018,10 @@ pub fn router() -> Router<AppState> {
         .route("/releases/grab", post(grab_media_release))
         .route("/add", post(add_media))
         .route("/command", post(media_command))
+        .route(
+            "/setup/import-homelab-credentials",
+            post(import_homelab_media_credentials),
+        )
         .route("/requests/search", get(search_media_requests))
         .route("/requests/discover", get(discover_media_requests))
         .route("/requests/:service", post(create_media_request))
@@ -6046,6 +7423,113 @@ mod tests {
     }
 
     #[test]
+    fn remote_artwork_proxy_allows_known_artwork_hosts_only() {
+        assert!(remote_artwork_url_allowed(
+            "https://artworks.thetvdb.com/banners/posters/show.jpg"
+        ));
+        assert!(remote_artwork_url_allowed(
+            "https://assets.fanart.tv/fanart/movies/logo.png"
+        ));
+        assert!(remote_artwork_url_allowed(
+            "https://image.tmdb.org/t/p/w342/poster.jpg"
+        ));
+        assert!(!remote_artwork_url_allowed("file:///etc/passwd"));
+        assert!(!remote_artwork_url_allowed(
+            "http://127.0.0.1:8080/admin.png"
+        ));
+        assert!(!remote_artwork_url_allowed(
+            "http://localhost:8080/admin.png"
+        ));
+        assert!(!remote_artwork_url_allowed(
+            "https://example.invalid/poster.jpg"
+        ));
+    }
+
+    #[test]
+    fn remote_artwork_proxy_allows_configured_media_origins() {
+        let bases = vec![
+            "http://100.123.117.46:8989".to_string(),
+            "http://100.123.117.46:7878".to_string(),
+        ];
+
+        assert!(remote_artwork_url_allowed_for_configured_origins(
+            "http://100.123.117.46:8989/api/v3/MediaCover/26/poster.jpg",
+            &bases,
+        ));
+        assert!(remote_artwork_url_allowed_for_configured_origins(
+            "http://100.123.117.46:7878/MediaCover/42/fanart.jpg",
+            &bases,
+        ));
+        assert!(!remote_artwork_url_allowed_for_configured_origins(
+            "http://100.123.117.46:8686/api/v1/MediaCover/99/poster.jpg",
+            &bases,
+        ));
+        assert!(!remote_artwork_url_allowed_for_configured_origins(
+            "file:///tmp/poster.jpg",
+            &bases,
+        ));
+    }
+
+    #[test]
+    fn arr_artwork_request_url_uses_authenticated_media_cover_api() {
+        let cfg = ArrConfig {
+            id: "sonarr",
+            name: "Sonarr",
+            kind: ArrKind::Sonarr,
+            api_version: "v3",
+            url: "http://100.123.117.46:8989".into(),
+            api_key: "secret".into(),
+        };
+
+        assert_eq!(
+            arr_artwork_request_url(
+                &cfg,
+                "http://100.123.117.46:8989/MediaCover/1/poster.jpg?lastWrite=123"
+            ),
+            "http://100.123.117.46:8989/api/v3/MediaCover/1/poster.jpg?lastWrite=123"
+        );
+        assert_eq!(
+            arr_artwork_request_url(
+                &cfg,
+                "http://100.123.117.46:8989/api/v3/MediaCover/1/poster.jpg"
+            ),
+            "http://100.123.117.46:8989/api/v3/MediaCover/1/poster.jpg"
+        );
+    }
+
+    #[tokio::test]
+    async fn media_image_cache_reuses_small_artwork_payloads() {
+        let key = "test:media-image-cache-reuses-small-artwork-payloads".to_string();
+        let bytes = Arc::new(vec![0x89, b'P', b'N', b'G']);
+        store_media_image_cache(key.clone(), Arc::clone(&bytes), "image/png".into()).await;
+
+        let cached = cached_media_image(&key).await.expect("cached artwork");
+        assert_eq!(cached.bytes.as_ref(), bytes.as_ref());
+        assert_eq!(cached.content_type, "image/png");
+    }
+
+    #[tokio::test]
+    async fn media_image_cache_skips_oversized_artwork_payloads() {
+        let key = "test:media-image-cache-skips-oversized-artwork-payloads".to_string();
+        let bytes = Arc::new(vec![0; MEDIA_IMAGE_CACHE_MAX_BYTES + 1]);
+        store_media_image_cache(key.clone(), bytes, "image/jpeg".into()).await;
+
+        assert!(cached_media_image(&key).await.is_none());
+    }
+
+    #[test]
+    fn sonarr_episode_detail_requests_episode_file_metadata() {
+        assert_eq!(
+            arr_detail_item_path(ArrKind::Sonarr, "episode", 1776),
+            "/episode/1776?includeEpisodeFile=true"
+        );
+        assert_eq!(
+            arr_detail_item_path(ArrKind::Sonarr, "series", 42),
+            "/series/42"
+        );
+    }
+
+    #[test]
     fn plex_recent_item_uses_show_title_for_seasons_and_episodes() {
         let season = plex_recent_item(PlexLibraryItem {
             rating_key: Some("season-1".into()),
@@ -6056,10 +7540,21 @@ mod tests {
             grandparent_title: Some("The Bear".into()),
             media_type: Some("season".into()),
             year: Some(2024),
+            thumb: Some("/library/metadata/season/thumb".into()),
+            art: None,
+            parent_thumb: None,
+            parent_art: None,
+            grandparent_thumb: Some("/library/metadata/show/thumb".into()),
+            grandparent_art: Some("/library/metadata/show/art".into()),
+            summary: Some("Kitchen pressure.".into()),
         })
         .expect("season item");
         assert_eq!(season.title, "The Bear");
         assert_eq!(season.subtitle.as_deref(), Some("Season 3"));
+        assert_eq!(
+            season.artwork.poster_url.as_deref(),
+            Some("/api/media/image/plex?path=%2Flibrary%2Fmetadata%2Fshow%2Fthumb")
+        );
         assert_eq!(season.detail_ref.unwrap()["kind"], "season");
 
         let episode = plex_recent_item(PlexLibraryItem {
@@ -6071,6 +7566,13 @@ mod tests {
             grandparent_title: Some("The Bear".into()),
             media_type: Some("episode".into()),
             year: Some(2023),
+            thumb: Some("/library/metadata/episode/thumb".into()),
+            art: None,
+            parent_thumb: Some("/library/metadata/season/thumb".into()),
+            parent_art: None,
+            grandparent_thumb: Some("/library/metadata/show/thumb".into()),
+            grandparent_art: Some("/library/metadata/show/art".into()),
+            summary: None,
         })
         .expect("episode item");
         assert_eq!(episode.title, "The Bear");
@@ -6092,12 +7594,155 @@ mod tests {
                 episode_number: Some(9),
             },
             &series_map,
+            None,
         );
 
         assert_eq!(item.title, "Severance S02E09: Cold Harbor");
         assert_eq!(item.air_date, "2026-05-22");
         assert_ne!(item.title, "Unknown S02E09");
         assert_eq!(item.detail_ref.unwrap()["kind"], "episode");
+    }
+
+    #[test]
+    fn sonarr_upcoming_preserves_series_artwork_metadata() {
+        let cfg = ArrConfig {
+            id: "sonarr",
+            name: "Sonarr",
+            kind: ArrKind::Sonarr,
+            api_version: "v3",
+            url: "http://sonarr".into(),
+            api_key: "secret".into(),
+        };
+        let item = sonarr_upcoming_item(
+            SonarrEpisode {
+                id: Some(1001),
+                series_id: Some(42),
+                series: Some(SonarrSeries {
+                    id: Some(42),
+                    title: Some("Severance".into()),
+                    year: Some(2022),
+                    added: None,
+                    overview: Some("Work is mysterious.".into()),
+                    network: Some("Apple TV+".into()),
+                    images: Some(json!([
+                        { "coverType": "poster", "remoteUrl": "http://sonarr/poster.jpg" },
+                        { "coverType": "fanart", "remoteUrl": "http://sonarr/fanart.jpg" },
+                        { "coverType": "banner", "remoteUrl": "http://sonarr/banner.jpg" },
+                        { "coverType": "clearlogo", "remoteUrl": "http://sonarr/logo.png" }
+                    ])),
+                    remote_poster: Some("http://sonarr/remote-poster.jpg".into()),
+                    poster_path: None,
+                    backdrop_path: Some("/sonarr-backdrop.jpg".into()),
+                }),
+                title: Some("Cold Harbor".into()),
+                air_date_utc: Some("2026-05-22T01:00:00Z".into()),
+                season_number: Some(2),
+                episode_number: Some(9),
+            },
+            &HashMap::new(),
+            Some(&cfg),
+        );
+
+        assert_eq!(item.artwork.network.as_deref(), Some("Apple TV+"));
+        assert_eq!(
+            item.artwork.overview.as_deref(),
+            Some("Work is mysterious.")
+        );
+        assert_eq!(
+            item.artwork.remote_poster.as_deref(),
+            Some("http://sonarr/remote-poster.jpg")
+        );
+        assert_eq!(
+            item.artwork.images.as_ref().unwrap()[0]["remoteUrl"],
+            "http://sonarr/poster.jpg"
+        );
+        assert_eq!(
+            item.artwork.poster_url.as_deref(),
+            Some("http://sonarr/poster.jpg")
+        );
+        assert_eq!(
+            item.artwork.backdrop_url.as_deref(),
+            Some("http://sonarr/fanart.jpg")
+        );
+        assert_eq!(
+            item.artwork.banner_url.as_deref(),
+            Some("http://sonarr/banner.jpg")
+        );
+        assert_eq!(
+            item.artwork.logo_url.as_deref(),
+            Some("http://sonarr/logo.png")
+        );
+    }
+
+    #[test]
+    fn arr_records_promote_banner_logo_and_backdrop_artwork() {
+        let cfg = ArrConfig {
+            id: "radarr",
+            name: "Radarr",
+            kind: ArrKind::Radarr,
+            api_version: "v3",
+            url: "http://radarr".into(),
+            api_key: "secret".into(),
+        };
+        let mut value = json!({
+            "title": "Dune: Part Two",
+            "images": [
+                { "coverType": "poster", "url": "/MediaCover/1/poster.jpg" },
+                { "coverType": "fanart", "url": "/MediaCover/1/fanart.jpg" },
+                { "coverType": "banner", "url": "/MediaCover/1/banner.jpg" },
+                { "coverType": "clearlogo", "url": "/MediaCover/1/logo.png" }
+            ],
+            "movie": {
+                "title": "Dune: Part Two",
+                "images": [
+                    { "coverType": "clearlogo", "url": "/MediaCover/1/nested-logo.png" }
+                ]
+            }
+        });
+
+        enrich_arr_artwork_value(&cfg, &mut value);
+
+        assert_eq!(value["posterUrl"], "http://radarr/MediaCover/1/poster.jpg");
+        assert_eq!(
+            value["backdropUrl"],
+            "http://radarr/MediaCover/1/fanart.jpg"
+        );
+        assert_eq!(value["bannerUrl"], "http://radarr/MediaCover/1/banner.jpg");
+        assert_eq!(value["logoUrl"], "http://radarr/MediaCover/1/logo.png");
+        assert_eq!(
+            value["movie"]["logoUrl"],
+            "http://radarr/MediaCover/1/nested-logo.png"
+        );
+    }
+
+    #[test]
+    fn normalized_library_items_keep_promoted_artwork_urls() {
+        let value = normalize_library_item(json!({
+            "id": 1,
+            "title": "Dune: Part Two",
+            "service": "radarr",
+            "serviceName": "Radarr",
+            "posterUrl": "http://radarr/MediaCover/1/poster.jpg",
+            "backdropUrl": "http://radarr/MediaCover/1/fanart.jpg",
+            "bannerUrl": "http://radarr/MediaCover/1/banner.jpg",
+            "logoUrl": "http://radarr/MediaCover/1/logo.png",
+            "movieFile": {
+                "path": "/movies/Dune Part Two.mkv",
+                "logoUrl": "http://radarr/MediaCover/1/nested-logo.png"
+            }
+        }));
+
+        assert_eq!(value["posterUrl"], "http://radarr/MediaCover/1/poster.jpg");
+        assert_eq!(
+            value["backdropUrl"],
+            "http://radarr/MediaCover/1/fanart.jpg"
+        );
+        assert_eq!(value["bannerUrl"], "http://radarr/MediaCover/1/banner.jpg");
+        assert_eq!(value["logoUrl"], "http://radarr/MediaCover/1/logo.png");
+        assert_eq!(
+            value["movieFile"]["logoUrl"],
+            "http://radarr/MediaCover/1/nested-logo.png"
+        );
     }
 
     #[test]

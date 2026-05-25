@@ -7,7 +7,8 @@
  * avoiding T3's full popover/combobox dependency stack.
  */
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import type { ChatProviderOption, ModelOption } from '@/features/chat/types'
 import { ProviderInstanceIcon } from './ProviderInstanceIcon'
 import {
@@ -47,17 +48,27 @@ export default function ProviderModelSelector({
   onModelChange,
 }: ProviderModelSelectorProps) {
   const rootRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const floatingPickerRef = useRef<HTMLDivElement>(null)
+  const modelButtonRefs = useRef<Array<HTMLButtonElement | null>>([])
   const [open, setOpen] = useState(false)
+  const [pickerPosition, setPickerPosition] = useState({ top: 0, left: 0, width: 360 })
   const [selectedInstanceId, setSelectedInstanceId] = useState(provider)
+  const [activeModelIndex, setActiveModelIndex] = useState(0)
   const activeProvider = providers.find(candidate => candidate.id === provider) ?? providers[0]
   const selectedProvider = providers.find(candidate => candidate.id === selectedInstanceId)
     ?? activeProvider
     ?? providers[0]
   const activeModel = models.find(candidate => candidate.id === model)
   const pickerModels = useMemo(
-    () => toPickerModels(models, selectedProvider?.name ?? 'Hermes'),
+    () => toPickerModels(models, selectedProvider?.name ?? 'Hermes Agent'),
     [models, selectedProvider?.name],
   )
+  const availableProviders = useMemo(
+    () => providers.filter(candidate => candidate.available !== false),
+    [providers],
+  )
+  const selectedProviderIndex = availableProviders.findIndex(candidate => candidate.id === selectedProvider?.id)
   const triggerModel = activeModel
     ? getTriggerDisplayModelLabel({
         slug: activeModel.id,
@@ -74,10 +85,32 @@ export default function ProviderModelSelector({
   }, [open, provider])
 
   useEffect(() => {
+    if (!open) return
+    const focusPicker = () => floatingPickerRef.current?.focus()
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(focusPicker)
+    else focusPicker()
+  }, [open])
+
+  useEffect(() => {
+    if (!open || !selectedProvider?.modelBacked) return
+    const selectedModelIndex = pickerModels.findIndex(candidate => candidate.slug === model)
+    setActiveModelIndex(selectedModelIndex >= 0 ? selectedModelIndex : 0)
+  }, [model, open, pickerModels, selectedProvider?.id, selectedProvider?.modelBacked])
+
+  useEffect(() => {
+    if (!open || !selectedProvider?.modelBacked) return
+    const activeButton = modelButtonRefs.current[activeModelIndex]
+    if (typeof activeButton?.scrollIntoView === 'function') {
+      activeButton.scrollIntoView({ block: 'nearest' })
+    }
+  }, [activeModelIndex, open, selectedProvider?.modelBacked])
+
+  useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false)
-      }
+      const target = event.target as Node
+      if (rootRef.current?.contains(target)) return
+      if (floatingPickerRef.current?.contains(target)) return
+      setOpen(false)
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false)
@@ -90,11 +123,45 @@ export default function ProviderModelSelector({
     }
   }, [])
 
+  const updatePickerPosition = useCallback(() => {
+    const trigger = triggerRef.current
+    if (!trigger || typeof window === 'undefined') return
+    const rect = trigger.getBoundingClientRect()
+    const gutter = 8
+    const availableWidth = Math.max(180, window.innerWidth - gutter * 2)
+    const width = Math.min(360, availableWidth)
+    const renderedHeight = floatingPickerRef.current?.offsetHeight || 300
+    const maxLeft = Math.max(gutter, window.innerWidth - width - gutter)
+    const left = Math.min(Math.max(gutter, rect.right - width), maxLeft)
+    const hasRoomBelow = rect.bottom + 6 + renderedHeight <= window.innerHeight - gutter
+    const unclampedTop = hasRoomBelow ? rect.bottom + 6 : rect.top - renderedHeight - 6
+    const maxTop = Math.max(gutter, window.innerHeight - renderedHeight - gutter)
+    const top = Math.min(Math.max(gutter, unclampedTop), maxTop)
+    setPickerPosition({ top, left, width })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (open) updatePickerPosition()
+  }, [open, updatePickerPosition])
+
+  useEffect(() => {
+    if (!open) return
+    updatePickerPosition()
+    window.addEventListener('resize', updatePickerPosition)
+    window.addEventListener('scroll', updatePickerPosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePickerPosition)
+      window.removeEventListener('scroll', updatePickerPosition, true)
+    }
+  }, [open, updatePickerPosition])
+
   const chooseProvider = (nextProvider: ChatProviderOption) => {
+    if (nextProvider.available === false) return
     setSelectedInstanceId(nextProvider.id)
     if (!nextProvider.modelBacked || models.length === 0) {
       onProviderChange(nextProvider.id)
       setOpen(false)
+      triggerRef.current?.focus()
     }
   }
 
@@ -104,17 +171,54 @@ export default function ProviderModelSelector({
     }
     onModelChange(nextModel.slug)
     setOpen(false)
+    triggerRef.current?.focus()
+  }
+
+  const chooseModelByShortcut = (key: string) => {
+    if (!selectedProvider?.modelBacked) return
+    const index = Number(key) - 1
+    if (!Number.isInteger(index) || index < 0 || index >= Math.min(9, pickerModels.length)) return
+    chooseModel(pickerModels[index])
+  }
+
+  const moveProvider = (delta: number) => {
+    if (availableProviders.length === 0) return
+    const currentIndex = selectedProviderIndex >= 0 ? selectedProviderIndex : 0
+    const nextIndex = (currentIndex + delta + availableProviders.length) % availableProviders.length
+    setSelectedInstanceId(availableProviders[nextIndex].id)
+  }
+
+  const moveModel = (delta: number) => {
+    if (!selectedProvider?.modelBacked || pickerModels.length === 0) return
+    setActiveModelIndex(current => (current + delta + pickerModels.length) % pickerModels.length)
+  }
+
+  const selectActiveOption = () => {
+    if (!selectedProvider || selectedProvider.available === false) return
+    if (!selectedProvider.modelBacked) {
+      chooseProvider(selectedProvider)
+      return
+    }
+    const nextModel = pickerModels[activeModelIndex]
+    if (nextModel) chooseModel(nextModel)
   }
 
   return (
     <div ref={rootRef} style={rootStyle}>
       <button
+        ref={triggerRef}
         type="button"
         data-chat-provider-model-picker="true"
         aria-label="Select provider and model"
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen(value => !value)}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            setOpen(true)
+          }
+        }}
         title={activeProvider?.description || 'Select provider and model'}
         style={triggerStyle}
       >
@@ -129,16 +233,61 @@ export default function ProviderModelSelector({
         <span aria-hidden="true" style={{ color: 'var(--text-muted)', fontSize: 10 }}>v</span>
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
+          ref={floatingPickerRef}
           role="dialog"
           aria-label="Provider and model picker"
           data-model-picker-content="true"
-          style={popoverStyle}
+          tabIndex={-1}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              setOpen(false)
+              triggerRef.current?.focus()
+              return
+            }
+            if (/^[1-9]$/.test(event.key)) {
+              event.preventDefault()
+              chooseModelByShortcut(event.key)
+              return
+            }
+            if (event.key === 'ArrowDown') {
+              event.preventDefault()
+              moveModel(1)
+              return
+            }
+            if (event.key === 'ArrowUp') {
+              event.preventDefault()
+              moveModel(-1)
+              return
+            }
+            if (event.key === 'ArrowRight') {
+              event.preventDefault()
+              moveProvider(1)
+              return
+            }
+            if (event.key === 'ArrowLeft') {
+              event.preventDefault()
+              moveProvider(-1)
+              return
+            }
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              selectActiveOption()
+            }
+          }}
+          style={{
+            ...popoverStyle,
+            left: pickerPosition.left,
+            top: pickerPosition.top,
+            width: pickerPosition.width,
+          }}
         >
           <div data-model-picker-sidebar="true" aria-label="Providers" style={sidebarStyle}>
             {providers.map(entry => {
               const selected = selectedProvider?.id === entry.id
+              const available = entry.available !== false
               return (
                 <button
                   key={entry.id}
@@ -146,12 +295,16 @@ export default function ProviderModelSelector({
                   data-model-picker-provider={entry.id}
                   aria-label={entry.name}
                   aria-pressed={selected}
+                  disabled={!available}
+                  title={available ? entry.description : entry.unavailableReason || entry.description}
                   onClick={() => chooseProvider(entry)}
                   style={{
                     ...providerButtonStyle,
                     background: selected ? 'var(--bg-card)' : 'transparent',
-                    color: selected ? 'var(--text-primary)' : 'var(--text-muted)',
+                    color: !available ? 'var(--text-muted)' : selected ? 'var(--text-primary)' : 'var(--text-muted)',
                     boxShadow: selected ? 'inset -2px 0 0 var(--accent)' : 'none',
+                    cursor: available ? 'pointer' : 'not-allowed',
+                    opacity: available ? 1 : 0.45,
                   }}
                 >
                   <ProviderInstanceIcon
@@ -176,38 +329,59 @@ export default function ProviderModelSelector({
                   {selectedProvider?.name ?? 'Provider'}
                 </div>
                 <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-                  {selectedProvider?.modelBacked ? 'Select model' : 'Direct local provider'}
+                  {selectedProvider?.available === false
+                    ? selectedProvider.unavailableReason || 'Agent unavailable'
+                    : selectedProvider?.modelBacked ? 'Select model' : 'No model selection'}
                 </div>
               </div>
             </div>
 
-            {selectedProvider?.modelBacked ? (
+            {selectedProvider?.available === false ? (
+              <div style={emptyStyle}>
+                {selectedProvider.unavailableReason || `${selectedProvider.name} is not available.`}
+              </div>
+            ) : selectedProvider?.modelBacked ? (
               pickerModels.length > 0 ? (
-                <div role="listbox" aria-label={`${selectedProvider.name} models`} style={rowsStyle}>
-                  {pickerModels.map((item, index) => (
-                    <button
-                      key={item.slug}
-                      type="button"
-                      role="option"
-                      aria-selected={item.slug === model}
-                      data-model-picker-model={item.slug}
-                      onClick={() => chooseModel(item)}
-                      style={{
-                        ...rowStyle,
-                        background: item.slug === model ? 'var(--hover-bg)' : 'transparent',
-                      }}
-                    >
-                      <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
-                        {getDisplayModelName(item)}
-                      </span>
-                      <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-                        {item.subProvider ? `${item.providerName} · ${item.subProvider}` : item.providerName}
-                      </span>
-                      {index < 9 && (
-                        <span style={kbdStyle}>{index + 1}</span>
-                      )}
-                    </button>
-                  ))}
+                <div
+                  role="listbox"
+                  aria-label={`${selectedProvider.name} models`}
+                  aria-activedescendant={pickerModels[activeModelIndex] ? `chat-model-picker-option-${pickerModels[activeModelIndex].slug}` : undefined}
+                  style={rowsStyle}
+                >
+                  {pickerModels.map((item, index) => {
+                    const selected = item.slug === model
+                    const active = index === activeModelIndex
+                    return (
+                      <button
+                        key={item.slug}
+                        id={`chat-model-picker-option-${item.slug}`}
+                        ref={(node) => {
+                          modelButtonRefs.current[index] = node
+                        }}
+                        type="button"
+                        role="option"
+                        aria-selected={selected}
+                        data-model-picker-model={item.slug}
+                        onMouseEnter={() => setActiveModelIndex(index)}
+                        onClick={() => chooseModel(item)}
+                        style={{
+                          ...rowStyle,
+                          background: selected || active ? 'var(--hover-bg)' : 'transparent',
+                          outline: active ? '1px solid var(--accent)' : 'none',
+                        }}
+                      >
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
+                          {getDisplayModelName(item)}
+                        </span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                          {item.subProvider ? `${item.providerName} · ${item.subProvider}` : item.providerName}
+                        </span>
+                        {index < 9 && (
+                          <span style={kbdStyle}>{index + 1}</span>
+                        )}
+                      </button>
+                    )
+                  })}
                 </div>
               ) : (
                 <div style={emptyStyle}>No models reported</div>
@@ -220,15 +394,16 @@ export default function ProviderModelSelector({
                 style={rowStyle}
               >
                 <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
-                  Use {selectedProvider?.name ?? 'provider'}
+                  Use {selectedProvider?.name ?? 'Hermes Agent'}
                 </span>
                 <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-                  Sends directly to the installed local CLI
+                  Routes through the active Hermes Agent connection
                 </span>
               </button>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
@@ -265,16 +440,19 @@ const triggerTextStyle: CSSProperties = {
 }
 
 const popoverStyle: CSSProperties = {
-  position: 'absolute',
-  right: 0,
-  top: 36,
-  zIndex: 50,
+  position: 'fixed',
+  zIndex: 1100,
   width: 360,
-  maxWidth: 'calc(100vw - 48px)',
+  maxWidth: 'calc(100vw - 16px)',
   minHeight: 220,
   border: '1px solid var(--border)',
   borderRadius: 8,
-  background: 'var(--bg-base)',
+  background: 'linear-gradient(var(--bg-card-solid, #18181f), var(--bg-card-solid, #18181f)), var(--bg-base, #0a0a0c)',
+  backgroundClip: 'padding-box',
+  opacity: 1,
+  isolation: 'isolate',
+  backdropFilter: 'none',
+  WebkitBackdropFilter: 'none',
   boxShadow: 'var(--shadow-lg, 0 18px 60px rgba(0, 0, 0, 0.35))',
   display: 'grid',
   gridTemplateColumns: '48px minmax(0, 1fr)',

@@ -27,8 +27,8 @@ export function MissionFilters({
             onClick={() => onTabChange(key)}
             style={{
               padding: '5px 14px', borderRadius: '20px',
-              border: `1px solid ${active ? 'var(--purple-a40)' : 'var(--border)'}`,
-              background: active ? 'var(--purple-a12)' : 'transparent',
+              border: `1px solid ${active ? 'var(--border-accent)' : 'var(--border)'}`,
+              background: active ? 'var(--accent-a12)' : 'transparent',
               color: active ? 'var(--accent-bright)' : 'var(--text-secondary)',
               fontSize: '12px', fontWeight: active ? 600 : 400,
               cursor: 'pointer', transition: 'all 0.25s var(--ease-spring)',
@@ -38,7 +38,7 @@ export function MissionFilters({
             {label}
             <span style={{
               fontSize: '10px', fontFamily: 'monospace',
-              background: active ? 'var(--purple-a20)' : 'var(--hover-bg)',
+              background: active ? 'var(--accent-a15)' : 'var(--hover-bg)',
               padding: '1px 5px', borderRadius: '10px',
               color: active ? 'var(--accent-bright)' : 'var(--text-muted)',
             }}>

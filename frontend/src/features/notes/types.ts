@@ -4,6 +4,7 @@ export interface VaultNote {
   type: 'note' | 'attachment'
   title: string
   content: string
+  content_status?: 'cached_title_only' | 'confirmed_blank'
   folder: string
   tags: string[]
   links: string[]
@@ -42,6 +43,11 @@ export interface NoteReviewMarker {
   kind: 'comment' | 'suggestion'
   status?: string
   anchor?: NoteSelectionAnchor | Record<string, unknown>
+  trackedChange?: {
+    type: 'replace' | 'insert' | 'replace_document'
+    before?: string
+    after?: string
+  }
 }
 
 export interface FolderNode {

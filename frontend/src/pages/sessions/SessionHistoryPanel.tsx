@@ -7,9 +7,10 @@ const MarkdownBubble = lazy(() => import('@/components/MarkdownBubble'))
 
 interface SessionHistoryPanelProps {
   sessionId: string | null
+  environmentId?: string | null
 }
 
-export function SessionHistoryPanel({ sessionId }: SessionHistoryPanelProps) {
+export function SessionHistoryPanel({ sessionId, environmentId }: SessionHistoryPanelProps) {
   if (!sessionId) {
     return (
       <div style={{
@@ -25,7 +26,7 @@ export function SessionHistoryPanel({ sessionId }: SessionHistoryPanelProps) {
     )
   }
 
-  return <SessionHistoryView sessionId={sessionId} />
+  return <SessionHistoryView sessionId={sessionId} environmentId={environmentId} />
 }
 
 function MessageSkeleton() {
@@ -53,9 +54,9 @@ function MessageSkeleton() {
   )
 }
 
-function SessionHistoryView({ sessionId }: { sessionId: string }) {
+function SessionHistoryView({ sessionId, environmentId }: { sessionId: string; environmentId?: string | null }) {
   const [limit, setLimit] = useState(50)
-  const { messages, hasMore, isLoading, error } = useSessionHistory(sessionId, limit)
+  const { messages, hasMore, isLoading, error } = useSessionHistory(sessionId, limit, environmentId)
   const scrollRef = useRef<HTMLDivElement>(null)
   const prevHeightRef = useRef(0)
 

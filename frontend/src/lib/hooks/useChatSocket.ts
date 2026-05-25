@@ -26,6 +26,8 @@ interface UseChatSocketOptions {
   enabled?: boolean
   /** Optional harness session key to stream. Falls back to current chat session. */
   sessionKey?: string | null
+  /** Optional environment scope for gateway sessions that can share keys. */
+  environmentId?: string | null
 }
 
 interface UseChatSocketReturn {
@@ -37,6 +39,23 @@ interface UseChatSocketReturn {
 
 const WS_RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 15000] as const
 const MAX_RECONNECT_ATTEMPTS = 10
+const CHAT_WS_PATH = '/api/chat/ws'
+
+export function buildChatSocketUrl(input: {
+  sessionKey?: string | null
+  environmentId?: string | null
+  apiKey?: string | null
+} = {}): string {
+  const path = CHAT_WS_PATH
+  const wsBase = getRequestBaseForPath(path).replace(/^http/, 'ws')
+  const params = new URLSearchParams()
+  if (input.apiKey) params.set('apiKey', input.apiKey)
+  if (input.sessionKey) params.set('sessionKey', input.sessionKey)
+  const environmentId = input.environmentId?.trim()
+  if (environmentId) params.set('environmentId', environmentId)
+  const query = params.toString()
+  return `${wsBase}${path}${query ? `?${query}` : ''}`
+}
 
 /**
  * Hook that maintains a WebSocket connection to /api/chat/ws for real-time
@@ -44,7 +63,7 @@ const MAX_RECONNECT_ATTEMPTS = 10
  * established or drops permanently.
  */
 export function useChatSocket(opts: UseChatSocketOptions): UseChatSocketReturn {
-  const { onMessage, onStatusChange, enabled = true, sessionKey } = opts
+  const { onMessage, onStatusChange, enabled = true, sessionKey, environmentId } = opts
   const [connected, setConnected] = useState(false)
   const [usingFallback, setUsingFallback] = useState(false)
 
@@ -68,14 +87,9 @@ export function useChatSocket(opts: UseChatSocketOptions): UseChatSocketReturn {
     if (!mountedRef.current) return
     if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) return
 
-    const path = '/api/chat/ws'
-    const wsBase = getRequestBaseForPath(path).replace(/^http/, 'ws')
-    const params = new URLSearchParams()
+    const path = CHAT_WS_PATH
     const apiKey = getRequestApiKeyForPath(path) || _apiKey
-    if (apiKey) params.set('apiKey', apiKey)
-    if (sessionKey) params.set('sessionKey', sessionKey)
-    const query = params.toString()
-    const url = `${wsBase}${path}${query ? `?${query}` : ''}`
+    const url = buildChatSocketUrl({ sessionKey, environmentId, apiKey })
 
     let ws: WebSocket
     try {
@@ -128,7 +142,7 @@ export function useChatSocket(opts: UseChatSocketOptions): UseChatSocketReturn {
       const delay = WS_RECONNECT_DELAYS[delayIdx]
       reconnectTimerRef.current = setTimeout(connect, delay)
     }
-  }, [sessionKey, updateStatus])
+  }, [environmentId, sessionKey, updateStatus])
 
   useEffect(() => {
     mountedRef.current = true

@@ -144,7 +144,7 @@ async fn test_harness(http: &reqwest::Client, url: &str, api_key: &str) -> Resul
     let resp = req
         .send()
         .await
-        .map_err(|e| connection_error_msg(&e, "Harness"))?;
+        .map_err(|e| connection_error_msg(&e, "Hermes Agent"))?;
 
     let status = resp.status().as_u16();
     if status == 401 || status == 403 {
@@ -153,7 +153,7 @@ async fn test_harness(http: &reqwest::Client, url: &str, api_key: &str) -> Resul
     if resp.status().is_success() {
         return Ok(());
     }
-    Err(format!("Harness returned HTTP {status}"))
+    Err(format!("Hermes Agent returned HTTP {status}"))
 }
 
 async fn test_bluebubbles(http: &reqwest::Client, url: &str, password: &str) -> Result<(), String> {

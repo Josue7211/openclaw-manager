@@ -7,10 +7,10 @@ import {
   DotsThree,
 } from '@phosphor-icons/react'
 import SecondsAgo from '@/components/SecondsAgo'
-import type { ClaudeSession } from './types'
+import type { HermesSession } from './types'
 
 interface SessionCardProps {
-  session: ClaudeSession
+  session: HermesSession
   selected: boolean
   onSelect: () => void
   onRename: (key: string, label: string) => void
@@ -159,6 +159,7 @@ export const SessionCard = React.memo(function SessionCard({
     : Date.now()
 
   const sessionLabel = (session.label as string) || 'Untitled'
+  const environmentLabel = session.environmentId?.trim() || ''
   const messageCount = Number(session.messageCount || 0)
 
   const commitRename = () => {
@@ -194,7 +195,7 @@ export const SessionCard = React.memo(function SessionCard({
           onSelect()
         }}
         aria-selected={selected}
-        aria-label={`${sessionLabel}, ${messageCount} message${messageCount === 1 ? '' : 's'}`}
+        aria-label={`${sessionLabel}${environmentLabel ? `, ${environmentLabel}` : ''}, ${messageCount} message${messageCount === 1 ? '' : 's'}`}
         onContextMenu={(e) => {
           e.preventDefault()
           e.stopPropagation()
@@ -330,6 +331,18 @@ export const SessionCard = React.memo(function SessionCard({
               `${messageCount} message${messageCount === 1 ? '' : 's'}`
             )}
           </span>
+          {environmentLabel && (
+            <span style={{
+              flexShrink: 1,
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              color: 'var(--text-tertiary)',
+            }}>
+              {environmentLabel}
+            </span>
+          )}
           <span style={{ flexShrink: 0 }}>
             <SecondsAgo sinceMs={lastActivityMs} />
           </span>

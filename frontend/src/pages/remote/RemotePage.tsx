@@ -222,7 +222,7 @@ export default function RemotePage() {
 
   return (
     <div style={{ height: '100%', minHeight: 'calc(100vh - 72px)', display: 'flex', flexDirection: 'column' }}>
-      <PageHeader defaultTitle="Remote Viewer" defaultSubtitle="Harness VM desktop" />
+      <PageHeader defaultTitle="Remote Viewer" defaultSubtitle="Hermes Agent desktop" />
 
       <div style={{
         display: 'flex',

@@ -34,8 +34,11 @@ describe('buildLiveAppContext', () => {
       route: '/calendar',
       pageTitle: 'Calendar',
       context: {
+        projectId: 'local:clawcontrol:stable',
         project: 'clawcontrol',
+        projectRoot: '/Volumes/T7/projects',
         workingDir: '/Volumes/T7/projects/clawcontrol',
+        environmentId: 'local',
         branch: 'main',
         runtime: 'Work locally',
       },
@@ -45,6 +48,9 @@ describe('buildLiveAppContext', () => {
 
     expect(context).toContain('captured_at: 2026-05-17T12:00:00.000Z')
     expect(context).toContain('route: /calendar')
+    expect(context).toContain('project_id: local:clawcontrol:stable')
+    expect(context).toContain('project_root: /Volumes/T7/projects')
+    expect(context).toContain('environment_id: local')
     expect(context).toContain('calendar: loaded; source=local-macos-calendar')
     expect(context).toContain('Dentist | 2026-05-17T14:00:00.000Z')
     expect(context).toContain('todos: loaded; open=1')

@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactElement } from 'react'
 
 const mockUseHarnessUsage = vi.fn()
 
-vi.mock('@/hooks/useCodexLbUsage', () => ({
-  useCodexLbUsage: () => mockUseHarnessUsage(),
+vi.mock('@/hooks/useHermesUsage', () => ({
+  useHermesUsage: () => mockUseHarnessUsage(),
 }))
 
 vi.mock('@/lib/api', () => ({
@@ -16,7 +16,7 @@ vi.mock('@/lib/api', () => ({
 }))
 
 import { api } from '@/lib/api'
-import { CodexLbSection, ProvidersSection, UsageSection } from '../ChatParitySections'
+import { HermesAgentSection, ProvidersSection, UsageSection } from '../ChatParitySections'
 
 function renderWithQuery(ui: ReactElement) {
   const qc = new QueryClient({
@@ -45,21 +45,99 @@ describe('chat parity settings sections', () => {
       if (path === '/api/chat/providers/status') {
         return {
           providers: [
-            { id: 'hermes', name: 'Hermes', ready: true, selectable: true, detail: 'Hermes/Codex LB configured' },
-            { id: 'claudeAgent', name: 'Claude Code', ready: true, selectable: true, detail: 'Claude Code command found: claude' },
-            { id: 'codex-cli', name: 'Codex CLI', ready: true, selectable: true, detail: 'Codex CLI command found: codex' },
+            { id: 'hermes', name: 'Hermes Agent', ready: true, selectable: true, detail: 'Hermes Agent configured' },
           ],
         }
       }
       if (path === '/api/chat/models') {
         return {
           models: [
-            { id: 'openai/gpt-5.2', name: 'GPT 5.2', provider: 'codex-lb', local: false },
+            { id: 'openai/gpt-5.2', name: 'GPT 5.2', provider: 'hermes', local: false },
           ],
         }
       }
-      if (path === '/api/harness/runtime-config') {
+      if (path === '/api/hermes/runtime-config') {
         return { currentModel: 'openai/gpt-5.2', favoriteModels: ['openai/gpt-5.2'] }
+      }
+      if (path === '/api/hermes/dashboard/overview?timeframe=7d') {
+        return {
+          lastSyncAt: '2026-05-20T21:53:03Z',
+          accounts: [
+            {
+              accountId: 'acc-1',
+              email: 'primary@example.com',
+              displayName: 'primary@example.com',
+              planType: 'pro',
+              status: 'active',
+              usage: { primaryRemainingPercent: 89, secondaryRemainingPercent: 98 },
+              requestUsage: { requestCount: 12, totalTokens: 49390, cachedInputTokens: 1000, totalCostUsd: 0.42 },
+              auth: { access: { state: 'valid', expiresAt: '2026-05-24T00:00:00Z' } },
+            },
+          ],
+          summary: {
+            primaryWindow: { remainingPercent: 83, capacityCredits: 1600, remainingCredits: 1330, resetAt: '2026-05-20T23:15:00Z' },
+            secondaryWindow: { remainingPercent: 96, capacityCredits: 53800, remainingCredits: 51500, resetAt: '2026-05-27T00:00:00Z' },
+            cost: { totalUsd: 0.57, currency: 'USD' },
+            metrics: { requests: 17, tokens: 371880, cachedInputTokens: 81410, errorRate: 0, errorCount: 0, topError: null },
+          },
+          trends: {
+            requests: [{ t: '2026-05-19T00:00:00Z', v: 1 }, { t: '2026-05-20T00:00:00Z', v: 17 }],
+            tokens: [{ t: '2026-05-19T00:00:00Z', v: 1000 }, { t: '2026-05-20T00:00:00Z', v: 371880 }],
+            cost: [{ t: '2026-05-19T00:00:00Z', v: 0.01 }, { t: '2026-05-20T00:00:00Z', v: 0.57 }],
+            errorRate: [{ t: '2026-05-19T00:00:00Z', v: 0 }, { t: '2026-05-20T00:00:00Z', v: 0 }],
+          },
+        }
+      }
+      if (path === '/api/hermes/dashboard/accounts') {
+        return {
+          accounts: [
+            {
+              accountId: 'acc-1',
+              email: 'primary@example.com',
+              displayName: 'primary@example.com',
+              planType: 'pro',
+              status: 'active',
+              usage: { primaryRemainingPercent: 89, secondaryRemainingPercent: 98 },
+              requestUsage: { requestCount: 12, totalTokens: 49390, cachedInputTokens: 1000, totalCostUsd: 0.42 },
+              auth: { access: { state: 'valid' } },
+            },
+          ],
+        }
+      }
+      if (path === '/api/hermes/dashboard/api-keys') {
+        return [
+          {
+            id: 'key-1',
+            name: 'hermes-agent',
+            keyPrefix: 'sk-clb-test',
+            isActive: true,
+            expiresAt: null,
+            usageSummary: { requestCount: 4, totalTokens: 68270, cachedInputTokens: 10750, totalCostUsd: 0.11 },
+            limits: [],
+          },
+        ]
+      }
+      if (path === '/api/hermes/dashboard/request-logs?limit=25') {
+        return {
+          total: 1,
+          hasMore: false,
+          requests: [
+            {
+              requestedAt: '2026-05-20T20:57:22Z',
+              accountId: 'acc-1',
+              apiKeyName: 'hermes-agent',
+              model: 'gpt-5.3-codex',
+              transport: 'http',
+              status: 'ok',
+              tokens: 22120,
+              cachedInputTokens: 0,
+              costUsd: 0.04,
+            },
+          ],
+        }
+      }
+      if (path === '/api/hermes/dashboard/settings') {
+        return { routingStrategy: 'capacity_weighted', version: '1.12.0' }
       }
       return null
     })
@@ -68,7 +146,7 @@ describe('chat parity settings sections', () => {
   it('renders usage remaining data', () => {
     renderWithQuery(<UsageSection />)
 
-    expect(screen.getByText('Codex LB Usage')).toBeInTheDocument()
+    expect(screen.getByText('Hermes Agent Usage')).toBeInTheDocument()
     expect(screen.getByText('42k')).toBeInTheDocument()
     expect(screen.getByText('58k')).toBeInTheDocument()
     expect(screen.getByText('$1.25')).toBeInTheDocument()
@@ -76,7 +154,7 @@ describe('chat parity settings sections', () => {
     expect(screen.getByText('12k left')).toBeInTheDocument()
   })
 
-  it('does not crash when usage data is partial while loading from Codex LB', () => {
+  it('does not crash when usage data is partial while loading from Hermes Agent', () => {
     mockUseHarnessUsage.mockReturnValue({
       usage: {
         totalTokens: 5000,
@@ -87,45 +165,41 @@ describe('chat parity settings sections', () => {
     })
 
     renderWithQuery(<UsageSection />)
-    renderWithQuery(<CodexLbSection />)
+    renderWithQuery(<HermesAgentSection />)
 
-    expect(screen.getByText('Codex LB Usage')).toBeInTheDocument()
-    expect(screen.getByText('5.0k')).toBeInTheDocument()
-    expect(screen.getByText('2.5k')).toBeInTheDocument()
+    expect(screen.getByText('Hermes Agent Usage')).toBeInTheDocument()
+    expect(screen.getAllByText('5.0k').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('2.5k').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('Usage accounts')).toBeInTheDocument()
     expect(screen.getAllByText('0').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('renders provider readiness for all chat providers', async () => {
+  it('renders Hermes Agent provider readiness only', async () => {
     renderWithQuery(<ProvidersSection />)
 
-    expect(screen.getByText('Chat Providers')).toBeInTheDocument()
+    expect(screen.getByLabelText('Hermes Agent readiness')).toBeInTheDocument()
     await waitFor(() => {
-      expect(screen.getByLabelText('Hermes provider status')).toBeInTheDocument()
-      expect(screen.getByLabelText('Claude Code provider status')).toBeInTheDocument()
-      expect(screen.getByLabelText('Codex CLI provider status')).toBeInTheDocument()
+      expect(screen.getByLabelText('Hermes Agent status')).toBeInTheDocument()
+      expect(screen.queryByLabelText('Legacy local agent provider status')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Legacy local CLI provider status')).not.toBeInTheDocument()
       expect(screen.queryByText('OpenClaw')).not.toBeInTheDocument()
       expect(screen.queryByText('Needs setup')).not.toBeInTheDocument()
-      expect(screen.getAllByText('Shown in chat')).toHaveLength(3)
-      expect(within(screen.getByLabelText('Hermes provider status')).getByText('1 available')).toBeInTheDocument()
-      expect(within(screen.getByLabelText('Hermes provider status')).getByText('Codex LB runtime config')).toBeInTheDocument()
-      expect(within(screen.getByLabelText('Hermes provider status')).getByText('HERMES_API_URL or HARNESS_API_URL')).toBeInTheDocument()
-      expect(within(screen.getByLabelText('Claude Code provider status')).getByText('Direct local provider, no model selection')).toBeInTheDocument()
-      expect(within(screen.getByLabelText('Claude Code provider status')).getByText('claude CLI on PATH')).toBeInTheDocument()
-      expect(within(screen.getByLabelText('Claude Code provider status')).getByText('CLAWCONTROL_CLAUDE_COMMAND or claude')).toBeInTheDocument()
-      expect(within(screen.getByLabelText('Codex CLI provider status')).getByText('CLAWCONTROL_CODEX_COMMAND or codex')).toBeInTheDocument()
+      expect(screen.getAllByText('Available in chat')).toHaveLength(1)
+      expect(within(screen.getByLabelText('Hermes Agent status')).getByText('1 available')).toBeInTheDocument()
+      expect(within(screen.getByLabelText('Hermes Agent status')).getByText('Hermes Agent runtime config')).toBeInTheDocument()
+      expect(within(screen.getByLabelText('Hermes Agent status')).getByText('HERMES_API_URL')).toBeInTheDocument()
     })
   })
 
-  it('keeps unavailable direct providers visible for setup while hiding them from chat picker', async () => {
+  it('ignores stale local providers in settings while keeping Hermes visible', async () => {
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/api/chat/providers/status') {
         return {
           providers: [
-            { id: 'hermes', name: 'Hermes', ready: true, selectable: true, detail: 'Hermes/Codex LB configured' },
+            { id: 'hermes', name: 'Hermes Agent', ready: true, selectable: true, detail: 'Hermes Agent configured' },
             { id: 'openclaw', name: 'OpenClaw', ready: true, selectable: true, detail: 'Out of scope' },
-            { id: 'claudeAgent', name: 'Claude Code', ready: false, selectable: false, detail: 'Claude Code command not found: claude' },
-            { id: 'codex-cli', name: 'Codex CLI', ready: true, selectable: true, detail: 'Codex CLI command found: codex' },
+            { id: 'claudeAgent', name: 'Legacy local agent', ready: false, selectable: false, detail: 'Legacy local agent unavailable' },
+            { id: 'codex-cli', name: 'Legacy local CLI', ready: true, selectable: true, detail: 'Legacy local CLI available' },
           ],
         }
       }
@@ -136,26 +210,107 @@ describe('chat parity settings sections', () => {
     renderWithQuery(<ProvidersSection />)
 
     await waitFor(() => {
-      expect(screen.getByText('Hermes')).toBeInTheDocument()
+      expect(screen.getByLabelText('Hermes Agent status')).toBeInTheDocument()
       expect(screen.queryByText('OpenClaw')).not.toBeInTheDocument()
+      expect(screen.queryByText('Legacy local agent')).not.toBeInTheDocument()
+      expect(screen.queryByText('Legacy local CLI')).not.toBeInTheDocument()
     })
-
-    const claude = screen.getByLabelText('Claude Code provider status')
-    expect(within(claude).getByText('Needs setup')).toBeInTheDocument()
-    expect(within(claude).getByText('Hidden from chat')).toBeInTheDocument()
-    expect(within(claude).getByText('Claude Code command not found: claude')).toBeInTheDocument()
-    expect(within(claude).getByText('claude CLI on PATH')).toBeInTheDocument()
   })
 
-  it('renders Codex LB runtime config', async () => {
-    renderWithQuery(<CodexLbSection />)
+  it('renders Hermes Agent runtime config', async () => {
+    renderWithQuery(<HermesAgentSection />)
 
-    expect(screen.getByText('Codex LB')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Hermes Agent Dashboard' })).toBeInTheDocument()
     await waitFor(() => {
       expect(screen.getByText('openai/gpt-5.2')).toBeInTheDocument()
-      expect(screen.getByText('Hermes')).toBeInTheDocument()
+      expect(screen.getByText('Chat provider').parentElement).toHaveTextContent('Hermes Agent')
       expect(screen.getAllByText('1').length).toBeGreaterThanOrEqual(1)
-      expect(screen.getByText('40%')).toBeInTheDocument()
+      expect(screen.getByText('83%')).toBeInTheDocument()
+    })
+  })
+
+  it('renders the full Hermes Agent dashboard data surface', async () => {
+    renderWithQuery(<HermesAgentSection />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Requests (7d)')).toBeInTheDocument()
+      expect(screen.getByText('372k')).toBeInTheDocument()
+      expect(screen.getAllByText('primary@example.com').length).toBeGreaterThan(0)
+      expect(screen.getByText('gpt-5.3-codex')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'APIs' }))
+    expect(await screen.findByText('hermes-agent')).toBeInTheDocument()
+    expect(screen.getByText('sk-clb-test')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'logs' }))
+    expect(await screen.findByText('HTTP')).toBeInTheDocument()
+    expect(screen.getByText('$0.04')).toBeInTheDocument()
+  })
+
+  it('prefers live usage quota over stale quota-exceeded account status and normalizes log aliases', async () => {
+    mockUseHarnessUsage.mockReturnValue({
+      usage: {
+        accounts: [{
+          id: 'acc-1',
+          label: 'primary@example.com',
+          remaining: 60,
+          windows: [{ id: 'fiveHour', label: '5h', used: 26, limit: 100, remaining: 74, percent: 26 }],
+        }],
+        windows: [{ id: 'fiveHour', label: '5h', used: 26, limit: 100, remaining: 74, percent: 26 }],
+      },
+      loading: false,
+      error: null,
+    })
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/api/hermes/dashboard/overview?timeframe=7d') {
+        return {
+          accounts: [{
+            accountId: 'acc-1',
+            email: 'primary@example.com',
+            status: 'quota_exceeded',
+            usage: { primaryRemainingPercent: 0 },
+          }],
+          summary: { metrics: {} },
+        }
+      }
+      if (path === '/api/hermes/dashboard/accounts') {
+        return {
+          accounts: [{
+            accountId: 'acc-1',
+            email: 'primary@example.com',
+            status: 'quota_exceeded',
+            usage: { primaryRemainingPercent: 0 },
+          }],
+        }
+      }
+      if (path === '/api/hermes/dashboard/request-logs?limit=25') {
+        return {
+          total: 1,
+          requests: [{
+            createdAt: '2026-05-20T22:10:00Z',
+            account_id: 'acc-1',
+            api_key_name: 'hermes-agent',
+            modelName: 'openai/gpt-5.5',
+            totalTokens: 1200,
+            totalCostUsd: 0.02,
+            state: 'ok',
+          }],
+        }
+      }
+      if (path === '/api/hermes/dashboard/api-keys') return []
+      if (path === '/api/hermes/dashboard/settings') return {}
+      if (path === '/api/hermes/runtime-config') return {}
+      return null
+    })
+
+    renderWithQuery(<HermesAgentSection />)
+
+    await waitFor(() => {
+      expect(screen.queryByText('Quota Exceeded')).not.toBeInTheDocument()
+      expect(screen.getByText('Active')).toBeInTheDocument()
+      expect(screen.getByText('gpt-5.5')).toBeInTheDocument()
+      expect(screen.getByText('1.2k')).toBeInTheDocument()
     })
   })
 })

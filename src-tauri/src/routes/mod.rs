@@ -24,6 +24,7 @@ pub mod gateway;
 pub mod gateway_events;
 pub mod generated_modules;
 pub mod growth;
+pub mod hermes_control;
 pub mod homelab;
 pub mod ideas;
 pub mod jobs;
@@ -79,6 +80,7 @@ pub fn router() -> Router<AppState> {
         .merge(export::router())
         .merge(gateway::router())
         .merge(gateway_events::router())
+        .merge(hermes_control::router())
         .merge(events::router())
         .merge(homelab::router())
         .merge(knowledge::router())

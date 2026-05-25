@@ -32,7 +32,7 @@ export const MissionCard = React.memo(function MissionCard({
       style={{
         borderRadius: '10px',
         background: isExpanded ? 'var(--hover-bg)' : 'var(--bg-card)',
-        border: `1px solid ${isExpanded ? 'var(--purple-a30)' : done ? 'var(--secondary-a15)' : 'var(--border)'}`,
+        border: `1px solid ${isExpanded ? 'var(--border-accent)' : done ? 'var(--secondary-a15)' : 'var(--border)'}`,
         opacity: done ? 0.88 : 1,
         transition: 'border-color 0.15s, background 0.15s',
         overflow: 'hidden',
@@ -100,9 +100,9 @@ export const MissionCard = React.memo(function MissionCard({
               {mission.task_type && mission.task_type !== 'non-code' && (
                 <span style={{
                   fontSize: '9px', padding: '1px 5px', borderRadius: '10px',
-                  background: mission.task_type === 'code' ? 'var(--blue-a08)' : 'var(--purple-a12)',
-                  border: `1px solid ${mission.task_type === 'code' ? 'var(--blue-a25)' : 'var(--purple-a30)'}`,
-                  color: mission.task_type === 'code' ? 'var(--blue)' : 'var(--accent-bright)',
+                  background: mission.task_type === 'code' ? 'var(--tertiary-a08)' : 'var(--accent-a12)',
+                  border: `1px solid ${mission.task_type === 'code' ? 'var(--tertiary-a25)' : 'var(--border-accent)'}`,
+                  color: mission.task_type === 'code' ? 'var(--tertiary-bright)' : 'var(--accent-bright)',
                 }}>
                   {mission.task_type}
                 </span>
@@ -166,8 +166,8 @@ export const MissionCard = React.memo(function MissionCard({
             flexShrink: 0, fontSize: '10px', fontFamily: 'monospace',
             padding: '2px 8px', borderRadius: '10px',
             color: statusColor(mission.status),
-            background: done ? 'var(--secondary-a08)' : mission.status === 'active' ? 'var(--purple-a10)' : 'var(--hover-bg)',
-            border: `1px solid ${done ? 'var(--secondary-a15)' : mission.status === 'active' ? 'var(--purple-a20)' : 'var(--border)'}`,
+            background: done ? 'var(--secondary-a08)' : mission.status === 'active' ? 'var(--accent-a10)' : 'var(--hover-bg)',
+            border: `1px solid ${done ? 'var(--secondary-a15)' : mission.status === 'active' ? 'var(--border-accent)' : 'var(--border)'}`,
           }}>
             {mission.status}
           </div>
@@ -186,7 +186,7 @@ export const MissionCard = React.memo(function MissionCard({
       </div>
 
       {/* Progress bar — thin strip at bottom of card header */}
-      <div style={{ height: '3px', background: 'var(--active-bg)', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ height: '3px', background: 'var(--accent-a10)', position: 'relative', overflow: 'hidden' }}>
         <div style={{
           position: 'absolute', top: 0, left: 0, bottom: 0,
           width: `${barPct}%`,

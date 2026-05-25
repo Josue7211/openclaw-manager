@@ -92,6 +92,9 @@ const dotStyle = (color: string): React.CSSProperties => ({
   transition: 'background 0.3s ease, box-shadow 0.3s ease',
 })
 
+const STATUS_ONLINE_COLOR = '#22c55e'
+const STATUS_OFFLINE_COLOR = '#ef4444'
+
 const clickableStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
@@ -157,7 +160,7 @@ export const StatusBar = React.memo(function StatusBar({
         {/* Connection dot */}
         <span
           title={online ? 'Connected' : 'Offline'}
-          style={dotStyle(online ? 'var(--green-500)' : 'var(--red-500)')}
+          style={dotStyle(online ? STATUS_ONLINE_COLOR : STATUS_OFFLINE_COLOR)}
         />
         {/* Unread messages badge */}
         {messagesEnabled && unreadMessages > 0 && (
@@ -179,7 +182,7 @@ export const StatusBar = React.memo(function StatusBar({
             style={{ ...clickableStyle, padding: 0 }}
             className="hover-bg"
           >
-            <span style={dotStyle('var(--green-500)')} />
+            <span style={dotStyle(STATUS_ONLINE_COLOR)} />
           </button>
         )}
       </div>
@@ -197,8 +200,8 @@ export const StatusBar = React.memo(function StatusBar({
         }}
         title={online ? 'All systems connected' : 'You are offline'}
       >
-        <span style={dotStyle(online ? 'var(--green-500)' : 'var(--red-500)')} />
-        <span style={{ color: online ? 'var(--text-muted)' : 'var(--red-500)', fontWeight: online ? 400 : 500 }}>
+        <span style={dotStyle(online ? STATUS_ONLINE_COLOR : STATUS_OFFLINE_COLOR)} />
+        <span style={{ color: online ? 'var(--text-muted)' : STATUS_OFFLINE_COLOR, fontWeight: online ? 400 : 500 }}>
           {online ? 'Online' : 'Offline'}
         </span>
       </span>
@@ -247,7 +250,7 @@ export const StatusBar = React.memo(function StatusBar({
           onMouseEnter={e => { e.currentTarget.style.background = 'var(--hover-bg)' }}
           onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
         >
-          <span style={dotStyle(activeAgentCount > 0 ? 'var(--green-500)' : 'var(--text-muted)')} />
+          <span style={dotStyle(activeAgentCount > 0 ? STATUS_ONLINE_COLOR : 'var(--text-muted)')} />
           {activeAgentCount > 0 && (
             <span style={{ fontSize: '11px' }}>
               {activeAgentCount}

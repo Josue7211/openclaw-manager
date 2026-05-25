@@ -23,6 +23,7 @@ export const queryKeys = {
   missionEvents: (id: string) => ['mission-events', id] as const,
   chatHistory: ['chat', 'history'] as const,
   chatModels: ['chat', 'models'] as const,
+  chatProviderStatus: ['chat', 'providers', 'status'] as const,
   crons: ['crons'] as const,
   subagentsActive: ['subagents', 'active'] as const,
   agentCache: ['agent-cache'] as const,
@@ -41,8 +42,12 @@ export const queryKeys = {
   harnessModels: ['harness', 'models'] as const,
   harnessTools: ['harness', 'tools'] as const,
   gatewaySessions: ['gateway', 'sessions'] as const,
-  sessionHistory: (key: string) => ['session-history', key] as const,
-  claudeSessions: ['claude-sessions'] as const,
+  sessionHistory: (key: string, environmentId?: string | null) => (
+    environmentId === undefined
+      ? ['session-history', key] as const
+      : ['session-history', key, environmentId?.trim() || ''] as const
+  ),
+  hermesSessions: ['hermes-sessions'] as const,
   gatewayEvents: ['gateway', 'events'] as const,
   gatewayActivity: ['gateway', 'activity'] as const,
   memorySearch: (q: string) => ['memory-search', q] as const,

@@ -4,6 +4,7 @@ import {
   ArrowClockwise,
   ArrowCounterClockwise,
   ArrowSquareOut,
+  CaretDown,
   ChatCircle,
   Check,
   CursorClick,
@@ -74,12 +75,26 @@ import {
 import { compileOpenUiLangWidgetSource } from '@/lib/openui'
 import {
   chatSessionPath,
+  CHAT_SESSIONS_CHANGED_EVENT,
   notifyChatSessionsChanged,
   saveSelectedChatSessionKey,
 } from '@/lib/chat-session-selection'
 import { buildLiveAppContext } from '@/features/chat/liveAppContext'
+import {
+  CHAT_SELECTED_BRANCH_KEY,
+  CHAT_SELECTED_PROJECT_ENVIRONMENT_KEY,
+  CHAT_SELECTED_PROJECT_PATH_KEY,
+  CHAT_SELECTED_RUNTIME_KEY,
+  loadStoredValue,
+} from '@/chat/t3-adapters/sidebarPreferences'
+import {
+  loadChatWorkspaceContext,
+  type ChatWorkspaceContext,
+  type ChatWorkspaceProject,
+} from '@/chat/t3-adapters/projectWorkspace'
+import { normalizedProjectPath } from '@/chat/t3-adapters/projectSidebar'
 import { plusIconStyle } from '../sidebar/styles'
-import type { ClaudeSession } from '@/features/sessions/types'
+import type { HermesSession } from '@/features/sessions/types'
 
 const MarkdownBubble = lazy(() => import('@/components/MarkdownBubble'))
 
@@ -190,6 +205,7 @@ interface ThemeAssistantDraft extends BaseAssistantDraft {
 }
 
 type AssistantDraft = WidgetAssistantDraft | StyleAssistantDraft | SidebarAssistantDraft | ThemeAssistantDraft
+type AssistantSessionStatus = 'loading' | 'ready' | 'unavailable'
 
 interface ChatHistoryMessage {
   id?: string
@@ -203,10 +219,78 @@ interface ChatHistoryMessage {
 interface OpenUiChatResponse {
   reply?: string
   sessionKey?: string | null
+  environmentId?: string | null
+  environment_id?: string | null
+  env?: string | null
+}
+
+interface AssistantChatContext {
+  projectId?: string
+  project?: string
+  projectRoot?: string
+  workingDir?: string
+  environmentId?: string
+  branch?: string
+  runtime?: string
 }
 
 const OPENUI_REPLY_TIMEOUT_MS = 45_000
 const OPENUI_REPLY_POLL_MS = 1_000
+
+function validWorkspaceProjects(context: ChatWorkspaceContext | null | undefined): ChatWorkspaceProject[] {
+  return Array.isArray(context?.projects)
+    ? context.projects.filter(project => Boolean(project?.path?.trim()))
+    : []
+}
+
+async function resolveAssistantChatContext(): Promise<AssistantChatContext> {
+  const workspace = await loadChatWorkspaceContext().catch(() => null)
+  const projects = validWorkspaceProjects(workspace)
+  const selectedPath = loadStoredValue(CHAT_SELECTED_PROJECT_PATH_KEY, '').trim()
+  const selectedPathKey = normalizedProjectPath(selectedPath)
+  const selectedEnvironment = loadStoredValue(CHAT_SELECTED_PROJECT_ENVIRONMENT_KEY, '').trim().toLowerCase()
+  const projectEnvironmentKey = (project: ChatWorkspaceProject) => (project.environmentId || '').trim().toLowerCase()
+  const projectPathMatchesSelection = (project: ChatWorkspaceProject) => {
+    if (!selectedPath) return false
+    if (project.path.trim() === selectedPath) return true
+    return Boolean(selectedPathKey && normalizedProjectPath(project.path) === selectedPathKey)
+  }
+  const project = projects.find(candidate => (
+    projectPathMatchesSelection(candidate)
+    && (!selectedEnvironment || projectEnvironmentKey(candidate) === selectedEnvironment)
+  ))
+    ?? projects.find(candidate => (
+      projectPathMatchesSelection(candidate)
+      && projectEnvironmentKey(candidate) === 'local'
+    ))
+    ?? projects.find(projectPathMatchesSelection)
+    ?? projects[0]
+    ?? null
+  const runtimeModes = Array.isArray(workspace?.runtimeModes) ? workspace.runtimeModes : []
+  const storedRuntime = loadStoredValue(CHAT_SELECTED_RUNTIME_KEY, '')
+  const runtime = runtimeModes.includes(storedRuntime)
+    ? storedRuntime
+    : (runtimeModes[0] || 'Work locally')
+
+  if (!project) {
+    return { runtime }
+  }
+
+  const storedBranch = loadStoredValue(CHAT_SELECTED_BRANCH_KEY, '')
+  const branch = project.branches?.includes(storedBranch)
+    ? storedBranch
+    : (project.currentBranch || project.branches?.[0] || undefined)
+
+  return {
+    projectId: project.id || undefined,
+    project: project.name,
+    projectRoot: project.root || project.path,
+    workingDir: project.path,
+    environmentId: project.environmentId || undefined,
+    branch,
+    runtime,
+  }
+}
 
 function parseCaptureCommand(text: string): { type: CaptureType; content: string } | null {
   const trimmed = text.trim()
@@ -510,14 +594,19 @@ function buildOpenUiRequest(
   ].join('\n\n')
 }
 
-function gatewayHistoryPath(sessionKey: string | null): string {
-  return sessionKey
-    ? `/api/gateway/sessions/${encodeURIComponent(sessionKey)}/history?limit=500`
-    : '/api/chat/history'
+function gatewayHistoryPath(sessionKey: string | null, environmentId?: string | null): string {
+  const environment = environmentId?.trim()
+  if (sessionKey) {
+    const params = new URLSearchParams({ limit: '500' })
+    if (environment) params.set('environmentId', environment)
+    return `/api/gateway/sessions/${encodeURIComponent(sessionKey)}/history?${params.toString()}`
+  }
+  if (environment) return `/api/chat/history?environmentId=${encodeURIComponent(environment)}`
+  return '/api/chat/history'
 }
 
-async function fetchChatHistory(sessionKey: string | null = null): Promise<ChatHistoryMessage[]> {
-  const response = await api.get<{ messages?: ChatHistoryMessage[] }>(gatewayHistoryPath(sessionKey))
+async function fetchChatHistory(sessionKey: string | null = null, environmentId?: string | null): Promise<ChatHistoryMessage[]> {
+  const response = await api.get<{ messages?: ChatHistoryMessage[] }>(gatewayHistoryPath(sessionKey, environmentId))
   return Array.isArray(response.messages) ? response.messages : []
 }
 
@@ -531,6 +620,84 @@ function displayUserTextFromStoredPrompt(value: string): string {
   const match = text.match(/(?:^|\n)User request:\s*([\s\S]+)$/)
   if (!match?.[1]) return text
   return match[1].trim()
+}
+
+function assistantSessionLabel(session: HermesSession): string {
+  const label = String(session.label || '').trim()
+  if (label) return label
+  const project = String(session.project || '').trim()
+  if (project) return `${project} chat`
+  return session.key ? `Chat ${session.key.slice(0, 8)}` : 'Untitled chat'
+}
+
+function assistantSessionMeta(session: HermesSession): string {
+  const parts = [
+    Number(session.messageCount || 0) > 0
+      ? `${Number(session.messageCount)} message${Number(session.messageCount) === 1 ? '' : 's'}`
+      : '',
+    String(session.project || '').trim(),
+    String(session.environmentId || '').trim(),
+  ].filter(Boolean)
+  return parts.join(' · ')
+}
+
+function assistantSessionEnvironmentId(session: Pick<HermesSession, 'environmentId'> | null | undefined): string | null {
+  return session?.environmentId?.trim() || null
+}
+
+function assistantSessionScopeKey(key: string | null, environmentId?: string | null): string {
+  if (!key) return ''
+  const environment = environmentId?.trim()
+  return environment ? `${environment}:${key}` : key
+}
+
+function assistantSessionFromScopeKey(
+  sessions: HermesSession[],
+  key: string | null,
+  environmentId?: string | null,
+): HermesSession | null {
+  if (!key) return null
+  const environment = environmentId?.trim()
+  if (environment) {
+    const scoped = sessions.find(session => session.key === key && assistantSessionEnvironmentId(session) === environment)
+    if (scoped) return scoped
+  }
+  return sessions.find(session => session.key === key) ?? null
+}
+
+function parseAssistantSessionScope(value: string): { key: string | null; environmentId: string | null } {
+  const trimmed = value.trim()
+  if (!trimmed) return { key: null, environmentId: null }
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (Array.isArray(parsed)) {
+      const environmentId = typeof parsed[0] === 'string' && parsed[0].trim() ? parsed[0].trim() : null
+      const key = typeof parsed[1] === 'string' && parsed[1].trim() ? parsed[1].trim() : null
+      return { key, environmentId }
+    }
+  } catch {
+    // Legacy select values used `environment:key`.
+  }
+  const index = trimmed.indexOf(':')
+  if (index <= 0) return { key: trimmed, environmentId: null }
+  return {
+    environmentId: trimmed.slice(0, index) || null,
+    key: trimmed.slice(index + 1) || null,
+  }
+}
+
+function assistantSessionPickerValue(key: string | null, environmentId?: string | null): string {
+  if (!key) return ''
+  const environment = environmentId?.trim() || ''
+  return JSON.stringify([environment, key])
+}
+
+function environmentFromChatResponse(response: OpenUiChatResponse, fallback?: string | null): string | null {
+  return response.environmentId?.trim()
+    || response.environment_id?.trim()
+    || response.env?.trim()
+    || fallback?.trim()
+    || null
 }
 
 function normalizeAssistantHistory(items: ChatHistoryMessage[] = []): AssistantThreadMessage[] {
@@ -561,8 +728,8 @@ function normalizeAssistantHistory(items: ChatHistoryMessage[] = []): AssistantT
   })
 }
 
-async function fetchGatewaySessions(): Promise<ClaudeSession[]> {
-  const response = await api.get<{ sessions?: ClaudeSession[] }>('/api/gateway/sessions')
+async function fetchGatewaySessions(): Promise<HermesSession[]> {
+  const response = await api.get<{ sessions?: HermesSession[] }>('/api/gateway/sessions')
   return (response.sessions ?? []).slice().sort(
     (a, b) => new Date(String(b.lastActivity || 0)).getTime() - new Date(String(a.lastActivity || 0)).getTime(),
   )
@@ -572,10 +739,15 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => window.setTimeout(resolve, ms))
 }
 
-async function waitForAssistantReply(sessionKey: string | null, startedAt: number, baselineAssistantIds: Set<string>): Promise<string> {
+async function waitForAssistantReply(
+  sessionKey: string | null,
+  environmentId: string | null,
+  startedAt: number,
+  baselineAssistantIds: Set<string>,
+): Promise<string> {
   const deadline = Date.now() + OPENUI_REPLY_TIMEOUT_MS
   while (Date.now() <= deadline) {
-    const history = await fetchChatHistory(sessionKey)
+    const history = await fetchChatHistory(sessionKey, environmentId)
     const reply = history
       .filter(item => item.role === 'assistant')
       .filter(item => !baselineAssistantIds.has(String(item.id || '')))
@@ -597,8 +769,10 @@ async function requestThesysOpenUi(
   images: string[] = [],
   imagePaths: string[] = [],
   sessionKey: string | null = null,
+  environmentId: string | null = null,
   newChat = false,
 ): Promise<OpenUiChatResponse> {
+  const environment = environmentId?.trim()
   const response = await api.post<OpenUiChatResponse>('/api/chat/openui', {
     text: buildOpenUiRequest(text, pathname, selectedTarget, draft, visiblePageContext),
     images,
@@ -606,6 +780,7 @@ async function requestThesysOpenUi(
     systemPrompt: buildOpenUiLangSystemPrompt(),
     newChat: newChat && !sessionKey,
     ...(sessionKey ? { sessionKey } : {}),
+    ...(environment ? { environmentId: environment } : {}),
   })
   return response
 }
@@ -617,12 +792,14 @@ async function requestHermesChat(
   sessionKey: string | null = null,
   newChat = false,
   liveContext = '',
+  context: AssistantChatContext = {},
 ): Promise<OpenUiChatResponse> {
   return api.post<OpenUiChatResponse>('/api/chat', {
     text,
     images,
     imagePaths,
     liveContext,
+    ...context,
     newChat: newChat && !sessionKey,
     ...(sessionKey ? { sessionKey } : {}),
   })
@@ -1139,19 +1316,22 @@ export default function GlobalAssistantLauncher({
         onClick={() => setOpen(!actualOpen)}
         title="AI Chat"
         aria-label="Open AI Chat"
-        className="hover-bg"
+        className="hover-bg sidebar-utility-button"
+        data-active={actualOpen ? 'true' : undefined}
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           width: '100%',
           padding: collapsed ? '10px 0' : '9px 16px',
-          background: actualOpen ? 'var(--active-bg)' : 'transparent',
-          border: 'none',
+          background: actualOpen ? 'var(--accent-a12, rgba(167, 139, 250, 0.12))' : 'transparent',
+          border: actualOpen
+            ? '1px solid var(--accent-a25, rgba(167, 139, 250, 0.25))'
+            : '1px solid transparent',
           borderRadius: '10px',
-          color: actualOpen ? 'var(--text-on-color)' : 'var(--text-secondary)',
+          color: actualOpen ? 'var(--accent-bright)' : 'var(--text-secondary)',
           cursor: 'pointer',
-          transition: 'background 0.25s var(--ease-spring), color 0.25s var(--ease-spring)',
+          transition: 'background 0.25s var(--ease-spring), border-color 0.25s var(--ease-spring), color 0.25s var(--ease-spring)',
         }}
       >
         <ChatCircle size={16} style={plusIconStyle} weight={actualOpen ? 'fill' : 'regular'} />
@@ -1176,20 +1356,41 @@ export function GlobalAssistantDrawer({
   const [selectedTarget, setSelectedTarget] = useState<UiSelection | null>(null)
   const [inspecting, setInspecting] = useState(false)
   const [hoverRect, setHoverRect] = useState<UiSelection['rect'] | null>(null)
-  const [sessions, setSessions] = useState<ClaudeSession[]>([])
+  const [sessions, setSessions] = useState<HermesSession[]>([])
+  const [sessionStatus, setSessionStatus] = useState<AssistantSessionStatus>('loading')
   const [selectedSessionKey, setSelectedSessionKey] = useState<string | null>(null)
+  const [selectedSessionEnvironmentId, setSelectedSessionEnvironmentId] = useState<string | null>(null)
   const selectedSessionKeyRef = useRef<string | null>(null)
+  const selectedSessionEnvironmentIdRef = useRef<string | null>(null)
 
   const refreshSessions = useCallback(async () => {
     try {
-      setSessions(await fetchGatewaySessions())
-    } catch {
-      // The assistant can still create a session on send; recents will refresh after success.
+      const nextSessions = await fetchGatewaySessions()
+      setSessions(nextSessions)
+      setSessionStatus('ready')
+    } catch (error) {
+      setSessions([])
+      setSessionStatus('unavailable')
+      console.warn('Assistant saved chat sessions unavailable:', error)
     }
   }, [])
 
   useEffect(() => {
     void refreshSessions()
+  }, [refreshSessions])
+
+  useEffect(() => {
+    const onSessionsChanged = () => {
+      void refreshSessions()
+    }
+    window.addEventListener(CHAT_SESSIONS_CHANGED_EVENT, onSessionsChanged)
+    const interval = window.setInterval(() => {
+      void refreshSessions()
+    }, 5_000)
+    return () => {
+      window.removeEventListener(CHAT_SESSIONS_CHANGED_EVENT, onSessionsChanged)
+      window.clearInterval(interval)
+    }
   }, [refreshSessions])
 
   useEffect(() => {
@@ -1264,19 +1465,23 @@ export function GlobalAssistantDrawer({
     }
   }, [actions, navigate])
 
-  const selectSession = useCallback((key: string | null) => {
+  const selectSession = useCallback((key: string | null, environmentId?: string | null) => {
+    const environment = environmentId?.trim() || null
     selectedSessionKeyRef.current = key
+    selectedSessionEnvironmentIdRef.current = environment
     setSelectedSessionKey(key)
-    saveSelectedChatSessionKey(key)
+    setSelectedSessionEnvironmentId(environment)
+    saveSelectedChatSessionKey(key, environment)
   }, [])
 
   const getSelectedSessionKey = useCallback(() => selectedSessionKeyRef.current, [])
+  const getSelectedSessionEnvironmentId = useCallback(() => selectedSessionEnvironmentIdRef.current, [])
 
   const openFullChat = useCallback(() => {
-    saveSelectedChatSessionKey(selectedSessionKey)
-    navigate(chatSessionPath(selectedSessionKey))
+    saveSelectedChatSessionKey(selectedSessionKey, selectedSessionEnvironmentId)
+    navigate(chatSessionPath(selectedSessionKey, selectedSessionEnvironmentId))
     onClose()
-  }, [navigate, onClose, selectedSessionKey])
+  }, [navigate, onClose, selectedSessionEnvironmentId, selectedSessionKey])
 
   const inspectButtonStyle = inspecting || selectedTarget
     ? {
@@ -1298,6 +1503,8 @@ export function GlobalAssistantDrawer({
       role="dialog"
       aria-label="AI Chat assistant"
       data-global-assistant-root="true"
+      data-docked={docked ? 'true' : 'false'}
+      className="global-assistant-drawer"
       style={{
         position: docked ? 'relative' : 'fixed',
         top: docked ? undefined : 0,
@@ -1313,7 +1520,6 @@ export function GlobalAssistantDrawer({
         borderLeft: '1px solid var(--border)',
         boxShadow: docked ? 'none' : '-18px 0 48px var(--overlay-light)',
         overflow: 'hidden',
-        animation: docked ? undefined : 'assistantDrawerIn 0.18s var(--ease-spring)',
       }}
     >
       {docked && (
@@ -1348,9 +1554,11 @@ export function GlobalAssistantDrawer({
           <Sparkle size={16} color="var(--accent)" style={{ flexShrink: 0 }} />
           <AssistantSessionPicker
             sessions={sessions}
+            status={sessionStatus}
             selectedSessionKey={selectedSessionKey}
-            onSelect={(key) => {
-              selectSession(key)
+            selectedSessionEnvironmentId={selectedSessionEnvironmentId}
+            onSelect={(key, environmentId) => {
+              selectSession(key, environmentId)
               if (!key) setActions([])
             }}
             title={statusText}
@@ -1383,7 +1591,10 @@ export function GlobalAssistantDrawer({
           onClearActions={() => setActions([])}
           selectedTarget={selectedTarget}
           selectedSessionKey={selectedSessionKey}
+          sessions={sessions}
+          sessionStatus={sessionStatus}
           getSelectedSessionKey={getSelectedSessionKey}
+          getSelectedSessionEnvironmentId={getSelectedSessionEnvironmentId}
           onSelectSession={selectSession}
           onRefreshSessions={refreshSessions}
         />
@@ -1406,7 +1617,10 @@ function UnifiedAssistantPanel({
   onClearActions,
   selectedTarget,
   selectedSessionKey,
+  sessions,
+  sessionStatus,
   getSelectedSessionKey,
+  getSelectedSessionEnvironmentId,
   onSelectSession,
   onRefreshSessions,
 }: {
@@ -1417,8 +1631,11 @@ function UnifiedAssistantPanel({
   onClearActions: () => void
   selectedTarget: UiSelection | null
   selectedSessionKey: string | null
+  sessions: HermesSession[]
+  sessionStatus: AssistantSessionStatus
   getSelectedSessionKey: () => string | null
-  onSelectSession: (key: string | null) => void
+  getSelectedSessionEnvironmentId: () => string | null
+  onSelectSession: (key: string | null, environmentId?: string | null) => void
   onRefreshSessions: () => Promise<void>
 }) {
   const [input, setInput] = useState('')
@@ -1442,7 +1659,7 @@ function UnifiedAssistantPanel({
       setMessages([])
       return
     }
-    void fetchChatHistory(selectedSessionKey)
+    void fetchChatHistory(selectedSessionKey, getSelectedSessionEnvironmentId())
       .then(history => {
         if (cancelled) return
         const normalized = normalizeAssistantHistory(history)
@@ -1459,7 +1676,7 @@ function UnifiedAssistantPanel({
     return () => {
       cancelled = true
     }
-  }, [selectedSessionKey])
+  }, [getSelectedSessionEnvironmentId, selectedSessionKey])
 
   const addImageDataUrls = useCallback((dataUrls: string[]) => {
     const valid = dataUrls.filter(value => value.startsWith('data:image/'))
@@ -1651,6 +1868,7 @@ function UnifiedAssistantPanel({
 
     const builderMode = shouldUseBuilderMode(text, selectedTarget, draft)
     const visiblePageContext = collectVisiblePageContext(pathname)
+    const chatContext = await resolveAssistantChatContext()
     const duplicateTarget = builderMode ? findPlacedWidgetConflict(text, pathname) : null
     if (!draft && duplicateTarget && shouldAskBeforeDuplicatingWidget(text)) {
       setMessages(prev => [...prev, {
@@ -1661,14 +1879,19 @@ function UnifiedAssistantPanel({
       setSending(false)
       return
     }
+    const liveContextEnvironmentId = getSelectedSessionEnvironmentId() || chatContext.environmentId
     visiblePageContext.liveAppContext = await buildLiveAppContext(api.get, {
       requestText: text,
       route: pathname,
       pageTitle: visiblePageContext.pageTitle,
       context: {
-        project: 'clawcontrol',
-        workingDir: '/Volumes/T7/projects/clawcontrol',
-        runtime: 'Work locally',
+        projectId: chatContext.projectId,
+        project: chatContext.project,
+        projectRoot: chatContext.projectRoot,
+        workingDir: chatContext.workingDir,
+        environmentId: liveContextEnvironmentId,
+        branch: chatContext.branch,
+        runtime: chatContext.runtime,
       },
     }).catch((err) => {
       console.warn('Failed to capture live app context:', err)
@@ -1678,20 +1901,34 @@ function UnifiedAssistantPanel({
     try {
       let reply = ''
       let activeSessionKey = getSelectedSessionKey()
+      let activeSessionEnvironmentId = getSelectedSessionEnvironmentId()
       const shouldCreateNewChat = !activeSessionKey
       if (builderMode) {
         try {
-          const response = await requestThesysOpenUi(text, pathname, selectedTarget, draft, visiblePageContext, imageDataUrls, imagePaths, activeSessionKey, shouldCreateNewChat)
+          const response = await requestThesysOpenUi(
+            text,
+            pathname,
+            selectedTarget,
+            draft,
+            visiblePageContext,
+            imageDataUrls,
+            imagePaths,
+            activeSessionKey,
+            activeSessionEnvironmentId || chatContext.environmentId || null,
+            shouldCreateNewChat,
+          )
           reply = String(response.reply || '')
           const nextSessionKey = response.sessionKey?.trim()
           if (nextSessionKey) {
+            const nextEnvironmentId = environmentFromChatResponse(response, activeSessionEnvironmentId || chatContext.environmentId)
             activeSessionKey = nextSessionKey
+            activeSessionEnvironmentId = nextEnvironmentId
             if (shouldCreateNewChat) justCreatedSessionKeyRef.current = nextSessionKey
-            onSelectSession(nextSessionKey)
-            notifyChatSessionsChanged({ sessionKey: nextSessionKey })
+            onSelectSession(nextSessionKey, nextEnvironmentId)
+            notifyChatSessionsChanged({ sessionKey: nextSessionKey, environmentId: nextEnvironmentId })
           }
         } catch {
-          const baseline = await fetchChatHistory(activeSessionKey).catch(() => [])
+          const baseline = await fetchChatHistory(activeSessionKey, activeSessionEnvironmentId).catch(() => [])
           const baselineAssistantIds = new Set(baseline.filter(item => item.role === 'assistant').map(item => String(item.id || '')))
           const startedAt = Date.now()
           const response = await api.post<OpenUiChatResponse>('/api/chat', {
@@ -1699,33 +1936,43 @@ function UnifiedAssistantPanel({
             images: imageDataUrls,
             imagePaths,
             system_prompt: buildOpenUiLangSystemPrompt(),
+            ...chatContext,
+            environmentId: activeSessionEnvironmentId || chatContext.environmentId,
             newChat: shouldCreateNewChat,
             ...(activeSessionKey ? { sessionKey: activeSessionKey } : {}),
           })
           const nextSessionKey = response.sessionKey?.trim()
           if (nextSessionKey) {
+            const nextEnvironmentId = environmentFromChatResponse(response, activeSessionEnvironmentId || chatContext.environmentId)
             activeSessionKey = nextSessionKey
+            activeSessionEnvironmentId = nextEnvironmentId
             if (shouldCreateNewChat) justCreatedSessionKeyRef.current = nextSessionKey
-            onSelectSession(nextSessionKey)
-            notifyChatSessionsChanged({ sessionKey: nextSessionKey })
+            onSelectSession(nextSessionKey, nextEnvironmentId)
+            notifyChatSessionsChanged({ sessionKey: nextSessionKey, environmentId: nextEnvironmentId })
           }
-          reply = response.reply?.trim() || await waitForAssistantReply(activeSessionKey, startedAt, baselineAssistantIds)
+          reply = response.reply?.trim() || await waitForAssistantReply(activeSessionKey, activeSessionEnvironmentId, startedAt, baselineAssistantIds)
         }
       } else {
-        const baseline = await fetchChatHistory(activeSessionKey).catch(() => [])
+        const baseline = await fetchChatHistory(activeSessionKey, activeSessionEnvironmentId).catch(() => [])
         const baselineAssistantIds = new Set(baseline.filter(item => item.role === 'assistant').map(item => String(item.id || '')))
         const startedAt = Date.now()
-        const response = await requestHermesChat(text, imageDataUrls, imagePaths, activeSessionKey, shouldCreateNewChat, visiblePageContext.liveAppContext)
+        const requestContext = {
+          ...chatContext,
+          environmentId: activeSessionEnvironmentId || chatContext.environmentId,
+        }
+        const response = await requestHermesChat(text, imageDataUrls, imagePaths, activeSessionKey, shouldCreateNewChat, visiblePageContext.liveAppContext, requestContext)
         reply = String(response.reply || '')
         const nextSessionKey = response.sessionKey?.trim()
         if (nextSessionKey) {
+          const nextEnvironmentId = environmentFromChatResponse(response, activeSessionEnvironmentId || chatContext.environmentId)
           activeSessionKey = nextSessionKey
+          activeSessionEnvironmentId = nextEnvironmentId
           if (shouldCreateNewChat) justCreatedSessionKeyRef.current = nextSessionKey
-          onSelectSession(nextSessionKey)
-          notifyChatSessionsChanged({ sessionKey: nextSessionKey })
+          onSelectSession(nextSessionKey, nextEnvironmentId)
+          notifyChatSessionsChanged({ sessionKey: nextSessionKey, environmentId: nextEnvironmentId })
         }
         if (!reply.trim()) {
-          reply = await waitForAssistantReply(activeSessionKey, startedAt, baselineAssistantIds)
+          reply = await waitForAssistantReply(activeSessionKey, activeSessionEnvironmentId, startedAt, baselineAssistantIds)
         }
       }
       if (!builderMode) {
@@ -1902,7 +2149,14 @@ function UnifiedAssistantPanel({
         </div>
       )}
       {error && <div style={{ ...noticeStyle, borderColor: 'var(--red)', color: 'var(--red)' }}>{error}</div>}
-      <UnifiedMessageList messages={messages} sending={sending} />
+        <UnifiedMessageList
+          messages={messages}
+          sending={sending}
+          sessions={sessions}
+          sessionStatus={sessionStatus}
+          selectedSessionKey={selectedSessionKey}
+        onSelectSession={onSelectSession}
+      />
       {draft && (
         <AssistantDraftPanel
           draft={draft}
@@ -1934,43 +2188,196 @@ function UnifiedAssistantPanel({
 
 function AssistantSessionPicker({
   sessions,
+  status,
   selectedSessionKey,
+  selectedSessionEnvironmentId,
   onSelect,
   title,
 }: {
-  sessions: ClaudeSession[]
+  sessions: HermesSession[]
+  status: AssistantSessionStatus
   selectedSessionKey: string | null
-  onSelect: (key: string | null) => void
+  selectedSessionEnvironmentId?: string | null
+  onSelect: (key: string | null, environmentId?: string | null) => void
   title?: string
 }) {
+  const [open, setOpen] = useState(false)
+  const selectedSession = assistantSessionFromScopeKey(sessions, selectedSessionKey, selectedSessionEnvironmentId)
+  const selectedScopeKey = assistantSessionScopeKey(selectedSessionKey, selectedSessionEnvironmentId)
+  const unavailable = status === 'unavailable'
+  const loading = status === 'loading'
+  const selectedLabel = selectedSession
+    ? assistantSessionLabel(selectedSession)
+    : unavailable
+      ? 'Saved chats unavailable'
+      : loading
+        ? 'Loading saved chats'
+        : 'New saved chat'
+  const selectedMeta = selectedSession
+    ? assistantSessionMeta(selectedSession)
+    : unavailable
+      ? 'Gateway sessions unavailable'
+      : loading
+        ? 'Checking gateway sessions'
+        : 'Start a fresh sidebar chat'
+  const options = sessions.slice(0, 30)
+
+  const choose = (key: string | null, environmentId?: string | null) => {
+    onSelect(key, environmentId)
+    setOpen(false)
+  }
+
   return (
-    <div style={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'center' }}>
+    <div
+      className="assistant-session-picker-shell"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setOpen(false)
+        }
+      }}
+      style={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'center', position: 'relative' }}
+    >
       <select
-        value={selectedSessionKey ?? ''}
-        onChange={event => onSelect(event.target.value || null)}
+        className="assistant-session-picker-select"
+        value={assistantSessionPickerValue(selectedSessionKey, selectedSessionEnvironmentId)}
+        onChange={event => {
+          const scope = parseAssistantSessionScope(event.target.value)
+          onSelect(scope.key, scope.environmentId)
+        }}
         aria-label="Select assistant chat"
         title={title || 'Select assistant chat'}
         style={{
-          minWidth: 0,
-          flex: 1,
-          height: 32,
-          border: '1px solid var(--border)',
-          borderRadius: 8,
-          background: 'var(--bg-card)',
-          color: 'var(--text-primary)',
-          fontSize: 12,
-          fontWeight: 700,
-          padding: '0 8px',
+          position: 'absolute',
+          width: 1,
+          height: 1,
+          opacity: 0,
+          pointerEvents: 'none',
         }}
       >
         <option value="">New saved chat</option>
         {sessions.slice(0, 30).map(session => (
-          <option key={session.key} value={session.key}>
-            {session.label || 'Untitled chat'}
+          <option key={assistantSessionScopeKey(session.key, session.environmentId)} value={assistantSessionPickerValue(session.key, session.environmentId)}>
+            {assistantSessionLabel(session)}
           </option>
         ))}
       </select>
+      <button
+        type="button"
+        className="assistant-session-picker-button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="Open saved chat picker"
+        title={title || 'Select assistant chat'}
+        onClick={() => setOpen(value => !value)}
+        style={{
+          width: '100%',
+          minWidth: 0,
+          height: 34,
+          border: '1px solid var(--border)',
+          borderRadius: 8,
+          background: 'var(--bg-card)',
+          color: unavailable ? 'var(--text-muted)' : 'var(--text-primary)',
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) auto',
+          alignItems: 'center',
+          gap: 8,
+          padding: '0 10px',
+          cursor: 'pointer',
+          boxShadow: 'inset 0 1px 0 var(--bg-white-04, rgba(255,255,255,0.04))',
+        }}
+      >
+        <span style={{ minWidth: 0, display: 'grid', textAlign: 'left', lineHeight: 1.15 }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 800 }}>
+            {selectedLabel}
+          </span>
+          {(selectedSession || unavailable || loading) && (
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-muted)', fontSize: 10, fontWeight: 600, marginTop: 1 }}>
+              {selectedMeta}
+            </span>
+          )}
+        </span>
+        <CaretDown size={13} aria-hidden="true" style={{ color: 'var(--text-muted)', transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 160ms ease' }} />
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          aria-label="Saved assistant chats"
+          className="assistant-session-picker-menu"
+          style={{
+            position: 'absolute',
+            top: 38,
+            left: 0,
+            right: 0,
+            zIndex: 30,
+            display: 'grid',
+            gap: 4,
+            maxHeight: 280,
+            overflowY: 'auto',
+            padding: 6,
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            background: 'var(--bg-panel)',
+            boxShadow: '0 18px 36px rgba(0,0,0,0.36)',
+          }}
+        >
+          {unavailable ? (
+            <div className="assistant-session-picker-status" role="status">
+              Gateway sessions unavailable. Saved chat history cannot load until the gateway reconnects.
+            </div>
+          ) : (
+            <>
+              <AssistantSessionOption
+                active={!selectedSessionKey}
+                label="New saved chat"
+                meta={loading ? 'Checking gateway sessions' : 'Start a fresh sidebar chat'}
+                onClick={() => choose(null)}
+              />
+              {options.map(session => (
+                <AssistantSessionOption
+                  key={assistantSessionScopeKey(session.key, session.environmentId)}
+                  active={assistantSessionScopeKey(session.key, session.environmentId) === selectedScopeKey}
+                  label={assistantSessionLabel(session)}
+                  meta={assistantSessionMeta(session) || 'Open saved chat'}
+                  onClick={() => choose(session.key, session.environmentId)}
+                />
+              ))}
+              {status === 'ready' && options.length === 0 && (
+                <div className="assistant-session-picker-status" role="status">
+                  No saved chats from gateway yet.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
+  )
+}
+
+function AssistantSessionOption({
+  active,
+  label,
+  meta,
+  onClick,
+}: {
+  active: boolean
+  label: string
+  meta: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      role="option"
+      aria-selected={active}
+      className="assistant-session-picker-option"
+      data-active={active ? 'true' : 'false'}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={onClick}
+    >
+      <span className="assistant-session-picker-option-label">{label}</span>
+      <span className="assistant-session-picker-option-meta">{meta}</span>
+    </button>
   )
 }
 
@@ -2079,9 +2486,17 @@ function AssistantActionsPanel({
 function UnifiedMessageList({
   messages,
   sending,
+  sessions,
+  sessionStatus,
+  selectedSessionKey,
+  onSelectSession,
 }: {
   messages: AssistantThreadMessage[]
   sending: boolean
+  sessions: HermesSession[]
+  sessionStatus: AssistantSessionStatus
+  selectedSessionKey: string | null
+  onSelectSession: (key: string | null, environmentId?: string | null) => void
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -2097,8 +2512,31 @@ function UnifiedMessageList({
   return (
     <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 2 }}>
       {messages.length === 0 ? (
-        <div style={{ ...noticeStyle, marginTop: 0 }}>
-          Tell the assistant what to build, change, capture, or explain.
+        <div style={{ display: 'grid', gap: 10 }}>
+          <div className="assistant-empty-hint" style={{ ...noticeStyle, marginTop: 0 }}>
+            Tell the assistant what to build, change, capture, or explain.
+          </div>
+          {sessionStatus === 'unavailable' && (
+            <div className="assistant-gateway-unavailable" role="status">
+              Gateway sessions unavailable. Saved chat history will appear here after the gateway reconnects.
+            </div>
+          )}
+          {sessions.length > 0 && !selectedSessionKey && (
+            <div className="assistant-recent-chats" aria-label="Recent saved chats">
+              <div className="assistant-recent-chats-title">Recent saved chats</div>
+              {sessions.slice(0, 6).map(session => (
+                <button
+                  key={assistantSessionScopeKey(session.key, session.environmentId)}
+                  type="button"
+                  className="assistant-recent-chat-button"
+                  onClick={() => onSelectSession(session.key, session.environmentId)}
+                >
+                  <span className="assistant-recent-chat-label">{assistantSessionLabel(session)}</span>
+                  <span className="assistant-recent-chat-meta">{assistantSessionMeta(session) || 'Open saved chat'}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       ) : null}
       {messages.map(message => (

@@ -349,6 +349,88 @@ const HARNESS_FIELDS: &[SyncFieldSpec] = &[
         required: false,
     },
 ];
+const HERMES_FIELDS: &[SyncFieldSpec] = &[
+    SyncFieldSpec {
+        keys: &["url", "api_url", "api-url"],
+        env_var: "HERMES_API_URL",
+        label: "API URL",
+        required: true,
+    },
+    SyncFieldSpec {
+        keys: &["api_key", "api-key"],
+        env_var: "HERMES_API_KEY",
+        label: "API key",
+        required: false,
+    },
+    SyncFieldSpec {
+        keys: &["ws"],
+        env_var: "HERMES_WS",
+        label: "WebSocket URL",
+        required: false,
+    },
+    SyncFieldSpec {
+        keys: &["password"],
+        env_var: "HERMES_PASSWORD",
+        label: "Password",
+        required: false,
+    },
+];
+const CODEX_LB_FIELDS: &[SyncFieldSpec] = &[
+    SyncFieldSpec {
+        keys: &["url", "api_url", "api-url"],
+        env_var: "CODEX_LB_API_URL",
+        label: "Dashboard URL",
+        required: false,
+    },
+    SyncFieldSpec {
+        keys: &["dashboard_password", "dashboard-password", "password"],
+        env_var: "CODEX_LB_DASHBOARD_PASSWORD",
+        label: "Dashboard password",
+        required: true,
+    },
+];
+const HERMES_DASHBOARD_FIELDS: &[SyncFieldSpec] = &[
+    SyncFieldSpec {
+        keys: &[
+            "dashboard_url",
+            "dashboard-url",
+            "control_url",
+            "control-url",
+        ],
+        env_var: "HERMES_DASHBOARD_URL",
+        label: "Control dashboard URL",
+        required: false,
+    },
+    SyncFieldSpec {
+        keys: &[
+            "url",
+            "api_url",
+            "api-url",
+            "dashboard_api_url",
+            "dashboard-api-url",
+        ],
+        env_var: "HERMES_DASHBOARD_API_URL",
+        label: "Dashboard API URL",
+        required: false,
+    },
+    SyncFieldSpec {
+        keys: &[
+            "api_key",
+            "api-key",
+            "dashboard_api_key",
+            "dashboard-api-key",
+        ],
+        env_var: "HERMES_DASHBOARD_API_KEY",
+        label: "Dashboard API key",
+        required: false,
+    },
+    SyncFieldSpec {
+        keys: &["dashboard_password", "dashboard-password", "password"],
+        env_var: "HERMES_DASHBOARD_PASSWORD",
+        label: "Dashboard password",
+        required: true,
+    },
+];
 const AGENTSECRETS_FIELDS: &[SyncFieldSpec] = &[
     SyncFieldSpec {
         keys: &["url", "base_url", "base-url"],
@@ -612,8 +694,23 @@ const SYNC_SERVICE_SPECS: &[SyncServiceSpec] = &[
     },
     SyncServiceSpec {
         service: "harness",
-        label: "Harness",
+        label: "Harness Legacy",
         fields: HARNESS_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "hermes",
+        label: "Hermes Agent",
+        fields: HERMES_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "codex-lb",
+        label: "Hermes Agent",
+        fields: CODEX_LB_FIELDS,
+    },
+    SyncServiceSpec {
+        service: "hermes-dashboard",
+        label: "Hermes Agent Dashboard",
+        fields: HERMES_DASHBOARD_FIELDS,
     },
     SyncServiceSpec {
         service: "agentsecrets",
@@ -742,8 +839,22 @@ fn sync_service_spec(service: &str) -> Option<SyncServiceSpec> {
         "harness" => {
             return Some(SyncServiceSpec {
                 service: "harness",
-                label: "Harness",
+                label: "Harness Legacy",
                 fields: HARNESS_FIELDS,
+            })
+        }
+        "hermes" => {
+            return Some(SyncServiceSpec {
+                service: "hermes",
+                label: "Hermes Agent",
+                fields: HERMES_FIELDS,
+            })
+        }
+        "hermes-dashboard" | "hermes_dashboard" => {
+            return Some(SyncServiceSpec {
+                service: "hermes-dashboard",
+                label: "Hermes Agent Dashboard",
+                fields: HERMES_DASHBOARD_FIELDS,
             })
         }
         "agent-secrets" => {
@@ -1617,11 +1728,31 @@ pub(crate) fn service_credential_to_env_var(service: &str, key: &str) -> Option<
         // BlueBubbles
         ("bluebubbles", "host") => Some("BLUEBUBBLES_HOST"),
         ("bluebubbles", "password") => Some("BLUEBUBBLES_PASSWORD"),
-        // Generic Harness is the app contract; provider names are aliases.
+        // Hermes Agent is the app contract; harness remains a legacy alias.
         ("harness", "url" | "api_url" | "api-url") => Some("HARNESS_API_URL"),
         ("harness", "api_key" | "api-key") => Some("HARNESS_API_KEY"),
         ("harness", "ws") => Some("HARNESS_WS"),
         ("harness", "password") => Some("HARNESS_PASSWORD"),
+        ("codex-lb" | "codex_lb", "url" | "api_url" | "api-url") => Some("CODEX_LB_API_URL"),
+        ("codex-lb" | "codex_lb", "dashboard_password" | "dashboard-password" | "password") => {
+            Some("CODEX_LB_DASHBOARD_PASSWORD")
+        }
+        (
+            "hermes-dashboard" | "hermes_dashboard",
+            "dashboard_url" | "dashboard-url" | "control_url" | "control-url",
+        ) => Some("HERMES_DASHBOARD_URL"),
+        (
+            "hermes-dashboard" | "hermes_dashboard",
+            "url" | "api_url" | "api-url" | "dashboard_api_url" | "dashboard-api-url",
+        ) => Some("HERMES_DASHBOARD_API_URL"),
+        (
+            "hermes-dashboard" | "hermes_dashboard",
+            "api_key" | "api-key" | "dashboard_api_key" | "dashboard-api-key",
+        ) => Some("HERMES_DASHBOARD_API_KEY"),
+        (
+            "hermes-dashboard" | "hermes_dashboard",
+            "dashboard_password" | "dashboard-password" | "password",
+        ) => Some("HERMES_DASHBOARD_PASSWORD"),
         ("hermes", "url" | "api_url" | "api-url") => Some("HERMES_API_URL"),
         ("hermes", "api_key" | "api-key") => Some("HERMES_API_KEY"),
         ("hermes", "ws") => Some("HERMES_WS"),
@@ -1791,6 +1922,7 @@ fn string_map_to_value_map(
 ) -> serde_json::Map<String, serde_json::Value> {
     creds
         .iter()
+        .filter(|(_, value)| !value.trim().is_empty())
         .map(|(key, value)| (key.clone(), serde_json::Value::String(value.clone())))
         .collect()
 }
@@ -1825,16 +1957,6 @@ fn merge_service_credentials_into_state_map(
             }
         }
     }
-}
-
-async fn delete_unrecoverable_user_secret(
-    sb: &SupabaseClient,
-    session: &UserSession,
-    service: &str,
-) -> anyhow::Result<()> {
-    let query = format!("service=eq.{}", urlencoding::encode(service));
-    sb.delete_as_user("user_secrets", &query, &session.access_token)
-        .await
 }
 
 /// Fetch all `user_secrets` rows from Supabase for the given user, decrypt
@@ -1963,21 +2085,10 @@ pub async fn load_user_secrets(state: &AppState, session: &UserSession) {
                         }
                     }
                 } else {
-                    match delete_unrecoverable_user_secret(&sb, session, service).await {
-                        Ok(()) => {
-                            repaired += 1;
-                            tracing::info!(
-                                service = %service,
-                                "removed unrecoverable synced user_secret with no local fallback"
-                            );
-                        }
-                        Err(err) => {
-                            tracing::warn!(
-                                service = %service,
-                                "failed to remove unrecoverable synced user_secret: {err}"
-                            );
-                        }
-                    }
+                    tracing::warn!(
+                        service = %service,
+                        "leaving undecryptable synced user_secret intact because no local fallback exists"
+                    );
                 }
                 continue;
             }
@@ -2034,6 +2145,28 @@ fn sync_env_to_service_fields() -> &'static [(&'static str, &'static str, &'stat
         ("HARNESS_API_KEY", "harness", "api_key"),
         ("HARNESS_WS", "harness", "ws"),
         ("HARNESS_PASSWORD", "harness", "password"),
+        ("CODEX_LB_API_URL", "codex-lb", "api_url"),
+        (
+            "CODEX_LB_DASHBOARD_PASSWORD",
+            "codex-lb",
+            "dashboard_password",
+        ),
+        ("HERMES_DASHBOARD_URL", "hermes-dashboard", "dashboard_url"),
+        (
+            "HERMES_DASHBOARD_API_URL",
+            "hermes-dashboard",
+            "dashboard_api_url",
+        ),
+        (
+            "HERMES_DASHBOARD_API_KEY",
+            "hermes-dashboard",
+            "dashboard_api_key",
+        ),
+        (
+            "HERMES_DASHBOARD_PASSWORD",
+            "hermes-dashboard",
+            "dashboard_password",
+        ),
         ("HERMES_API_URL", "hermes", "api_url"),
         ("HERMES_API_KEY", "hermes", "api_key"),
         ("HERMES_WS", "hermes", "ws"),
@@ -2183,7 +2316,11 @@ async fn upsert_encrypted_service_credentials(
     service: &str,
     creds: &serde_json::Map<String, serde_json::Value>,
 ) -> anyhow::Result<()> {
-    let creds_value = serde_json::Value::Object(creds.clone());
+    let creds = sanitize_service_credentials(creds);
+    if creds.is_empty() {
+        anyhow::bail!("no nonempty credentials to sync");
+    }
+    let creds_value = serde_json::Value::Object(creds);
     let json_bytes = serde_json::to_vec(&creds_value)?;
     let (ciphertext, nonce) = crate::crypto::encrypt(&json_bytes, &session.encryption_key)?;
     let row = serde_json::json!({
@@ -2195,6 +2332,27 @@ async fn upsert_encrypted_service_credentials(
     sb.upsert_as_user("user_secrets", row, &session.access_token)
         .await?;
     Ok(())
+}
+
+fn sanitize_service_credentials(
+    creds: &serde_json::Map<String, serde_json::Value>,
+) -> serde_json::Map<String, serde_json::Value> {
+    creds
+        .iter()
+        .filter_map(|(key, value)| match value {
+            serde_json::Value::String(s) if !s.trim().is_empty() => {
+                Some((key.clone(), serde_json::Value::String(s.clone())))
+            }
+            serde_json::Value::Array(items) if !items.is_empty() => {
+                Some((key.clone(), value.clone()))
+            }
+            serde_json::Value::Object(map) if !map.is_empty() => Some((key.clone(), value.clone())),
+            serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {
+                Some((key.clone(), value.clone()))
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 /// Auto-migrate keychain secrets to Supabase user_secrets on first login.
@@ -2240,7 +2398,11 @@ async fn promote_missing_keychain_secrets(
     }
 
     let rows = match sb
-        .select_as_user("user_secrets", "select=service", &session.access_token)
+        .select_as_user(
+            "user_secrets",
+            "select=service,encrypted_credentials,nonce",
+            &session.access_token,
+        )
         .await
     {
         Ok(rows) => rows,
@@ -2254,16 +2416,81 @@ async fn promote_missing_keychain_secrets(
         .as_array()
         .into_iter()
         .flatten()
-        .filter_map(|row| row.get("service").and_then(Value::as_str))
-        .collect::<std::collections::HashSet<_>>();
+        .filter_map(|row| {
+            row.get("service")
+                .and_then(Value::as_str)
+                .map(|service| (service.to_string(), row.clone()))
+        })
+        .collect::<HashMap<_, _>>();
 
     let services = collect_local_sync_credentials(state);
     let mut count = 0usize;
     for (service, creds) in &services {
-        if existing.contains(service.as_str()) {
+        let local_creds = sanitize_service_credentials(creds);
+        if local_creds.is_empty() {
             continue;
         }
-        if let Err(err) = upsert_encrypted_service_credentials(session, sb, service, creds).await {
+
+        if let Some(row) = existing.get(service) {
+            let Some(ciphertext) = row.get("encrypted_credentials").and_then(Value::as_str) else {
+                continue;
+            };
+            let Some(nonce) = row.get("nonce").and_then(Value::as_str) else {
+                continue;
+            };
+            let plaintext = match crate::crypto::decrypt(ciphertext, nonce, &session.encryption_key)
+            {
+                Ok(bytes) => bytes,
+                Err(err) => {
+                    tracing::warn!(
+                        service = %service,
+                        "skipping local secret promotion because synced credentials could not be decrypted: {err}"
+                    );
+                    continue;
+                }
+            };
+            let mut remote_creds: serde_json::Map<String, serde_json::Value> =
+                match serde_json::from_slice::<HashMap<String, String>>(&plaintext) {
+                    Ok(map) => string_map_to_value_map(&map),
+                    Err(err) => {
+                        tracing::warn!(
+                            service = %service,
+                            "skipping local secret promotion because synced credentials could not be parsed: {err}"
+                        );
+                        continue;
+                    }
+                };
+
+            let mut changed = false;
+            for (key, value) in local_creds {
+                let remote_has_value = remote_creds
+                    .get(&key)
+                    .and_then(Value::as_str)
+                    .map(|s| !s.trim().is_empty())
+                    .unwrap_or_else(|| remote_creds.get(&key).is_some());
+                if !remote_has_value {
+                    remote_creds.insert(key, value);
+                    changed = true;
+                }
+            }
+
+            if !changed {
+                continue;
+            }
+
+            if let Err(err) =
+                upsert_encrypted_service_credentials(session, sb, service, &remote_creds).await
+            {
+                tracing::warn!(service = %service, "partial synced secret promotion failed: {err}");
+                continue;
+            }
+            count += 1;
+            continue;
+        }
+
+        if let Err(err) =
+            upsert_encrypted_service_credentials(session, sb, service, &local_creds).await
+        {
             tracing::warn!(service = %service, "local-only secret promotion failed: {err}");
             continue;
         }
@@ -2533,18 +2760,7 @@ async fn get_session(State(state): State<AppState>) -> Json<Value> {
     }
     match session.as_ref() {
         Some(s) => {
-            // Backfill synced user_secrets for already-authenticated sessions when
-            // a restart or stale in-memory state left CouchDB unset.
             if s.mfa_verified {
-                if !s.encryption_key.is_empty()
-                    && state
-                        .secret("COUCHDB_URL")
-                        .map(|v| v.is_empty())
-                        .unwrap_or(true)
-                {
-                    load_user_secrets(&state, s).await;
-                }
-
                 return Json(json!({
                     "authenticated": true,
                     "user": { "id": s.user_id, "email": s.email },
@@ -4095,6 +4311,46 @@ mod tests {
         assert_eq!(
             service_credential_to_env_var("harness", "ws"),
             Some("HARNESS_WS")
+        );
+    }
+
+    #[test]
+    fn service_credential_mapping_hermes_primary() {
+        assert_eq!(
+            service_credential_to_env_var("hermes", "url"),
+            Some("HERMES_API_URL")
+        );
+        assert_eq!(
+            service_credential_to_env_var("hermes", "api-key"),
+            Some("HERMES_API_KEY")
+        );
+        assert_eq!(
+            service_credential_to_env_var("hermes", "ws"),
+            Some("HERMES_WS")
+        );
+        assert_eq!(
+            service_credential_to_env_var("hermes", "password"),
+            Some("HERMES_PASSWORD")
+        );
+    }
+
+    #[test]
+    fn service_credential_mapping_hermes_dashboard_primary() {
+        assert_eq!(
+            service_credential_to_env_var("hermes-dashboard", "dashboard-url"),
+            Some("HERMES_DASHBOARD_URL")
+        );
+        assert_eq!(
+            service_credential_to_env_var("hermes-dashboard", "dashboard-api-url"),
+            Some("HERMES_DASHBOARD_API_URL")
+        );
+        assert_eq!(
+            service_credential_to_env_var("hermes_dashboard", "dashboard_api_key"),
+            Some("HERMES_DASHBOARD_API_KEY")
+        );
+        assert_eq!(
+            service_credential_to_env_var("hermes-dashboard", "dashboard-password"),
+            Some("HERMES_DASHBOARD_PASSWORD")
         );
     }
 

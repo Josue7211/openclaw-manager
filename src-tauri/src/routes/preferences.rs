@@ -136,6 +136,10 @@ async fn fetch_remote_preferences(
         }
     };
 
+    if let Some(remote) = fetch_remote_preferences_key_value(&client, session).await {
+        return Some(remote);
+    }
+
     let query = format!(
         "select=preferences,updated_at&user_id=eq.{}",
         urlencoding::encode(&session.user_id),
@@ -153,7 +157,7 @@ async fn fetch_remote_preferences(
         }),
         Err(err) => {
             debug!(user_id = %session.user_id, "remote user_preferences JSON blob fetch missed or failed: {err}");
-            fetch_remote_preferences_key_value(&client, session).await
+            None
         }
     }
 }
@@ -217,6 +221,13 @@ async fn upsert_remote_preferences(
     row: Value,
 ) -> anyhow::Result<()> {
     let client = supabase_client_for_user_preferences(state)?;
+    if upsert_remote_preferences_key_value(&client, session, &row)
+        .await
+        .is_ok()
+    {
+        return Ok(());
+    }
+
     if client
         .upsert_as_user("user_preferences", row.clone(), &session.access_token)
         .await
@@ -225,7 +236,7 @@ async fn upsert_remote_preferences(
         return Ok(());
     }
 
-    upsert_remote_preferences_key_value(&client, session, &row).await
+    Err(anyhow::anyhow!("remote user_preferences sync failed"))
 }
 
 async fn upsert_remote_preferences_key_value(

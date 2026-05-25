@@ -238,7 +238,10 @@ async fn get_active_config(
 ) -> Json<Value> {
     Json(json!({
         "bluebubbles_url": state.secret("BLUEBUBBLES_HOST").unwrap_or_default(),
-        "harness_url": state.secret_first(&["HARNESS_API_URL", "HERMES_API_URL", "OPENCLAW_API_URL"]).unwrap_or_default(),
+        "harness_url": state.secret_first(&["HERMES_API_URL", "HARNESS_API_URL", "OPENCLAW_API_URL"]).unwrap_or_default(),
+        "codex_lb_url": state.secret_first(&["HERMES_USAGE_API_URL", "HERMES_DASHBOARD_API_URL", "CODEX_LB_API_URL"]).unwrap_or_default(),
+        "hermes_dashboard_url": state.secret("HERMES_DASHBOARD_URL").unwrap_or_default(),
+        "hermes_dashboard_api_url": state.secret_first(&["HERMES_USAGE_API_URL", "HERMES_DASHBOARD_API_URL", "CODEX_LB_API_URL"]).unwrap_or_default(),
         "hermes_url": state.secret("HERMES_API_URL").unwrap_or_default(),
         "openclaw_url": state.secret("OPENCLAW_API_URL").unwrap_or_default(),
         "sunshine_url": state.secret("SUNSHINE_HOST").unwrap_or_default(),
@@ -268,14 +271,14 @@ async fn get_health(State(state): State<AppState>) -> Result<Json<Value>, AppErr
         })
         .unwrap_or_default();
     let harness_url = state
-        .secret_first(&["HARNESS_API_URL", "HERMES_API_URL", "OPENCLAW_API_URL"])
+        .secret_first(&["HERMES_API_URL", "HARNESS_API_URL", "OPENCLAW_API_URL"])
         .unwrap_or_default();
     let harness_key = state
         .secret_first(&[
-            "HARNESS_API_KEY",
-            "HARNESS_PASSWORD",
             "HERMES_API_KEY",
             "HERMES_PASSWORD",
+            "HARNESS_API_KEY",
+            "HARNESS_PASSWORD",
             "OPENCLAW_API_KEY",
             "OPENCLAW_PASSWORD",
         ])
@@ -747,7 +750,7 @@ async fn restart_mac_bridge_launchd(state: &AppState) -> Result<Json<Value>, App
     let label = secret_or_env(state, "MAC_BRIDGE_LAUNCHD_LABEL")
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "com.clawcontrol.mac-bridge".to_string());
+        .unwrap_or_else(|| "com.memd.mac-bridge".to_string());
     let uid = current_uid().await?;
     let target = format!("gui/{uid}/{label}");
     let output = Command::new("launchctl")
@@ -863,14 +866,14 @@ async fn get_connections(
         })
         .unwrap_or_default();
     let harness_url = state
-        .secret_first(&["HARNESS_API_URL", "HERMES_API_URL", "OPENCLAW_API_URL"])
+        .secret_first(&["HERMES_API_URL", "HARNESS_API_URL", "OPENCLAW_API_URL"])
         .unwrap_or_default();
     let harness_key = state
         .secret_first(&[
-            "HARNESS_API_KEY",
-            "HARNESS_PASSWORD",
             "HERMES_API_KEY",
             "HERMES_PASSWORD",
+            "HARNESS_API_KEY",
+            "HARNESS_PASSWORD",
             "OPENCLAW_API_KEY",
             "OPENCLAW_PASSWORD",
         ])
@@ -1315,9 +1318,9 @@ async fn heartbeat(
         })));
     }
 
-    // No local file — try fetching HEARTBEAT.md from the remote harness API
+    // No local file: try fetching HEARTBEAT.md from the remote Hermes Agent API.
     let harness_url = state
-        .secret_first(&["HARNESS_API_URL", "HERMES_API_URL", "OPENCLAW_API_URL"])
+        .secret_first(&["HERMES_API_URL", "HARNESS_API_URL", "OPENCLAW_API_URL"])
         .unwrap_or_default();
     if !harness_url.is_empty() {
         let url = format!(

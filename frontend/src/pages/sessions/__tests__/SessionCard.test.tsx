@@ -38,6 +38,22 @@ describe('SessionCard', () => {
     expect(screen.getByRole('button', { name: 'Session actions for Weather dashboard page' })).toHaveAttribute('aria-haspopup', 'menu')
   })
 
+  it('shows environment scope when a session has one', () => {
+    render(
+      <SessionCard
+        session={makeSession({ environmentId: 'desktop' })}
+        selected={false}
+        onSelect={vi.fn()}
+        onRename={vi.fn()}
+        onDelete={vi.fn()}
+        onCompact={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('option', { name: /weather dashboard page, desktop, 3 messages/i })).toBeInTheDocument()
+    expect(screen.getByText('desktop')).toBeInTheDocument()
+  })
+
   it('opens the action menu and commits rename/delete/compact actions', () => {
     const onRename = vi.fn()
     const onDelete = vi.fn()

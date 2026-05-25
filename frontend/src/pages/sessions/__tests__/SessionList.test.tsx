@@ -54,7 +54,7 @@ describe('SessionList', () => {
       isLoading: false,
     })
     mockUseHarnessStatus.mockReturnValue({
-      providerLabel: 'Harness',
+      providerLabel: 'Hermes Agent',
       detail: undefined,
     })
     mockRenameMutate.mockReset()
@@ -89,8 +89,8 @@ describe('SessionList', () => {
       isLoading: false,
     })
     mockUseHarnessStatus.mockReturnValue({
-      providerLabel: 'Hermes',
-      detail: 'Harness auth is missing.',
+      providerLabel: 'Hermes Agent',
+      detail: 'Hermes Agent auth is missing.',
     })
 
     render(
@@ -102,7 +102,7 @@ describe('SessionList', () => {
       />,
     )
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Harness auth is missing.')
+    expect(screen.getByRole('alert')).toHaveTextContent('Hermes Agent auth is missing.')
   })
 
   it('marks the list busy while sessions are loading', () => {
@@ -160,6 +160,54 @@ describe('SessionList', () => {
     expect(terminal).toHaveAttribute('aria-selected', 'true')
 
     fireEvent.click(terminal)
-    expect(onSelect).toHaveBeenCalledWith('chat-2')
+    expect(onSelect).toHaveBeenCalledWith('chat-2', undefined)
+  })
+
+  it('scopes selection and mutations by environment when session keys collide', () => {
+    mockUseGatewaySessions.mockReturnValue({
+      available: true,
+      isLoading: false,
+      sessions: [
+        makeSession({
+          key: 'shared-thread',
+          label: 'Shared thread',
+          environmentId: 'local',
+        }),
+        makeSession({
+          key: 'shared-thread',
+          label: 'Shared thread',
+          environmentId: 'desktop',
+        }),
+      ],
+    })
+
+    const onSelect = vi.fn()
+    const onDeleteSelected = vi.fn()
+    render(
+      <SessionList
+        selectedId="shared-thread"
+        selectedEnvironmentId="desktop"
+        onSelect={onSelect}
+        onDeleteSelected={onDeleteSelected}
+        title="Chats"
+      />,
+    )
+
+    const rows = screen.getAllByRole('option', { name: /shared thread/i })
+    expect(rows[0]).toHaveAttribute('aria-selected', 'false')
+    expect(rows[1]).toHaveAttribute('aria-selected', 'true')
+
+    fireEvent.click(rows[0])
+    expect(onSelect).toHaveBeenCalledWith('shared-thread', 'local')
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Session actions for Shared thread' })[1])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Compact' }))
+    expect(mockCompactMutate).toHaveBeenCalledWith({ key: 'shared-thread', environmentId: 'desktop' })
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Session actions for Shared thread' })[1])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(mockDeleteMutate).toHaveBeenCalledWith({ key: 'shared-thread', environmentId: 'desktop' })
+    expect(onDeleteSelected).toHaveBeenCalledWith('shared-thread', 'desktop')
   })
 })

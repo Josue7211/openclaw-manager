@@ -21,8 +21,22 @@ function approvalRisk(approval: ApprovalRequest): RiskFilter {
   return 'unknown'
 }
 
-function approvalSource(approval: ApprovalRequest) {
-  return approval.source || 'harness'
+function approvalSourceKey(approval: ApprovalRequest) {
+  return approval.source?.trim() || 'hermes'
+}
+
+function approvalSourceDisplayLabel(source?: string | null, label?: string | null) {
+  const sourceKey = source?.trim().toLowerCase() || ''
+  const labelValue = label?.trim()
+  const labelKey = labelValue?.toLowerCase() || ''
+  if (!sourceKey && !labelKey) return 'Hermes Agent'
+  if (sourceKey === 'hermes' || sourceKey === 'harness' || labelKey === 'harness') return 'Hermes Agent'
+  if (sourceKey === 'agentsecrets' || sourceKey === 'agent-secrets') return labelValue || 'Agent Secrets'
+  return labelValue || source?.trim() || 'Hermes Agent'
+}
+
+function approvalDisplaySource(approval: ApprovalRequest) {
+  return approvalSourceDisplayLabel(approval.source, approval.sourceLabel)
 }
 
 function ageMatches(approval: ApprovalRequest, filter: AgeFilter) {
@@ -141,6 +155,7 @@ function ApprovalCard({
   const [showRejectInput, setShowRejectInput] = useState(false)
   const isPending = approval.status === 'pending'
   const requestedMs = new Date(approval.requestedAt).getTime()
+  const sourceLabel = approvalDisplaySource(approval)
 
   const handleReject = useCallback(() => {
     if (!showRejectInput) {
@@ -179,7 +194,7 @@ function ApprovalCard({
           }}>
             {approval.tool}
           </span>
-          {approval.sourceLabel && (
+          {sourceLabel && (
             <span style={{
               fontSize: 11,
               fontWeight: 700,
@@ -189,7 +204,7 @@ function ApprovalCard({
               padding: '2px 7px',
               whiteSpace: 'nowrap',
             }}>
-              {approval.sourceLabel}
+              {sourceLabel}
             </span>
           )}
         </div>
@@ -377,17 +392,20 @@ export default function ApprovalsPage() {
     isRejecting,
     refetch,
   } = useApprovals()
-  const sources = rawSources ?? []
+  const sources = (rawSources ?? []).map(source => ({
+    ...source,
+    label: approvalSourceDisplayLabel(source.source, source.label),
+  }))
 
   const sourceLabels = new Map<string, string>()
-  sources.forEach(source => sourceLabels.set(source.source, source.label))
+  sources.forEach(source => sourceLabels.set(source.source, approvalSourceDisplayLabel(source.source, source.label)))
   approvals.forEach(approval => {
-    const source = approvalSource(approval)
-    if (!sourceLabels.has(source)) sourceLabels.set(source, approval.sourceLabel || source)
+    const source = approvalSourceKey(approval)
+    if (!sourceLabels.has(source)) sourceLabels.set(source, approvalDisplaySource(approval))
   })
   const sourceOptions = Array.from(sourceLabels.entries()).sort((a, b) => a[1].localeCompare(b[1]))
   const filteredApprovals = approvals.filter(approval => {
-    const sourceOk = sourceFilter === 'all' || approvalSource(approval) === sourceFilter
+    const sourceOk = sourceFilter === 'all' || approvalSourceKey(approval) === sourceFilter
     const riskOk = riskFilter === 'all' || approvalRisk(approval) === riskFilter
     const ageOk = ageMatches(approval, ageFilter)
     return sourceOk && riskOk && ageOk

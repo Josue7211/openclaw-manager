@@ -33,6 +33,8 @@ export interface WizardState {
   supabaseAnonKey: string
   harnessUrl: string
   harnessApiKey: string
+  codexLbUrl: string
+  codexLbDashboardPassword: string
   blueBubblesUrl: string
   blueBubblesPassword: string
   macBridgeUrl: string
@@ -66,7 +68,7 @@ export const STEP_NAMES = [
   'Welcome',
   'Tailscale',
   'Supabase',
-  'Harness',
+  'Hermes Agent',
   'Mac Services',
   'Server Services',
   'Modules',
@@ -76,7 +78,7 @@ export const STEP_NAMES = [
 ] as const
 
 /** Step indices that require a passing connection test before proceeding */
-export const REQUIRED_STEPS = [1, 2, 3] as const // Tailscale, Supabase, Harness
+export const REQUIRED_STEPS = [1, 2, 3] as const // Tailscale, Supabase, Hermes Agent
 
 /** Preset bundle definitions mapping to module ID arrays */
 export const PRESET_BUNDLES: Record<'essentials' | 'full' | 'minimal', string[]> = {
@@ -101,6 +103,8 @@ function createDefaultState(): WizardState {
     supabaseAnonKey: '',
     harnessUrl: '',
     harnessApiKey: '',
+    codexLbUrl: 'http://127.0.0.1:2455',
+    codexLbDashboardPassword: '',
     blueBubblesUrl: '',
     blueBubblesPassword: '',
     macBridgeUrl: '',

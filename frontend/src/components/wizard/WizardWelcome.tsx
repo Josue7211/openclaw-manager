@@ -261,7 +261,7 @@ export default function WizardWelcome({ onComplete }: { onComplete?: () => void 
               {' '}
               Supabase {status.services.supabase.reachable ? 'online' : 'offline'}
               {' · '}
-              Harness {(status.services.harness ?? status.services.hermes ?? status.services.openclaw)?.reachable ? 'online' : 'offline'}
+              Hermes Agent {(status.services.harness ?? status.services.hermes ?? status.services.openclaw)?.reachable ? 'online' : 'offline'}
               {' · '}
               Agent Secrets {agentSecretsOnline ? 'online' : 'offline'}
               {' · '}

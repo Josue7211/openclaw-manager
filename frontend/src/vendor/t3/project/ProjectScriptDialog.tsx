@@ -15,6 +15,7 @@ import {
   Wrench,
 } from '@phosphor-icons/react'
 import type { ProjectScript, ProjectScriptIcon } from './ProjectScriptsControl'
+import { PROJECT_SCRIPT_KEYBINDING_INVALID_MESSAGE, decodeProjectScriptKeybindingRule } from './projectScriptKeybindings'
 
 const SCRIPT_ICONS: Array<{ id: ProjectScriptIcon; label: string }> = [
   { id: 'play', label: 'Play' },
@@ -25,10 +26,14 @@ const SCRIPT_ICONS: Array<{ id: ProjectScriptIcon; label: string }> = [
   { id: 'debug', label: 'Debug' },
 ]
 
+const PROJECT_SCRIPT_DIALOG_Z_INDEX = 10020
+
 export interface ProjectScriptDialogDraft {
   name: string
   command: string
+  cwd?: string | null
   icon: ProjectScriptIcon | string | null
+  keybinding?: string | null
   runOnWorktreeCreate: boolean
 }
 
@@ -87,6 +92,15 @@ export default function ProjectScriptDialog({
     }
     if (!draft.command.trim()) {
       setValidationError('Command is required.')
+      return
+    }
+    try {
+      decodeProjectScriptKeybindingRule({
+        keybinding: draft.keybinding,
+        command: 'script.preview.run',
+      })
+    } catch {
+      setValidationError(PROJECT_SCRIPT_KEYBINDING_INVALID_MESSAGE)
       return
     }
     setValidationError(null)
@@ -169,6 +183,26 @@ export default function ProjectScriptDialog({
             />
           </label>
 
+          <label style={labelStyle}>
+            Working directory
+            <input
+              value={draft.cwd ?? ''}
+              onChange={(event) => updateDraft({ cwd: event.target.value })}
+              placeholder="frontend"
+              style={inputStyle}
+            />
+          </label>
+
+          <label style={labelStyle}>
+            Shortcut
+            <input
+              value={draft.keybinding ?? ''}
+              onChange={(event) => updateDraft({ keybinding: event.target.value })}
+              placeholder="ctrl+shift+t"
+              style={inputStyle}
+            />
+          </label>
+
           <label style={switchRowStyle}>
             <span>Run automatically on project setup</span>
             <input
@@ -239,10 +273,12 @@ export default function ProjectScriptDialog({
 const overlayStyle = {
   position: 'fixed',
   inset: 0,
-  zIndex: 40,
+  zIndex: PROJECT_SCRIPT_DIALOG_Z_INDEX,
   display: 'grid',
   placeItems: 'center',
   background: 'rgba(0, 0, 0, 0.38)',
+  backdropFilter: 'none',
+  WebkitBackdropFilter: 'none',
 } as const
 
 const dialogStyle = {
@@ -251,7 +287,10 @@ const dialogStyle = {
   gap: 14,
   border: '1px solid var(--border)',
   borderRadius: 12,
-  background: 'var(--bg-panel)',
+  background: 'linear-gradient(var(--bg-panel-solid, var(--bg-card-solid, #18181f)), var(--bg-panel-solid, var(--bg-card-solid, #18181f))), var(--bg-base, #0a0a0c)',
+  backgroundClip: 'padding-box',
+  opacity: 1,
+  isolation: 'isolate',
   padding: 18,
   boxShadow: '0 22px 60px rgba(0,0,0,0.36)',
 } as const
@@ -269,7 +308,7 @@ const inputStyle = {
   height: 36,
   border: '1px solid var(--border)',
   borderRadius: 8,
-  background: 'var(--bg-card)',
+  background: 'var(--bg-card-solid, #18181f)',
   color: 'var(--text-primary)',
   padding: '0 10px',
   font: 'inherit',
@@ -279,7 +318,7 @@ const inputStyle = {
 const textareaStyle = {
   border: '1px solid var(--border)',
   borderRadius: 8,
-  background: 'var(--bg-card)',
+  background: 'var(--bg-card-solid, #18181f)',
   color: 'var(--text-primary)',
   padding: 10,
   font: 'inherit',
@@ -292,7 +331,7 @@ const iconButtonStyle = {
   height: 36,
   border: '1px solid var(--border)',
   borderRadius: 8,
-  background: 'var(--bg-card)',
+  background: 'var(--bg-card-solid, #18181f)',
   color: 'var(--text-primary)',
   display: 'grid',
   placeItems: 'center',
@@ -310,7 +349,10 @@ const iconPickerStyle = {
   gap: 6,
   border: '1px solid var(--border)',
   borderRadius: 8,
-  background: 'var(--bg-panel)',
+  background: 'linear-gradient(var(--bg-panel-solid, var(--bg-card-solid, #18181f)), var(--bg-panel-solid, var(--bg-card-solid, #18181f))), var(--bg-base, #0a0a0c)',
+  backgroundClip: 'padding-box',
+  opacity: 1,
+  isolation: 'isolate',
   padding: 8,
   boxShadow: '0 12px 28px rgba(0, 0, 0, 0.28)',
 } as const
@@ -335,7 +377,7 @@ const switchRowStyle = {
   gap: 12,
   border: '1px solid var(--border)',
   borderRadius: 8,
-  background: 'var(--bg-card)',
+  background: 'var(--bg-card-solid, #18181f)',
   color: 'var(--text-primary)',
   padding: '9px 10px',
   fontSize: 13,
@@ -345,7 +387,7 @@ const buttonStyle = {
   minHeight: 32,
   border: '1px solid var(--border)',
   borderRadius: 8,
-  background: 'var(--bg-card)',
+  background: 'var(--bg-card-solid, #18181f)',
   color: 'var(--text-primary)',
   display: 'inline-flex',
   alignItems: 'center',

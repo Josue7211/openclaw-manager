@@ -108,10 +108,10 @@ describe('ModelsTab', () => {
     expect(screen.getByText(/Output: \$0\.00001500\/token/)).toBeInTheDocument()
   })
 
-  it('shows "Harness not configured" when healthy is false', () => {
+  it('shows "Hermes Agent not configured" when healthy is false', () => {
     renderWithQC(<ModelsTab healthy={false} status="not_configured" />)
 
-    expect(screen.getByText('Harness not configured')).toBeInTheDocument()
+    expect(screen.getByText('Hermes Agent not configured')).toBeInTheDocument()
   })
 
   it('shows loading state', () => {

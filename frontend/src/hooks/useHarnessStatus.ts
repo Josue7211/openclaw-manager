@@ -18,6 +18,7 @@ export interface HarnessServiceState {
 
 interface HarnessHealthResponse {
   services?: {
+    hermes?: HarnessServiceState
     harness?: HarnessServiceState
   }
 }
@@ -36,9 +37,9 @@ function detailForService(service?: HarnessServiceState): string | undefined {
   const checkedPath = service.checked_path?.trim()
   if (message && checkedPath) return `${message} Checked ${checkedPath}.`
   if (message) return message
-  if (service.status === 'auth_missing') return 'Harness auth is missing.'
-  if (service.status === 'auth_invalid') return 'Harness rejected the configured auth token.'
-  if (service.status === 'auth_probe_missing') return 'No authenticated harness route was available to verify.'
+  if (service.status === 'auth_missing') return 'Hermes Agent auth is missing.'
+  if (service.status === 'auth_invalid') return 'Hermes Agent rejected the configured auth token.'
+  if (service.status === 'auth_probe_missing') return 'No authenticated Hermes Agent route was available to verify.'
   return undefined
 }
 
@@ -53,13 +54,13 @@ export function useHarnessStatus(): UseHarnessStatusReturn {
     retry: 1,
     enabled: !demoMode,
   })
-  const providerLabel = 'Harness'
+  const providerLabel = 'Hermes Agent'
 
   if (demoMode) {
     return { status: 'not_configured', connected: false, isLoading: false, providerLabel }
   }
 
-  const service = data?.services?.harness
+  const service = data?.services?.hermes ?? data?.services?.harness
   const detail = detailForService(service)
 
   if (service?.reachable) {

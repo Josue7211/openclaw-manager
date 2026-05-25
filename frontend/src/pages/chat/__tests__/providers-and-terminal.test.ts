@@ -12,24 +12,16 @@ describe('chat provider and terminal contracts', () => {
     Reflect.deleteProperty(window, '__TAURI_INTERNALS__')
   })
 
-  it('keeps chat providers on the T3 copy-first contract', () => {
-    expect(CHAT_PROVIDER_IDS).toEqual(['hermes', 'claudeAgent', 'codex-cli'])
+  it('keeps chat providers on the Hermes Agent first contract', () => {
+    expect(CHAT_PROVIDER_IDS).toEqual(['hermes'])
     expect(CHAT_PROVIDER_OPTIONS).toEqual(sharedChatProviders)
     expect(CHAT_PROVIDER_OPTIONS.map((provider) => provider.id)).toEqual(CHAT_PROVIDER_IDS)
     expect(CHAT_PROVIDER_OPTIONS.find((provider) => provider.id === 'hermes')).toMatchObject({
-      name: 'Hermes',
+      name: 'Hermes Agent',
       modelBacked: true,
     })
-    expect(CHAT_PROVIDER_OPTIONS.find((provider) => provider.id === 'claudeAgent')).toMatchObject({
-      name: 'Claude Code',
-      local: true,
-      modelBacked: false,
-    })
-    expect(CHAT_PROVIDER_OPTIONS.find((provider) => provider.id === 'codex-cli')).toMatchObject({
-      name: 'Codex CLI',
-      local: true,
-      modelBacked: false,
-    })
+    expect(CHAT_PROVIDER_OPTIONS.find((provider) => provider.id === 'claudeAgent')).toBeUndefined()
+    expect(CHAT_PROVIDER_OPTIONS.find((provider) => provider.id === 'codex-cli')).toBeUndefined()
     expect(CHAT_PROVIDER_OPTIONS.find((provider) => provider.id === 'openclaw')).toBeUndefined()
     expect(CHAT_FALLBACK_PROVIDER_OPTIONS.map((provider) => provider.id)).toEqual(['hermes'])
   })

@@ -263,7 +263,11 @@ pub fn startup_verify(secrets: &std::collections::HashMap<String, String>) {
             "BLUEBUBBLES_HOST",
             "BLUEBUBBLES_EXPECTED_HOST",
         ),
-        ("Harness", "HARNESS_API_URL", "HARNESS_EXPECTED_HOST"),
+        (
+            "Hermes Agent legacy",
+            "HARNESS_API_URL",
+            "HARNESS_EXPECTED_HOST",
+        ),
     ];
 
     for (name, url_key, host_key) in services {

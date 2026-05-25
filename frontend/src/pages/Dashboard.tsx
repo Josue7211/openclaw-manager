@@ -3,7 +3,6 @@ import { Plus } from '@phosphor-icons/react'
 import { BackendErrorBanner } from '@/components/BackendErrorBanner'
 import { DashboardGrid } from './dashboard/DashboardGrid'
 import { DashboardEditBar } from '@/components/dashboard/DashboardEditBar'
-import { DashboardTabs } from '@/components/dashboard/DashboardTabs'
 import { IdeaDetailPanel } from './dashboard/IdeaDetailPanel'
 import { DashboardHeader } from './dashboard/DashboardHeader'
 import { useDashboardData } from './dashboard/useDashboardData'
@@ -106,18 +105,16 @@ export default function Dashboard() {
             <DashboardEditBar
               editMode={dashState.editMode}
               onOpenPicker={() => setPickerOpen(true)}
-            />
+            >
+              <React.Suspense fallback={null}>
+                <RecycleBin
+                  items={dashState.recycleBin}
+                  visible={dashState.editMode}
+                  placement="toolbar"
+                />
+              </React.Suspense>
+            </DashboardEditBar>
           </div>
-        </div>
-
-        {/* Dashboard tabs */}
-        <div style={{ padding: '0 24px', marginBottom: '16px' }}>
-          <DashboardTabs
-            pages={dashState.pages}
-            activePageId={dashState.activePageId}
-            editMode={dashState.editMode}
-            dotIndicatorsEnabled={dashState.dotIndicatorsEnabled}
-          />
         </div>
 
         {/* Main grid */}
@@ -147,14 +144,6 @@ export default function Dashboard() {
             onClose={() => setPickerOpen(false)}
             pageId={activePage?.id || ''}
             placedWidgetIds={placedWidgetIds}
-          />
-        </React.Suspense>
-
-        {/* Recycle Bin drawer (lazy-loaded) */}
-        <React.Suspense fallback={null}>
-          <RecycleBin
-            items={dashState.recycleBin}
-            visible={dashState.editMode}
           />
         </React.Suspense>
 

@@ -6,9 +6,8 @@ vi.mock('../nav-items', () => ({
   personalDashboardItems: [
     { href: '/', label: 'Home', icon: Stub },
     { href: '/chat', label: 'Chat', icon: Stub, moduleId: 'chat' },
-    { href: '/todos', label: 'Todos', icon: Stub, moduleId: 'todos' },
+    { href: '/todos', label: 'Reminders', icon: Stub, moduleId: 'todos' },
     { href: '/calendar', label: 'Calendar', icon: Stub, moduleId: 'calendar' },
-    { href: '/reminders', label: 'Reminders', icon: Stub, moduleId: 'reminders' },
     { href: '/messages', label: 'Messages', icon: Stub, moduleId: 'messages' },
     { href: '/pomodoro', label: 'Pomodoro', icon: Stub, moduleId: 'pomodoro' },
     { href: '/email', label: 'Email', icon: Stub, moduleId: 'email' },
@@ -45,9 +44,8 @@ vi.mock('../nav-items', () => ({
   allNavItems: [
     { href: '/', label: 'Home', icon: Stub },
     { href: '/chat', label: 'Chat', icon: Stub, moduleId: 'chat' },
-    { href: '/todos', label: 'Todos', icon: Stub, moduleId: 'todos' },
+    { href: '/todos', label: 'Reminders', icon: Stub, moduleId: 'todos' },
     { href: '/calendar', label: 'Calendar', icon: Stub, moduleId: 'calendar' },
-    { href: '/reminders', label: 'Reminders', icon: Stub, moduleId: 'reminders' },
     { href: '/messages', label: 'Messages', icon: Stub, moduleId: 'messages' },
     { href: '/pomodoro', label: 'Pomodoro', icon: Stub, moduleId: 'pomodoro' },
     { href: '/email', label: 'Email', icon: Stub, moduleId: 'email' },

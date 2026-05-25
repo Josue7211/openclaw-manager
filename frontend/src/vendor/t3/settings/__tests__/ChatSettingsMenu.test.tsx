@@ -18,7 +18,7 @@ describe('T3 copied ChatSettingsMenu adapter', () => {
     navigate.mockClear()
   })
 
-  it('exposes Settings, Usage, Providers, and Codex LB shortcuts as a popover', () => {
+  it('exposes Settings, Usage, Providers, and Hermes Agent shortcuts as a popover', () => {
     render(
       <MemoryRouter>
         <ChatSettingsMenu />
@@ -31,7 +31,7 @@ describe('T3 copied ChatSettingsMenu adapter', () => {
     expect(screen.getByRole('menuitem', { name: 'Settings' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Usage remaining' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Providers' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Codex LB' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Hermes Agent' })).toBeInTheDocument()
   })
 
   it('navigates through the copied settings menu instead of inline Chat.tsx handlers', () => {

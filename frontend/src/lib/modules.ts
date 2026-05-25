@@ -18,9 +18,9 @@ export const APP_MODULES: AppModule[] = [
     platform: 'macos',
   },
   { id: 'chat', name: 'Chat', description: 'AI chat with agents', icon: 'MessageCircle', route: '/chat' },
-  { id: 'todos', name: 'Todos', description: 'Task management', icon: 'CheckSquare', route: '/todos' },
+  { id: 'todos', name: 'Reminders', description: 'One reminders list', icon: 'CheckSquare', route: '/todos' },
   { id: 'calendar', name: 'Calendar', description: 'Calendar (CalDAV)', icon: 'CalendarDays', route: '/calendar' },
-  { id: 'reminders', name: 'Reminders', description: 'Apple Reminders (CalDAV)', icon: 'Bell', route: '/reminders' },
+  { id: 'reminders', name: 'Reminders', description: 'Apple Reminders sync', icon: 'Bell', route: '/todos' },
   {
     id: 'email',
     name: 'Email',
@@ -102,7 +102,7 @@ export const APP_MODULES: AppModule[] = [
   { id: 'media', name: 'Media Command', description: 'ARR, requests, downloads, streams', icon: 'Film', route: '/media' },
   { id: 'dashboard', name: 'Dashboard', description: 'Agent dashboard', icon: 'LayoutDashboard', route: '/dashboard' },
   { id: 'missions', name: 'Missions', description: 'Agent missions', icon: 'Target', route: '/missions' },
-  { id: 'harness', name: 'Harness', description: 'Agent management, usage & tools', icon: 'Bot', route: '/harness' },
+  { id: 'harness', name: 'Hermes Agent', description: 'Agent management, usage, and tools', icon: 'Bot', route: '/harness' },
   { id: 'memory', name: 'Memory', description: 'Agent memory files', icon: 'Brain', route: '/memory' },
   { id: 'pipeline', name: 'Pipeline', description: 'Code review pipeline', icon: 'GitBranch', route: '/pipeline' },
   { id: 'knowledge', name: 'Knowledge', description: 'Documentation', icon: 'BookOpen', route: '/knowledge' },
@@ -138,15 +138,15 @@ export const APP_MODULES: AppModule[] = [
   {
     id: 'sessions',
     name: 'Sessions',
-    description: 'Claude Code session monitor',
+    description: 'Hermes Agent session monitor',
     icon: 'Terminal',
     route: '/sessions',
-    requiresConfig: ['HARNESS_API_URL'],
+    requiresConfig: ['HERMES_API_URL'],
   },
   {
     id: 'remote-viewer',
     name: 'Remote Viewer',
-    description: 'Harness VM desktop (Moonlight)',
+    description: 'Hermes Agent desktop (Moonlight)',
     icon: 'Monitor',
     route: '/remote',
     requiresConfig: ['SUNSHINE_HOST'],
@@ -157,7 +157,7 @@ export const APP_MODULES: AppModule[] = [
     description: 'Execution approval queue',
     icon: 'ShieldCheck',
     route: '/approvals',
-    requiresConfig: ['HARNESS_WS'],
+    requiresConfig: ['HERMES_WS'],
   },
   {
     id: 'activity',
@@ -165,7 +165,7 @@ export const APP_MODULES: AppModule[] = [
     description: 'Real-time event feed',
     icon: 'Pulse',
     route: '/activity',
-    requiresConfig: ['HARNESS_WS'],
+    requiresConfig: ['HERMES_WS'],
   },
 ]
 

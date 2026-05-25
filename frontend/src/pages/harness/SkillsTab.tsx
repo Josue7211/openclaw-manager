@@ -2,10 +2,10 @@ import { useHarnessSkills } from '@/hooks/useHarnessSkills'
 import type { HarnessHealthStatus } from '../Harness'
 
 function OfflineState({ status, noun }: { status: HarnessHealthStatus; noun: string }) {
-  const title = status === 'not_configured' ? 'Harness not configured' : 'Harness offline'
+  const title = status === 'not_configured' ? 'Hermes Agent not configured' : 'Hermes Agent offline'
   const detail = status === 'not_configured'
-    ? `Set HARNESS_API_URL in Settings > Connections to view ${noun}.`
-    : `clawctrl cannot reach the harness right now. Check the upstream service and try again.`
+    ? `Set HERMES_API_URL in Settings > Connections to view ${noun}.`
+    : `clawctrl cannot reach Hermes Agent right now. Check the upstream service and try again.`
 
   return (
     <div style={{ padding: '40px 20px', textAlign: 'center' }}>

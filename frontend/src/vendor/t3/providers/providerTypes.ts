@@ -60,9 +60,7 @@ export interface ServerProvider {
 }
 
 export const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
-  hermes: 'Hermes',
-  claudeAgent: 'Claude Code',
-  'codex-cli': 'Codex CLI',
+  hermes: 'Hermes Agent',
 }
 
 export const defaultInstanceIdForDriver = (driver: ProviderDriverKind): ProviderInstanceId => driver

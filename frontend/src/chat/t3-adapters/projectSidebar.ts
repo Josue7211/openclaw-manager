@@ -13,7 +13,7 @@ import {
   type ProjectGroupingSettings,
 } from '@/vendor/t3/project/logicalProject'
 import type { Project as T3Project } from '@/vendor/t3/project/types'
-import type { ClaudeSession } from './gatewaySessionTypes'
+import type { HermesSession } from './gatewaySessionTypes'
 import { sessionMatchesLogicalProject } from './sidebarSessionMatching'
 import type {
   ChatLogicalProject,
@@ -22,6 +22,7 @@ import type {
   ChatProjectSortOrder,
   ChatWorkspaceProject,
 } from './projectWorkspace'
+import { hermesAgentProjectDisplayLabel } from './projectDisplayLabels'
 
 function dirname(value: string): string {
   const normalized = value.replace(/\/+$/g, '')
@@ -29,12 +30,11 @@ function dirname(value: string): string {
   return index > 0 ? normalized.slice(0, index) : normalized
 }
 
-export function projectGroupLabel(project: ChatWorkspaceProject): string {
-  const explicit = project.machineLabel || project.machine || project.host || project.group
-  if (explicit?.trim()) return explicit.trim()
-  if (project.root?.trim()) return project.root.trim()
-
-  const path = project.path
+function projectPathMachineLabel(path: string): string {
+  if (path.startsWith('/run/media/')) {
+    const [, , , , volume] = path.split('/')
+    if (volume) return volume
+  }
   if (path.startsWith('/Volumes/')) {
     const [, , volume] = path.split('/')
     if (volume) return volume
@@ -42,7 +42,35 @@ export function projectGroupLabel(project: ChatWorkspaceProject): string {
   if (path.startsWith('/Users/')) return 'Local Mac'
   if (path.startsWith('/home/')) return 'Linux'
   if (/^[A-Za-z]:[\\/]/.test(path)) return path.slice(0, 2)
-  return dirname(path) || 'Projects'
+  return ''
+}
+
+function rawProjectGroupLabel(project: ChatWorkspaceProject): string {
+  const explicit = project.machineLabel || project.machine || project.host || project.group
+  if (explicit?.trim()) return explicit.trim()
+  if (project.root?.trim()) return project.root.trim()
+
+  return projectPathMachineLabel(project.path) || dirname(project.path) || 'Projects'
+}
+
+export function projectEnvironmentLabelDisplay(value: string): string {
+  return hermesAgentProjectDisplayLabel(value)
+}
+
+export function projectEnvironmentDisplayLabel(project: ChatWorkspaceProject | null): string | undefined {
+  if (!project) return undefined
+  const label = project.machineLabel?.trim()
+    || project.machine?.trim()
+    || project.host?.trim()
+    || project.group?.trim()
+    || projectPathMachineLabel(project.path)
+    || project.environmentId?.trim()
+    || undefined
+  return label ? projectEnvironmentLabelDisplay(label) : undefined
+}
+
+export function projectGroupLabel(project: ChatWorkspaceProject): string {
+  return projectEnvironmentLabelDisplay(rawProjectGroupLabel(project))
 }
 
 export function projectMachineLabel(project: ChatWorkspaceProject): string {
@@ -55,7 +83,7 @@ export function normalizedProjectPath(path: string): string {
 
 export function projectEnvironmentId(project: ChatWorkspaceProject): string {
   return project.environmentId?.trim()
-    || projectMachineLabel(project)
+    || rawProjectGroupLabel(project)
     || 'local'
 }
 
@@ -96,7 +124,7 @@ export function logicalProjectHint(project: ChatLogicalProject): string {
   return `${project.projects.length} roots${labels.length > 0 ? ` · ${labels.join(', ')}` : ''}`
 }
 
-function projectSessionLastActivity(project: ChatLogicalProject, sessions: ClaudeSession[]): number {
+function projectSessionLastActivity(project: ChatLogicalProject, sessions: HermesSession[]): number {
   let latest = 0
   for (const session of sessions) {
     if (!sessionMatchesLogicalProject(session, project)) continue
@@ -109,7 +137,7 @@ function projectSessionLastActivity(project: ChatLogicalProject, sessions: Claud
 function sortLogicalProjects(
   projects: ChatLogicalProject[],
   sortOrder: ChatProjectSortOrder,
-  sessions: ClaudeSession[],
+  sessions: HermesSession[],
 ): ChatLogicalProject[] {
   return [...projects].sort((left, right) => {
     if (sortOrder === 'recent') {
@@ -138,7 +166,7 @@ export function buildProjectSidebarGroups(
   options: {
     groupingMode: ChatProjectGroupingMode
     sortOrder: ChatProjectSortOrder
-    sessions: ClaudeSession[]
+    sessions: HermesSession[]
   },
 ): ChatProjectSidebarGroup[] {
   const t3Projects = projects.map(toT3Project)
@@ -199,11 +227,14 @@ export function buildProjectSidebarGroups(
 }
 
 export function workspaceSessionRoots(projects: ChatWorkspaceProject[]): string[] {
-  return Array.from(new Set(
-    projects
-      .map((project) => (project.root || project.path || '').trim())
-      .filter(Boolean),
-  )).sort()
+  const roots = new Map<string, string>()
+  for (const project of projects) {
+    const root = (project.root || project.path || '').trim().replace(/\\/g, '/').replace(/\/+$/g, '')
+    if (!root) continue
+    const key = normalizedProjectPath(root)
+    if (!roots.has(key)) roots.set(key, root)
+  }
+  return Array.from(roots.values()).sort((left, right) => left.localeCompare(right))
 }
 
 export function projectMatchesCwd(project: ChatWorkspaceProject, cwd: string): boolean {
@@ -228,7 +259,8 @@ export function setProjectRouteParams(
   const route = projectRouteParams(project)
   if (route.projectId) params.set('projectId', route.projectId)
   else params.delete('projectId')
-  params.set('cwd', route.cwd)
+  if (route.cwd.trim()) params.set('cwd', route.cwd)
+  else params.delete('cwd')
   if (route.env) params.set('env', route.env)
   else params.delete('env')
   const branch = context?.branch?.trim()
@@ -248,18 +280,45 @@ export function findProjectByRouteIdentity(
   const trimmedProjectId = projectId?.trim() || ''
   const trimmedCwd = cwd?.trim() || ''
   const trimmedEnv = env?.trim() || ''
-  if (!trimmedProjectId && !trimmedCwd && !trimmedEnv) return null
+  const envKey = trimmedEnv.toLowerCase()
+  const matchesRouteEnvironment = (project: ChatWorkspaceProject) => (
+    !envKey || (project.environmentId || '').trim().toLowerCase() === envKey
+  )
+  const projectIdPath = normalizedProjectPath(trimmedProjectId)
+  if (!trimmedProjectId && !trimmedCwd) return null
 
-  return projects.find((project) => Boolean(
-    trimmedProjectId
-    && (project.id === trimmedProjectId || project.path === trimmedProjectId || project.root === trimmedProjectId),
+  if (trimmedProjectId) {
+    const exactProjectIdCandidates = projects.filter((project) => project.id === trimmedProjectId)
+    if (exactProjectIdCandidates.length > 0) {
+      const environmentMatch = exactProjectIdCandidates.find(matchesRouteEnvironment)
+      if (environmentMatch) return environmentMatch
+      return envKey ? null : exactProjectIdCandidates.length === 1 ? exactProjectIdCandidates[0] : null
+    }
+
+    const pathLikeProjectIdCandidates = projects.filter((project) => (
+      normalizedProjectPath(project.path) === projectIdPath
+      || normalizedProjectPath(project.root || '') === projectIdPath
+    ))
+    if (pathLikeProjectIdCandidates.length > 0) {
+      return pathLikeProjectIdCandidates.find(matchesRouteEnvironment)
+        ?? (envKey ? null : pathLikeProjectIdCandidates[0])
+    }
+  }
+
+  if (trimmedCwd && trimmedEnv) {
+    return projects.find((project) => (
+      project.environmentId === trimmedEnv
+      && projectMatchesCwd(project, trimmedCwd)
+    ))
+      ?? projects.find((project) => (
+        (project.environmentId || '').trim().toLowerCase() === envKey
+        && projectMatchesCwd(project, trimmedCwd)
+      ))
+      ?? null
+  }
+
+  return projects.find((project) => (
+    Boolean(trimmedCwd && projectMatchesCwd(project, trimmedCwd))
   ))
-    ?? projects.find((project) => (
-    Boolean(trimmedCwd && trimmedEnv)
-    && project.environmentId === trimmedEnv
-    && projectMatchesCwd(project, trimmedCwd)
-  ))
-    ?? projects.find((project) => Boolean(trimmedCwd && projectMatchesCwd(project, trimmedCwd)))
-    ?? projects.find((project) => Boolean(trimmedEnv && project.environmentId === trimmedEnv))
     ?? null
 }

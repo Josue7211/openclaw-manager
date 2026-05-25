@@ -1,10 +1,17 @@
 import type { JSONContent } from '@tiptap/core'
+import type { VaultNote } from '@/features/notes/types'
 import { splitFrontmatter } from './export'
+import { noteEmbedPreviewForTarget } from './noteLinkPreview'
 
 export type ProseMirrorDoc = JSONContent
 export { splitFrontmatter }
 
 type InlineNode = NonNullable<JSONContent['content']>[number]
+type TextAlignment = 'center' | 'right' | 'justify'
+interface BlockStyles {
+  textAlign?: TextAlignment
+  lineHeight?: string
+}
 const PAGE_BREAK_MARKDOWN = '<!-- pagebreak -->'
 const TOC_START_MARKER = '<!-- toc:start -->'
 const TOC_END_MARKER = '<!-- toc:end -->'
@@ -15,7 +22,21 @@ interface TocHeading {
   slug: string
 }
 
-export function markdownToDoc(markdown: string): ProseMirrorDoc {
+interface CalloutHeader {
+  type: string
+  title: string
+  fold: 'collapsed' | 'expanded' | null
+  bodyStart: number
+}
+
+export interface MarkdownToDocOptions {
+  noteEmbeds?: {
+    notes: VaultNote[]
+    currentId: string
+  }
+}
+
+export function markdownToDoc(markdown: string, options: MarkdownToDocOptions = {}): ProseMirrorDoc {
   const { body } = splitFrontmatter(markdown)
   const lines = body.replace(/\r\n/g, '\n').split('\n')
   const content: JSONContent[] = []
@@ -25,6 +46,13 @@ export function markdownToDoc(markdown: string): ProseMirrorDoc {
     const trimmed = line.trim()
 
     if (!trimmed) {
+      index += 1
+      continue
+    }
+
+    const styledBlock = parseStyledHtmlBlock(trimmed)
+    if (styledBlock) {
+      content.push(styledBlock)
       index += 1
       continue
     }
@@ -80,20 +108,38 @@ export function markdownToDoc(markdown: string): ProseMirrorDoc {
       continue
     }
 
-    const imageEmbed = trimmed.match(/^!\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/)
-    if (imageEmbed && isImagePath(imageEmbed[1])) {
-      const image = parseObsidianImageParts(imageEmbed[1], imageEmbed[2])
-      content.push({
-        type: 'image',
-        attrs: {
-          src: `/api/vault/local/media?id=${encodeURIComponent(image.target)}`,
-          alt: image.alt || image.target,
-          title: image.target,
-          width: image.width,
-        },
-      })
-      index += 1
-      continue
+    const embed = trimmed.match(/^!\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/)
+    if (embed) {
+      if (isImagePath(embed[1])) {
+        const image = parseObsidianImageParts(embed[1], embed[2])
+        content.push({
+          type: 'image',
+          attrs: {
+            src: `/api/vault/local/media?id=${encodeURIComponent(image.target)}`,
+            alt: image.alt || image.target,
+            title: image.target,
+            width: image.width,
+          },
+        })
+        index += 1
+        continue
+      }
+
+      const noteEmbed = options.noteEmbeds
+        ? noteEmbedPreviewForTarget(embed[1], options.noteEmbeds.notes, options.noteEmbeds.currentId)
+        : null
+      if (noteEmbed) {
+        content.push({
+          type: 'noteEmbed',
+          attrs: {
+            target: noteEmbed.target,
+            title: noteEmbed.title,
+            body: noteEmbed.body,
+          },
+        })
+        index += 1
+        continue
+      }
     }
 
     if (/^[-*]\s+\[[ xX]\]\s+/.test(trimmed)) {
@@ -142,9 +188,22 @@ export function markdownToDoc(markdown: string): ProseMirrorDoc {
         quote.push(lines[index].replace(/^>\s?/, ''))
         index += 1
       }
+      const callout = parseCalloutHeader(quote)
+      if (callout) {
+        content.push({
+          type: 'blockquote',
+          attrs: {
+            calloutType: callout.type,
+            calloutTitle: callout.title,
+            calloutFold: callout.fold,
+          },
+          content: markdownToDoc(quote.slice(callout.bodyStart).join('\n'), options).content || [{ type: 'paragraph' }],
+        })
+        continue
+      }
       content.push({
         type: 'blockquote',
-        content: markdownToDoc(quote.join('\n')).content || [{ type: 'paragraph' }],
+        content: markdownToDoc(quote.join('\n'), options).content || [{ type: 'paragraph' }],
       })
       continue
     }
@@ -189,8 +248,11 @@ function docContentToMarkdown(content: JSONContent[]): string {
 
 function nodeToMarkdown(node: JSONContent): string {
   const children = node.content || []
-  if (node.type === 'heading') return `${'#'.repeat(Number(node.attrs?.level || 1))} ${inlineMarkdown(children)}`
-  if (node.type === 'paragraph') return inlineMarkdown(children)
+  if (node.type === 'heading') {
+    const level = Number(node.attrs?.level || 1)
+    return styledBlockMarkdown(node, `h${level}`, inlineMarkdown(children)) ?? `${'#'.repeat(level)} ${inlineMarkdown(children)}`
+  }
+  if (node.type === 'paragraph') return styledBlockMarkdown(node, 'p', inlineMarkdown(children)) ?? inlineMarkdown(children)
   if (node.type === 'bulletList') return children.map((item) => listItemMarkdown(item, '-')).join('\n')
   if (node.type === 'orderedList') return children.map((item, index) => listItemMarkdown(item, `${index + 1}.`)).join('\n')
   if (node.type === 'taskList') {
@@ -200,12 +262,26 @@ function nodeToMarkdown(node: JSONContent): string {
     }).join('\n')
   }
   if (node.type === 'blockquote') {
+    const calloutType = sanitizeCalloutType(String(node.attrs?.calloutType || ''))
+    if (calloutType) {
+      const title = String(node.attrs?.calloutTitle || calloutType).trim()
+      const fold = node.attrs?.calloutFold === 'collapsed'
+        ? '-'
+        : node.attrs?.calloutFold === 'expanded'
+          ? '+'
+          : ''
+      const body = docContentToMarkdown(children).trim()
+      const bodyLines = body ? body.split('\n') : []
+      const lines = [`[!${calloutType}]${fold}${title ? ` ${title}` : ''}`, ...bodyLines]
+      return lines.map((line) => `> ${line}`).join('\n')
+    }
     return docContentToMarkdown(children).split('\n').map((line) => `> ${line}`).join('\n')
   }
   if (node.type === 'codeBlock') return `\`\`\`${node.attrs?.language || ''}\n${node.text || inlineMarkdown(children)}\n\`\`\``
   if (node.type === 'pageBreak') return PAGE_BREAK_MARKDOWN
   if (node.type === 'horizontalRule') return '---'
   if (node.type === 'image') return imageMarkdown(node)
+  if (node.type === 'noteEmbed') return noteEmbedMarkdown(node)
   if (node.type === 'table') return tableMarkdown(node)
   return inlineMarkdown(children)
 }
@@ -215,10 +291,91 @@ function listItemMarkdown(item: JSONContent, marker: string): string {
   return `${marker} ${inlineMarkdown(first?.content || [])}`
 }
 
+function parseCalloutHeader(lines: string[]): CalloutHeader | null {
+  const header = lines[0]?.match(/^\s*\[!([A-Za-z][\w-]*)\]([+-])?\s*(.*?)\s*$/)
+  if (!header) return null
+  const type = sanitizeCalloutType(header[1])
+  if (!type) return null
+  return {
+    type,
+    title: header[3].trim() || type,
+    fold: header[2] === '-' ? 'collapsed' : header[2] === '+' ? 'expanded' : null,
+    bodyStart: 1,
+  }
+}
+
+function sanitizeCalloutType(type: string): string {
+  return type.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 32)
+}
+
+function parseStyledHtmlBlock(line: string): JSONContent | null {
+  const block = line.match(/^<(p|h[1-3])\s+style=["']([^"']*(?:text-align|line-height)[^"']*)["']>(.*)<\/\1>$/i)
+  if (!block) return null
+  const tag = block[1].toLowerCase()
+  const styles = blockStyles(block[2])
+  const text = block[3].trim()
+  if (!styles.textAlign && !styles.lineHeight) return null
+  if (tag === 'p') {
+    return {
+      type: 'paragraph',
+      attrs: {
+        ...(styles.textAlign ? { textAlign: styles.textAlign } : {}),
+        ...(styles.lineHeight ? { lineHeight: styles.lineHeight } : {}),
+      },
+      content: inlineContent(text),
+    }
+  }
+  return {
+    type: 'heading',
+    attrs: {
+      level: Number(tag.slice(1)),
+      ...(styles.textAlign ? { textAlign: styles.textAlign } : {}),
+      ...(styles.lineHeight ? { lineHeight: styles.lineHeight } : {}),
+    },
+    content: inlineContent(text),
+  }
+}
+
+function styledBlockMarkdown(node: JSONContent, tag: string, body: string): string | null {
+  const styles = blockStyleAttr(node)
+  if (!styles) return null
+  return `<${tag} style="${styles}">${body}</${tag}>`
+}
+
+function blockStyles(style: string): BlockStyles {
+  const alignment = style.match(/text-align:\s*(center|right|justify)/i)?.[1]?.toLowerCase()
+  const lineHeight = style.match(/line-height:\s*(\d(?:\.\d{1,2})?)/i)?.[1]
+  return {
+    ...(alignment === 'center' || alignment === 'right' || alignment === 'justify' ? { textAlign: alignment } : {}),
+    ...(lineHeight ? { lineHeight } : {}),
+  }
+}
+
+function blockStyleAttr(node: JSONContent): string | null {
+  const styles: string[] = []
+  const alignment = alignmentAttr(node)
+  if (alignment) styles.push(`text-align: ${alignment}`)
+  const lineHeight = lineHeightAttr(node)
+  if (lineHeight) styles.push(`line-height: ${lineHeight}`)
+  return styles.length ? styles.join('; ') : null
+}
+
+function alignmentAttr(node: JSONContent): TextAlignment | null {
+  const alignment = node.attrs?.textAlign
+  if (alignment === 'center' || alignment === 'right' || alignment === 'justify') return alignment
+  return null
+}
+
+function lineHeightAttr(node: JSONContent): string | null {
+  const lineHeight = node.attrs?.lineHeight
+  if (typeof lineHeight === 'string' && /^\d(?:\.\d{1,2})?$/.test(lineHeight)) return lineHeight
+  return null
+}
+
 function inlineContent(text: string): InlineNode[] {
   const nodes: InlineNode[] = []
   const pattern =
-    /(!?\[\[[^\]]+\]\])|(!\[[^\]]*\]\([^)]+\))|(\[[^\]]+\]\([^)]+\))|(<span\s+style="color:\s*#[0-9a-fA-F]{3,8};?">[^<]+<\/span>)|(<mark(?:\s+data-color="#[0-9a-fA-F]{3,8}")?(?:\s+style="background-color:\s*#[0-9a-fA-F]{3,8};?")?>[^<]+<\/mark>)|(<u>[^<]+<\/u>)|(==[^=]+==)|(`[^`]+`)|(\*\*\*[^*]+\*\*\*)|(\*\*[^*]+\*\*)|(~~[^~]+~~)|(\*[^*]+\*)/g
+    /(!?\[\[[^\]]+\]\])|(!\[[^\]]*\]\([^)]+\))|(\[[^\]]+\]\([^)]+\))|(<span\s+style="[^"]*(?:color|font-size|font-family):[^"]*">[^<]+<\/span>)|(<mark(?:\s+data-color="#[0-9a-fA-F]{3,8}")?(?:\s+style="background-color:\s*#[0-9a-fA-F]{3,8};?")?>[^<]+<\/mark>)|(<sup>[^<]+<\/sup>)|(<sub>[^<]+<\/sub>)|(<u>[^<]+<\/u>)|(==[^=]+==)|(`[^`]+`)|(\*\*\*[^*]+\*\*\*)|(\*\*[^*]+\*\*)|(~~[^~]+~~)|(\*[^*]+\*)/g
   let last = 0
   let match: RegExpExecArray | null
   while ((match = pattern.exec(text)) !== null) {
@@ -237,13 +394,17 @@ function inlineContent(text: string): InlineNode[] {
       const link = raw.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
       nodes.push({ type: 'text', text: link?.[1] || raw, marks: [{ type: 'link', attrs: { href: link?.[2] || '' } }] })
     } else if (raw.startsWith('<span')) {
-      const color = raw.match(/color:\s*(#[0-9a-fA-F]{3,8})/)?.[1]
       const value = raw.replace(/^<span[^>]*>/, '').replace(/<\/span>$/, '')
-      nodes.push({ type: 'text', text: value, marks: color ? [{ type: 'textStyle', attrs: { color } }] : undefined })
+      const attrs = spanStyleAttrs(raw)
+      nodes.push({ type: 'text', text: value, marks: Object.keys(attrs).length ? [{ type: 'textStyle', attrs }] : undefined })
     } else if (raw.startsWith('<mark')) {
       const color = raw.match(/(?:data-color|background-color):?\s*=?["']?(#[0-9a-fA-F]{3,8})/)?.[1]
       const value = raw.replace(/^<mark[^>]*>/, '').replace(/<\/mark>$/, '')
       nodes.push({ type: 'text', text: value, marks: [{ type: 'highlight', attrs: color ? { color } : {} }] })
+    } else if (raw.startsWith('<sup>')) {
+      nodes.push({ type: 'text', text: raw.slice(5, -6), marks: [{ type: 'superscript' }] })
+    } else if (raw.startsWith('<sub>')) {
+      nodes.push({ type: 'text', text: raw.slice(5, -6), marks: [{ type: 'subscript' }] })
     } else if (raw.startsWith('<u>')) {
       nodes.push({ type: 'text', text: raw.slice(3, -4), marks: [{ type: 'underline' }] })
     } else if (raw.startsWith('==')) {
@@ -284,16 +445,38 @@ function inlineMarkdown(content: JSONContent[]): string {
       if (mark.type === 'italic') text = `*${text}*`
       if (mark.type === 'strike') text = `~~${text}~~`
       if (mark.type === 'underline') text = `<u>${text}</u>`
+      if (mark.type === 'superscript') text = `<sup>${text}</sup>`
+      if (mark.type === 'subscript') text = `<sub>${text}</sub>`
       if (mark.type === 'highlight') {
         const color = typeof mark.attrs?.color === 'string' ? mark.attrs.color : ''
         text = color ? `<mark data-color="${color}" style="background-color: ${color}">${text}</mark>` : `==${text}==`
       }
-      if (mark.type === 'textStyle' && typeof mark.attrs?.color === 'string') {
-        text = `<span style="color: ${mark.attrs.color}">${text}</span>`
+      if (mark.type === 'textStyle') {
+        const style = textStyleAttr(mark.attrs)
+        if (style) text = `<span style="${style}">${text}</span>`
       }
     }
     return text
   }).join('')
+}
+
+function spanStyleAttrs(raw: string): Record<string, string> {
+  const color = raw.match(/color:\s*(#[0-9a-fA-F]{3,8})/)?.[1]
+  const fontSize = raw.match(/font-size:\s*(\d{1,3}px)/i)?.[1]
+  const fontFamily = raw.match(/font-family:\s*([^;"]+)/i)?.[1]?.trim()
+  return {
+    ...(color ? { color } : {}),
+    ...(fontSize ? { fontSize } : {}),
+    ...(fontFamily ? { fontFamily } : {}),
+  }
+}
+
+function textStyleAttr(attrs: Record<string, unknown> | undefined): string {
+  const styles: string[] = []
+  if (typeof attrs?.color === 'string' && attrs.color) styles.push(`color: ${attrs.color}`)
+  if (typeof attrs?.fontSize === 'string' && attrs.fontSize) styles.push(`font-size: ${attrs.fontSize}`)
+  if (typeof attrs?.fontFamily === 'string' && attrs.fontFamily) styles.push(`font-family: ${attrs.fontFamily}`)
+  return styles.join('; ')
 }
 
 function imageMarkdown(node: JSONContent): string {
@@ -313,6 +496,11 @@ function imageMarkdown(node: JSONContent): string {
     return alt && alt !== target ? `![[${target}|${alt}]]` : `![[${target}]]`
   }
   return `![${alt}](${src}${title ? ` "${title}"` : ''})`
+}
+
+function noteEmbedMarkdown(node: JSONContent): string {
+  const target = String(node.attrs?.target || '').trim()
+  return target ? `![[${target}]]` : ''
 }
 
 function parseObsidianImageParts(target: string, rawMeta = ''): { target: string; alt: string; width?: number } {

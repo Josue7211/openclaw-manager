@@ -6,7 +6,7 @@ import type { ModelsResponse } from '@/features/harness/types'
 export function useHarnessModels() {
   const { data, isLoading, error } = useQuery<ModelsResponse>({
     queryKey: queryKeys.harnessModels,
-    queryFn: () => api.get<ModelsResponse>('/api/harness/models'),
+    queryFn: () => api.get<ModelsResponse>('/api/hermes/models'),
     refetchInterval: 30_000,
     staleTime: 30_000,
   })

@@ -27,7 +27,7 @@ interface ServiceSummary {
 const SERVICES: ServiceSummary[] = [
   { key: 'tailscale', name: 'Tailscale', stepIndex: 1 },
   { key: 'supabase', name: 'Supabase', stepIndex: 2 },
-  { key: 'harness', name: 'Harness', stepIndex: 3 },
+  { key: 'harness', name: 'Hermes Agent', stepIndex: 3 },
   { key: 'bluebubbles', name: 'BlueBubbles', stepIndex: 4 },
   { key: 'mac-bridge', name: 'Mac Bridge', stepIndex: 4 },
   { key: 'couchdb', name: 'CouchDB', stepIndex: 5 },

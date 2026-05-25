@@ -7,16 +7,40 @@ vi.mock('@/hooks/useHarnessStatus', () => ({
     status: 'connected' as const,
     connected: true,
     isLoading: false,
-    providerLabel: 'Harness',
+    providerLabel: 'Hermes Agent',
+  })),
+}))
+
+vi.mock('@/hooks/sessions/useGatewayStatus', () => ({
+  useGatewayStatus: vi.fn(() => ({
+    status: 'connected' as const,
+    connected: true,
+    isLoading: false,
+    protocol: null,
+    reconnectAttempt: 0,
   })),
 }))
 
 import { GatewayStatusDot } from '../GatewayStatusDot'
 import { useHarnessStatus } from '@/hooks/useHarnessStatus'
+import { useGatewayStatus } from '@/hooks/sessions/useGatewayStatus'
 
 describe('GatewayStatusDot', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(useHarnessStatus).mockReturnValue({
+      status: 'connected',
+      connected: true,
+      isLoading: false,
+      providerLabel: 'Hermes Agent',
+    })
+    vi.mocked(useGatewayStatus).mockReturnValue({
+      status: 'connected',
+      connected: true,
+      isLoading: false,
+      protocol: null,
+      reconnectAttempt: 0,
+    })
   })
 
   it('renders nothing (returns null) while isLoading is true', () => {
@@ -24,72 +48,81 @@ describe('GatewayStatusDot', () => {
       status: 'connected',
       connected: true,
       isLoading: true,
-      providerLabel: 'Harness',
+      providerLabel: 'Hermes Agent',
     })
 
     const { container } = render(<GatewayStatusDot />)
     expect(container.innerHTML).toBe('')
   })
 
-  it('renders a dot with title "Harness connected" when status is connected', () => {
-    vi.mocked(useHarnessStatus).mockReturnValue({
+  it('renders a dot with title "Hermes Agent gateway connected" when gateway status is connected', () => {
+    vi.mocked(useGatewayStatus).mockReturnValue({
       status: 'connected',
       connected: true,
       isLoading: false,
-      providerLabel: 'Harness',
+      protocol: 3,
+      reconnectAttempt: 0,
     })
 
     render(<GatewayStatusDot />)
-    expect(screen.getByTitle('Harness connected')).toBeInTheDocument()
+    expect(screen.getByTitle('Hermes Agent gateway connected. Protocol 3.')).toBeInTheDocument()
   })
 
-  it('renders a dot with title "Harness offline" when status is disconnected', () => {
+  it('renders a dot with title "Hermes Agent gateway offline" when gateway status is disconnected', () => {
+    vi.mocked(useGatewayStatus).mockReturnValue({
+      status: 'disconnected',
+      connected: false,
+      isLoading: false,
+      protocol: null,
+      reconnectAttempt: 0,
+    })
+
+    render(<GatewayStatusDot />)
+    expect(screen.getByTitle('Hermes Agent gateway offline')).toBeInTheDocument()
+  })
+
+  it('includes the diagnostic detail in the tooltip when HTTP auth fails', () => {
     vi.mocked(useHarnessStatus).mockReturnValue({
       status: 'disconnected',
       connected: false,
       isLoading: false,
-      providerLabel: 'Harness',
+      providerLabel: 'Hermes Agent',
+      detail: 'Hermes Agent rejected the configured auth token. Checked /sessions.',
     })
 
     render(<GatewayStatusDot />)
-    expect(screen.getByTitle('Harness offline')).toBeInTheDocument()
+    expect(screen.getByTitle('Hermes Agent offline. Hermes Agent rejected the configured auth token. Checked /sessions.')).toBeInTheDocument()
   })
 
-  it('includes the diagnostic detail in the tooltip when auth fails', () => {
-    vi.mocked(useHarnessStatus).mockReturnValue({
-      status: 'disconnected',
+  it('shows gateway reconnect attempts when Hermes Agent HTTP is healthy', () => {
+    vi.mocked(useGatewayStatus).mockReturnValue({
+      status: 'reconnecting',
       connected: false,
       isLoading: false,
-      providerLabel: 'Harness',
-      detail: 'Harness rejected the configured auth token. Checked /sessions.',
+      protocol: null,
+      reconnectAttempt: 2,
     })
 
-    render(<GatewayStatusDot />)
-    expect(screen.getByTitle('Harness offline. Harness rejected the configured auth token. Checked /sessions.')).toBeInTheDocument()
+    render(<GatewayStatusDot showLabel />)
+    expect(screen.getByText('Hermes Agent gateway reconnecting')).toBeInTheDocument()
+    expect(screen.getByTitle('Hermes Agent gateway reconnecting. Reconnect attempt 2.')).toBeInTheDocument()
   })
 
-  it('renders a dot with title "Harness not configured" when status is not_configured', () => {
+  it('renders a dot with title "Hermes Agent not configured" when status is not_configured', () => {
     vi.mocked(useHarnessStatus).mockReturnValue({
       status: 'not_configured',
       connected: false,
       isLoading: false,
-      providerLabel: 'Harness',
+      providerLabel: 'Hermes Agent',
     })
 
     render(<GatewayStatusDot />)
-    expect(screen.getByTitle('Harness not configured')).toBeInTheDocument()
+    expect(screen.getByTitle('Hermes Agent not configured')).toBeInTheDocument()
   })
 
   it('renders the text label when showLabel=true', () => {
-    vi.mocked(useHarnessStatus).mockReturnValue({
-      status: 'connected',
-      connected: true,
-      isLoading: false,
-      providerLabel: 'Harness',
-    })
-
     render(<GatewayStatusDot showLabel={true} />)
-    expect(screen.getByText('Harness connected')).toBeInTheDocument()
+    expect(screen.getByText('Hermes Agent gateway connected')).toBeInTheDocument()
   })
 
   it('does NOT render the text label when showLabel is omitted (defaults false)', () => {
@@ -97,13 +130,13 @@ describe('GatewayStatusDot', () => {
       status: 'connected',
       connected: true,
       isLoading: false,
-      providerLabel: 'Harness',
+      providerLabel: 'Hermes Agent',
     })
 
     render(<GatewayStatusDot />)
     // Title attr has the label text, but no visible text span
-    expect(screen.getByTitle('Harness connected')).toBeInTheDocument()
-    expect(screen.queryByText('Harness connected')).not.toBeInTheDocument()
+    expect(screen.getByTitle('Hermes Agent gateway connected')).toBeInTheDocument()
+    expect(screen.queryByText('Hermes Agent gateway connected')).not.toBeInTheDocument()
   })
 
   it('has aria-live="polite" for accessibility', () => {
@@ -111,7 +144,7 @@ describe('GatewayStatusDot', () => {
       status: 'connected',
       connected: true,
       isLoading: false,
-      providerLabel: 'Harness',
+      providerLabel: 'Hermes Agent',
     })
 
     const { container } = render(<GatewayStatusDot />)
@@ -124,10 +157,10 @@ describe('GatewayStatusDot', () => {
       status: 'connected',
       connected: true,
       isLoading: false,
-      providerLabel: 'Harness',
+      providerLabel: 'Hermes Agent',
     })
 
     render(<GatewayStatusDot showLabel />)
-    expect(screen.getByText('Harness connected')).toBeInTheDocument()
+    expect(screen.getByText('Hermes Agent gateway connected')).toBeInTheDocument()
   })
 })

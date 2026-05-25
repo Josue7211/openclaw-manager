@@ -5,15 +5,15 @@
  */
 
 export interface ChatSettingsShortcut {
-  id: 'settings' | 'usage' | 'providers' | 'codex-lb'
+  id: 'settings' | 'usage' | 'providers' | 'hermes-agent'
   label: string
   href: string
-  section: 'usage' | 'providers' | 'codex-lb' | null
+  section: 'usage' | 'providers' | 'hermes-agent' | null
 }
 
 export const CHAT_SETTINGS_SHORTCUTS: readonly ChatSettingsShortcut[] = [
   { id: 'settings', label: 'Settings', href: '/settings', section: null },
   { id: 'usage', label: 'Usage remaining', href: '/settings?section=usage', section: 'usage' },
   { id: 'providers', label: 'Providers', href: '/settings?section=providers', section: 'providers' },
-  { id: 'codex-lb', label: 'Codex LB', href: '/settings?section=codex-lb', section: 'codex-lb' },
+  { id: 'hermes-agent', label: 'Hermes Agent', href: '/settings?section=hermes-agent', section: 'hermes-agent' },
 ] as const

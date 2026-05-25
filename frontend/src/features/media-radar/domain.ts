@@ -1,3 +1,5 @@
+import { getRequestBaseForPath } from '@/lib/api'
+
 interface NowPlaying {
   title: string
   type: string
@@ -21,6 +23,17 @@ interface RecentItem {
   year?: number
   detail_id?: number | string
   detail_ref?: DetailRef
+  overview?: string
+  posterUrl?: string
+  backdropUrl?: string
+  bannerUrl?: string
+  logoUrl?: string
+  posterPath?: string
+  backdropPath?: string
+  remotePoster?: string
+  images?: unknown[]
+  network?: string
+  studio?: string
 }
 
 interface UpcomingItem {
@@ -32,6 +45,17 @@ interface UpcomingItem {
   subtitle?: string
   detail_id?: number | string
   detail_ref?: DetailRef
+  overview?: string
+  posterUrl?: string
+  backdropUrl?: string
+  bannerUrl?: string
+  logoUrl?: string
+  posterPath?: string
+  backdropPath?: string
+  remotePoster?: string
+  images?: unknown[]
+  network?: string
+  studio?: string
 }
 
 export interface MediaService {
@@ -82,14 +106,19 @@ export interface QueueItem {
   service: string
   serviceName?: string
   title?: string
+  sourceTitle?: string
+  downloadId?: string
+  protocol?: string
   status?: string
   trackedDownloadStatus?: string
   timeleft?: string
   sizeleft?: number
   size?: number
-  movie?: { title?: string }
-  series?: { title?: string }
-  episode?: { title?: string; seasonNumber?: number; episodeNumber?: number }
+  movie?: { title?: string; year?: number; images?: unknown[]; remotePoster?: string; posterPath?: string; backdropPath?: string }
+  series?: { title?: string; year?: number; network?: string; images?: unknown[]; remotePoster?: string; posterPath?: string; backdropPath?: string }
+  episode?: { title?: string; seasonNumber?: number; episodeNumber?: number; airDateUtc?: string; overview?: string }
+  episodeFile?: { path?: string; relativePath?: string; sceneName?: string; quality?: unknown }
+  movieFile?: { path?: string; relativePath?: string; sceneName?: string; quality?: unknown }
   artist?: { artistName?: string }
 }
 
@@ -105,6 +134,20 @@ export interface LibraryItem {
   network?: string
   studio?: string
   genres?: string[]
+  overview?: string
+  posterPath?: string
+  backdropPath?: string
+  banner?: string
+  bannerPath?: string
+  fanart?: string
+  logo?: string
+  clearLogo?: string
+  clearlogo?: string
+  remotePoster?: string
+  images?: unknown[]
+  path?: string
+  fileName?: string
+  filename?: string
   monitored?: boolean
   hasFile?: boolean
   statistics?: { episodeFileCount?: number; episodeCount?: number }
@@ -119,13 +162,17 @@ export interface WantedItem {
   detail_ref?: DetailRef
   title?: string
   sourceTitle?: string
+  downloadId?: string
+  protocol?: string
   eventType?: string
   airDateUtc?: string
   releaseDate?: string
-  series?: { title?: string }
-  movie?: { title?: string }
+  series?: { title?: string; year?: number; network?: string; images?: unknown[]; remotePoster?: string; posterPath?: string; backdropPath?: string }
+  movie?: { title?: string; year?: number; studio?: string; images?: unknown[]; remotePoster?: string; posterPath?: string; backdropPath?: string }
   artist?: { artistName?: string }
-  episode?: { title?: string; seasonNumber?: number; episodeNumber?: number }
+  episode?: { title?: string; seasonNumber?: number; episodeNumber?: number; airDateUtc?: string; overview?: string }
+  episodeFile?: { path?: string; relativePath?: string; sceneName?: string; quality?: unknown }
+  movieFile?: { path?: string; relativePath?: string; sceneName?: string; quality?: unknown }
   album?: { title?: string }
 }
 
@@ -161,7 +208,7 @@ export interface RequestItem {
   serviceName?: string
   status?: number
   createdAt?: string
-  media?: { title?: string; mediaType?: string; status?: number; status4k?: number }
+  media?: { title?: string; name?: string; mediaType?: string; status?: number; status4k?: number; year?: number; overview?: string; posterPath?: string; backdropPath?: string; images?: unknown[]; mediaInfo?: unknown }
   requestedBy?: { displayName?: string; email?: string }
 }
 
@@ -237,8 +284,14 @@ export interface CalendarItem {
   airDateUtc?: string
   releaseDate?: string
   inCinemas?: string
-  series?: { title?: string }
-  movie?: { title?: string }
+  overview?: string
+  images?: unknown[]
+  remotePoster?: string
+  posterPath?: string
+  backdropPath?: string
+  series?: { title?: string; year?: number; network?: string; overview?: string; images?: unknown[]; remotePoster?: string; posterPath?: string; backdropPath?: string }
+  movie?: { title?: string; year?: number; studio?: string; overview?: string; images?: unknown[]; remotePoster?: string; posterPath?: string; backdropPath?: string }
+  episode?: { title?: string; seasonNumber?: number; episodeNumber?: number; airDateUtc?: string; overview?: string }
   seasonNumber?: number
   episodeNumber?: number
 }
@@ -302,7 +355,7 @@ export interface DetailResponse {
   actions?: string[]
 }
 
-export type MediaView = 'overview' | 'browse' | 'add' | 'downloads' | 'requests' | 'missing' | 'indexers' | 'setup' | 'library'
+export type MediaView = 'overview' | 'browse' | 'add' | 'downloads' | 'requests' | 'missing' | 'indexers' | 'setup' | 'library' | 'calendar'
 export type WorkflowTarget = Exclude<MediaView, 'overview'>
 export type ServiceSetupFilter = 'attention' | 'online' | 'detected' | 'configured' | 'all'
 export type RequestStatusFilter = 'pending' | 'all' | 'approved' | 'available' | 'partial' | 'declined'
@@ -311,6 +364,46 @@ export type IndexerStateFilter = 'all' | 'enabled' | 'disabled'
 export type LibraryMonitorFilter = 'all' | 'monitored' | 'unmonitored'
 export type DiscoverKindFilter = 'tv' | 'movie'
 export type DiscoverCategoryFilter = 'popular' | 'trending' | 'upcoming'
+
+export type MediaImageKind = 'poster' | 'backdrop' | 'banner' | 'logo'
+
+export interface MediaPresentation {
+  displayTitle: string
+  title: string
+  subtitle: string
+  meta: string
+  overview: string
+  kind: string
+  service: string
+  year: string
+  posterUrl: string
+  backdropUrl: string
+  bannerUrl: string
+  logoUrl: string
+  hasImage: boolean
+  fallbackLabel: string
+  episodeCode: string
+  episodeTitle: string
+  seriesTitle: string
+  sourceTitle: string
+  fileName: string
+  path: string
+  dateIso: string
+  dateLabel: string
+  exactDate: string
+  metadataStatus: 'rich' | 'partial' | 'missing'
+}
+
+export interface CalendarDateParts {
+  iso: string
+  label: string
+  exact: string
+  group: string
+  weekday: string
+  month: string
+  day: string
+  time: string
+}
 
 
 export function formatAirDate(dateStr: string): string {
@@ -325,6 +418,50 @@ export function formatAirDate(dateStr: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+export function formatExactDate(dateStr: string): string {
+  if (!dateStr) return ''
+  const d = new Date(dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00Z`)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+export function calendarDateParts(dateStr: string): CalendarDateParts {
+  const d = new Date(dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00Z`)
+  const valid = dateStr && !Number.isNaN(d.getTime())
+  if (!valid) {
+    return { iso: '', label: 'Unscheduled', exact: 'No date supplied', group: 'Unscheduled', weekday: '--', month: '--', day: '--', time: '' }
+  }
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const start = new Date(d)
+  start.setHours(0, 0, 0, 0)
+  const diff = Math.round((start.getTime() - today.getTime()) / 86400000)
+  const group = diff === 0
+    ? 'Today'
+    : diff === 1
+      ? 'Tomorrow'
+      : diff > 1 && diff < 7
+        ? 'This Week'
+        : diff >= 7
+          ? 'Later'
+          : 'Recently Aired'
+  return {
+    iso: dateStr,
+    label: formatAirDate(dateStr),
+    exact: formatExactDate(dateStr),
+    group,
+    weekday: d.toLocaleDateString('en-US', { weekday: 'short' }),
+    month: d.toLocaleDateString('en-US', { month: 'short' }),
+    day: d.toLocaleDateString('en-US', { day: '2-digit' }),
+    time: dateStr.includes('T') ? d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+  }
+}
+
 export function formatBytes(bytes?: number): string {
   if (!bytes) return '0 B'
   if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`
@@ -333,15 +470,17 @@ export function formatBytes(bytes?: number): string {
 }
 
 export function queueTitle(item: QueueItem): string {
-  if (item.title) return item.title
-  if (item.movie?.title) return item.movie.title
   if (item.series?.title) {
     const ep = item.episode
     if (ep?.seasonNumber && ep?.episodeNumber) {
-      return `${item.series.title} S${String(ep.seasonNumber).padStart(2, '0')}E${String(ep.episodeNumber).padStart(2, '0')}`
+      const code = `S${String(ep.seasonNumber).padStart(2, '0')}E${String(ep.episodeNumber).padStart(2, '0')}`
+      return `${item.series.title} ${code}${ep.title ? `: ${ep.title}` : ''}`
     }
     return item.series.title
   }
+  if (item.title) return item.title
+  if (item.sourceTitle) return item.sourceTitle
+  if (item.movie?.title) return item.movie.title
   return item.artist?.artistName ?? 'Unknown'
 }
 
@@ -386,7 +525,8 @@ export function wantedTitle(item: WantedItem): string {
   if (item.series?.title) {
     const ep = item.episode
     if (ep?.seasonNumber && ep?.episodeNumber) {
-      return `${item.series.title} S${String(ep.seasonNumber).padStart(2, '0')}E${String(ep.episodeNumber).padStart(2, '0')}`
+      const code = `S${String(ep.seasonNumber).padStart(2, '0')}E${String(ep.episodeNumber).padStart(2, '0')}`
+      return `${item.series.title} ${code}${ep.title ? `: ${ep.title}` : ''}`
     }
     return `${item.series.title}${item.title ? `: ${item.title}` : ''}`
   }
@@ -395,7 +535,7 @@ export function wantedTitle(item: WantedItem): string {
 }
 
 export function historyTitle(item: HistoryItem): string {
-  return item.sourceTitle ?? wantedTitle(item)
+  return wantedTitle(item) !== 'Unknown' ? wantedTitle(item) : item.sourceTitle ?? 'Unknown'
 }
 
 export function indexerTitle(item: IndexerItem): string {
@@ -498,9 +638,12 @@ export function clampPercent(value: number | null | undefined): number {
 export function calendarTitle(item: CalendarItem): string {
   if (item.movie?.title) return item.movie.title
   if (item.series?.title) {
-    const episode = item.title ? `: ${item.title}` : ''
-    const season = item.seasonNumber && item.episodeNumber
-      ? ` S${String(item.seasonNumber).padStart(2, '0')}E${String(item.episodeNumber).padStart(2, '0')}`
+    const episodeTitle = item.episode?.title ?? item.title
+    const seasonNumber = item.episode?.seasonNumber ?? item.seasonNumber
+    const episodeNumber = item.episode?.episodeNumber ?? item.episodeNumber
+    const episode = episodeTitle ? `: ${episodeTitle}` : ''
+    const season = seasonNumber && episodeNumber
+      ? ` S${String(seasonNumber).padStart(2, '0')}E${String(episodeNumber).padStart(2, '0')}`
       : ''
     return `${item.series.title}${season}${episode}`
   }
@@ -508,7 +651,256 @@ export function calendarTitle(item: CalendarItem): string {
 }
 
 export function resultTitle(item: Record<string, unknown>): string {
-  return String(item.title ?? item.artistName ?? item.name ?? 'Unknown')
+  return String(item.title ?? item.artistName ?? item.name ?? item.originalTitle ?? item.originalName ?? 'Unknown')
+}
+
+function stringValue(item: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = item[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  }
+  return ''
+}
+
+function nestedRecord(item: Record<string, unknown>, key: string): Record<string, unknown> | null {
+  const value = item[key]
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function nestedStringValue(item: Record<string, unknown>, key: string, keys: string[]): string {
+  const nested = nestedRecord(item, key)
+  return nested ? stringValue(nested, keys) : ''
+}
+
+function shouldProxyRemoteImage(value: string): boolean {
+  try {
+    const parsed = new URL(value)
+    const host = parsed.hostname.toLowerCase()
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+    if (host === '127.0.0.1' || host === 'localhost' || host === 'image.tmdb.org') return false
+    return true
+  } catch {
+    return false
+  }
+}
+
+function normalizeImageUrl(value: string, size: MediaImageKind = 'poster'): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (trimmed.startsWith('//')) return normalizeImageUrl(`https:${trimmed}`, size)
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const parsed = new URL(trimmed)
+      if (parsed.hostname.toLowerCase() === 'image.tmdb.org' && parsed.protocol === 'http:') {
+        parsed.protocol = 'https:'
+        return parsed.toString()
+      }
+    } catch {
+      return trimmed
+    }
+    if (shouldProxyRemoteImage(trimmed)) {
+      const path = `/api/media/image/remote?url=${encodeURIComponent(trimmed)}`
+      return `${getRequestBaseForPath(path)}${path}`
+    }
+    return trimmed
+  }
+  if (trimmed.startsWith('data:')) return trimmed
+  if (trimmed.startsWith('/api/')) return `${getRequestBaseForPath(trimmed)}${trimmed}`
+  if (trimmed.startsWith('/')) {
+    const tmdbSize = size === 'backdrop' || size === 'banner' ? 'w780' : size === 'logo' ? 'w500' : 'w342'
+    return `https://image.tmdb.org/t/p/${tmdbSize}${trimmed}`
+  }
+  return trimmed
+}
+
+export function mediaImageUrl(item: Record<string, unknown>, size: MediaImageKind = 'poster'): string {
+  const directKeys: Record<MediaImageKind, string[]> = {
+    poster: ['posterUrl', 'poster', 'posterPath', 'remotePoster', 'cover', 'thumb'],
+    backdrop: ['backdropUrl', 'backdrop', 'backdropPath', 'fanart', 'background', 'art', 'banner'],
+    banner: ['bannerUrl', 'banner', 'bannerPath', 'fanart', 'backdropPath', 'backdrop'],
+    logo: ['logoUrl', 'logo', 'clearLogo', 'clearlogo', 'clear_logo', 'titleLogo'],
+  }
+  const direct = stringValue(item, directKeys[size])
+  if (direct) return normalizeImageUrl(direct, size)
+
+  for (const key of ['media', 'mediaInfo', 'movie', 'series', 'episode', 'artist']) {
+    const nestedRecordValue = nestedRecord(item, key)
+    if (nestedRecordValue) {
+      const nested = mediaImageUrl(nestedRecordValue, size)
+      if (nested) return nested
+    }
+  }
+
+  const images = item.images
+  if (Array.isArray(images)) {
+    const preferredCoverTypes: Record<MediaImageKind, string[]> = {
+      poster: ['poster', 'cover', 'folder'],
+      backdrop: ['fanart', 'background', 'backdrop', 'banner'],
+      banner: ['banner', 'fanart', 'background', 'backdrop'],
+      logo: ['clearlogo', 'logo', 'titlelogo', 'clearart'],
+    }
+    const matchingImage = images.find(candidate => {
+      if (!candidate || typeof candidate !== 'object') return false
+      const record = candidate as Record<string, unknown>
+      const coverType = String(record.coverType ?? record.type ?? record.imageType ?? '').toLowerCase()
+      return preferredCoverTypes[size].includes(coverType)
+    })
+    const image = matchingImage ?? (size === 'poster' ? images[0] : null)
+    if (image && typeof image === 'object') {
+      const record = image as Record<string, unknown>
+      const url = stringValue(record, ['remoteUrl', 'url', 'path'])
+      if (url) return normalizeImageUrl(url, size)
+    }
+  }
+
+  return ''
+}
+
+export function mediaYear(item: Record<string, unknown>): string {
+  const date = stringValue(item, ['releaseDate', 'firstAirDate', 'airDateUtc', 'inCinemas', 'premiereDate', 'added'])
+    || nestedStringValue(item, 'media', ['releaseDate', 'firstAirDate'])
+    || nestedStringValue(item, 'movie', ['releaseDate', 'inCinemas'])
+    || nestedStringValue(item, 'series', ['firstAirDate'])
+  const year = stringValue(item, ['year'])
+    || nestedStringValue(item, 'media', ['year'])
+    || nestedStringValue(item, 'movie', ['year'])
+    || nestedStringValue(item, 'series', ['year'])
+  if (year) return year
+  const match = date.match(/\d{4}/)
+  return match?.[0] ?? ''
+}
+
+export function mediaOverview(item: Record<string, unknown>): string {
+  return stringValue(item, ['overview', 'summary', 'description'])
+    || nestedStringValue(item, 'mediaInfo', ['overview', 'summary'])
+    || nestedStringValue(item, 'media', ['overview', 'summary'])
+    || nestedStringValue(item, 'movie', ['overview', 'summary'])
+    || nestedStringValue(item, 'series', ['overview', 'summary'])
+}
+
+export function mediaRating(item: Record<string, unknown>): string {
+  const raw = item.voteAverage ?? item.rating ?? nestedRecord(item, 'ratings')?.value
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw > 10 ? `${Math.round(raw)}%` : raw.toFixed(1)
+  if (typeof raw === 'string' && raw.trim()) return raw.trim()
+  return ''
+}
+
+export function mediaMeta(item: Record<string, unknown>, fallbackType = 'media'): string {
+  const parts = [
+    requestMediaType(item, fallbackType),
+    mediaYear(item),
+    stringValue(item, ['network', 'studio', 'serviceName']) || nestedStringValue(item, 'series', ['network']) || nestedStringValue(item, 'movie', ['studio']),
+    mediaRating(item) ? `${mediaRating(item)} rating` : '',
+  ].filter(Boolean)
+  return parts.join(' · ')
+}
+
+function firstNestedString(item: Record<string, unknown>, key: string, keys: string[]): string {
+  return nestedStringValue(item, key, keys)
+}
+
+function episodeCode(item: Record<string, unknown>): string {
+  const episode = nestedRecord(item, 'episode')
+  const seasonNumber = stringValue(item, ['seasonNumber']) || (episode ? stringValue(episode, ['seasonNumber']) : '')
+  const episodeNumber = stringValue(item, ['episodeNumber']) || (episode ? stringValue(episode, ['episodeNumber']) : '')
+  if (!seasonNumber || !episodeNumber) return ''
+  return `S${String(seasonNumber).padStart(2, '0')}E${String(episodeNumber).padStart(2, '0')}`
+}
+
+function nestedFileValue(item: Record<string, unknown>, keys: string[]): string {
+  return stringValue(item, keys)
+    || firstNestedString(item, 'episodeFile', keys)
+    || firstNestedString(item, 'movieFile', keys)
+    || firstNestedString(item, 'mediaFile', keys)
+    || firstNestedString(item, 'file', keys)
+    || firstNestedString(item, 'data', keys)
+}
+
+function fileNameFromPath(value: string): string {
+  if (!value) return ''
+  return value.split(/[\\/]/).filter(Boolean).pop() ?? value
+}
+
+export function mediaDateValue(item: Record<string, unknown>): string {
+  return stringValue(item, ['airDateUtc', 'releaseDate', 'inCinemas', 'air_date', 'added', 'createdAt', 'date', 'publishDate'])
+    || firstNestedString(item, 'episode', ['airDateUtc', 'airDate'])
+    || firstNestedString(item, 'movie', ['releaseDate', 'inCinemas'])
+    || firstNestedString(item, 'media', ['releaseDate', 'firstAirDate', 'createdAt'])
+    || firstNestedString(item, 'mediaInfo', ['releaseDate', 'firstAirDate'])
+}
+
+export function mediaPresentation(item: Record<string, unknown>, fallbackType = 'media'): MediaPresentation {
+  const service = stringValue(item, ['service', 'serviceName']) || fallbackType
+  const kind = requestMediaType(item, fallbackType)
+  const seriesTitle = firstNestedString(item, 'series', ['title', 'name', 'sortTitle'])
+    || stringValue(item, ['seriesTitle', 'grandparentTitle'])
+  const episodeTitle = firstNestedString(item, 'episode', ['title', 'name'])
+    || stringValue(item, ['episodeTitle'])
+  const code = episodeCode(item)
+  const baseTitle = resultTitle(item)
+  const mediaTitle = firstNestedString(item, 'media', ['title', 'name'])
+    || firstNestedString(item, 'mediaInfo', ['title', 'name'])
+  const title = seriesTitle && (code || episodeTitle)
+    ? `${seriesTitle}${code ? ` ${code}` : ''}${episodeTitle ? `: ${episodeTitle}` : ''}`
+    : mediaTitle || baseTitle
+  const year = mediaYear(item)
+  const sourceTitle = stringValue(item, ['sourceTitle', 'downloadTitle', 'releaseTitle'])
+  const path = nestedFileValue(item, ['path', 'relativePath', 'droppedPath', 'importedPath'])
+  const fileName = stringValue(item, ['fileName', 'filename'])
+    || nestedFileValue(item, ['sceneName'])
+    || fileNameFromPath(path)
+  const overview = mediaOverview(item)
+  const posterUrl = mediaImageUrl(item, 'poster')
+  const backdropUrl = mediaImageUrl(item, 'backdrop')
+  const bannerUrl = mediaImageUrl(item, 'banner')
+  const logoUrl = mediaImageUrl(item, 'logo')
+  const dateIso = mediaDateValue(item)
+  const dateLabel = dateIso ? formatAirDate(dateIso) : ''
+  const exactDate = dateIso ? formatExactDate(dateIso) : ''
+  const subtitle = [
+    code || '',
+    stringValue(item, ['network', 'studio']) || firstNestedString(item, 'series', ['network']) || firstNestedString(item, 'movie', ['studio']),
+    year,
+  ].filter(Boolean).join(' · ')
+  const meta = mediaMeta(item, kind) || subtitle || service
+  const hasImage = Boolean(posterUrl || backdropUrl || bannerUrl || logoUrl)
+  const metadataStatus = hasImage && (overview || meta) ? 'rich' : hasImage || overview || meta ? 'partial' : 'missing'
+  const fallbackLabel = metadataStatus === 'missing' ? 'Metadata missing' : 'Poster unavailable'
+  return {
+    displayTitle: title,
+    title,
+    subtitle,
+    meta,
+    overview,
+    kind,
+    service,
+    year,
+    posterUrl,
+    backdropUrl,
+    bannerUrl,
+    logoUrl,
+    hasImage,
+    fallbackLabel,
+    episodeCode: code,
+    episodeTitle,
+    seriesTitle,
+    sourceTitle,
+    fileName,
+    path,
+    dateIso,
+    dateLabel,
+    exactDate,
+    metadataStatus,
+  }
+}
+
+export function requestMediaType(item: Record<string, unknown>, fallbackType = 'media'): string {
+  const raw = stringValue(item, ['mediaType', 'media_type', 'kind', 'type']) || fallbackType
+  const normalized = raw.toLowerCase()
+  if (['series', 'show', 'episode'].includes(normalized)) return 'tv'
+  if (['film'].includes(normalized)) return 'movie'
+  return normalized
 }
 
 export function releaseMeta(item: Record<string, unknown>): string {
@@ -522,7 +914,8 @@ export function releaseMeta(item: Record<string, unknown>): string {
   return parts.join(' · ') || 'release'
 }
 
-export function requestSeasonNumbers(item: Record<string, unknown>): number[] {
+export function requestSeasonNumbers(item: Record<string, unknown>, fallbackType = 'media'): number[] {
+  if (requestMediaType(item, fallbackType) !== 'tv') return []
   const rawSeasons = item.seasons ?? (item.mediaInfo as { seasons?: unknown } | undefined)?.seasons
   if (!Array.isArray(rawSeasons)) return [1]
   const numbers = rawSeasons
@@ -718,4 +1111,3 @@ export const FALLBACK_MEDIA_SERVICES: MediaService[] = [
   { id: 'pelican', name: 'Pelican', kind: 'panel', configured: false, healthy: false },
   { id: 'vaultwarden', name: 'Vaultwarden', kind: 'passwords', configured: false, healthy: false },
 ]
-

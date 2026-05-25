@@ -1,5 +1,5 @@
 use axum::{
-    extract::State,
+    extract::{RawQuery, State},
     routing::{get, post},
     Json, Router,
 };
@@ -14,13 +14,69 @@ use crate::error::AppError;
 use crate::harness_paths;
 use crate::server::{AppState, RequireAuth};
 
-use super::gateway::{gateway_forward, harness_api_key, harness_api_url};
+use super::gateway::{gateway_forward, harness_api_key, harness_api_url, validate_gateway_path};
 
 // ── Router ──────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/hermes/usage", get(get_usage))
+        .route(
+            "/hermes/dashboard/overview",
+            get(get_codex_lb_dashboard_overview),
+        )
+        .route(
+            "/hermes/dashboard/request-logs",
+            get(get_codex_lb_request_logs),
+        )
+        .route(
+            "/hermes/dashboard/request-logs/options",
+            get(get_codex_lb_request_log_options),
+        )
+        .route("/hermes/dashboard/accounts", get(get_codex_lb_accounts))
+        .route("/hermes/dashboard/api-keys", get(get_codex_lb_api_keys))
+        .route("/hermes/dashboard/settings", get(get_codex_lb_settings))
+        .route(
+            "/hermes/dashboard/auth/session",
+            get(get_codex_lb_auth_session),
+        )
+        .route(
+            "/hermes/dashboard/auth/login",
+            post(post_codex_lb_auth_login),
+        )
+        .route("/hermes/dashboard/auth/totp", post(post_codex_lb_auth_totp))
+        .route(
+            "/hermes/dashboard/auth/logout",
+            post(post_codex_lb_auth_logout),
+        )
+        .route(
+            "/hermes/codex-lb/dashboard/overview",
+            get(get_codex_lb_dashboard_overview),
+        )
+        .route(
+            "/hermes/codex-lb/request-logs",
+            get(get_codex_lb_request_logs),
+        )
+        .route(
+            "/hermes/codex-lb/request-logs/options",
+            get(get_codex_lb_request_log_options),
+        )
+        .route("/hermes/codex-lb/accounts", get(get_codex_lb_accounts))
+        .route("/hermes/codex-lb/api-keys", get(get_codex_lb_api_keys))
+        .route("/hermes/codex-lb/settings", get(get_codex_lb_settings))
+        .route(
+            "/hermes/codex-lb/auth/session",
+            get(get_codex_lb_auth_session),
+        )
+        .route(
+            "/hermes/codex-lb/auth/login",
+            post(post_codex_lb_auth_login),
+        )
+        .route("/hermes/codex-lb/auth/totp", post(post_codex_lb_auth_totp))
+        .route(
+            "/hermes/codex-lb/auth/logout",
+            post(post_codex_lb_auth_logout),
+        )
         .route("/hermes/models", get(get_models))
         .route("/hermes/tools", get(get_tools))
         .route("/hermes/tools/invoke", post(invoke_tool))
@@ -30,6 +86,34 @@ pub fn router() -> Router<AppState> {
             get(get_runtime_config).patch(patch_runtime_config),
         )
         .route("/harness/usage", get(get_usage))
+        .route(
+            "/harness/codex-lb/dashboard/overview",
+            get(get_codex_lb_dashboard_overview),
+        )
+        .route(
+            "/harness/codex-lb/request-logs",
+            get(get_codex_lb_request_logs),
+        )
+        .route(
+            "/harness/codex-lb/request-logs/options",
+            get(get_codex_lb_request_log_options),
+        )
+        .route("/harness/codex-lb/accounts", get(get_codex_lb_accounts))
+        .route("/harness/codex-lb/api-keys", get(get_codex_lb_api_keys))
+        .route("/harness/codex-lb/settings", get(get_codex_lb_settings))
+        .route(
+            "/harness/codex-lb/auth/session",
+            get(get_codex_lb_auth_session),
+        )
+        .route(
+            "/harness/codex-lb/auth/login",
+            post(post_codex_lb_auth_login),
+        )
+        .route("/harness/codex-lb/auth/totp", post(post_codex_lb_auth_totp))
+        .route(
+            "/harness/codex-lb/auth/logout",
+            post(post_codex_lb_auth_logout),
+        )
         .route("/harness/models", get(get_models))
         .route("/harness/tools", get(get_tools))
         .route("/harness/tools/invoke", post(invoke_tool))
@@ -39,6 +123,37 @@ pub fn router() -> Router<AppState> {
             get(get_runtime_config).patch(patch_runtime_config),
         )
         .route("/openclaw/usage", get(get_usage))
+        .route(
+            "/openclaw/codex-lb/dashboard/overview",
+            get(get_codex_lb_dashboard_overview),
+        )
+        .route(
+            "/openclaw/codex-lb/request-logs",
+            get(get_codex_lb_request_logs),
+        )
+        .route(
+            "/openclaw/codex-lb/request-logs/options",
+            get(get_codex_lb_request_log_options),
+        )
+        .route("/openclaw/codex-lb/accounts", get(get_codex_lb_accounts))
+        .route("/openclaw/codex-lb/api-keys", get(get_codex_lb_api_keys))
+        .route("/openclaw/codex-lb/settings", get(get_codex_lb_settings))
+        .route(
+            "/openclaw/codex-lb/auth/session",
+            get(get_codex_lb_auth_session),
+        )
+        .route(
+            "/openclaw/codex-lb/auth/login",
+            post(post_codex_lb_auth_login),
+        )
+        .route(
+            "/openclaw/codex-lb/auth/totp",
+            post(post_codex_lb_auth_totp),
+        )
+        .route(
+            "/openclaw/codex-lb/auth/logout",
+            post(post_codex_lb_auth_logout),
+        )
         .route("/openclaw/models", get(get_models))
         .route("/openclaw/tools", get(get_tools))
         .route("/openclaw/tools/invoke", post(invoke_tool))
@@ -56,6 +171,345 @@ async fn get_usage(
     RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
     let result = gateway_forward(&state, Method::GET, "/usage", None).await?;
+    Ok(Json(result))
+}
+
+async fn forward_codex_lb_get(
+    state: &AppState,
+    upstream_path: &str,
+    query: Option<String>,
+) -> Result<Json<Value>, AppError> {
+    ensure_codex_lb_dashboard_session(state).await?;
+    let result = codex_lb_forward_get(state, upstream_path, query.as_deref()).await?;
+    Ok(Json(result))
+}
+
+async fn get_codex_lb_dashboard_overview(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    RawQuery(query): RawQuery,
+) -> Result<Json<Value>, AppError> {
+    forward_codex_lb_get(&state, "/api/dashboard/overview", query).await
+}
+
+async fn get_codex_lb_request_logs(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    RawQuery(query): RawQuery,
+) -> Result<Json<Value>, AppError> {
+    forward_codex_lb_get(&state, "/api/request-logs", query).await
+}
+
+async fn get_codex_lb_request_log_options(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    RawQuery(query): RawQuery,
+) -> Result<Json<Value>, AppError> {
+    forward_codex_lb_get(&state, "/api/request-logs/options", query).await
+}
+
+async fn get_codex_lb_accounts(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    RawQuery(query): RawQuery,
+) -> Result<Json<Value>, AppError> {
+    forward_codex_lb_get(&state, "/api/accounts", query).await
+}
+
+async fn get_codex_lb_api_keys(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    RawQuery(query): RawQuery,
+) -> Result<Json<Value>, AppError> {
+    forward_codex_lb_get(&state, "/api/api-keys/", query).await
+}
+
+async fn get_codex_lb_settings(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    RawQuery(query): RawQuery,
+) -> Result<Json<Value>, AppError> {
+    forward_codex_lb_get(&state, "/api/settings", query).await
+}
+
+fn codex_lb_cookie_from_headers(headers: &reqwest::header::HeaderMap) -> Option<String> {
+    let cookies = headers
+        .get_all(reqwest::header::SET_COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .filter_map(|value| value.split(';').next())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    if cookies.is_empty() {
+        None
+    } else {
+        Some(cookies.join("; "))
+    }
+}
+
+fn store_codex_lb_cookie(state: &AppState, cookie: String) {
+    let mut secrets = std::collections::HashMap::new();
+    secrets.insert("CODEX_LB_DASHBOARD_COOKIE".to_string(), cookie);
+    state.merge_secrets(secrets);
+}
+
+fn codex_lb_api_url(state: &AppState) -> String {
+    state
+        .secret_first(&[
+            "HERMES_USAGE_API_URL",
+            "HERMES_DASHBOARD_API_URL",
+            "HERMES_API_URL",
+            "HARNESS_API_URL",
+            "CODEX_LB_API_URL",
+            "OPENCLAW_API_URL",
+        ])
+        .unwrap_or_else(|| "http://127.0.0.1:2455".to_string())
+}
+
+fn codex_lb_api_key(state: &AppState) -> String {
+    state
+        .secret_first(&[
+            "HERMES_USAGE_API_KEY",
+            "HERMES_DASHBOARD_API_KEY",
+            "HERMES_API_KEY",
+            "HERMES_PASSWORD",
+            "HARNESS_API_KEY",
+            "HARNESS_PASSWORD",
+            "CODEX_LB_API_KEY",
+            "OPENCLAW_API_KEY",
+            "OPENCLAW_PASSWORD",
+        ])
+        .unwrap_or_default()
+}
+
+async fn codex_lb_forward_get(
+    state: &AppState,
+    upstream_path: &str,
+    query: Option<&str>,
+) -> Result<Value, AppError> {
+    validate_gateway_path(upstream_path)?;
+    let base = codex_lb_api_url(state);
+    let api_key = codex_lb_api_key(state);
+    let mut url = format!("{base}{upstream_path}");
+    if let Some(query) = query.filter(|value| !value.trim().is_empty()) {
+        let normalized = url::form_urlencoded::parse(query.as_bytes())
+            .fold(
+                url::form_urlencoded::Serializer::new(String::new()),
+                |mut ser, (key, value)| {
+                    ser.append_pair(&key, &value);
+                    ser
+                },
+            )
+            .finish();
+        if !normalized.is_empty() {
+            url.push('?');
+            url.push_str(&normalized);
+        }
+    }
+
+    let mut req = state
+        .http
+        .get(&url)
+        .header("Content-Type", "application/json")
+        .timeout(Duration::from_secs(30));
+
+    if !api_key.is_empty() {
+        req = req.header("Authorization", format!("Bearer {api_key}"));
+    }
+    if let Some(cookie) = state
+        .secret("CODEX_LB_DASHBOARD_COOKIE")
+        .filter(|value| !value.trim().is_empty())
+    {
+        req = req.header(reqwest::header::COOKIE, cookie);
+    }
+
+    let res = req.send().await.map_err(|e| {
+        tracing::error!("[hermes-dashboard] request to {upstream_path} failed: {e}");
+        AppError::Internal(anyhow::anyhow!(
+            "Failed to reach Hermes Agent dashboard API"
+        ))
+    })?;
+    let status = res.status();
+    if !status.is_success() {
+        let text = res.text().await.unwrap_or_default();
+        let safe_msg = super::gateway::sanitize_error_body(&text);
+        if status.is_client_error() {
+            return Err(AppError::BadRequest(format!("Hermes Agent: {safe_msg}")));
+        }
+        return Err(AppError::Internal(anyhow::anyhow!(
+            "Hermes Agent dashboard API error"
+        )));
+    }
+    res.json::<Value>()
+        .await
+        .map_err(|e| AppError::Internal(e.into()))
+}
+
+async fn codex_lb_auth_forward(
+    state: &AppState,
+    method: Method,
+    upstream_path: &str,
+    body: Option<Value>,
+    capture_cookie: bool,
+) -> Result<Value, AppError> {
+    let base = codex_lb_api_url(state);
+    let api_key = codex_lb_api_key(state);
+    let url = format!("{base}{upstream_path}");
+    let mut req = state
+        .http
+        .request(method.clone(), &url)
+        .header("Content-Type", "application/json")
+        .timeout(Duration::from_secs(30));
+
+    if !api_key.is_empty() {
+        req = req.header("Authorization", format!("Bearer {api_key}"));
+    }
+    if let Some(cookie) = state
+        .secret("CODEX_LB_DASHBOARD_COOKIE")
+        .filter(|value| !value.trim().is_empty())
+    {
+        req = req.header(reqwest::header::COOKIE, cookie);
+    }
+    if let Some(value) = body {
+        req = req.json(&value);
+    }
+
+    let res = req.send().await.map_err(|e| {
+        tracing::error!("[hermes-dashboard-auth] request to {upstream_path} failed: {e}");
+        AppError::Internal(anyhow::anyhow!(
+            "Failed to reach Hermes Agent dashboard auth"
+        ))
+    })?;
+    let status = res.status();
+    let cookie = if capture_cookie {
+        codex_lb_cookie_from_headers(res.headers())
+    } else {
+        None
+    };
+    if !status.is_success() {
+        let text = res.text().await.unwrap_or_default();
+        let safe_msg = super::gateway::sanitize_error_body(&text);
+        if status.is_client_error() {
+            return Err(AppError::BadRequest(format!("Hermes Agent: {safe_msg}")));
+        }
+        return Err(AppError::Internal(anyhow::anyhow!(
+            "Hermes Agent dashboard auth error"
+        )));
+    }
+    let parsed = res
+        .json::<Value>()
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?;
+    if let Some(cookie) = cookie {
+        store_codex_lb_cookie(state, cookie);
+    }
+    Ok(parsed)
+}
+
+async fn ensure_codex_lb_dashboard_session(state: &AppState) -> Result<(), AppError> {
+    let session = codex_lb_auth_forward(
+        state,
+        Method::GET,
+        "/api/dashboard-auth/session",
+        None,
+        false,
+    )
+    .await?;
+    if session
+        .get("authenticated")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        return Ok(());
+    }
+
+    let Some(password) = state
+        .secret_first(&["HERMES_DASHBOARD_PASSWORD", "CODEX_LB_DASHBOARD_PASSWORD"])
+        .filter(|value| !value.trim().is_empty())
+    else {
+        return Ok(());
+    };
+
+    if let Err(err) = codex_lb_auth_forward(
+        state,
+        Method::POST,
+        "/api/dashboard-auth/password/login",
+        Some(json!({ "password": password })),
+        true,
+    )
+    .await
+    {
+        tracing::warn!(
+            "[hermes-dashboard-auth] saved dashboard password did not establish a session: {err:?}"
+        );
+    }
+    Ok(())
+}
+
+async fn get_codex_lb_auth_session(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    ensure_codex_lb_dashboard_session(&state).await?;
+    let result = codex_lb_auth_forward(
+        &state,
+        Method::GET,
+        "/api/dashboard-auth/session",
+        None,
+        false,
+    )
+    .await?;
+    Ok(Json(result))
+}
+
+async fn post_codex_lb_auth_login(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let result = codex_lb_auth_forward(
+        &state,
+        Method::POST,
+        "/api/dashboard-auth/password/login",
+        Some(body),
+        true,
+    )
+    .await?;
+    Ok(Json(result))
+}
+
+async fn post_codex_lb_auth_totp(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let result = codex_lb_auth_forward(
+        &state,
+        Method::POST,
+        "/api/dashboard-auth/totp/verify",
+        Some(body),
+        true,
+    )
+    .await?;
+    Ok(Json(result))
+}
+
+async fn post_codex_lb_auth_logout(
+    State(state): State<AppState>,
+    RequireAuth(_session): RequireAuth,
+) -> Result<Json<Value>, AppError> {
+    let result = codex_lb_auth_forward(
+        &state,
+        Method::POST,
+        "/api/dashboard-auth/logout",
+        None,
+        false,
+    )
+    .await
+    .unwrap_or_else(|_| json!({ "status": "ok" }));
+    store_codex_lb_cookie(&state, String::new());
     Ok(Json(result))
 }
 
@@ -410,6 +864,30 @@ mod tests {
     use super::super::gateway::validate_gateway_path;
     use super::*;
 
+    async fn harness_data_test_state(
+        secrets: std::collections::HashMap<String, String>,
+    ) -> AppState {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect(":memory:")
+            .await
+            .expect("sqlite memory db");
+
+        AppState {
+            app: None,
+            db,
+            http: reqwest::Client::new(),
+            secrets: std::sync::Arc::new(std::sync::RwLock::new(secrets)),
+            bb: None,
+            harness: None,
+            gateway_ws: None,
+            session: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+            refresh_mutex: std::sync::Arc::new(tokio::sync::Mutex::new(())),
+            session_validated_at: std::sync::Arc::new(tokio::sync::RwLock::new(0)),
+            pending_oauth: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        }
+    }
+
     #[test]
     fn validate_usage_path() {
         assert!(validate_gateway_path("/usage").is_ok());
@@ -423,6 +901,26 @@ mod tests {
     #[test]
     fn reject_usage_with_injection() {
         assert!(validate_gateway_path("/usage?inject=true").is_err());
+    }
+
+    #[tokio::test]
+    async fn dashboard_proxy_prefers_hermes_usage_aliases_over_legacy_codex_lb_aliases() {
+        let state = harness_data_test_state(std::collections::HashMap::from([
+            (
+                "HERMES_USAGE_API_URL".to_string(),
+                "http://hermes-usage.local".to_string(),
+            ),
+            (
+                "CODEX_LB_API_URL".to_string(),
+                "http://legacy-dashboard.local".to_string(),
+            ),
+            ("HERMES_USAGE_API_KEY".to_string(), "hermes-key".to_string()),
+            ("CODEX_LB_API_KEY".to_string(), "legacy-key".to_string()),
+        ]))
+        .await;
+
+        assert_eq!(codex_lb_api_url(&state), "http://hermes-usage.local");
+        assert_eq!(codex_lb_api_key(&state), "hermes-key");
     }
 
     #[test]

@@ -309,6 +309,6 @@ describe('useSessionOutput', () => {
     renderHook(() => useSessionOutput(containerRef, 'abc-123'))
 
     const ws = MockWebSocket.instances[0]
-    expect(ws.url).toBe('ws://127.0.0.1:5000/api/claude-sessions/abc-123/ws')
+    expect(ws.url).toBe('ws://127.0.0.1:5000/api/hermes/sessions/abc-123/ws')
   })
 })

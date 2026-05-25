@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useGatewaySessions } from '@/hooks/sessions/useGatewaySessions'
 import { GatewayStatusDot } from '@/components/GatewayStatusDot'
 
-export const ClaudeSessionsWidget = React.memo(function ClaudeSessionsWidget() {
+export const HermesSessionsWidget = React.memo(function HermesSessionsWidget() {
   const navigate = useNavigate()
   const { sessions } = useGatewaySessions()
 
@@ -27,7 +27,7 @@ export const ClaudeSessionsWidget = React.memo(function ClaudeSessionsWidget() {
         fontFamily: 'inherit',
         padding: 12,
       }}
-      aria-label="Open Claude Sessions page"
+      aria-label="Open Hermes Agent sessions"
     >
       <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 28, fontWeight: 700, color: running > 0 ? 'var(--green-400)' : 'var(--text-secondary)' }}>

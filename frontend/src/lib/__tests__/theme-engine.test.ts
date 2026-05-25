@@ -7,7 +7,7 @@ vi.mock('../theme-definitions', () => {
   }
   const defaultDarkTheme = {
     id: 'default-dark', name: 'Default Dark', category: 'dark' as const, builtIn: true,
-    colors: { 'bg-base': '#0a0a0c', 'text-primary': '#e4e4ec', accent: '#a78bfa', 'glow-top-rgb': '139, 92, 246', 'green': '#34d399' },
+    colors: { 'bg-base': '#0a0a0c', 'bg-card': 'rgba(22, 22, 28, 0.65)', 'bg-card-solid': '#16161c', 'text-primary': '#e4e4ec', accent: '#a78bfa', 'glow-top-rgb': '139, 92, 246', 'green': '#34d399' },
   }
   const defaultLightTheme = {
     id: 'default-light', name: 'Default Light', category: 'light' as const, builtIn: true,
@@ -174,6 +174,13 @@ describe('theme-engine', () => {
       const { applyTheme } = await import('../theme-engine')
       applyTheme({ mode: 'dark', activeThemeId: 'dracula', overrides: {}, customThemes: [] })
       expect(setPropertySpy).toHaveBeenCalledWith('--bg-base', '#282a36')
+    })
+
+    it('preserves translucent --bg-card instead of replacing it with --bg-card-solid', async () => {
+      const { applyTheme } = await import('../theme-engine')
+      applyTheme({ mode: 'dark', activeThemeId: 'default-dark', overrides: {}, customThemes: [] })
+      expect(setPropertySpy).toHaveBeenCalledWith('--bg-card', 'rgba(22, 22, 28, 0.65)')
+      expect(setPropertySpy).not.toHaveBeenCalledWith('--bg-card', '#16161c')
     })
 
     it('sets data-theme=light for light category presets', async () => {

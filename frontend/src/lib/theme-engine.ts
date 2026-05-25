@@ -427,11 +427,15 @@ export function deriveSecondaryTints(hex: string): void {
 // ---------------------------------------------------------------------------
 
 const TERTIARY_TINTS: ReadonlyArray<[string, number]> = [
-  ['tertiary-a12', 0.12], ['tertiary-a15', 0.15],
+  ['tertiary-a04', 0.04], ['tertiary-a08', 0.08], ['tertiary-a12', 0.12],
+  ['tertiary-a15', 0.15], ['tertiary-a20', 0.2], ['tertiary-a25', 0.25],
+  ['tertiary-a30', 0.3], ['tertiary-a40', 0.4],
 ]
 
 const TERTIARY_LEGACY_TINTS: ReadonlyArray<[string, number]> = [
-  ['blue-a12', 0.12], ['blue-a15', 0.15],
+  ['blue-a04', 0.04], ['blue-a08', 0.08], ['blue-a12', 0.12],
+  ['blue-a15', 0.15], ['blue-a20', 0.2], ['blue-a25', 0.25],
+  ['blue-a30', 0.3], ['blue-a40', 0.4],
 ]
 
 export function deriveTertiaryTints(hex: string): void {
@@ -808,11 +812,6 @@ export function applyTheme(
       const blendedValue = blendedVars?.[key]
       el.style.setProperty(`--${key}`, blendedValue ?? value)
     }
-    if (def.colors['bg-card-solid']) {
-      const blendedCardSolid = blendedVars?.['bg-card-solid']
-      el.style.setProperty('--bg-card', blendedCardSolid ?? def.colors['bg-card-solid'])
-    }
-
     const accent = overrides?.accent ?? def.colors.accent
     applyAccentColor(accent)
 

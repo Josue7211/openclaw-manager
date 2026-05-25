@@ -307,7 +307,7 @@ describe('localStorage persistence', () => {
     expect(parsed.pages[1].name).toBe('Persisted')
   })
 
-  it('loads existing state from localStorage on init', async () => {
+  it('collapses existing multi-page state from localStorage on init', async () => {
     // Set up some state
     addPage('FromStorage')
     const stored = localStorage.getItem('dashboard-state')
@@ -317,8 +317,9 @@ describe('localStorage persistence', () => {
     vi.resetModules()
     const mod = await import('../dashboard-store')
     const state = mod.getDashboardState()
-    expect(state.pages.length).toBe(2)
-    expect(state.pages[1].name).toBe('FromStorage')
+    expect(state.pages.length).toBe(1)
+    expect(state.pages[0].name).toBe('Home')
+    expect(state.activePageId).toBe(state.pages[0].id)
   })
 })
 

@@ -29,7 +29,7 @@ export interface ServiceGroupDef {
 }
 
 export interface ConnectionSettingDef {
-  id: 'bluebubbles' | 'harness' | 'sunshine' | 'vnc' | 'agentsecrets' | 'agentshell'
+  id: 'bluebubbles' | 'harness' | 'codex-lb' | 'sunshine' | 'vnc' | 'agentsecrets' | 'agentshell'
   label: string
   description: string
   urlKeychainKey: string
@@ -65,19 +65,40 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
   },
   {
     id: 'harness',
-    title: 'Harness',
-    description: 'Generic AI harness for chat, agents, usage, tools, and approvals.',
+    title: 'Hermes Agent',
+    description: 'Hermes Agent runtime for chat, agents, usage, tools, and approvals.',
     icon: Robot,
     moduleIds: ['chat'],
     optional: false,
     fields: [
-      { label: 'Harness API URL', keychainKey: 'harness.api-url', placeholder: 'http://100.x.x.x:18789' },
-      { label: 'Harness API Key', keychainKey: 'harness.api-key', placeholder: 'API key', secret: true },
-      { label: 'Harness WebSocket URL', keychainKey: 'harness.ws', placeholder: 'ws://100.x.x.x:18789/ws' },
-      { label: 'Harness Password', keychainKey: 'harness.password', placeholder: 'Password', secret: true },
+      { label: 'Hermes Agent API URL', keychainKey: 'hermes.api-url', placeholder: 'http://100.x.x.x:18789' },
+      { label: 'Hermes Agent API Key', keychainKey: 'hermes.api-key', placeholder: 'API key', secret: true },
+      { label: 'Hermes Agent WebSocket URL', keychainKey: 'hermes.ws', placeholder: 'ws://100.x.x.x:18789/ws' },
+      { label: 'Hermes Agent Password', keychainKey: 'hermes.password', placeholder: 'Password', secret: true },
     ],
     services: [
-      { name: 'harness', fieldKeys: ['harness.api-url', 'harness.api-key', 'harness.ws', 'harness.password'] },
+      { name: 'hermes', fieldKeys: ['hermes.api-url', 'hermes.api-key', 'hermes.ws', 'hermes.password'] },
+    ],
+    testKey: 'harness',
+  },
+  {
+    id: 'codex-lb',
+    title: 'Hermes Agent Dashboard',
+    description: 'Dashboard API connection for Hermes Agent accounts, API keys, request logs, and usage limits.',
+    icon: Desktop,
+    moduleIds: ['chat'],
+    optional: false,
+    fields: [
+      { label: 'Hermes Agent Dashboard API URL', keychainKey: 'hermes.dashboard-api-url', placeholder: 'http://127.0.0.1:2455' },
+      {
+        label: 'Hermes Agent Dashboard Password',
+        keychainKey: 'hermes.dashboard-password',
+        placeholder: 'Dashboard password',
+        secret: true,
+      },
+    ],
+    services: [
+      { name: 'hermes-dashboard', fieldKeys: ['hermes.dashboard-api-url', 'hermes.dashboard-password'] },
     ],
     testKey: 'harness',
   },
@@ -327,7 +348,7 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
   {
     id: 'anthropic',
     title: 'Anthropic',
-    description: 'Anthropic API key for direct Claude access.',
+    description: 'Anthropic API key for optional model access.',
     icon: Brain,
     moduleIds: [],
     optional: true,
@@ -346,7 +367,7 @@ export const SERVICE_GROUPS: ServiceGroupDef[] = [
     fields: [
       { label: 'LightRAG Base URL', keychainKey: 'lightrag.base-url', placeholder: 'http://your-lightrag-host:9621' },
       { label: 'LightRAG API Key', keychainKey: 'lightrag.api-key', placeholder: 'API key', secret: true },
-      { label: 'LightRAG LLM API Key', keychainKey: 'lightrag.llm-api-key', placeholder: 'Codex LB or OpenAI-compatible key', secret: true },
+      { label: 'LightRAG LLM API Key', keychainKey: 'lightrag.llm-api-key', placeholder: 'Hermes Agent or OpenAI-compatible key', secret: true },
       { label: 'LightRAG Embedding API Key', keychainKey: 'lightrag.embedding-api-key', placeholder: 'Embedding provider key', secret: true },
       { label: 'memd RAG Sidecar URL', keychainKey: 'memd.rag-url', placeholder: 'http://100.x.x.x:9000' },
       { label: 'RAGAnything/MinerU URL', keychainKey: 'raganything.url', placeholder: 'http://100.x.x.x:8010' },
@@ -375,27 +396,45 @@ export const CONNECTION_SETTINGS: ConnectionSettingDef[] = [
   },
   {
     id: 'harness',
-    label: 'Harness API',
-    description: 'Generic harness API used by chat, agents, usage, and approvals',
-    urlKeychainKey: 'harness.api-url',
+    label: 'Hermes Agent API',
+    description: 'Hermes Agent API used by chat, agents, usage, and approvals',
+    urlKeychainKey: 'hermes.api-url',
     urlPlaceholder: 'http://100.x.x.x:18789',
     credentialFields: [
-      { label: 'API Key', keychainKey: 'harness.api-key', placeholder: 'Bearer token', secret: true },
-      { label: 'Password Fallback', keychainKey: 'harness.password', placeholder: 'Password', secret: true },
-      { label: 'WebSocket URL', keychainKey: 'harness.ws', placeholder: 'ws://100.x.x.x:18789/ws' },
+      { label: 'API Key', keychainKey: 'hermes.api-key', placeholder: 'Bearer token', secret: true },
+      { label: 'Password Fallback', keychainKey: 'hermes.password', placeholder: 'Password', secret: true },
+      { label: 'WebSocket URL', keychainKey: 'hermes.ws', placeholder: 'ws://100.x.x.x:18789/ws' },
     ],
-    expectedHostPreferenceKey: 'harness.expected-host',
-    expectedHostPlaceholder: 'e.g. harness-host',
-    apiSecretService: 'harness',
+    expectedHostPreferenceKey: 'hermes.expected-host',
+    expectedHostPlaceholder: 'e.g. hermes-host',
+    apiSecretService: 'hermes',
+  },
+  {
+    id: 'codex-lb',
+    label: 'Hermes Agent Dashboard',
+    description: 'Hermes Agent dashboard API and password for in-app usage, accounts, keys, and logs',
+    urlKeychainKey: 'hermes.dashboard-api-url',
+    urlPlaceholder: 'http://127.0.0.1:2455',
+    credentialFields: [
+      {
+        label: 'Dashboard Password',
+        keychainKey: 'hermes.dashboard-password',
+        placeholder: 'Dashboard password',
+        secret: true,
+      },
+    ],
+    expectedHostPreferenceKey: 'hermes.dashboard-expected-host',
+    expectedHostPlaceholder: 'e.g. hermes-dashboard',
+    apiSecretService: 'hermes-dashboard',
   },
   {
     id: 'sunshine',
     label: 'Sunshine Host',
-    description: 'Harness VM remote desktop host for Moonlight',
+    description: 'Hermes Agent remote desktop host for Moonlight',
     urlKeychainKey: 'sunshine.host',
-    urlPlaceholder: '100.x.x.x or harness.tailnet.ts.net',
+    urlPlaceholder: '100.x.x.x or hermes.tailnet.ts.net',
     expectedHostPreferenceKey: 'sunshine.expected-host',
-    expectedHostPlaceholder: 'e.g. harness',
+    expectedHostPlaceholder: 'e.g. hermes',
     apiSecretService: 'sunshine',
   },
   {
@@ -405,7 +444,7 @@ export const CONNECTION_SETTINGS: ConnectionSettingDef[] = [
     urlKeychainKey: 'vnc.host',
     urlPlaceholder: '127.0.0.1:5901',
     expectedHostPreferenceKey: 'vnc.expected-host',
-    expectedHostPlaceholder: 'e.g. harness-vnc',
+    expectedHostPlaceholder: 'e.g. hermes-vnc',
     apiSecretService: 'vnc',
   },
   {
@@ -435,7 +474,7 @@ export const CONNECTION_SETTINGS: ConnectionSettingDef[] = [
   {
     id: 'agentshell',
     label: 'AgentShell',
-    description: 'Harness adapter shell URL',
+    description: 'Hermes Agent adapter shell URL',
     urlKeychainKey: 'agentshell.url',
     urlPlaceholder: 'http://100.x.x.x:8077',
     expectedHostPreferenceKey: 'agentshell.expected-host',

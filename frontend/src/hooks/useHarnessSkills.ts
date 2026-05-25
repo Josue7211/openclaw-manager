@@ -6,7 +6,7 @@ import type { SkillsResponse } from '@/features/harness/types'
 export function useHarnessSkills() {
   const { data, isLoading, error } = useQuery<SkillsResponse>({
     queryKey: queryKeys.harnessSkills,
-    queryFn: () => api.get<SkillsResponse>('/api/harness/skills'),
+    queryFn: () => api.get<SkillsResponse>('/api/hermes/skills'),
     refetchInterval: 30_000,
     staleTime: 30_000,
   })

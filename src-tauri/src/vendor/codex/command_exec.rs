@@ -20,6 +20,33 @@ const DEFAULT_OUTPUT_BYTES_CAP: usize = 256 * 1024;
 
 static NEXT_GENERATED_PROCESS_ID: AtomicI64 = AtomicI64::new(1);
 
+#[cfg(unix)]
+struct ProcessGroupKillGuard {
+    pid: Option<u32>,
+}
+
+#[cfg(unix)]
+impl ProcessGroupKillGuard {
+    fn new(pid: Option<u32>) -> Self {
+        Self { pid }
+    }
+
+    fn disarm(&mut self) {
+        self.pid = None;
+    }
+}
+
+#[cfg(unix)]
+impl Drop for ProcessGroupKillGuard {
+    fn drop(&mut self) {
+        if let Some(pid) = self.pid {
+            unsafe {
+                libc::kill(-(pid as libc::pid_t), libc::SIGKILL);
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum InternalProcessId {
     Generated(i64),
@@ -47,6 +74,7 @@ pub struct OneShotCommand {
     pub program: String,
     pub args: Vec<String>,
     pub cwd: PathBuf,
+    pub env: Vec<(String, String)>,
     pub process_id: Option<String>,
     pub timeout: Duration,
     pub output_bytes_cap: usize,
@@ -59,6 +87,7 @@ impl OneShotCommand {
             program: program.into(),
             args: Vec::new(),
             cwd: cwd.into(),
+            env: Vec::new(),
             process_id: None,
             timeout: Duration::from_secs(180),
             output_bytes_cap: DEFAULT_OUTPUT_BYTES_CAP,
@@ -145,9 +174,12 @@ pub async fn run_one_shot_command(
     command
         .args(&request.args)
         .current_dir(&request.cwd)
+        .envs(request.env.iter().map(|(key, value)| (key, value)))
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
 
     if request.stdin.is_some() {
         command.stdin(Stdio::piped());
@@ -157,6 +189,8 @@ pub async fn run_one_shot_command(
         process_id: process_id.clone(),
         message: err.to_string(),
     })?;
+    #[cfg(unix)]
+    let mut process_group_guard = ProcessGroupKillGuard::new(child.id());
 
     if let Some(stdin) = request.stdin {
         if let Some(mut child_stdin) = child.stdin.take() {
@@ -178,7 +212,11 @@ pub async fn run_one_shot_command(
     }
 
     let output = match timeout(request.timeout, child.wait_with_output()).await {
-        Ok(Ok(output)) => output,
+        Ok(Ok(output)) => {
+            #[cfg(unix)]
+            process_group_guard.disarm();
+            output
+        }
         Ok(Err(err)) => {
             return Err(OneShotCommandError::Wait {
                 process_id,
@@ -283,6 +321,34 @@ mod tests {
             .expect("command succeeds");
 
         assert_eq!(output.stdout, "hello stdin");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn one_shot_command_applies_explicit_env() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let fake = write_executable_script(
+            dir.path(),
+            "fake-env",
+            "#!/bin/sh\nprintf 'project=%s branch=%s' \"$CHAT_PROJECT_PATH\" \"$CHAT_BRANCH\"\n",
+        );
+        let mut request = OneShotCommand::new(fake.to_string_lossy(), dir.path());
+        request.env = vec![
+            (
+                "CHAT_PROJECT_PATH".to_string(),
+                "/tmp/agent-shell".to_string(),
+            ),
+            ("CHAT_BRANCH".to_string(), "feature/chat".to_string()),
+        ];
+
+        let output = run_one_shot_command(request)
+            .await
+            .expect("command succeeds");
+
+        assert_eq!(
+            output.stdout,
+            "project=/tmp/agent-shell branch=feature/chat"
+        );
     }
 
     #[cfg(unix)]
@@ -410,6 +476,72 @@ mod tests {
             other => panic!("unexpected error: {other:?}"),
         }
         tokio::time::sleep(Duration::from_millis(350)).await;
+        assert!(!completed.exists());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn aborting_one_shot_command_future_terminates_child() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let started = dir.path().join("started");
+        let completed = dir.path().join("completed");
+        let fake = write_executable_script(
+            dir.path(),
+            "fake-abort",
+            &format!(
+                "#!/bin/sh\nprintf started > {}\nsleep 0.4\nprintf done > {}\n",
+                started.to_string_lossy(),
+                completed.to_string_lossy()
+            ),
+        );
+        let request = OneShotCommand::new(fake.to_string_lossy(), dir.path());
+        let handle = tokio::spawn(run_one_shot_command(request));
+
+        for _ in 0..20 {
+            if started.exists() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(started.exists());
+
+        handle.abort();
+        let _ = handle.await;
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        assert!(!completed.exists());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn aborting_one_shot_command_future_terminates_process_group() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let started = dir.path().join("started");
+        let completed = dir.path().join("completed");
+        let fake = write_executable_script(
+            dir.path(),
+            "fake-abort-group",
+            &format!(
+                "#!/bin/sh\nprintf started > {}\n(sleep 0.4\nprintf done > {}) &\nwait\n",
+                started.to_string_lossy(),
+                completed.to_string_lossy()
+            ),
+        );
+        let request = OneShotCommand::new(fake.to_string_lossy(), dir.path());
+        let handle = tokio::spawn(run_one_shot_command(request));
+
+        for _ in 0..20 {
+            if started.exists() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(started.exists());
+
+        handle.abort();
+        let _ = handle.await;
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
         assert!(!completed.exists());
     }
 }

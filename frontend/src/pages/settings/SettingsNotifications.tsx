@@ -7,9 +7,14 @@ import Toggle from '@/features/settings/Toggle'
 import { Button } from '@/components/ui/Button'
 import { row, rowLast, inputStyle, sectionLabel } from '@/features/settings/shared'
 
-interface Pref {
-  key: string
-  value: string
+type PreferencesResponse = { ok?: boolean; data?: Record<string, unknown> } | Record<string, unknown>
+
+function preferenceRecord(response: PreferencesResponse | undefined): Record<string, unknown> {
+  if (!response) return {}
+  if ('data' in response && response.data && typeof response.data === 'object') {
+    return response.data as Record<string, unknown>
+  }
+  return response
 }
 
 export default function SettingsNotifications() {
@@ -22,27 +27,26 @@ export default function SettingsNotifications() {
   const [ntfyStatus, setNtfyStatus] = useState<string | null>(null)
   const [ntfyTesting, setNtfyTesting] = useState(false)
 
-  const { data: prefsData } = useQuery<{ prefs: Pref[] }>({
+  const { data: prefsData } = useQuery<PreferencesResponse>({
     queryKey: queryKeys.prefs,
-    queryFn: () => api.get<{ prefs: Pref[] }>('/api/prefs'),
+    queryFn: () => api.get<PreferencesResponse>('/api/user-preferences'),
     meta: { onSettled: true },
   })
 
   useEffect(() => {
-    if (prefsData?.prefs) {
-      for (const p of prefsData.prefs) {
-        if (p.key === 'ntfy_url' && p.value) setNtfyUrl(p.value)
-        if (p.key === 'ntfy_topic' && p.value) setNtfyTopic(p.value)
-      }
-    }
+    const prefs = preferenceRecord(prefsData)
+    if (typeof prefs.ntfy_url === 'string' && prefs.ntfy_url) setNtfyUrl(prefs.ntfy_url)
+    if (typeof prefs.ntfy_topic === 'string' && prefs.ntfy_topic) setNtfyTopic(prefs.ntfy_topic)
   }, [prefsData])
 
   const saveNtfyMutation = useMutation({
     mutationFn: async () => {
-      await Promise.all([
-        api.patch('/api/prefs', { key: 'ntfy_url', value: ntfyUrl }),
-        api.patch('/api/prefs', { key: 'ntfy_topic', value: ntfyTopic }),
-      ])
+      await api.patch('/api/user-preferences', {
+        preferences: {
+          ntfy_url: ntfyUrl,
+          ntfy_topic: ntfyTopic,
+        },
+      })
     },
     onSuccess: () => setNtfyStatus('Saved.'),
     onError: () => setNtfyStatus('Error saving.'),

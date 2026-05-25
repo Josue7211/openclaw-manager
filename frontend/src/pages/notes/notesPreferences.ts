@@ -1,12 +1,36 @@
+import { formatTemplateDate } from '@/features/notes/templates'
+import {
+  DEFAULT_WRITING_ASSIST_CONTROLS,
+  type WritingAssistLength,
+  type WritingAssistProvider,
+  type WritingAssistTone,
+} from '@/features/notes/assistiveWriting'
+
 export type NotesMarkdownWidth = 'narrow' | 'normal' | 'wide'
 export type NotesMarkdownFontSize = 'small' | 'normal' | 'large'
 export type NotesDefaultMode = 'doc' | 'source' | 'split' | 'read'
+export type NotesPeriodicKind = 'daily' | 'weekly' | 'monthly'
+export type NotesAppearanceMode = 'system' | 'light' | 'dark'
 
 export interface NotesEditorPreferences {
   markdownWidth: NotesMarkdownWidth
   markdownFontSize: NotesMarkdownFontSize
   spellcheck: boolean
   defaultMode: NotesDefaultMode
+  appearanceMode: NotesAppearanceMode
+  cssSnippetEnabled: boolean
+  cssSnippet: string
+  dailyNoteFolder: string
+  dailyNoteTitleFormat: string
+  dailyNoteTemplateId: string
+  dailyNoteOpenExisting: boolean
+  weeklyNoteFolder: string
+  weeklyNoteTemplateId: string
+  monthlyNoteFolder: string
+  monthlyNoteTemplateId: string
+  writingAssistProvider: WritingAssistProvider
+  writingAssistTone: WritingAssistTone
+  writingAssistLength: WritingAssistLength
   remoteCollaborationEnabled: boolean
   remoteCollaborationBaseUrl: string
   remoteCollaborationPairingKey: string
@@ -42,6 +66,20 @@ export const DEFAULT_NOTES_EDITOR_PREFERENCES: NotesEditorPreferences = {
   markdownFontSize: 'normal',
   spellcheck: true,
   defaultMode: 'doc',
+  appearanceMode: 'system',
+  cssSnippetEnabled: false,
+  cssSnippet: '',
+  dailyNoteFolder: 'Daily',
+  dailyNoteTitleFormat: '[Daily] YYYY-MM-DD',
+  dailyNoteTemplateId: 'daily',
+  dailyNoteOpenExisting: true,
+  weeklyNoteFolder: 'Weekly',
+  weeklyNoteTemplateId: 'weekly',
+  monthlyNoteFolder: 'Monthly',
+  monthlyNoteTemplateId: 'monthly',
+  writingAssistProvider: DEFAULT_WRITING_ASSIST_CONTROLS.provider,
+  writingAssistTone: DEFAULT_WRITING_ASSIST_CONTROLS.tone,
+  writingAssistLength: DEFAULT_WRITING_ASSIST_CONTROLS.length,
   remoteCollaborationEnabled: false,
   remoteCollaborationBaseUrl: '',
   remoteCollaborationPairingKey: '',
@@ -53,6 +91,32 @@ export function normalizeNotesEditorPreferences(value: Partial<NotesEditorPrefer
     markdownFontSize: isMarkdownFontSize(value?.markdownFontSize) ? value.markdownFontSize : DEFAULT_NOTES_EDITOR_PREFERENCES.markdownFontSize,
     spellcheck: typeof value?.spellcheck === 'boolean' ? value.spellcheck : DEFAULT_NOTES_EDITOR_PREFERENCES.spellcheck,
     defaultMode: isDefaultMode(value?.defaultMode) ? value.defaultMode : DEFAULT_NOTES_EDITOR_PREFERENCES.defaultMode,
+    appearanceMode: isAppearanceMode(value?.appearanceMode) ? value.appearanceMode : DEFAULT_NOTES_EDITOR_PREFERENCES.appearanceMode,
+    cssSnippetEnabled:
+      typeof value?.cssSnippetEnabled === 'boolean'
+        ? value.cssSnippetEnabled
+        : DEFAULT_NOTES_EDITOR_PREFERENCES.cssSnippetEnabled,
+    cssSnippet: normalizeNotesCssSnippet(value?.cssSnippet),
+    dailyNoteFolder: normalizeNotesDailyFolder(value?.dailyNoteFolder),
+    dailyNoteTitleFormat: normalizeNotesDailyTitleFormat(value?.dailyNoteTitleFormat),
+    dailyNoteTemplateId: normalizeNotesDailyTemplateId(value?.dailyNoteTemplateId),
+    dailyNoteOpenExisting:
+      typeof value?.dailyNoteOpenExisting === 'boolean'
+        ? value.dailyNoteOpenExisting
+        : DEFAULT_NOTES_EDITOR_PREFERENCES.dailyNoteOpenExisting,
+    weeklyNoteFolder: normalizeNotesFolderPreference(value?.weeklyNoteFolder, DEFAULT_NOTES_EDITOR_PREFERENCES.weeklyNoteFolder),
+    weeklyNoteTemplateId: normalizeNotesTemplateIdPreference(value?.weeklyNoteTemplateId, DEFAULT_NOTES_EDITOR_PREFERENCES.weeklyNoteTemplateId),
+    monthlyNoteFolder: normalizeNotesFolderPreference(value?.monthlyNoteFolder, DEFAULT_NOTES_EDITOR_PREFERENCES.monthlyNoteFolder),
+    monthlyNoteTemplateId: normalizeNotesTemplateIdPreference(value?.monthlyNoteTemplateId, DEFAULT_NOTES_EDITOR_PREFERENCES.monthlyNoteTemplateId),
+    writingAssistProvider: isWritingAssistProvider(value?.writingAssistProvider)
+      ? value.writingAssistProvider
+      : DEFAULT_NOTES_EDITOR_PREFERENCES.writingAssistProvider,
+    writingAssistTone: isWritingAssistTone(value?.writingAssistTone)
+      ? value.writingAssistTone
+      : DEFAULT_NOTES_EDITOR_PREFERENCES.writingAssistTone,
+    writingAssistLength: isWritingAssistLength(value?.writingAssistLength)
+      ? value.writingAssistLength
+      : DEFAULT_NOTES_EDITOR_PREFERENCES.writingAssistLength,
     remoteCollaborationEnabled:
       typeof value?.remoteCollaborationEnabled === 'boolean'
         ? value.remoteCollaborationEnabled
@@ -60,6 +124,159 @@ export function normalizeNotesEditorPreferences(value: Partial<NotesEditorPrefer
     remoteCollaborationBaseUrl: normalizeNotesRemoteCollaborationBaseUrl(value?.remoteCollaborationBaseUrl),
     remoteCollaborationPairingKey: normalizeNotesRemoteCollaborationPairingKey(value?.remoteCollaborationPairingKey),
   }
+}
+
+export function notesCssSnippetText(
+  preferences: Pick<NotesEditorPreferences, 'cssSnippetEnabled' | 'cssSnippet'>,
+): string {
+  const css = normalizeNotesCssSnippet(preferences.cssSnippet)
+  if (!preferences.cssSnippetEnabled || !css) return ''
+  return `@scope ([data-notes-vault-scope="true"]) {\n${css}\n}`
+}
+
+export function buildDailyNoteTitle(
+  preferences: Pick<NotesEditorPreferences, 'dailyNoteTitleFormat'>,
+  now: Date = new Date(),
+): string {
+  return formatTemplateDate(now, normalizeNotesDailyTitleFormat(preferences.dailyNoteTitleFormat))
+}
+
+export function buildPeriodicNoteTitle(
+  kind: NotesPeriodicKind,
+  preferences: Pick<NotesEditorPreferences, 'dailyNoteTitleFormat'>,
+  now: Date = new Date(),
+): string {
+  if (kind === 'daily') return buildDailyNoteTitle(preferences, now)
+  if (kind === 'weekly') {
+    const { year, week } = isoWeek(now)
+    return `Weekly ${year}-W${String(week).padStart(2, '0')}`
+  }
+  return formatTemplateDate(now, '[Monthly] YYYY-MM')
+}
+
+export function periodicNoteFolder(
+  kind: NotesPeriodicKind,
+  preferences: Pick<NotesEditorPreferences, 'dailyNoteFolder' | 'weeklyNoteFolder' | 'monthlyNoteFolder'>,
+): string {
+  if (kind === 'daily') return normalizeNotesDailyFolder(preferences.dailyNoteFolder)
+  if (kind === 'weekly') return normalizeNotesFolderPreference(preferences.weeklyNoteFolder, DEFAULT_NOTES_EDITOR_PREFERENCES.weeklyNoteFolder)
+  return normalizeNotesFolderPreference(preferences.monthlyNoteFolder, DEFAULT_NOTES_EDITOR_PREFERENCES.monthlyNoteFolder)
+}
+
+export function periodicNoteTemplateId(
+  kind: NotesPeriodicKind,
+  preferences: Pick<NotesEditorPreferences, 'dailyNoteTemplateId' | 'weeklyNoteTemplateId' | 'monthlyNoteTemplateId'>,
+): string {
+  if (kind === 'daily') return normalizeNotesDailyTemplateId(preferences.dailyNoteTemplateId)
+  if (kind === 'weekly') return normalizeNotesTemplateIdPreference(preferences.weeklyNoteTemplateId, DEFAULT_NOTES_EDITOR_PREFERENCES.weeklyNoteTemplateId)
+  return normalizeNotesTemplateIdPreference(preferences.monthlyNoteTemplateId, DEFAULT_NOTES_EDITOR_PREFERENCES.monthlyNoteTemplateId)
+}
+
+export function dailyNoteDateWithOffset(base: Date = new Date(), offsetDays = 0): Date {
+  return new Date(
+    base.getFullYear(),
+    base.getMonth(),
+    base.getDate() + offsetDays,
+    base.getHours(),
+    base.getMinutes(),
+    base.getSeconds(),
+    base.getMilliseconds(),
+  )
+}
+
+export function dailyNoteDateInputValue(date: Date = new Date()): string {
+  return [
+    String(date.getFullYear()).padStart(4, '0'),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-')
+}
+
+export function dailyNoteDateFromInput(value: string, base: Date = new Date()): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim())
+  if (!match) return null
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const date = new Date(
+    year,
+    month - 1,
+    day,
+    base.getHours(),
+    base.getMinutes(),
+    base.getSeconds(),
+    base.getMilliseconds(),
+  )
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null
+  return date
+}
+
+function normalizeNotesDailyFolder(value: unknown): string {
+  if (typeof value !== 'string') return DEFAULT_NOTES_EDITOR_PREFERENCES.dailyNoteFolder
+  return value
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/^\/+|\/+$/g, '')
+    .replace(/\/{2,}/g, '/')
+}
+
+function normalizeNotesDailyTitleFormat(value: unknown): string {
+  if (typeof value !== 'string') return DEFAULT_NOTES_EDITOR_PREFERENCES.dailyNoteTitleFormat
+  const trimmed = value.trim()
+  if (trimmed === 'Daily YYYY-MM-DD') return DEFAULT_NOTES_EDITOR_PREFERENCES.dailyNoteTitleFormat
+  return trimmed || DEFAULT_NOTES_EDITOR_PREFERENCES.dailyNoteTitleFormat
+}
+
+function normalizeNotesDailyTemplateId(value: unknown): string {
+  if (typeof value !== 'string') return DEFAULT_NOTES_EDITOR_PREFERENCES.dailyNoteTemplateId
+  const trimmed = value.trim()
+  return trimmed || DEFAULT_NOTES_EDITOR_PREFERENCES.dailyNoteTemplateId
+}
+
+function normalizeNotesFolderPreference(value: unknown, fallback: string): string {
+  if (typeof value !== 'string') return fallback
+  return value
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/^\/+|\/+$/g, '')
+    .replace(/\/{2,}/g, '/') || fallback
+}
+
+function normalizeNotesTemplateIdPreference(value: unknown, fallback: string): string {
+  if (typeof value !== 'string') return fallback
+  const trimmed = value.trim()
+  return trimmed || fallback
+}
+
+function normalizeNotesCssSnippet(value: unknown): string {
+  if (typeof value !== 'string') return DEFAULT_NOTES_EDITOR_PREFERENCES.cssSnippet
+  return value
+    .replace(/<\/?style\b[^>]*>/gi, '')
+    .slice(0, 20_000)
+    .trim()
+}
+
+function isWritingAssistProvider(value: unknown): value is WritingAssistProvider {
+  return value === 'local'
+}
+
+function isWritingAssistTone(value: unknown): value is WritingAssistTone {
+  return value === 'neutral' || value === 'direct' || value === 'friendly'
+}
+
+function isWritingAssistLength(value: unknown): value is WritingAssistLength {
+  return value === 'standard' || value === 'short'
+}
+
+function isoWeek(date: Date): { year: number; week: number } {
+  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const dayNumber = (day.getDay() + 6) % 7
+  day.setDate(day.getDate() - dayNumber + 3)
+  const firstThursday = new Date(day.getFullYear(), 0, 4)
+  const firstThursdayDay = (firstThursday.getDay() + 6) % 7
+  firstThursday.setDate(firstThursday.getDate() - firstThursdayDay + 3)
+  const week = 1 + Math.round((day.getTime() - firstThursday.getTime()) / 604_800_000)
+  return { year: day.getFullYear(), week }
 }
 
 function normalizeNotesRemoteCollaborationBaseUrl(value: unknown): string {
@@ -214,6 +431,10 @@ function isMarkdownFontSize(value: unknown): value is NotesMarkdownFontSize {
 
 function isDefaultMode(value: unknown): value is NotesDefaultMode {
   return value === 'doc' || value === 'source' || value === 'split' || value === 'read'
+}
+
+function isAppearanceMode(value: unknown): value is NotesAppearanceMode {
+  return value === 'system' || value === 'light' || value === 'dark'
 }
 
 function generateNotesPairingKey(randomBytes?: Uint8Array): string {

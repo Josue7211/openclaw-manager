@@ -22,7 +22,8 @@ export interface Idea { id: string; title: string; description: string | null; w
 
 export function missionStatusStyle(status: string): React.CSSProperties {
   if (status === 'done') return { background: 'var(--secondary-a15)', color: 'var(--secondary-bright)', border: '1px solid var(--secondary-a25)' }
-  if (status === 'active') return { background: 'var(--blue-a25)', color: 'var(--tertiary-bright)', border: '1px solid var(--blue-a25)' }
+  if (status === 'active') return { background: 'var(--tertiary-a12)', color: 'var(--tertiary-bright)', border: '1px solid var(--tertiary-a25)' }
+  if (status === 'failed' || status === 'error') return { background: 'var(--red-500-a12)', color: 'var(--red-bright)', border: '1px solid var(--red-500-a25)' }
   return { background: 'var(--hover-bg)', color: 'var(--text-muted)', border: '1px solid var(--border)' }
 }
 

@@ -9,7 +9,7 @@
  * Columns:     xl:12   / lg:12  / md:8   / sm:4
  */
 
-import React, { useCallback, useRef, useMemo } from 'react'
+import React, { useCallback, useEffect, useRef, useMemo, useState } from 'react'
 import { ResponsiveGridLayout, useContainerWidth } from 'react-grid-layout'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
@@ -27,9 +27,113 @@ import { SquaresFour } from '@phosphor-icons/react'
 
 const BREAKPOINTS = { xl: 1400, lg: 900, md: 600, sm: 0 }
 const COLS = { xl: 12, lg: 12, md: 8, sm: 4 }
-const ROW_HEIGHT = 80
+const DEFAULT_ROW_HEIGHT = 80
+const MIN_ROW_HEIGHT = 64
+const MAX_ROW_HEIGHT = 180
 const MARGIN: [number, number] = [16, 16]
+const GRID_BOTTOM_GUTTER = 24
 const DEBOUNCE_MS = 300
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max)
+}
+
+function getBreakpoint(width: number): keyof typeof BREAKPOINTS {
+  if (width >= BREAKPOINTS.xl) return 'xl'
+  if (width >= BREAKPOINTS.lg) return 'lg'
+  if (width >= BREAKPOINTS.md) return 'md'
+  return 'sm'
+}
+
+function sortLayoutForView(layout: LayoutItem[]): LayoutItem[] {
+  return [...layout].sort((a, b) => a.y - b.y || a.x - b.x)
+}
+
+function canPlace(
+  occupied: boolean[][],
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  cols: number,
+): boolean {
+  if (x + w > cols) return false
+  for (let yy = y; yy < y + h; yy += 1) {
+    for (let xx = x; xx < x + w; xx += 1) {
+      if (occupied[yy]?.[xx]) return false
+    }
+  }
+  return true
+}
+
+function markPlaced(occupied: boolean[][], x: number, y: number, w: number, h: number): void {
+  for (let yy = y; yy < y + h; yy += 1) {
+    occupied[yy] ??= []
+    for (let xx = x; xx < x + w; xx += 1) {
+      occupied[yy][xx] = true
+    }
+  }
+}
+
+function getAutoPackedRows(layout: LayoutItem[], cols: number): number {
+  const occupied: boolean[][] = []
+  let maxRows = 1
+
+  for (const item of sortLayoutForView(layout)) {
+    const w = clamp(item.w, 1, cols)
+    const h = Math.max(1, item.h)
+    let placed = false
+
+    for (let y = 0; !placed; y += 1) {
+      for (let x = 0; x <= cols - w; x += 1) {
+        if (!canPlace(occupied, x, y, w, h, cols)) continue
+        markPlaced(occupied, x, y, w, h)
+        maxRows = Math.max(maxRows, y + h)
+        placed = true
+        break
+      }
+    }
+  }
+
+  return maxRows
+}
+
+function autoPackLayout(layout: LayoutItem[], cols: number): LayoutItem[] {
+  const occupied: boolean[][] = []
+  const packed: LayoutItem[] = []
+
+  for (const item of sortLayoutForView(layout)) {
+    const w = clamp(item.w, 1, cols)
+    const h = Math.max(1, item.h)
+    let placed = false
+
+    for (let y = 0; !placed; y += 1) {
+      for (let x = 0; x <= cols - w; x += 1) {
+        if (!canPlace(occupied, x, y, w, h, cols)) continue
+        markPlaced(occupied, x, y, w, h)
+        packed.push({ ...item, x, y, w, h })
+        placed = true
+        break
+      }
+    }
+  }
+
+  return packed
+}
+
+function getViewportFittedRowHeight(container: HTMLElement | null, layout: LayoutItem[], cols: number): number {
+  if (!container || layout.length === 0 || typeof window === 'undefined') return DEFAULT_ROW_HEIGHT
+
+  const rect = container.getBoundingClientRect()
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight
+  const availableHeight = viewportHeight - rect.top - GRID_BOTTOM_GUTTER
+  if (!Number.isFinite(availableHeight) || availableHeight <= 0) return DEFAULT_ROW_HEIGHT
+
+  const rows = getAutoPackedRows(layout, cols)
+  const totalRowGaps = Math.max(0, rows - 1) * MARGIN[1]
+  const fittedHeight = Math.floor((availableHeight - totalRowGaps) / rows)
+  return clamp(fittedHeight, MIN_ROW_HEIGHT, MAX_ROW_HEIGHT)
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -69,6 +173,7 @@ export const DashboardGrid = React.memo(function DashboardGrid({
   // Use provided page prop or fall back to reading from dashboard-store
   const page = pageProp ?? dashState.pages.find(p => p.id === pageId)
   const { width, mounted: widthMounted, containerRef } = useContainerWidth({ initialWidth: 1280 })
+  const [rowHeight, setRowHeight] = useState(DEFAULT_ROW_HEIGHT)
 
   // Debounce timer ref
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -84,6 +189,22 @@ export const DashboardGrid = React.memo(function DashboardGrid({
   // memo recomputes reliably when switching between dashboard tabs.
   const pageId_ = page?.id
   const pageLayouts = page?.layouts
+  const activeBreakpoint = getBreakpoint(width)
+  const activeCols = COLS[activeBreakpoint]
+  const displayLayouts = useMemo(() => {
+    if (!pageLayouts) return {}
+    const packedLayouts: Record<string, LayoutItem[]> = {}
+    for (const [breakpoint, layout] of Object.entries(pageLayouts)) {
+      const cols = COLS[breakpoint as keyof typeof COLS] ?? COLS.lg
+      packedLayouts[breakpoint] = autoPackLayout(layout as LayoutItem[], cols)
+    }
+    return packedLayouts
+  }, [pageLayouts])
+  const activeLayout = useMemo(() => {
+    if (!displayLayouts) return []
+    return displayLayouts[activeBreakpoint] ?? displayLayouts.lg ?? Object.values(displayLayouts)[0] ?? []
+  }, [activeBreakpoint, displayLayouts])
+  const viewItems = useMemo(() => sortLayoutForView(activeLayout), [activeLayout])
   const widgetItems = useMemo(() => {
     if (!pageId_ || !pageLayouts) return []
 
@@ -102,6 +223,30 @@ export const DashboardGrid = React.memo(function DashboardGrid({
 
     return items
   }, [pageId_, pageLayouts])
+
+  useEffect(() => {
+    if (!widthMounted) return
+
+    const updateRowHeight = () => {
+      setRowHeight(getViewportFittedRowHeight(containerRef.current, activeLayout, activeCols))
+    }
+
+    updateRowHeight()
+    window.addEventListener('resize', updateRowHeight)
+
+    const resizeObserver = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(updateRowHeight)
+      : null
+    if (resizeObserver) {
+      if (containerRef.current) resizeObserver.observe(containerRef.current)
+      if (containerRef.current?.parentElement) resizeObserver.observe(containerRef.current.parentElement)
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateRowHeight)
+      resizeObserver?.disconnect()
+    }
+  }, [activeCols, activeLayout, containerRef, widthMounted])
 
   // Debounced layout change handler
   const layoutUpdater = onLayoutChangeProp ?? updatePageLayouts
@@ -144,12 +289,52 @@ export const DashboardGrid = React.memo(function DashboardGrid({
         <div className="dashboard-grid-lines visible" />
       )}
 
-      {widthMounted && (
+      {widthMounted && !editMode && (
+        <div
+          className="dashboard-smart-grid"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(${activeCols}, minmax(0, 1fr))`,
+            gridAutoRows: `${rowHeight}px`,
+            gridAutoFlow: 'row dense',
+            gap: `${MARGIN[1]}px ${MARGIN[0]}px`,
+            alignItems: 'stretch',
+          }}
+        >
+          {viewItems.map(item => (
+            <div
+              key={item.i}
+              style={{
+                gridColumn: `span ${clamp(item.w, 1, activeCols)}`,
+                gridRow: `span ${Math.max(1, item.h)}`,
+                minWidth: 0,
+                minHeight: 0,
+              }}
+              {...longPressHandlers}
+            >
+              <div className="dashboard-widget-shell">
+                <WidgetWrapper
+                  widgetId={item.i}
+                  pluginId={String(page.widgetConfigs[item.i]?._pluginId ?? item.i)}
+                  config={page.widgetConfigs[item.i] || {}}
+                  isEditMode={false}
+                  size={{ w: item.w, h: item.h }}
+                  pageId={pageId}
+                  onRemove={() => handleRemoveWidget(item.i)}
+                  onUpdateConfig={onUpdateConfig}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {widthMounted && editMode && (
         <ResponsiveGridLayout
-          layouts={page.layouts}
+          layouts={displayLayouts}
           breakpoints={BREAKPOINTS}
           cols={COLS}
-          rowHeight={ROW_HEIGHT}
+          rowHeight={rowHeight}
           margin={MARGIN}
           width={width}
           dragConfig={{ enabled: editMode, bounded: false, threshold: 3 }}
@@ -164,7 +349,7 @@ export const DashboardGrid = React.memo(function DashboardGrid({
                   widgetId={item.i}
                   pluginId={String(page.widgetConfigs[item.i]?._pluginId ?? item.i)}
                   config={page.widgetConfigs[item.i] || {}}
-                  isEditMode={editMode}
+                  isEditMode={true}
                   size={{ w: item.w, h: item.h }}
                   pageId={pageId}
                   onRemove={() => handleRemoveWidget(item.i)}

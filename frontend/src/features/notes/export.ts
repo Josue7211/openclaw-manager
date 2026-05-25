@@ -13,13 +13,20 @@ const PAGE_BREAK_MARKDOWN = '<!-- pagebreak -->'
 export type DocumentPageSize = 'letter' | 'a4'
 export type DocumentMarginPreset = 'compact' | 'normal' | 'roomy'
 export type DocumentPageOrientation = 'portrait' | 'landscape'
+export type DocumentPageNumbers = 'none' | 'footer-center' | 'footer-right'
+export type DocumentPageColumns = 1 | 2 | 3
+export type DocumentPageMode = 'pages' | 'pageless'
 
 export interface DocumentPageSettings {
+  mode: DocumentPageMode
   size: DocumentPageSize
   margins: DocumentMarginPreset
   orientation: DocumentPageOrientation
   header: string
   footer: string
+  watermark: string
+  pageNumbers: DocumentPageNumbers
+  columns: DocumentPageColumns
 }
 
 export interface DocxImage {
@@ -37,6 +44,43 @@ export type ReviewPackagePermission = 'view' | 'comment' | 'suggest'
 export interface ReviewPackageOptions {
   permission?: ReviewPackagePermission
   recipient?: string
+}
+
+export interface PublishedNotesSiteOptions {
+  entryId?: string
+  title?: string
+  attachments?: PublishedNotesAttachment[]
+}
+
+export type PublishedNotesAttachmentStatus = 'bundled' | 'missing'
+
+export interface PublishedNotesAttachment {
+  id: string
+  outputPath: string
+  status: PublishedNotesAttachmentStatus
+  size: number
+  mime: string
+}
+
+export interface PublishedNotesSiteManifest {
+  format: 'clawcontrol-published-notes-site'
+  version: 1
+  title: string
+  entry_id: string | null
+  generated_at: string
+  notes: Array<{
+    id: string
+    title: string
+    folder: string
+    updated_at: number
+  }>
+  attachments: PublishedNotesAttachment[]
+}
+
+export interface PublishedNotesSiteBundle {
+  html: string
+  manifest: PublishedNotesSiteManifest
+  files: Array<readonly [string, string | Uint8Array]>
 }
 
 export interface ReviewPackageVerification {
@@ -187,6 +231,170 @@ export function downloadHtml(note: VaultNote, context: { notes?: VaultNote[] } =
   )
 }
 
+export function buildPublishedNotesSite(notes: VaultNote[], options: PublishedNotesSiteOptions = {}): string {
+  const publishable = notes
+    .filter(note => note.type === 'note')
+    .slice()
+    .sort((a, b) => a.folder.localeCompare(b.folder) || a.title.localeCompare(b.title))
+  const entry = publishable.find(note => note._id === options.entryId) ?? publishable[0] ?? null
+  const title = options.title?.trim() || entry?.title || 'ClawControl Notes'
+  const attachmentMap = new Map((options.attachments ?? []).map(attachment => [attachment.id, attachment]))
+  const navItems = publishable
+    .map(note => {
+      const active = entry?._id === note._id ? ' aria-current="page"' : ''
+      const folder = note.folder ? `<span>${escapeHtml(note.folder)}</span>` : ''
+      return `<li><a href="#${publishedNoteAnchor(note._id)}"${active}>${escapeHtml(note.title || 'Untitled')}${folder}</a></li>`
+    })
+    .join('')
+  const sections = publishable
+    .map(note => {
+      const html = rewritePublishedAttachmentLinks(
+        rewritePublishedNoteLinks(markdownToSafeHtml(note.content, { notes: publishable, currentId: note._id }), publishable),
+        attachmentMap,
+      )
+      const updated = Number.isFinite(note.updated_at) && note.updated_at > 0
+        ? new Date(note.updated_at).toISOString()
+        : ''
+      const folder = note.folder ? `<span>${escapeHtml(note.folder)}</span>` : ''
+      const updatedHtml = updated ? `<time datetime="${updated}">${updated.slice(0, 10)}</time>` : ''
+      return `<article id="${publishedNoteAnchor(note._id)}">
+  <header>
+    <p>${folder}${updatedHtml}</p>
+    <h2>${escapeHtml(note.title || 'Untitled')}</h2>
+  </header>
+  <div class="note-body">${html}</div>
+</article>`
+    })
+    .join('\n')
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="generator" content="ClawControl Notes" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    :root { color-scheme: light; --ink: #111827; --muted: #6b7280; --line: #e5e7eb; --panel: #f9fafb; --accent: #2563eb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; background: #fff; }
+    .site { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); min-height: 100vh; }
+    nav { border-right: 1px solid var(--line); background: var(--panel); padding: 24px 18px; position: sticky; top: 0; height: 100vh; overflow: auto; }
+    nav h1 { font-size: 18px; line-height: 1.2; margin: 0 0 18px; }
+    nav ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+    nav a { display: grid; gap: 1px; padding: 7px 9px; border-radius: 6px; color: var(--ink); text-decoration: none; }
+    nav a[aria-current="page"], nav a:hover { background: #e0ecff; color: #1d4ed8; }
+    nav span, article header p { color: var(--muted); font-size: 12px; }
+    main { width: min(920px, 100%); padding: 32px clamp(18px, 4vw, 56px) 80px; }
+    article { border-bottom: 1px solid var(--line); padding: 0 0 42px; margin: 0 0 42px; scroll-margin-top: 24px; }
+    article:last-child { border-bottom: 0; }
+    article h2 { font-size: clamp(28px, 5vw, 44px); line-height: 1.12; margin: 0 0 22px; }
+    article header p { display: flex; gap: 12px; margin: 0 0 8px; }
+    .note-body h1 { font-size: 30px; line-height: 1.18; }
+    .note-body h2 { font-size: 24px; line-height: 1.25; margin-top: 30px; }
+    .note-body img { max-width: 100%; }
+    .note-body table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+    .note-body th, .note-body td { border: 1px solid var(--line); padding: 8px; text-align: left; }
+    .note-callout { --callout: var(--accent); margin: 16px 0; border: 1px solid color-mix(in srgb, var(--callout) 22%, var(--line)); border-left: 4px solid var(--callout); border-radius: 6px; background: color-mix(in srgb, var(--callout) 8%, white); padding: 10px 12px; }
+    .note-callout-title { display: block; width: 100%; margin: 0 0 6px; border: 0; background: transparent; color: color-mix(in srgb, var(--callout) 72%, var(--ink)); font: inherit; font-size: 13px; font-weight: 700; text-align: left; }
+    button.note-callout-title { cursor: pointer; padding: 0; }
+    .note-callout-body > :first-child { margin-top: 0; }
+    .note-callout-body > :last-child { margin-bottom: 0; }
+    .note-callout-fold-collapsed .note-callout-body { display: none; }
+    .note-callout-fold-collapsed .note-callout-title::before { content: "> "; }
+    .note-callout-fold-expanded .note-callout-title::before { content: "v "; }
+    .note-callout-abstract, .note-callout-summary, .note-callout-tldr { --callout: #0891b2; }
+    .note-callout-info, .note-callout-todo { --callout: #2563eb; }
+    .note-callout-tip, .note-callout-hint, .note-callout-important { --callout: #16a34a; }
+    .note-callout-warning, .note-callout-caution, .note-callout-attention { --callout: #d97706; }
+    .note-callout-question, .note-callout-help, .note-callout-faq { --callout: #7c3aed; }
+    .note-callout-danger, .note-callout-error { --callout: #dc2626; }
+    .note-callout-failure, .note-callout-fail, .note-callout-missing { --callout: #be123c; }
+    .note-callout-bug { --callout: #e11d48; }
+    .note-callout-success, .note-callout-check, .note-callout-done { --callout: #15803d; }
+    .note-callout-example { --callout: #9333ea; }
+    .note-callout-quote, .note-callout-cite { --callout: #64748b; }
+    .note-wikilink, .note-tag { border-radius: 999px; background: #eef2ff; color: #3730a3; padding: 1px 6px; text-decoration: none; }
+    .missing-attachment { border-radius: 4px; background: #fff7ed; color: #9a3412; padding: 2px 6px; }
+    @media (max-width: 760px) {
+      .site { display: block; }
+      nav { position: relative; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+      main { padding-top: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="site">
+    <nav aria-label="Published notes">
+      <h1>${escapeHtml(title)}</h1>
+      <ul>${navItems}</ul>
+    </nav>
+    <main>${sections || '<p>No notes selected for publishing.</p>'}</main>
+  </div>
+  <script>
+    document.addEventListener('click', function(event) {
+      var title = event.target.closest && event.target.closest('.note-callout-title');
+      if (!title || title.tagName !== 'BUTTON') return;
+      var callout = title.closest('.note-callout');
+      if (!callout) return;
+      var collapsed = callout.classList.contains('note-callout-fold-collapsed');
+      callout.classList.toggle('note-callout-fold-collapsed', !collapsed);
+      callout.classList.toggle('note-callout-fold-expanded', collapsed);
+      title.setAttribute('aria-expanded', collapsed ? 'true' : 'false');
+    });
+  </script>
+</body>
+</html>`
+}
+
+export async function buildPublishedNotesSiteBundle(
+  notes: VaultNote[],
+  options: PublishedNotesSiteOptions = {},
+): Promise<PublishedNotesSiteBundle> {
+  const publishable = notes
+    .filter(note => note.type === 'note')
+    .slice()
+    .sort((a, b) => a.folder.localeCompare(b.folder) || a.title.localeCompare(b.title))
+  const entry = publishable.find(note => note._id === options.entryId) ?? publishable[0] ?? null
+  const title = options.title?.trim() || entry?.title || 'ClawControl Notes'
+  const attachmentFiles = await collectPublishedAttachmentFiles(publishable)
+  const attachments = attachmentFiles.map(({ bytes: _bytes, ...attachment }) => attachment)
+  const html = buildPublishedNotesSite(notes, { ...options, attachments })
+  const manifest: PublishedNotesSiteManifest = {
+    format: 'clawcontrol-published-notes-site',
+    version: 1,
+    title,
+    entry_id: entry?._id ?? null,
+    generated_at: new Date().toISOString(),
+    notes: publishable.map(note => ({
+      id: note._id,
+      title: note.title,
+      folder: note.folder,
+      updated_at: note.updated_at,
+    })),
+    attachments,
+  }
+  const files: Array<readonly [string, string | Uint8Array]> = [
+    ['index.html', html],
+    ['manifest.json', JSON.stringify(manifest, null, 2)],
+    ...attachmentFiles
+      .filter(file => file.status === 'bundled' && file.bytes)
+      .map(file => [file.outputPath, file.bytes as Uint8Array] as const),
+  ]
+  return { html, manifest, files }
+}
+
+export async function downloadPublishedNotesSite(notes: VaultNote[], options: PublishedNotesSiteOptions = {}) {
+  const bundle = await buildPublishedNotesSiteBundle(notes, options)
+  const zip = createStoredZip(bundle.files)
+  const buffer = new ArrayBuffer(zip.byteLength)
+  new Uint8Array(buffer).set(zip)
+  downloadBlob(
+    new Blob([buffer], { type: 'application/zip' }),
+    safeExportName(options.title || 'ClawControl Notes Site', 'zip'),
+  )
+}
+
 export function printNotePdf(note: VaultNote, context: { notes?: VaultNote[] } = {}) {
   const html = markdownToSafeHtml(note.content, { notes: context.notes, currentId: note._id })
   const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=1100')
@@ -235,6 +443,7 @@ export function setFrontmatterProperty(markdown: string, key: string, rawValue: 
 export function documentPageSettings(markdown: string): DocumentPageSettings {
   const properties = parseFrontmatterLines(splitFrontmatter(markdown).frontmatter)
   return {
+    mode: normalizePageMode(properties.get('document_page_mode') || properties.get('page_mode') || properties.get('page-mode')),
     size: normalizePageSize(properties.get('page_size') || properties.get('page-size')),
     margins: normalizeMargins(properties.get('page_margins') || properties.get('page-margins')),
     orientation: normalizeOrientation(properties.get('page_orientation') || properties.get('page-orientation')),
@@ -243,6 +452,15 @@ export function documentPageSettings(markdown: string): DocumentPageSettings {
     ),
     footer: normalizePageText(
       properties.get('document_footer') || properties.get('page_footer') || properties.get('footer'),
+    ),
+    watermark: normalizePageText(
+      properties.get('document_watermark') || properties.get('page_watermark') || properties.get('watermark'),
+    ),
+    pageNumbers: normalizePageNumbers(
+      properties.get('document_page_numbers') || properties.get('page_numbers') || properties.get('page-number'),
+    ),
+    columns: normalizePageColumns(
+      properties.get('document_columns') || properties.get('page_columns') || properties.get('columns'),
     ),
   }
 }
@@ -297,7 +515,22 @@ function serializeFrontmatter(properties: Map<string, string>): string {
 }
 
 function defaultPageSettings(): DocumentPageSettings {
-  return { size: 'letter', margins: 'normal', orientation: 'portrait', header: '', footer: '' }
+  return {
+    mode: 'pages',
+    size: 'letter',
+    margins: 'normal',
+    orientation: 'portrait',
+    header: '',
+    footer: '',
+    watermark: '',
+    pageNumbers: 'none',
+    columns: 1,
+  }
+}
+
+function normalizePageMode(value: string | undefined): DocumentPageMode {
+  const clean = value?.trim().toLowerCase()
+  return clean === 'pageless' || clean === 'continuous' ? 'pageless' : 'pages'
 }
 
 function normalizePageSize(value: string | undefined): DocumentPageSize {
@@ -322,11 +555,149 @@ function normalizePageText(value: string | undefined): string {
   )
 }
 
+function normalizePageNumbers(value: string | undefined): DocumentPageNumbers {
+  const clean = value?.trim().toLowerCase().replace(/_/g, '-')
+  if (clean === 'footer-center' || clean === 'center' || clean === 'bottom-center') return 'footer-center'
+  if (clean === 'footer-right' || clean === 'right' || clean === 'bottom-right') return 'footer-right'
+  return 'none'
+}
+
+function normalizePageColumns(value: string | undefined): DocumentPageColumns {
+  const parsed = Number(value?.trim())
+  return parsed === 2 || parsed === 3 ? parsed : 1
+}
+
+function publishedNoteAnchor(id: string): string {
+  return `note-${encodeURIComponent(id).replace(/%/g, '')}`
+}
+
+function rewritePublishedNoteLinks(html: string, notes: VaultNote[]): string {
+  const anchorByTarget = new Map<string, string>()
+  for (const note of notes) {
+    const anchor = publishedNoteAnchor(note._id)
+    anchorByTarget.set(note.title.toLowerCase(), anchor)
+    anchorByTarget.set(note._id.toLowerCase(), anchor)
+    for (const alias of note.aliases ?? []) anchorByTarget.set(alias.toLowerCase(), anchor)
+  }
+  return html.replace(/href="#note:([^"]+)"/g, (match, encodedTarget: string) => {
+    const target = decodeURIComponent(encodedTarget).split('#')[0].trim().toLowerCase()
+    const anchor = anchorByTarget.get(target)
+    return anchor ? `href="#${anchor}"` : match
+  })
+}
+
+function rewritePublishedAttachmentLinks(html: string, attachments: Map<string, PublishedNotesAttachment>): string {
+  const withVaultMedia = html.replace(
+    /<img\b([^>]*?)\bsrc="\/api\/vault\/local\/media\?id=([^"]+)"([^>]*)>/g,
+    (match, before: string, encodedTarget: string, after: string) => {
+      const target = decodeURIComponent(encodedTarget)
+      const attachment = attachments.get(normalizePublishedAttachmentId(target))
+      if (!attachment) return match
+      if (attachment.status === 'bundled') {
+        return `<img${before}src="${escapeHtml(attachment.outputPath)}"${after}>`
+      }
+      return `<span class="missing-attachment" role="note">Missing attachment: ${escapeHtml(target)}</span>`
+    },
+  )
+  return withVaultMedia.replace(/<img\b([^>]*?)\bsrc="([^"]+)"([^>]*)>/g, (match, before: string, src: string, after: string) => {
+    if (/^(?:https?:|data:|blob:|#|assets\/|\/)/i.test(src)) return match
+    const target = normalizePublishedAttachmentId(decodeURIComponent(src))
+    const attachment = attachments.get(target)
+    if (!attachment) return match
+    if (attachment.status === 'bundled') {
+      return `<img${before}src="${escapeHtml(attachment.outputPath)}"${after}>`
+    }
+    return `<span class="missing-attachment" role="note">Missing attachment: ${escapeHtml(target)}</span>`
+  })
+}
+
+async function collectPublishedAttachmentFiles(
+  notes: VaultNote[],
+): Promise<Array<PublishedNotesAttachment & { bytes?: Uint8Array }>> {
+  const targets = new Map<string, { id: string; outputPath: string }>()
+  const usedPaths = new Set<string>()
+  for (const note of notes) {
+    for (const target of collectPublishedAttachmentTargets(note.content)) {
+      const id = normalizePublishedAttachmentId(target)
+      if (!id || targets.has(id)) continue
+      const outputPath = uniquePublishedAttachmentPath(id, usedPaths)
+      targets.set(id, { id, outputPath })
+    }
+  }
+
+  const files: Array<PublishedNotesAttachment & { bytes?: Uint8Array }> = []
+  for (const target of targets.values()) {
+    try {
+      const res = await fetch(`/api/vault/local/media?id=${encodeURIComponent(target.id)}`)
+      if (!res.ok) {
+        files.push({ ...target, status: 'missing', size: 0, mime: '' })
+        continue
+      }
+      const bytes = new Uint8Array(await res.arrayBuffer())
+      files.push({
+        ...target,
+        status: 'bundled',
+        size: bytes.byteLength,
+        mime: res.headers.get('content-type') || imageContentType(imageExt(target.id)),
+        bytes,
+      })
+    } catch {
+      files.push({ ...target, status: 'missing', size: 0, mime: '' })
+    }
+  }
+  return files
+}
+
+function collectPublishedAttachmentTargets(markdown: string): string[] {
+  const targets = [
+    ...[...markdown.matchAll(/!\[\[([^\]|]+\.(?:png|jpe?g|gif|webp|svg|bmp))(?:\|[^\]]+)?\]\]/gi)].map(match => match[1]),
+    ...[...markdown.matchAll(/!\[[^\]]*]\(([^)]+)\)/g)].map(match => match[1]),
+  ]
+  return targets
+    .map(target => target.trim().replace(/^<|>$/g, '').split(/\s+["']/)[0])
+    .filter(target => Boolean(target) && !/^(?:https?:|data:|blob:|\/)/i.test(target))
+}
+
+function normalizePublishedAttachmentId(target: string): string {
+  return target
+    .trim()
+    .replace(/^\.\/+/, '')
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+}
+
+function uniquePublishedAttachmentPath(target: string, usedPaths: Set<string>): string {
+  const parts = normalizePublishedAttachmentId(target)
+    .split('/')
+    .map(part => part.trim().replace(/[^A-Za-z0-9._ -]/g, '-').replace(/\s+/g, '-'))
+    .filter(part => part && part !== '.' && part !== '..')
+  const fallback = `attachment-${usedPaths.size + 1}.${imageExt(target)}`
+  const cleanPath = parts.length ? parts.join('/') : fallback
+  const ext = cleanPath.includes('.') ? cleanPath.split('.').pop() || imageExt(target) : imageExt(target)
+  const stem = cleanPath.endsWith(`.${ext}`) ? cleanPath.slice(0, -(ext.length + 1)) : cleanPath
+  let candidate = `assets/${cleanPath}`
+  let index = 2
+  while (usedPaths.has(candidate)) {
+    candidate = `assets/${stem}-${index}.${ext}`
+    index += 1
+  }
+  usedPaths.add(candidate)
+  return candidate
+}
+
 export function documentHtml(title: string, bodyHtml: string, autoPrint = false, page = defaultPageSettings()): string {
   const pageSize = `${page.size === 'a4' ? 'A4' : 'Letter'}${page.orientation === 'landscape' ? ' landscape' : ''}`
   const margin = page.margins === 'compact' ? '0.5in' : page.margins === 'roomy' ? '1in' : '0.75in'
-  const headerHtml = page.header ? `<header class="note-document-header">${escapeHtml(page.header)}</header>` : ''
-  const footerHtml = page.footer ? `<footer class="note-document-footer">${escapeHtml(page.footer)}</footer>` : ''
+  const paged = page.mode === 'pages'
+  const headerHtml = paged && page.header ? `<header class="note-document-header">${escapeHtml(page.header)}</header>` : ''
+  const pageNumberHtml = paged && page.pageNumbers !== 'none'
+    ? `<span class="note-document-page-number" data-position="${page.pageNumbers}">Page </span>`
+    : ''
+  const footerHtml = paged && (page.footer || pageNumberHtml)
+    ? `<footer class="note-document-footer" data-page-numbers="${page.pageNumbers}">${page.footer ? `<span class="note-document-footer-text">${escapeHtml(page.footer)}</span>` : ''}${pageNumberHtml}</footer>`
+    : ''
+  const watermarkHtml = paged && page.watermark ? `<div class="note-document-watermark">${escapeHtml(page.watermark)}</div>` : ''
+  const mainColumns = page.columns > 1 ? ` data-columns="${page.columns}"` : ''
   return `<!doctype html>
 <html>
 <head>
@@ -339,6 +710,29 @@ export function documentHtml(title: string, bodyHtml: string, autoPrint = false,
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       font-size: 11pt;
       line-height: 1.55;
+      position: relative;
+    }
+    body[data-page-mode="pageless"] {
+      max-width: 960px;
+      margin: 32px auto;
+      padding: 0 24px;
+    }
+    main,
+    .note-document-header,
+    .note-document-footer {
+      position: relative;
+      z-index: 1;
+    }
+    main[data-columns="2"],
+    main[data-columns="3"] {
+      column-gap: 28pt;
+      column-rule: 1px solid transparent;
+    }
+    main[data-columns="2"] {
+      column-count: 2;
+    }
+    main[data-columns="3"] {
+      column-count: 3;
     }
     h1 { font-size: 26pt; line-height: 1.15; margin: 0 0 18pt; }
     h2 { font-size: 18pt; line-height: 1.25; margin: 22pt 0 9pt; }
@@ -366,6 +760,44 @@ export function documentHtml(title: string, bodyHtml: string, autoPrint = false,
       border-top: 1px solid #e5e7eb;
       margin: 18pt 0 0;
       padding: 6pt 0 0;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 12pt;
+    }
+    .note-document-footer-text {
+      grid-column: 1;
+    }
+    .note-document-page-number {
+      color: #6b7280;
+      font-size: 9pt;
+      white-space: nowrap;
+    }
+    .note-document-page-number::after {
+      content: counter(page);
+    }
+    .note-document-page-number[data-position="footer-center"] {
+      grid-column: 2;
+    }
+    .note-document-page-number[data-position="footer-right"] {
+      grid-column: 3;
+      justify-self: end;
+    }
+    .note-document-watermark {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(107, 114, 128, 0.16);
+      font-size: 54pt;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      transform: rotate(-32deg);
+      pointer-events: none;
+      user-select: none;
     }
     @media print {
       .note-document-header {
@@ -395,12 +827,20 @@ export function documentHtml(title: string, bodyHtml: string, autoPrint = false,
       margin: 0;
       border: 0;
     }
+    body[data-page-mode="pageless"] .note-page-break {
+      break-after: auto;
+      page-break-after: auto;
+      height: 1px;
+      margin: 24pt 0;
+      background: #e5e7eb;
+    }
   </style>
 </head>
-<body>
+<body data-page-mode="${page.mode}">
+  ${watermarkHtml}
   ${headerHtml}
   <h1>${escapeHtml(title)}</h1>
-  <main>${bodyHtml}</main>
+  <main${mainColumns}>${bodyHtml}</main>
   ${footerHtml}
   ${
     autoPrint
@@ -418,8 +858,9 @@ export function documentHtml(title: string, bodyHtml: string, autoPrint = false,
 export async function downloadDocx(note: VaultNote, context: { notes?: VaultNote[] } = {}) {
   const page = documentPageSettings(note.content)
   const images = await collectDocxImages(note.content)
-  const hasHeader = Boolean(page.header)
-  const hasFooter = Boolean(page.footer)
+  const paged = page.mode === 'pages'
+  const hasHeader = paged && Boolean(page.header)
+  const hasFooter = paged && (Boolean(page.footer) || page.pageNumbers !== 'none')
   const zip = createStoredZip([
     [
       '[Content_Types].xml',
@@ -440,7 +881,7 @@ export async function downloadDocx(note: VaultNote, context: { notes?: VaultNote
       }),
     ],
     ...(hasHeader ? [['word/header1.xml', headerFooterXml('hdr', page.header)] as const] : []),
-    ...(hasFooter ? [['word/footer1.xml', headerFooterXml('ftr', page.footer)] as const] : []),
+    ...(hasFooter ? [['word/footer1.xml', documentFooterXml(page.footer, page.pageNumbers)] as const] : []),
     ['word/styles.xml', stylesXml()],
     ['docProps/core.xml', corePropsXml(note.title || 'Untitled')],
     ['docProps/app.xml', appPropsXml()],
@@ -460,14 +901,16 @@ export function markdownToDocumentXml(
   const pluginExpanded = renderVaultPluginBlocks(bodyMarkdown, context.notes ?? [], context.currentId)
   const expandedBody = renderDataviewBlocks(pluginExpanded, context.notes ?? [], context.currentId)
   const page = context.page ?? documentPageSettings(markdown)
+  const paged = page.mode === 'pages'
   const portraitPageSize = page.size === 'a4' ? { width: 11906, height: 16838 } : { width: 12240, height: 15840 }
   const pageSize =
     page.orientation === 'landscape'
       ? { width: portraitPageSize.height, height: portraitPageSize.width }
       : portraitPageSize
   const margin = page.margins === 'compact' ? 720 : page.margins === 'roomy' ? 1440 : 1080
-  const headerRef = page.header ? '<w:headerReference w:type="default" r:id="rIdHeader1"/>' : ''
-  const footerRef = page.footer ? '<w:footerReference w:type="default" r:id="rIdFooter1"/>' : ''
+  const headerRef = paged && page.header ? '<w:headerReference w:type="default" r:id="rIdHeader1"/>' : ''
+  const footerRef = paged && (page.footer || page.pageNumbers !== 'none') ? '<w:footerReference w:type="default" r:id="rIdFooter1"/>' : ''
+  const columnsXml = page.columns > 1 ? `<w:cols w:num="${page.columns}" w:space="720"/>` : ''
   const body = [paragraphXml(title, 'Title'), ...markdownBodyToDocumentXml(expandedBody, context.images ?? [])].join('')
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -479,6 +922,7 @@ export function markdownToDocumentXml(
       ${footerRef}
       <w:pgSz w:w="${pageSize.width}" w:h="${pageSize.height}"${page.orientation === 'landscape' ? ' w:orient="landscape"' : ''}/>
       <w:pgMar w:top="${margin}" w:right="${margin}" w:bottom="${margin}" w:left="${margin}" w:header="720" w:footer="720" w:gutter="0"/>
+      ${columnsXml}
     </w:sectPr>
   </w:body>
 </w:document>`
@@ -496,6 +940,15 @@ function enhanceObsidianMarkdown(markdown: string): string {
         return `<img src="/api/vault/local/media?id=${encodeURIComponent(image.target)}" alt="${escapeHtml(image.alt)}" title="${escapeHtml(image.target)}"${width}>`
       },
     )
+    .replace(
+      /!\[([^\]]*)]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g,
+      (match: string, rawAlt: string, rawTarget: string, rawTitle: string = '') => {
+        const target = rawTarget.trim().replace(/^<|>$/g, '')
+        if (!isLocalExportImageTarget(target)) return match
+        const title = rawTitle.trim() || target
+        return `<img src="/api/vault/local/media?id=${encodeURIComponent(target)}" alt="${escapeHtml(rawAlt.trim() || title)}" title="${escapeHtml(title)}">`
+      },
+    )
     .replace(/!\[\[([^\]]+)\]\]/g, (_match, rawTarget: string) => `[[${rawTarget}]]`)
     .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, (_match, target: string, label: string) => wikilinkHtml(target, label))
     .replace(/\[\[([^\]]+)\]\]/g, (_match, target: string) => wikilinkHtml(target, target))
@@ -511,19 +964,31 @@ function enhanceObsidianMarkdown(markdown: string): string {
     )
 }
 
+function isLocalExportImageTarget(target: string): boolean {
+  return /\.(?:png|jpe?g|gif|webp|svg|bmp)$/i.test(target) && !/^(?:https?:|data:|blob:|\/)/i.test(target)
+}
+
 function renderCallouts(markdown: string): string {
   return markdown.replace(
-    /^>\s*\[!(\w+)\]\s*(.*?)\n((?:>\s?.*(?:\n|$))*)/gm,
-    (_match, type: string, title: string, body: string) => {
-      const cleanType = type.toLowerCase()
+    /^>\s*\[!([A-Za-z][\w-]*)\]([+-])?\s*(.*?)\n((?:>\s?.*(?:\n|$))*)/gm,
+    (_match, type: string, foldMarker: string = '', title: string, body: string) => {
+      const cleanType = type.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 32)
       const cleanTitle = title.trim() || cleanType
+      const foldClass = foldMarker === '-'
+        ? ' note-callout-fold-collapsed'
+        : foldMarker === '+'
+          ? ' note-callout-fold-expanded'
+          : ''
       const cleanBody = body
         .split('\n')
         .map(line => line.replace(/^>\s?/, ''))
         .join('\n')
         .trim()
       const parsedBody = cleanBody ? (marked.parse(cleanBody) as string) : ''
-      return `<div class="note-callout note-callout-${escapeHtml(cleanType)}"><div class="note-callout-title">${escapeHtml(cleanTitle)}</div><div class="note-callout-body">${parsedBody}</div></div>\n`
+      const titleHtml = foldMarker
+        ? `<button type="button" class="note-callout-title" aria-expanded="${foldMarker === '+' ? 'true' : 'false'}">${escapeHtml(cleanTitle)}</button>`
+        : `<div class="note-callout-title">${escapeHtml(cleanTitle)}</div>`
+      return `<div class="note-callout note-callout-${escapeHtml(cleanType)}${foldClass}">${titleHtml}<div class="note-callout-body">${parsedBody}</div></div>\n`
     },
   )
 }
@@ -762,6 +1227,10 @@ function imageContentType(ext: string): string {
       return 'image/gif'
     case 'webp':
       return 'image/webp'
+    case 'svg':
+      return 'image/svg+xml'
+    case 'bmp':
+      return 'image/bmp'
     default:
       return 'image/png'
   }
@@ -807,6 +1276,29 @@ function headerFooterXml(kind: 'hdr' | 'ftr', text: string): string {
     <w:r><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>
   </w:p>
 </w:${tag}>`
+}
+
+export function documentFooterXml(text: string, pageNumbers: DocumentPageNumbers): string {
+  const textParagraph = text
+    ? `
+  <w:p>
+    <w:pPr><w:pStyle w:val="Caption"/></w:pPr>
+    <w:r><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>
+  </w:p>`
+    : ''
+  const pageNumberParagraph = pageNumbers === 'none'
+    ? ''
+    : `
+  <w:p>
+    <w:pPr><w:pStyle w:val="Caption"/><w:jc w:val="${pageNumbers === 'footer-right' ? 'right' : 'center'}"/></w:pPr>
+    <w:r><w:t xml:space="preserve">Page </w:t></w:r>
+    <w:fldSimple w:instr="PAGE"><w:r><w:t>1</w:t></w:r></w:fldSimple>
+  </w:p>`
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  ${textParagraph}
+  ${pageNumberParagraph}
+</w:ftr>`
 }
 
 function stylesXml(): string {

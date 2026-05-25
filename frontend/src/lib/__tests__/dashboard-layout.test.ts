@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addLayoutItemAcrossBreakpoints } from '../dashboard-layout'
+import { addLayoutItemAcrossBreakpoints, normalizeLayoutItems } from '../dashboard-layout'
 import type { LayoutItem } from '../dashboard-store'
 
 describe('addLayoutItemAcrossBreakpoints', () => {
@@ -44,5 +44,21 @@ describe('addLayoutItemAcrossBreakpoints', () => {
     )
 
     expect(layouts.sm[0]).toMatchObject({ i: 'wide', x: 0, y: 0, w: 4 })
+  })
+})
+
+describe('normalizeLayoutItems', () => {
+  it('repairs overlapping persisted dashboard widgets', () => {
+    const items: LayoutItem[] = [
+      { i: 'first', x: 0, y: 0, w: 4, h: 2 },
+      { i: 'second', x: 0, y: 0, w: 4, h: 2 },
+      { i: 'third', x: 10, y: Infinity, w: 8, h: 2, minW: 1 },
+    ]
+
+    const normalized = normalizeLayoutItems(items, 8)
+
+    expect(normalized[0]).toMatchObject({ i: 'first', x: 0, y: 0, w: 4 })
+    expect(normalized[1]).toMatchObject({ i: 'second', x: 4, y: 0, w: 4 })
+    expect(normalized[2]).toMatchObject({ i: 'third', x: 0, y: 2, w: 8 })
   })
 })

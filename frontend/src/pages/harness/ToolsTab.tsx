@@ -6,10 +6,10 @@ import type { ToolInfo, ToolInvokeRequest } from './types'
 import type { HarnessHealthStatus } from '../Harness'
 
 function OfflineState({ status, noun }: { status: HarnessHealthStatus; noun: string }) {
-  const title = status === 'not_configured' ? 'Harness not configured' : 'Harness offline'
+  const title = status === 'not_configured' ? 'Hermes Agent not configured' : 'Hermes Agent offline'
   const detail = status === 'not_configured'
-    ? `Set HARNESS_API_URL in Settings > Connections to view ${noun}.`
-    : `clawctrl cannot reach the harness right now. Check the upstream service and try again.`
+    ? `Set HERMES_API_URL in Settings > Connections to view ${noun}.`
+    : `clawctrl cannot reach Hermes Agent right now. Check the upstream service and try again.`
 
   return (
     <div style={{ padding: '40px 20px', textAlign: 'center' }}>
@@ -144,7 +144,7 @@ function InvokeForm({ toolName }: { toolName: string }) {
 
   const invokeMutation = useMutation({
     mutationFn: (payload: ToolInvokeRequest) =>
-      api.post<Record<string, unknown>>('/api/harness/tools/invoke', payload),
+      api.post<Record<string, unknown>>('/api/hermes/tools/invoke', payload),
   })
 
   const handleSubmit = useCallback(() => {

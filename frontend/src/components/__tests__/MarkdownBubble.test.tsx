@@ -34,14 +34,14 @@ describe('MarkdownBubble', () => {
     const btn = container.querySelector('.md-copy-btn')
     expect(btn).not.toBeNull()
     expect(btn?.textContent).toBe('Copy')
-    expect(btn?.getAttribute('aria-label')).toBe('Copy code')
+    expect(btn?.getAttribute('aria-label')).toBe('Copy python code')
   })
 
   it('copies code blocks through the shared clipboard flow', async () => {
     const code = '```python\nprint("hello")\n```'
     render(<MarkdownBubble>{code}</MarkdownBubble>)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Copy code' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy python code' }))
 
     await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledWith('print("hello")'))
     expect(screen.getByRole('button', { name: 'Copied code' })).toBeInTheDocument()
@@ -55,7 +55,7 @@ describe('MarkdownBubble', () => {
     const code = '```bash\nnpm test\n```'
     render(<MarkdownBubble>{code}</MarkdownBubble>)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Copy code' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy bash code' }))
 
     expect(await screen.findByRole('button', { name: 'Copy failed' })).toBeInTheDocument()
   })
@@ -66,6 +66,29 @@ describe('MarkdownBubble', () => {
     const lang = container.querySelector('.md-code-lang')
     expect(lang).not.toBeNull()
     expect(lang?.textContent).toBe('rust')
+  })
+
+  it('parses code fence info strings into language, filename, and copy label', async () => {
+    const code = '```tsx filename="src/pages/chat/ChatThread.tsx"\nexport const value: string = "ok"\n```'
+    const { container } = render(<MarkdownBubble>{code}</MarkdownBubble>)
+
+    expect(container.querySelector('.md-code-lang')?.textContent).toBe('tsx')
+    expect(container.querySelector('.md-code-file')?.textContent).toBe('src/pages/chat/ChatThread.tsx')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy code from src/pages/chat/ChatThread.tsx' }))
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith('export const value: string = "ok"')
+    })
+  })
+
+  it('keeps unknown code fence languages visible without treating metadata as the language', () => {
+    const code = '```mermaid title="flowchart.mmd"\ngraph TD\nA-->B\n```'
+    const { container } = render(<MarkdownBubble>{code}</MarkdownBubble>)
+
+    expect(container.querySelector('.md-code-lang')?.textContent).toBe('mermaid')
+    expect(container.querySelector('.md-code-file')?.textContent).toBe('flowchart.mmd')
+    expect(screen.getByRole('button', { name: 'Copy code from flowchart.mmd' })).toBeInTheDocument()
   })
 
   it('applies hljs syntax tokens to code', () => {

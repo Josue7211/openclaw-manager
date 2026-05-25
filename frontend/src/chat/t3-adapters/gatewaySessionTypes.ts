@@ -4,7 +4,7 @@
  * copy-first chat adapter layer instead of importing the legacy Sessions page.
  */
 
-export interface ClaudeSession {
+export interface HermesSession {
   key: string
   label: string
   agentKey: string
@@ -20,7 +20,9 @@ export interface ClaudeSession {
   [key: string]: unknown
 }
 
+export interface ClaudeSession extends HermesSession {}
+
 export interface GatewaySessionsResponse {
   ok: boolean
-  sessions: ClaudeSession[]
+  sessions: HermesSession[]
 }

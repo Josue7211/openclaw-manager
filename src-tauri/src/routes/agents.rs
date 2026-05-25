@@ -6,7 +6,6 @@ use axum::{
 use reqwest::Method;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use tokio::process::Command;
 use tokio::time::Duration;
 
 use crate::error::AppError;
@@ -30,13 +29,6 @@ type AgentRow = (
     String,
     String,
 );
-
-// ── Constants ────────────────────────────────────────────────────────────────
-
-/// Friendly names assigned to detected subagent processes.
-const SUBAGENT_NAMES: &[&str] = &[
-    "Axel", "Nova", "Pixel", "Hex", "Byte", "Flux", "Cipher", "Sage",
-];
 
 // ── Router ───────────────────────────────────────────────────────────────────
 
@@ -483,14 +475,15 @@ async fn update_agent(
 
 // ── GET /agents/active-coders ────────────────────────────────────────────────
 //
-// Detects running Claude processes via `ps aux`, assigns them friendly names.
+// Reports active Hermes/harness coding sessions while preserving the legacy
+// response shape expected by older dashboard widgets.
 
 async fn active_coders(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     RequireAuth(_session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let lines = match detect_claude_processes().await {
-        Ok(l) => l,
+    let sessions = match fetch_harness_sessions(&state.http).await {
+        Ok(sessions) => sessions,
         Err(_) => {
             return Ok(Json(json!({
                 "total": 0,
@@ -500,34 +493,60 @@ async fn active_coders(
         }
     };
 
-    // First line is typically the primary koda process; subagents are the rest
-    let subagents: Vec<Value> = lines
+    let active_sessions: Vec<&Value> = sessions
         .iter()
-        .skip(1)
+        .filter(|session| {
+            matches!(
+                session.get("status").and_then(|v| v.as_str()),
+                Some("running" | "active")
+            )
+        })
+        .collect();
+    let subagents: Vec<Value> = active_sessions
+        .iter()
         .enumerate()
-        .map(|(i, _line)| {
+        .map(|(index, session)| {
+            let id = session
+                .get("id")
+                .or(session.get("sessionKey"))
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .unwrap_or_else(|| format!("session-{index}"));
+            let name = session
+                .get("label")
+                .or(session.get("agentId"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("Hermes Agent");
+            let model = session
+                .get("model")
+                .and_then(|v| v.as_str())
+                .unwrap_or("hermes-agent");
+            let task = session
+                .get("task")
+                .or(session.get("title"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("(running)");
             json!({
-                "id": format!("temp-{i}"),
-                "name": SUBAGENT_NAMES[i % SUBAGENT_NAMES.len()],
-                "model": "claude-sonnet-4-6",
+                "id": id,
+                "name": name,
+                "model": model,
                 "status": "active",
-                "task": "(running)",
-                "temp": true,
+                "task": task,
+                "temp": false,
             })
         })
         .collect();
 
     Ok(Json(json!({
-        "total": lines.len(),
-        "kodaActive": !lines.is_empty(),
+        "total": active_sessions.len(),
+        "kodaActive": !active_sessions.is_empty(),
         "subagents": subagents,
     })))
 }
 
 // ── GET /subagents/active ────────────────────────────────────────────────────
 //
-// Detects active Claude processes with --dangerously-skip-permissions flag,
-// parses start times, and supplements with harness session data.
+// Reports active Hermes/harness subagent sessions.
 
 #[derive(Debug, serde::Serialize)]
 struct ActiveTask {
@@ -545,32 +564,6 @@ async fn subagents_active(
 ) -> Result<Json<Value>, AppError> {
     let mut tasks: Vec<ActiveTask> = Vec::new();
 
-    // Detect running Claude processes with --dangerously flag
-    if let Ok(lines) = detect_dangerously_claude_processes().await {
-        for line in lines.iter() {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            let pid = parts.get(1).unwrap_or(&"").to_string();
-            if pid.is_empty() {
-                continue;
-            }
-
-            // Parse start time from ps STIME field (column 8)
-            let started_at = if let Some(stime) = parts.get(8) {
-                parse_ps_stime(stime)
-            } else {
-                chrono::Utc::now().to_rfc3339()
-            };
-
-            tasks.push(ActiveTask {
-                id: pid,
-                label: "Claude Code".into(),
-                agent_id: "coding".into(),
-                started_at,
-            });
-        }
-    }
-
-    // Supplement with harness sessions as fallback
     match fetch_harness_sessions(&state.http).await {
         Ok(sessions) => {
             for session in sessions {
@@ -622,68 +615,6 @@ async fn subagents_active(
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-/// Detect Claude processes via `ps aux`, filtering for `claude` lines and
-/// excluding grep/bash wrappers.
-async fn detect_claude_processes() -> anyhow::Result<Vec<String>> {
-    let output = Command::new("ps").arg("aux").output().await?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    let lines: Vec<String> = stdout
-        .lines()
-        .filter(|line| {
-            line.contains("claude") && !line.contains("grep") && !line.contains("/bin/bash")
-        })
-        .map(|s| s.to_string())
-        .collect();
-
-    Ok(lines)
-}
-
-/// Detect Claude processes running with --dangerously-skip-permissions.
-async fn detect_dangerously_claude_processes() -> anyhow::Result<Vec<String>> {
-    let output = Command::new("bash")
-        .arg("-c")
-        .arg("ps aux | grep -E '[c]laude.*(--dangerously|dangerously)' | grep -v grep")
-        .output()
-        .await?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if stdout.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    Ok(stdout
-        .lines()
-        .filter(|l| !l.is_empty())
-        .map(|s| s.to_string())
-        .collect())
-}
-
-/// Parse ps STIME field into an ISO timestamp.
-/// STIME is like "00:15" (today) or "Mar06" (older date).
-fn parse_ps_stime(stime: &str) -> String {
-    if stime.contains(':') {
-        // Today, e.g. "00:15"
-        let parts: Vec<&str> = stime.split(':').collect();
-        if parts.len() >= 2 {
-            if let (Ok(h), Ok(m)) = (parts[0].parse::<u32>(), parts[1].parse::<u32>()) {
-                let now = chrono::Utc::now();
-                let today = now.date_naive();
-                if let Some(time) = chrono::NaiveTime::from_hms_opt(h, m, 0) {
-                    let dt = today.and_time(time);
-                    return chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
-                        dt,
-                        chrono::Utc,
-                    )
-                    .to_rfc3339();
-                }
-            }
-        }
-    }
-    // Older date or unparseable -- estimate ~5 minutes ago
-    (chrono::Utc::now() - chrono::Duration::minutes(5)).to_rfc3339()
-}
 
 /// Fetch active sessions from the local harness gateway.
 async fn fetch_harness_sessions(http: &reqwest::Client) -> anyhow::Result<Vec<Value>> {

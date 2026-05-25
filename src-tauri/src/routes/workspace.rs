@@ -85,10 +85,10 @@ fn default_workspace_dir(provider: HarnessProviderLayout) -> PathBuf {
     }
 }
 
-/// Return `(HARNESS_API_URL, HARNESS_API_KEY)` when remote mode is active.
+/// Return `(HERMES_API_URL, HERMES_API_KEY)` when remote mode is active.
 fn remote_config(state: &AppState) -> Option<(String, Option<String>)> {
     state
-        .secret_first(&["HARNESS_API_URL", "HERMES_API_URL", "OPENCLAW_API_URL"])
+        .secret_first(&["HERMES_API_URL", "HARNESS_API_URL", "OPENCLAW_API_URL"])
         .filter(|u| !u.is_empty())
         .map(|url| {
             let key = Some(harness_api_key(state)).filter(|k| !k.is_empty());
@@ -96,7 +96,7 @@ fn remote_config(state: &AppState) -> Option<(String, Option<String>)> {
         })
 }
 
-/// Build headers for proxying to the remote harness API.
+/// Build headers for proxying to the remote Hermes Agent API.
 fn remote_headers(key: &Option<String>) -> reqwest::header::HeaderMap {
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
@@ -213,34 +213,44 @@ fn local_first_path(file_path: &str) -> bool {
         || HERMES_CORE_FILES.contains(&file_path)
 }
 
-fn current_project_root() -> Option<PathBuf> {
-    let mut dir = std::env::current_dir().ok()?;
-    loop {
-        if dir.join(".memd").is_dir() || dir.join("AGENTS.md").is_file() {
-            return Some(dir);
-        }
-        if !dir.pop() {
-            return None;
-        }
-    }
+fn chat_workspace_project_roots(
+    projects: impl IntoIterator<Item = crate::commands::ChatWorkspaceProject>,
+) -> Vec<PathBuf> {
+    projects
+        .into_iter()
+        .flat_map(|project| [project.root, Some(project.path)])
+        .flatten()
+        .filter(|path| !path.trim().is_empty())
+        .map(PathBuf::from)
+        .collect()
 }
 
-fn workspace_roots_from(state: &AppState, provider: HarnessProviderLayout) -> Vec<PathBuf> {
+fn stored_chat_workspace_project_roots() -> Vec<PathBuf> {
+    chat_workspace_project_roots(
+        crate::commands::load_stored_chat_workspace_projects().unwrap_or_default(),
+    )
+}
+
+fn workspace_roots_for_project_roots(
+    provider_root: PathBuf,
+    project_roots: impl IntoIterator<Item = PathBuf>,
+) -> Vec<PathBuf> {
     let mut roots = Vec::new();
     let mut seen = std::collections::HashSet::new();
-    for root in [
-        Some(workspace_dir_from(state, provider)),
-        current_project_root(),
-    ]
-    .into_iter()
-    .flatten()
-    {
+    for root in std::iter::once(provider_root).chain(project_roots) {
         let key = root.to_string_lossy().to_string();
         if seen.insert(key) {
             roots.push(root);
         }
     }
     roots
+}
+
+fn workspace_roots_from(state: &AppState, provider: HarnessProviderLayout) -> Vec<PathBuf> {
+    workspace_roots_for_project_roots(
+        workspace_dir_from(state, provider),
+        stored_chat_workspace_project_roots(),
+    )
 }
 
 fn workspace_root_for_path(
@@ -957,6 +967,45 @@ async fn delete_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_workspace_project(path: &Path) -> crate::commands::ChatWorkspaceProject {
+        crate::commands::ChatWorkspaceProject {
+            id: Some("local:test".to_string()),
+            environment_id: Some("local".to_string()),
+            name: "test".to_string(),
+            path: path.to_string_lossy().into_owned(),
+            branches: vec!["main".to_string()],
+            current_branch: Some("main".to_string()),
+            repository_identity: None,
+            machine: None,
+            machine_label: None,
+            host: None,
+            group: None,
+            root: Some(path.to_string_lossy().into_owned()),
+            scripts: None,
+            grouping_override: None,
+        }
+    }
+
+    #[test]
+    fn workspace_roots_use_stored_chat_projects_not_process_cwd() {
+        let dir = tempfile::tempdir().unwrap();
+        let provider_root = dir.path().join("hermes-workspace");
+        let selected_project = dir.path().join("selected-project");
+        let process_cwd_project = dir.path().join("process-cwd-project");
+        std::fs::create_dir_all(&provider_root).unwrap();
+        std::fs::create_dir_all(&selected_project).unwrap();
+        std::fs::create_dir_all(&process_cwd_project).unwrap();
+        std::fs::write(process_cwd_project.join("AGENTS.md"), "process cwd").unwrap();
+
+        let roots = workspace_roots_for_project_roots(
+            provider_root.clone(),
+            chat_workspace_project_roots([test_workspace_project(&selected_project)]),
+        );
+
+        assert_eq!(roots, vec![provider_root, selected_project]);
+        assert!(!roots.contains(&process_cwd_project));
+    }
 
     #[test]
     fn hermes_listing_includes_memd_bundle_and_soul_files() {

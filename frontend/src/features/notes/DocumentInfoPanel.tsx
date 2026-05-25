@@ -1,28 +1,35 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { buildDocumentInfo } from './documentInfo'
+import { formatDocumentPropertyInputValue, type DocumentPropertyValueKind } from './documentPropertyValues'
 import type { VaultNote } from './types'
 
 export function DocumentInfoPanel({
   note,
   onClose,
   onSetProperty,
+  onRenameProperty,
   onRemoveProperty,
+  onOpenAllProperties,
 }: {
   note: VaultNote
   onClose: () => void
   onSetProperty: (key: string, value: string) => void
+  onRenameProperty: (key: string) => void
   onRemoveProperty: (key: string) => void
+  onOpenAllProperties: () => void
 }) {
   const info = useMemo(() => buildDocumentInfo(note), [note])
   const [propertyKey, setPropertyKey] = useState('')
   const [propertyValue, setPropertyValue] = useState('')
+  const [propertyKind, setPropertyKind] = useState<DocumentPropertyValueKind>('text')
 
   const submitProperty = () => {
     const key = propertyKey.trim()
     if (!key) return
-    onSetProperty(key, propertyValue)
+    onSetProperty(key, formatDocumentPropertyInputValue(propertyKind, propertyValue))
     setPropertyKey('')
     setPropertyValue('')
+    setPropertyKind('text')
   }
 
   return (
@@ -139,6 +146,25 @@ export function DocumentInfoPanel({
         </InfoSection>
 
         <InfoSection title="Properties">
+          <button
+            type="button"
+            className="hover-bg"
+            onClick={onOpenAllProperties}
+            style={{
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--bg-white-02)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              padding: '6px 8px',
+              fontSize: 11,
+              marginBottom: 8,
+              width: '100%',
+              textAlign: 'left',
+            }}
+          >
+            Open all properties
+          </button>
           {info.properties.length ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {info.properties.map(property => (
@@ -168,23 +194,40 @@ export function DocumentInfoPanel({
                       {property.value || '-'}
                     </div>
                   </div>
+                  <span
+                    title={`Property type: ${property.kind}`}
+                    style={{
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-sm)',
+                      color: 'var(--text-muted)',
+                      background: 'var(--bg-base)',
+                      padding: '2px 5px',
+                      fontSize: 10,
+                      textTransform: 'capitalize',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {property.kind}
+                  </span>
                   {note.type === 'note' && (
-                    <button
-                      type="button"
-                      className="hover-bg"
-                      onClick={() => onRemoveProperty(property.key)}
-                      style={{
-                        border: 'none',
-                        borderRadius: 'var(--radius-sm)',
-                        background: 'transparent',
-                        color: 'var(--text-muted)',
-                        cursor: 'pointer',
-                        padding: '4px 6px',
-                        fontSize: 11,
-                      }}
-                    >
-                      Remove
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        className="hover-bg"
+                        onClick={() => onRenameProperty(property.key)}
+                        style={propertyActionButtonStyle}
+                      >
+                        Rename
+                      </button>
+                      <button
+                        type="button"
+                        className="hover-bg"
+                        onClick={() => onRemoveProperty(property.key)}
+                        style={propertyActionButtonStyle}
+                      >
+                        Remove
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -204,10 +247,22 @@ export function DocumentInfoPanel({
               <input
                 value={propertyValue}
                 onChange={event => setPropertyValue(event.target.value)}
-                placeholder="Value"
+                placeholder={propertyKind === 'list' ? 'one, two, three' : propertyKind === 'date' ? '2026-05-21' : propertyKind === 'number' ? '42' : propertyKind === 'checkbox' ? 'true' : 'Value'}
                 aria-label="Property value"
                 style={infoInputStyle}
               />
+              <select
+                value={propertyKind}
+                onChange={event => setPropertyKind(event.target.value as DocumentPropertyValueKind)}
+                aria-label="Property type"
+                style={infoInputStyle}
+              >
+                <option value="text">Text</option>
+                <option value="list">List</option>
+                <option value="number">Number</option>
+                <option value="checkbox">Checkbox</option>
+                <option value="date">Date</option>
+              </select>
               <button
                 type="button"
                 onClick={submitProperty}
@@ -240,6 +295,16 @@ const infoInputStyle = {
   padding: '7px 8px',
   font: 'inherit',
   fontSize: 12,
+} satisfies CSSProperties
+
+const propertyActionButtonStyle = {
+  border: 'none',
+  borderRadius: 'var(--radius-sm)',
+  background: 'transparent',
+  color: 'var(--text-muted)',
+  cursor: 'pointer',
+  padding: '4px 5px',
+  fontSize: 11,
 } satisfies CSSProperties
 
 function InfoSection({ title, children }: { title: string; children: ReactNode }) {
@@ -325,4 +390,3 @@ function formatInfoTime(value: number): string {
     minute: '2-digit',
   })
 }
-

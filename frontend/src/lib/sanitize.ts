@@ -17,7 +17,7 @@ const PURIFY_CONFIG: Config = {
   ALLOWED_ATTR: [
     'href', 'target', 'rel', 'src', 'alt', 'title',
     'class', 'id', 'width', 'height', 'colspan', 'rowspan',
-    'aria-label', 'type', 'checked', 'disabled', 'style', 'color', 'face', 'size',
+    'aria-label', 'aria-expanded', 'type', 'checked', 'disabled', 'style', 'color', 'face', 'size',
   ],
   ALLOW_DATA_ATTR: false,
   ADD_ATTR: ['target'],

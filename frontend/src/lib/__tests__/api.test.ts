@@ -132,6 +132,22 @@ describe('api', () => {
     )
   })
 
+  it('routes local desktop endpoints with the local key when Tauri globals are absent but a local key was bootstrapped', async () => {
+    setApiBase('http://remote-backend.test')
+    setDesktopApiKeys({ localApiKey: 'local-key', remoteApiKey: 'remote-key' })
+    mockFetch({ ok: true, json: () => Promise.resolve({ ok: true }) })
+
+    await api.get('/api/approvals')
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:3010/api/approvals',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ 'X-API-Key': 'local-key' }),
+      }),
+    )
+  })
+
   it('routes desktop auth through the local backend when no remote backend is configured', async () => {
     Object.defineProperty(window, '__TAURI_INTERNALS__', {
       value: {},
@@ -152,7 +168,7 @@ describe('api', () => {
     )
   })
 
-  it('routes desktop auth through the configured remote backend when one is selected', async () => {
+  it('keeps desktop auth on the local backend when a remote backend is configured', async () => {
     Object.defineProperty(window, '__TAURI_INTERNALS__', {
       value: {},
       configurable: true,
@@ -165,15 +181,15 @@ describe('api', () => {
     await api.get('/api/auth/session')
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      'http://remote-backend.test/api/auth/session',
+      'http://127.0.0.1:3010/api/auth/session',
       expect.objectContaining({
         method: 'GET',
-        headers: expect.objectContaining({ 'X-API-Key': 'remote-key' }),
+        headers: expect.objectContaining({ 'X-API-Key': 'local-key' }),
       }),
     )
   })
 
-  it('detects desktop runtime through the Tauri v2 global marker without overriding a remote backend', async () => {
+  it('detects desktop runtime through the Tauri v2 global marker and still keeps local-only routes local', async () => {
     ;(globalThis as typeof globalThis & { isTauri?: boolean }).isTauri = true
     setConfiguredBackendBase('http://remote-backend.test')
     setApiBase('http://remote-backend.test')
@@ -183,10 +199,10 @@ describe('api', () => {
     await api.get('/api/auth/session')
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      'http://remote-backend.test/api/auth/session',
+      'http://127.0.0.1:3010/api/auth/session',
       expect.objectContaining({
         method: 'GET',
-        headers: expect.objectContaining({ 'X-API-Key': 'remote-key' }),
+        headers: expect.objectContaining({ 'X-API-Key': 'local-key' }),
       }),
     )
   })
@@ -200,12 +216,12 @@ describe('api', () => {
     setDesktopApiKeys({ localApiKey: 'local-key', remoteApiKey: 'remote-key' })
     mockFetch({ ok: true, json: () => Promise.resolve({ ok: true }) })
 
-    await api.get('/api/harness/health')
+    await api.get('/api/hermes/health')
     await api.get('/api/agents')
 
     expect(globalThis.fetch).toHaveBeenNthCalledWith(
       1,
-      'http://127.0.0.1:3010/api/harness/health',
+      'http://127.0.0.1:3010/api/hermes/health',
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({ 'X-API-Key': 'local-key' }),
@@ -302,8 +318,8 @@ describe('api', () => {
       await api.get('/api/chat/history')
     } catch (err) {
       expect(err).toBeInstanceOf(ApiError)
-      expect((err as ApiError).service).toBe('Harness')
-      expect((err as ApiError).serviceLabel).toBe('Harness unreachable')
+      expect((err as ApiError).service).toBe('Hermes Agent')
+      expect((err as ApiError).serviceLabel).toBe('Hermes Agent unreachable')
     }
   })
 })
@@ -314,9 +330,9 @@ describe('serviceForPath', () => {
     expect(serviceForPath('/api/messages/chat/123')).toBe('BlueBubbles')
   })
 
-  it('maps chat routes to Harness', () => {
-    expect(serviceForPath('/api/chat')).toBe('Harness')
-    expect(serviceForPath('/api/chat/history')).toBe('Harness')
+  it('maps chat routes to Hermes Agent', () => {
+    expect(serviceForPath('/api/chat')).toBe('Hermes Agent')
+    expect(serviceForPath('/api/chat/history')).toBe('Hermes Agent')
   })
 
   it('maps data routes to Backend', () => {
@@ -335,7 +351,7 @@ describe('serviceForPath', () => {
 describe('serviceErrorLabel', () => {
   it('returns human-readable labels', () => {
     expect(serviceErrorLabel('BlueBubbles')).toBe('BlueBubbles unreachable')
-    expect(serviceErrorLabel('Harness')).toBe('Harness unreachable')
+    expect(serviceErrorLabel('Hermes Agent')).toBe('Hermes Agent unreachable')
     expect(serviceErrorLabel('Backend')).toBe('Service unavailable')
   })
 })
@@ -465,7 +481,7 @@ describe('serviceForPath edge cases', () => {
   it('maps data routes to Backend (all proxied through Axum)', () => {
     expect(serviceForPath('/api/todos')).toBe('Backend')
     expect(serviceForPath('/api/missions')).toBe('Backend')
-    expect(serviceForPath('/api/prefs')).toBe('Backend')
+    expect(serviceForPath('/api/user-preferences')).toBe('Backend')
     expect(serviceForPath('/api/daily-review')).toBe('Backend')
     expect(serviceForPath('/api/ideas')).toBe('Backend')
     expect(serviceForPath('/api/knowledge')).toBe('Backend')

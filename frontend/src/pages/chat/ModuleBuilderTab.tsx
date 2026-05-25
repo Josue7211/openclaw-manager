@@ -39,6 +39,17 @@ import {
   extractModuleMetadata,
 } from './module-builder-prompt'
 import { buildLiveAppContext } from '@/features/chat/liveAppContext'
+import {
+  CHAT_SELECTED_BRANCH_KEY,
+  CHAT_SELECTED_PROJECT_PATH_KEY,
+  CHAT_SELECTED_RUNTIME_KEY,
+  loadStoredValue,
+} from '@/chat/t3-adapters/sidebarPreferences'
+import {
+  loadChatWorkspaceContext,
+  type ChatWorkspaceContext,
+  type ChatWorkspaceProject,
+} from '@/chat/t3-adapters/projectWorkspace'
 
 const MarkdownBubble = lazy(() => import('@/components/MarkdownBubble'))
 
@@ -65,8 +76,25 @@ interface BuilderHistoryResponse {
   error?: string
 }
 
+interface BuilderChatContext {
+  projectId?: string
+  project?: string
+  projectRoot?: string
+  workingDir?: string
+  environmentId?: string
+  branch?: string
+  runtime?: string
+}
+
+export interface ModuleBuilderTabProps {
+  sessionKey?: string | null
+  environmentId?: string | null
+  context?: BuilderChatContext
+}
+
 const MODULE_BUILDER_REPLY_TIMEOUT_MS = 45_000
 const MODULE_BUILDER_REPLY_POLL_MS = 1_000
+const DEFAULT_MODULE_BUILDER_SESSION_KEY = 'module-builder'
 
 function historyTimestampMs(timestamp: string): number {
   const parsed = Date.parse(timestamp)
@@ -79,7 +107,7 @@ function delay(ms: number): Promise<void> {
 
 function buildInlineModuleBuilderRequest(userText: string): string {
   return [
-    'You are the OpenUI module builder for clawctrl.',
+    'You are the Hermes Agent module builder.',
     'Return only one ```json code fence containing a valid ModuleProposal object, or an array of ModuleProposal objects when the user asks for multiple modules.',
     'When useful, include openUiLang with a valid OpenUI Lang snippet using positional arguments, for example: root = StatCard("Tasks", "7").',
     'Use only these primitives: StatCard, ProgressGauge, MarkdownDisplay, LineChart, BarChart, ListView, DataTable, FormWidget, KanbanBoard, TimerCountdown, ImageGallery.',
@@ -93,8 +121,56 @@ function buildInlineModuleBuilderRequest(userText: string): string {
   ].join('\n')
 }
 
-async function fetchBuilderHistory(): Promise<BuilderHistoryMessage[]> {
-  const response = await api.get<BuilderHistoryResponse>('/api/chat/history')
+function validWorkspaceProjects(context: ChatWorkspaceContext | null | undefined): ChatWorkspaceProject[] {
+  return Array.isArray(context?.projects)
+    ? context.projects.filter(project => Boolean(project?.path?.trim()))
+    : []
+}
+
+async function resolveBuilderChatContext(explicitContext?: BuilderChatContext): Promise<BuilderChatContext> {
+  if (explicitContext?.workingDir || explicitContext?.projectRoot || explicitContext?.environmentId) {
+    return explicitContext
+  }
+
+  const workspace = await loadChatWorkspaceContext().catch(() => null)
+  const projects = validWorkspaceProjects(workspace)
+  const selectedPath = loadStoredValue(CHAT_SELECTED_PROJECT_PATH_KEY, '')
+  const project = projects.find(candidate => candidate.path === selectedPath)
+    ?? projects[0]
+    ?? null
+  const runtimeModes = Array.isArray(workspace?.runtimeModes) ? workspace.runtimeModes : []
+  const storedRuntime = loadStoredValue(CHAT_SELECTED_RUNTIME_KEY, '')
+  const runtime = runtimeModes.includes(storedRuntime)
+    ? storedRuntime
+    : (runtimeModes[0] || 'Work locally')
+
+  if (!project) return { runtime }
+
+  const storedBranch = loadStoredValue(CHAT_SELECTED_BRANCH_KEY, '')
+  const branch = project.branches?.includes(storedBranch)
+    ? storedBranch
+    : (project.currentBranch || project.branches?.[0] || undefined)
+
+  return {
+    projectId: project.id || undefined,
+    project: project.name,
+    projectRoot: project.root || project.path,
+    workingDir: project.path,
+    environmentId: project.environmentId || undefined,
+    branch,
+    runtime,
+  }
+}
+
+function builderHistoryPath(sessionKey: string, environmentId?: string | null): string {
+  const params = new URLSearchParams({ limit: '500' })
+  const environment = environmentId?.trim()
+  if (environment) params.set('environmentId', environment)
+  return `/api/gateway/sessions/${encodeURIComponent(sessionKey)}/history?${params.toString()}`
+}
+
+async function fetchBuilderHistory(sessionKey: string, environmentId?: string | null): Promise<BuilderHistoryMessage[]> {
+  const response = await api.get<BuilderHistoryResponse>(builderHistoryPath(sessionKey, environmentId))
   if (response.error) {
     throw new Error(response.error)
   }
@@ -120,13 +196,15 @@ function selectBuilderAssistantReply(
 }
 
 async function waitForBuilderAssistantReply(
+  sessionKey: string,
+  environmentId: string | null,
   sendStartedAt: number,
   baselineAssistantIds: Set<string>
 ): Promise<BuilderHistoryMessage> {
   const deadline = Date.now() + MODULE_BUILDER_REPLY_TIMEOUT_MS
 
   while (Date.now() <= deadline) {
-    const history = await fetchBuilderHistory()
+    const history = await fetchBuilderHistory(sessionKey, environmentId)
     const reply = selectBuilderAssistantReply(history, sendStartedAt, baselineAssistantIds)
     if (reply) return reply
 
@@ -141,7 +219,7 @@ async function waitForBuilderAssistantReply(
 // Component
 // ---------------------------------------------------------------------------
 
-export default function ModuleBuilderTab() {
+export default function ModuleBuilderTab({ sessionKey, environmentId, context }: ModuleBuilderTabProps = {}) {
   const [messages, setMessages] = useState<BuilderMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -207,7 +285,14 @@ export default function ModuleBuilderTab() {
     setGenerationState('generating')
 
     try {
-      const baselineHistory = await fetchBuilderHistory().catch(() => [])
+      const chatContext = await resolveBuilderChatContext(context)
+      const activeSessionKey = sessionKey?.trim() || DEFAULT_MODULE_BUILDER_SESSION_KEY
+      const activeEnvironmentId = environmentId?.trim() || chatContext.environmentId?.trim() || null
+      const scopedContext = {
+        ...chatContext,
+        ...(activeEnvironmentId ? { environmentId: activeEnvironmentId } : {}),
+      }
+      const baselineHistory = await fetchBuilderHistory(activeSessionKey, activeEnvironmentId).catch(() => [])
       const baselineAssistantIds = new Set(
         baselineHistory
           .filter(message => message.role === 'assistant')
@@ -221,16 +306,19 @@ export default function ModuleBuilderTab() {
           text: builderRequestText,
           model: selectedModel,
           system_prompt: moduleBuilderSystemPrompt,
+          sessionKey: activeSessionKey,
+          ...scopedContext,
           liveContext: await buildLiveAppContext(api.get, {
             requestText: text,
             route: typeof window === 'undefined' ? undefined : window.location.pathname,
             pageTitle: typeof document === 'undefined' ? undefined : document.title,
+            context: scopedContext,
             apiPost: api.post,
           }).catch(() => ''),
         }
       )
 
-      const assistantReply = await waitForBuilderAssistantReply(sendStartedAt, baselineAssistantIds)
+      const assistantReply = await waitForBuilderAssistantReply(activeSessionKey, activeEnvironmentId, sendStartedAt, baselineAssistantIds)
       const assistantText = assistantReply.text.trim()
       const assistantMsg: BuilderMessage = {
         id: assistantReply.id || `module-a-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -281,8 +369,8 @@ export default function ModuleBuilderTab() {
       if (openUiLang) {
         const openUiProposal: ModuleProposal = {
           ...createFallbackProposal(assistantText),
-          title: 'OpenUI Module',
-          description: 'OpenUI Lang module generated from assistant output.',
+          title: 'Hermes UI Module',
+          description: 'Hermes Agent UI module generated from assistant output.',
           openUiLang,
           fallbackMessage: undefined,
         }
@@ -331,7 +419,7 @@ export default function ModuleBuilderTab() {
     } finally {
       setSending(false)
     }
-  }, [input, sending, model, primaryModel, moduleBuilderSystemPrompt, refreshRecentProposals])
+  }, [context, environmentId, input, sending, model, primaryModel, moduleBuilderSystemPrompt, refreshRecentProposals, sessionKey])
 
   // ── Approval flow ─────────────────────────────────────────────────
   const handleApprove = useCallback(async () => {
@@ -461,7 +549,7 @@ export default function ModuleBuilderTab() {
                 Module Builder
               </span>
               <span style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', maxWidth: 320 }}>
-                Describe a module, panel, page, or widget and the builder will generate a structured OpenUI proposal. Installable dashboard widgets can be added directly; other targets stay preview-only for now.
+                Describe a module, panel, page, or widget and Hermes Agent will generate a structured UI proposal. Installable dashboard widgets can be added directly; other targets stay preview-only for now.
               </span>
             </div>
           )}

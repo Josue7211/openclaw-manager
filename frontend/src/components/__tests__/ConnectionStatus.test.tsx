@@ -76,7 +76,7 @@ describe('ConnectionStatus', () => {
       })
       fireEvent.click(screen.getByRole('button'))
       expect(screen.getByText('BlueBubbles')).toBeInTheDocument()
-      expect(screen.getByText('Harness')).toBeInTheDocument()
+      expect(screen.getByText('Hermes Agent')).toBeInTheDocument()
       expect(screen.getByText('Supabase')).toBeInTheDocument()
     })
 

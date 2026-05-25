@@ -209,4 +209,128 @@ describe('useChatState scroll behavior', () => {
       toolCallId: 'call-rg-1',
     }))
   })
+
+  it('recovers mounted and connected state after retrying a failed history load', async () => {
+    mockApiGet.mockImplementation(async (path: string) => {
+      if (path === '/api/chat/models') return { models: [] }
+      if (path === '/api/chat/history') {
+        if (mockApiGet.mock.calls.filter(([calledPath]) => calledPath === '/api/chat/history').length === 1) {
+          throw new Error('history unavailable')
+        }
+        return historyWithAssistantReply()
+      }
+      return {}
+    })
+
+    const { result } = renderHook(() => useChatState(null), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current.historyError).toBeTruthy()
+    })
+    expect(result.current.connected).toBe(false)
+
+    act(() => {
+      result.current.retryHistoryLoad()
+    })
+
+    await waitFor(() => {
+      expect(result.current.messages).toHaveLength(1)
+    })
+    expect(result.current.historyError).toBeNull()
+    expect(result.current.connected).toBe(true)
+    expect(result.current.mounted).toBe(true)
+    expect(result.current.notConfigured).toBe(false)
+  })
+
+  it('keeps retry history load on the not-configured state when the backend reports setup is missing', async () => {
+    mockApiGet.mockImplementation(async (path: string) => {
+      if (path === '/api/chat/models') return { models: [] }
+      if (path === '/api/chat/history') {
+        if (mockApiGet.mock.calls.filter(([calledPath]) => calledPath === '/api/chat/history').length === 1) {
+          throw new Error('history unavailable')
+        }
+        return { error: 'harness_not_configured', messages: [] }
+      }
+      return {}
+    })
+
+    const { result } = renderHook(() => useChatState(null), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current.historyError).toBeTruthy()
+    })
+
+    act(() => {
+      result.current.retryHistoryLoad()
+    })
+
+    await waitFor(() => {
+      expect(result.current.notConfigured).toBe(true)
+    })
+    expect(result.current.historyError).toBeNull()
+    expect(result.current.connected).toBe(false)
+    expect(result.current.messages).toEqual([])
+  })
+
+  it('hides stored provider context file annotations from the visible user bubble', async () => {
+    mockApiGet.mockImplementation(async (path: string) => {
+      if (path === '/api/chat/models') return { models: [] }
+      if (path === '/api/chat/history') {
+        return {
+          messages: [{
+            id: 'user-with-file',
+            role: 'user',
+            text: 'review this\n\nAttached context files:\n\nFile: src/App.tsx\n```text\nexport default function App() {}\n```',
+            timestamp: new Date('2026-05-16T22:00:00Z').toISOString(),
+          }],
+        }
+      }
+      return {}
+    })
+
+    const { result } = renderHook(() => useChatState(null), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current.messages).toHaveLength(1)
+    })
+    expect(result.current.messages[0]).toEqual(expect.objectContaining({
+      role: 'user',
+      text: 'review this',
+    }))
+  })
+
+  it('hides live-context and local-provider prompt wrappers from stored user bubbles', async () => {
+    mockApiGet.mockImplementation(async (path: string) => {
+      if (path === '/api/chat/models') return { models: [] }
+      if (path === '/api/chat/history') {
+        return {
+          messages: [{
+            id: 'wrapped-user',
+            role: 'user',
+            text: [
+              'Previous conversation in this local chat (oldest to newest, abbreviated if needed):',
+              'User: earlier request',
+              '',
+              'Use the previous conversation as context, but answer the current request directly.',
+              '',
+              'Current user request:',
+              'review this\r\n\r\nAttached context files:\r\n\r\nFile: src/App.tsx\r\n```text\r\nexport default function App() {}\r\n```',
+            ].join('\n'),
+            timestamp: new Date('2026-05-16T22:00:00Z').toISOString(),
+          }],
+        }
+      }
+      return {}
+    })
+
+    const { result } = renderHook(() => useChatState(null), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current.messages).toHaveLength(1)
+    })
+    expect(result.current.messages[0]).toEqual(expect.objectContaining({
+      role: 'user',
+      text: 'review this',
+    }))
+  })
 })

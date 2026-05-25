@@ -671,6 +671,36 @@ fn agentmail_error_response(error: &str, account_id: &str, inbox_id: &str) -> Va
     })
 }
 
+fn classify_imap_fetch_error(err: &anyhow::Error) -> &'static str {
+    for cause in err.chain() {
+        if let Some(io_err) = cause.downcast_ref::<std::io::Error>() {
+            return match io_err.kind() {
+                std::io::ErrorKind::ConnectionRefused => "imap_connection_refused",
+                std::io::ErrorKind::TimedOut => "imap_timeout",
+                std::io::ErrorKind::NotFound => "imap_host_not_found",
+                std::io::ErrorKind::PermissionDenied => "imap_permission_denied",
+                _ => "imap_fetch_failed",
+            };
+        }
+    }
+
+    "imap_fetch_failed"
+}
+
+fn imap_error_response(error: &str, account_id: &str, creds: &Credentials, message: &str) -> Value {
+    json!({
+        "source": "imap",
+        "state": "error",
+        "error": error,
+        "account_id": account_id,
+        "imap_host": creds.host,
+        "imap_port": creds.port,
+        "message": message,
+        "emails": [],
+        "threads": []
+    })
+}
+
 fn required_draft_text(value: Option<&str>, field: &str) -> Result<String, AppError> {
     let text = value.unwrap_or_default().trim();
     if text.is_empty() {
@@ -971,7 +1001,14 @@ async fn get_emails(
         }))),
         Err(e) => {
             tracing::error!("[email] GET error: {:#}", e);
-            Err(AppError::Internal(e))
+            let error = classify_imap_fetch_error(&e);
+            let message = e.to_string();
+            Ok(Json(imap_error_response(
+                error,
+                &account.id,
+                &creds,
+                &message,
+            )))
         }
     }
 }
@@ -1502,6 +1539,40 @@ mod tests {
         ] {
             assert_ne!(response["error"], "missing_credentials");
         }
+    }
+
+    #[test]
+    fn classifies_connection_refused_as_imap_connection_refused() {
+        let err = anyhow::Error::new(std::io::Error::from(std::io::ErrorKind::ConnectionRefused));
+
+        assert_eq!(classify_imap_fetch_error(&err), "imap_connection_refused");
+    }
+
+    #[test]
+    fn imap_error_response_includes_safe_connection_details() {
+        let creds = Credentials {
+            host: "127.0.0.1".into(),
+            port: 1143,
+            user: "bridge-user".into(),
+            password: "bridge-password".into(),
+        };
+
+        let response = imap_error_response(
+            "imap_connection_refused",
+            "imap:josue@aparcedo.org",
+            &creds,
+            "Connection refused (os error 111)",
+        );
+
+        assert_eq!(response["source"], "imap");
+        assert_eq!(response["state"], "error");
+        assert_eq!(response["error"], "imap_connection_refused");
+        assert_eq!(response["imap_host"], "127.0.0.1");
+        assert_eq!(response["imap_port"], 1143);
+        assert_eq!(response["emails"].as_array().unwrap().len(), 0);
+        assert!(!serde_json::to_string(&response)
+            .unwrap()
+            .contains("bridge-password"));
     }
 
     #[test]

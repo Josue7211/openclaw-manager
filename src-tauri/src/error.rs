@@ -4,6 +4,7 @@ use axum::{
     Json,
 };
 use serde_json::{json, Value};
+use std::fmt;
 
 // ── Standard API Response Envelope ──────────────────────────────────────────
 //
@@ -31,6 +32,18 @@ pub enum AppError {
     Forbidden(String),
     BadRequest(String),
     Internal(anyhow::Error),
+}
+
+impl fmt::Display for AppError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AppError::NotFound(message) => write!(f, "{message}"),
+            AppError::Unauthorized => f.write_str("Unauthorized"),
+            AppError::Forbidden(message) => write!(f, "{message}"),
+            AppError::BadRequest(message) => write!(f, "{message}"),
+            AppError::Internal(error) => write!(f, "{error}"),
+        }
+    }
 }
 
 impl IntoResponse for AppError {
@@ -104,5 +117,18 @@ mod tests {
         let value = result.0;
         assert_eq!(value["ok"], true);
         assert_eq!(value["data"], "hello");
+    }
+
+    #[test]
+    fn app_error_display_uses_user_facing_message() {
+        assert_eq!(
+            AppError::BadRequest("invalid project".into()).to_string(),
+            "invalid project"
+        );
+        assert_eq!(AppError::Unauthorized.to_string(), "Unauthorized");
+        assert_eq!(
+            AppError::Internal(anyhow::anyhow!("database unavailable")).to_string(),
+            "database unavailable",
+        );
     }
 }

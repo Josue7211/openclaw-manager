@@ -1,13 +1,18 @@
-import { useMemo, memo } from 'react'
+import { useCallback, useEffect, useMemo, memo } from 'react'
 import { CaretRight } from '@phosphor-icons/react'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 import type { VaultNote } from './types'
+import { buildBacklinkReferences, type BacklinkReference } from './backlinks'
 
 interface BacklinksPanelProps {
   currentNoteTitle: string
   allNotes: VaultNote[]
   onNavigate: (noteId: string) => void
-  onLinkMention?: (noteId: string) => void
+  onLinkMention?: (noteId: string, mentionText?: string) => void
+  onLinkAllMentions?: (references: BacklinkReference[]) => void
+  collapsed?: boolean
+  onCollapsedChange?: (collapsed: boolean) => void
+  openRequest?: number
 }
 
 export default memo(function BacklinksPanel({
@@ -15,28 +20,30 @@ export default memo(function BacklinksPanel({
   allNotes,
   onNavigate,
   onLinkMention,
+  onLinkAllMentions,
+  collapsed: controlledCollapsed,
+  onCollapsedChange,
+  openRequest = 0,
 }: BacklinksPanelProps) {
-  const [collapsed, setCollapsed] = useLocalStorageState('mc-backlinks-collapsed', true)
+  const [localCollapsed, setLocalCollapsed] = useLocalStorageState('mc-backlinks-collapsed', true)
+  const collapsed = controlledCollapsed ?? localCollapsed
+  const setCollapsed = useCallback((next: boolean | ((current: boolean) => boolean)) => {
+    const value = typeof next === 'function' ? next(collapsed) : next
+    if (controlledCollapsed === undefined) {
+      setLocalCollapsed(value)
+      return
+    }
+    onCollapsedChange?.(value)
+  }, [collapsed, controlledCollapsed, onCollapsedChange, setLocalCollapsed])
 
-  const backlinks = useMemo(() => {
-    const title = currentNoteTitle.toLowerCase()
-    return allNotes.filter(
-      (note) =>
-        note.type === 'note' &&
-        note.links.some((link) => link.toLowerCase() === title),
-    )
-  }, [currentNoteTitle, allNotes])
+  useEffect(() => {
+    if (openRequest > 0) setCollapsed(false)
+  }, [openRequest, setCollapsed])
 
-  const unlinkedMentions = useMemo(() => {
-    const title = currentNoteTitle.trim().toLowerCase()
-    if (!title) return []
-    return allNotes.filter((note) => {
-      if (note.type !== 'note') return false
-      if (note.title.toLowerCase() === title) return false
-      if (note.links.some((link) => link.toLowerCase() === title)) return false
-      return note.content.toLowerCase().includes(title)
-    })
-  }, [currentNoteTitle, allNotes])
+  const { linked: backlinks, unlinked: unlinkedMentions } = useMemo(
+    () => buildBacklinkReferences(currentNoteTitle, allNotes),
+    [currentNoteTitle, allNotes],
+  )
 
   const totalReferences = backlinks.length + unlinkedMentions.length
 
@@ -96,14 +103,15 @@ export default memo(function BacklinksPanel({
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <ReferenceList
                 label={`Linked mentions (${backlinks.length})`}
-                notes={backlinks}
+                references={backlinks}
                 onNavigate={onNavigate}
               />
               <ReferenceList
                 label={`Unlinked mentions (${unlinkedMentions.length})`}
-                notes={unlinkedMentions}
+                references={unlinkedMentions}
                 onNavigate={onNavigate}
                 onLinkMention={onLinkMention}
+                onLinkAllMentions={onLinkAllMentions}
               />
             </div>
           )}
@@ -115,29 +123,59 @@ export default memo(function BacklinksPanel({
 
 function ReferenceList({
   label,
-  notes,
+  references,
   onNavigate,
   onLinkMention,
+  onLinkAllMentions,
 }: {
   label: string
-  notes: VaultNote[]
+  references: BacklinkReference[]
   onNavigate: (noteId: string) => void
-  onLinkMention?: (noteId: string) => void
+  onLinkMention?: (noteId: string, mentionText?: string) => void
+  onLinkAllMentions?: (references: BacklinkReference[]) => void
 }) {
-  if (notes.length === 0) return null
+  if (references.length === 0) return null
 
   return (
     <div>
       <div
         style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
           padding: '2px 0 3px 16px',
-          color: 'var(--text-muted)',
-          fontSize: 10,
-          fontWeight: 600,
-          textTransform: 'uppercase',
         }}
       >
-        {label}
+        <div
+          style={{
+            color: 'var(--text-muted)',
+            fontSize: 10,
+            fontWeight: 600,
+            textTransform: 'uppercase',
+          }}
+        >
+          {label}
+        </div>
+        {onLinkAllMentions && (
+          <button
+            type="button"
+            onClick={() => onLinkAllMentions(references)}
+            className="hover-bg"
+            style={{
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              background: 'transparent',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              flexShrink: 0,
+              fontSize: 10,
+              padding: '3px 6px',
+            }}
+          >
+            Link all
+          </button>
+        )}
       </div>
       <ul
         style={{
@@ -149,8 +187,8 @@ function ReferenceList({
           gap: 2,
         }}
       >
-        {notes.map((note) => (
-          <li key={note._id}>
+        {references.map((reference) => (
+          <li key={reference.note._id}>
             <div
               style={{
                 display: 'flex',
@@ -161,7 +199,7 @@ function ReferenceList({
               }}
             >
               <button
-                onClick={() => onNavigate(note._id)}
+                onClick={() => onNavigate(reference.note._id)}
                 className="hover-bg"
                 style={{
                   display: 'block',
@@ -185,9 +223,9 @@ function ReferenceList({
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {note.title || 'Untitled'}
+                  {reference.note.title || 'Untitled'}
                 </div>
-                {note.content && (
+                {reference.snippet && (
                   <div
                     style={{
                       fontSize: 11,
@@ -199,17 +237,17 @@ function ReferenceList({
                       marginTop: 1,
                     }}
                   >
-                    {note.content.slice(0, 80)}
+                    {reference.snippet}
                   </div>
                 )}
               </button>
               {onLinkMention && (
                 <button
                   type="button"
-                  onClick={() => onLinkMention(note._id)}
+                  onClick={() => onLinkMention(reference.note._id, reference.matchedText)}
                   className="hover-bg"
                   title="Link mention"
-                  aria-label={`Link mention in ${note.title || 'Untitled'}`}
+                  aria-label={`Link mention in ${reference.note.title || 'Untitled'}`}
                   style={{
                     border: '1px solid var(--border)',
                     borderRadius: 'var(--radius-sm)',

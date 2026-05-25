@@ -276,7 +276,7 @@ describe('wizard-store', () => {
     expect(STEP_NAMES[9]).toBe('Done')
   })
 
-  it('REQUIRED_STEPS exports Tailscale, Supabase, and Harness indices', async () => {
+  it('REQUIRED_STEPS exports Tailscale, Supabase, and Hermes Agent indices', async () => {
     const { REQUIRED_STEPS } = await import('../wizard-store')
     expect(REQUIRED_STEPS).toEqual([1, 2, 3])
   })

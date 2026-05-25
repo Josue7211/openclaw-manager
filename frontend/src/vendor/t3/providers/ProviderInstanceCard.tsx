@@ -56,35 +56,17 @@ export function providerAuthLabel(entry: ProviderInstanceEntry): string {
 }
 
 export function providerSetupLabel(entry: ProviderInstanceEntry): string {
-  if (entry.driverKind === 'hermes') return 'Codex LB runtime config'
-  if (entry.driverKind === 'claudeAgent') return 'claude CLI on PATH'
-  if (entry.driverKind === 'codex-cli') return 'codex CLI on PATH'
-  return entry.driverKind
+  if (entry.driverKind === 'hermes') return 'Hermes Agent runtime config'
+  return 'Unsupported provider'
 }
 
 export function providerConfigurationRows(entry: ProviderInstanceEntry): Array<{ label: string; value: string }> {
   if (entry.driverKind === 'hermes') {
     return [
-      { label: 'Route', value: 'Hermes / Codex LB' },
-      { label: 'HTTP', value: 'HERMES_API_URL or HARNESS_API_URL' },
-      { label: 'WebSocket', value: 'HERMES_WS or HARNESS_WS' },
-      { label: 'Auth', value: 'HERMES_API_KEY/PASSWORD or HARNESS_API_KEY/PASSWORD' },
-    ]
-  }
-  if (entry.driverKind === 'claudeAgent') {
-    return [
-      { label: 'Binary', value: 'CLAWCONTROL_CLAUDE_COMMAND or claude' },
-      { label: 'Home', value: 'CLAWCONTROL_CLAUDE_HOME or default HOME' },
-      { label: 'Runtime', value: 'CLAWCONTROL_NODE_COMMAND or node' },
-      { label: 'Mode', value: 'one-shot --print, no session persistence' },
-    ]
-  }
-  if (entry.driverKind === 'codex-cli') {
-    return [
-      { label: 'Binary', value: 'CLAWCONTROL_CODEX_COMMAND or codex' },
-      { label: 'Mode', value: 'codex exec one-shot' },
-      { label: 'Sandbox', value: 'read-only, ephemeral' },
-      { label: 'Output', value: '--output-last-message file, stdout fallback' },
+      { label: 'Route', value: 'Hermes Agent' },
+      { label: 'HTTP', value: 'HERMES_API_URL' },
+      { label: 'WebSocket', value: 'HERMES_WS' },
+      { label: 'Auth', value: 'HERMES_API_KEY/PASSWORD' },
     ]
   }
   return [{ label: 'Driver', value: entry.driverKind }]
@@ -106,7 +88,7 @@ export default function ProviderInstanceCard({
 
   return (
     <article
-      aria-label={`${entry.displayName} provider status`}
+      aria-label={`${entry.displayName} status`}
       data-provider-instance-card={entry.instanceId}
       style={cardStyle}
     >
@@ -146,7 +128,7 @@ export default function ProviderInstanceCard({
         <ProviderMeta label="Driver" value={entry.driverKind} />
         <ProviderMeta label="Auth" value={providerAuthLabel(entry)} />
         <ProviderMeta label="Setup" value={providerSetupLabel(entry)} />
-        <ProviderMeta label="Chat picker" value={entry.enabled && entry.isAvailable ? 'Shown in chat' : 'Hidden from chat'} />
+        <ProviderMeta label="Chat access" value={entry.enabled && entry.isAvailable ? 'Available in chat' : 'Hidden from chat'} />
       </dl>
 
       <div style={configSectionStyle}>
@@ -183,7 +165,7 @@ export default function ProviderInstanceCard({
             )}
           </div>
         ) : (
-          <div style={directModelStyle}>Direct local provider, no model selection</div>
+          <div style={directModelStyle}>No models reported</div>
         )}
       </div>
     </article>

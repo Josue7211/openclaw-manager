@@ -1,14 +1,26 @@
-import { useMemo, useCallback, useRef, useState, memo } from 'react'
+import { useMemo, useCallback, useRef, useState, useEffect, memo } from 'react'
 import ForceGraph2D from 'react-force-graph-2d'
-import { MagnifyingGlass, Plus, Minus, Crosshair } from '@phosphor-icons/react'
-import { buildGraphData, filterGraphNotes, graphMatchedIds } from './graphData'
+import { MagnifyingGlass, Plus, Minus, Crosshair, Cloud, CloudSlash, ArrowClockwise } from '@phosphor-icons/react'
+import { buildGraphData, filterGraphNotes, filterLocalGraphNotes, graphMatchedIds, type GraphGroupMode } from './graphData'
 import type { VaultNote } from './types'
+import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
+import {
+  DEFAULT_NOTES_GRAPH_SETTINGS,
+  loadSyncedNotesGraphSettings,
+  mergeNotesGraphSettings,
+  notesGraphSettingsEqual,
+  normalizeNotesGraphSettings,
+  saveSyncedNotesGraphSettings,
+  type NotesGraphSettings,
+} from '@/features/notes/graphSettingsSync'
 
 interface GraphViewProps {
   notes: VaultNote[]
   selectedId: string | null
   onSelectNote: (id: string) => void
 }
+
+type GraphSettingsSyncState = 'local' | 'loading' | 'saving' | 'synced' | 'error'
 
 /** Resolve a CSS variable to its computed value for Canvas API use. */
 function cssVar(name: string): string {
@@ -51,18 +63,145 @@ function clusterColor(cluster: string | undefined, colors: ReturnType<typeof res
   return palette[hash % palette.length]
 }
 
+function drawRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+  const r = Math.min(radius, width / 2, height / 2)
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.lineTo(x + width - r, y)
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r)
+  ctx.lineTo(x + width, y + height - r)
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height)
+  ctx.lineTo(x + r, y + height)
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r)
+  ctx.lineTo(x, y + r)
+  ctx.quadraticCurveTo(x, y, x + r, y)
+  ctx.closePath()
+}
+
 export default memo(function GraphView({ notes, selectedId, onSelectNote }: GraphViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const graphRef = useRef<any>(null)
-  const [graphSearch, setGraphSearch] = useState('')
-  const [focusMatches, setFocusMatches] = useState(false)
-  const [hideOrphans, setHideOrphans] = useState(false)
+  const [graphSearch, setGraphSearch] = useLocalStorageState('mc-notes-graph-search', '')
+  const [graphZoom, setGraphZoom] = useState(1)
+  const [focusMatches, setFocusMatches] = useLocalStorageState('mc-notes-graph-focus-matches', false)
+  const [hideOrphans, setHideOrphans] = useLocalStorageState('mc-notes-graph-hide-orphans', false)
+  const [localGraph, setLocalGraph] = useLocalStorageState('mc-notes-graph-local', false)
+  const [groupMode, setGroupMode] = useLocalStorageState<GraphGroupMode>('mc-notes-graph-group-mode', 'tag')
+  const [graphSettingsUpdatedAt, setGraphSettingsUpdatedAt] = useLocalStorageState('mc-notes-graph-settings-updated-at', 0)
+  const [graphSettingsSyncState, setGraphSettingsSyncState] = useState<GraphSettingsSyncState>('local')
+  const [graphSettingsSyncError, setGraphSettingsSyncError] = useState<string | null>(null)
+  const graphSettingsRef = useRef<NotesGraphSettings>({
+    graphSearch,
+    focusMatches,
+    hideOrphans,
+    localGraph,
+    groupMode,
+    updatedAt: Number(graphSettingsUpdatedAt) || 0,
+  })
 
-  const visibleNotes = useMemo(
-    () => filterGraphNotes(notes, graphSearch, { focusMatches, hideOrphans }),
-    [focusMatches, graphSearch, hideOrphans, notes],
+  const syncGraphSettings = useCallback(async (settings: NotesGraphSettings) => {
+    const normalized = normalizeNotesGraphSettings(settings)
+    graphSettingsRef.current = normalized
+    setGraphSettingsSyncState('saving')
+    setGraphSettingsSyncError(null)
+    try {
+      await saveSyncedNotesGraphSettings(normalized)
+      setGraphSettingsSyncState('synced')
+    } catch (err) {
+      setGraphSettingsSyncState('error')
+      setGraphSettingsSyncError(err instanceof Error ? err.message : 'Graph settings sync failed')
+    }
+  }, [])
+
+  const updateGraphSettings = useCallback((patch: Partial<Omit<NotesGraphSettings, 'updatedAt'>>) => {
+    const updatedAt = Date.now()
+    const next = normalizeNotesGraphSettings({
+      ...graphSettingsRef.current,
+      ...patch,
+      updatedAt,
+    })
+    graphSettingsRef.current = next
+    if ('graphSearch' in patch) setGraphSearch(next.graphSearch)
+    if ('focusMatches' in patch) setFocusMatches(next.focusMatches)
+    if ('hideOrphans' in patch) setHideOrphans(next.hideOrphans)
+    if ('localGraph' in patch) setLocalGraph(next.localGraph)
+    if ('groupMode' in patch) setGroupMode(next.groupMode)
+    setGraphSettingsUpdatedAt(updatedAt)
+    void syncGraphSettings(next)
+  }, [setFocusMatches, setGraphSearch, setGraphSettingsUpdatedAt, setGroupMode, setHideOrphans, setLocalGraph, syncGraphSettings])
+
+  useEffect(() => {
+    graphSettingsRef.current = normalizeNotesGraphSettings({
+      graphSearch,
+      focusMatches,
+      hideOrphans,
+      localGraph,
+      groupMode,
+      updatedAt: Number(graphSettingsUpdatedAt) || 0,
+    })
+  }, [focusMatches, graphSearch, graphSettingsUpdatedAt, groupMode, hideOrphans, localGraph])
+
+  useEffect(() => {
+    let cancelled = false
+    setGraphSettingsSyncState('loading')
+    setGraphSettingsSyncError(null)
+
+    async function loadGraphSettings() {
+      const local = graphSettingsRef.current
+      const synced = await loadSyncedNotesGraphSettings()
+      if (cancelled) return
+      const merged = mergeNotesGraphSettings(synced, local)
+      graphSettingsRef.current = merged
+      if (!notesGraphSettingsEqual(merged, local)) {
+        setGraphSearch(merged.graphSearch)
+        setFocusMatches(merged.focusMatches)
+        setHideOrphans(merged.hideOrphans)
+        setLocalGraph(merged.localGraph)
+        setGroupMode(merged.groupMode)
+        setGraphSettingsUpdatedAt(merged.updatedAt)
+      }
+      if (!notesGraphSettingsEqual(merged, synced) && !notesGraphSettingsEqual(merged, DEFAULT_NOTES_GRAPH_SETTINGS)) {
+        await syncGraphSettings(merged)
+        return
+      }
+      setGraphSettingsSyncState('synced')
+    }
+
+    loadGraphSettings().catch((err) => {
+      if (cancelled) return
+      setGraphSettingsSyncState('error')
+      setGraphSettingsSyncError(err instanceof Error ? err.message : 'Graph settings sync failed')
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [setFocusMatches, setGraphSearch, setGraphSettingsUpdatedAt, setGroupMode, setHideOrphans, setLocalGraph, syncGraphSettings])
+
+  const graphSettingsSyncLabel =
+    graphSettingsSyncState === 'loading'
+      ? 'Graph syncing'
+      : graphSettingsSyncState === 'saving'
+        ? 'Graph saving'
+        : graphSettingsSyncState === 'synced'
+          ? 'Graph synced'
+          : graphSettingsSyncState === 'error'
+            ? 'Graph unsynced'
+            : 'Graph local'
+
+  const handleRetryGraphSettingsSync = useCallback(() => {
+    void syncGraphSettings(graphSettingsRef.current)
+  }, [syncGraphSettings])
+
+  const scopedNotes = useMemo(
+    () => localGraph ? filterLocalGraphNotes(notes, selectedId) : notes,
+    [localGraph, notes, selectedId],
   )
-  const graphData = useMemo(() => buildGraphData(visibleNotes), [visibleNotes])
+  const visibleNotes = useMemo(
+    () => filterGraphNotes(scopedNotes, graphSearch, { focusMatches, hideOrphans }),
+    [focusMatches, graphSearch, hideOrphans, scopedNotes],
+  )
+  const graphData = useMemo(() => buildGraphData(visibleNotes, { groupMode }), [groupMode, visibleNotes])
 
   const highlightedIds = useMemo(() => {
     return graphMatchedIds(visibleNotes, graphSearch)
@@ -111,11 +250,15 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
 
       const x = node.x ?? 0
       const y = node.y ?? 0
-      const baseRadius = Math.sqrt(node.val) * 2.5
+      const viewportScale = Math.max(globalScale, 0.001)
+      const baseScreenRadius = Math.min(18, Math.max(6, Math.sqrt(node.val) * 3.2))
+      const focusScreenRadius = isSelected || isSearchMatch ? baseScreenRadius + 3 : isConnected ? baseScreenRadius + 1.5 : baseScreenRadius
+      const baseRadius = focusScreenRadius / viewportScale
+      const glowRadius = (isSelected || isSearchMatch ? 34 : 24) / viewportScale
 
       // Glow for selected/connected/search-matched nodes
       if (isSelected || isConnected || isSearchMatch) {
-        const gradient = ctx.createRadialGradient(x, y, 0, x, y, baseRadius * 4)
+        const gradient = ctx.createRadialGradient(x, y, 0, x, y, glowRadius)
         if (isSelected) {
           gradient.addColorStop(0, c.accentA30)
           gradient.addColorStop(1, 'transparent')
@@ -127,7 +270,7 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
           gradient.addColorStop(1, 'transparent')
         }
         ctx.beginPath()
-        ctx.arc(x, y, baseRadius * 4, 0, Math.PI * 2)
+        ctx.arc(x, y, glowRadius, 0, Math.PI * 2)
         ctx.fillStyle = gradient
         ctx.fill()
       }
@@ -142,24 +285,24 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
       if (isSelected) {
         ctx.fillStyle = c.accentDim
         ctx.strokeStyle = c.accent
-        ctx.lineWidth = 1.5
+        ctx.lineWidth = 2 / viewportScale
       } else if (isSearchMatch) {
         ctx.fillStyle = c.accentDim
         ctx.strokeStyle = c.accent
-        ctx.lineWidth = 1.5
+        ctx.lineWidth = 2 / viewportScale
       } else if (isConnected) {
         ctx.fillStyle = c.accentDim
         ctx.strokeStyle = c.accentSolid
-        ctx.lineWidth = 1
+        ctx.lineWidth = 1.5 / viewportScale
       } else if (node.links === 0) {
         ctx.fillStyle = c.bgWhite12
         ctx.strokeStyle = c.bgWhite15
-        ctx.lineWidth = 0.5
+        ctx.lineWidth = 1 / viewportScale
       } else {
         const clusterTone = clusterColor(node.cluster, c)
         ctx.fillStyle = clusterTone.fill
         ctx.strokeStyle = clusterTone.stroke
-        ctx.lineWidth = 0.8
+        ctx.lineWidth = 1.2 / viewportScale
       }
 
       if (isDimmed) {
@@ -170,25 +313,38 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
       ctx.stroke()
 
       // Label — show for zoomed-in, selected, connected, or search-matched nodes
-      const showLabel = globalScale > 1.5 || isSelected || isConnected || isSearchMatch
+      const showLabel = globalScale > 1.2 || isSelected || isConnected || isSearchMatch
       if (showLabel) {
-        const fontSize = Math.max(10 / globalScale, 3)
+        const screenFontSize = isSelected || isSearchMatch ? 13 : isConnected ? 12 : 11
+        const fontSize = screenFontSize / viewportScale
         ctx.font = `${isSelected || isSearchMatch ? '600' : '400'} ${fontSize}px "Inter", -apple-system, sans-serif`
         ctx.textAlign = 'center'
-        ctx.textBaseline = 'top'
+        ctx.textBaseline = 'middle'
 
-        const label = node.title.length > 30 ? node.title.slice(0, 28) + '...' : node.title
+        const maxLabelLength = globalScale > 2.2 || isSelected || isSearchMatch ? 34 : 22
+        const label = node.title.length > maxLabelLength ? node.title.slice(0, maxLabelLength - 1) + '...' : node.title
+        const labelY = y + baseRadius + (screenFontSize + 7) / viewportScale
+        const paddingX = 6 / viewportScale
+        const labelWidth = ctx.measureText(label).width
+        const labelHeight = (screenFontSize + 7) / viewportScale
 
-        // Text shadow for readability
-        ctx.fillStyle = c.overlayHeavy
-        ctx.fillText(label, x + 0.3, y + baseRadius + 3.3)
+        ctx.fillStyle = 'rgba(5, 8, 18, 0.78)'
+        drawRoundRect(
+          ctx,
+          x - labelWidth / 2 - paddingX,
+          labelY - labelHeight / 2,
+          labelWidth + paddingX * 2,
+          labelHeight,
+          5 / viewportScale,
+        )
+        ctx.fill()
 
         ctx.fillStyle = isSelected || isSearchMatch
           ? c.accentBright
           : isConnected
             ? c.accentBright
             : c.bgWhite60
-        ctx.fillText(label, x, y + baseRadius + 3)
+        ctx.fillText(label, x, labelY)
       }
 
       if (isDimmed) {
@@ -226,9 +382,9 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
       const targetId = link.target?.id ?? link.target
       if (sourceId === selectedId || targetId === selectedId) return 1.5
       if (highlightedIds.size > 0 && (highlightedIds.has(sourceId) || highlightedIds.has(targetId))) return 1.2
-      return 0.4
+      return Math.max(0.35 / Math.max(graphZoom, 0.5), 0.08)
     },
-    [selectedId, highlightedIds],
+    [selectedId, highlightedIds, graphZoom],
   )
 
   if (notes.length === 0) {
@@ -266,7 +422,8 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
         nodeLabel="title"
         nodeCanvasObject={nodeCanvasObject}
         nodePointerAreaPaint={(node: any, color, ctx) => {
-          const r = Math.sqrt(node.val) * 3
+          const zoom = Math.max(graphZoom, 0.001)
+          const r = Math.min(22, Math.max(10, Math.sqrt(node.val) * 4.5)) / zoom
           ctx.beginPath()
           ctx.arc(node.x ?? 0, node.y ?? 0, r, 0, Math.PI * 2)
           ctx.fillStyle = color
@@ -286,6 +443,7 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
         enablePanInteraction={true}
         minZoom={0.3}
         maxZoom={12}
+        onZoom={(transform: { k?: number }) => setGraphZoom(transform.k ?? 1)}
       />
 
       {/* Subtle vignette overlay */}
@@ -319,7 +477,7 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
           <MagnifyingGlass size={12} style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.6 }} />
           <input
             value={graphSearch}
-            onChange={(e) => setGraphSearch(e.target.value)}
+            onChange={(e) => updateGraphSettings({ graphSearch: e.target.value })}
             placeholder="tag:project folder:Work..."
             aria-label="Filter graph nodes"
             style={{
@@ -343,7 +501,7 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
             <input
               type="checkbox"
               checked={focusMatches}
-              onChange={(event) => setFocusMatches(event.target.checked)}
+              onChange={(event) => updateGraphSettings({ focusMatches: event.target.checked })}
               style={{ accentColor: 'var(--accent)' }}
             />
             Focus
@@ -352,12 +510,71 @@ export default memo(function GraphView({ notes, selectedId, onSelectNote }: Grap
             <input
               type="checkbox"
               checked={hideOrphans}
-              onChange={(event) => setHideOrphans(event.target.checked)}
+              onChange={(event) => updateGraphSettings({ hideOrphans: event.target.checked })}
               style={{ accentColor: 'var(--accent)' }}
             />
             Hide orphans
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: selectedId ? 'pointer' : 'default', opacity: selectedId ? 1 : 0.45 }}>
+            <input
+              type="checkbox"
+              checked={localGraph}
+              disabled={!selectedId}
+              onChange={(event) => updateGraphSettings({ localGraph: event.target.checked })}
+              style={{ accentColor: 'var(--accent)' }}
+            />
+            Local
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+            Group
+            <select
+              value={groupMode}
+              aria-label="Group graph nodes"
+              onChange={(event) => updateGraphSettings({ groupMode: event.target.value as GraphGroupMode })}
+              style={{
+                maxWidth: 74,
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--text-primary)',
+                fontSize: 11,
+                padding: '2px 4px',
+              }}
+            >
+              <option value="tag">Tag</option>
+              <option value="folder">Folder</option>
+              <option value="type">Type</option>
+              <option value="none">None</option>
+            </select>
+          </label>
           <span style={{ marginLeft: 'auto', opacity: 0.65 }}>{graphData.nodes.length} nodes</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: graphSettingsSyncState === 'error' ? 'var(--red)' : 'var(--text-muted)', fontSize: 10 }}>
+          {graphSettingsSyncState === 'error' ? <CloudSlash size={11} /> : <Cloud size={11} />}
+          <span title={graphSettingsSyncError || 'Synced through the local vault.'}>{graphSettingsSyncLabel}</span>
+          {graphSettingsSyncState === 'error' && (
+            <button
+              type="button"
+              onClick={handleRetryGraphSettingsSync}
+              aria-label="Retry graph settings sync"
+              title="Retry graph settings sync"
+              style={{
+                width: 18,
+                height: 18,
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                padding: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <ArrowClockwise size={10} />
+            </button>
+          )}
         </div>
       </div>
 

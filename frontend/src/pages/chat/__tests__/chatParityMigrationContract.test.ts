@@ -117,10 +117,9 @@ describe('chat copy-first migration contract', () => {
     expect(projectScripts).toContain('primaryProjectScript')
     expect(projectWorkspace).toContain('Copied/adapted from T3 Code')
     expect(projectWorkspace).toContain('DEFAULT_CHAT_PROJECT_SCRIPTS')
-    expect(projectWorkspace).toContain('src/chat/t3-adapters')
-    expect(projectWorkspace).toContain('src/vendor/t3/project')
-    expect(projectWorkspace).toContain('src/vendor/t3/providers')
-    expect(projectWorkspace).toContain('src/vendor/t3/terminal')
+    expect(projectWorkspace).toContain('DEFAULT_CHAT_PROJECT_SCRIPTS: ChatProjectScript[] = []')
+    expect(projectWorkspace).not.toContain('Chat tests')
+    expect(projectWorkspace).not.toContain('Chat lint')
     expect(projectWorkspace).toContain('toT3ProjectScript')
     expect(projectWorkspace).toContain('normalizeWorkspaceProject')
     expect(projectWorkspace).toContain('loadChatWorkspaceContext')
@@ -212,20 +211,22 @@ describe('chat copy-first migration contract', () => {
     expect(titles).toContain('sanitizeTitleSource')
   })
 
-  it('keeps backend default chat actions pointed at copied T3 migration modules', () => {
+  it('keeps generic project defaults free of repo-specific chat actions', () => {
     const defaults = read('src/chat/t3-adapters/projectWorkspace.ts')
 
     expect(defaults).toBeTruthy()
 
-    expect(defaults).toContain('src/chat/t3-adapters')
-    expect(defaults).toContain('src/vendor/t3/project')
-    expect(defaults).toContain('src/vendor/t3/providers')
-    expect(defaults).toContain('src/vendor/t3/terminal')
+    expect(defaults).toContain('DEFAULT_CHAT_PROJECT_SCRIPTS: ChatProjectScript[] = []')
+    expect(defaults).not.toContain('cargo tauri dev')
+    expect(defaults).not.toContain('src/chat/t3-adapters')
+    expect(defaults).not.toContain('src/vendor/t3/project')
+    expect(defaults).not.toContain('src/vendor/t3/providers')
+    expect(defaults).not.toContain('src/vendor/t3/terminal')
     expect(defaults).not.toContain('src/pages/sessions/SessionList.tsx')
     expect(defaults).not.toContain('src/pages/sessions/SessionCard.tsx')
   })
 
-  it('keeps provider catalog shared with the Rust route and OpenClaw out of chat providers', () => {
+  it('keeps Hermes Agent provider catalog shared with the Rust route and OpenClaw out of chat providers', () => {
     const providers = read('src/features/chat/providers.ts')
     const sharedCatalog = read('../shared/chat-providers.json')
     const parsed = JSON.parse(sharedCatalog) as Array<{ id: string }>
@@ -234,8 +235,18 @@ describe('chat copy-first migration contract', () => {
     expect(providers).toContain('SHARED_CHAT_PROVIDER_OPTIONS.map')
     expect(providers).not.toMatch(/CHAT_PROVIDER_IDS\s*=\s*\[/)
     expect(providers).not.toMatch(/CHAT_PROVIDER_OPTIONS:\s*ChatProviderOption\[\]\s*=\s*\[/)
-    expect(parsed.map(provider => provider.id)).toEqual(['hermes', 'claudeAgent', 'codex-cli'])
+    expect(parsed.map(provider => provider.id)).toEqual(['hermes'])
     expect(sharedCatalog).not.toMatch(/openclaw|OpenClaw/)
+  })
+
+  it('bundles the Claude provider runtime bridge for packaged desktop builds', () => {
+    const config = JSON.parse(read('../src-tauri/tauri.conf.json'))
+
+    expect(config.bundle.resources).toMatchObject({
+      'resources/*': 'resources',
+      '../provider-runtime/t3/claude-provider-runtime.mjs':
+        'provider-runtime/t3/claude-provider-runtime.mjs',
+    })
   })
 
   it('keeps terminal as a T3 bottom-dock adapter, not a side panel or modal', () => {
@@ -281,6 +292,6 @@ describe('chat copy-first migration contract', () => {
     expect(menu).toContain('CHAT_SETTINGS_SHORTCUTS')
     expect(shortcuts).toContain('Usage remaining')
     expect(shortcuts).toContain('Providers')
-    expect(shortcuts).toContain('Codex LB')
+    expect(shortcuts).toContain('Hermes Agent')
   })
 })

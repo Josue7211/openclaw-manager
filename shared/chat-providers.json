@@ -1,23 +1,9 @@
 [
   {
     "id": "hermes",
-    "name": "Hermes",
-    "description": "Codex LB backed chat",
+    "name": "Hermes Agent",
+    "description": "Hermes Agent workspace chat",
     "local": false,
     "modelBacked": true
-  },
-  {
-    "id": "claudeAgent",
-    "name": "Claude Code",
-    "description": "Local Claude Code agent runtime",
-    "local": true,
-    "modelBacked": false
-  },
-  {
-    "id": "codex-cli",
-    "name": "Codex CLI",
-    "description": "Local Codex CLI runtime",
-    "local": true,
-    "modelBacked": false
   }
 ]

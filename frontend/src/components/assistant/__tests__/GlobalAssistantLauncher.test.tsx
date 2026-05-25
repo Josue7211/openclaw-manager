@@ -233,11 +233,38 @@ describe('GlobalAssistantLauncher', () => {
     )
 
     fireEvent.click(screen.getByTestId('global-ai-chat-launcher'))
-    fireEvent.change(await screen.findByLabelText('Select assistant chat'), { target: { value: 'chat-42' } })
+    fireEvent.change(await screen.findByLabelText('Select assistant chat'), { target: { value: JSON.stringify(['', 'chat-42']) } })
     fireEvent.click(screen.getByRole('button', { name: 'Open full chat' }))
 
     expect(screen.getByTestId('location')).toHaveTextContent('/chat?session=chat-42')
     expect(localStorage.getItem('chat-selected-session-key')).toBe('chat-42')
+  })
+
+  it('opens environment-scoped sidebar sessions in full chat', async () => {
+    mockApiGet.mockImplementation(async (path: string) => (
+      path === '/api/gateway/sessions'
+        ? {
+            sessions: [
+              { key: 'shared-thread', label: 'Local chat', messageCount: 2, lastActivity: new Date().toISOString(), agentKey: 'main', environmentId: 'local' },
+              { key: 'shared-thread', label: 'Desktop chat', messageCount: 4, lastActivity: new Date().toISOString(), agentKey: 'main', environmentId: 'desktop' },
+            ],
+          }
+        : { messages: [] }
+    ))
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <GlobalAssistantLauncher collapsed={true} />
+        <LocationProbe />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(screen.getByTestId('global-ai-chat-launcher'))
+    fireEvent.change(await screen.findByLabelText('Select assistant chat'), { target: { value: JSON.stringify(['desktop', 'shared-thread']) } })
+    fireEvent.click(screen.getByRole('button', { name: 'Open full chat' }))
+
+    expect(screen.getByTestId('location')).toHaveTextContent('/chat?session=shared-thread&threadId=shared-thread&environmentId=desktop')
+    expect(localStorage.getItem('chat-selected-session-key')).toBe('shared-thread')
+    expect(localStorage.getItem('chat-selected-session-environment')).toBe('desktop')
   })
 
   it('sends ordinary sidebar messages to Hermes chat with the selected saved session key', async () => {
@@ -250,7 +277,7 @@ describe('GlobalAssistantLauncher', () => {
     renderLauncher()
 
     fireEvent.click(screen.getByTestId('global-ai-chat-launcher'))
-    fireEvent.change(await screen.findByLabelText('Select assistant chat'), { target: { value: 'chat-42' } })
+    fireEvent.change(await screen.findByLabelText('Select assistant chat'), { target: { value: JSON.stringify(['', 'chat-42']) } })
     fireEvent.change(screen.getByLabelText('Assistant message'), { target: { value: 'continue this' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send assistant message' }))
 
@@ -259,6 +286,145 @@ describe('GlobalAssistantLauncher', () => {
         sessionKey: 'chat-42',
         text: 'continue this',
         liveContext: expect.stringContaining('calendar: loaded'),
+      }))
+    })
+  })
+
+  it('sends ordinary sidebar messages with the selected saved session environment', async () => {
+    mockApiGet.mockImplementation(async (path: string) => (
+      path === '/api/gateway/sessions'
+        ? {
+            sessions: [
+              { key: 'shared-thread', label: 'Local chat', messageCount: 2, lastActivity: new Date().toISOString(), agentKey: 'main', environmentId: 'local' },
+              { key: 'shared-thread', label: 'Desktop chat', messageCount: 4, lastActivity: new Date().toISOString(), agentKey: 'main', environmentId: 'desktop' },
+            ],
+          }
+        : { messages: [] }
+    ))
+    mockApiPost.mockResolvedValueOnce({ reply: 'Continuing desktop chat.', sessionKey: 'shared-thread', environmentId: 'desktop' })
+    renderLauncher()
+
+    fireEvent.click(screen.getByTestId('global-ai-chat-launcher'))
+    fireEvent.change(await screen.findByLabelText('Select assistant chat'), { target: { value: JSON.stringify(['desktop', 'shared-thread']) } })
+    fireEvent.change(screen.getByLabelText('Assistant message'), { target: { value: 'continue desktop' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send assistant message' }))
+
+    await waitFor(() => {
+      expect(mockApiGet).toHaveBeenCalledWith('/api/gateway/sessions/shared-thread/history?limit=500&environmentId=desktop')
+      expect(mockApiPost).toHaveBeenCalledWith('/api/chat', expect.objectContaining({
+        sessionKey: 'shared-thread',
+        environmentId: 'desktop',
+        text: 'continue desktop',
+      }))
+    })
+    expect(localStorage.getItem('chat-selected-session-key')).toBe('shared-thread')
+    expect(localStorage.getItem('chat-selected-session-environment')).toBe('desktop')
+  })
+
+  it('sends ordinary sidebar messages with the selected workspace project context', async () => {
+    localStorage.setItem('chat-selected-project-path', '/Users/josue/AgentShell')
+    localStorage.setItem('chat-selected-branch', 'codex/drawer-context')
+    localStorage.setItem('chat-selected-runtime', 'Work locally')
+    mockApiGet.mockImplementation(async (path: string) => {
+      if (path === '/api/chat/workspace-context') {
+        return {
+          projects: [
+            {
+              id: 'local:clawcontrol',
+              name: 'clawcontrol',
+              path: '/Volumes/T7/projects/clawcontrol',
+              root: '/Volumes/T7/projects/clawcontrol',
+              environmentId: 'local',
+              branches: ['main'],
+              currentBranch: 'main',
+            },
+            {
+              id: 'local:agent-shell',
+              name: 'AgentShell',
+              path: '/Users/josue/AgentShell',
+              root: '/Users/josue/AgentShell',
+              environmentId: 'local',
+              branches: ['main', 'codex/drawer-context'],
+              currentBranch: 'codex/drawer-context',
+            },
+          ],
+          runtimeModes: ['Work locally'],
+        }
+      }
+      if (path === '/api/gateway/sessions') return { sessions: [] }
+      return { messages: [] }
+    })
+    mockApiPost.mockResolvedValueOnce({ reply: 'Using AgentShell.', sessionKey: 'chat-agent-shell' })
+    renderLauncher()
+
+    fireEvent.click(screen.getByTestId('global-ai-chat-launcher'))
+    fireEvent.change(screen.getByLabelText('Assistant message'), { target: { value: 'continue this' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send assistant message' }))
+
+    await waitFor(() => {
+      expect(mockApiPost).toHaveBeenCalledWith('/api/chat', expect.objectContaining({
+        text: 'continue this',
+        projectId: 'local:agent-shell',
+        project: 'AgentShell',
+        projectRoot: '/Users/josue/AgentShell',
+        workingDir: '/Users/josue/AgentShell',
+        environmentId: 'local',
+        branch: 'codex/drawer-context',
+        runtime: 'Work locally',
+      }))
+    })
+  })
+
+  it('resolves the selected workspace project by path and environment', async () => {
+    localStorage.setItem('chat-selected-project-path', '/Users/josue/AgentShell/')
+    localStorage.setItem('chat-selected-project-environment', 'desktop')
+    localStorage.setItem('chat-selected-runtime', 'Work locally')
+    mockApiGet.mockImplementation(async (path: string) => {
+      if (path === '/api/chat/workspace-context') {
+        return {
+          projects: [
+            {
+              id: 'local:agent-shell',
+              name: 'AgentShell local',
+              path: '/Users/josue/AgentShell',
+              root: '/Users/josue/AgentShell',
+              environmentId: 'local',
+              branches: ['main'],
+              currentBranch: 'main',
+            },
+            {
+              id: 'desktop:agent-shell',
+              name: 'AgentShell desktop',
+              path: '/Users/josue/AgentShell',
+              root: '/Users/josue/AgentShell',
+              environmentId: 'desktop',
+              branches: ['main', 'codex/desktop'],
+              currentBranch: 'codex/desktop',
+            },
+          ],
+          runtimeModes: ['Work locally'],
+        }
+      }
+      if (path === '/api/gateway/sessions') return { sessions: [] }
+      return { messages: [] }
+    })
+    mockApiPost.mockResolvedValueOnce({ reply: 'Using desktop AgentShell.', sessionKey: 'chat-desktop-agent-shell' })
+    renderLauncher()
+
+    fireEvent.click(screen.getByTestId('global-ai-chat-launcher'))
+    fireEvent.change(screen.getByLabelText('Assistant message'), { target: { value: 'continue this' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send assistant message' }))
+
+    await waitFor(() => {
+      expect(mockApiPost).toHaveBeenCalledWith('/api/chat', expect.objectContaining({
+        text: 'continue this',
+        projectId: 'desktop:agent-shell',
+        project: 'AgentShell desktop',
+        projectRoot: '/Users/josue/AgentShell',
+        workingDir: '/Users/josue/AgentShell',
+        environmentId: 'desktop',
+        branch: 'codex/desktop',
+        runtime: 'Work locally',
       }))
     })
   })
@@ -321,7 +487,7 @@ describe('GlobalAssistantLauncher', () => {
 
     fireEvent.click(screen.getByTestId('global-ai-chat-launcher'))
     const picker = await screen.findByLabelText('Select assistant chat')
-    fireEvent.change(picker, { target: { value: 'weather-chat' } })
+    fireEvent.change(picker, { target: { value: JSON.stringify(['', 'weather-chat']) } })
     fireEvent.change(picker, { target: { value: '' } })
     fireEvent.change(screen.getByLabelText('Assistant message'), { target: { value: 'make a card' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send assistant message' }))
@@ -334,6 +500,50 @@ describe('GlobalAssistantLauncher', () => {
     const request = mockApiPost.mock.calls.find(call => call[0] === '/api/chat/openui')?.[1] as { sessionKey?: string }
     expect(request.sessionKey).toBeUndefined()
     expect(localStorage.getItem('chat-selected-session-key')).toBe('fresh-card-chat')
+  })
+
+  it('keeps workspace environment when builder mode creates a saved session', async () => {
+    localStorage.setItem('chat-selected-project-path', '/Users/josue/AgentShell')
+    mockApiGet.mockImplementation(async (path: string) => {
+      if (path === '/api/chat/workspace-context') {
+        return {
+          projects: [{
+            id: 'remote:agent-shell',
+            name: 'AgentShell',
+            path: '/Users/josue/AgentShell',
+            root: '/Users/josue/AgentShell',
+            environmentId: 'desktop',
+            branches: ['main'],
+            currentBranch: 'main',
+          }],
+          runtimeModes: ['Work locally'],
+        }
+      }
+      if (path === '/api/gateway/sessions') return { sessions: [] }
+      return { messages: [] }
+    })
+    mockApiPost.mockResolvedValueOnce({ reply: 'Started builder chat.', sessionKey: 'builder-agent-shell' })
+    const sessionsChanged = vi.fn()
+    window.addEventListener('clawcontrol:chat-sessions-changed', sessionsChanged)
+    renderLauncher()
+
+    fireEvent.click(screen.getByTestId('global-ai-chat-launcher'))
+    fireEvent.change(screen.getByLabelText('Assistant message'), { target: { value: 'make a card' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send assistant message' }))
+
+    await waitFor(() => {
+      expect(mockApiPost).toHaveBeenCalledWith('/api/chat/openui', expect.objectContaining({
+        environmentId: 'desktop',
+        newChat: true,
+      }))
+      expect(localStorage.getItem('chat-selected-session-key')).toBe('builder-agent-shell')
+      expect(localStorage.getItem('chat-selected-session-environment')).toBe('desktop')
+    })
+    expect((sessionsChanged.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({
+      sessionKey: 'builder-agent-shell',
+      environmentId: 'desktop',
+    })
+    window.removeEventListener('clawcontrol:chat-sessions-changed', sessionsChanged)
   })
 
   it('selects a newly-created saved session after a sidebar send', async () => {

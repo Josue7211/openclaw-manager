@@ -254,7 +254,7 @@ fn source_label(source: &str) -> &'static str {
     match source {
         "agentshell" => "Agent Shell",
         SOURCE_AGENTSECRETS => "Agent Secrets",
-        SOURCE_HARNESS => "Hermes Harness",
+        SOURCE_HARNESS => "Hermes Agent",
         _ => "ClawControl",
     }
 }
@@ -326,8 +326,8 @@ fn normalize_harness_approval(raw: Value) -> Option<Value> {
     let requested_at = str_field(&raw, &["requestedAt", "requested_at", "created_at"])
         .map(str::to_string)
         .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
-    let tool =
-        str_field(&raw, &["tool", "name", "action", "request_type"]).unwrap_or("Harness request");
+    let tool = str_field(&raw, &["tool", "name", "action", "request_type"])
+        .unwrap_or("Hermes Agent request");
     let context = str_field(&raw, &["context", "reason", "summary", "message"]).unwrap_or("");
     let args = value_field(&raw, &["args", "arguments", "payload", "request"])
         .unwrap_or_else(|| json!({}));
@@ -335,7 +335,7 @@ fn normalize_harness_approval(raw: Value) -> Option<Value> {
     Some(json!({
         "id": prefixed_id(SOURCE_HARNESS, id),
         "source": SOURCE_HARNESS,
-        "sourceLabel": "Hermes Harness",
+        "sourceLabel": "Hermes Agent",
         "sessionId": str_field(&raw, &["sessionId", "session_id"]).unwrap_or(""),
         "agentId": str_field(&raw, &["agentId", "agent_id"]).unwrap_or(""),
         "tool": tool,
@@ -518,9 +518,9 @@ async fn list_harness_approvals(state: &AppState) -> (Vec<Value>, Value) {
             Vec::new(),
             source_error(
                 SOURCE_HARNESS,
-                "Hermes Harness",
+                "Hermes Agent",
                 false,
-                "Harness API is not configured.".into(),
+                "Hermes Agent API is not configured.".into(),
             ),
         );
     }
@@ -528,18 +528,18 @@ async fn list_harness_approvals(state: &AppState) -> (Vec<Value>, Value) {
     match gateway_forward(state, Method::GET, "/approvals", None).await {
         Ok(payload) => {
             let approvals = normalize_harness_payload(payload);
-            let source = source_ok(SOURCE_HARNESS, "Hermes Harness", true, approvals.len());
+            let source = source_ok(SOURCE_HARNESS, "Hermes Agent", true, approvals.len());
             (approvals, source)
         }
         Err(err) => (
             Vec::new(),
             source_error(
                 SOURCE_HARNESS,
-                "Hermes Harness",
+                "Hermes Agent",
                 true,
                 match err {
                     AppError::BadRequest(message) => message,
-                    _ => "Harness approvals are unreachable.".into(),
+                    _ => "Hermes Agent approvals are unreachable.".into(),
                 },
             ),
         ),
@@ -788,7 +788,7 @@ async fn sweep_expired_request(
 
 /// `GET /api/approvals`
 ///
-/// Aggregates approval requests from ClawControl, Hermes Harness, and Agent Secrets.
+/// Aggregates approval requests from ClawControl, Hermes Agent, and Agent Secrets.
 async fn list_approvals(
     State(state): State<AppState>,
     RequireAuth(session): RequireAuth,

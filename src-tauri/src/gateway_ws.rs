@@ -1,14 +1,17 @@
 //! Gateway WebSocket client — maintains a persistent connection to the
-//! Harness gateway and broadcasts received events to local subscribers.
+//! Hermes Agent gateway and broadcasts received events to local subscribers.
 //!
 //! The client connects to the gateway's WebSocket endpoint, authenticates
 //! with the configured API key, and re-broadcasts all received event frames
 //! via a `tokio::sync::broadcast` channel. SSE endpoints and other internal
 //! consumers subscribe to this channel to receive real-time gateway events.
 
-use serde_json::Value;
+use futures::{SinkExt, StreamExt};
+use serde_json::{json, Value};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::{broadcast, RwLock};
+use tokio_tungstenite::{connect_async, tungstenite::Message as TungMessage};
 
 /// Gateway connection state.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -45,7 +48,7 @@ struct Inner {
     reconnect_attempt: u64,
 }
 
-/// Client that maintains a WebSocket connection to the Harness gateway
+/// Client that maintains a WebSocket connection to the Hermes Agent gateway
 /// and broadcasts events to local subscribers.
 pub struct GatewayWsClient {
     event_tx: broadcast::Sender<Value>,
@@ -116,6 +119,122 @@ impl GatewayWsClient {
     pub async fn reset_reconnect(&self) {
         self.inner.write().await.reconnect_attempt = 0;
     }
+
+    /// Maintain a persistent Hermes Agent gateway WebSocket connection.
+    ///
+    /// The gateway protocol starts with a `connect` RPC. Once accepted, event
+    /// frames are published to local subscribers and `/api/gateway/status`
+    /// reflects the live connection state.
+    pub async fn run(self: Arc<Self>, ws_url: String, auth_token: Option<String>) {
+        let ws_url = ws_url.trim().to_string();
+        if ws_url.is_empty() {
+            self.set_state(ConnectionState::NotConfigured).await;
+            return;
+        }
+
+        loop {
+            self.set_state(ConnectionState::Connecting).await;
+            match self.connect_once(&ws_url, auth_token.as_deref()).await {
+                Ok(()) => tracing::info!("Hermes Agent gateway WebSocket disconnected"),
+                Err(error) => tracing::warn!("Hermes Agent gateway WebSocket error: {error}"),
+            }
+
+            let attempt = self.increment_reconnect().await;
+            self.set_state(ConnectionState::Reconnecting).await;
+            let backoff_secs = (attempt.min(6) * 2).max(2);
+            tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
+        }
+    }
+
+    async fn connect_once(&self, ws_url: &str, auth_token: Option<&str>) -> anyhow::Result<()> {
+        let (mut ws, _) = connect_async(ws_url).await?;
+        let connect_id = format!("connect-{}", crate::routes::util::random_uuid());
+        ws.send(TungMessage::Text(
+            gateway_connect_frame(&connect_id, auth_token).to_string(),
+        ))
+        .await?;
+
+        let mut connected = false;
+        while let Some(message) = ws.next().await {
+            let message = message?;
+            match message {
+                TungMessage::Text(text) => {
+                    let Ok(frame) = serde_json::from_str::<Value>(&text) else {
+                        continue;
+                    };
+
+                    if !connected
+                        && frame.get("type").and_then(Value::as_str) == Some("res")
+                        && frame.get("id").and_then(Value::as_str) == Some(connect_id.as_str())
+                    {
+                        if frame.get("ok").and_then(Value::as_bool) == Some(true) {
+                            connected = true;
+                            self.set_protocol_version(protocol_from_connect_frame(&frame))
+                                .await;
+                            self.reset_reconnect().await;
+                            self.set_state(ConnectionState::Connected).await;
+                            tracing::info!("Hermes Agent gateway WebSocket connected");
+                        } else {
+                            anyhow::bail!(
+                                "{}",
+                                frame
+                                    .get("error")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or("connect rejected")
+                            );
+                        }
+                        continue;
+                    }
+
+                    if frame.get("type").and_then(Value::as_str) == Some("event") {
+                        self.publish_event(frame);
+                    }
+                }
+                TungMessage::Close(_) => break,
+                _ => {}
+            }
+        }
+
+        self.set_protocol_version(None).await;
+        self.set_state(ConnectionState::Disconnected).await;
+        Ok(())
+    }
+}
+
+fn gateway_connect_frame(connect_id: &str, auth_token: Option<&str>) -> Value {
+    let mut params = json!({
+        "minProtocol": 3,
+        "maxProtocol": 3,
+        "client": {
+            "name": "clawctrl",
+            "platform": std::env::consts::OS,
+            "mode": "ui",
+            "instanceId": crate::routes::util::random_uuid(),
+        },
+    });
+
+    if let Some(token) = auth_token.map(str::trim).filter(|token| !token.is_empty()) {
+        params["auth"] = json!({ "token": token });
+    }
+
+    json!({
+        "type": "req",
+        "id": connect_id,
+        "method": "connect",
+        "params": params,
+    })
+}
+
+fn protocol_from_connect_frame(frame: &Value) -> Option<u32> {
+    frame
+        .get("protocol")
+        .or_else(|| {
+            frame
+                .get("payload")
+                .and_then(|payload| payload.get("protocol"))
+        })
+        .and_then(Value::as_u64)
+        .and_then(|value| u32::try_from(value).ok())
 }
 
 #[cfg(test)]
@@ -177,5 +296,31 @@ mod tests {
 
         client.set_protocol_version(Some(3)).await;
         assert_eq!(client.protocol_version().await, Some(3));
+    }
+
+    #[test]
+    fn connect_frame_includes_hermes_gateway_auth() {
+        let frame = gateway_connect_frame("connect-test", Some("secret-token"));
+
+        assert_eq!(frame["type"], "req");
+        assert_eq!(frame["id"], "connect-test");
+        assert_eq!(frame["method"], "connect");
+        assert_eq!(frame["params"]["minProtocol"], 3);
+        assert_eq!(frame["params"]["maxProtocol"], 3);
+        assert_eq!(frame["params"]["auth"]["token"], "secret-token");
+        assert_eq!(frame["params"]["client"]["mode"], "ui");
+    }
+
+    #[test]
+    fn protocol_can_be_read_from_connect_response_shapes() {
+        assert_eq!(
+            protocol_from_connect_frame(&json!({ "protocol": 3 })),
+            Some(3)
+        );
+        assert_eq!(
+            protocol_from_connect_frame(&json!({ "payload": { "protocol": 3 } })),
+            Some(3),
+        );
+        assert_eq!(protocol_from_connect_frame(&json!({ "payload": {} })), None);
     }
 }

@@ -2,27 +2,40 @@
 
 
 
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DemoBadge } from '@/components/DemoModeBanner'
 import { useGatewaySessions } from '@/hooks/sessions/useGatewaySessions'
 import { useSessionMutations } from '@/hooks/sessions/useSessionMutations'
 import {
   CaretRight,
+  FolderOpen,
+  FolderPlus,
+  GitBranch,
   Play,
+  Terminal,
+  Trash,
 } from '@phosphor-icons/react'
 import { useSearchParams } from 'react-router-dom'
 import type { ChatTerminalStatusSnapshot } from './chat/ChatTerminalDrawer'
+import type { HermesSession } from '@/chat/t3-adapters/gatewaySessionTypes'
 
 const Lightbox = lazy(() => import('@/components/Lightbox'))
 const ChatTerminalDrawer = lazy(() => import('./chat/ChatTerminalDrawer'))
 
 import ChatThread from './chat/ChatThread'
-import ChatInput from './chat/ChatInput'
-import CodexLbUsagePill from './chat/CodexLbUsagePill'
+import ChatInput, { type ChatInputHistoryEntry } from './chat/ChatInput'
+import { withOptimisticAttachmentFallbacks } from './chat/optimisticAttachmentCache'
+import HermesUsagePill from './chat/HermesUsagePill'
 import { NotConfiguredBanner } from './chat/NotConfiguredBanner'
 import { HistoryErrorBanner } from './chat/HistoryErrorBanner'
+import {
+  CHAT_IMAGE_LIMIT,
+  type ChatComposerDraftStorageKeys,
+} from './chat/constants'
+import type { ChatContextFileAttachment, ChatMessage } from './chat/types'
 import { useChatState } from './chat/useChatState'
 import {
+  loadSelectedChatSessionEnvironmentId,
   loadSelectedChatSessionKey,
   saveSelectedChatSessionKey,
 } from '@/lib/chat-session-selection'
@@ -46,12 +59,16 @@ import {
   ProjectComposerContextBar as ChatComposerContextBar,
   ProjectEnvironmentDialog as ChatEnvironmentDialog,
   ProjectHeaderPanel as ChatHeaderPanel,
+  projectRuntimeDisplayLabel,
 } from '@/vendor/t3/project/ProjectContextControls'
 import {
   attachChatSessionProjectRefs,
+  chatSessionProjectRefKey,
   findProjectForSession,
   loadChatSessionProjectRefs,
   projectRefFromProject,
+  pruneSessionProjectRefsForProject,
+  removeChatSessionProjectRef,
   saveChatSessionProjectRefs,
   type ChatSessionProjectRef,
 } from '@/chat/t3-adapters/sessionProjectRefs'
@@ -65,6 +82,7 @@ import {
 } from '@/chat/t3-adapters/sessionTitles'
 import {
   CHAT_SELECTED_BRANCH_KEY,
+  CHAT_SELECTED_PROJECT_ENVIRONMENT_KEY,
   CHAT_SELECTED_PROJECT_PATH_KEY,
   CHAT_SELECTED_RUNTIME_KEY,
   loadSidebarCollapsed,
@@ -79,20 +97,30 @@ import {
   addProjectToBackend,
   loadAddedProjects,
   loadChatWorkspaceContext,
+  loadProjectPreferredScriptStore,
   loadProjectScriptStore,
+  preferredScriptIdForProject,
   mergeWorkspaceProjects,
   normalizeWorkspaceContext,
   normalizeWorkspaceProject,
-  projectScriptStorageKeys,
+  projectPickerDefaultPath,
+  projectScriptWriteStorageKeys,
+  pruneProjectPreferredScriptStoreForProject,
+  pruneProjectScriptStoreForProject,
   pruneMigratedAddedProjects,
+  rememberProjectPickerDirectory,
   removeProjectFromBackend,
   removeWorkspaceProject,
   replaceWorkspaceProject,
   resolveProjectFromPath,
   resolveScriptCwd,
+  savePreferredScriptIdForProject,
+  saveProjectPreferredScriptStore,
   saveProjectScriptStore,
   saveAddedProjects,
+  sanitizeProjectPathInput,
   scriptsForProject,
+  terminalProjectEnv,
   terminalProcessScope,
   toT3ProjectScript,
   updateProjectInBackend,
@@ -104,16 +132,567 @@ import {
 import {
   findProjectByRouteIdentity,
   normalizedProjectPath,
+  projectEnvironmentDisplayLabel,
+  projectEnvironmentLabelDisplay,
   projectGroupLabel,
   setProjectRouteParams,
   workspaceSessionRoots,
 } from '@/chat/t3-adapters/projectSidebar'
 
+function removeComposerDraftItem(key: string) {
+  try {
+    sessionStorage.removeItem(key)
+  } catch {
+    // Ignore storage access failures.
+  }
+}
+
+function replaceComposerDraftItem(key: string, value: string) {
+  try {
+    sessionStorage.setItem(key, value)
+  } catch {
+    removeComposerDraftItem(key)
+  }
+}
+
+function replaceComposerDraftJson(key: string, value: unknown) {
+  try {
+    replaceComposerDraftItem(key, JSON.stringify(value))
+  } catch {
+    removeComposerDraftItem(key)
+  }
+}
+
+function persistComposerDraftSnapshot(
+  draftStorageKeys: ChatComposerDraftStorageKeys,
+  text: string,
+  images: string[] = [],
+  contextFiles: ChatMessage['contextFiles'] = [],
+) {
+  replaceComposerDraftItem(draftStorageKeys.text, text)
+  if (images.length > 0) {
+    replaceComposerDraftJson(draftStorageKeys.images, images)
+  } else {
+    removeComposerDraftItem(draftStorageKeys.images)
+  }
+  if (contextFiles.length > 0) {
+    replaceComposerDraftJson(draftStorageKeys.contextFiles, contextFiles)
+  } else {
+    removeComposerDraftItem(draftStorageKeys.contextFiles)
+  }
+}
+
+function normalizedEnvironmentId(value: string | null | undefined): string {
+  return value?.trim().toLowerCase() || ''
+}
+
+function normalizedSessionEnvironmentId(value: string | null | undefined): string {
+  return normalizedEnvironmentId(value) || 'local'
+}
+
+function preferredProjectForEnvironment(
+  projects: ChatWorkspaceProject[],
+  environmentId?: string | null,
+): ChatWorkspaceProject | null {
+  const environmentKey = normalizedEnvironmentId(environmentId)
+  if (environmentKey) {
+    return projects.find((project) => normalizedEnvironmentId(project.environmentId) === environmentKey) ?? null
+  }
+  return projects.find((project) => normalizedEnvironmentId(project.environmentId) === 'local')
+    ?? projects.find((project) => !normalizedEnvironmentId(project.environmentId))
+    ?? projects[0]
+    ?? null
+}
+
+function uniqueProjectForEnvironment(
+  projects: ChatWorkspaceProject[],
+  environmentId?: string | null,
+): ChatWorkspaceProject | null {
+  const environmentKey = normalizedEnvironmentId(environmentId)
+  if (!environmentKey) return null
+  const matches = projects.filter((project) => normalizedEnvironmentId(project.environmentId || 'local') === environmentKey)
+  return matches.length === 1 ? matches[0] : null
+}
+
+function findProjectByPathAndEnvironment(
+  projects: ChatWorkspaceProject[],
+  path: string,
+  environmentId?: string | null,
+): ChatWorkspaceProject | null {
+  const trimmedPath = path.trim()
+  const pathKey = normalizedProjectPath(path)
+  if (!pathKey) return null
+
+  const exactPathMatch = preferredProjectForEnvironment(
+    projects.filter((project) => project.path.trim() === trimmedPath),
+    environmentId,
+  )
+  if (exactPathMatch) return exactPathMatch
+
+  return preferredProjectForEnvironment(
+    projects.filter((project) => normalizedProjectPath(project.path) === pathKey),
+    environmentId,
+  )
+}
+
+function normalizedNativeAttachmentPaths(selected: string | string[] | null): string[] {
+  const values = Array.isArray(selected) ? selected : (selected ? [selected] : [])
+  const seen = new Set<string>()
+  return values
+    .filter((path): path is string => typeof path === 'string')
+    .map((path) => sanitizeProjectPathInput(path))
+    .filter((path) => {
+      if (!path) return false
+      const key = normalizedProjectPath(path) || path
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+}
+
+function normalizedProjectPickerPaths(selected: string | string[] | null): string[] {
+  const values = Array.isArray(selected)
+    ? selected
+    : (selected ? selected.split(/\r?\n/).map((path) => path.trim()).filter(Boolean) : [])
+  const seenPaths = new Set<string>()
+  return values
+    .filter((path): path is string => typeof path === 'string')
+    .map((path) => sanitizeProjectPathInput(path))
+    .filter((path) => {
+      if (!path) return false
+      const key = normalizedProjectPath(path) || path
+      if (seenPaths.has(key)) return false
+      seenPaths.add(key)
+      return true
+    })
+}
+
+function unavailableProjectFromPath(
+  path: string,
+  environmentId?: string | null,
+  name?: string | null,
+): ChatWorkspaceProject {
+  const normalizedPath = sanitizeProjectPathInput(path).replace(/[\\/]+$/g, '')
+  const projectName = name?.trim()
+    || normalizedPath.split(/[\\/]/).filter(Boolean).at(-1)
+    || 'Selected folder'
+  const fallbackBranch = FALLBACK_PROJECT.currentBranch || FALLBACK_PROJECT.branches[0] || 'main'
+  return normalizeWorkspaceProject({
+    name: projectName,
+    path: normalizedPath || path,
+    environmentId: environmentId?.trim() || 'local',
+    branches: [fallbackBranch],
+    currentBranch: fallbackBranch,
+  })
+}
+
+function isWorkspaceProjectNotFoundError(error: unknown): boolean {
+  return error instanceof Error
+    ? /workspace project not found/i.test(error.message)
+    : /workspace project not found/i.test(String(error ?? ''))
+}
+
+function findSessionByRouteIdentity(
+  sessions: HermesSession[],
+  sessionKey: string | null,
+  routeEnvironmentId?: string | null,
+): HermesSession | null {
+  if (!sessionKey) return null
+  const environmentKey = normalizedEnvironmentId(routeEnvironmentId)
+  if (environmentKey) {
+    return sessions.find((session) => (
+      session.key === sessionKey
+      && normalizedSessionEnvironmentId(session.environmentId) === environmentKey
+    )) ?? null
+  }
+  return sessions.find((session) => session.key === sessionKey) ?? null
+}
+
+function sessionScopeKey(sessionKey: string, environmentId?: string | null): string {
+  const environment = normalizedEnvironmentId(environmentId)
+  return environment ? `${environment}:${sessionKey}` : sessionKey
+}
+
+function sessionMutationTarget(sessionKey: string, environmentId?: string | null): string | { key: string; environmentId: string } {
+  const environment = environmentId?.trim()
+  return environment ? { key: sessionKey, environmentId: environment } : sessionKey
+}
+
+function routeProjectResolutionKey(
+  projectId?: string | null,
+  cwd?: string | null,
+  environmentId?: string | null,
+): string {
+  return [
+    projectId?.trim() || '',
+    cwd?.trim() || '',
+    environmentId?.trim().toLowerCase() || '',
+  ].join('\u0000')
+}
+
+function routeProjectPathCandidate(projectId?: string | null, cwd?: string | null): string {
+  const routeCwd = cwd?.trim()
+  if (routeCwd) return routeCwd
+  const routeProjectId = projectId?.trim() || ''
+  if (
+    routeProjectId.startsWith('/')
+    || routeProjectId.startsWith('~/')
+    || routeProjectId === '~'
+    || /^file:\/\//i.test(routeProjectId)
+    || /^[A-Za-z]:[\\/]/.test(routeProjectId)
+  ) {
+    return routeProjectId
+  }
+  return ''
+}
+
+function routeEnvironmentAllowsLocalResolution(environmentId?: string | null): boolean {
+  const environmentKey = environmentId?.trim().toLowerCase() || ''
+  return !environmentKey || environmentKey === 'local'
+}
+
+function chatShortcutBlockedTarget(target: EventTarget | null): boolean {
+  const element = target instanceof Element ? target : null
+  return Boolean(element?.closest(
+    'textarea,input,select,[contenteditable="true"],[role="dialog"],[role="menu"],[role="listbox"],[data-chat-provider-model-picker]',
+  ))
+}
+
+function visibleProjectEnvironmentLabel(value: string | null | undefined, fallback: string): string {
+  const label = value?.trim()
+  return label ? projectEnvironmentLabelDisplay(label) : fallback
+}
+
+function ChatProjectStartPanel({
+  projectReady,
+  projectName,
+  projectPath,
+  environmentLabel,
+  runtime,
+  branch,
+  onAddProject,
+  onManageProject,
+}: {
+  projectReady: boolean
+  projectName?: string | null
+  projectPath?: string | null
+  environmentLabel?: string | null
+  runtime: string
+  branch: string
+  onAddProject: () => void
+  onManageProject: () => void
+}) {
+  const selectedPath = projectPath?.trim() || ''
+  const title = projectReady
+    ? `${projectName || 'Project'} chat ready`
+    : selectedPath
+      ? 'Selected folder unavailable'
+      : 'Unscoped chat'
+  const detail = projectReady
+    ? selectedPath
+    : selectedPath
+      ? selectedPath
+      : 'Add a project folder to unlock Hermes Agent workspace chat, terminal actions, and file context.'
+  const primaryActionLabel = selectedPath && !projectReady ? 'Add selected folder' : 'Add project folder'
+  const runtimeLabel = projectRuntimeDisplayLabel(runtime)
+
+  return (
+    <section
+      role="region"
+      aria-label="Chat start context"
+      className="chat-start-context-panel"
+      style={{
+        width: 'min(720px, 100%)',
+        border: projectReady
+          ? '1px solid color-mix(in srgb, var(--secondary) 28%, var(--border))'
+          : selectedPath
+            ? '1px solid color-mix(in srgb, var(--warning, #f59e0b) 40%, var(--border))'
+            : '1px solid color-mix(in srgb, var(--accent) 24%, var(--border))',
+        borderRadius: 8,
+        background: projectReady
+          ? 'color-mix(in srgb, var(--secondary) 8%, var(--bg-card-solid, #18181f))'
+          : selectedPath
+            ? 'color-mix(in srgb, var(--warning, #f59e0b) 10%, var(--bg-card-solid, #18181f))'
+            : 'color-mix(in srgb, var(--accent) 8%, var(--bg-card-solid, #18181f))',
+        color: 'var(--text-secondary)',
+        display: 'grid',
+        gap: 14,
+        padding: 18,
+      }}
+    >
+      <div style={{ display: 'grid', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+          <FolderOpen size={18} style={{ color: projectReady ? 'var(--secondary)' : 'var(--accent)', flexShrink: 0 }} />
+          <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: 20, lineHeight: 1.15 }}>
+            {title}
+          </h2>
+        </div>
+        <div
+          title={detail}
+          style={{
+            color: selectedPath ? 'var(--text-muted)' : 'var(--text-secondary)',
+            fontFamily: selectedPath ? 'monospace' : 'inherit',
+            fontSize: selectedPath ? 12 : 13,
+            lineHeight: 1.45,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {detail}
+        </div>
+      </div>
+
+      <div className="chat-start-context-meta" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ border: '1px solid var(--border)', borderRadius: 999, padding: '4px 8px', fontSize: 12 }}>
+          {visibleProjectEnvironmentLabel(environmentLabel, projectReady ? 'Local' : 'No environment')}
+        </span>
+        {projectReady ? (
+          <>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid var(--border)', borderRadius: 999, padding: '4px 8px', fontSize: 12 }}>
+              <Terminal size={13} />
+              {runtimeLabel}
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid var(--border)', borderRadius: 999, padding: '4px 8px', fontSize: 12 }}>
+              <GitBranch size={13} />
+              {branch}
+            </span>
+          </>
+        ) : null}
+      </div>
+
+      <div className="chat-start-context-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={onAddProject}
+          style={{
+            minHeight: 32,
+            border: '1px solid color-mix(in srgb, var(--accent) 40%, var(--border))',
+            borderRadius: 8,
+            background: 'color-mix(in srgb, var(--accent) 18%, var(--bg-card-solid, #18181f))',
+            color: 'var(--text-primary)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
+            padding: '0 11px',
+            cursor: 'pointer',
+            font: 'inherit',
+            fontSize: 12,
+            fontWeight: 700,
+          }}
+        >
+          <FolderPlus size={14} />
+          {primaryActionLabel}
+        </button>
+        <button
+          type="button"
+          onClick={onManageProject}
+          style={{
+            minHeight: 32,
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            background: 'var(--bg-card)',
+            color: 'var(--text-secondary)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
+            padding: '0 11px',
+            cursor: 'pointer',
+            font: 'inherit',
+            fontSize: 12,
+          }}
+        >
+          <FolderOpen size={14} />
+          Manage project context
+        </button>
+      </div>
+    </section>
+  )
+}
+
+function ChatProjectScopeStrip({
+  projectReady,
+  projectName,
+  projectPath,
+  environmentLabel,
+  runtime,
+  branch,
+  onAddProject,
+  onManageProject,
+  onClearProject,
+  onRemoveProject,
+}: {
+  projectReady: boolean
+  projectName?: string | null
+  projectPath?: string | null
+  environmentLabel?: string | null
+  runtime: string
+  branch: string
+  onAddProject: () => void
+  onManageProject: () => void
+  onClearProject: () => void
+  onRemoveProject: () => void
+}) {
+  const selectedPath = projectPath?.trim() || ''
+  const selectedUnavailable = Boolean(selectedPath && !projectReady)
+  const title = projectReady
+    ? `Project: ${projectName || 'Project'}`
+    : selectedUnavailable
+      ? 'Selected folder unavailable'
+      : 'No project selected'
+  const detail = projectReady
+    ? selectedPath
+    : selectedUnavailable
+      ? selectedPath
+      : 'Chat is unscoped. Pick any folder before running Hermes Agent workspace actions, terminals, reviews, or file-aware prompts.'
+  const accent = projectReady
+    ? 'var(--secondary)'
+    : selectedUnavailable
+      ? 'var(--warning, #f59e0b)'
+      : 'var(--accent)'
+  const border = selectedUnavailable
+    ? '1px solid color-mix(in srgb, var(--warning, #f59e0b) 46%, var(--border))'
+    : projectReady
+      ? '1px solid color-mix(in srgb, var(--secondary) 34%, var(--border))'
+      : '1px solid color-mix(in srgb, var(--accent) 32%, var(--border))'
+  const background = selectedUnavailable
+    ? 'color-mix(in srgb, var(--warning, #f59e0b) 12%, var(--bg-card-solid, #18181f))'
+    : projectReady
+      ? 'color-mix(in srgb, var(--secondary) 9%, var(--bg-card-solid, #18181f))'
+      : 'color-mix(in srgb, var(--accent) 10%, var(--bg-card-solid, #18181f))'
+  const runtimeLabel = projectRuntimeDisplayLabel(runtime)
+
+  const actionButton = (
+    label: string,
+    onClick: () => void,
+    icon: ReactNode,
+    danger = false,
+  ) => (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      style={{
+        minHeight: 30,
+        border: danger
+          ? '1px solid color-mix(in srgb, var(--danger, #ef4444) 36%, var(--border))'
+          : '1px solid var(--border)',
+        borderRadius: 8,
+        background: danger
+          ? 'color-mix(in srgb, var(--danger, #ef4444) 12%, var(--bg-card-solid, #18181f))'
+          : 'var(--bg-card-solid, #18181f)',
+        color: danger ? 'var(--danger, #ef4444)' : 'var(--text-secondary)',
+        cursor: 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 7,
+        padding: '0 10px',
+        font: 'inherit',
+        fontSize: 12,
+        fontWeight: 650,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  )
+
+  return (
+    <section
+      role="region"
+      aria-label="Current project scope"
+      data-chat-project-scope-strip
+      style={{
+        border,
+        borderRadius: 8,
+        background,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        minWidth: 0,
+        marginBottom: 12,
+        padding: '9px 10px',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+        <div
+          aria-hidden="true"
+          style={{
+            width: 9,
+            height: 9,
+            borderRadius: 999,
+            background: accent,
+            boxShadow: `0 0 14px ${accent}`,
+            flexShrink: 0,
+          }}
+        />
+        <div style={{ display: 'grid', gap: 2, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
+            <strong style={{ color: 'var(--text-primary)', fontSize: 13, lineHeight: 1.2 }}>
+              {title}
+            </strong>
+            <span
+              style={{
+                border: '1px solid var(--border)',
+                borderRadius: 999,
+                color: 'var(--text-secondary)',
+                fontSize: 11,
+                lineHeight: 1.2,
+                padding: '2px 7px',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {visibleProjectEnvironmentLabel(environmentLabel, projectReady ? 'Local' : 'Unscoped')}
+            </span>
+            {projectReady ? (
+              <>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--text-muted)', fontSize: 11 }}>
+                  <Terminal size={12} />
+                  {runtimeLabel}
+                </span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--text-muted)', fontSize: 11 }}>
+                  <GitBranch size={12} />
+                  {branch}
+                </span>
+              </>
+            ) : null}
+          </div>
+          <span
+            title={detail}
+            style={{
+              color: selectedUnavailable ? 'var(--warning, #f59e0b)' : 'var(--text-muted)',
+              fontFamily: selectedPath ? 'monospace' : 'inherit',
+              fontSize: 11,
+              lineHeight: 1.35,
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {detail}
+          </span>
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 7, flexWrap: 'wrap' }}>
+        {actionButton(projectReady || selectedUnavailable ? 'Change project' : 'Add project folder', projectReady || selectedUnavailable ? onManageProject : onAddProject, <FolderOpen size={14} />)}
+        {selectedUnavailable ? actionButton('Add selected folder', onAddProject, <FolderPlus size={14} />) : null}
+        {selectedPath ? actionButton(projectReady ? 'Remove project' : 'Remove selected folder', onRemoveProject, <Trash size={14} />, true) : null}
+        {selectedPath ? actionButton('Clear', onClearProject, <FolderOpen size={14} />) : null}
+      </div>
+    </section>
+  )
+}
+
 export default function ChatPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const newChatParam = searchParams.get('new')
+  const addProjectParam = searchParams.get('addProject')
   const routeSessionKey = resolveChatThreadRouteSessionKey(searchParams)
   const sessionParam = routeSessionKey
+  const threadEnvironmentParam = searchParams.get('environmentId')
   const projectIdParam = searchParams.get('projectId')
   const cwdParam = searchParams.get('cwd')
   const envParam = searchParams.get('env')
@@ -123,6 +702,9 @@ export default function ChatPage() {
   const [selectedSessionKey, setSelectedSessionKey] = useState<string | null>(() => (
     initialNewChat ? null : (routeSessionKey || loadSelectedChatSessionKey())
   ))
+  const [selectedSessionEnvironmentId, setSelectedSessionEnvironmentId] = useState<string | null>(() => (
+    initialNewChat ? null : (threadEnvironmentParam?.trim() || loadSelectedChatSessionEnvironmentId())
+  ))
   const [newChatRequested, setNewChatRequested] = useState(initialNewChat)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(loadSidebarCollapsed)
   const [, setAddedProjects] = useState<ChatWorkspaceProject[]>(loadAddedProjects)
@@ -130,21 +712,28 @@ export default function ChatPage() {
     mergeWorkspaceProjects(FALLBACK_WORKSPACE_CONTEXT, loadAddedProjects())
   ))
   const [workspaceContextReady, setWorkspaceContextReady] = useState(false)
+  const [workspaceContextLoadFailed, setWorkspaceContextLoadFailed] = useState(false)
   const [selectedProjectPath, setSelectedProjectPath] = useState(() => cwdParam?.trim() || loadStoredValue(CHAT_SELECTED_PROJECT_PATH_KEY, FALLBACK_PROJECT.path))
+  const [selectedProjectEnvironmentId, setSelectedProjectEnvironmentId] = useState(() => envParam?.trim() || loadStoredValue(CHAT_SELECTED_PROJECT_ENVIRONMENT_KEY, ''))
   const [selectedRuntime, setSelectedRuntime] = useState(() => runtimeParam?.trim() || loadStoredValue(CHAT_SELECTED_RUNTIME_KEY, FALLBACK_WORKSPACE_CONTEXT.runtimeModes[0]))
   const [selectedBranch, setSelectedBranch] = useState(() => branchParam?.trim() || loadStoredValue(CHAT_SELECTED_BRANCH_KEY, FALLBACK_PROJECT.currentBranch || FALLBACK_PROJECT.branches[0]))
   const [projectScriptStore, setProjectScriptStore] = useState<Record<string, ChatProjectScript[]>>(loadProjectScriptStore)
-  const [selectedScriptId, setSelectedScriptId] = useState(DEFAULT_CHAT_PROJECT_SCRIPTS[0].id)
+  const [selectedScriptId, setSelectedScriptId] = useState(DEFAULT_CHAT_PROJECT_SCRIPTS[0]?.id ?? '')
   const [scriptDialogMode, setScriptDialogMode] = useState<'add' | 'edit' | null>(null)
   const [scriptDraft, setScriptDraft] = useState<ProjectScriptDialogDraft>({
     name: '',
     command: '',
+    cwd: '',
     icon: 'play',
+    keybinding: '',
     runOnWorktreeCreate: false,
   })
   const [projectDialogMode, setProjectDialogMode] = useState<ProjectSidebarDialogMode | null>(null)
   const [projectDialogDraft, setProjectDialogDraft] = useState('')
   const [projectDialogTargetPath, setProjectDialogTargetPath] = useState<string | null>(null)
+  const [projectDialogTargetEnvironmentId, setProjectDialogTargetEnvironmentId] = useState<string | null>(null)
+  const [projectDialogError, setProjectDialogError] = useState<string | null>(null)
+  const [projectDialogSubmitting, setProjectDialogSubmitting] = useState(false)
   const [environmentDialogOpen, setEnvironmentDialogOpen] = useState(false)
   const [terminalOpen, setTerminalOpen] = useState(false)
   const [terminalCommand, setTerminalCommand] = useState<string | undefined>(undefined)
@@ -155,11 +744,17 @@ export default function ChatPage() {
   const [terminalKey, setTerminalKey] = useState(0)
   const [terminalStatus, setTerminalStatus] = useState<ChatTerminalStatusSnapshot | null>(null)
   const [activePanel, setActivePanel] = useState<ChatActivePanel>(null)
+  const [composerFocusSignal, setComposerFocusSignal] = useState(0)
   const [sessionProjectRefs, setSessionProjectRefs] = useState<Record<string, ChatSessionProjectRef>>(loadChatSessionProjectRefs)
+  const [nativeContextReads, setNativeContextReads] = useState(0)
   const terminalLaunchCounterRef = useRef(0)
+  const realWorkspaceProjects = useMemo(
+    () => workspaceContext.projects.filter((project) => project.path.trim()),
+    [workspaceContext.projects],
+  )
   const { sessions: rawSessions, available: sessionsAvailable, isLoading: sessionsLoading } = useGatewaySessions({
-    cwd: workspaceSessionRoots(workspaceContext.projects),
-    projectIds: workspaceContext.projects
+    cwd: workspaceSessionRoots(realWorkspaceProjects),
+    projectIds: realWorkspaceProjects
       .map((project) => project.id?.trim())
       .filter((projectId): projectId is string => Boolean(projectId)),
     includeUnscoped: true,
@@ -168,24 +763,95 @@ export default function ChatPage() {
     () => attachChatSessionProjectRefs(rawSessions, sessionProjectRefs),
     [rawSessions, sessionProjectRefs],
   )
-  const { renameMutation, deleteMutation, compactMutation } = useSessionMutations()
+  const { renameMutation, deleteMutation, pinMutation, compactMutation } = useSessionMutations()
   const newChatIntentRef = useRef(initialNewChat)
+  const preserveNextNewChatDraftRef = useRef(false)
+  const projectDialogSubmittingRef = useRef(false)
   const autoRenameAttemptedRef = useRef<Set<string>>(new Set())
   const branchProjectPathRef = useRef(selectedProjectPath)
-  const selectedSession = sessions.find((session) => session.key === selectedSessionKey) ?? null
-  const selectedProject = workspaceContext.projects.find((project) => project.path === selectedProjectPath)
-    ?? workspaceContext.projects[0]
-    ?? FALLBACK_PROJECT
-  const selectedProjectAvailable = workspaceContext.projects.some((project) => project.path === selectedProjectPath)
+  const scriptPreferenceScopeRef = useRef('')
+  const pendingSessionBranchRef = useRef<{ projectPath: string; branch: string } | null>(null)
+  const routeProjectResolutionFailuresRef = useRef<Set<string>>(new Set())
+  const routeProjectResolutionInFlightRef = useRef<Set<string>>(new Set())
+  const routeProjectResolutionActiveKeyRef = useRef('')
+  const routeProjectClearedKeysRef = useRef<Set<string>>(new Set())
+  const unscopedSessionSelectionKeyRef = useRef<string | null>(null)
+  const pendingProjectSelectionRef = useRef<ChatWorkspaceProject | null>(null)
+  const selectedRuntimeRef = useRef(selectedRuntime)
+  const selectedBranchRef = useRef(selectedBranch)
+  const pendingRuntimeSelectionRef = useRef<string | null>(null)
+  const pendingBranchSelectionRef = useRef<string | null>(null)
+  const selectedSession = findSessionByRouteIdentity(
+    sessions,
+    selectedSessionKey,
+    selectedSessionEnvironmentId ?? threadEnvironmentParam,
+  )
+  const selectedProjectMatch = selectedProjectPath.trim()
+    ? findProjectByPathAndEnvironment(realWorkspaceProjects, selectedProjectPath, selectedProjectEnvironmentId)
+    : null
+  const selectedProject = selectedProjectPath.trim()
+    ? (selectedProjectMatch ?? FALLBACK_PROJECT)
+    : FALLBACK_PROJECT
+  const selectedProjectRealPath = selectedProject.path.trim()
+  const selectedProjectAvailable = Boolean(selectedProjectMatch && selectedProjectRealPath)
+  const selectedProjectReady = selectedProjectAvailable
   const activeProjectScripts = scriptsForProject(projectScriptStore, selectedProject)
+  const selectedProjectScriptScope = selectedProjectReady
+    ? projectScriptWriteStorageKeys(selectedProject).join('\u0000')
+    : ''
   const selectedProjectScript = activeProjectScripts.find((script) => script.id === selectedScriptId)
     ?? primaryProjectScript(activeProjectScripts)
     ?? activeProjectScripts[0]
-    ?? DEFAULT_CHAT_PROJECT_SCRIPTS[0]
+    ?? null
   const chatTitle = String(selectedSession?.label || 'New chat')
   const chatSubtitle = selectedSession
     ? `${selectedSession.messageCount || 0} messages`
     : 'Choose a chat or send a new message'
+
+  const findRealWorkspaceProjectByPath = useCallback((path: string, environmentId?: string | null) => {
+    return findProjectByPathAndEnvironment(realWorkspaceProjects, path, environmentId)
+  }, [realWorkspaceProjects])
+
+  const findWorkspaceProjectByPath = useCallback((path: string, environmentId?: string | null) => {
+    return findProjectByPathAndEnvironment(workspaceContext.projects, path, environmentId)
+  }, [workspaceContext.projects])
+
+  const branchForSessionProject = useCallback((
+    project: ChatWorkspaceProject | null,
+    session: typeof selectedSession,
+    fallback: string,
+  ) => {
+    const branch = typeof session?.branch === 'string' ? session.branch.trim() : ''
+    if (project && branch && project.branches.includes(branch)) return branch
+    return project?.currentBranch || project?.branches[0] || fallback
+  }, [])
+
+  const runtimeForSession = useCallback((session: typeof selectedSession, fallback: string) => {
+    const runtime = typeof session?.runtime === 'string' ? session.runtime.trim() : ''
+    if (runtime && workspaceContext.runtimeModes.includes(runtime)) return runtime
+    return fallback
+  }, [workspaceContext.runtimeModes])
+
+  const sameProjectRecord = (left: ChatWorkspaceProject, right: ChatWorkspaceProject) => (
+    normalizedProjectPath(left.path) === normalizedProjectPath(right.path)
+    && (left.environmentId || 'local').trim().toLowerCase() === (right.environmentId || 'local').trim().toLowerCase()
+  )
+
+  const setProjectRouteParamsIfReady = useCallback((
+    params: URLSearchParams,
+    project: ChatWorkspaceProject,
+    context?: { branch?: string; runtime?: string },
+  ) => {
+    if (!project.path.trim()) {
+      params.delete('projectId')
+      params.delete('cwd')
+      params.delete('env')
+      params.delete('branch')
+      params.delete('runtime')
+      return
+    }
+    setProjectRouteParams(params, project, context)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -198,16 +864,35 @@ export default function ChatPage() {
         saveAddedProjects(legacyProjects)
         setAddedProjects(legacyProjects)
         const next = mergeWorkspaceProjects(normalized, legacyProjects)
-        const routeProject = findProjectByRouteIdentity(next.projects, projectIdParam, cwdParam, envParam)
-        const first = next.projects[0] ?? FALLBACK_PROJECT
+        const realProjects = next.projects.filter((project) => project.path.trim())
+        const routeProject = findProjectByRouteIdentity(realProjects, projectIdParam, cwdParam, envParam)
+        const routeRequestedProject = Boolean(projectIdParam?.trim() || cwdParam?.trim())
+        const routeMissingProjectPath = routeRequestedProject && !routeProject
+          ? routeProjectPathCandidate(projectIdParam, cwdParam)
+          : ''
+        const routeProjectStatePresent = routeRequestedProject || Boolean(envParam?.trim())
+        const requestedSessionEnvironment = normalizedEnvironmentId(selectedSessionEnvironmentId ?? threadEnvironmentParam)
+        const nonLocalSessionScopePresent = Boolean(
+          selectedSessionKey?.trim()
+          && requestedSessionEnvironment
+          && requestedSessionEnvironment !== 'local',
+        )
+        const scopedRouteStatePresent = routeProjectStatePresent || nonLocalSessionScopePresent
+        if (routeRequestedProject && !routeProject) {
+          showAttachmentStatus('Project folder is no longer available. Add it again or select another project.', 5000)
+        }
+        const storedProject = findProjectByPathAndEnvironment(
+          realProjects,
+          selectedProjectPath,
+          selectedProjectEnvironmentId,
+        )
         const effectiveProject = routeProject
-          ?? next.projects.find((project) => project.path === selectedProjectPath)
-          ?? first
+          ?? (scopedRouteStatePresent ? null : storedProject)
+          ?? FALLBACK_PROJECT
         setWorkspaceContext(next)
-        setSelectedProjectPath((current) => (
-          routeProject?.path
-          ?? (next.projects.some((project) => project.path === current) ? current : first.path)
-        ))
+        setWorkspaceContextLoadFailed(false)
+        setSelectedProjectPath(routeMissingProjectPath || effectiveProject.path || '')
+        setSelectedProjectEnvironmentId(routeMissingProjectPath ? (envParam?.trim() || '') : (effectiveProject.environmentId || ''))
         setSelectedRuntime((current) => {
           const routeRuntime = runtimeParam?.trim()
           if (routeRuntime && next.runtimeModes.includes(routeRuntime)) return routeRuntime
@@ -225,8 +910,11 @@ export default function ChatPage() {
         setWorkspaceContextReady(true)
       })
       .catch((err) => {
+        if (cancelled) return
         console.warn('Failed to load chat workspace context:', err)
+        setWorkspaceContextLoadFailed(true)
         setWorkspaceContextReady(true)
+        showAttachmentStatus('Workspace folders could not be loaded. You can still chat unscoped or add a project manually.', 5000)
       })
 
     return () => {
@@ -251,36 +939,206 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!selectedProjectAvailable) return
-    const projectChanged = branchProjectPathRef.current !== selectedProject.path
+    const projectChanged = normalizedProjectPath(branchProjectPathRef.current) !== normalizedProjectPath(selectedProject.path)
     branchProjectPathRef.current = selectedProject.path
     setSelectedBranch((current) => {
       const fallbackBranch = selectedProject.currentBranch || selectedProject.branches[0] || 'main'
-      if (projectChanged) return fallbackBranch
+      if (projectChanged) {
+        const pendingSessionBranch = pendingSessionBranchRef.current
+        if (
+          pendingSessionBranch
+          && normalizedProjectPath(pendingSessionBranch.projectPath) === normalizedProjectPath(selectedProject.path)
+          && selectedProject.branches.includes(pendingSessionBranch.branch)
+        ) {
+          pendingSessionBranchRef.current = null
+          return pendingSessionBranch.branch
+        }
+        return fallbackBranch
+      }
       return selectedProject.branches.includes(current) ? current : fallbackBranch
     })
   }, [selectedProject, selectedProjectAvailable])
 
   useEffect(() => {
+    if (selectedProjectReady || activePanel !== 'review') return
+    setActivePanel(null)
+  }, [activePanel, selectedProjectReady])
+
+  useEffect(() => {
+    const pendingProjectSelection = pendingProjectSelectionRef.current
+    if (!pendingProjectSelection || !selectedProjectReady) return
+    if (findProjectByPathAndEnvironment([selectedProject], pendingProjectSelection.path, pendingProjectSelection.environmentId)) {
+      pendingProjectSelectionRef.current = null
+    }
+  }, [selectedProject, selectedProjectReady])
+
+  useEffect(() => {
     if (!workspaceContextReady) return
-    if (!selectedProjectAvailable) return
+    if (newChatIntentRef.current) return
+    if (newChatRequested) return
+    if (!selectedSession) return
+
+    const sessionProject = findProjectForSession(realWorkspaceProjects, selectedSession)
+    const nextBranch = branchForSessionProject(sessionProject, selectedSession, selectedBranch)
+    const nextRuntime = runtimeForSession(selectedSession, selectedRuntime)
+
+    const explicitUnscopedSessionSelection = unscopedSessionSelectionKeyRef.current === selectedSession.key
+    if (sessionProject) {
+      unscopedSessionSelectionKeyRef.current = null
+      if (
+        normalizedProjectPath(selectedProjectPath) !== normalizedProjectPath(sessionProject.path)
+        || (selectedProjectEnvironmentId || '') !== (sessionProject.environmentId || '')
+      ) {
+        pendingSessionBranchRef.current = { projectPath: sessionProject.path, branch: nextBranch }
+        setSelectedProjectPath(sessionProject.path)
+        setSelectedProjectEnvironmentId(sessionProject.environmentId || '')
+      }
+    } else if (explicitUnscopedSessionSelection && (selectedProjectPath.trim() || selectedProjectEnvironmentId.trim())) {
+      setSelectedProjectPath('')
+      setSelectedProjectEnvironmentId('')
+    }
+    if (selectedBranch !== nextBranch) {
+      setSelectedBranch(nextBranch)
+    }
+    if (selectedRuntime !== nextRuntime) {
+      setSelectedRuntime(nextRuntime)
+    }
+  }, [
+    newChatRequested,
+    branchForSessionProject,
+    runtimeForSession,
+    selectedBranch,
+    selectedProjectEnvironmentId,
+    selectedProjectPath,
+    selectedRuntime,
+    selectedSession,
+    realWorkspaceProjects,
+    workspaceContext.runtimeModes,
+    workspaceContextReady,
+  ])
+
+  useEffect(() => {
+    if (!workspaceContextReady) return
+    const explicitProjectRouteRequested = Boolean(projectIdParam?.trim() || cwdParam?.trim())
+    const selectedSessionProject = selectedSession && !newChatRequested
+      ? findProjectForSession(realWorkspaceProjects, selectedSession)
+      : null
+    const selectedSessionIsUnscoped = Boolean(
+      selectedSessionKey
+      && unscopedSessionSelectionKeyRef.current === selectedSessionKey
+      && selectedSession
+      && !newChatRequested
+      && !selectedSessionProject,
+    )
+    if (selectedSessionIsUnscoped && selectedSessionKey) {
+      const scopedSessionKey = selectedSessionKey
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev)
+        applyChatThreadRouteParams(next, {
+          sessionKey: scopedSessionKey,
+          session: selectedSession,
+          fallbackEnvironmentId: selectedSessionEnvironmentId ?? threadEnvironmentParam,
+        })
+        next.delete('projectId')
+        next.delete('cwd')
+        next.delete('env')
+        next.delete('branch')
+        next.delete('runtime')
+        return next
+      }, { replace: true })
+      return
+    }
+    if (!selectedProjectReady) {
+      if (explicitProjectRouteRequested) return
+      const shouldApplySessionRoute = Boolean(selectedSessionKey && !newChatRequested && !newChatIntentRef.current)
+      const shouldClearSessionRoute = Boolean(
+        (newChatRequested || newChatIntentRef.current)
+        && (
+          routeSessionKey
+          || searchParams.get('session')?.trim()
+          || searchParams.get('threadId')?.trim()
+          || searchParams.get('environmentId')?.trim()
+        ),
+      )
+      const shouldClearProjectRoute = Boolean(
+        projectIdParam?.trim()
+        || cwdParam?.trim()
+        || envParam?.trim()
+        || branchParam?.trim()
+        || runtimeParam?.trim()
+      )
+      if (!shouldApplySessionRoute && !shouldClearSessionRoute && !shouldClearProjectRoute) return
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev)
+        if (next.get('projectId')?.trim() || next.get('cwd')?.trim()) {
+          return next
+        }
+        if (shouldApplySessionRoute && selectedSessionKey) {
+          applyChatThreadRouteParams(next, {
+            sessionKey: selectedSessionKey,
+            session: selectedSession,
+            fallbackEnvironmentId: selectedSessionEnvironmentId ?? threadEnvironmentParam,
+          })
+        } else if (newChatRequested || newChatIntentRef.current) {
+          next.delete('session')
+          next.delete('threadId')
+          next.delete('environmentId')
+        }
+        next.delete('projectId')
+        next.delete('cwd')
+        next.delete('env')
+        next.delete('branch')
+        next.delete('runtime')
+        return next
+      }, { replace: true })
+      return
+    }
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
-      if (selectedSessionKey) {
+      const prevProjectId = next.get('projectId')
+      const prevCwd = next.get('cwd')
+      const prevEnv = next.get('env')
+      if (
+        (prevProjectId?.trim() || prevCwd?.trim())
+        && !findProjectByRouteIdentity([selectedProject], prevProjectId, prevCwd, prevEnv)
+        && !newChatIntentRef.current
+      ) {
+        return next
+      }
+      const shouldApplySessionRoute = Boolean(selectedSessionKey && !newChatRequested && !newChatIntentRef.current)
+      const pendingProjectSelection = pendingProjectSelectionRef.current
+      if (
+        newChatIntentRef.current
+        && selectedSessionKey
+        && pendingProjectSelection
+        && !findProjectByPathAndEnvironment([selectedProject], pendingProjectSelection.path, pendingProjectSelection.environmentId)
+      ) {
+        return next
+      }
+      if (shouldApplySessionRoute && selectedSessionKey) {
         applyChatThreadRouteParams(next, {
           sessionKey: selectedSessionKey,
           session: selectedSession,
-          fallbackEnvironmentId: selectedProject.environmentId,
+          fallbackEnvironmentId: selectedSessionEnvironmentId ?? threadEnvironmentParam ?? selectedProject.environmentId,
         })
+      } else if (newChatRequested || newChatIntentRef.current) {
+        next.delete('session')
+        next.delete('threadId')
+        next.delete('environmentId')
       }
-      setProjectRouteParams(next, selectedProject, { branch: selectedBranch, runtime: selectedRuntime })
+      setProjectRouteParamsIfReady(next, selectedProject, {
+        branch: pendingBranchSelectionRef.current || selectedBranch,
+        runtime: pendingRuntimeSelectionRef.current || selectedRuntime,
+      })
       return next
     }, { replace: true })
-  }, [selectedBranch, selectedProject, selectedProjectAvailable, selectedRuntime, selectedSession, selectedSessionKey, setSearchParams, workspaceContextReady])
+  }, [branchParam, cwdParam, envParam, newChatRequested, projectIdParam, realWorkspaceProjects, routeSessionKey, runtimeParam, searchParams, selectedBranch, selectedProject, selectedProjectReady, selectedRuntime, selectedSession, selectedSessionEnvironmentId, selectedSessionKey, setProjectRouteParamsIfReady, setSearchParams, threadEnvironmentParam, workspaceContextReady])
 
   useEffect(() => {
     if (newChatParam !== '1') return
     newChatIntentRef.current = true
     setSelectedSessionKey(null)
+    setSelectedSessionEnvironmentId(null)
     saveSelectedChatSessionKey(null)
     setNewChatRequested(true)
     setSearchParams((prev) => {
@@ -297,8 +1155,9 @@ export default function ChatPage() {
     newChatIntentRef.current = false
     setNewChatRequested(false)
     setSelectedSessionKey(nextKey)
-    saveSelectedChatSessionKey(nextKey)
-  }, [sessionParam])
+    setSelectedSessionEnvironmentId(threadEnvironmentParam?.trim() || null)
+    saveSelectedChatSessionKey(nextKey, threadEnvironmentParam)
+  }, [sessionParam, threadEnvironmentParam])
 
   useEffect(() => {
     if (newChatIntentRef.current) return
@@ -308,31 +1167,55 @@ export default function ChatPage() {
 
     const nextKey = sessions[0]?.key as string | undefined
     if (nextKey) {
+      const nextEnvironmentId = sessions[0]?.environmentId?.trim() || null
+      setSelectedSessionEnvironmentId(nextEnvironmentId)
       setSelectedSessionKey(nextKey)
-      saveSelectedChatSessionKey(nextKey)
+      saveSelectedChatSessionKey(nextKey, nextEnvironmentId)
     }
   }, [newChatRequested, selectedSessionKey, sessions])
 
-  const handleSelectSession = (key: string) => {
-    const session = sessions.find((candidate) => candidate.key === key)
-    const sessionProject = findProjectForSession(workspaceContext.projects, session)
-    const nextBranch = sessionProject?.currentBranch || sessionProject?.branches[0] || selectedBranch
+  const handleSelectSession = (key: string, environmentId?: string | null) => {
+    const session = findSessionByRouteIdentity(sessions, key, environmentId)
+    const sessionProject = findProjectForSession(realWorkspaceProjects, session)
+    const nextBranch = branchForSessionProject(sessionProject, session ?? null, selectedBranch)
+    const nextRuntime = runtimeForSession(session ?? null, selectedRuntime)
+    const nextSessionEnvironmentId = session?.environmentId?.trim() || environmentId?.trim() || null
     if (sessionProject) {
+      unscopedSessionSelectionKeyRef.current = null
+      pendingSessionBranchRef.current = { projectPath: sessionProject.path, branch: nextBranch }
       setSelectedProjectPath(sessionProject.path)
+      setSelectedProjectEnvironmentId(sessionProject.environmentId || '')
       setSelectedBranch(nextBranch)
+    } else {
+      unscopedSessionSelectionKeyRef.current = key
+      setSelectedProjectPath('')
+      setSelectedProjectEnvironmentId('')
+    }
+    if (nextRuntime !== selectedRuntime) {
+      setSelectedRuntime(nextRuntime)
     }
     newChatIntentRef.current = false
     setNewChatRequested(false)
+    setSelectedSessionEnvironmentId(nextSessionEnvironmentId)
     setSelectedSessionKey(key)
-    saveSelectedChatSessionKey(key)
+    saveSelectedChatSessionKey(key, nextSessionEnvironmentId)
+    clearChatComposerDraft()
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
       applyChatThreadRouteParams(next, {
         sessionKey: key,
         session,
-        fallbackEnvironmentId: sessionProject?.environmentId ?? selectedProject.environmentId,
+        fallbackEnvironmentId: sessionProject?.environmentId ?? undefined,
       })
-      setProjectRouteParams(next, sessionProject ?? selectedProject, { branch: nextBranch, runtime: selectedRuntime })
+      if (sessionProject) {
+        setProjectRouteParamsIfReady(next, sessionProject, { branch: nextBranch, runtime: nextRuntime })
+      } else {
+        next.delete('projectId')
+        next.delete('cwd')
+        next.delete('env')
+        next.delete('branch')
+        next.delete('runtime')
+      }
       return next
     }, { replace: true })
   }
@@ -343,30 +1226,79 @@ export default function ChatPage() {
   }
 
   useEffect(() => {
+    if (!(projectIdParam?.trim() || cwdParam?.trim())) {
+      routeProjectClearedKeysRef.current.clear()
+    }
+  }, [cwdParam, projectIdParam])
+
+  useEffect(() => {
     saveStoredValue(CHAT_SELECTED_PROJECT_PATH_KEY, selectedProjectPath)
   }, [selectedProjectPath])
 
   useEffect(() => {
+    saveStoredValue(CHAT_SELECTED_PROJECT_ENVIRONMENT_KEY, selectedProjectEnvironmentId)
+  }, [selectedProjectEnvironmentId])
+
+  useEffect(() => {
     saveStoredValue(CHAT_SELECTED_RUNTIME_KEY, selectedRuntime)
+    selectedRuntimeRef.current = selectedRuntime
+    if (pendingRuntimeSelectionRef.current === selectedRuntime) {
+      pendingRuntimeSelectionRef.current = null
+    }
   }, [selectedRuntime])
 
   useEffect(() => {
     saveStoredValue(CHAT_SELECTED_BRANCH_KEY, selectedBranch)
+    selectedBranchRef.current = selectedBranch
+    if (pendingBranchSelectionRef.current === selectedBranch) {
+      pendingBranchSelectionRef.current = null
+    }
   }, [selectedBranch])
 
   useEffect(() => {
-    if (activeProjectScripts.some((script) => script.id === selectedScriptId)) return
-    const fallbackScript = primaryProjectScript(activeProjectScripts)
+    const scopeChanged = scriptPreferenceScopeRef.current !== selectedProjectScriptScope
+    scriptPreferenceScopeRef.current = selectedProjectScriptScope
+
+    if (!selectedProjectReady) {
+      if (selectedScriptId) setSelectedScriptId('')
+      return
+    }
+
+    const preferredScriptId = preferredScriptIdForProject(selectedProject)
+    const preferredScript = activeProjectScripts.find((script) => script.id === preferredScriptId) ?? null
+    if (scopeChanged && preferredScript && selectedScriptId !== preferredScript.id) {
+      setSelectedScriptId(preferredScript.id)
+      return
+    }
+
+    if (!scopeChanged && activeProjectScripts.some((script) => script.id === selectedScriptId)) return
+    const fallbackScript = preferredScript
+      ?? primaryProjectScript(activeProjectScripts)
       ?? activeProjectScripts[0]
-      ?? DEFAULT_CHAT_PROJECT_SCRIPTS[0]
-    setSelectedScriptId(fallbackScript.id)
-  }, [activeProjectScripts, selectedScriptId])
+      ?? null
+    if (fallbackScript) {
+      setSelectedScriptId(fallbackScript.id)
+    } else if (selectedScriptId) {
+      setSelectedScriptId('')
+    }
+  }, [activeProjectScripts, selectedProject, selectedProjectReady, selectedProjectScriptScope, selectedScriptId])
+
+  const selectProjectScript = useCallback((scriptId: string) => {
+    setSelectedScriptId(scriptId)
+    if (selectedProjectReady) {
+      savePreferredScriptIdForProject(selectedProject, scriptId)
+    }
+  }, [selectedProject, selectedProjectReady])
 
   const {
     _demo,
     messages,
     input, setInput,
     images, setImages, imagesRef,
+    contextFiles, setContextFiles, contextFilesRef,
+    pendingAttachmentReads,
+    pendingQueuedSend,
+    cancelQueuedSend,
     sending,
     connected,
     mounted,
@@ -386,120 +1318,548 @@ export default function ChatPage() {
     historyIsError,
     bottomRef, scrollRef,
     optimisticImageCacheRef,
+    optimisticContextFileCacheRef,
     draftTimerRef,
+    draftStorageKeys,
     send,
+    sendMessage,
     stop,
     retry,
     retryHistoryLoad,
     handleFileChange,
+    handleContextFileChange,
+    appendContextFileAttachments,
+    showAttachmentStatus,
     onDrop,
   } = useChatState(selectedSessionKey, {
     blank: newChatRequested && !selectedSessionKey,
     newChat: newChatRequested && !selectedSessionKey,
+    sessionEnvironmentId: selectedSessionEnvironmentId
+      ?? selectedSession?.environmentId
+      ?? threadEnvironmentParam
+      ?? (selectedProjectReady ? selectedProject.environmentId : undefined),
     context: {
-      projectId: selectedProject.id || undefined,
-      project: selectedProject.name,
-      projectRoot: selectedProject.root || undefined,
-      workingDir: selectedProject.path,
-      environmentId: selectedProject.environmentId || undefined,
-      branch: selectedBranch,
-      runtime: selectedRuntime,
+      projectId: selectedProjectReady ? (selectedProject.id || undefined) : undefined,
+      project: selectedProjectReady ? selectedProject.name : undefined,
+      projectRoot: selectedProjectReady ? (selectedProject.root || selectedProjectRealPath || undefined) : undefined,
+      workingDir: selectedProjectReady ? selectedProjectRealPath : undefined,
+      environmentId: selectedProjectReady ? (selectedProject.environmentId || undefined) : undefined,
+      branch: selectedProjectReady ? selectedBranch : undefined,
+      runtime: selectedProjectReady ? selectedRuntime : undefined,
     },
-    onSessionKey: (key) => {
-      setSessionProjectRefs((current) => {
-        const next = {
-          ...current,
-          [key]: projectRefFromProject(selectedProject, {
-            branch: selectedBranch,
-            runtime: selectedRuntime,
-          }),
+    attachmentInputLocked: nativeContextReads > 0,
+    onSessionKey: (key, meta) => {
+      const selectedRouteProject = selectedProjectReady ? selectedProject : null
+      const createdEnvironmentId = meta?.environmentId?.trim() || selectedRouteProject?.environmentId?.trim() || null
+      const routeProject = selectedRouteProject
+        ?? uniqueProjectForEnvironment(realWorkspaceProjects, createdEnvironmentId)
+      if (routeProject) {
+        if (!selectedRouteProject) {
+          setSelectedProjectPath(routeProject.path)
+          setSelectedProjectEnvironmentId(routeProject.environmentId || '')
+          setSelectedBranch(routeProject.currentBranch || routeProject.branches[0] || selectedBranch)
         }
-        saveChatSessionProjectRefs(next)
-        return next
-      })
+        setSessionProjectRefs((current) => {
+          const refKey = chatSessionProjectRefKey(key, createdEnvironmentId)
+          const refProject = createdEnvironmentId && createdEnvironmentId !== (routeProject.environmentId || '')
+            ? { ...routeProject, environmentId: createdEnvironmentId }
+            : routeProject
+          const next = {
+            ...current,
+            [refKey]: projectRefFromProject(refProject, {
+              branch: selectedBranch,
+              runtime: selectedRuntime,
+            }),
+          }
+          saveChatSessionProjectRefs(next)
+          return next
+        })
+      } else {
+        setSessionProjectRefs((current) => {
+          const next = removeChatSessionProjectRef(current, key, createdEnvironmentId ?? selectedSessionEnvironmentId)
+          if (next === current) return current
+          saveChatSessionProjectRefs(next)
+          return next
+        })
+      }
       newChatIntentRef.current = false
       setNewChatRequested(false)
+      setSelectedSessionEnvironmentId(createdEnvironmentId)
       setSelectedSessionKey(key)
-      saveSelectedChatSessionKey(key)
+      saveSelectedChatSessionKey(key, createdEnvironmentId)
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev)
-        next.delete('new')
-        next.set('session', key)
-        setProjectRouteParams(next, selectedProject, { branch: selectedBranch, runtime: selectedRuntime })
+        applyChatThreadRouteParams(next, {
+          sessionKey: key,
+          session: null,
+          fallbackEnvironmentId: createdEnvironmentId,
+        })
+        if (routeProject) {
+          setProjectRouteParamsIfReady(next, routeProject, { branch: selectedBranch, runtime: selectedRuntime })
+        } else {
+          next.delete('projectId')
+          next.delete('cwd')
+          next.delete('env')
+          next.delete('branch')
+          next.delete('runtime')
+        }
         return next
       }, { replace: true })
     },
   })
-  const activeProviderLabel = providers.find((candidate) => candidate.id === provider)?.name ?? 'Hermes'
+  const hermesProviderLabel = providers.find((candidate) => candidate.id === 'hermes')?.name?.trim()
+  const activeProviderLabel = hermesProviderLabel && hermesProviderLabel !== 'Hermes'
+    ? hermesProviderLabel
+    : 'Hermes Agent'
+  const activeProvider = providers.find((candidate) => candidate.id === provider)
+  const selectedProjectUnavailable = Boolean(selectedProjectPath.trim() && !selectedProjectReady)
+  const sendDisabledReason = selectedProjectUnavailable
+    ? `${activeProviderLabel} cannot use the selected folder because it is unavailable. Add it again or clear it before sending.`
+    : activeProvider?.local && !selectedProjectReady
+      ? `${activeProviderLabel} needs a project folder. Select or add a project before sending.`
+      : null
+  const sendDisabledProjectActionLabel = selectedProjectUnavailable
+    ? 'Add selected folder'
+    : activeProvider?.local && !selectedProjectReady
+      ? 'Add project folder'
+      : undefined
+  const handleSendDisabledProjectAction = sendDisabledProjectActionLabel
+    ? () => void handleAddProject(selectedProjectUnavailable ? selectedProjectPath : undefined)
+    : undefined
+  const promptHistory = useMemo<ChatInputHistoryEntry[]>(() => {
+    const seen = new Set<string>()
+    const entries: ChatInputHistoryEntry[] = []
+    const pushEntry = (entry: ChatInputHistoryEntry) => {
+      const text = entry.text.trim()
+      const images = entry.images ?? []
+      const files = entry.contextFiles ?? []
+      if (!text && images.length === 0 && files.length === 0) return
+      const fileKey = files.map((file) => `${file.path || file.name}:${file.size ?? ''}`).join('|')
+      const imageKey = images.join('\u0000')
+      const key = `${text}\u0000${imageKey}\u0000${fileKey}`
+      if (seen.has(key)) return
+      seen.add(key)
+      entries.push({ text, images, contextFiles: files })
+    }
 
-  const beginNewChatForProject = (project: ChatWorkspaceProject, branch?: string) => {
-    const nextBranch = branch || project.currentBranch || project.branches[0] || 'main'
-    newChatIntentRef.current = true
-    setNewChatRequested(true)
-    setSelectedSessionKey(null)
-    setSelectedProjectPath(project.path)
-    setSelectedBranch(nextBranch)
-    saveSelectedChatSessionKey(null)
+    for (const message of [...optimistic].reverse()) {
+      pushEntry({
+        text: message.text,
+        images: message.images ?? [],
+        contextFiles: message.contextFiles ?? [],
+      })
+    }
+    const messagesWithAttachmentFallbacks = withOptimisticAttachmentFallbacks(
+      messages,
+      optimisticImageCacheRef.current,
+      optimisticContextFileCacheRef.current,
+    )
+    for (const message of [...messagesWithAttachmentFallbacks].reverse()) {
+      if (message.role !== 'user') continue
+      pushEntry({
+        text: message.text,
+        images: message.images ?? [],
+        contextFiles: message.contextFiles ?? [],
+      })
+    }
+    return entries.slice(0, 25)
+  }, [messages, optimistic, optimisticContextFileCacheRef, optimisticImageCacheRef])
+
+  const clearChatComposerDraft = useCallback(() => {
     setInput('')
     setImages([])
     imagesRef.current = []
-    sessionStorage.removeItem('chat-draft')
-    sessionStorage.removeItem('chat-draft-images')
+    setContextFiles([])
+    contextFilesRef.current = []
+    removeComposerDraftItem(draftStorageKeys.text)
+    removeComposerDraftItem(draftStorageKeys.images)
+    removeComposerDraftItem(draftStorageKeys.contextFiles)
+  }, [contextFilesRef, draftStorageKeys, imagesRef, setContextFiles, setImages, setInput])
+
+  const useMessageAsPrompt = useCallback((message: ChatMessage) => {
+    if (message.role !== 'user') return
+    const nextText = message.text
+    const nextImages = [...(message.images ?? [])]
+    const nextContextFiles = [...(message.contextFiles ?? [])]
+    setInput(nextText)
+    setImages(nextImages)
+    imagesRef.current = nextImages
+    setContextFiles(nextContextFiles)
+    contextFilesRef.current = nextContextFiles
+    persistComposerDraftSnapshot(draftStorageKeys, nextText, nextImages, nextContextFiles)
+  }, [contextFilesRef, draftStorageKeys, imagesRef, setContextFiles, setImages, setInput])
+
+  const regenerateAssistantFromPrompt = useCallback((_assistantMessage: ChatMessage, previousUserMessage: ChatMessage | null) => {
+    if (!previousUserMessage) return
+    if (!sendDisabledReason && sendMessage(
+      previousUserMessage.text,
+      previousUserMessage.images ?? [],
+      previousUserMessage.contextFiles ?? [],
+    )) {
+      return
+    }
+    useMessageAsPrompt(previousUserMessage)
+  }, [sendDisabledReason, sendMessage, useMessageAsPrompt])
+
+  const continueAssistantResponse = useCallback((_assistantMessage: ChatMessage) => {
+    const nextText = 'Continue from your last response.'
+    if (!sendDisabledReason && sendMessage(nextText)) return
+    setInput(nextText)
+    setImages([])
+    imagesRef.current = []
+    setContextFiles([])
+    contextFilesRef.current = []
+    persistComposerDraftSnapshot(draftStorageKeys, nextText)
+  }, [contextFilesRef, draftStorageKeys, imagesRef, sendDisabledReason, sendMessage, setContextFiles, setImages, setInput])
+
+  const runHermesReview = useCallback(() => {
+    if (!selectedProjectReady) {
+      showAttachmentStatus('Select a project before running a Hermes review.', 4000)
+      return
+    }
+    const prompt = [
+      'Review the current project for correctness, regressions, and missing tests.',
+      'Focus on concrete findings first, with file/line references when possible.',
+      '',
+      `Project: ${selectedProject.name}`,
+      `Working directory: ${selectedProjectRealPath}`,
+      `Project root: ${selectedProject.root || selectedProjectRealPath}`,
+      `Environment: ${selectedProject.environmentId || 'local'}`,
+      `Branch: ${selectedBranch}`,
+      `Runtime: ${selectedRuntime}`,
+    ].join('\n')
+    if (!sendDisabledReason && sendMessage(prompt)) return
+    setInput(prompt)
+    setImages([])
+    imagesRef.current = []
+    setContextFiles([])
+    contextFilesRef.current = []
+    persistComposerDraftSnapshot(draftStorageKeys, prompt)
+  }, [
+    contextFilesRef,
+    draftStorageKeys,
+    imagesRef,
+    selectedBranch,
+    selectedProject,
+    selectedProjectReady,
+    selectedProjectRealPath,
+    selectedRuntime,
+    sendDisabledReason,
+    sendMessage,
+    setContextFiles,
+    setImages,
+    setInput,
+    showAttachmentStatus,
+  ])
+
+  const nativeAttachmentDefaultPath = useMemo(() => (
+    selectedProjectReady
+      ? selectedProjectRealPath
+      : projectPickerDefaultPath({
+        selectedProjectPath,
+        projects: workspaceContext.projects,
+      })
+  ), [selectedProjectPath, selectedProjectReady, selectedProjectRealPath, workspaceContext.projects])
+
+  const appendNativeImages = useCallback((dataUrls: string[]) => {
+    const validDataUrls = dataUrls.filter((value) => typeof value === 'string' && value.startsWith('data:image/'))
+    const availableSlots = Math.max(0, CHAT_IMAGE_LIMIT - imagesRef.current.length)
+    if (validDataUrls.length > availableSlots) {
+      showAttachmentStatus(`You can attach up to ${CHAT_IMAGE_LIMIT} images at once.`)
+    }
+    const nextImages = [
+      ...imagesRef.current,
+      ...validDataUrls.slice(0, availableSlots),
+    ]
+    imagesRef.current = nextImages
+    setImages(nextImages)
+    if (nextImages.length === 0) {
+      removeComposerDraftItem(draftStorageKeys.images)
+      return
+    }
+    const total = nextImages.reduce((sum, value) => sum + value.length, 0)
+    if (total <= 4 * 1024 * 1024) {
+      replaceComposerDraftJson(draftStorageKeys.images, nextImages)
+    } else {
+      removeComposerDraftItem(draftStorageKeys.images)
+    }
+  }, [draftStorageKeys.images, imagesRef, setImages, showAttachmentStatus])
+
+  const attachNativeImagePaths = useCallback(async () => {
+    if (!window.__TAURI_INTERNALS__) return
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const selected = await open({
+        directory: false,
+        multiple: true,
+        title: 'Attach image',
+        defaultPath: nativeAttachmentDefaultPath,
+        filters: [{
+          name: 'Images',
+          extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'],
+        }],
+      })
+      const paths = normalizedNativeAttachmentPaths(selected)
+      if (paths.length === 0) return
+      const { invoke } = await import('@tauri-apps/api/core')
+      setNativeContextReads((current) => current + 1)
+      try {
+        const rawDataUrls = await invoke<string[]>('read_chat_image_data_urls', { paths })
+        const dataUrls = Array.isArray(rawDataUrls) ? rawDataUrls : []
+        if (dataUrls.length === 0) {
+          showAttachmentStatus('No supported images were attached. Select PNG, JPG, GIF, or WebP files.')
+          return
+        }
+        appendNativeImages(dataUrls)
+      } finally {
+        setNativeContextReads((current) => Math.max(0, current - 1))
+      }
+    } catch (error) {
+      console.warn('Failed to attach native chat images:', error)
+      showAttachmentStatus('Image attachment failed to load. Check the selected files and try again.', 4500)
+    }
+  }, [appendNativeImages, nativeAttachmentDefaultPath, showAttachmentStatus])
+
+  const attachNativeContextPaths = useCallback(async (directory: boolean) => {
+    if (!window.__TAURI_INTERNALS__) return
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const selected = await open({
+        directory,
+        multiple: true,
+        title: directory ? 'Attach folder context' : 'Attach file context',
+        defaultPath: nativeAttachmentDefaultPath,
+      })
+      const paths = normalizedNativeAttachmentPaths(selected)
+      if (paths.length === 0) return
+      const { invoke } = await import('@tauri-apps/api/core')
+      setNativeContextReads((current) => current + 1)
+      try {
+        const rawAttachments = await invoke<ChatContextFileAttachment[]>('read_chat_context_files', { paths })
+        const attachments = Array.isArray(rawAttachments) ? rawAttachments : []
+        if (attachments.length === 0) {
+          showAttachmentStatus(directory
+            ? 'No supported text files were found in that folder.'
+            : 'No supported text files were attached.')
+          return
+        }
+        appendContextFileAttachments(attachments)
+      } finally {
+        setNativeContextReads((current) => Math.max(0, current - 1))
+      }
+    } catch (error) {
+      console.warn('Failed to attach native chat context files:', error)
+      showAttachmentStatus('Context attachment failed to load. Check the selected files or folder and try again.', 4500)
+    }
+  }, [appendContextFileAttachments, nativeAttachmentDefaultPath, showAttachmentStatus])
+
+  useEffect(() => {
+    if (!newChatRequested || selectedSessionKey) return
+    if (preserveNextNewChatDraftRef.current) {
+      preserveNextNewChatDraftRef.current = false
+      return
+    }
+    clearChatComposerDraft()
+  }, [clearChatComposerDraft, newChatRequested, selectedSessionKey])
+
+  const beginNewChatForProject = useCallback((
+    project: ChatWorkspaceProject | null,
+    branch?: string,
+    runtime?: string,
+    options?: { preserveDraft?: boolean },
+  ) => {
+    const projectReady = Boolean(project?.path.trim())
+    const nextBranch = projectReady
+      ? (branch || project?.currentBranch || project?.branches[0] || 'main')
+      : selectedBranch
+    const nextRuntime = runtime || selectedRuntime
+    newChatIntentRef.current = true
+    pendingProjectSelectionRef.current = projectReady ? project : null
+    setNewChatRequested(true)
+    setSelectedSessionKey(null)
+    setSelectedSessionEnvironmentId(null)
+    setSelectedProjectPath(projectReady ? project!.path : '')
+    setSelectedProjectEnvironmentId(projectReady ? (project!.environmentId || '') : '')
+    setSelectedBranch(nextBranch)
+    setSelectedRuntime(nextRuntime)
+    saveSelectedChatSessionKey(null)
+    if (options?.preserveDraft) {
+      preserveNextNewChatDraftRef.current = true
+    } else {
+      clearChatComposerDraft()
+    }
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
       next.delete('session')
+      next.delete('threadId')
+      next.delete('environmentId')
       next.set('new', '1')
-      setProjectRouteParams(next, project, { branch: nextBranch, runtime: selectedRuntime })
+      if (projectReady) {
+        setProjectRouteParamsIfReady(next, project!, { branch: nextBranch, runtime: nextRuntime })
+      } else {
+        next.delete('projectId')
+        next.delete('cwd')
+        next.delete('env')
+        next.delete('branch')
+        next.delete('runtime')
+      }
       return next
     }, { replace: true })
-  }
+  }, [clearChatComposerDraft, selectedBranch, selectedRuntime, setProjectRouteParamsIfReady, setSearchParams])
 
   const handleNewChat = () => {
-    beginNewChatForProject(selectedProject, selectedBranch)
+    beginNewChatForProject(selectedProjectReady ? selectedProject : null, selectedBranch)
   }
 
-  const handleNewProjectChat = (path: string) => {
-    const project = workspaceContext.projects.find((candidate) => candidate.path === path) ?? selectedProject
+  const handleNewProjectChat = (path: string, environmentId?: string | null) => {
+    const project = findRealWorkspaceProjectByPath(path, environmentId)
+    if (!project) return
     beginNewChatForProject(project)
   }
 
-  const handleDeleteSession = (key: string) => {
-    deleteMutation.mutate(key)
-    if (selectedSessionKey !== key && sessionParam !== key) return
+  const forkMessageAsNewChat = useCallback((message: ChatMessage) => {
+    if (message.role !== 'user') return
+    beginNewChatForProject(selectedProjectReady ? selectedProject : null, selectedBranch, undefined, { preserveDraft: true })
+    useMessageAsPrompt(message)
+    setComposerFocusSignal((current) => current + 1)
+  }, [beginNewChatForProject, selectedBranch, selectedProject, selectedProjectReady, useMessageAsPrompt])
+
+  useLayoutEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+      if (chatShortcutBlockedTarget(event.target)) return
+
+      const key = event.key.toLowerCase()
+      const commandModifier = event.metaKey || event.ctrlKey
+      if (commandModifier && !event.altKey && key === 'n') {
+        event.preventDefault()
+        handleNewChat()
+        setComposerFocusSignal((current) => current + 1)
+        return
+      }
+
+      if (!commandModifier && !event.altKey && !event.shiftKey && event.key === '/') {
+        event.preventDefault()
+        if (!input.trim()) {
+          setInput('/')
+          replaceComposerDraftItem(draftStorageKeys.text, '/')
+        }
+        setComposerFocusSignal((current) => current + 1)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [draftStorageKeys.text, handleNewChat, input, setInput])
+
+  const handleDeleteSession = (key: string, environmentId?: string | null) => {
+    const mutationTarget = sessionMutationTarget(key, environmentId)
+    const deletedSession = findSessionByRouteIdentity(sessions, key, environmentId)
+    const previousSessionProjectRefs = sessionProjectRefs
+    const previousSelectedSessionKey = selectedSessionKey
+    const previousSelectedSessionEnvironmentId = selectedSessionEnvironmentId
+    const previousNewChatRequested = newChatRequested
+    const previousSearchParams = new URLSearchParams(searchParams)
+    deleteMutation.mutate(mutationTarget, {
+      onError: () => {
+        setSessionProjectRefs(previousSessionProjectRefs)
+        saveChatSessionProjectRefs(previousSessionProjectRefs)
+        newChatIntentRef.current = previousNewChatRequested
+        setSelectedSessionKey(previousSelectedSessionKey)
+        setSelectedSessionEnvironmentId(previousSelectedSessionEnvironmentId)
+        setNewChatRequested(previousNewChatRequested)
+        saveSelectedChatSessionKey(previousSelectedSessionKey, previousSelectedSessionEnvironmentId)
+        setSearchParams(previousSearchParams, { replace: true })
+        showAttachmentStatus(`Chat deletion failed. Restored ${deletedSession?.label || 'the chat'}.`, 5000)
+      },
+    })
+    setSessionProjectRefs((current) => {
+      const next = removeChatSessionProjectRef(current, key, environmentId)
+      if (next === current) return current
+      saveChatSessionProjectRefs(next)
+      return next
+    })
+    if (environmentId?.trim()) {
+      const deletedScopeKey = sessionScopeKey(key, environmentId)
+      const selectedScopeKey = selectedSessionKey
+        ? sessionScopeKey(selectedSessionKey, selectedSessionEnvironmentId ?? selectedSession?.environmentId ?? threadEnvironmentParam)
+        : ''
+      const routeScopeKey = sessionParam
+        ? sessionScopeKey(sessionParam, threadEnvironmentParam)
+        : ''
+      if (selectedScopeKey !== deletedScopeKey && routeScopeKey !== deletedScopeKey) return
+    } else if (selectedSessionKey !== key && sessionParam !== key) {
+      return
+    }
 
     newChatIntentRef.current = true
     setNewChatRequested(true)
     setSelectedSessionKey(null)
+    setSelectedSessionEnvironmentId(null)
     saveSelectedChatSessionKey(null)
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
-      setProjectRouteParams(next, selectedProject, { branch: selectedBranch, runtime: selectedRuntime })
+      setProjectRouteParamsIfReady(next, selectedProject, {
+        branch: pendingBranchSelectionRef.current || selectedBranch,
+        runtime: pendingRuntimeSelectionRef.current || selectedRuntime,
+      })
       next.delete('session')
+      next.delete('threadId')
+      next.delete('environmentId')
       next.set('new', '1')
       return next
     }, { replace: true })
   }
 
   const openTerminal = (command?: string, title = 'Terminal', cwd = selectedProject.path) => {
+    const resolvedCwd = selectedProjectReady ? (cwd.trim() || selectedProjectRealPath) : ''
+    if (!resolvedCwd) return
+    const requestedCommand = command?.trim() || undefined
+    const terminalActive = terminalOpen && terminalStatus
+      && ['starting', 'checking', 'connecting', 'connected', 'running'].includes(terminalStatus.status)
+    if (terminalActive) {
+      const existingCommand = terminalCommand?.trim() || undefined
+      const sameTerminal = existingCommand === requestedCommand
+        && terminalCwd === resolvedCwd
+        && terminalTitle === title
+
+      setTerminalOpen(true)
+      if (sameTerminal) {
+        setTerminalStatus({
+          ...terminalStatus,
+          displayText: terminalStatus.displayText === 'already running' ? terminalStatus.status : terminalStatus.displayText,
+          error: null,
+        })
+      } else {
+        setTerminalStatus({
+          ...terminalStatus,
+          displayText: 'already running',
+          error: `Terminal is already running ${terminalTitle}. Stop it before starting ${title}.`,
+        })
+      }
+      return
+    }
+
     terminalLaunchCounterRef.current += 1
     const processId = `chat-${terminalProcessScope(selectedProject, selectedSessionKey)}-${terminalLaunchCounterRef.current}`
-    setTerminalCommand(command?.trim() || undefined)
-    setTerminalCwd(cwd)
+    setTerminalCommand(requestedCommand)
+    setTerminalCwd(resolvedCwd)
     setTerminalProcessId(processId)
-    setTerminalEnv({
-      CLAWCONTROL_PROJECT_ID: selectedProject.id || '',
-      CLAWCONTROL_PROJECT_PATH: selectedProject.path,
-      CLAWCONTROL_PROJECT_NAME: selectedProject.name,
-      CLAWCONTROL_ENVIRONMENT_ID: selectedProject.environmentId || '',
-      CLAWCONTROL_RUNTIME: selectedRuntime,
-      CLAWCONTROL_BRANCH: selectedBranch,
-    })
+    setTerminalEnv(terminalProjectEnv({
+      project: selectedProject,
+      projectReady: selectedProjectReady,
+      projectPath: selectedProjectRealPath,
+      terminalCwd: resolvedCwd,
+      sessionKey: selectedSessionKey,
+      runtime: selectedRuntime,
+      branch: selectedBranch,
+    }))
     setTerminalTitle(title)
     setTerminalStatus({
       title,
       status: 'starting',
       displayText: 'starting',
-      cwd,
+      cwd: resolvedCwd,
       processId,
       error: null,
     })
@@ -507,81 +1867,529 @@ export default function ChatPage() {
     setTerminalKey((value) => value + 1)
   }
 
-  const handleProjectChange = (path: string) => {
-    setSelectedProjectPath(path)
-    const nextProject = workspaceContext.projects.find((project) => project.path === path)
-    if (!nextProject) return
+  const handleProjectChange = (path: string, environmentId?: string | null) => {
+    if (!path.trim()) {
+      if (selectedSessionKey && !newChatRequested) {
+        beginNewChatForProject(null)
+        return
+      }
+      if (selectedProjectReady || selectedProjectPath.trim() || selectedProjectEnvironmentId.trim()) {
+        clearChatComposerDraft()
+      }
+      setSelectedProjectPath('')
+      setSelectedProjectEnvironmentId('')
+      setSelectedBranch(FALLBACK_PROJECT.currentBranch || FALLBACK_PROJECT.branches[0] || 'main')
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('projectId')
+        next.delete('cwd')
+        next.delete('env')
+        next.delete('branch')
+        next.delete('runtime')
+        return next
+      }, { replace: true })
+      return
+    }
+    const nextProject = findRealWorkspaceProjectByPath(path, environmentId)
+    if (!nextProject) {
+      showAttachmentStatus('Project folder is no longer available. Add it again or select another project.', 5000)
+      return
+    }
+    if (selectedSessionKey && !newChatRequested) {
+      beginNewChatForProject(nextProject)
+      return
+    }
+    if (
+      normalizedProjectPath(nextProject.path) !== normalizedProjectPath(selectedProjectPath)
+      || (nextProject.environmentId || '') !== (selectedProjectEnvironmentId || '')
+    ) {
+      clearChatComposerDraft()
+    }
+    setSelectedProjectPath(nextProject.path)
+    setSelectedProjectEnvironmentId(nextProject.environmentId || '')
     const nextBranch = nextProject.currentBranch || nextProject.branches[0] || 'main'
     setSelectedBranch(nextBranch)
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
-      setProjectRouteParams(next, nextProject, { branch: nextBranch, runtime: selectedRuntime })
+      setProjectRouteParamsIfReady(next, nextProject, {
+        branch: pendingBranchSelectionRef.current || nextBranch,
+        runtime: pendingRuntimeSelectionRef.current || selectedRuntime,
+      })
       return next
     }, { replace: true })
   }
 
-  const addProjectFromPath = async (selectedPath: string | null) => {
-    if (!selectedPath) return
+  useEffect(() => {
+    if (!workspaceContextReady) return
+    if (workspaceContextLoadFailed) return
+    if (!(projectIdParam?.trim() || cwdParam?.trim())) return
+
+    const lookupKey = routeProjectResolutionKey(projectIdParam, cwdParam, envParam)
+    if (routeProjectClearedKeysRef.current.has(lookupKey)) return
+    const existingRouteProject = findProjectByRouteIdentity(realWorkspaceProjects, projectIdParam, cwdParam, envParam)
+    if (existingRouteProject) {
+      routeProjectResolutionFailuresRef.current.delete(lookupKey)
+      return
+    }
+
+    const requestedPath = routeEnvironmentAllowsLocalResolution(envParam)
+      ? routeProjectPathCandidate(projectIdParam, cwdParam)
+      : ''
+    if (!requestedPath || routeProjectResolutionFailuresRef.current.has(lookupKey)) return
+    const requestedEnvironmentId = envParam?.trim() || ''
+    if (
+      normalizedProjectPath(selectedProjectPath) !== normalizedProjectPath(requestedPath)
+      || (selectedProjectEnvironmentId || '') !== requestedEnvironmentId
+    ) {
+      clearChatComposerDraft()
+      setSelectedProjectPath(requestedPath)
+      setSelectedProjectEnvironmentId(requestedEnvironmentId)
+      setSelectedBranch(FALLBACK_PROJECT.currentBranch || FALLBACK_PROJECT.branches[0] || 'main')
+    }
+    routeProjectResolutionActiveKeyRef.current = lookupKey
+    if (routeProjectResolutionInFlightRef.current.has(lookupKey)) return
+
+    routeProjectResolutionInFlightRef.current.add(lookupKey)
+    addProjectToBackend(requestedPath)
+      .then(({ project, projects }) => {
+        if (routeProjectResolutionActiveKeyRef.current !== lookupKey) return
+        if (routeProjectClearedKeysRef.current.has(lookupKey)) return
+        routeProjectResolutionFailuresRef.current.delete(lookupKey)
+        const syncedProjects = projects.length > 0 ? projects : [project]
+        setAddedProjects((current) => {
+          const next = pruneMigratedAddedProjects(current, syncedProjects)
+          saveAddedProjects(next)
+          return next
+        })
+        setWorkspaceContext((current) => mergeWorkspaceProjects(current, syncedProjects))
+
+        const nextBranch = pendingBranchSelectionRef.current
+          || (branchParam?.trim() && project.branches.includes(branchParam.trim())
+            ? branchParam.trim()
+            : (project.currentBranch || project.branches[0] || 'main'))
+        const nextRuntime = pendingRuntimeSelectionRef.current
+          || (runtimeParam?.trim() && workspaceContext.runtimeModes.includes(runtimeParam.trim())
+            ? runtimeParam.trim()
+            : selectedRuntime)
+        if (selectedSessionKey && !newChatRequested) {
+          beginNewChatForProject(project, nextBranch, nextRuntime)
+          return
+        }
+
+        if (
+          normalizedProjectPath(project.path) !== normalizedProjectPath(selectedProjectPath)
+          || (project.environmentId || '') !== (selectedProjectEnvironmentId || '')
+        ) {
+          clearChatComposerDraft()
+        }
+        setSelectedProjectPath(project.path)
+        setSelectedProjectEnvironmentId(project.environmentId || '')
+        if (selectedBranch !== nextBranch) setSelectedBranch(nextBranch)
+        if (selectedRuntime !== nextRuntime) setSelectedRuntime(nextRuntime)
+      })
+      .catch((error) => {
+        if (routeProjectResolutionActiveKeyRef.current !== lookupKey) return
+        if (routeProjectClearedKeysRef.current.has(lookupKey)) return
+        routeProjectResolutionFailuresRef.current.add(lookupKey)
+        console.warn('Failed to resolve route project folder:', error)
+        if (
+          normalizedProjectPath(selectedProjectPath) !== normalizedProjectPath(requestedPath)
+          || (selectedProjectEnvironmentId || '') !== (envParam?.trim() || '')
+        ) {
+          clearChatComposerDraft()
+        }
+        setSelectedProjectPath(requestedPath)
+        setSelectedProjectEnvironmentId(envParam?.trim() || '')
+        setSelectedBranch(FALLBACK_PROJECT.currentBranch || FALLBACK_PROJECT.branches[0] || 'main')
+        showAttachmentStatus('Project folder is no longer available. Add it again or select another project.', 5000)
+      })
+      .finally(() => {
+        routeProjectResolutionInFlightRef.current.delete(lookupKey)
+      })
+
+    return () => {
+      if (routeProjectResolutionActiveKeyRef.current === lookupKey) {
+        routeProjectResolutionActiveKeyRef.current = ''
+      }
+    }
+  }, [
+    beginNewChatForProject,
+    branchParam,
+    clearChatComposerDraft,
+    cwdParam,
+    envParam,
+    newChatRequested,
+    projectIdParam,
+    realWorkspaceProjects,
+    runtimeParam,
+    selectedBranch,
+    selectedProjectEnvironmentId,
+    selectedProjectPath,
+    selectedRuntime,
+    selectedSessionKey,
+    setSearchParams,
+    showAttachmentStatus,
+    workspaceContext.runtimeModes,
+    workspaceContextLoadFailed,
+    workspaceContextReady,
+  ])
+
+  useLayoutEffect(() => {
+    if (!workspaceContextReady) return
+    if (workspaceContextLoadFailed) return
+    const selectedSessionProject = selectedSession && !newChatRequested
+      ? findProjectForSession(realWorkspaceProjects, selectedSession)
+      : null
+    if (
+      selectedSessionKey
+      && unscopedSessionSelectionKeyRef.current === selectedSessionKey
+      && selectedSession
+      && !newChatRequested
+      && !selectedSessionProject
+    ) {
+      if (selectedProjectPath.trim() || selectedProjectEnvironmentId.trim()) {
+        setSelectedProjectPath('')
+        setSelectedProjectEnvironmentId('')
+      }
+      return
+    }
+    if (!(projectIdParam?.trim() || cwdParam?.trim())) return
+
+    const routeProject = findProjectByRouteIdentity(realWorkspaceProjects, projectIdParam, cwdParam, envParam)
+    const lookupKey = routeProjectResolutionKey(projectIdParam, cwdParam, envParam)
+    if (routeProjectClearedKeysRef.current.has(lookupKey)) return
+    const pendingProjectSelection = pendingProjectSelectionRef.current
+    if (
+      newChatIntentRef.current
+      && pendingProjectSelection
+      && (projectIdParam?.trim() || cwdParam?.trim())
+      && !findProjectByRouteIdentity([pendingProjectSelection], projectIdParam, cwdParam, envParam)
+    ) {
+      return
+    }
+    if (!routeProject) {
+      if (
+        routeEnvironmentAllowsLocalResolution(envParam)
+        && routeProjectPathCandidate(projectIdParam, cwdParam)
+        && !routeProjectResolutionFailuresRef.current.has(lookupKey)
+      ) {
+        return
+      }
+      const requestedPath = routeProjectPathCandidate(projectIdParam, cwdParam)
+      if (requestedPath) {
+        const requestedEnvironmentId = envParam?.trim() || ''
+        const selectionChanged = normalizedProjectPath(selectedProjectPath) !== normalizedProjectPath(requestedPath)
+          || (selectedProjectEnvironmentId || '') !== requestedEnvironmentId
+        if (selectionChanged) {
+          clearChatComposerDraft()
+          setSelectedProjectPath(requestedPath)
+          setSelectedProjectEnvironmentId(requestedEnvironmentId)
+          showAttachmentStatus('Project folder is no longer available. Add it again or select another project.', 5000)
+        }
+        setSelectedBranch(FALLBACK_PROJECT.currentBranch || FALLBACK_PROJECT.branches[0] || 'main')
+        const samePathProjectExists = realWorkspaceProjects.some((project) => (
+          normalizedProjectPath(project.path) === normalizedProjectPath(requestedPath)
+        ))
+        if (samePathProjectExists) {
+          setSearchParams((prev) => {
+            const next = new URLSearchParams(prev)
+            next.delete('projectId')
+            next.delete('cwd')
+            next.delete('env')
+            next.delete('branch')
+            next.delete('runtime')
+            return next
+          }, { replace: true })
+        }
+        return
+      }
+      if (selectedProjectPath.trim() || selectedProjectEnvironmentId.trim()) {
+        clearChatComposerDraft()
+      }
+      setSelectedProjectPath('')
+      setSelectedProjectEnvironmentId('')
+      setSelectedBranch(FALLBACK_PROJECT.currentBranch || FALLBACK_PROJECT.branches[0] || 'main')
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('projectId')
+        next.delete('cwd')
+        next.delete('env')
+        next.delete('branch')
+        next.delete('runtime')
+        return next
+      }, { replace: true })
+      showAttachmentStatus('Project folder is no longer available. Add it again or select another project.', 5000)
+      return
+    }
+
+    const nextBranch = pendingBranchSelectionRef.current
+      || (branchParam?.trim() && routeProject.branches.includes(branchParam.trim())
+        ? branchParam.trim()
+        : (routeProject.currentBranch || routeProject.branches[0] || 'main'))
+    const nextRuntime = pendingRuntimeSelectionRef.current
+      || (runtimeParam?.trim() && workspaceContext.runtimeModes.includes(runtimeParam.trim())
+        ? runtimeParam.trim()
+        : selectedRuntime)
+    const projectChanged = normalizedProjectPath(routeProject.path) !== normalizedProjectPath(selectedProjectPath)
+      || (routeProject.environmentId || '') !== (selectedProjectEnvironmentId || '')
+
+    if (newChatIntentRef.current && selectedProjectReady && projectChanged) {
+      return
+    }
+    if (selectedSessionKey && !newChatRequested && projectChanged) {
+      beginNewChatForProject(routeProject, nextBranch, nextRuntime)
+      return
+    }
+    if (projectChanged) {
+      clearChatComposerDraft()
+      setSelectedProjectPath(routeProject.path)
+      setSelectedProjectEnvironmentId(routeProject.environmentId || '')
+    }
+    if (selectedBranch !== nextBranch) setSelectedBranch(nextBranch)
+    if (selectedRuntime !== nextRuntime) setSelectedRuntime(nextRuntime)
+  }, [
+    beginNewChatForProject,
+    branchParam,
+    clearChatComposerDraft,
+    cwdParam,
+    envParam,
+    newChatRequested,
+    projectIdParam,
+    realWorkspaceProjects,
+    runtimeParam,
+    selectedBranch,
+    selectedSession,
+    selectedSessionKey,
+    selectedProjectEnvironmentId,
+    selectedProjectPath,
+    selectedRuntime,
+    setSearchParams,
+    showAttachmentStatus,
+    workspaceContext.runtimeModes,
+    workspaceContextLoadFailed,
+    workspaceContextReady,
+  ])
+
+  const addProjectFromPath = async (selectedPath: string | null): Promise<boolean> => {
+    const projectPath = sanitizeProjectPathInput(selectedPath || '')
+    if (!projectPath) return false
     let project: ChatWorkspaceProject
+    let backendProjects: ChatWorkspaceProject[] | null = null
     try {
-      project = await addProjectToBackend(selectedPath)
+      const result = await addProjectToBackend(projectPath)
+      project = result.project
+      backendProjects = result.projects
     } catch (error) {
       console.warn('Failed to persist selected project through backend:', error)
-      project = await resolveProjectFromPath(selectedPath)
+      if (!window.__TAURI_INTERNALS__) {
+        setProjectDialogError(error instanceof Error ? error.message : 'Unable to add that project folder.')
+        return false
+      }
+      try {
+        project = await resolveProjectFromPath(projectPath)
+      } catch (resolveError) {
+        console.warn('Failed to resolve selected project folder:', resolveError)
+        setProjectDialogError(resolveError instanceof Error ? resolveError.message : 'Unable to add that project folder.')
+        return false
+      }
     }
-    setAddedProjects((current) => {
-      if (current.some((candidate) => candidate.path === project.path)) return current
-      const next = [...current, project]
-      saveAddedProjects(next)
-      return next
-    })
-    setWorkspaceContext((current) => mergeWorkspaceProjects(current, [project]))
+    setProjectDialogError(null)
+    setWorkspaceContextLoadFailed(false)
+    rememberProjectPickerDirectory(project.path)
+    const replacingSavedSession = Boolean(selectedSessionKey && !newChatRequested)
+    if (replacingSavedSession) {
+      newChatIntentRef.current = true
+    }
+    const projectPathKey = normalizedProjectPath(project.path)
+    const syncedBackendProjects = backendProjects && backendProjects.length > 0
+      ? backendProjects
+      : null
+    if (syncedBackendProjects) {
+      setAddedProjects((current) => {
+        const next = pruneMigratedAddedProjects(current, syncedBackendProjects)
+        saveAddedProjects(next)
+        return next
+      })
+      setWorkspaceContext((current) => mergeWorkspaceProjects(current, syncedBackendProjects))
+    } else {
+      setAddedProjects((current) => {
+        const next = current.some((candidate) => sameProjectRecord(candidate, project))
+          ? current.map((candidate) => (sameProjectRecord(candidate, project) ? project : candidate))
+          : [...current, project]
+        saveAddedProjects(next)
+        return next
+      })
+      setWorkspaceContext((current) => mergeWorkspaceProjects(current, [project]))
+    }
+    if (
+      projectPathKey !== normalizedProjectPath(selectedProjectPath)
+      || (project.environmentId || '') !== (selectedProjectEnvironmentId || '')
+    ) {
+      clearChatComposerDraft()
+    }
     setSelectedProjectPath(project.path)
-    const nextBranch = project.currentBranch || project.branches[0] || 'main'
+    setSelectedProjectEnvironmentId(project.environmentId || '')
+    const routeBranch = branchParam?.trim()
+    const routeBranchMatchesAddedProject = normalizedProjectPath(project.path) === normalizedProjectPath(selectedProjectPath)
+    const nextBranch = routeBranchMatchesAddedProject && routeBranch && project.branches.includes(routeBranch)
+      ? routeBranch
+      : (project.currentBranch || project.branches[0] || 'main')
+    if (replacingSavedSession) {
+      beginNewChatForProject(project, nextBranch)
+      return true
+    }
     setSelectedBranch(nextBranch)
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
-      setProjectRouteParams(next, project, { branch: nextBranch, runtime: selectedRuntime })
+      setProjectRouteParamsIfReady(next, project, { branch: nextBranch, runtime: selectedRuntime })
       return next
     }, { replace: true })
+    return true
   }
 
-  const handleAddProject = async () => {
-    if (window.__TAURI_INTERNALS__) {
-      let selectedPath: string | null = null
-      try {
-        const { open } = await import('@tauri-apps/plugin-dialog')
-        const selected = await open({
-          directory: true,
-          multiple: false,
-          title: 'Add project',
-        })
-        selectedPath = Array.isArray(selected) ? selected[0] ?? null : selected
-      } catch (error) {
-        console.warn('Failed to open project picker:', error)
+  const addProjectsFromPaths = async (selectedPaths: readonly string[]): Promise<boolean> => {
+    const paths = normalizedProjectPickerPaths([...selectedPaths])
+    if (paths.length === 0) return false
+
+    let addedCount = 0
+    let failedCount = 0
+    for (const path of paths) {
+      const added = await addProjectFromPath(path)
+      if (added) {
+        addedCount += 1
+      } else {
+        failedCount += 1
       }
-      await addProjectFromPath(selectedPath)
+    }
+    if (failedCount > 0 && addedCount > 0) {
+      showAttachmentStatus(
+        `Added ${addedCount} project folder${addedCount === 1 ? '' : 's'}; ${failedCount} selected folder${failedCount === 1 ? '' : 's'} could not be added.`,
+        5000,
+      )
+    }
+    return addedCount > 0
+  }
+
+  const openProjectFolderPicker = async (preferredProjectPath?: string | null): Promise<string[] | null | undefined> => {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const selected = await open({
+        directory: true,
+        multiple: true,
+        title: 'Add project',
+        defaultPath: projectPickerDefaultPath({
+          preferredProjectPath,
+          selectedProjectPath,
+          projects: workspaceContext.projects,
+        }),
+      })
+      const selectedPaths = normalizedProjectPickerPaths(selected)
+      if (selectedPaths?.length) rememberProjectPickerDirectory(selectedPaths[selectedPaths.length - 1])
+      return selectedPaths
+    } catch (error) {
+      console.warn('Failed to open project picker:', error)
+      return undefined
+    }
+  }
+
+  const handleAddProject = async (suggestedPath?: unknown) => {
+    if (projectDialogSubmittingRef.current) return
+    const requestedPath = typeof suggestedPath === 'string'
+      ? sanitizeProjectPathInput(suggestedPath)
+      : ''
+    const requestedPaths = requestedPath ? normalizedProjectPickerPaths(requestedPath) : []
+    if (window.__TAURI_INTERNALS__) {
+      projectDialogSubmittingRef.current = true
+      setProjectDialogSubmitting(true)
+      try {
+        const selectedPaths = requestedPaths.length > 0
+          ? requestedPaths
+          : await openProjectFolderPicker()
+        if (selectedPaths === undefined) {
+          setProjectDialogMode('add')
+          setProjectDialogTargetPath(null)
+          setProjectDialogTargetEnvironmentId(null)
+          setProjectDialogDraft(requestedPath)
+          setProjectDialogError(null)
+          return
+        }
+        if (!selectedPaths?.length) return
+        const added = await addProjectsFromPaths(selectedPaths)
+        if (!added) {
+          setProjectDialogMode('add')
+          setProjectDialogTargetPath(null)
+          setProjectDialogTargetEnvironmentId(null)
+          setProjectDialogDraft(selectedPaths[0] ?? '')
+          setProjectDialogError('Unable to add the selected project folder. Check the path or choose another folder.')
+        }
+      } finally {
+        projectDialogSubmittingRef.current = false
+        setProjectDialogSubmitting(false)
+      }
       return
     }
 
     setProjectDialogMode('add')
     setProjectDialogTargetPath(null)
-    setProjectDialogDraft('')
+    setProjectDialogTargetEnvironmentId(null)
+    setProjectDialogDraft(requestedPath)
+    setProjectDialogError(null)
+    setProjectDialogSubmitting(false)
+    projectDialogSubmittingRef.current = false
+  }
+
+  useEffect(() => {
+    if (addProjectParam === null) return
+    const requestedPath = addProjectParam.trim() && addProjectParam !== '1'
+      ? addProjectParam
+      : (cwdParam?.trim() || '')
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.delete('addProject')
+      return next
+    }, { replace: true })
+    void handleAddProject(requestedPath)
+  }, [addProjectParam, cwdParam, handleAddProject, setSearchParams])
+
+  const browseProjectFromDialog = async () => {
+    if (!window.__TAURI_INTERNALS__ || projectDialogSubmittingRef.current) return
+    projectDialogSubmittingRef.current = true
+    setProjectDialogSubmitting(true)
+    setProjectDialogError(null)
+    try {
+      const selectedPaths = await openProjectFolderPicker(projectDialogDraft)
+      if (selectedPaths === undefined) {
+        setProjectDialogError('Unable to open the folder picker. Enter a project path manually.')
+        return
+      }
+      if (!selectedPaths?.length) return
+      setProjectDialogDraft(selectedPaths[0])
+      const added = await addProjectsFromPaths(selectedPaths)
+      if (added) closeProjectDialog()
+    } finally {
+      projectDialogSubmittingRef.current = false
+      setProjectDialogSubmitting(false)
+    }
+  }
+
+  const handleAddProjectFromEnvironment = (suggestedPath?: string) => {
+    setEnvironmentDialogOpen(false)
+    void handleAddProject(suggestedPath)
   }
 
   const mirrorAddedProject = (project: ChatWorkspaceProject) => {
     setAddedProjects((current) => {
-      const next = current.some((candidate) => candidate.path === project.path)
-        ? current.map((candidate) => (candidate.path === project.path ? project : candidate))
+      const next = current.some((candidate) => sameProjectRecord(candidate, project))
+        ? current.map((candidate) => (sameProjectRecord(candidate, project) ? project : candidate))
         : [...current, project]
       saveAddedProjects(next)
       return next
     })
   }
 
-  const forgetAddedProject = (path: string) => {
+  const forgetAddedProject = (project: ChatWorkspaceProject) => {
     setAddedProjects((current) => {
-      const next = current.filter((candidate) => candidate.path !== path)
+      const next = current.filter((candidate) => !sameProjectRecord(candidate, project))
       saveAddedProjects(next)
       return next
     })
@@ -591,43 +2399,93 @@ export default function ChatPage() {
     project: ChatWorkspaceProject,
     patch: Partial<Pick<ChatWorkspaceProject, 'name' | 'machineLabel' | 'scripts' | 'groupingOverride'>>,
   ) => {
+    const previousContext = workspaceContext
+    const previousAddedProjects = loadAddedProjects()
     const optimisticProject = normalizeWorkspaceProject({ ...project, ...patch })
     setWorkspaceContext((current) => replaceWorkspaceProject(current, optimisticProject))
     mirrorAddedProject(optimisticProject)
     updateProjectInBackend(project, patch)
-      .then((updatedProject) => {
+      .then(({ project: updatedProject, projects }) => {
         setWorkspaceContext((current) => replaceWorkspaceProject(current, updatedProject))
-        mirrorAddedProject(updatedProject)
+        setWorkspaceContext((current) => mergeWorkspaceProjects(current, projects))
+        setAddedProjects((current) => {
+          const next = pruneMigratedAddedProjects(current, projects)
+          saveAddedProjects(next)
+          return next
+        })
       })
       .catch((error) => {
         console.warn('Failed to persist project update through backend:', error)
+        setWorkspaceContext(previousContext)
+        setAddedProjects(previousAddedProjects)
+        saveAddedProjects(previousAddedProjects)
+        showAttachmentStatus(`Project update failed. Restored ${project.name || 'the project'} in the chat workspace.`, 5000)
       })
   }
 
-  const handleRenameProject = (path: string) => {
-    const project = workspaceContext.projects.find((candidate) => candidate.path === path)
+  const handleRenameProject = (path: string, environmentId?: string | null) => {
+    const project = findWorkspaceProjectByPath(path, environmentId)
     if (!project) return
     setProjectDialogMode('rename')
     setProjectDialogTargetPath(project.path)
+    setProjectDialogTargetEnvironmentId(project.environmentId || null)
     setProjectDialogDraft(project.name)
+    setProjectDialogError(null)
+    setProjectDialogSubmitting(false)
+    projectDialogSubmittingRef.current = false
   }
 
   const closeProjectDialog = () => {
+    projectDialogSubmittingRef.current = false
+    setProjectDialogSubmitting(false)
     setProjectDialogMode(null)
     setProjectDialogTargetPath(null)
+    setProjectDialogTargetEnvironmentId(null)
     setProjectDialogDraft('')
+    setProjectDialogError(null)
   }
 
   const submitProjectDialog = () => {
+    if (projectDialogSubmittingRef.current) return
+    if (!projectDialogMode) return
     const value = projectDialogDraft.trim()
-    if (!value || !projectDialogMode) return
     if (projectDialogMode === 'add') {
-      closeProjectDialog()
-      void addProjectFromPath(value)
+      if (!value) return
+      const projectPaths = normalizedProjectPickerPaths(value)
+      if (projectPaths.length === 0) return
+      projectDialogSubmittingRef.current = true
+      setProjectDialogSubmitting(true)
+      setProjectDialogError(null)
+      void addProjectsFromPaths(projectPaths).then((added) => {
+        if (added) closeProjectDialog()
+      }).finally(() => {
+        projectDialogSubmittingRef.current = false
+        setProjectDialogSubmitting(false)
+      })
       return
     }
 
-    const project = workspaceContext.projects.find((candidate) => candidate.path === projectDialogTargetPath)
+    const project = projectDialogTargetPath ? findWorkspaceProjectByPath(projectDialogTargetPath, projectDialogTargetEnvironmentId) : null
+    if (projectDialogMode === 'delete') {
+      const fallbackProject = project ?? (
+        projectDialogTargetPath
+          ? unavailableProjectFromPath(
+            projectDialogTargetPath,
+            projectDialogTargetEnvironmentId,
+            projectDialogDraft,
+          )
+          : null
+      )
+      if (!fallbackProject) {
+        closeProjectDialog()
+        return
+      }
+      closeProjectDialog()
+      confirmRemoveProject(fallbackProject, { treatAsSelected: !project })
+      return
+    }
+
+    if (!value) return
     if (!project || value === project.name) {
       closeProjectDialog()
       return
@@ -636,8 +2494,8 @@ export default function ChatPage() {
     persistProjectPatch(project, { name: value })
   }
 
-  const handleProjectGroupingOverride = (path: string, value: string) => {
-    const project = workspaceContext.projects.find((candidate) => candidate.path === path)
+  const handleProjectGroupingOverride = (path: string, value: string, environmentId?: string | null) => {
+    const project = findWorkspaceProjectByPath(path, environmentId)
     if (!project) return
     const groupingOverride = value === 'repository' || value === 'repository-path' || value === 'separate'
       ? value
@@ -645,63 +2503,172 @@ export default function ChatPage() {
     persistProjectPatch(project, { groupingOverride })
   }
 
-  const handleRemoveProject = (path: string) => {
-    const project = workspaceContext.projects.find((candidate) => candidate.path === path)
+  const handleRemoveProject = (path: string, environmentId?: string | null) => {
+    const project = findWorkspaceProjectByPath(path, environmentId)
     if (!project) return
-    const nextContext = removeWorkspaceProject(workspaceContext, project.path)
-    forgetAddedProject(project.path)
+    setProjectDialogMode('delete')
+    setProjectDialogTargetPath(project.path)
+    setProjectDialogTargetEnvironmentId(project.environmentId || null)
+    setProjectDialogDraft(project.name)
+    setProjectDialogError(null)
+    setProjectDialogSubmitting(false)
+    projectDialogSubmittingRef.current = false
+  }
+
+  const confirmRemoveProject = (
+    project: ChatWorkspaceProject,
+    options: { treatAsSelected?: boolean } = {},
+  ) => {
+    const previousContext = workspaceContext
+    const previousAddedProjects = loadAddedProjects()
+    const projectWasLocalFallback = previousAddedProjects.some((candidate) => sameProjectRecord(candidate, project))
+    const previousSessionProjectRefs = sessionProjectRefs
+    const previousScriptStore = projectScriptStore
+    const previousPreferredScriptStore = loadProjectPreferredScriptStore()
+    const projectWasSelected = options.treatAsSelected || (selectedProjectReady && sameProjectRecord(selectedProject, project))
+    const previousBranch = selectedBranch
+    const previousRuntime = selectedRuntime
+    const nextContext = removeWorkspaceProject(workspaceContext, project)
+    forgetAddedProject(project)
     setWorkspaceContext(nextContext)
-    if (selectedProjectPath === project.path) {
-      const nextProject = nextContext.projects[0] ?? FALLBACK_PROJECT
-      const nextBranch = nextProject.currentBranch || nextProject.branches[0] || 'main'
-      setSelectedProjectPath(nextProject.path)
-      setSelectedBranch(nextBranch)
+    setProjectScriptStore((current) => {
+      const next = pruneProjectScriptStoreForProject(current, project)
+      if (Object.keys(next).length === Object.keys(current).length) return current
+      saveProjectScriptStore(next)
+      return next
+    })
+    saveProjectPreferredScriptStore(pruneProjectPreferredScriptStoreForProject(previousPreferredScriptStore, project))
+    setSessionProjectRefs((current) => {
+      const next = pruneSessionProjectRefsForProject(current, project)
+      if (next === current || Object.keys(next).length === Object.keys(current).length) return current
+      saveChatSessionProjectRefs(next)
+      return next
+    })
+    if (projectWasSelected) {
+      const currentRouteKey = (projectIdParam?.trim() || cwdParam?.trim())
+        ? routeProjectResolutionKey(projectIdParam, cwdParam, envParam)
+        : ''
+      if (currentRouteKey) {
+        routeProjectClearedKeysRef.current.add(currentRouteKey)
+        routeProjectResolutionFailuresRef.current.add(currentRouteKey)
+        if (routeProjectResolutionActiveKeyRef.current === currentRouteKey) {
+          routeProjectResolutionActiveKeyRef.current = ''
+        }
+      }
+      clearChatComposerDraft()
+      setSelectedProjectPath('')
+      setSelectedProjectEnvironmentId('')
+      saveStoredValue(CHAT_SELECTED_PROJECT_PATH_KEY, '')
+      saveStoredValue(CHAT_SELECTED_PROJECT_ENVIRONMENT_KEY, '')
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev)
-        setProjectRouteParams(next, nextProject, { branch: nextBranch, runtime: selectedRuntime })
+        next.delete('projectId')
+        next.delete('cwd')
+        next.delete('env')
+        next.delete('branch')
+        next.delete('runtime')
         return next
       }, { replace: true })
     }
     removeProjectFromBackend(project)
       .then((storedProjects) => {
-        setWorkspaceContext((current) => {
-          const storedPaths = new Set(storedProjects.map((candidate) => candidate.path))
-          return {
-            ...current,
-            projects: current.projects.map((candidate) => (
-              storedPaths.has(candidate.path)
-                ? storedProjects.find((stored) => stored.path === candidate.path) ?? candidate
-                : candidate
-            )),
-          }
+        setAddedProjects((current) => {
+          const next = pruneMigratedAddedProjects(current, storedProjects)
+          saveAddedProjects(next)
+          return next
         })
+        setWorkspaceContext((current) => mergeWorkspaceProjects(current, storedProjects))
       })
       .catch((error) => {
+        if ((options.treatAsSelected || projectWasLocalFallback) && isWorkspaceProjectNotFoundError(error)) {
+          showAttachmentStatus(`Removed stale project entry ${project.name || 'from the chat workspace'}.`, 5000)
+          return
+        }
         console.warn('Failed to remove project through backend:', error)
+        setWorkspaceContext(previousContext)
+        setAddedProjects(previousAddedProjects)
+        saveAddedProjects(previousAddedProjects)
+        setProjectScriptStore(previousScriptStore)
+        saveProjectScriptStore(previousScriptStore)
+        saveProjectPreferredScriptStore(previousPreferredScriptStore)
+        setSessionProjectRefs(previousSessionProjectRefs)
+        saveChatSessionProjectRefs(previousSessionProjectRefs)
+        if (projectWasSelected) {
+          const restoredRouteKey = (projectIdParam?.trim() || cwdParam?.trim())
+            ? routeProjectResolutionKey(projectIdParam, cwdParam, envParam)
+            : ''
+          if (restoredRouteKey) {
+            routeProjectClearedKeysRef.current.delete(restoredRouteKey)
+            routeProjectResolutionFailuresRef.current.delete(restoredRouteKey)
+          }
+          setSelectedProjectPath(project.path)
+          setSelectedProjectEnvironmentId(project.environmentId || '')
+          setSelectedBranch(previousBranch)
+          setSelectedRuntime(previousRuntime)
+          setSearchParams((prev) => {
+            const next = new URLSearchParams(prev)
+            setProjectRouteParamsIfReady(next, project, {
+              branch: previousBranch,
+              runtime: previousRuntime,
+            })
+            return next
+          }, { replace: true })
+        }
+        showAttachmentStatus(`Project removal failed. Restored ${project.name || 'the project'} in the chat workspace.`, 5000)
       })
   }
 
+  const handleRemoveUnavailableSelectedProject = () => {
+    const path = selectedProjectPath.trim()
+    if (!path) return
+    const project = unavailableProjectFromPath(path, selectedProjectEnvironmentId)
+    setProjectDialogMode('delete')
+    setProjectDialogTargetPath(project.path)
+    setProjectDialogTargetEnvironmentId(project.environmentId || null)
+    setProjectDialogDraft(project.name)
+    setProjectDialogError(null)
+    setProjectDialogSubmitting(false)
+    projectDialogSubmittingRef.current = false
+  }
+
   const handleRuntimeChange = (value: string) => {
+    if (!workspaceContext.runtimeModes.includes(value)) return
+    pendingRuntimeSelectionRef.current = value
+    selectedRuntimeRef.current = value
     setSelectedRuntime(value)
+    if (!selectedProjectReady) return
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
-      setProjectRouteParams(next, selectedProject, { branch: selectedBranch, runtime: value })
+      setProjectRouteParamsIfReady(next, selectedProject, {
+        branch: pendingBranchSelectionRef.current || selectedBranchRef.current,
+        runtime: value,
+      })
       return next
     }, { replace: true })
   }
 
   const handleBranchChange = (value: string) => {
+    pendingBranchSelectionRef.current = value
+    selectedBranchRef.current = value
     setSelectedBranch(value)
+    if (!selectedProjectReady) return
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
-      setProjectRouteParams(next, selectedProject, { branch: value, runtime: selectedRuntime })
+      setProjectRouteParamsIfReady(next, selectedProject, {
+        branch: value,
+        runtime: pendingRuntimeSelectionRef.current || selectedRuntimeRef.current,
+      })
       return next
     }, { replace: true })
   }
 
   const saveScriptsForSelectedProject = (updater: (scripts: ChatProjectScript[]) => ChatProjectScript[]) => {
-    const keys = projectScriptStorageKeys(selectedProject)
+    const keys = projectScriptWriteStorageKeys(selectedProject)
     const nextScriptsForBackend = updater(activeProjectScripts)
+    const previousScriptStore = projectScriptStore
+    const previousPreferredScriptStore = loadProjectPreferredScriptStore()
+    const previousSelectedScriptId = selectedScriptId
+    const previousContext = workspaceContext
     setProjectScriptStore((current) => {
       const next = { ...current }
       for (const key of keys) {
@@ -713,16 +2680,23 @@ export default function ChatPage() {
     const optimisticProject = normalizeWorkspaceProject({ ...selectedProject, scripts: nextScriptsForBackend })
     setWorkspaceContext((current) => replaceWorkspaceProject(current, optimisticProject))
     updateProjectInBackend(selectedProject, { scripts: nextScriptsForBackend })
-      .then((project) => {
+      .then(({ project, projects }) => {
         setWorkspaceContext((current) => replaceWorkspaceProject(current, project))
+        setWorkspaceContext((current) => mergeWorkspaceProjects(current, projects))
       })
       .catch((error) => {
         console.warn('Failed to persist project scripts through backend:', error)
+        setProjectScriptStore(previousScriptStore)
+        saveProjectScriptStore(previousScriptStore)
+        saveProjectPreferredScriptStore(previousPreferredScriptStore)
+        setSelectedScriptId(previousSelectedScriptId)
+        setWorkspaceContext(previousContext)
+        showAttachmentStatus(`Project action update failed. Restored actions for ${selectedProject.name || 'the selected project'}.`, 5000)
       })
   }
 
   const handleAddProjectScript = () => {
-    setScriptDraft({ name: '', command: '', icon: 'play', runOnWorktreeCreate: false })
+    setScriptDraft({ name: '', command: '', cwd: '', icon: 'play', keybinding: '', runOnWorktreeCreate: false })
     setScriptDialogMode('add')
   }
 
@@ -730,7 +2704,9 @@ export default function ChatPage() {
     setScriptDraft({
       name: script.name,
       command: script.command,
+      cwd: script.cwd || '',
       icon: script.icon || 'play',
+      keybinding: script.keybinding || '',
       runOnWorktreeCreate: Boolean(script.runOnWorktreeCreate),
     })
     setScriptDialogMode('edit')
@@ -743,7 +2719,7 @@ export default function ChatPage() {
       const nextScript = remainingScripts.find((candidate) => !candidate.runOnWorktreeCreate)
         ?? remainingScripts[0]
         ?? null
-      setSelectedScriptId(nextScript?.id ?? '')
+      selectProjectScript(nextScript?.id ?? '')
     }
   }
 
@@ -751,9 +2727,11 @@ export default function ChatPage() {
     const name = scriptDraft.name.trim()
     const command = scriptDraft.command.trim()
     if (!name || !command) return
+    const cwd = scriptDraft.cwd?.trim() || undefined
     const icon = typeof scriptDraft.icon === 'string' && scriptDraft.icon.trim()
       ? scriptDraft.icon.trim() as T3ProjectScriptIcon
       : 'play'
+    const keybinding = scriptDraft.keybinding?.trim() || undefined
 
     if (scriptDialogMode === 'add') {
       const nextId = nextProjectScriptId(name, activeProjectScripts.map((script) => script.id))
@@ -763,12 +2741,14 @@ export default function ChatPage() {
           id: nextId,
           name,
           command,
+          cwd,
           icon,
+          keybinding,
           runOnWorktreeCreate: scriptDraft.runOnWorktreeCreate,
         },
       ])
-      setSelectedScriptId(nextId)
-    } else if (scriptDialogMode === 'edit') {
+      selectProjectScript(nextId)
+    } else if (scriptDialogMode === 'edit' && selectedProjectScript) {
       saveScriptsForSelectedProject((current) => (
         current.map((candidate) => (
           candidate.id === selectedProjectScript.id
@@ -776,7 +2756,9 @@ export default function ChatPage() {
                 ...candidate,
                 name,
                 command,
+                cwd,
                 icon,
+                keybinding,
                 runOnWorktreeCreate: scriptDraft.runOnWorktreeCreate,
               }
             : candidate
@@ -790,14 +2772,18 @@ export default function ChatPage() {
     if (!selectedSessionKey || !selectedSession) return
     if (!isRepairableSessionLabel(selectedSession.label)) return
     if (renameMutation.isPending) return
-    if (autoRenameAttemptedRef.current.has(selectedSessionKey)) return
+    const selectedScopeKey = sessionScopeKey(selectedSessionKey, selectedSession.environmentId ?? selectedSessionEnvironmentId)
+    if (autoRenameAttemptedRef.current.has(selectedScopeKey)) return
 
     const title = deriveSessionTitle(messages)
     if (!title || title === selectedSession.label) return
 
-    autoRenameAttemptedRef.current.add(selectedSessionKey)
-    renameMutation.mutate({ key: selectedSessionKey, label: title })
-  }, [messages, renameMutation, selectedSession, selectedSessionKey])
+    autoRenameAttemptedRef.current.add(selectedScopeKey)
+    const environment = (selectedSession.environmentId ?? selectedSessionEnvironmentId)?.trim()
+    renameMutation.mutate(environment
+      ? { key: selectedSessionKey, label: title, environmentId: environment }
+      : { key: selectedSessionKey, label: title })
+  }, [messages, renameMutation, selectedSession, selectedSessionEnvironmentId, selectedSessionKey])
 
   useEffect(() => {
     const scroller = scrollRef.current
@@ -842,6 +2828,13 @@ export default function ChatPage() {
         error: terminalStatus.error ?? null,
       }
     : null
+  const projectDialogTargetProject = projectDialogTargetPath
+    ? findWorkspaceProjectByPath(projectDialogTargetPath, projectDialogTargetEnvironmentId)
+    : null
+  const projectDialogEnvironmentLabel = projectEnvironmentDisplayLabel(projectDialogTargetProject)
+    ?? (projectDialogTargetEnvironmentId
+      ? visibleProjectEnvironmentLabel(projectDialogTargetEnvironmentId, projectDialogTargetEnvironmentId)
+      : undefined)
 
   return (
     <div className="chat-shell" style={{
@@ -852,16 +2845,20 @@ export default function ChatPage() {
       overscrollBehavior: 'contain',
       margin: '-20px -28px',
     }}>
-      <aside style={{
-        width: sidebarCollapsed ? 56 : 252,
-        minWidth: sidebarCollapsed ? 56 : 232,
-        maxWidth: sidebarCollapsed ? 56 : 280,
-        borderRight: '1px solid var(--border)',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        transition: 'width 0.18s var(--ease-spring), min-width 0.18s var(--ease-spring)',
-      }}>
+      <aside
+        className="chat-sidebar-frame"
+        data-collapsed={sidebarCollapsed ? 'true' : 'false'}
+        style={{
+          width: sidebarCollapsed ? 56 : 252,
+          minWidth: sidebarCollapsed ? 56 : 232,
+          maxWidth: sidebarCollapsed ? 56 : 280,
+          borderRight: '1px solid var(--border)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          transition: 'width 0.22s var(--ease-spring), min-width 0.22s var(--ease-spring), max-width 0.22s var(--ease-spring)',
+        }}
+      >
         {sidebarCollapsed ? (
           <ChatSidebarCollapsed
             onExpand={() => setCollapsed(false)}
@@ -872,22 +2869,36 @@ export default function ChatPage() {
             sessionsAvailable={sessionsAvailable}
             sessionsLoading={sessionsLoading}
             selectedSessionKey={selectedSessionKey}
+            selectedSessionEnvironmentId={selectedSessionEnvironmentId ?? selectedSession?.environmentId ?? threadEnvironmentParam}
             onSelectSession={handleSelectSession}
             onNewChat={handleNewChat}
             onCollapse={() => setCollapsed(true)}
-            onRenameSession={(key, label) => renameMutation.mutate({ key, label })}
+            onRenameSession={(key, label, environmentId) => {
+              const environment = environmentId?.trim()
+              renameMutation.mutate(environment ? { key, label, environmentId: environment } : { key, label })
+            }}
             onDeleteSession={handleDeleteSession}
-            onCompactSession={(key) => compactMutation.mutate(key)}
+            onPinSession={(key, pinned, environmentId) => {
+              const environment = environmentId?.trim()
+              pinMutation.mutate(environment ? { key, pinned, environmentId: environment } : { key, pinned })
+            }}
+            onCompactSession={(key, environmentId) => compactMutation.mutate(sessionMutationTarget(key, environmentId))}
             compactingSessionKey={
-              compactMutation.isPending && typeof compactMutation.variables === 'string'
-                ? compactMutation.variables
+              compactMutation.isPending
+                ? typeof compactMutation.variables === 'string'
+                  ? compactMutation.variables
+                  : compactMutation.variables?.key
+                    ? sessionScopeKey(compactMutation.variables.key, compactMutation.variables.environmentId)
+                    : null
                 : null
             }
-            projects={workspaceContext.projects}
+            projects={realWorkspaceProjects}
             selectedPath={selectedProjectPath}
+            selectedEnvironmentId={selectedProjectEnvironmentId}
             onSelectProject={handleProjectChange}
             onNewProjectChat={handleNewProjectChat}
             onAddProject={handleAddProject}
+            addProjectPending={projectDialogSubmitting}
             onRenameProject={handleRenameProject}
             onProjectGroupingOverride={handleProjectGroupingOverride}
             onRemoveProject={handleRemoveProject}
@@ -948,14 +2959,26 @@ export default function ChatPage() {
               historyIsError={historyIsError} isDemo={_demo}
             />
             <ProjectScriptsControl
-              preferredScriptId={selectedProjectScript.id}
+              preferredScriptId={selectedProjectScript?.id}
               scripts={activeProjectScripts.map(toT3ProjectScript)}
-              onSelectScript={setSelectedScriptId}
+              projectReady={selectedProjectReady}
+              projectName={selectedProjectReady
+                ? selectedProject.name
+                : selectedProjectPath.trim()
+                  ? 'Selected folder unavailable'
+                  : undefined}
+              projectPath={selectedProjectReady ? selectedProjectRealPath : selectedProjectPath || undefined}
+              projectEnvironmentLabel={selectedProjectReady
+                ? projectEnvironmentDisplayLabel(selectedProject)
+                : selectedProjectEnvironmentId || undefined}
+              projectUnavailableLabel={selectedProjectPath.trim() ? 'Selected folder unavailable' : 'Select project'}
+              onSelectScript={selectProjectScript}
               onOpenTerminal={() => openTerminal()}
               onRunScript={(script) => {
                 const sourceScript = activeProjectScripts.find((candidate) => candidate.id === script.id)
                   ?? selectedProjectScript
-                setSelectedScriptId(sourceScript.id)
+                if (!sourceScript) return
+                selectProjectScript(sourceScript.id)
                 openTerminal(
                   sourceScript.command,
                   sourceScript.name,
@@ -966,13 +2989,27 @@ export default function ChatPage() {
               onEditScript={(script) => {
                 const sourceScript = activeProjectScripts.find((candidate) => candidate.id === script.id)
                   ?? selectedProjectScript
+                if (!sourceScript) return
                 handleEditProjectScript(sourceScript)
               }}
               onDeleteScript={(script) => {
                 const sourceScript = activeProjectScripts.find((candidate) => candidate.id === script.id)
                   ?? selectedProjectScript
+                if (!sourceScript) return
                 handleDeleteProjectScript(sourceScript)
               }}
+              onRenameProject={selectedProjectReady
+                ? () => handleRenameProject(selectedProject.path, selectedProject.environmentId)
+                : undefined}
+              onDeleteProject={selectedProjectReady
+                ? () => handleRemoveProject(selectedProject.path, selectedProject.environmentId)
+                : selectedProjectPath.trim()
+                  ? handleRemoveUnavailableSelectedProject
+                  : undefined}
+              onAddProject={selectedProjectPath.trim()
+                ? () => void handleAddProject(selectedProjectPath)
+                : undefined}
+              onClearProject={() => handleProjectChange('')}
               onChangeEnvironment={() => setEnvironmentDialogOpen(true)}
               onOpenReview={() => setActivePanel((current) => current === 'review' ? null : 'review')}
               onOpenInfo={() => setActivePanel((current) => current === 'info' ? null : 'info')}
@@ -981,19 +3018,35 @@ export default function ChatPage() {
           </div>
         </div>
 
+        <ChatProjectScopeStrip
+          projectReady={selectedProjectReady}
+          projectName={selectedProjectReady ? selectedProject.name : null}
+          projectPath={selectedProjectReady ? selectedProjectRealPath : selectedProjectPath}
+          environmentLabel={selectedProjectReady
+            ? projectEnvironmentDisplayLabel(selectedProject)
+            : selectedProjectEnvironmentId}
+          runtime={selectedRuntime}
+          branch={selectedBranch}
+          onAddProject={() => void handleAddProject(selectedProjectPath)}
+          onManageProject={() => setEnvironmentDialogOpen(true)}
+          onClearProject={() => handleProjectChange('')}
+          onRemoveProject={selectedProjectReady
+            ? () => handleRemoveProject(selectedProject.path, selectedProject.environmentId)
+            : handleRemoveUnavailableSelectedProject}
+        />
+
         {activePanel && (
           <ChatHeaderPanel
             panel={activePanel}
             project={selectedProject}
+            projectPath={selectedProjectReady ? selectedProjectRealPath : selectedProjectPath}
+            projectEnvironmentId={selectedProjectReady ? selectedProject.environmentId : selectedProjectEnvironmentId}
             session={selectedSession}
             runtime={selectedRuntime}
             branch={selectedBranch}
+            projectReady={selectedProjectReady}
             onClose={() => setActivePanel(null)}
-            onRunReview={() => openTerminal(
-              'codex exec review --sandbox read-only --skip-git-repo-check',
-              'Codex review',
-              selectedProject.path,
-            )}
+            onRunReview={runHermesReview}
           />
         )}
 
@@ -1018,8 +3071,36 @@ export default function ChatPage() {
           scrollRef={scrollRef}
           bottomRef={bottomRef}
           optimisticImageCacheRef={optimisticImageCacheRef}
+          optimisticContextFileCacheRef={optimisticContextFileCacheRef}
           onDrop={onDrop}
           retry={retry}
+          onUseMessageAsPrompt={useMessageAsPrompt}
+          onForkMessage={forkMessageAsNewChat}
+          onRegenerateAssistant={regenerateAssistantFromPrompt}
+          onContinueAssistant={continueAssistantResponse}
+          transcriptContext={selectedProjectReady
+            ? {
+                projectName: selectedProject.name,
+                projectPath: selectedProject.root || selectedProjectRealPath,
+                environmentId: selectedProject.environmentId || undefined,
+                runtime: selectedRuntime,
+                branch: selectedBranch,
+              }
+            : null}
+          emptyStateSlot={(
+            <ChatProjectStartPanel
+              projectReady={selectedProjectReady}
+              projectName={selectedProjectReady ? selectedProject.name : null}
+              projectPath={selectedProjectReady ? selectedProjectRealPath : selectedProjectPath}
+              environmentLabel={selectedProjectReady
+                ? projectEnvironmentDisplayLabel(selectedProject)
+                : selectedProjectEnvironmentId}
+              runtime={selectedRuntime}
+              branch={selectedBranch}
+              onAddProject={() => void handleAddProject(selectedProjectPath)}
+              onManageProject={() => setEnvironmentDialogOpen(true)}
+            />
+          )}
         />
 
         {terminalOpen && (
@@ -1044,17 +3125,35 @@ export default function ChatPage() {
           images={images}
           setImages={setImages}
           imagesRef={imagesRef}
+          contextFiles={contextFiles}
+          setContextFiles={setContextFiles}
+          contextFilesRef={contextFilesRef}
+          pendingAttachmentReads={pendingAttachmentReads + nativeContextReads}
+          attachmentReadsBlockSend={nativeContextReads > 0}
+          pendingQueuedSend={pendingQueuedSend}
+          onCancelQueuedSend={cancelQueuedSend}
           sending={sending}
           onSend={send}
           onStop={stop}
           onFileChange={handleFileChange}
+          onBrowseImages={() => void attachNativeImagePaths()}
+          onContextFileChange={handleContextFileChange}
+          onBrowseContextFiles={() => void attachNativeContextPaths(false)}
+          onBrowseContextFolder={() => void attachNativeContextPaths(true)}
           onDrop={onDrop}
           draftTimerRef={draftTimerRef}
+          draftStorageKeys={draftStorageKeys}
+          promptHistory={promptHistory}
+          focusSignal={composerFocusSignal}
           providerLabel={activeProviderLabel}
+          sendDisabledReason={sendDisabledReason}
+          sendDisabledActionLabel={sendDisabledProjectActionLabel}
+          onSendDisabledAction={handleSendDisabledProjectAction}
           contextBar={(
             <ChatComposerContextBar
               projectPath={selectedProjectPath}
-              projects={workspaceContext.projects}
+              projectEnvironmentId={selectedProjectEnvironmentId}
+              projects={realWorkspaceProjects}
               onProjectChange={handleProjectChange}
               runtime={selectedRuntime}
               runtimeModes={workspaceContext.runtimeModes}
@@ -1062,7 +3161,10 @@ export default function ChatPage() {
               branch={selectedBranch}
               branches={selectedProject.branches}
               onBranchChange={handleBranchChange}
-              usageSlot={<CodexLbUsagePill />}
+              projectReady={selectedProjectReady}
+              onAddProject={handleAddProject}
+              onOpenEnvironment={() => setEnvironmentDialogOpen(true)}
+              usageSlot={<HermesUsagePill />}
             />
           )}
         />
@@ -1071,13 +3173,14 @@ export default function ChatPage() {
           <ProjectScriptDialog
             mode={scriptDialogMode}
             draft={scriptDraft}
-            editingScript={scriptDialogMode === 'edit' ? toT3ProjectScript(selectedProjectScript) : null}
+            editingScript={scriptDialogMode === 'edit' && selectedProjectScript ? toT3ProjectScript(selectedProjectScript) : null}
             onDraftChange={setScriptDraft}
             onCancel={() => setScriptDialogMode(null)}
             onSave={saveProjectScriptDraft}
             onDelete={(script) => {
               const sourceScript = activeProjectScripts.find((candidate) => candidate.id === script.id)
                 ?? selectedProjectScript
+              if (!sourceScript) return
               handleDeleteProjectScript(sourceScript)
               setScriptDialogMode(null)
             }}
@@ -1089,8 +3192,12 @@ export default function ChatPage() {
             mode={projectDialogMode}
             value={projectDialogDraft}
             projectPath={projectDialogTargetPath ?? undefined}
+            projectEnvironmentLabel={projectDialogEnvironmentLabel}
+            error={projectDialogError}
+            submitting={projectDialogSubmitting}
             onChange={setProjectDialogDraft}
             onCancel={closeProjectDialog}
+            onBrowse={projectDialogMode === 'add' && window.__TAURI_INTERNALS__ ? browseProjectFromDialog : undefined}
             onSubmit={submitProjectDialog}
           />
         )}
@@ -1098,7 +3205,8 @@ export default function ChatPage() {
         {environmentDialogOpen && (
           <ChatEnvironmentDialog
             projectPath={selectedProjectPath}
-            projects={workspaceContext.projects}
+            projectEnvironmentId={selectedProjectEnvironmentId}
+            projects={realWorkspaceProjects}
             runtime={selectedRuntime}
             runtimeModes={workspaceContext.runtimeModes}
             branch={selectedBranch}
@@ -1106,6 +3214,16 @@ export default function ChatPage() {
             onProjectChange={handleProjectChange}
             onRuntimeChange={handleRuntimeChange}
             onBranchChange={handleBranchChange}
+            projectReady={selectedProjectReady}
+            onAddProject={handleAddProjectFromEnvironment}
+            onRemoveProject={(path, environmentId) => {
+              setEnvironmentDialogOpen(false)
+              if (selectedProjectReady) {
+                handleRemoveProject(path, environmentId)
+                return
+              }
+              handleRemoveUnavailableSelectedProject()
+            }}
             onClose={() => setEnvironmentDialogOpen(false)}
           />
         )}
@@ -1124,14 +3242,24 @@ export default function ChatPage() {
             .chat-page-header-actions,
             .chat-top-actions-toolbar,
             .chat-local-context-toolbar,
+            .chat-context-project-strip,
             .chat-context-primary,
+            .chat-context-controls,
             .chat-context-actions {
               width: 100% !important;
             }
+            .chat-context-project-strip {
+              align-items: stretch !important;
+              flex-direction: column !important;
+            }
             .chat-context-primary,
+            .chat-context-controls,
             .chat-context-actions {
               justify-content: flex-start !important;
               flex-wrap: wrap !important;
+            }
+            .chat-start-context-panel {
+              padding: 14px !important;
             }
             .chat-context-select {
               flex: 1 1 156px !important;
@@ -1200,7 +3328,23 @@ export default function ChatPage() {
               flex: 1 1 auto !important;
               justify-content: center !important;
             }
-            .codex-lb-window-meters {
+            .chat-context-project-strip {
+              align-items: flex-start !important;
+              flex-direction: column !important;
+            }
+            .chat-context-project-strip .chat-context-actions {
+              width: 100% !important;
+              justify-content: flex-start !important;
+            }
+            .chat-start-context-panel {
+              width: 100% !important;
+              padding: 12px !important;
+            }
+            .chat-start-context-actions > button {
+              width: 100% !important;
+              justify-content: center !important;
+            }
+            .hermes-usage-window-meters {
               display: none !important;
             }
           }
@@ -1220,7 +3364,7 @@ function ChatSidebarCollapsed({
   onExpand: () => void
 }) {
   return (
-    <div style={{
+    <div className="chat-sidebar-collapsed-panel" style={{
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
@@ -1251,7 +3395,7 @@ function ChatSidebarCollapsedButton({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="hover-bg"
+      className="hover-bg chat-sidebar-collapsed-button"
       style={{
         width: 36,
         height: 32,

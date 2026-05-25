@@ -4,7 +4,8 @@
  * live with the copied project UI surface instead of inside Chat.tsx.
  */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import {
   ClipboardText,
   DotsThreeVertical,
@@ -18,7 +19,82 @@ import type {
   ChatProjectSortOrder,
 } from '@/chat/t3-adapters/projectWorkspace'
 
-export function useDismissibleMenu(open: boolean, setOpen: (open: boolean) => void) {
+const opaquePanelStyle = {
+  backgroundColor: '#18181f',
+  opacity: 1,
+  backdropFilter: 'none',
+  WebkitBackdropFilter: 'none',
+  backgroundClip: 'padding-box',
+  isolation: 'isolate',
+} as const
+const PROJECT_MENU_Z_INDEX = 10000
+
+const menuFocusableSelector = [
+  'button:not([disabled])',
+  'select:not([disabled])',
+  '[role="menuitem"]:not([disabled])',
+].join(',')
+
+function projectMenuItemBackground({ active, danger }: { active?: boolean; danger?: boolean }): string {
+  if (danger) return 'color-mix(in srgb, var(--red-500, #ef4444) 13%, var(--bg-card-solid, #18181f))'
+  if (active) return 'color-mix(in srgb, var(--accent) 16%, var(--bg-card-solid, #18181f))'
+  return 'transparent'
+}
+
+function menuFocusableItems(menu: HTMLElement | null): HTMLElement[] {
+  if (!menu) return []
+  return Array.from(menu.querySelectorAll<HTMLElement>(menuFocusableSelector))
+}
+
+function focusMenuItem(menu: HTMLElement | null, index: number) {
+  const items = menuFocusableItems(menu)
+  const item = items[index]
+  if (item) item.focus()
+}
+
+function handleMenuNavigation(
+  event: ReactKeyboardEvent<HTMLElement>,
+  menu: HTMLElement | null,
+  onClose: () => void,
+) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    onClose()
+    return
+  }
+
+  if (
+    event.target instanceof HTMLSelectElement
+    && (event.key === 'ArrowDown' || event.key === 'ArrowUp')
+  ) {
+    return
+  }
+
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+  const items = menuFocusableItems(menu)
+  if (items.length === 0) return
+
+  event.preventDefault()
+  const currentIndex = items.findIndex((item) => item === document.activeElement)
+  if (event.key === 'Home') {
+    items[0]?.focus()
+    return
+  }
+  if (event.key === 'End') {
+    items[items.length - 1]?.focus()
+    return
+  }
+  const direction = event.key === 'ArrowDown' ? 1 : -1
+  const fallbackIndex = direction > 0 ? -1 : 0
+  const nextIndex = (currentIndex === -1 ? fallbackIndex : currentIndex) + direction
+  items[(nextIndex + items.length) % items.length]?.focus()
+}
+
+export function useDismissibleMenu(
+  open: boolean,
+  setOpen: (open: boolean) => void,
+  floatingRef?: RefObject<HTMLElement | null>,
+) {
   const containerRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -26,9 +102,10 @@ export function useDismissibleMenu(open: boolean, setOpen: (open: boolean) => vo
     const onMouseDown = (event: MouseEvent) => {
       const target = event.target
       if (target instanceof Node && containerRef.current?.contains(target)) return
+      if (target instanceof Node && floatingRef?.current?.contains(target)) return
       setOpen(false)
     }
-    const onKeyDown = (event: KeyboardEvent) => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false)
     }
     document.addEventListener('mousedown', onMouseDown)
@@ -37,7 +114,7 @@ export function useDismissibleMenu(open: boolean, setOpen: (open: boolean) => vo
       document.removeEventListener('mousedown', onMouseDown)
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [open, setOpen])
+  }, [floatingRef, open, setOpen])
 
   return containerRef
 }
@@ -46,16 +123,23 @@ function ProjectSidebarHeaderButton({
   label,
   onClick,
   children,
+  buttonRef,
+  menuControls,
 }: {
   label: string
   onClick: () => void
   children: ReactNode
+  buttonRef?: RefObject<HTMLButtonElement | null>
+  menuControls?: string
 }) {
   return (
     <button
+      ref={buttonRef}
       type="button"
       aria-label={label}
       title={label}
+      aria-haspopup="menu"
+      aria-controls={menuControls}
       onClick={onClick}
       className="hover-bg"
       style={{
@@ -100,7 +184,7 @@ function ProjectViewSelect({
           height: 28,
           border: '1px solid var(--border)',
           borderRadius: 7,
-          background: 'var(--bg-card)',
+          background: 'var(--bg-card-solid, #18181f)',
           color: 'var(--text-secondary)',
           font: 'inherit',
           fontSize: 12,
@@ -127,34 +211,86 @@ export function ProjectViewMenu({
   onSortChange: (value: ChatProjectSortOrder) => void
 }) {
   const [open, setOpen] = useState(false)
-  const menuRef = useDismissibleMenu(open, setOpen)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const floatingMenuRef = useRef<HTMLDivElement | null>(null)
+  const menuId = useId()
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 196 })
+  const menuRef = useDismissibleMenu(open, setOpen, floatingMenuRef)
+  const menuWidth = 196
+
+  const updateMenuPosition = useCallback(() => {
+    const trigger = triggerRef.current
+    if (!trigger || typeof window === 'undefined') return
+    const rect = trigger.getBoundingClientRect()
+    const gutter = 8
+    const availableWidth = Math.max(120, window.innerWidth - gutter * 2)
+    const width = Math.min(menuWidth, availableWidth)
+    const renderedHeight = floatingMenuRef.current?.offsetHeight || 128
+    const maxLeft = Math.max(gutter, window.innerWidth - width - gutter)
+    const left = Math.min(Math.max(gutter, rect.right - width), maxLeft)
+    const hasRoomBelow = rect.bottom + 4 + renderedHeight <= window.innerHeight - gutter
+    const unclampedTop = hasRoomBelow ? rect.bottom + 4 : rect.top - renderedHeight - 4
+    const maxTop = Math.max(gutter, window.innerHeight - renderedHeight - gutter)
+    const top = Math.min(Math.max(gutter, unclampedTop), maxTop)
+    setMenuPosition({ top, left, width })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (open) updateMenuPosition()
+  }, [open, updateMenuPosition])
+
+  useEffect(() => {
+    if (!open) return
+    updateMenuPosition()
+    window.addEventListener('resize', updateMenuPosition)
+    window.addEventListener('scroll', updateMenuPosition, true)
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition)
+      window.removeEventListener('scroll', updateMenuPosition, true)
+    }
+  }, [open, updateMenuPosition])
+
+  useEffect(() => {
+    if (!open) return
+    window.requestAnimationFrame(() => focusMenuItem(floatingMenuRef.current, 0))
+  }, [open])
 
   return (
     <div ref={menuRef} style={{ position: 'relative', width: 24, height: 22 }}>
       <ProjectSidebarHeaderButton
+        buttonRef={triggerRef}
         label="Project view options"
+        menuControls={open ? menuId : undefined}
         onClick={() => setOpen((current) => !current)}
       >
         <SlidersHorizontal size={14} />
       </ProjectSidebarHeaderButton>
-      {open && (
+      {open && createPortal(
         <div
+          ref={floatingMenuRef}
+          id={menuId}
           role="menu"
           aria-label="Project view options"
           data-t3-project-view-menu
+          onKeyDown={(event) => handleMenuNavigation(event, floatingMenuRef.current, () => {
+            setOpen(false)
+            triggerRef.current?.focus()
+          })}
           style={{
-            position: 'absolute',
-            zIndex: 24,
-            right: 0,
-            top: 25,
-            width: 196,
+            position: 'fixed',
+            zIndex: PROJECT_MENU_Z_INDEX,
+            left: menuPosition.left,
+            top: menuPosition.top,
+            width: menuPosition.width,
+            maxHeight: 'min(320px, calc(100vh - 16px))',
+            overflowY: 'auto',
             display: 'grid',
             gap: 7,
             padding: 7,
-            border: '1px solid var(--border)',
+            border: '1px solid var(--border-strong, var(--border))',
             borderRadius: 8,
-            background: 'var(--bg-panel)',
-            boxShadow: '0 12px 28px rgba(0, 0, 0, 0.28)',
+            ...opaquePanelStyle,
+            boxShadow: '0 18px 42px rgba(0, 0, 0, 0.56), 0 0 0 1px rgba(255, 255, 255, 0.04)',
           }}
         >
           <ProjectViewSelect
@@ -177,7 +313,8 @@ export function ProjectViewMenu({
               { value: 'recent', label: 'Recent' },
             ]}
           />
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
@@ -202,6 +339,7 @@ export function ProjectMenuButton({
     <button
       type="button"
       role="menuitem"
+      title={label}
       disabled={disabled}
       onClick={(event) => {
         event.preventDefault()
@@ -211,10 +349,10 @@ export function ProjectMenuButton({
       }}
       className="hover-bg"
       style={{
-        height: 28,
-        border: 'none',
+        minHeight: 32,
+        border: danger ? '1px solid color-mix(in srgb, var(--red-500, #ef4444) 26%, transparent)' : '1px solid transparent',
         borderRadius: 6,
-        background: active ? 'color-mix(in srgb, var(--accent) 16%, transparent)' : 'transparent',
+        background: projectMenuItemBackground({ active, danger }),
         color: danger ? 'var(--red-500)' : active ? 'var(--accent)' : 'var(--text-secondary)',
         display: 'grid',
         gridTemplateColumns: 'auto minmax(0, 1fr)',
@@ -240,6 +378,7 @@ export function ProjectIconButton({
   label,
   onClick,
   children,
+  buttonRef,
   disabled = false,
   active = false,
   danger = false,
@@ -248,6 +387,7 @@ export function ProjectIconButton({
   label: string
   onClick: () => void
   children: ReactNode
+  buttonRef?: RefObject<HTMLButtonElement | null>
   disabled?: boolean
   active?: boolean
   danger?: boolean
@@ -255,6 +395,7 @@ export function ProjectIconButton({
 }) {
   return (
     <button
+      ref={buttonRef}
       type="button"
       aria-label={label}
       title={label}
@@ -270,7 +411,7 @@ export function ProjectIconButton({
         height: size,
         border: 'none',
         borderRadius: 6,
-        background: active ? 'color-mix(in srgb, var(--accent) 16%, var(--bg-card))' : 'var(--bg-card)',
+        backgroundColor: active ? 'color-mix(in srgb, var(--accent) 16%, #18181f)' : '#18181f',
         color: danger ? 'var(--red-500)' : active ? 'var(--accent)' : 'var(--text-muted)',
         display: 'inline-flex',
         alignItems: 'center',
@@ -315,11 +456,54 @@ export function ProjectActionMenu({
   compact?: boolean
 }) {
   const [open, setOpen] = useState(false)
-  const menuRef = useDismissibleMenu(open, setOpen)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const floatingMenuRef = useRef<HTMLDivElement | null>(null)
+  const menuId = useId()
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 236 })
+  const menuRef = useDismissibleMenu(open, setOpen, floatingMenuRef)
   const closeMenu = () => {
     setOpen(false)
   }
   const iconSize = compact ? 12 : 13
+  const menuWidth = 236
+
+  const updateMenuPosition = useCallback(() => {
+    const trigger = triggerRef.current
+    if (!trigger || typeof window === 'undefined') return
+    const rect = trigger.getBoundingClientRect()
+    const gutter = 8
+    const width = Math.max(160, Math.min(menuWidth, window.innerWidth - gutter * 2))
+    const renderedHeight = floatingMenuRef.current?.offsetHeight || 188
+    const maxLeft = Math.max(gutter, window.innerWidth - width - gutter)
+    const left = Math.min(Math.max(gutter, rect.right - width), maxLeft)
+    const hasRoomBelow = rect.bottom + 4 + renderedHeight <= window.innerHeight - gutter
+    const unclampedTop = hasRoomBelow
+      ? rect.bottom + 4
+      : rect.top - renderedHeight - 4
+    const maxTop = Math.max(gutter, window.innerHeight - renderedHeight - gutter)
+    const top = Math.min(Math.max(gutter, unclampedTop), maxTop)
+    setMenuPosition({ top, left, width })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (open) updateMenuPosition()
+  }, [open, updateMenuPosition])
+
+  useEffect(() => {
+    if (!open) return
+    updateMenuPosition()
+    window.addEventListener('resize', updateMenuPosition)
+    window.addEventListener('scroll', updateMenuPosition, true)
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition)
+      window.removeEventListener('scroll', updateMenuPosition, true)
+    }
+  }, [open, updateMenuPosition])
+
+  useEffect(() => {
+    if (!open) return
+    window.requestAnimationFrame(() => focusMenuItem(floatingMenuRef.current, 0))
+  }, [open])
 
   return (
     <div
@@ -328,10 +512,13 @@ export function ProjectActionMenu({
       onClick={(event) => event.stopPropagation()}
     >
       <button
+        ref={triggerRef}
         type="button"
         aria-label={`More actions for ${label}`}
         title={`More actions for ${label}`}
         aria-expanded={open}
+        aria-haspopup="menu"
+        aria-controls={open ? menuId : undefined}
         className="hover-bg"
         onClick={(event) => {
           event.preventDefault()
@@ -343,7 +530,7 @@ export function ProjectActionMenu({
           height: 22,
           border: 'none',
           borderRadius: 6,
-          background: 'var(--bg-card)',
+          backgroundColor: '#18181f',
           color: 'var(--text-muted)',
           display: 'inline-flex',
           alignItems: 'center',
@@ -354,24 +541,32 @@ export function ProjectActionMenu({
       >
         <DotsThreeVertical size={iconSize} />
       </button>
-      {open && (
+      {open && createPortal(
         <div
+          ref={floatingMenuRef}
+          id={menuId}
           role="menu"
           aria-label={`Actions for ${label}`}
           data-t3-project-action-menu
+          onKeyDown={(event) => handleMenuNavigation(event, floatingMenuRef.current, () => {
+            setOpen(false)
+            triggerRef.current?.focus()
+          })}
           style={{
-            position: 'absolute',
-            zIndex: 20,
-            right: 0,
-            top: 25,
-            width: 190,
+            position: 'fixed',
+            zIndex: PROJECT_MENU_Z_INDEX,
+            left: menuPosition.left,
+            top: menuPosition.top,
+            width: menuPosition.width,
+            maxHeight: 'min(360px, calc(100vh - 16px))',
+            overflowY: 'auto',
             display: 'grid',
-            gap: 3,
-            padding: 5,
-            border: '1px solid var(--border)',
+            gap: 5,
+            padding: 7,
+            border: '1px solid var(--border-strong, var(--border))',
             borderRadius: 8,
-            background: 'var(--bg-panel)',
-            boxShadow: '0 12px 28px rgba(0, 0, 0, 0.28)',
+            ...opaquePanelStyle,
+            boxShadow: '0 18px 42px rgba(0, 0, 0, 0.56), 0 0 0 1px rgba(255, 255, 255, 0.04)',
           }}
         >
           <ProjectMenuButton
@@ -392,41 +587,46 @@ export function ProjectActionMenu({
               closeMenu()
             }}
           />
+          <div style={{ height: 1, background: 'var(--border)', margin: '2px 0' }} />
           <label style={{
-            height: 28,
+            minHeight: 48,
             display: 'grid',
             gridTemplateColumns: 'auto minmax(0, 1fr)',
-            alignItems: 'center',
+            alignItems: 'start',
             gap: 8,
-            padding: '0 7px',
+            padding: '4px 7px 2px',
             color: 'var(--text-muted)',
             fontSize: 12,
           }}>
-            <GitBranch size={13} />
-            <select
-              aria-label={groupingLabel}
-              title={groupingLabel}
-              value={groupingValue}
-              onChange={(event) => onGroupingChange(event.target.value)}
-              style={{
-                minWidth: 0,
-                width: '100%',
-                height: 24,
-                border: '1px solid var(--border)',
-                borderRadius: 6,
-                background: 'var(--bg-card)',
-                color: 'var(--text-secondary)',
-                font: 'inherit',
-                fontSize: 11,
-                padding: '0 5px',
-              }}
-            >
-              <option value="">Default grouping</option>
-              <option value="repository">Group by repo</option>
-              <option value="repository-path">Repo + path</option>
-              <option value="separate">Separate root</option>
-            </select>
+            <GitBranch size={13} style={{ marginTop: 18 }} />
+            <span style={{ display: 'grid', gap: 4, minWidth: 0 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Project grouping</span>
+              <select
+                aria-label={groupingLabel}
+                title={groupingLabel}
+                value={groupingValue}
+                onChange={(event) => onGroupingChange(event.target.value)}
+                style={{
+                  minWidth: 0,
+                  width: '100%',
+                  height: 28,
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  background: 'var(--bg-card-solid, #18181f)',
+                  color: 'var(--text-secondary)',
+                  font: 'inherit',
+                  fontSize: 12,
+                  padding: '0 7px',
+                }}
+              >
+                <option value="">Default grouping</option>
+                <option value="repository">Group by repo</option>
+                <option value="repository-path">Repo + path</option>
+                <option value="separate">Separate root</option>
+              </select>
+            </span>
           </label>
+          <div style={{ height: 1, background: 'var(--border)', margin: '2px 0' }} />
           <ProjectMenuButton
             label={removeLabel}
             danger
@@ -436,7 +636,8 @@ export function ProjectActionMenu({
               closeMenu()
             }}
           />
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

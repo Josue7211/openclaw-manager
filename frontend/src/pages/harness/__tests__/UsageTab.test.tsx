@@ -9,8 +9,8 @@ import { createElement } from 'react'
 
 const mockUseHarnessUsage = vi.fn()
 
-vi.mock('@/hooks/useCodexLbUsage', () => ({
-  useCodexLbUsage: () => mockUseHarnessUsage(),
+vi.mock('@/hooks/useHermesUsage', () => ({
+  useHermesUsage: () => mockUseHarnessUsage(),
 }))
 
 // ---------------------------------------------------------------------------
@@ -67,10 +67,10 @@ describe('UsageTab', () => {
     expect(screen.getByText('2026-03')).toBeInTheDocument()
   })
 
-  it('shows "Harness not configured" when healthy is false', () => {
+  it('shows "Hermes Agent not configured" when healthy is false', () => {
     renderWithQC(<UsageTab healthy={false} status="not_configured" />)
 
-    expect(screen.getByText('Harness not configured')).toBeInTheDocument()
+    expect(screen.getByText('Hermes Agent not configured')).toBeInTheDocument()
   })
 
   it('shows loading state', () => {
@@ -144,7 +144,7 @@ describe('UsageTab', () => {
     expect(screen.getByText('All time')).toBeInTheDocument()
   })
 
-  it('renders Codex LB account and limit breakdowns', () => {
+  it('renders Hermes Agent account and limit breakdowns', () => {
     mockUseHarnessUsage.mockReturnValue({
       rawUsage: { total_tokens: 100000 },
       usage: {
@@ -162,7 +162,7 @@ describe('UsageTab', () => {
     renderWithQC(<UsageTab healthy={true} />)
 
     expect(screen.getByText('5h limit')).toBeInTheDocument()
-    expect(screen.getByText('Codex LB Accounts')).toBeInTheDocument()
+    expect(screen.getByText('Hermes Agent Accounts')).toBeInTheDocument()
     expect(screen.getByText('personal')).toBeInTheDocument()
   })
 })

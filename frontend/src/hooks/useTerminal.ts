@@ -67,10 +67,10 @@ function terminalStatusCheckErrorMessage(error: unknown): string {
       return 'Terminal requires authentication. Sign in or refresh the local API key, then retry.'
     }
     if (error.status === 404) {
-      return 'Terminal route is unavailable on this backend. Update or restart the ClawControl backend, then retry.'
+      return 'Terminal route is unavailable on this local backend. Update or restart the Hermes Agent workspace backend, then retry.'
     }
     if (error.status === 0) {
-      return `Terminal backend is unreachable at ${getRequestBaseForPath('/api/terminal/status')}. Start or reconnect the ClawControl backend, then retry.`
+      return `Terminal backend is unreachable at ${getRequestBaseForPath('/api/terminal/status')}. Start or reconnect the Hermes Agent workspace backend, then retry.`
     }
     return `Terminal backend failed its startup check (API ${error.status}). Restart the backend, then retry.`
   }

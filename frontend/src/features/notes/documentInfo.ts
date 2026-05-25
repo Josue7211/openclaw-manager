@@ -1,4 +1,5 @@
 import { documentStats, type DocumentStats } from './documentStats'
+import { inferDocumentPropertyValueKind, type DocumentPropertyValueKind } from './documentPropertyValues'
 import type { VaultNote } from './types'
 
 export interface DocumentInfo {
@@ -9,7 +10,7 @@ export interface DocumentInfo {
   type: VaultNote['type']
   tags: string[]
   aliases: string[]
-  properties: Array<{ key: string; value: string }>
+  properties: Array<{ key: string; value: string; kind: DocumentPropertyValueKind }>
   createdAt: number
   updatedAt: number
   trashedAt: number | null
@@ -28,6 +29,7 @@ export function buildDocumentInfo(note: VaultNote): DocumentInfo {
     properties: Object.entries(note.properties ?? {}).map(([key, value]) => ({
       key,
       value: formatDocumentInfoValue(value),
+      kind: inferDocumentPropertyValueKind(value),
     })),
     createdAt: note.created_at,
     updatedAt: note.updated_at,

@@ -5,10 +5,10 @@ import { queryKeys } from '@/lib/query-keys'
 import { isDemoMode } from '@/lib/demo-data'
 import { useGatewaySSE } from '@/lib/hooks/useGatewaySSE'
 import { CHAT_SESSIONS_CHANGED_EVENT } from '@/lib/chat-session-selection'
-import type { ClaudeSession, GatewaySessionsResponse } from '@/chat/t3-adapters/gatewaySessionTypes'
+import type { HermesSession, GatewaySessionsResponse } from '@/chat/t3-adapters/gatewaySessionTypes'
 
 interface UseGatewaySessionsReturn {
-  sessions: ClaudeSession[]
+  sessions: HermesSession[]
   available: boolean
   isLoading: boolean
 }
@@ -29,9 +29,34 @@ function compactString(value?: string): string | null {
   return trimmed ? trimmed : null
 }
 
+function canonicalCwdFilter(value: string): string {
+  const normalized = value.trim().replace(/\\/g, '/')
+  if (normalized === '/') return normalized
+  return normalized.replace(/\/+$/g, '')
+}
+
+function uniqueCanonicalCwdFilters(values: string[] = []): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const value of values) {
+    const canonical = canonicalCwdFilter(value)
+    if (!canonical) continue
+    const key = canonical.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    result.push(canonical)
+  }
+  return result.sort((left, right) => left.localeCompare(right))
+}
+
+function sessionLastActivityMs(session: HermesSession): number {
+  const timestamp = new Date(session.lastActivity).getTime()
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
 export function gatewaySessionsPath(filters?: GatewaySessionFilters): string {
   const params = new URLSearchParams()
-  const cwd = Array.from(new Set((filters?.cwd ?? []).map((item) => item.trim()).filter(Boolean))).sort()
+  const cwd = uniqueCanonicalCwdFilters(filters?.cwd)
   cwd.forEach((item) => params.append('cwd', item))
   const projectIds = Array.from(new Set([
     ...(filters?.projectId ? [filters.projectId] : []),
@@ -54,7 +79,7 @@ export function gatewaySessionsPath(filters?: GatewaySessionFilters): string {
 }
 
 /**
- * Fetches all sessions from the harness gateway via GET /api/gateway/sessions.
+ * Fetches all sessions from the Hermes Agent gateway via GET /api/gateway/sessions.
  * Sessions are sorted by lastActivity descending (newest first).
  * Real-time updates arrive via SSE 'chat' events which invalidate the query.
  *
@@ -102,7 +127,7 @@ export function useGatewaySessions(filters?: GatewaySessionFilters): UseGatewayS
   }
 
   const sessions = (data?.sessions ?? []).slice().sort(
-    (a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime(),
+    (a, b) => sessionLastActivityMs(b) - sessionLastActivityMs(a),
   )
 
   return {

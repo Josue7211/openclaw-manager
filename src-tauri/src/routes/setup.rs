@@ -35,6 +35,8 @@ struct SetupCapabilities {
     harness: bool,
     agentsecrets: bool,
     memd: bool,
+    bluebubbles: bool,
+    mac_bridge: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -43,6 +45,8 @@ struct SetupServices {
     harness: SetupServiceState,
     agentsecrets: SetupServiceState,
     memd: SetupServiceState,
+    bluebubbles: SetupServiceState,
+    mac_bridge: SetupServiceState,
 }
 
 #[derive(Debug, Serialize)]
@@ -141,8 +145,12 @@ async fn get_setup_status(
         ])
         .unwrap_or_default();
     let harness_url = state
-        .secret_first(&["HARNESS_API_URL", "HERMES_API_URL", "OPENCLAW_API_URL"])
+        .secret_first(&["HERMES_API_URL", "HARNESS_API_URL", "OPENCLAW_API_URL"])
         .unwrap_or_default();
+    let bluebubbles_host = state.secret_or_default("BLUEBUBBLES_HOST");
+    let bluebubbles_password = state.secret_or_default("BLUEBUBBLES_PASSWORD");
+    let mac_bridge_host = state.secret_or_default("MAC_BRIDGE_HOST");
+    let mac_bridge_key = state.secret_or_default("MAC_BRIDGE_API_KEY");
     let harness_auth = harness_auth(&state);
     let agentsecrets_health = crate::routes::secret_broker_support::health_status(&state).await;
     let agentsecrets_configured = !matches!(
@@ -158,6 +166,8 @@ async fn get_setup_status(
     };
 
     let harness_configured = !harness_url.is_empty();
+    let bluebubbles_configured = !bluebubbles_host.trim().is_empty();
+    let mac_bridge_configured = !mac_bridge_host.trim().is_empty();
     let harness_health = if harness_configured {
         harness_health(&state, &harness_url, &harness_auth.key).await
     } else {
@@ -166,9 +176,13 @@ async fn get_setup_status(
             status: "not_configured",
             auth_valid: false,
             checked_path: None,
-            message: "Harness URL is not configured.",
+            message: "Hermes Agent URL is not configured.",
         }
     };
+    let (bluebubbles_reachable, bluebubbles_status, bluebubbles_message) =
+        bluebubbles_health(&state, &bluebubbles_host, &bluebubbles_password).await;
+    let (mac_bridge_reachable, mac_bridge_status, mac_bridge_message) =
+        mac_bridge_health(&state, &mac_bridge_host, &mac_bridge_key).await;
     let mut missing = Vec::new();
     if !supabase_configured {
         missing.push("supabase".to_string());
@@ -192,6 +206,8 @@ async fn get_setup_status(
             harness: harness_configured,
             agentsecrets: agentsecrets_configured,
             memd: true,
+            bluebubbles: bluebubbles_configured,
+            mac_bridge: mac_bridge_configured,
         },
         services: SetupServices {
             supabase: SetupServiceState::simple(supabase_configured, supabase_reachable),
@@ -216,9 +232,122 @@ async fn get_setup_status(
                 message: agentsecrets_health.message,
             },
             memd: SetupServiceState::simple(true, true),
+            bluebubbles: SetupServiceState {
+                configured: bluebubbles_configured,
+                reachable: bluebubbles_reachable,
+                status: Some(bluebubbles_status.into()),
+                auth_configured: Some(!bluebubbles_password.trim().is_empty()),
+                auth_valid: Some(bluebubbles_reachable),
+                auth_source: Some("password".into()),
+                checked_path: Some("/api/v1/ping".into()),
+                message: Some(bluebubbles_message.into()),
+            },
+            mac_bridge: SetupServiceState {
+                configured: mac_bridge_configured,
+                reachable: mac_bridge_reachable,
+                status: Some(mac_bridge_status.into()),
+                auth_configured: Some(!mac_bridge_key.trim().is_empty()),
+                auth_valid: Some(mac_bridge_reachable),
+                auth_source: Some("api_key".into()),
+                checked_path: Some("/health".into()),
+                message: Some(mac_bridge_message.into()),
+            },
         },
         missing,
     })
+}
+
+async fn bluebubbles_health(
+    state: &AppState,
+    host: &str,
+    password: &str,
+) -> (bool, &'static str, &'static str) {
+    if host.trim().is_empty() {
+        return (
+            false,
+            "not_configured",
+            "BlueBubbles host is not configured.",
+        );
+    }
+    if password.trim().is_empty() {
+        return (
+            false,
+            "auth_missing",
+            "BlueBubbles password is not configured.",
+        );
+    }
+
+    let url = format!(
+        "{}/api/v1/ping?password={}",
+        host.trim_end_matches('/'),
+        urlencoding::encode(password)
+    );
+    match state
+        .http
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(5))
+        .send()
+        .await
+    {
+        Ok(resp) if resp.status().is_success() => (true, "connected", "BlueBubbles ping passed."),
+        Ok(resp) if resp.status().as_u16() == 401 || resp.status().as_u16() == 403 => (
+            false,
+            "auth_invalid",
+            "BlueBubbles rejected the configured password.",
+        ),
+        Ok(_) => (
+            false,
+            "unreachable",
+            "BlueBubbles returned an unexpected status.",
+        ),
+        Err(_) => (
+            false,
+            "unreachable",
+            "BlueBubbles could not be reached at the configured host.",
+        ),
+    }
+}
+
+async fn mac_bridge_health(
+    state: &AppState,
+    host: &str,
+    api_key: &str,
+) -> (bool, &'static str, &'static str) {
+    if host.trim().is_empty() {
+        return (
+            false,
+            "not_configured",
+            "Mac Bridge host is not configured.",
+        );
+    }
+
+    let url = format!("{}/health", host.trim_end_matches('/'));
+    let mut req = state
+        .http
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(5));
+    if !api_key.trim().is_empty() {
+        req = req.header("X-API-Key", api_key);
+    }
+
+    match req.send().await {
+        Ok(resp) if resp.status().is_success() => (true, "connected", "Mac Bridge health passed."),
+        Ok(resp) if resp.status().as_u16() == 401 || resp.status().as_u16() == 403 => (
+            false,
+            "auth_invalid",
+            "Mac Bridge rejected the configured API key.",
+        ),
+        Ok(_) => (
+            false,
+            "unreachable",
+            "Mac Bridge returned an unexpected status.",
+        ),
+        Err(_) => (
+            false,
+            "unreachable",
+            "Mac Bridge could not be reached at the configured host.",
+        ),
+    }
 }
 
 async fn post_pair(
@@ -276,7 +405,7 @@ async fn post_pair(
 }
 
 fn harness_auth(state: &AppState) -> HarnessAuth {
-    let api_key = state.secret_first(&["HARNESS_API_KEY", "HERMES_API_KEY", "OPENCLAW_API_KEY"]);
+    let api_key = state.secret_first(&["HERMES_API_KEY", "HARNESS_API_KEY", "OPENCLAW_API_KEY"]);
     if let Some(key) = api_key {
         return HarnessAuth {
             key,
@@ -285,7 +414,7 @@ fn harness_auth(state: &AppState) -> HarnessAuth {
     }
 
     let password =
-        state.secret_first(&["HARNESS_PASSWORD", "HERMES_PASSWORD", "OPENCLAW_PASSWORD"]);
+        state.secret_first(&["HERMES_PASSWORD", "HARNESS_PASSWORD", "OPENCLAW_PASSWORD"]);
     if let Some(key) = password {
         return HarnessAuth {
             key,
@@ -306,7 +435,7 @@ async fn harness_health(state: &AppState, base_url: &str, api_key: &str) -> Harn
             status: "auth_missing",
             auth_valid: false,
             checked_path: Some("/sessions"),
-            message: "Harness auth is missing. Public health is not enough for agents, chat, or approvals.",
+            message: "Hermes Agent auth is missing. Public health is not enough for agents, chat, or approvals.",
         };
     }
 
@@ -325,7 +454,7 @@ async fn harness_health(state: &AppState, base_url: &str, api_key: &str) -> Harn
                     status: "connected",
                     auth_valid: true,
                     checked_path: Some(path),
-                    message: "Authenticated harness preflight passed.",
+                    message: "Authenticated Hermes Agent preflight passed.",
                 }
             }
             Ok(resp) if resp.status().as_u16() == 404 => continue,
@@ -335,7 +464,7 @@ async fn harness_health(state: &AppState, base_url: &str, api_key: &str) -> Harn
                     status: "auth_invalid",
                     auth_valid: false,
                     checked_path: Some(path),
-                    message: "Harness rejected the configured auth token.",
+                    message: "Hermes Agent rejected the configured auth token.",
                 }
             }
             Ok(resp) => {

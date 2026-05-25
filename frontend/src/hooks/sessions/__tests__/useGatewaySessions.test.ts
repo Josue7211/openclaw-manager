@@ -136,6 +136,17 @@ describe('useGatewaySessions', () => {
     })).toBe('/api/gateway/sessions?cwd=%2FUsers%2Fjosue%2FAgentShell&cwd=%2FVolumes%2FT7%2Fprojects%2Fclawcontrol&projectId=local%3Aagent-shell%3Astable&projectId=local%3Aclawcontrol%3Astable&project=clawcontrol&branch=codex%2Fchat-parity&runtime=Work+locally&environmentId=local&includeUnscoped=1')
   })
 
+  it('canonicalizes cwd filter path variants before querying sessions', () => {
+    expect(gatewaySessionsPath({
+      cwd: [
+        '/Users/josue/AgentShell/',
+        '/Users/josue/AgentShell',
+        '\\Users\\josue\\AgentShell\\',
+      ],
+      includeUnscoped: true,
+    })).toBe('/api/gateway/sessions?cwd=%2FUsers%2Fjosue%2FAgentShell&includeUnscoped=1')
+  })
+
   it('requests scoped sessions when filters are provided', async () => {
     const { isDemoMode } = await import('@/lib/demo-data')
     vi.mocked(isDemoMode).mockReturnValue(false)
@@ -228,6 +239,52 @@ describe('useGatewaySessions', () => {
     expect(result.current.sessions[0].key).toBe('sess-new')
     expect(result.current.sessions[1].key).toBe('sess-mid')
     expect(result.current.sessions[2].key).toBe('sess-old')
+  })
+
+  it('sorts sessions with missing or invalid activity after dated sessions', async () => {
+    const { isDemoMode } = await import('@/lib/demo-data')
+    vi.mocked(isDemoMode).mockReturnValue(false)
+
+    const mockSessions = [
+      {
+        key: 'sess-invalid',
+        label: 'Invalid timestamp',
+        agentKey: 'agent-primary',
+        messageCount: 1,
+        lastActivity: 'not-a-date',
+      },
+      {
+        key: 'sess-new',
+        label: 'New Session',
+        agentKey: 'agent-primary',
+        messageCount: 3,
+        lastActivity: '2026-03-24T10:00:00Z',
+      },
+      {
+        key: 'sess-missing',
+        label: 'Missing timestamp',
+        agentKey: 'agent-primary',
+        messageCount: 1,
+        lastActivity: '',
+      },
+    ]
+
+    const { api } = await import('@/lib/api')
+    vi.mocked(api.get).mockResolvedValue({ ok: true, sessions: mockSessions })
+
+    const { result } = renderHook(() => useGatewaySessions(), {
+      wrapper: createWrapper(),
+    })
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(result.current.sessions.map((session) => session.key)).toEqual([
+      'sess-new',
+      'sess-invalid',
+      'sess-missing',
+    ])
   })
 
   it('returns available: false when gateway errors', async () => {

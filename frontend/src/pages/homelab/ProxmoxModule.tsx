@@ -1,5 +1,5 @@
-import HomeLab from '../HomeLab'
+import ProxmoxConsolePage from './proxmox/ProxmoxConsolePage'
 
 export default function ProxmoxModule() {
-  return <HomeLab module="proxmox" />
+  return <ProxmoxConsolePage />
 }

@@ -10,6 +10,7 @@ import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 import type { SearchResults, FlatSearchResult, NoteSearchResult, KoelSearchResults } from '@/lib/types'
 
 const LISTBOX_ID = 'gs-results-listbox'
+const KOEL_SEARCH_ENABLED = import.meta.env.VITE_ENABLE_KOEL_SEARCH === 'true'
 
 /** Search the local notes metadata cache (mc-notes-meta) for matching paths. */
 function searchLocalNotes(query: string, limit = 10): NoteSearchResult[] {
@@ -90,10 +91,11 @@ export default function GlobalSearch({ compact, collapsed, sidebarWidth }: { com
     if (!q.trim()) { setResults(null); setLoading(false); return }
     setLoading(true)
     try {
-      // Fire music search in parallel (independent, gracefully handles Koel being unavailable)
-      const musicPromise = api.get<{ data: KoelSearchResults }>(`/api/koel/search?q=${encodeURIComponent(q)}`)
-        .then(r => r.data)
-        .catch(() => null)
+      const musicPromise = KOEL_SEARCH_ENABLED
+        ? api.get<{ data: KoelSearchResults }>(`/api/koel/search?q=${encodeURIComponent(q)}`)
+            .then(r => r.data)
+            .catch(() => null)
+        : Promise.resolve(null)
 
       const data = await api.get<SearchResults>(`/api/search?q=${encodeURIComponent(q)}`)
       // Merge client-side notes search from localStorage cache

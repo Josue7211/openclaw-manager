@@ -120,7 +120,7 @@ export function AgentDetailPanel({ agent, onUpdate, onDelete, onAction, harnessH
             onClick={() => onAction(agent.id, 'start')}
             disabled={!harnessHealthy}
             aria-label="Start agent"
-            title={harnessHealthy ? 'Start agent' : 'Harness unavailable'}
+            title={harnessHealthy ? 'Start agent' : 'Hermes Agent unavailable'}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: '32px', height: '32px', borderRadius: '8px',
@@ -138,7 +138,7 @@ export function AgentDetailPanel({ agent, onUpdate, onDelete, onAction, harnessH
             onClick={() => onAction(agent.id, 'stop')}
             disabled={!harnessHealthy}
             aria-label="Stop agent"
-            title={harnessHealthy ? 'Stop agent' : 'Harness unavailable'}
+            title={harnessHealthy ? 'Stop agent' : 'Hermes Agent unavailable'}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: '32px', height: '32px', borderRadius: '8px',
@@ -156,7 +156,7 @@ export function AgentDetailPanel({ agent, onUpdate, onDelete, onAction, harnessH
             onClick={() => onAction(agent.id, 'restart')}
             disabled={!harnessHealthy}
             aria-label="Restart agent"
-            title={harnessHealthy ? 'Restart agent' : 'Harness unavailable'}
+            title={harnessHealthy ? 'Restart agent' : 'Hermes Agent unavailable'}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: '32px', height: '32px', borderRadius: '8px',

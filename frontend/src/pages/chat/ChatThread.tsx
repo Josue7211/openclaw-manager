@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useRef, useState, lazy, Suspense } from 'react'
-import { BracketsCurly, CaretDown, ChatCircle, CheckCircle, ClipboardText, WarningCircle, Wrench } from '@phosphor-icons/react'
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense, type ReactNode } from 'react'
+import { BracketsCurly, CaretDown, ChatCircle, CheckCircle, ClipboardText, FileText, Sparkle, UserCircle, WarningCircle, Wrench } from '@phosphor-icons/react'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { type LightboxData } from '@/components/Lightbox'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
@@ -18,7 +18,9 @@ import { extractFencedOpenUiLangFromResponse } from '@/lib/openui'
 import { validateModuleProposal } from '@/lib/module-proposal-validator'
 import { ModuleProposalPreview } from './ModuleProposalPreview'
 import { ModulePreview } from './ModulePreview'
-import type { ChatMessage, OptimisticMsg } from './types'
+import type { ChatContextFileAttachment, ChatMessage, OptimisticMsg } from './types'
+import { withOptimisticAttachmentFallbacks } from './optimisticAttachmentCache'
+import { hermesChatErrorMessage } from './hermesErrors'
 
 const MarkdownBubble = lazy(() => import('@/components/MarkdownBubble'))
 
@@ -32,15 +34,296 @@ interface ToolCard {
   detail?: string
 }
 
+export interface ChatTranscriptContext {
+  projectName?: string | null
+  projectPath?: string | null
+  environmentId?: string | null
+  runtime?: string | null
+  branch?: string | null
+}
+
 const TOOL_FENCE_RE = /```(tool_call|tool-call|tool_result|tool-result|tool_error|tool-error|tool)\s*\n([\s\S]*?)```/gi
 const TOOL_XML_RE = /<tool_(call|result|error)(?:\s+name=["']?([^"'>\s]+)["']?)?[^>]*>([\s\S]*?)<\/tool_\1>/gi
 const CLAUDE_TOOL_LINE_RE = /^(?:[⏺●])\s*([A-Za-z][\w.-]*)\s*(?:\((.*)\))?\s*$/gm
 const CLAUDE_RESULT_LINE_RE = /^(?:[⎿↳])\s*(.+)$/gm
 
+function stripGlobalPattern(text: string, pattern: RegExp): string {
+  pattern.lastIndex = 0
+  return text.replace(pattern, '')
+}
+
+export function assistantDisplayText(text: string): string {
+  return stripGlobalPattern(
+    stripGlobalPattern(
+      stripGlobalPattern(
+        stripGlobalPattern(text, TOOL_FENCE_RE),
+        TOOL_XML_RE,
+      ),
+      CLAUDE_TOOL_LINE_RE,
+    ),
+    CLAUDE_RESULT_LINE_RE,
+  )
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 function compactToolDetail(value: unknown): string {
   if (value == null) return ''
   const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
   return text.replace(/\s+/g, ' ').trim().slice(0, 220)
+}
+
+function copyTextWithContextFiles(text: string, files?: ChatContextFileAttachment[], imageCount = 0): string {
+  const trimmedText = text.trim()
+  const contextLines = transcriptAttachmentLines(files, imageCount)
+  if (contextLines.length === 0) return text
+  const contextText = contextLines.join('\n')
+  return trimmedText ? `${trimmedText}\n\n${contextText}` : contextText
+}
+
+function contextFileDisplayLabel(file: ChatContextFileAttachment): string {
+  const path = file.path?.trim()
+  const label = path && path !== file.name ? path : file.name
+  return `${label}${file.truncated ? ' (trimmed)' : ''}`
+}
+
+function contextFileClipboardText(file: ChatContextFileAttachment): string {
+  const label = contextFileDisplayLabel(file)
+  const content = file.content?.trim()
+  if (!content) return label || file.path || file.name
+  return `File: ${label}\n\n${content}`
+}
+
+function markdownFenceForContent(content: string): string {
+  const longestBacktickRun = content.match(/`+/g)?.reduce((longest, run) => Math.max(longest, run.length), 0) ?? 0
+  return '`'.repeat(Math.max(3, longestBacktickRun + 1))
+}
+
+function markdownLanguageForContextFile(label: string): string {
+  const fileName = label
+    .replace(/\\/g, '/')
+    .split('/')
+    .pop()
+    ?.trim()
+    .toLowerCase() ?? ''
+  if (!fileName) return ''
+  if (fileName === 'dockerfile') return 'dockerfile'
+  if (fileName === 'makefile') return 'makefile'
+  if (fileName === 'cargo.lock') return 'toml'
+  const extension = fileName.includes('.') ? fileName.split('.').pop() ?? '' : ''
+  const language = ({
+    cjs: 'javascript',
+    cljs: 'clojure',
+    cs: 'csharp',
+    css: 'css',
+    csv: 'csv',
+    cts: 'typescript',
+    go: 'go',
+    h: 'c',
+    html: 'html',
+    java: 'java',
+    js: 'javascript',
+    json: 'json',
+    jsx: 'jsx',
+    kt: 'kotlin',
+    lock: 'text',
+    log: 'text',
+    lua: 'lua',
+    md: 'markdown',
+    mdx: 'mdx',
+    mjs: 'javascript',
+    mts: 'typescript',
+    php: 'php',
+    py: 'python',
+    rb: 'ruby',
+    rs: 'rust',
+    scss: 'scss',
+    sh: 'bash',
+    sql: 'sql',
+    svelte: 'svelte',
+    toml: 'toml',
+    ts: 'typescript',
+    tsx: 'tsx',
+    txt: 'text',
+    vue: 'vue',
+    xml: 'xml',
+    yaml: 'yaml',
+    yml: 'yaml',
+    zsh: 'bash',
+  } as Record<string, string>)[extension] ?? ''
+  return /^[A-Za-z0-9_+#.-]+$/.test(language) ? language : ''
+}
+
+function isVisibleTranscriptMessage(msg: ChatMessage): boolean {
+  return (
+    (msg.role as string) !== 'system'
+    && !msg.text.includes('ACTIVATION RULE')
+    && !msg.text.startsWith('HEARTBEAT')
+    && !msg.text.includes('000Server not running')
+    && !msg.text.includes('Read HEARTBEAT.md')
+    && !msg.text.includes('HEARTBEAT_OK')
+  )
+}
+
+function transcriptMessageLabel(message: ChatMessage): string {
+  if (message.role === 'tool') {
+    return message.toolName ? `Tool: ${message.toolName}` : 'Tool'
+  }
+  return message.role === 'assistant' ? 'Assistant' : 'User'
+}
+
+function transcriptToolCardBody(card: ToolCard): string {
+  const lines = [
+    card.summary?.trim(),
+    card.detail && card.detail !== card.summary ? card.detail.trim() : '',
+  ].filter(Boolean)
+  return lines.length > 0 ? lines.join('\n\n') : card.status
+}
+
+function contextFileContentLines(files: ChatContextFileAttachment[]): string[] {
+  const filesWithContent = files
+    .map((file) => ({
+      label: (file.path || file.name).trim(),
+      content: file.content?.trim() ?? '',
+      truncated: Boolean(file.truncated),
+    }))
+    .filter((file) => file.label && file.content)
+  if (filesWithContent.length === 0) return []
+
+  const lines = ['', 'Attached context file contents:']
+  for (const file of filesWithContent) {
+    const fence = markdownFenceForContent(file.content)
+    const language = markdownLanguageForContextFile(file.label)
+    lines.push(
+      '',
+      `File: ${file.label}${file.truncated ? ' (trimmed)' : ''}`,
+      `${fence}${language}`,
+      file.content,
+      fence,
+    )
+  }
+  return lines
+}
+
+function transcriptAttachmentLines(files?: ChatContextFileAttachment[], imageCount = 0): string[] {
+  const lines: string[] = []
+  if (files?.length) {
+    lines.push('Attached context files:')
+    for (const file of files) {
+      const label = (file.path || file.name).trim()
+      if (label) lines.push(`- ${label}${file.truncated ? ' (trimmed)' : ''}`)
+    }
+    lines.push(...contextFileContentLines(files))
+  }
+  if (imageCount > 0) {
+    if (lines.length > 0) lines.push('')
+    lines.push(`Attached images: ${imageCount}`)
+  }
+  return lines
+}
+
+function transcriptBlock(label: string, text: string, options: {
+  timestamp?: string
+  status?: string
+  files?: ChatContextFileAttachment[]
+  imageCount?: number
+} = {}): string {
+  const metadata = [
+    options.timestamp?.trim(),
+    options.status ? `status: ${options.status}` : '',
+  ].filter(Boolean).join(' | ')
+  const lines = [`### ${label}${metadata ? ` (${metadata})` : ''}`, '']
+  const body = text.trim()
+  if (body) lines.push(body)
+  const attachmentLines = transcriptAttachmentLines(options.files, options.imageCount)
+  if (attachmentLines.length > 0) {
+    if (body) lines.push('')
+    lines.push(...attachmentLines)
+  }
+  return lines.join('\n').trim()
+}
+
+export function buildChatTranscript({
+  messages,
+  optimistic,
+  systemMsg,
+  context,
+}: {
+  messages: ChatMessage[]
+  optimistic: OptimisticMsg[]
+  systemMsg?: string | null
+  context?: ChatTranscriptContext | null
+}): string {
+  const blocks: string[] = []
+  const contextLines = [
+    context?.projectName?.trim() ? `Project: ${context.projectName.trim()}` : '',
+    context?.projectPath?.trim() ? `Path: ${context.projectPath.trim()}` : '',
+    context?.environmentId?.trim() ? `Environment: ${context.environmentId.trim()}` : '',
+    context?.runtime?.trim() ? `Runtime: ${context.runtime.trim()}` : '',
+    context?.branch?.trim() ? `Branch: ${context.branch.trim()}` : '',
+  ].filter(Boolean)
+  if (contextLines.length > 0) {
+    blocks.push(transcriptBlock('Context', contextLines.join('\n')))
+  }
+
+  const systemText = systemMsg?.trim()
+  if (systemText) {
+    blocks.push(transcriptBlock('System', systemText))
+  }
+
+  for (const message of messages.filter(isVisibleTranscriptMessage)) {
+    if (message.role === 'assistant') {
+      const displayText = assistantDisplayText(message.text)
+      if (displayText) {
+        blocks.push(transcriptBlock('Assistant', displayText, {
+          timestamp: message.timestamp,
+          files: message.contextFiles,
+          imageCount: message.images?.length ?? 0,
+        }))
+      }
+      for (const card of extractToolCards(message.text)) {
+        blocks.push(transcriptBlock(`Tool: ${card.name}`, transcriptToolCardBody(card), {
+          timestamp: message.timestamp,
+          status: card.status,
+        }))
+      }
+      continue
+    }
+    blocks.push(transcriptBlock(transcriptMessageLabel(message), message.text, {
+      timestamp: message.timestamp,
+      files: message.contextFiles,
+      imageCount: message.images?.length ?? 0,
+    }))
+  }
+
+  for (const message of optimistic) {
+    blocks.push(transcriptBlock('User', message.text, {
+      status: message.status,
+      files: message.contextFiles,
+      imageCount: message.images?.length ?? 0,
+    }))
+  }
+
+  return blocks.filter(Boolean).join('\n\n---\n\n')
+}
+
+function optimisticMessageAsUserMessage(message: OptimisticMsg): ChatMessage {
+  return {
+    id: message.id,
+    role: 'user',
+    text: message.text,
+    timestamp: new Date().toISOString(),
+    images: message.images,
+    contextFiles: message.contextFiles,
+    localOnly: true,
+  }
+}
+
+function actionPreviewLabel(text: string, fallback = 'message'): string {
+  const normalized = text.replace(/\s+/g, ' ').trim()
+  if (!normalized) return fallback
+  return normalized.length > 56 ? `${normalized.slice(0, 53)}...` : normalized
 }
 
 function parseToolPayload(raw: string): { name?: string; summary?: string; detail?: string } {
@@ -142,8 +425,8 @@ function ChatProposalActions({ text }: { text: string }) {
     return [
       {
         ...createFallbackProposal(text),
-        title: 'OpenUI Module',
-        description: 'OpenUI Lang module generated from assistant output.',
+        title: 'Hermes UI Module',
+        description: 'Hermes Agent UI module generated from assistant output.',
         openUiLang,
         fallbackMessage: undefined,
       },
@@ -161,13 +444,39 @@ function ChatProposalActions({ text }: { text: string }) {
   )
 }
 
-function ChatToolCards({ text }: { text: string }) {
+function ChatToolCards({
+  text,
+  copyIdPrefix,
+  copiedId = '',
+  erroredId = '',
+  onCopyToolCard,
+}: {
+  text: string
+  copyIdPrefix?: string
+  copiedId?: string
+  erroredId?: string
+  onCopyToolCard?: (card: ToolCard, copyId: string) => void
+}) {
   const cards = useMemo(() => extractToolCards(text), [text])
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(() => new Set())
   if (cards.length === 0) return null
+
+  const toggleToolDetails = (id: string) => {
+    setExpandedCards((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   return (
     <div aria-label="Tool activity" style={{ marginTop: 8, width: 'min(680px, 100%)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {cards.map((card) => (
+      {cards.map((card) => {
+        const copyId = `${copyIdPrefix || 'tool-card'}:${card.id}`
+        const hasDetail = Boolean(card.detail && card.detail !== card.summary)
+        const expanded = expandedCards.has(card.id)
+        return (
         <div
           key={card.id}
           style={{
@@ -203,32 +512,271 @@ function ChatToolCards({ text }: { text: string }) {
               }}>
                 {card.status === 'running' ? 'running' : card.status}
               </span>
+              {onCopyToolCard && (
+                <ChatMessageCopyButton
+                  label={`tool result ${card.name}`}
+                  copied={copiedId === copyId}
+                  errored={erroredId === copyId}
+                  onCopy={() => onCopyToolCard(card, copyId)}
+                />
+              )}
+              {hasDetail && (
+                <button
+                  type="button"
+                  onClick={() => toggleToolDetails(card.id)}
+                  aria-expanded={expanded}
+                  aria-label={`${expanded ? 'Hide' : 'Show'} details for tool result ${card.name}`}
+                  style={{
+                    border: '1px solid var(--border)',
+                    borderRadius: 999,
+                    background: expanded ? 'var(--hover-bg)' : 'transparent',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    font: 'inherit',
+                    fontSize: 11,
+                    minHeight: 20,
+                    padding: '0 7px',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {expanded ? 'Hide details' : 'Details'}
+                </button>
+              )}
             </div>
             {card.summary && (
               <div style={{ marginTop: 4, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {card.summary}
               </div>
             )}
-            {card.detail && card.detail !== card.summary && (
-              <pre style={{
-                margin: '6px 0 0',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                color: 'var(--text-muted)',
-                fontFamily: 'var(--font-mono, monospace)',
-                fontSize: 11,
-              }}>
-                {card.detail}
-              </pre>
+            {hasDetail && expanded && (
+              <div role="region" aria-label={`Tool result details ${card.name}`}>
+                <pre style={{
+                  margin: '6px 0 0',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  color: 'var(--text-muted)',
+                  fontFamily: 'var(--font-mono, monospace)',
+                  fontSize: 11,
+                }}>
+                  {card.detail}
+                </pre>
+              </div>
             )}
           </div>
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
 
-function ChatToolEvent({ message }: { message: ChatMessage }) {
+function ChatContextFileChips({
+  files,
+  align = 'flex-start',
+  copyIdPrefix,
+  copiedId = '',
+  erroredId = '',
+  onCopyFile,
+}: {
+  files?: ChatContextFileAttachment[]
+  align?: 'flex-start' | 'flex-end'
+  copyIdPrefix?: string
+  copiedId?: string
+  erroredId?: string
+  onCopyFile?: (file: ChatContextFileAttachment, index: number, copyId: string) => void
+}) {
+  const [previewFileId, setPreviewFileId] = useState<string | null>(null)
+  const previewEntry = (files ?? [])
+    .map((file, index) => ({ file, index, key: file.id || `${file.name}-${index}` }))
+    .find((entry) => entry.key === previewFileId) ?? null
+  const previewFile = previewEntry?.file ?? null
+  const previewCopyId = previewEntry
+    ? `${copyIdPrefix || 'attached-file'}:${previewEntry.file.id || previewEntry.index}`
+    : ''
+
+  useEffect(() => {
+    if (!previewFileId) return
+    const closePreviewOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPreviewFileId(null)
+    }
+    window.addEventListener('keydown', closePreviewOnEscape)
+    return () => window.removeEventListener('keydown', closePreviewOnEscape)
+  }, [previewFileId])
+
+  if (!files?.length) return null
+
+  return (
+    <div style={{ display: 'grid', gap: 6, justifyItems: align === 'flex-end' ? 'end' : 'start', maxWidth: '100%' }}>
+      <div
+        aria-label="Attached context files"
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 6,
+          justifyContent: align,
+          maxWidth: '100%',
+        }}
+      >
+        {files.map((file, index) => {
+          const key = file.id || `${file.name}-${index}`
+          const copyId = `${copyIdPrefix || 'attached-file'}:${file.id || index}`
+          const previewOpen = previewFileId === key
+          return (
+          <span
+            key={key}
+            title={file.path || file.name}
+            style={{
+              maxWidth: 260,
+              minHeight: 28,
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              background: previewOpen ? 'color-mix(in srgb, var(--accent) 10%, var(--bg-card))' : 'var(--bg-card)',
+              color: 'var(--text-muted)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '0 5px 0 8px',
+              fontSize: 11,
+              fontFamily: 'var(--font-mono, monospace)',
+            }}
+          >
+            <FileText size={13} />
+            <button
+              type="button"
+              aria-label={`${previewOpen ? 'Hide' : 'Preview'} attached file ${file.name}`}
+              onClick={() => setPreviewFileId(previewOpen ? null : key)}
+              style={{
+                minWidth: 0,
+                border: 0,
+                background: 'transparent',
+                color: 'inherit',
+                padding: 0,
+                font: 'inherit',
+                cursor: 'pointer',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {contextFileDisplayLabel(file)}
+            </button>
+            {onCopyFile && (
+              <ChatMessageCopyButton
+                label={`attached file ${file.name}`}
+                copied={copiedId === copyId}
+                errored={erroredId === copyId}
+                onCopy={() => onCopyFile(file, index, copyId)}
+              />
+            )}
+          </span>
+          )
+        })}
+      </div>
+      {previewFile && (
+        <div
+          role="region"
+          aria-label={`Attached file preview ${previewFile.name}`}
+          style={{
+            width: 'min(520px, 100%)',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            background: 'var(--bg-card)',
+            color: 'var(--text-secondary)',
+            padding: 10,
+          }}
+        >
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            marginBottom: 7,
+          }}>
+            <span style={{
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              color: 'var(--text-primary)',
+              fontSize: 11,
+              fontFamily: 'var(--font-mono, monospace)',
+              fontWeight: 700,
+            }}>
+              {contextFileDisplayLabel(previewFile)}
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              {onCopyFile && previewEntry ? (
+                <button
+                  type="button"
+                  onClick={() => onCopyFile(previewEntry.file, previewEntry.index, previewCopyId)}
+                  aria-label={`${copiedId === previewCopyId ? 'Copied' : erroredId === previewCopyId ? 'Retry copy' : 'Copy'} preview file ${previewFile.name}`}
+                  style={{
+                    border: '1px solid var(--border)',
+                    borderRadius: 6,
+                    background: copiedId === previewCopyId
+                      ? 'color-mix(in srgb, var(--accent) 16%, transparent)'
+                      : 'transparent',
+                    color: erroredId === previewCopyId
+                      ? 'var(--red)'
+                      : copiedId === previewCopyId
+                        ? 'var(--accent)'
+                        : 'var(--text-muted)',
+                    cursor: 'pointer',
+                    fontSize: 11,
+                    padding: '2px 7px',
+                  }}
+                >
+                  {copiedId === previewCopyId ? 'Copied' : erroredId === previewCopyId ? 'Retry copy' : 'Copy'}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setPreviewFileId(null)}
+                aria-label={`Close attached file preview ${previewFile.name}`}
+                style={{
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  background: 'transparent',
+                  color: 'var(--text-muted)',
+                  fontSize: 11,
+                  padding: '2px 7px',
+                  cursor: 'pointer',
+                }}
+              >
+                Close
+              </button>
+            </span>
+          </div>
+          <pre style={{
+            maxHeight: 220,
+            overflow: 'auto',
+            margin: 0,
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            color: 'var(--text-muted)',
+            fontFamily: 'var(--font-mono, monospace)',
+            fontSize: 11,
+            lineHeight: 1.45,
+          }}>
+            {previewFile.content || 'No preview content.'}
+          </pre>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ChatToolEvent({
+  message,
+  copied,
+  errored,
+  onCopy,
+}: {
+  message: ChatMessage
+  copied: boolean
+  errored: boolean
+  onCopy: () => void
+}) {
   const label = message.toolName || 'tool'
   const detail = message.text.trim() || 'Tool completed without output.'
 
@@ -271,6 +819,12 @@ function ChatToolEvent({ message }: { message: ChatMessage }) {
               {message.toolCallId}
             </span>
           )}
+          <ChatMessageCopyButton
+            label="tool event"
+            copied={copied}
+            errored={errored}
+            onCopy={onCopy}
+          />
         </div>
         <pre style={{
           margin: '6px 0 0',
@@ -295,6 +849,31 @@ function ToolStatusIcon({ status }: { status: ToolCardStatus }) {
       : 'var(--accent)'
   const Icon = status === 'error' ? WarningCircle : status === 'done' ? CheckCircle : Wrench
   return <Icon size={16} color={color} weight={status === 'running' ? 'regular' : 'fill'} />
+}
+
+function ChatMessageAvatar({ role }: { role: 'assistant' | 'user' }) {
+  const assistant = role === 'assistant'
+  const Icon = assistant ? Sparkle : UserCircle
+
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        flexShrink: 0,
+        width: '26px',
+        height: '26px',
+        borderRadius: '50%',
+        background: assistant ? 'var(--purple-a12)' : 'var(--tertiary)',
+        border: `1px solid ${assistant ? 'var(--border-accent)' : 'var(--tertiary)'}`,
+        color: assistant ? 'var(--accent-bright)' : 'var(--text-on-color)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Icon size={15} weight={assistant ? 'fill' : 'regular'} />
+    </div>
+  )
 }
 
 function ChatStreamingStatusCard() {
@@ -335,20 +914,22 @@ function ChatStreamingStatusCard() {
 }
 
 function ChatMessageCopyButton({
+  label,
   copied,
   errored,
   onCopy,
 }: {
+  label: string
   copied: boolean
   errored: boolean
   onCopy: () => void
 }) {
-  const label = copied ? 'Copied assistant message' : errored ? 'Retry copy assistant message' : 'Copy assistant message'
+  const actionLabel = copied ? `Copied ${label}` : errored ? `Retry copy ${label}` : `Copy ${label}`
   return (
     <button
       type="button"
-      aria-label={label}
-      title={label}
+      aria-label={actionLabel}
+      title={actionLabel}
       onClick={onCopy}
       className="hover-bg"
       style={{
@@ -366,6 +947,39 @@ function ChatMessageCopyButton({
       }}
     >
       <ClipboardText size={13} />
+    </button>
+  )
+}
+
+function ChatMessageTextAction({
+  label,
+  ariaLabel,
+  onClick,
+}: {
+  label: string
+  ariaLabel?: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      title={ariaLabel || label}
+      onClick={onClick}
+      className="hover-bg"
+      style={{
+        minHeight: 24,
+        border: '1px solid var(--border)',
+        borderRadius: 7,
+        background: 'var(--bg-card)',
+        color: 'var(--text-muted)',
+        padding: '0 8px',
+        font: 'inherit',
+        fontSize: 10,
+        cursor: 'pointer',
+      }}
+    >
+      {label}
     </button>
   )
 }
@@ -467,8 +1081,15 @@ interface ChatThreadProps {
   scrollRef: React.RefObject<HTMLDivElement | null>
   bottomRef: React.RefObject<HTMLDivElement | null>
   optimisticImageCacheRef: React.RefObject<Map<string, string[]>>
+  optimisticContextFileCacheRef: React.RefObject<Map<string, ChatContextFileAttachment[]>>
   onDrop: (e: React.DragEvent) => void
   retry: (msg: OptimisticMsg) => void
+  onUseMessageAsPrompt?: (msg: ChatMessage) => void
+  onForkMessage?: (msg: ChatMessage) => void
+  onRegenerateAssistant?: (assistantMessage: ChatMessage, previousUserMessage: ChatMessage | null) => void
+  onContinueAssistant?: (assistantMessage: ChatMessage) => void
+  transcriptContext?: ChatTranscriptContext | null
+  emptyStateSlot?: ReactNode
 }
 
 export default function ChatThread({
@@ -483,37 +1104,61 @@ export default function ChatThread({
   scrollRef,
   bottomRef,
   optimisticImageCacheRef,
+  optimisticContextFileCacheRef,
   onDrop,
   retry,
+  onUseMessageAsPrompt,
+  onForkMessage,
+  onRegenerateAssistant,
+  onContinueAssistant,
+  transcriptContext,
+  emptyStateSlot,
   lightbox: _lightbox,
   setLightbox,
 }: ChatThreadProps) {
   void _lightbox // used by parent for Lightbox component
   const buttonShellRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
-  const [copyAnnouncement, setCopyAnnouncement] = useState('')
+  const [copyAnnouncement, setCopyAnnouncement] = useState<{
+    message: string
+    tone: 'success' | 'error'
+  } | null>(null)
   const {
     copyToClipboard,
     copiedContext,
     errorContext,
   } = useCopyToClipboard<{ id: string; label: string }>({
-    onCopy: (context) => setCopyAnnouncement(`Copied ${context.label}`),
-    onError: (error, context) => setCopyAnnouncement(`Could not copy ${context.label}: ${error.message}`),
+    onCopy: (context) => setCopyAnnouncement({
+      message: `Copied ${context.label}.`,
+      tone: 'success',
+    }),
+    onError: (error, context) => setCopyAnnouncement({
+      message: `Could not copy ${context.label}: ${error.message}`,
+      tone: 'error',
+    }),
   })
-  const visibleMessages = useMemo(() => messages.filter(msg => (
-    (msg.role as string) !== 'system'
-    && !msg.text.includes('ACTIVATION RULE')
-    && !msg.text.startsWith('HEARTBEAT')
-    && !msg.text.includes('000Server not running')
-    && !msg.text.includes('Read HEARTBEAT.md')
-    && !msg.text.includes('HEARTBEAT_OK')
-  )), [messages])
-  const finalAssistantMessageId = useMemo(() => {
-    if (isTyping) return null
+  const visibleMessages = useMemo(() => messages.filter(isVisibleTranscriptMessage), [messages])
+  const visibleMessagesWithAttachments = useMemo(() => withOptimisticAttachmentFallbacks(
+    visibleMessages,
+    optimisticImageCacheRef.current,
+    optimisticContextFileCacheRef.current,
+  ), [optimisticContextFileCacheRef, optimisticImageCacheRef, visibleMessages])
+  const threadTranscript = useMemo(() => buildChatTranscript({
+    messages: withOptimisticAttachmentFallbacks(
+      messages,
+      optimisticImageCacheRef.current,
+      optimisticContextFileCacheRef.current,
+    ),
+    optimistic,
+    systemMsg,
+    context: transcriptContext,
+  }), [messages, optimistic, optimisticContextFileCacheRef, optimisticImageCacheRef, systemMsg, transcriptContext])
+  const latestAssistantMessageId = useMemo(() => {
     return [...visibleMessages].reverse().find(msg => msg.role === 'assistant' && msg.text.trim())?.id ?? null
-  }, [isTyping, visibleMessages])
+  }, [visibleMessages])
   const copiedMessageId = copiedContext?.id ?? ''
   const copyErrorMessageId = errorContext?.id ?? ''
+  const hasThreadContent = visibleMessages.length > 0 || optimistic.length > 0 || Boolean(systemMsg)
 
   const setButtonVisible = useCallback((visible: boolean) => {
     if (buttonShellRef.current) {
@@ -569,10 +1214,57 @@ export default function ChatThread({
           whiteSpace: 'nowrap',
           border: 0,
         }}>
-          {copyAnnouncement}
+          {copyAnnouncement?.message ?? ''}
         </div>
         <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }}>
-        {!mounted ? (
+          {(threadTranscript || copyAnnouncement) && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, padding: '0 2px 2px', minHeight: 26 }}>
+              {copyAnnouncement ? (
+                <span
+                  role="status"
+                  aria-label="Copy status"
+                  style={{
+                    maxWidth: 'min(520px, 78vw)',
+                    minHeight: 24,
+                    border: `1px solid ${copyAnnouncement.tone === 'error'
+                      ? 'color-mix(in srgb, var(--red-500, #ef4444) 28%, var(--border))'
+                      : 'color-mix(in srgb, var(--accent) 28%, var(--border))'}`,
+                    borderRadius: 999,
+                    background: copyAnnouncement.tone === 'error'
+                      ? 'color-mix(in srgb, var(--red-500, #ef4444) 12%, var(--bg-card))'
+                      : 'color-mix(in srgb, var(--accent) 12%, var(--bg-card))',
+                    color: copyAnnouncement.tone === 'error'
+                      ? 'var(--red-500, #ef4444)'
+                      : 'var(--text-secondary)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '0 9px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {copyAnnouncement.tone === 'error' ? <WarningCircle size={13} /> : <CheckCircle size={13} />}
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{copyAnnouncement.message}</span>
+                </span>
+              ) : null}
+              {threadTranscript ? (
+                <ChatMessageCopyButton
+                  label="thread transcript"
+                  copied={copiedMessageId === 'thread:transcript'}
+                  errored={copyErrorMessageId === 'thread:transcript'}
+                  onCopy={() => copyToClipboard(threadTranscript, {
+                    id: 'thread:transcript',
+                    label: 'thread transcript',
+                  })}
+                />
+              ) : null}
+            </div>
+          )}
+        {!mounted && !hasThreadContent ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingTop: '20px' }}>
             {[
               { dir: 'row' as const, w: '58%' },
@@ -593,9 +1285,11 @@ export default function ChatThread({
               </div>
             ))}
           </div>
-        ) : messages.length === 0 ? (
+        ) : !hasThreadContent ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <EmptyState icon={ChatCircle} title="No messages yet" description="Paste or drag images. Shift+Enter for newline." />
+            {emptyStateSlot ?? (
+              <EmptyState icon={ChatCircle} title="No messages yet" description="Paste images, drag files, or start typing. Shift+Enter for newline." />
+            )}
           </div>
         ) : null}
 
@@ -606,38 +1300,58 @@ export default function ChatThread({
           </div>
         )}
 
-        {visibleMessages.map(msg => (
-          msg.role === 'tool' ? (
-            <ChatToolEvent key={msg.id} message={msg} />
-          ) : (
+            {visibleMessagesWithAttachments.map((msg, messageIndex) => {
+          if (msg.role === 'tool') {
+            return (
+              <ChatToolEvent
+                key={msg.id}
+                message={msg}
+                copied={copiedMessageId === `tool:${msg.id}`}
+                errored={copyErrorMessageId === `tool:${msg.id}`}
+                onCopy={() => copyToClipboard(msg.text.trim() || 'Tool completed without output.', { id: `tool:${msg.id}`, label: 'tool event' })}
+              />
+            )
+          }
+          const displayText = msg.role === 'assistant' ? assistantDisplayText(msg.text) : msg.text
+          const copyableText = msg.role === 'assistant' ? displayText : msg.text
+          const displayImages = msg.images ?? []
+          const displayContextFiles = msg.contextFiles
+          const isStreamingLatestAssistant = msg.role === 'assistant' && isTyping && msg.id === latestAssistantMessageId
+          const previousUserMessage = msg.role === 'assistant'
+            ? [...visibleMessagesWithAttachments.slice(0, messageIndex)]
+              .reverse()
+              .find((candidate) => candidate.role === 'user') ?? null
+            : null
+          return (
           <div key={msg.id} style={{
             display: 'flex',
             flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
             gap: '8px',
             alignItems: 'flex-end',
           }}>
-            {/* Avatar */}
-            <div style={{
-              flexShrink: 0,
-              width: '26px', height: '26px', borderRadius: '50%',
-              background: msg.role === 'user' ? 'var(--tertiary)' : 'var(--purple-a12)',
-              border: `1px solid ${msg.role === 'user' ? 'var(--tertiary)' : 'var(--border-accent)'}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '13px',
-            }}>
-              {msg.role === 'assistant' ? '\u{1F9AC}' : '\u{1F98D}'}
-            </div>
+            <ChatMessageAvatar role={msg.role} />
 
             {/* Content */}
             <div style={{ maxWidth: '74%', display: 'flex', flexDirection: 'column', gap: '4px', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
               {/* Images -- fall back to optimistic cache if history record arrived without attachments */}
-              {(msg.images?.length ? msg.images : (optimisticImageCacheRef.current.get(msg.text) ?? [])).map((url, i) => (
-                <img key={i} src={url} alt="attached" loading="lazy" onClick={() => setLightbox({ src: url, type: 'image' })}
+              {displayImages.map((url, i) => (
+                <img key={i} src={url} alt={`${msg.role === 'assistant' ? 'Assistant' : 'User'} attached image ${i + 1}`} loading="lazy" onClick={() => setLightbox({ src: url, type: 'image' })}
                   style={{ maxWidth: '240px', maxHeight: '180px', borderRadius: '10px', display: 'block', marginBottom: '4px', border: '1px solid var(--border)', objectFit: 'contain', cursor: 'zoom-in' }}
                 />
               ))}
+              <ChatContextFileChips
+                files={displayContextFiles}
+                align={msg.role === 'user' ? 'flex-end' : 'flex-start'}
+                copyIdPrefix={`file:${msg.id}`}
+                copiedId={copiedMessageId}
+                erroredId={copyErrorMessageId}
+                onCopyFile={(file, _index, copyId) => copyToClipboard(contextFileClipboardText(file), {
+                  id: copyId,
+                  label: `attached file ${file.name}`,
+                })}
+              />
               {/* Text bubble */}
-              {msg.text && (
+              {displayText && (
                 <>
                   <div style={{
                     padding: '9px 13px',
@@ -649,17 +1363,28 @@ export default function ChatThread({
                     wordBreak: 'break-word',
                   }}>
                     {msg.role === 'user' ? (
-                      <span style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</span>
+                      <span style={{ whiteSpace: 'pre-wrap' }}>{displayText}</span>
                     ) : (
-                      <Suspense fallback={<span style={{ whiteSpace: 'pre-wrap', opacity: 0.7 }}>{msg.text}</span>}>
-                        <MarkdownBubble>{msg.text}</MarkdownBubble>
+                      <Suspense fallback={<span style={{ whiteSpace: 'pre-wrap', opacity: 0.7 }}>{displayText}</span>}>
+                        <MarkdownBubble>{displayText}</MarkdownBubble>
                       </Suspense>
                     )}
                   </div>
-                  {msg.role === 'assistant' && <ChatToolCards text={msg.text} />}
-                  {msg.role === 'assistant' && <ChatProposalActions text={msg.text} />}
                 </>
               )}
+              {msg.role === 'assistant' && (
+                <ChatToolCards
+                  text={msg.text}
+                  copyIdPrefix={`tool-card:${msg.id}`}
+                  copiedId={copiedMessageId}
+                  erroredId={copyErrorMessageId}
+                  onCopyToolCard={(card, copyId) => copyToClipboard(transcriptToolCardBody(card), {
+                    id: copyId,
+                    label: `tool result ${card.name}`,
+                  })}
+                />
+              )}
+              {msg.role === 'assistant' && <ChatProposalActions text={msg.text} />}
               {/* Timestamp and message actions */}
               <div style={{
                 display: 'flex',
@@ -672,35 +1397,87 @@ export default function ChatThread({
                 padding: '0 2px',
               }}>
                 <span>{formatTime(msg.timestamp)}</span>
-                {msg.role === 'assistant' && msg.id === finalAssistantMessageId && (
+                {copyableText.trim() && !isStreamingLatestAssistant && (
                   <ChatMessageCopyButton
-                    copied={copiedMessageId === `assistant:${msg.id}`}
-                    errored={copyErrorMessageId === `assistant:${msg.id}`}
-                    onCopy={() => copyToClipboard(msg.text, { id: `assistant:${msg.id}`, label: 'assistant message' })}
+                    label={`${msg.role} message`}
+                    copied={copiedMessageId === `${msg.role}:${msg.id}`}
+                    errored={copyErrorMessageId === `${msg.role}:${msg.id}`}
+                    onCopy={() => copyToClipboard(copyTextWithContextFiles(copyableText, displayContextFiles, displayImages.length), { id: `${msg.role}:${msg.id}`, label: `${msg.role} message` })}
+                  />
+                )}
+                {msg.role === 'user' && onUseMessageAsPrompt && (
+                  <>
+                    <ChatMessageTextAction
+                      label="Edit"
+                      ariaLabel={`Edit user message: ${actionPreviewLabel(copyableText, msg.id)}`}
+                      onClick={() => onUseMessageAsPrompt(msg)}
+                    />
+                    <ChatMessageTextAction
+                      label="Use as prompt"
+                      ariaLabel={`Use user message as prompt: ${actionPreviewLabel(copyableText, msg.id)}`}
+                      onClick={() => onUseMessageAsPrompt(msg)}
+                    />
+                  </>
+                )}
+                {msg.role === 'user' && onForkMessage && (
+                  <ChatMessageTextAction
+                    label="Fork"
+                    ariaLabel={`Fork chat from user message: ${actionPreviewLabel(copyableText, msg.id)}`}
+                    onClick={() => onForkMessage(msg)}
+                  />
+                )}
+                {msg.role === 'assistant' && !isStreamingLatestAssistant && onRegenerateAssistant && previousUserMessage && (
+                  <ChatMessageTextAction
+                    label="Regenerate"
+                    ariaLabel={`Regenerate assistant response: ${actionPreviewLabel(copyableText, msg.id)}`}
+                    onClick={() => onRegenerateAssistant(msg, previousUserMessage)}
+                  />
+                )}
+                {msg.role === 'assistant' && !isStreamingLatestAssistant && onForkMessage && previousUserMessage && (
+                  <ChatMessageTextAction
+                    label="Fork"
+                    ariaLabel={`Fork chat from assistant response: ${actionPreviewLabel(copyableText, msg.id)}`}
+                    onClick={() => onForkMessage(previousUserMessage)}
+                  />
+                )}
+                {msg.role === 'assistant' && !isStreamingLatestAssistant && onContinueAssistant && copyableText.trim() && (
+                  <ChatMessageTextAction
+                    label="Continue"
+                    ariaLabel={`Continue assistant response: ${actionPreviewLabel(copyableText, msg.id)}`}
+                    onClick={() => onContinueAssistant(msg)}
                   />
                 )}
               </div>
             </div>
           </div>
           )
-        ))}
-        {optimistic.map(msg => (
+        })}
+        {optimistic.map((msg) => {
+          const optimisticCopyId = `optimistic:${msg.id}`
+          const optimisticCopyValue = copyTextWithContextFiles(msg.text, msg.contextFiles, msg.images?.length ?? 0)
+          return (
           <div key={msg.id} style={{ display: 'flex', flexDirection: 'row-reverse', gap: '8px', alignItems: 'flex-end' }}>
-            {/* Avatar */}
-            <div style={{
-              flexShrink: 0, width: '26px', height: '26px', borderRadius: '50%',
-              background: 'var(--tertiary)', border: '1px solid var(--tertiary)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px',
-            }}>{'\u{1F98D}'}</div>
+            <ChatMessageAvatar role="user" />
 
             {/* Content */}
             <div style={{ maxWidth: '74%', display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
               {/* Images */}
               {(msg.images || []).map((src, i) => (
-                <img key={i} src={src} alt="attached" loading="lazy"
+                <img key={i} src={src} alt={`Sending attached image ${i + 1}`} loading="lazy"
                   style={{ maxWidth: '200px', maxHeight: '150px', borderRadius: '10px', marginBottom: '4px', display: 'block' }}
                 />
               ))}
+              <ChatContextFileChips
+                files={msg.contextFiles}
+                align="flex-end"
+                copyIdPrefix={`file:${msg.id}`}
+                copiedId={copiedMessageId}
+                erroredId={copyErrorMessageId}
+                onCopyFile={(file, _index, copyId) => copyToClipboard(contextFileClipboardText(file), {
+                  id: copyId,
+                  label: `attached file ${file.name}`,
+                })}
+              />
               {/* Text bubble */}
               {msg.text && (
                 <div style={{
@@ -719,7 +1496,16 @@ export default function ChatThread({
               )}
               {/* Status indicator below bubble -- iMessage style */}
               {msg.status === 'sending' && (
-                <div style={{ display: 'flex', justifyContent: 'flex-end', paddingRight: '2px', marginTop: '2px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, paddingRight: '2px', marginTop: '2px' }}>
+                  <ChatMessageCopyButton
+                    label="sending message"
+                    copied={copiedMessageId === optimisticCopyId}
+                    errored={copyErrorMessageId === optimisticCopyId}
+                    onCopy={() => copyToClipboard(optimisticCopyValue, {
+                      id: optimisticCopyId,
+                      label: 'sending message',
+                    })}
+                  />
                   <span style={{
                     display: 'inline-block', width: '10px', height: '10px',
                     border: '1.5px solid var(--text-muted)', borderTopColor: 'transparent',
@@ -728,34 +1514,164 @@ export default function ChatThread({
                 </div>
               )}
               {msg.status === 'sent' && (
-                <div style={{ display: 'flex', justifyContent: 'flex-end', paddingRight: '2px', marginTop: '2px', animation: 'fadeOutCheck 2s ease forwards 0.5s' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>&#x2713;</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, paddingRight: '2px', marginTop: '2px' }}>
+                  <ChatMessageCopyButton
+                    label="sent message"
+                    copied={copiedMessageId === optimisticCopyId}
+                    errored={copyErrorMessageId === optimisticCopyId}
+                    onCopy={() => copyToClipboard(optimisticCopyValue, {
+                      id: optimisticCopyId,
+                      label: 'sent message',
+                    })}
+                  />
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', animation: 'fadeOutCheck 2s ease forwards 0.5s' }}>&#x2713;</span>
+                </div>
+              )}
+              {msg.status === 'permanent' && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', paddingRight: '2px', marginTop: '2px' }}>
+                  <ChatMessageCopyButton
+                    label="message"
+                    copied={copiedMessageId === optimisticCopyId}
+                    errored={copyErrorMessageId === optimisticCopyId}
+                    onCopy={() => copyToClipboard(optimisticCopyValue, {
+                      id: optimisticCopyId,
+                      label: 'message',
+                    })}
+                  />
                 </div>
               )}
               {msg.status === 'error' && (
-                <div
-                  onClick={() => retry(msg)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', cursor: 'pointer', justifyContent: 'flex-end' }}
-                >
-                  <span style={{
-                    width: '16px', height: '16px', borderRadius: '50%',
-                    background: 'var(--red)', color: 'var(--text-on-color)',
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '10px', fontWeight: 700, flexShrink: 0,
-                  }}>!</span>
-                  <span style={{ fontSize: '11px', color: 'var(--red)', fontFamily: 'monospace' }}>Tap to retry</span>
+                <div style={{ display: 'grid', justifyItems: 'end', gap: 4, marginTop: '4px', maxWidth: 280 }}>
+                  {msg.error && (
+                    <div
+                      role="alert"
+                      style={{
+                        maxWidth: '100%',
+                        border: '1px solid color-mix(in srgb, var(--red, #ef4444) 35%, transparent)',
+                        borderRadius: 8,
+                        background: 'color-mix(in srgb, var(--red, #ef4444) 10%, transparent)',
+                        color: 'var(--red)',
+                        padding: '6px 8px',
+                        fontSize: 11,
+                        lineHeight: 1.35,
+                        wordBreak: 'break-word',
+                        textAlign: 'right',
+                      }}
+                    >
+                      {hermesChatErrorMessage(msg.error)}
+                    </div>
+                  )}
+                  <ChatMessageCopyButton
+                    label="failed message"
+                    copied={copiedMessageId === optimisticCopyId}
+                    errored={copyErrorMessageId === optimisticCopyId}
+                    onCopy={() => copyToClipboard(optimisticCopyValue, {
+                      id: optimisticCopyId,
+                      label: 'failed message',
+                    })}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => retry(msg)}
+                    aria-label="Retry failed message"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      cursor: 'pointer',
+                      justifyContent: 'flex-end',
+                      border: 0,
+                      background: 'transparent',
+                      padding: 0,
+                      font: 'inherit',
+                    }}
+                  >
+                    <span style={{
+                      width: '16px', height: '16px', borderRadius: '50%',
+                      background: 'var(--red)', color: 'var(--text-on-color)',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '10px', fontWeight: 700, flexShrink: 0,
+                    }}>!</span>
+                    <span style={{ fontSize: '11px', color: 'var(--red)', fontFamily: 'monospace' }}>Tap to retry</span>
+                  </button>
+                  {onUseMessageAsPrompt && (
+                    <button
+                      type="button"
+                      onClick={() => onUseMessageAsPrompt(optimisticMessageAsUserMessage(msg))}
+                      aria-label="Edit failed message"
+                      style={{
+                        border: 0,
+                        background: 'transparent',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        font: 'inherit',
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                        padding: 0,
+                      }}
+                    >
+                      Edit message
+                    </button>
+                  )}
+                </div>
+              )}
+              {msg.status === 'cancelled' && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: '4px' }}>
+                  <ChatMessageCopyButton
+                    label="stopped message"
+                    copied={copiedMessageId === optimisticCopyId}
+                    errored={copyErrorMessageId === optimisticCopyId}
+                    onCopy={() => copyToClipboard(optimisticCopyValue, {
+                      id: optimisticCopyId,
+                      label: 'stopped message',
+                    })}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => retry(msg)}
+                    style={{
+                      border: 0,
+                      background: 'transparent',
+                      color: 'var(--text-muted)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      cursor: 'pointer',
+                      justifyContent: 'flex-end',
+                      padding: 0,
+                      font: 'inherit',
+                    }}
+                  >
+                    <span style={{ fontSize: '11px', fontFamily: 'monospace' }}>Stopped · Retry</span>
+                  </button>
+                  {onUseMessageAsPrompt && (
+                    <button
+                      type="button"
+                      onClick={() => onUseMessageAsPrompt(optimisticMessageAsUserMessage(msg))}
+                      aria-label="Edit stopped message"
+                      style={{
+                        border: 0,
+                        background: 'transparent',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        font: 'inherit',
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                        padding: 0,
+                      }}
+                    >
+                      Edit
+                    </button>
+                  )}
                 </div>
               )}
             </div>
           </div>
-        ))}
+          )
+        })}
         {isTyping && (
           <div style={{ display: 'flex', flexDirection: 'row', gap: '8px', alignItems: 'flex-end' }}>
-            <div style={{
-              flexShrink: 0, width: '26px', height: '26px', borderRadius: '50%',
-              background: 'var(--purple-a12)', border: '1px solid var(--border-accent)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px',
-            }}>{'\u{1F9AC}'}</div>
+            <ChatMessageAvatar role="assistant" />
             <ChatStreamingStatusCard />
           </div>
         )}

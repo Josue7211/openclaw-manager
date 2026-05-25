@@ -8,7 +8,6 @@ import {
   Target,
   House,
   CheckSquare,
-  Bell,
   Timer,
   Envelope,
   GitBranch,
@@ -37,9 +36,8 @@ export interface NavItem {
 export const personalDashboardItems: NavItem[] = [
   { href: '/', label: 'Home', icon: House },
   { href: '/chat', label: 'Chat', icon: ChatCircle, moduleId: 'chat' },
-  { href: '/todos', label: 'Todos', icon: CheckSquare, moduleId: 'todos' },
+  { href: '/todos', label: 'Reminders', icon: CheckSquare, moduleId: 'todos' },
   { href: '/calendar', label: 'Calendar', icon: CalendarDots, moduleId: 'calendar' },
-  { href: '/reminders', label: 'Reminders', icon: Bell, moduleId: 'reminders' },
   { href: '/messages', label: 'Messages', icon: DeviceMobile, moduleId: 'messages' },
   { href: '/pomodoro', label: 'Pomodoro', icon: Timer, moduleId: 'pomodoro' },
   { href: '/email', label: 'Email', icon: Envelope, moduleId: 'email' },
@@ -70,7 +68,7 @@ export const trainingItems: NavItem[] = [
 export const agentDashboardItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: SquaresFour, moduleId: 'dashboard' },
   { href: '/missions', label: 'Missions', icon: Target, moduleId: 'missions' },
-  { href: '/harness', label: 'Harness', icon: Robot, moduleId: 'harness' },
+  { href: '/harness', label: 'Hermes Agent', icon: Robot, moduleId: 'harness' },
   { href: '/memory', label: 'Memory', icon: Brain, moduleId: 'memory' },
   { href: '/pipeline', label: 'Pipeline', icon: GitBranch, moduleId: 'pipeline' },
   { href: '/knowledge', label: 'Knowledge', icon: BookOpen, moduleId: 'knowledge' },

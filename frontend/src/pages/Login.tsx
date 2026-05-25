@@ -5,6 +5,7 @@
 import { useState, useEffect, useReducer } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { openInBrowser } from '@/lib/tauri'
+import { validateOAuthLaunchUrl } from '@/lib/oauth-url'
 
 import {
   api,
@@ -313,6 +314,13 @@ export default function LoginPage() {
       const data = await api.get<{ url: string }>(`/api/auth/oauth/${provider}${redirectParam}`)
       setSessionProbeFailed(false)
       if (data.url) {
+        const validation = validateOAuthLaunchUrl(provider, data.url, getRequestBaseForPath('/api/auth/callback'))
+        if (!validation.ok) {
+          setError(validation.reason ?? 'The sign-in URL is not valid for this ClawCTRL backend.')
+          setLoading(false)
+          return
+        }
+
         if (isTauriApp) {
           const opened = await openInBrowser(data.url)
           if (opened) {

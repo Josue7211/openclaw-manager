@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { isDemoMode } from '@/lib/demo-data'
 
-const MEDIA_KEY = ['media'] as const
+const MEDIA_OVERVIEW_KEY = ['media', 'overview'] as const
 
 interface NowPlaying {
   title: string
@@ -53,8 +53,8 @@ export function useMediaWidget() {
   const _demo = isDemoMode()
 
   const { data, isSuccess } = useQuery<MediaData>({
-    queryKey: MEDIA_KEY,
-    queryFn: () => api.get<MediaData>('/api/media'),
+    queryKey: MEDIA_OVERVIEW_KEY,
+    queryFn: () => api.get<MediaData>('/api/media/overview'),
     refetchInterval: 30_000,
     enabled: !_demo,
   })

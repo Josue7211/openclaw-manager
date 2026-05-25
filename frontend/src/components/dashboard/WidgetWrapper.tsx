@@ -120,8 +120,8 @@ export const WidgetWrapper = React.memo(function WidgetWrapper({
         position: 'relative',
         overflow: isEditMode ? 'visible' : 'hidden',
         borderRadius: 'var(--radius-lg)',
-        background: 'var(--bg-card-solid)',
-        border: '1px solid var(--border)',
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border-accent, var(--border))',
       }}
     >
       {/* Remove X button (edit mode only) */}

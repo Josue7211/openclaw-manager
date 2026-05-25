@@ -11,6 +11,7 @@ import type {
 
 export const CHAT_SIDEBAR_COLLAPSED_KEY = 'chat-sidebar-collapsed'
 export const CHAT_SELECTED_PROJECT_PATH_KEY = 'chat-selected-project-path'
+export const CHAT_SELECTED_PROJECT_ENVIRONMENT_KEY = 'chat-selected-project-environment'
 export const CHAT_SELECTED_RUNTIME_KEY = 'chat-selected-runtime'
 export const CHAT_SELECTED_BRANCH_KEY = 'chat-selected-branch'
 export const CHAT_PROJECT_GROUPING_MODE_KEY = 'chat-project-grouping-mode'
@@ -37,6 +38,14 @@ export function loadStoredValue(key: string, fallback: string): string {
     return localStorage.getItem(key) || fallback
   } catch {
     return fallback
+  }
+}
+
+export function hasStoredValue(key: string): boolean {
+  try {
+    return localStorage.getItem(key) !== null
+  } catch {
+    return false
   }
 }
 

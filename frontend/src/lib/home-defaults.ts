@@ -2,7 +2,7 @@
  * Home Dashboard Default Layout Generator
  *
  * Produces the default widget arrangement for the Home page. Includes
- * personal productivity widgets: Todos, Calendar, Reminders, Pomodoro,
+ * personal productivity widgets: Reminders, Calendar, Pomodoro,
  * Knowledge, Missions, Memory.
  */
 
@@ -24,7 +24,6 @@ interface HomeDefaultLayoutResult {
 const HOME_DEFAULT_ORDER: string[] = [
   'todos',
   'calendar',
-  'reminders',
   'pomodoro',
   'knowledge',
   'missions',
@@ -60,18 +59,17 @@ export function generateHomeDefaultLayout(): HomeDefaultLayoutResult {
 /**
  * Large/XL: 12-column grid
  *
- * Row 0: todos(4x3)       calendar(4x3)      reminders(4x3)
- * Row 3: pomodoro(2x2)    knowledge(4x2)     missions(3x2)    memory(3x2)
+ * Row 0: todos(4x3)       calendar(4x3)      pomodoro(4x3)
+ * Row 3: knowledge(4x2)   missions(4x2)      memory(4x2)
  */
 function generateLgLayout(): LayoutItem[] {
   return [
     { i: 'todos-home',      x: 0, y: 0, w: 4, h: 3, minW: 1, minH: 2 },
     { i: 'calendar-home',   x: 4, y: 0, w: 4, h: 3, minW: 1, minH: 2 },
-    { i: 'reminders-home',  x: 8, y: 0, w: 4, h: 3, minW: 1, minH: 2 },
-    { i: 'pomodoro-home',   x: 0, y: 3, w: 2, h: 2, minW: 1, minH: 2 },
-    { i: 'knowledge-home',  x: 2, y: 3, w: 4, h: 2, minW: 1, minH: 2 },
-    { i: 'missions-home',   x: 6, y: 3, w: 3, h: 2, minW: 2, minH: 2 },
-    { i: 'memory-home',     x: 9, y: 3, w: 3, h: 2, minW: 1, minH: 2 },
+    { i: 'pomodoro-home',   x: 8, y: 0, w: 4, h: 3, minW: 1, minH: 2 },
+    { i: 'knowledge-home',  x: 0, y: 3, w: 4, h: 2, minW: 1, minH: 2 },
+    { i: 'missions-home',   x: 4, y: 3, w: 4, h: 2, minW: 2, minH: 2 },
+    { i: 'memory-home',     x: 8, y: 3, w: 4, h: 2, minW: 1, minH: 2 },
   ]
 }
 
@@ -79,19 +77,17 @@ function generateLgLayout(): LayoutItem[] {
  * Medium: 8-column grid
  *
  * Row 0: todos(4x3)        calendar(4x3)
- * Row 3: reminders(4x3)    pomodoro(4x2)
- * Row 6: knowledge(4x2)    missions(4x2)
- * Row 8: memory(4x2)
+ * Row 3: pomodoro(4x2)     knowledge(4x2)
+ * Row 5: missions(4x2)     memory(4x2)
  */
 function generateMdLayout(): LayoutItem[] {
   return [
     { i: 'todos-home',      x: 0, y: 0, w: 4, h: 3, minW: 1, minH: 2 },
     { i: 'calendar-home',   x: 4, y: 0, w: 4, h: 3, minW: 1, minH: 2 },
-    { i: 'reminders-home',  x: 0, y: 3, w: 4, h: 3, minW: 1, minH: 2 },
-    { i: 'pomodoro-home',   x: 4, y: 3, w: 4, h: 2, minW: 1, minH: 2 },
-    { i: 'knowledge-home',  x: 0, y: 6, w: 4, h: 2, minW: 1, minH: 2 },
-    { i: 'missions-home',   x: 4, y: 6, w: 4, h: 2, minW: 2, minH: 2 },
-    { i: 'memory-home',     x: 0, y: 8, w: 4, h: 2, minW: 1, minH: 2 },
+    { i: 'pomodoro-home',   x: 0, y: 3, w: 4, h: 2, minW: 1, minH: 2 },
+    { i: 'knowledge-home',  x: 4, y: 3, w: 4, h: 2, minW: 1, minH: 2 },
+    { i: 'missions-home',   x: 0, y: 5, w: 4, h: 2, minW: 2, minH: 2 },
+    { i: 'memory-home',     x: 4, y: 5, w: 4, h: 2, minW: 1, minH: 2 },
   ]
 }
 
@@ -103,7 +99,6 @@ function generateSmLayout(): LayoutItem[] {
   const items: Array<{ id: string; h: number }> = [
     { id: 'todos-home',     h: 3 },
     { id: 'calendar-home',  h: 3 },
-    { id: 'reminders-home', h: 3 },
     { id: 'pomodoro-home',  h: 2 },
     { id: 'knowledge-home', h: 2 },
     { id: 'missions-home',  h: 2 },

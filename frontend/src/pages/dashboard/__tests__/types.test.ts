@@ -18,9 +18,9 @@ describe('missionStatusStyle', () => {
 
   it('returns tertiary-tinted style for "active"', () => {
     const style = missionStatusStyle('active')
-    expect(style.background).toMatch(/blue/)
+    expect(style.background).toMatch(/tertiary/)
     expect(style.color).toBe('var(--tertiary-bright)')
-    expect(style.border).toMatch(/blue/)
+    expect(style.border).toMatch(/tertiary/)
   })
 
   it('returns muted fallback style for unknown status', () => {

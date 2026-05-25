@@ -71,7 +71,7 @@ export function useSessionOutput(
 
     // WebSocket for session output stream
     const wsBase = API_BASE.replace(/^http/, 'ws')
-    ws = new WebSocket(`${wsBase}/api/claude-sessions/${sessionId}/ws`)
+    ws = new WebSocket(`${wsBase}/api/hermes/sessions/${sessionId}/ws`)
     let didOpen = false
 
     ws.onopen = () => {

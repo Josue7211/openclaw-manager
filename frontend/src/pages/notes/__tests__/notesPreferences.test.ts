@@ -1,13 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildDailyNoteTitle,
+  buildPeriodicNoteTitle,
   createNotesRemoteCollaborationPairingInvite,
+  dailyNoteDateFromInput,
+  dailyNoteDateInputValue,
+  dailyNoteDateWithOffset,
   encodeNotesRemoteCollaborationPairingInvite,
   isNotesRemoteCollaborationBaseUrl,
   isNotesRemoteCollaborationPairingKey,
   markdownFontSizePx,
   markdownWidthPx,
   notesRemoteCollaborationSetupStatus,
+  notesCssSnippetText,
   normalizeNotesEditorPreferences,
+  periodicNoteFolder,
+  periodicNoteTemplateId,
   parseNotesRemoteCollaborationPairingInvite,
 } from '../notesPreferences'
 
@@ -18,6 +26,20 @@ describe('notesPreferences', () => {
       markdownFontSize: 'large',
       spellcheck: false,
       defaultMode: 'split',
+      appearanceMode: 'light',
+      cssSnippetEnabled: true,
+      cssSnippet: '  .tiptap-note-body { font-size: 15px; } <style>.bad {}</style> ',
+      dailyNoteFolder: ' /Journal/Daily// ',
+      dailyNoteTitleFormat: 'YYYY-MM-DD dddd',
+      dailyNoteTemplateId: 'vault:Templates/Daily.md',
+      dailyNoteOpenExisting: false,
+      weeklyNoteFolder: ' /Journal/Weekly// ',
+      weeklyNoteTemplateId: 'vault:Templates/Weekly.md',
+      monthlyNoteFolder: ' /Journal/Monthly// ',
+      monthlyNoteTemplateId: 'vault:Templates/Monthly.md',
+      writingAssistProvider: 'local',
+      writingAssistTone: 'friendly',
+      writingAssistLength: 'short',
       remoteCollaborationEnabled: true,
       remoteCollaborationBaseUrl: 'https://vault.example/api/',
       remoteCollaborationPairingKey: '  pair-key-1234567890  ',
@@ -26,6 +48,20 @@ describe('notesPreferences', () => {
       markdownFontSize: 'large',
       spellcheck: false,
       defaultMode: 'split',
+      appearanceMode: 'light',
+      cssSnippetEnabled: true,
+      cssSnippet: '.tiptap-note-body { font-size: 15px; } .bad {}',
+      dailyNoteFolder: 'Journal/Daily',
+      dailyNoteTitleFormat: 'YYYY-MM-DD dddd',
+      dailyNoteTemplateId: 'vault:Templates/Daily.md',
+      dailyNoteOpenExisting: false,
+      weeklyNoteFolder: 'Journal/Weekly',
+      weeklyNoteTemplateId: 'vault:Templates/Weekly.md',
+      monthlyNoteFolder: 'Journal/Monthly',
+      monthlyNoteTemplateId: 'vault:Templates/Monthly.md',
+      writingAssistProvider: 'local',
+      writingAssistTone: 'friendly',
+      writingAssistLength: 'short',
       remoteCollaborationEnabled: true,
       remoteCollaborationBaseUrl: 'https://vault.example/api',
       remoteCollaborationPairingKey: 'pair-key-1234567890',
@@ -36,10 +72,39 @@ describe('notesPreferences', () => {
       markdownFontSize: 'normal',
       spellcheck: true,
       defaultMode: 'doc',
+      appearanceMode: 'system',
+      cssSnippetEnabled: false,
+      cssSnippet: '',
+      dailyNoteFolder: 'Daily',
+      dailyNoteTitleFormat: '[Daily] YYYY-MM-DD',
+      dailyNoteTemplateId: 'daily',
+      dailyNoteOpenExisting: true,
+      weeklyNoteFolder: 'Weekly',
+      weeklyNoteTemplateId: 'weekly',
+      monthlyNoteFolder: 'Monthly',
+      monthlyNoteTemplateId: 'monthly',
+      writingAssistProvider: 'local',
+      writingAssistTone: 'neutral',
+      writingAssistLength: 'standard',
       remoteCollaborationEnabled: false,
       remoteCollaborationBaseUrl: '',
       remoteCollaborationPairingKey: '',
     }))
+  })
+
+  it('scopes enabled CSS snippets to the notes vault surface', () => {
+    expect(notesCssSnippetText({
+      cssSnippetEnabled: true,
+      cssSnippet: '.tiptap-note-body { font-size: 15px; }',
+    })).toBe('@scope ([data-notes-vault-scope="true"]) {\n.tiptap-note-body { font-size: 15px; }\n}')
+    expect(notesCssSnippetText({
+      cssSnippetEnabled: false,
+      cssSnippet: '.tiptap-note-body { font-size: 15px; }',
+    })).toBe('')
+    expect(notesCssSnippetText({
+      cssSnippetEnabled: true,
+      cssSnippet: '<style>.bad { color: red; }</style>',
+    })).toBe('@scope ([data-notes-vault-scope="true"]) {\n.bad { color: red; }\n}')
   })
 
   it('keeps remote collaboration explicit and validates provider URLs', () => {
@@ -54,6 +119,45 @@ describe('notesPreferences', () => {
     expect(isNotesRemoteCollaborationBaseUrl('https://vault.example')).toBe(true)
     expect(isNotesRemoteCollaborationBaseUrl('file:///tmp/vault')).toBe(false)
     expect(isNotesRemoteCollaborationBaseUrl('vault.example')).toBe(false)
+  })
+
+  it('builds daily note titles from configurable date formats', () => {
+    const now = new Date(2026, 4, 20, 9, 5, 7)
+
+    expect(buildDailyNoteTitle({ dailyNoteTitleFormat: 'YYYY-MM-DD dddd' }, now)).toBe('2026-05-20 Wednesday')
+    expect(buildDailyNoteTitle({ dailyNoteTitleFormat: '  ' }, now)).toBe('Daily 2026-05-20')
+    expect(buildDailyNoteTitle({ dailyNoteTitleFormat: '[Journal] YYYY/MM/DD' }, now)).toBe('Journal 2026/05/20')
+  })
+
+  it('builds weekly and monthly periodic note titles', () => {
+    const now = new Date(2026, 0, 1, 9, 5, 7)
+
+    expect(buildPeriodicNoteTitle('weekly', { dailyNoteTitleFormat: '[Daily] YYYY-MM-DD' }, now)).toBe('Weekly 2026-W01')
+    expect(buildPeriodicNoteTitle('monthly', { dailyNoteTitleFormat: '[Daily] YYYY-MM-DD' }, now)).toBe('Monthly 2026-01')
+    expect(periodicNoteFolder('weekly', { dailyNoteFolder: 'Daily', weeklyNoteFolder: 'Journal/Weeks', monthlyNoteFolder: 'Monthly' })).toBe('Journal/Weeks')
+    expect(periodicNoteFolder('monthly', { dailyNoteFolder: 'Daily', weeklyNoteFolder: 'Weekly', monthlyNoteFolder: 'Journal/Months' })).toBe('Journal/Months')
+    expect(periodicNoteTemplateId('weekly', { dailyNoteTemplateId: 'daily', weeklyNoteTemplateId: 'vault:Weekly', monthlyNoteTemplateId: 'monthly' })).toBe('vault:Weekly')
+    expect(periodicNoteTemplateId('monthly', { dailyNoteTemplateId: 'daily', weeklyNoteTemplateId: 'weekly', monthlyNoteTemplateId: 'vault:Monthly' })).toBe('vault:Monthly')
+  })
+
+  it('navigates daily note dates by local calendar day', () => {
+    const now = new Date(2026, 0, 1, 9, 5, 7, 11)
+
+    expect(buildDailyNoteTitle({ dailyNoteTitleFormat: '[Daily] YYYY-MM-DD' }, dailyNoteDateWithOffset(now, -1))).toBe('Daily 2025-12-31')
+    expect(buildDailyNoteTitle({ dailyNoteTitleFormat: '[Daily] YYYY-MM-DD' }, dailyNoteDateWithOffset(now, 1))).toBe('Daily 2026-01-02')
+    expect(dailyNoteDateWithOffset(now, 1).getHours()).toBe(9)
+  })
+
+  it('round-trips daily note date picker values as local dates', () => {
+    const now = new Date(2026, 4, 20, 9, 5, 7, 11)
+
+    expect(dailyNoteDateInputValue(now)).toBe('2026-05-20')
+    expect(buildDailyNoteTitle(
+      { dailyNoteTitleFormat: '[Daily] YYYY-MM-DD HH:mm' },
+      dailyNoteDateFromInput('2026-02-03', now)!,
+    )).toBe('Daily 2026-02-03 09:05')
+    expect(dailyNoteDateFromInput('2026-02-31', now)).toBeNull()
+    expect(dailyNoteDateFromInput('not-a-date', now)).toBeNull()
   })
 
   it('requires explicit pairing material for remote collaboration', () => {

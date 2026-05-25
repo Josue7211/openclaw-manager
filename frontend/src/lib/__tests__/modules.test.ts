@@ -6,9 +6,8 @@ vi.mock('../nav-items', () => ({
   personalDashboardItems: [
     { href: '/', label: 'Home', icon: Stub },
     { href: '/chat', label: 'Chat', icon: Stub, moduleId: 'chat' },
-    { href: '/todos', label: 'Todos', icon: Stub, moduleId: 'todos' },
+    { href: '/todos', label: 'Reminders', icon: Stub, moduleId: 'todos' },
     { href: '/calendar', label: 'Calendar', icon: Stub, moduleId: 'calendar' },
-    { href: '/reminders', label: 'Reminders', icon: Stub, moduleId: 'reminders' },
     { href: '/messages', label: 'Messages', icon: Stub, moduleId: 'messages' },
     { href: '/pomodoro', label: 'Pomodoro', icon: Stub, moduleId: 'pomodoro' },
     { href: '/email', label: 'Email', icon: Stub, moduleId: 'email' },
@@ -36,7 +35,7 @@ vi.mock('../nav-items', () => ({
   agentDashboardItems: [
     { href: '/dashboard', label: 'Dashboard', icon: Stub, moduleId: 'dashboard' },
     { href: '/missions', label: 'Missions', icon: Stub, moduleId: 'missions' },
-    { href: '/harness', label: 'Harness', icon: Stub, moduleId: 'harness' },
+    { href: '/harness', label: 'Hermes Agent', icon: Stub, moduleId: 'harness' },
     { href: '/memory', label: 'Memory', icon: Stub, moduleId: 'memory' },
     { href: '/pipeline', label: 'Pipeline', icon: Stub, moduleId: 'pipeline' },
     { href: '/knowledge', label: 'Knowledge', icon: Stub, moduleId: 'knowledge' },
@@ -48,9 +47,8 @@ vi.mock('../nav-items', () => ({
   allNavItems: [
     { href: '/', label: 'Home', icon: Stub },
     { href: '/chat', label: 'Chat', icon: Stub, moduleId: 'chat' },
-    { href: '/todos', label: 'Todos', icon: Stub, moduleId: 'todos' },
+    { href: '/todos', label: 'Reminders', icon: Stub, moduleId: 'todos' },
     { href: '/calendar', label: 'Calendar', icon: Stub, moduleId: 'calendar' },
-    { href: '/reminders', label: 'Reminders', icon: Stub, moduleId: 'reminders' },
     { href: '/messages', label: 'Messages', icon: Stub, moduleId: 'messages' },
     { href: '/pomodoro', label: 'Pomodoro', icon: Stub, moduleId: 'pomodoro' },
     { href: '/email', label: 'Email', icon: Stub, moduleId: 'email' },
@@ -72,7 +70,7 @@ vi.mock('../nav-items', () => ({
     { href: '/training/forms', label: 'Forms', icon: Stub, moduleId: 'training-forms' },
     { href: '/dashboard', label: 'Dashboard', icon: Stub, moduleId: 'dashboard' },
     { href: '/missions', label: 'Missions', icon: Stub, moduleId: 'missions' },
-    { href: '/harness', label: 'Harness', icon: Stub, moduleId: 'harness' },
+    { href: '/harness', label: 'Hermes Agent', icon: Stub, moduleId: 'harness' },
     { href: '/memory', label: 'Memory', icon: Stub, moduleId: 'memory' },
     { href: '/pipeline', label: 'Pipeline', icon: Stub, moduleId: 'pipeline' },
     { href: '/knowledge', label: 'Knowledge', icon: Stub, moduleId: 'knowledge' },
@@ -85,9 +83,8 @@ vi.mock('../nav-items', () => ({
   navItemsByHref: new Map([
     ['/', { href: '/', label: 'Home', icon: Stub }],
     ['/chat', { href: '/chat', label: 'Chat', icon: Stub, moduleId: 'chat' }],
-    ['/todos', { href: '/todos', label: 'Todos', icon: Stub, moduleId: 'todos' }],
+    ['/todos', { href: '/todos', label: 'Reminders', icon: Stub, moduleId: 'todos' }],
     ['/calendar', { href: '/calendar', label: 'Calendar', icon: Stub, moduleId: 'calendar' }],
-    ['/reminders', { href: '/reminders', label: 'Reminders', icon: Stub, moduleId: 'reminders' }],
     ['/messages', { href: '/messages', label: 'Messages', icon: Stub, moduleId: 'messages' }],
     ['/pomodoro', { href: '/pomodoro', label: 'Pomodoro', icon: Stub, moduleId: 'pomodoro' }],
     ['/email', { href: '/email', label: 'Email', icon: Stub, moduleId: 'email' }],
@@ -121,7 +118,7 @@ vi.mock('../nav-items', () => ({
     ['/training/forms', { href: '/training/forms', label: 'Forms', icon: Stub, moduleId: 'training-forms' }],
     ['/dashboard', { href: '/dashboard', label: 'Dashboard', icon: Stub, moduleId: 'dashboard' }],
     ['/missions', { href: '/missions', label: 'Missions', icon: Stub, moduleId: 'missions' }],
-    ['/harness', { href: '/harness', label: 'Harness', icon: Stub, moduleId: 'harness' }],
+    ['/harness', { href: '/harness', label: 'Hermes Agent', icon: Stub, moduleId: 'harness' }],
     ['/memory', { href: '/memory', label: 'Memory', icon: Stub, moduleId: 'memory' }],
     ['/pipeline', { href: '/pipeline', label: 'Pipeline', icon: Stub, moduleId: 'pipeline' }],
     ['/knowledge', { href: '/knowledge', label: 'Knowledge', icon: Stub, moduleId: 'knowledge' }],
@@ -262,7 +259,9 @@ describe('APP_MODULES structure', () => {
   })
 
   it('all module routes are unique', () => {
-    const routes = APP_MODULES.map(m => m.route)
+    const routes = APP_MODULES
+      .filter(m => m.id !== 'reminders')
+      .map(m => m.route)
     expect(new Set(routes).size).toBe(routes.length)
   })
 

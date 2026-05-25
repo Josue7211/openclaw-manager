@@ -4,18 +4,31 @@
  * with the copied project sidebar components.
  */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import {
   ArrowsCounterClockwise,
   ClipboardText,
   DotsThreeVertical,
   PencilSimple,
+  PushPin,
   Trash,
 } from '@phosphor-icons/react'
-import type { ClaudeSession } from '@/chat/t3-adapters/gatewaySessionTypes'
+import type { HermesSession } from '@/chat/t3-adapters/gatewaySessionTypes'
 import { ProjectIconButton, ProjectMenuButton, useDismissibleMenu } from './ProjectSidebarControls'
 
-function formatSessionTime(session: ClaudeSession): string {
+const opaqueThreadMenuPanelStyle = {
+  background: '#18181f',
+  backgroundColor: '#18181f',
+  opacity: 1,
+  backdropFilter: 'none',
+  WebkitBackdropFilter: 'none',
+  backgroundClip: 'padding-box',
+  isolation: 'isolate',
+} as const
+const PROJECT_MENU_Z_INDEX = 10000
+
+function formatSessionTime(session: HermesSession): string {
   const raw = session.lastActivity
   if (!raw) return ''
   const timestamp = new Date(raw).getTime()
@@ -33,6 +46,7 @@ export function ProjectSidebarThread({
   onSelect,
   onRename,
   onDelete,
+  onPin,
   onCompact,
   onCopyThreadId,
   isCompacting = false,
@@ -40,13 +54,14 @@ export function ProjectSidebarThread({
   copyThreadError = false,
   compact = false,
 }: {
-  session: ClaudeSession
+  session: HermesSession
   selected: boolean
   onSelect: () => void
-  onRename: (key: string, label: string) => void
-  onDelete: (key: string) => void
-  onCompact: (key: string) => void
-  onCopyThreadId: (session: ClaudeSession) => void
+  onRename: (key: string, label: string, environmentId?: string | null) => void
+  onDelete: (key: string, environmentId?: string | null) => void
+  onPin: (key: string, pinned: boolean, environmentId?: string | null) => void
+  onCompact: (key: string, environmentId?: string | null) => void
+  onCopyThreadId: (session: HermesSession) => void
   isCompacting?: boolean
   copiedThreadId?: boolean
   copyThreadError?: boolean
@@ -54,16 +69,53 @@ export function ProjectSidebarThread({
 }) {
   const label = (session.label as string) || 'Untitled'
   const messageCount = Number(session.messageCount || 0)
+  const pinned = session.pinned === true || session.favorite === true
   const [hovered, setHovered] = useState(false)
   const [editing, setEditing] = useState(false)
   const [actionsOpen, setActionsOpen] = useState(false)
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 190 })
   const [draftLabel, setDraftLabel] = useState(label)
   const inputRef = useRef<HTMLInputElement>(null)
-  const actionsMenuRef = useDismissibleMenu(actionsOpen, setActionsOpen)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const floatingMenuRef = useRef<HTMLDivElement | null>(null)
+  const actionsMenuRef = useDismissibleMenu(actionsOpen, setActionsOpen, floatingMenuRef)
+  const menuWidth = 190
 
   const closeActionsMenu = () => {
     setActionsOpen(false)
   }
+
+  const updateMenuPosition = useCallback(() => {
+    const trigger = triggerRef.current
+    if (!trigger || typeof window === 'undefined') return
+    const rect = trigger.getBoundingClientRect()
+    const gutter = 8
+    const availableWidth = Math.max(120, window.innerWidth - gutter * 2)
+    const width = Math.min(menuWidth, availableWidth)
+    const renderedHeight = floatingMenuRef.current?.offsetHeight || 142
+    const maxLeft = Math.max(gutter, window.innerWidth - width - gutter)
+    const left = Math.min(Math.max(gutter, rect.right - width), maxLeft)
+    const hasRoomBelow = rect.bottom + 4 + renderedHeight <= window.innerHeight - gutter
+    const unclampedTop = hasRoomBelow ? rect.bottom + 4 : rect.top - renderedHeight - 4
+    const maxTop = Math.max(gutter, window.innerHeight - renderedHeight - gutter)
+    const top = Math.min(Math.max(gutter, unclampedTop), maxTop)
+    setMenuPosition({ top, left, width })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (actionsOpen) updateMenuPosition()
+  }, [actionsOpen, updateMenuPosition])
+
+  useEffect(() => {
+    if (!actionsOpen) return
+    updateMenuPosition()
+    window.addEventListener('resize', updateMenuPosition)
+    window.addEventListener('scroll', updateMenuPosition, true)
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition)
+      window.removeEventListener('scroll', updateMenuPosition, true)
+    }
+  }, [actionsOpen, updateMenuPosition])
 
   useEffect(() => {
     if (!editing) setDraftLabel(label)
@@ -78,7 +130,7 @@ export function ProjectSidebarThread({
   const commitRename = () => {
     const nextLabel = draftLabel.trim()
     if (nextLabel && nextLabel !== label) {
-      onRename(session.key, nextLabel)
+      onRename(session.key, nextLabel, session.environmentId ?? null)
     }
     setEditing(false)
   }
@@ -106,12 +158,13 @@ export function ProjectSidebarThread({
       aria-current={selected ? 'true' : undefined}
       aria-label={`${label}, ${messageCount} message${messageCount === 1 ? '' : 's'}`}
       data-t3-project-sidebar-thread
-      className="hover-bg"
+      data-selected={selected ? 'true' : 'false'}
+      className="hover-bg chat-sidebar-selectable chat-sidebar-thread-row"
       style={{
         minHeight: compact ? 28 : 36,
         border: 'none',
         borderRadius: 8,
-        background: selected ? 'var(--active-bg)' : 'transparent',
+        background: 'transparent',
         color: selected ? 'var(--text-primary)' : 'var(--text-secondary)',
         display: 'grid',
         gridTemplateColumns: 'minmax(0, 1fr) auto',
@@ -195,30 +248,34 @@ export function ProjectSidebarThread({
           onClick={(event) => event.stopPropagation()}
         >
           <ProjectIconButton
+            buttonRef={triggerRef}
             label={`More actions for ${label}`}
             onClick={() => setActionsOpen((current) => !current)}
             active={actionsOpen}
           >
             <DotsThreeVertical size={13} />
           </ProjectIconButton>
-          {actionsOpen && (
+          {actionsOpen && createPortal(
             <div
+              ref={floatingMenuRef}
               role="menu"
               aria-label={`Actions for ${label}`}
               data-t3-project-sidebar-thread-menu
               style={{
-                position: 'absolute',
-                zIndex: 20,
-                right: 0,
-                top: 25,
-                width: 190,
+                position: 'fixed',
+                zIndex: PROJECT_MENU_Z_INDEX,
+                left: menuPosition.left,
+                top: menuPosition.top,
+                width: menuPosition.width,
+                maxHeight: 'min(320px, calc(100vh - 16px))',
+                overflowY: 'auto',
                 display: 'grid',
                 gap: 3,
                 padding: 5,
-                border: '1px solid var(--border)',
+                border: '1px solid var(--border-strong, var(--border))',
                 borderRadius: 8,
-                background: 'var(--bg-panel)',
-                boxShadow: '0 12px 28px rgba(0, 0, 0, 0.28)',
+                ...opaqueThreadMenuPanelStyle,
+                boxShadow: '0 18px 42px rgba(0, 0, 0, 0.56), 0 0 0 1px rgba(255, 255, 255, 0.04)',
               }}
             >
               <ProjectMenuButton
@@ -232,7 +289,7 @@ export function ProjectSidebarThread({
                 }}
               />
               <ProjectMenuButton
-                label={`Rename ${label}`}
+                label={`Rename chat ${label}`}
                 icon={<PencilSimple size={13} />}
                 onClick={() => {
                   setEditing(true)
@@ -240,24 +297,35 @@ export function ProjectSidebarThread({
                 }}
               />
               <ProjectMenuButton
-                label={`Compact ${label}`}
-                icon={<ArrowsCounterClockwise size={13} />}
-                disabled={isCompacting}
+                label={pinned ? `Unpin chat ${label}` : `Pin chat ${label}`}
+                active={pinned}
+                icon={<PushPin size={13} />}
                 onClick={() => {
-                  onCompact(session.key)
+                  onPin(session.key, !pinned, session.environmentId ?? null)
                   closeActionsMenu()
                 }}
               />
               <ProjectMenuButton
-                label={`Delete ${label}`}
-                danger
-                icon={<Trash size={13} />}
+                label={`Compact chat ${label}`}
+                icon={<ArrowsCounterClockwise size={13} />}
+                disabled={isCompacting}
                 onClick={() => {
-                  onDelete(session.key)
+                  onCompact(session.key, session.environmentId ?? null)
                   closeActionsMenu()
                 }}
               />
-            </div>
+              <div style={{ height: 1, background: 'var(--border)', margin: '2px 0' }} />
+              <ProjectMenuButton
+                label={`Delete chat ${label}`}
+                danger
+                icon={<Trash size={13} />}
+                onClick={() => {
+                  onDelete(session.key, session.environmentId ?? null)
+                  closeActionsMenu()
+                }}
+              />
+            </div>,
+            document.body,
           )}
         </div>
       </span>

@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  buildPublishedNotesSiteBundle,
+  buildPublishedNotesSite,
   buildReviewPackage,
+  documentFooterXml,
   documentHtml,
   documentPageSettings,
   markdownToDocumentXml,
@@ -10,6 +13,10 @@ import {
   splitFrontmatter,
   verifyReviewPackage,
 } from '../export'
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('notes export markdown compatibility', () => {
   it('keeps frontmatter separate from the rich document body', () => {
@@ -51,6 +58,36 @@ describe('notes export markdown compatibility', () => {
     expect(html).toContain('note-callout-title')
     expect(html).toContain('Watch this')
     expect(html).toContain('Keep the source safe.')
+  })
+
+  it('renders folded Obsidian callouts with collapsed preview state', () => {
+    const html = markdownToSafeHtml('> [!tip]- Later\n> Hidden until expanded.')
+
+    expect(html).toContain('note-callout note-callout-tip note-callout-fold-collapsed')
+    expect(html).toContain('button type="button" class="note-callout-title" aria-expanded="false"')
+    expect(html).toContain('Later')
+    expect(html).toContain('Hidden until expanded.')
+  })
+
+  it('renders standard Obsidian callout aliases with stable classes', () => {
+    const html = markdownToSafeHtml([
+      '> [!todo] Next',
+      '> Ship the smallest useful slice.',
+      '',
+      '> [!question] Why',
+      '> Keep the answer close.',
+      '',
+      '> [!bug] Regression',
+      '> Track the failing path.',
+      '',
+      '> [!example] Pattern',
+      '> Reuse it.',
+    ].join('\n'))
+
+    expect(html).toContain('note-callout-todo')
+    expect(html).toContain('note-callout-question')
+    expect(html).toContain('note-callout-bug')
+    expect(html).toContain('note-callout-example')
   })
 
   it('renders Obsidian image embeds through the vault media endpoint', () => {
@@ -124,6 +161,174 @@ describe('notes export markdown compatibility', () => {
     expect(html).toContain('<td>1/1</td>')
   })
 
+  it('builds a local static publish site with note navigation and rewritten wikilinks', () => {
+    const html = buildPublishedNotesSite(
+      [
+        {
+          _id: 'Projects/brief.md',
+          type: 'note',
+          title: 'Brief',
+          content: '# Brief\n\nSee [[Roadmap]]',
+          folder: 'Projects',
+          tags: [],
+          links: ['Roadmap'],
+          aliases: [],
+          created_at: 1,
+          updated_at: 2,
+        },
+        {
+          _id: 'Projects/roadmap.md',
+          type: 'note',
+          title: 'Roadmap',
+          content: '# Roadmap',
+          folder: 'Projects',
+          tags: [],
+          links: [],
+          aliases: ['Plan'],
+          created_at: 1,
+          updated_at: 3,
+        },
+        {
+          _id: 'Media/image.png',
+          type: 'attachment',
+          title: 'image.png',
+          content: '',
+          folder: 'Media',
+          tags: [],
+          links: [],
+          created_at: 1,
+          updated_at: 3,
+        },
+      ],
+      { entryId: 'Projects/brief.md', title: 'Project Docs' },
+    )
+
+    expect(html).toContain('<title>Project Docs</title>')
+    expect(html).toContain('aria-label="Published notes"')
+    expect(html).toContain('aria-current="page"')
+    expect(html).toContain('Brief')
+    expect(html).toContain('Roadmap')
+    expect(html).not.toContain('image.png')
+    expect(html).toContain('href="#note-Projects2Froadmap.md"')
+  })
+
+  it('publishes Obsidian callouts with folded-callout styles and behavior', () => {
+    const html = buildPublishedNotesSite([
+      {
+        _id: 'Projects/brief.md',
+        type: 'note',
+        title: 'Brief',
+        content: ['# Brief', '', '> [!warning] Watch', '> Keep visible.', '', '> [!tip]- Later', '> Hidden until expanded.'].join('\n'),
+        folder: 'Projects',
+        tags: [],
+        links: [],
+        aliases: [],
+        created_at: 1,
+        updated_at: 2,
+      },
+    ])
+
+    expect(html).toContain('note-callout note-callout-warning')
+    expect(html).toContain('note-callout note-callout-tip note-callout-fold-collapsed')
+    expect(html).toContain('button type="button" class="note-callout-title" aria-expanded="false"')
+    expect(html).toContain('.note-callout-fold-collapsed .note-callout-body')
+    expect(html).toContain("callout.classList.toggle('note-callout-fold-collapsed'")
+    expect(html).toContain("title.setAttribute('aria-expanded'")
+  })
+
+  it('builds a static publish bundle with local attachment files and a manifest', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url.includes('Media%2Fdiagram.png')) {
+          return {
+            ok: true,
+            headers: { get: () => 'image/png' },
+            arrayBuffer: async () => new Uint8Array([1, 2, 3, 4]).buffer,
+          }
+        }
+        if (url.includes('Media%2Fphoto.jpg')) {
+          return {
+            ok: true,
+            headers: { get: () => 'image/jpeg' },
+            arrayBuffer: async () => new Uint8Array([5, 6]).buffer,
+          }
+        }
+        return {
+          ok: false,
+          headers: { get: () => null },
+          arrayBuffer: async () => new ArrayBuffer(0),
+        }
+      }),
+    )
+
+    const bundle = await buildPublishedNotesSiteBundle(
+      [
+        {
+          _id: 'Projects/brief.md',
+          type: 'note',
+          title: 'Brief',
+          content: [
+            '# Brief',
+            '',
+            '![[Media/diagram.png|Architecture diagram|420]]',
+            '',
+            '![Markdown image](Media/photo.jpg)',
+            '',
+            '![[Media/missing.png|Missing diagram]]',
+          ].join('\n'),
+          folder: 'Projects',
+          tags: [],
+          links: [],
+          aliases: [],
+          created_at: 1,
+          updated_at: 2,
+        },
+      ],
+      { entryId: 'Projects/brief.md', title: 'Project Docs' },
+    )
+
+    expect(bundle.html).toContain('src="assets/Media/diagram.png"')
+    expect(bundle.html).toContain('src="assets/Media/photo.jpg"')
+    expect(bundle.html).toContain('width="420"')
+    expect(bundle.html).not.toContain('/api/vault/local/media')
+    expect(bundle.html).toContain('Missing attachment: Media/missing.png')
+    expect(bundle.manifest).toEqual(
+      expect.objectContaining({
+        format: 'clawcontrol-published-notes-site',
+        title: 'Project Docs',
+        entry_id: 'Projects/brief.md',
+        attachments: [
+          expect.objectContaining({
+            id: 'Media/diagram.png',
+            outputPath: 'assets/Media/diagram.png',
+            status: 'bundled',
+            size: 4,
+            mime: 'image/png',
+          }),
+          expect.objectContaining({
+            id: 'Media/missing.png',
+            outputPath: 'assets/Media/missing.png',
+            status: 'missing',
+          }),
+          expect.objectContaining({
+            id: 'Media/photo.jpg',
+            outputPath: 'assets/Media/photo.jpg',
+            status: 'bundled',
+            size: 2,
+            mime: 'image/jpeg',
+          }),
+        ],
+      }),
+    )
+    expect(bundle.files.map(([path]) => path)).toEqual([
+      'index.html',
+      'manifest.json',
+      'assets/Media/diagram.png',
+      'assets/Media/photo.jpg',
+    ])
+  })
+
   it('keeps tables, checkboxes, code blocks, and image captions in DOCX XML', () => {
     const xml = markdownToDocumentXml(
       'Report',
@@ -172,34 +377,68 @@ describe('notes export markdown compatibility', () => {
 
   it('uses document-owned page setup in DOCX XML', () => {
     const markdown =
-      '---\npage_size: a4\npage_margins: roomy\npage_orientation: landscape\ndocument_header: Private Draft\ndocument_footer: Local Copy\n---\n\n# Body'
+      '---\npage_size: a4\npage_margins: roomy\npage_orientation: landscape\ndocument_header: Private Draft\ndocument_footer: Local Copy\ndocument_watermark: Confidential\ndocument_page_numbers: footer-right\ndocument_columns: 2\n---\n\n# Body'
     const xml = markdownToDocumentXml('Report', markdown)
 
     expect(documentPageSettings(markdown)).toEqual({
+      mode: 'pages',
       size: 'a4',
       margins: 'roomy',
       orientation: 'landscape',
       header: 'Private Draft',
       footer: 'Local Copy',
+      watermark: 'Confidential',
+      pageNumbers: 'footer-right',
+      columns: 2,
     })
     expect(xml).toContain('<w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>')
     expect(xml).toContain('<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"')
     expect(xml).toContain('<w:headerReference w:type="default" r:id="rIdHeader1"/>')
     expect(xml).toContain('<w:footerReference w:type="default" r:id="rIdFooter1"/>')
+    expect(xml).toContain('<w:cols w:num="2" w:space="720"/>')
+    expect(documentFooterXml('Local Copy', 'footer-right')).toContain('<w:jc w:val="right"/>')
+    expect(documentFooterXml('Local Copy', 'footer-right')).toContain('<w:fldSimple w:instr="PAGE">')
   })
 
   it('uses document-owned page orientation in printable HTML', () => {
     const html = documentHtml('Report', '<p>Body</p>', false, {
+      mode: 'pages',
       size: 'letter',
       margins: 'normal',
       orientation: 'landscape',
       header: 'Private Draft',
       footer: 'Page footer',
+      watermark: 'Confidential',
+      pageNumbers: 'footer-center',
+      columns: 3,
     })
 
     expect(html).toContain('@page { size: Letter landscape; margin: 0.75in; }')
+    expect(html).toContain('<body data-page-mode="pages">')
     expect(html).toContain('<header class="note-document-header">Private Draft</header>')
-    expect(html).toContain('<footer class="note-document-footer">Page footer</footer>')
+    expect(html).toContain('<footer class="note-document-footer" data-page-numbers="footer-center">')
+    expect(html).toContain('<span class="note-document-footer-text">Page footer</span>')
+    expect(html).toContain('<span class="note-document-page-number" data-position="footer-center">Page </span>')
+    expect(html).toContain('<main data-columns="3"><p>Body</p></main>')
+    expect(html).toContain('main[data-columns="3"]')
+    expect(html).toContain('content: counter(page);')
+    expect(html).toContain('<div class="note-document-watermark">Confidential</div>')
+  })
+
+  it('uses pageless document mode in HTML export without page chrome', () => {
+    const markdown =
+      '---\ndocument_page_mode: pageless\ndocument_header: Hidden Header\ndocument_footer: Hidden Footer\ndocument_watermark: Hidden\ndocument_page_numbers: footer-center\n---\n\n# Body'
+    const page = documentPageSettings(markdown)
+    const html = documentHtml('Report', '<p>Body</p><div class="note-page-break"></div>', false, page)
+
+    expect(page).toMatchObject({ mode: 'pageless', header: 'Hidden Header', pageNumbers: 'footer-center' })
+    expect(html).toContain('<body data-page-mode="pageless">')
+    expect(html).toContain('body[data-page-mode="pageless"]')
+    expect(html).toContain('body[data-page-mode="pageless"] .note-page-break')
+    expect(html).not.toContain('note-document-header">Hidden Header')
+    expect(html).not.toContain('<footer class="note-document-footer"')
+    expect(html).not.toContain('<div class="note-document-watermark"')
+    expect(html).not.toContain('<span class="note-document-page-number"')
   })
 
   it('exports document page breaks to HTML and DOCX', () => {

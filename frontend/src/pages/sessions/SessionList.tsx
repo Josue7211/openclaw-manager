@@ -11,39 +11,75 @@ import { SessionCard } from './SessionCard'
 
 interface SessionListProps {
   selectedId: string | null
-  onSelect: (key: string) => void
-  onDeleteSelected: (key: string) => void
+  selectedEnvironmentId?: string | null
+  onSelect: (key: string, environmentId?: string | null) => void
+  onDeleteSelected: (key: string, environmentId?: string | null) => void
   title?: string
   headerAction?: ReactNode
   onNewSession?: () => void
 }
 
-export function SessionList({ selectedId, onSelect, onDeleteSelected, title = 'Sessions', headerAction, onNewSession }: SessionListProps) {
+type SessionActionTarget = { key: string; environmentId?: string | null }
+
+function sessionScopeKey(key: string | null, environmentId?: string | null): string | null {
+  if (!key) return null
+  const environment = environmentId?.trim()
+  return environment ? `${environment}:${key}` : key
+}
+
+function sessionActionTarget(key: string, environmentId?: string | null): SessionActionTarget {
+  const environment = environmentId?.trim()
+  return environment ? { key, environmentId: environment } : { key }
+}
+
+function sessionMutationTarget(key: string, environmentId?: string | null): string | SessionActionTarget {
+  const environment = environmentId?.trim()
+  return environment ? { key, environmentId: environment } : key
+}
+
+function mutationTargetMatches(value: unknown, key: string, environmentId?: string | null): boolean {
+  if (typeof value === 'string') return value === key && !environmentId?.trim()
+  if (!value || typeof value !== 'object') return false
+  const target = value as Partial<SessionActionTarget>
+  return sessionScopeKey(target.key ?? null, target.environmentId) === sessionScopeKey(key, environmentId)
+}
+
+export function SessionList({
+  selectedId,
+  selectedEnvironmentId,
+  onSelect,
+  onDeleteSelected,
+  title = 'Sessions',
+  headerAction,
+  onNewSession,
+}: SessionListProps) {
   const demo = isDemoMode()
   const { sessions, available, isLoading } = useGatewaySessions()
   const { providerLabel, detail } = useHarnessStatus()
   const { renameMutation, deleteMutation, compactMutation } = useSessionMutations()
-  const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null)
+  const [confirmDeleteTarget, setConfirmDeleteTarget] = useState<SessionActionTarget | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const selectedScopeKey = sessionScopeKey(selectedId, selectedEnvironmentId)
 
   const filteredSessions = sessions.filter((session) => {
     const query = searchQuery.trim().toLowerCase()
     if (!query) return true
     const label = String(session.label || '').toLowerCase()
     const agent = String(session.agentKey || '').toLowerCase()
-    return label.includes(query) || agent.includes(query) || session.key.toLowerCase().includes(query)
+    const environment = String(session.environmentId || '').toLowerCase()
+    return label.includes(query) || agent.includes(query) || environment.includes(query) || session.key.toLowerCase().includes(query)
   })
 
-  const sessionToDelete = confirmDeleteKey
-    ? sessions.find((s) => s.key === confirmDeleteKey)
+  const sessionToDelete = confirmDeleteTarget
+    ? sessions.find((s) => sessionScopeKey(s.key, s.environmentId) === sessionScopeKey(confirmDeleteTarget.key, confirmDeleteTarget.environmentId))
     : null
   const deleteLabel = (sessionToDelete?.label as string) || 'Untitled'
 
   const handleConfirmDelete = () => {
-    if (confirmDeleteKey) {
-      deleteMutation.mutate(confirmDeleteKey)
-      onDeleteSelected(confirmDeleteKey)
-      setConfirmDeleteKey(null)
+    if (confirmDeleteTarget) {
+      deleteMutation.mutate(sessionMutationTarget(confirmDeleteTarget.key, confirmDeleteTarget.environmentId))
+      onDeleteSelected(confirmDeleteTarget.key, confirmDeleteTarget.environmentId)
+      setConfirmDeleteTarget(null)
     }
   }
 
@@ -138,7 +174,7 @@ export function SessionList({ selectedId, onSelect, onDeleteSelected, title = 'S
           >
             <span style={{ fontWeight: 600, color: 'var(--blue-solid)' }}>Sessions not configured</span>
             <br />
-            Connect a harness in Settings to manage Claude sessions.
+            Connect Hermes Agent in Settings to manage sessions.
           </div>
         )}
 
@@ -250,26 +286,26 @@ export function SessionList({ selectedId, onSelect, onDeleteSelected, title = 'S
         {/* Session cards */}
         {filteredSessions.map((session) => (
           <SessionCard
-            key={session.key as string}
+            key={sessionScopeKey(session.key as string, session.environmentId) ?? (session.key as string)}
             session={session}
-            selected={session.key === selectedId}
-            onSelect={() => onSelect(session.key as string)}
-            onRename={(key, label) => renameMutation.mutate({ key, label })}
-            onDelete={(key) => setConfirmDeleteKey(key)}
-            onCompact={(key) => compactMutation.mutate(key)}
+            selected={sessionScopeKey(session.key as string, session.environmentId) === selectedScopeKey}
+            onSelect={() => onSelect(session.key as string, session.environmentId)}
+            onRename={(key, label) => renameMutation.mutate({ key, label, environmentId: session.environmentId })}
+            onDelete={(key) => setConfirmDeleteTarget(sessionActionTarget(key, session.environmentId))}
+            onCompact={(key) => compactMutation.mutate(sessionMutationTarget(key, session.environmentId))}
             isCompacting={
               compactMutation.isPending &&
-              compactMutation.variables === (session.key as string)
+              mutationTargetMatches(compactMutation.variables, session.key as string, session.environmentId)
             }
           />
         ))}
       </div>
 
       {/* Delete confirmation dialog */}
-      {confirmDeleteKey && (
+      {confirmDeleteTarget && (
         <DeleteConfirmDialog
           label={deleteLabel}
-          onCancel={() => setConfirmDeleteKey(null)}
+          onCancel={() => setConfirmDeleteTarget(null)}
           onConfirm={handleConfirmDelete}
         />
       )}

@@ -214,4 +214,56 @@ describe('SettingsConnections', () => {
       expect(screen.getByText('Saved. Restart to apply changes.')).toBeInTheDocument()
     })
   })
+
+  it('maps legacy dashboard setup links to the Hermes dashboard secret service', async () => {
+    const user = userEvent.setup()
+    window.history.pushState({}, '', '/settings?section=connections&service=codex-lb')
+
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/api/secrets/hermes-dashboard') return { ok: true, data: { credentials: {} } }
+      if (path === '/api/status/active-config') {
+        return {
+          bluebubbles_url: '',
+          harness_url: '',
+          hermes_dashboard_api_url: '',
+          agentshell_url: '',
+        }
+      }
+      if (path === '/api/user-preferences') return { ok: true, data: {} }
+      if (path === '/api/homelab/config') {
+        return {
+          ok: true,
+          data: {
+            api_configured: { proxmox: false, opnsense: false, portainer: false },
+            local: {
+              proxmox_host: '',
+              proxmox_token_id: '',
+              proxmox_token_secret_set: false,
+              opnsense_host: '',
+              opnsense_key_set: false,
+              opnsense_secret_set: false,
+              portainer_instances: [],
+            },
+          },
+        }
+      }
+      return null
+    })
+
+    render(<SettingsConnections />)
+
+    expect(await screen.findByText('Hermes Agent Dashboard setup')).toBeInTheDocument()
+    await user.type(screen.getByLabelText('Hermes Agent Dashboard API URL'), 'http://usage.test')
+    await user.type(screen.getByLabelText('Hermes Agent Dashboard Password'), 'dashboard_secret')
+    await user.click(screen.getByRole('button', { name: 'Save Hermes Agent Dashboard' }))
+
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith('/api/secrets/hermes-dashboard', {
+        credentials: {
+          dashboard_api_url: 'http://usage.test',
+          dashboard_password: 'dashboard_secret',
+        },
+      })
+    })
+  })
 })

@@ -188,8 +188,14 @@ describe('DashboardGrid', () => {
     DashboardGrid = mod.DashboardGrid
   }, 30000)
 
-  it('renders ResponsiveGridLayout from react-grid-layout', () => {
+  it('renders smart grid in view mode', () => {
     render(<DashboardGrid pageId="page-1" editMode={false} wobbleEnabled={false} />)
+    expect(document.querySelector('.dashboard-smart-grid')).toBeInTheDocument()
+    expect(screen.queryByTestId('rgl-container')).not.toBeInTheDocument()
+  })
+
+  it('renders ResponsiveGridLayout from react-grid-layout in edit mode', () => {
+    render(<DashboardGrid pageId="page-1" editMode={true} wobbleEnabled={false} />)
     expect(screen.getByTestId('rgl-container')).toBeInTheDocument()
   })
 
@@ -200,12 +206,10 @@ describe('DashboardGrid', () => {
     expect(screen.getByTestId('widget-network')).toBeInTheDocument()
   })
 
-  it('drag/resize disabled when editMode is false', () => {
+  it('does not mount drag/resize grid when editMode is false', () => {
     render(<DashboardGrid pageId="page-1" editMode={false} wobbleEnabled={false} />)
-    const dragConfig = capturedGridProps.dragConfig as { enabled: boolean } | undefined
-    const resizeConfig = capturedGridProps.resizeConfig as { enabled: boolean } | undefined
-    expect(dragConfig?.enabled).toBe(false)
-    expect(resizeConfig?.enabled).toBe(false)
+    expect(capturedGridProps.dragConfig).toBeUndefined()
+    expect(capturedGridProps.resizeConfig).toBeUndefined()
   })
 
   it('drag/resize enabled when editMode is true', () => {
@@ -217,7 +221,7 @@ describe('DashboardGrid', () => {
   })
 
   it('passes correct breakpoints and columns', () => {
-    render(<DashboardGrid pageId="page-1" editMode={false} wobbleEnabled={false} />)
+    render(<DashboardGrid pageId="page-1" editMode={true} wobbleEnabled={false} />)
     expect(capturedGridProps.breakpoints).toEqual({ xl: 1400, lg: 900, md: 600, sm: 0 })
     expect(capturedGridProps.cols).toEqual({ xl: 12, lg: 12, md: 8, sm: 4 })
   })
@@ -301,8 +305,14 @@ describe('DashboardGrid', () => {
     expect(capturedGridProps.compactType).toBeUndefined()
   })
 
-  it('uses rowHeight of 80', () => {
-    render(<DashboardGrid pageId="page-1" editMode={false} wobbleEnabled={false} />)
-    expect(capturedGridProps.rowHeight).toBe(80)
+  it('uses viewport-fitted rowHeight', () => {
+    const { container } = render(<DashboardGrid pageId="page-1" editMode={false} wobbleEnabled={false} />)
+    const grid = container.querySelector('.dashboard-smart-grid') as HTMLElement
+    expect(grid.style.gridAutoRows).toBe('180px')
+  })
+
+  it('uses matching viewport-fitted rowHeight in edit mode', () => {
+    render(<DashboardGrid pageId="page-1" editMode={true} wobbleEnabled={false} />)
+    expect(capturedGridProps.rowHeight).toBe(180)
   })
 })
