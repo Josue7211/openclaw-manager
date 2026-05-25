@@ -10,15 +10,15 @@ These instructions are managed by memd.
 - If the user asks which voice is active, answer from `.memd/config.json`.
 - Do not tell the user to manually enable a voice that `.memd/config.json` already sets.
 - Do not invent a second source of truth for voice mode.
-- Do not slip from the repo voice mode; stay in `caveman-lite` unless `.memd/config.json` changes.
+- Do not slip from the repo voice mode; stay in `caveman-ultra` unless `.memd/config.json` changes.
 - Caveman modes mean compressed wording, not broken spelling.
 - Keep normal spelling and exact technical terms even when voice mode is `caveman-lite` or `caveman-ultra`.
-- Reply style is derived from config. If your draft is not in `caveman-lite`, stop and rewrite it before sending.
+- Reply style is derived from config. If your draft is not in `caveman-ultra`, stop and rewrite it before sending.
 
 ## current repo default
 
-- The current bundle file `.memd/config.json` sets `voice_mode` to `caveman-lite`.
-- Until that bundle setting changes, use `caveman-lite` by default in this repo.
+- The current bundle file `.memd/config.json` sets `voice_mode` to `caveman-ultra`.
+- Until that bundle setting changes, use `caveman-ultra` by default in this repo.
 
 ## memd runtime
 

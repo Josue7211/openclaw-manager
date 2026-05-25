@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import type { ChatProviderOption, ModelOption } from '@/features/chat/types'
+import { resolveModelId } from '@/lib/model-resolver'
 import { ProviderInstanceIcon } from './ProviderInstanceIcon'
 import {
   getDisplayModelName,
@@ -59,7 +60,8 @@ export default function ProviderModelSelector({
   const selectedProvider = providers.find(candidate => candidate.id === selectedInstanceId)
     ?? activeProvider
     ?? providers[0]
-  const activeModel = models.find(candidate => candidate.id === model)
+  const resolvedModel = resolveModelId(model, models)
+  const activeModel = models.find(candidate => candidate.id === resolvedModel)
   const pickerModels = useMemo(
     () => toPickerModels(models, selectedProvider?.name ?? 'Hermes Agent'),
     [models, selectedProvider?.name],
@@ -93,9 +95,9 @@ export default function ProviderModelSelector({
 
   useEffect(() => {
     if (!open || !selectedProvider?.modelBacked) return
-    const selectedModelIndex = pickerModels.findIndex(candidate => candidate.slug === model)
+    const selectedModelIndex = pickerModels.findIndex(candidate => candidate.slug === resolvedModel)
     setActiveModelIndex(selectedModelIndex >= 0 ? selectedModelIndex : 0)
-  }, [model, open, pickerModels, selectedProvider?.id, selectedProvider?.modelBacked])
+  }, [model, open, pickerModels, resolvedModel, selectedProvider?.id, selectedProvider?.modelBacked])
 
   useEffect(() => {
     if (!open || !selectedProvider?.modelBacked) return
@@ -349,7 +351,7 @@ export default function ProviderModelSelector({
                   style={rowsStyle}
                 >
                   {pickerModels.map((item, index) => {
-                    const selected = item.slug === model
+                    const selected = item.slug === resolvedModel
                     const active = index === activeModelIndex
                     return (
                       <button

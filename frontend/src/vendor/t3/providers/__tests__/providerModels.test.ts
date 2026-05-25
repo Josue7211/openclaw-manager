@@ -23,6 +23,6 @@ describe('T3 copied provider model helpers adapted for Hermes Agent', () => {
       displayName: 'Hermes',
     }]
 
-    expect(getDefaultServerModel(providers, 'hermes')).toBe('gpt-5.5')
+    expect(getDefaultServerModel(providers, 'hermes')).toBe('openai/gpt-5.5')
   })
 })

@@ -1,6 +1,7 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { CaretDown } from '@phosphor-icons/react'
 import { useHarnessModels } from '@/hooks/useHarnessModels'
+import { resolveModelId, resolveStoredModelId } from '@/lib/model-resolver'
 import type { ModelInfo } from '@/features/harness/types'
 
 interface ModelSelectorProps {
@@ -117,7 +118,8 @@ export function ModelSelector({ value, onChange, disabled = false, placeholder, 
   }, [])
 
   // Find selected model info for display
-  const selectedModel = modelList.find(m => m.id === value)
+  const resolvedValue = resolveModelId(value, modelList)
+  const selectedModel = modelList.find(m => m.id === resolvedValue)
   const displayLabel = selectedModel ? (selectedModel.name || selectedModel.id) : value
 
   // Fallback to plain text input when models aren't loaded
@@ -128,7 +130,7 @@ export function ModelSelector({ value, onChange, disabled = false, placeholder, 
         aria-label="Model"
         placeholder={placeholder || 'e.g. opus, sonnet'}
         value={value}
-        onChange={e => onChange(e.target.value)}
+        onChange={e => onChange(resolveStoredModelId(e.target.value))}
         disabled={disabled}
         style={{
           background: 'var(--bg)',
@@ -267,7 +269,7 @@ export function ModelSelector({ value, onChange, disabled = false, placeholder, 
                   {group.provider}
                 </div>
                 {group.models.map(m => {
-                  const isSelected = m.id === value
+                  const isSelected = m.id === resolvedValue
                   return (
                     <button
                       key={m.id}

@@ -110,8 +110,8 @@ describe('useChatState builder mode intent', () => {
     mockApiGet.mockImplementation(async (path: string) => {
       if (path === '/api/chat/models') {
         return {
-          models: [{ id: 'gpt-5.5', name: 'GPT 5.5' }],
-          currentModel: 'gpt-5.5',
+          models: [{ id: 'openai/gpt-5.5', name: 'GPT 5.5' }],
+          currentModel: 'openai/gpt-5.5',
           providers: [
             { id: 'hermes', name: 'Hermes', ready: true, selectable: true },
             { id: 'codex-cli', name: 'Codex CLI', ready: true, selectable: true },
@@ -156,7 +156,7 @@ describe('useChatState builder mode intent', () => {
     const body = JSON.parse(String((mockFetch.mock.calls.at(-1)?.[1] as RequestInit).body))
 
     expect(body.provider).toBe('hermes')
-    expect(body.model).toBe('gpt-5.5')
+    expect(body.model).toBe('openai/gpt-5.5')
     expect(body.system_prompt).toEqual(expect.stringContaining('ModuleProposal'))
     expect(body.workingDir).toBe('/Users/josue/AgentShell')
   })

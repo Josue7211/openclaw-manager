@@ -65,7 +65,7 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>
 }
 
-function mockHermesModels(models = [{ id: 'gpt-5.5', name: 'GPT 5.5' }], currentModel = 'gpt-5.5') {
+function mockHermesModels(models = [{ id: 'openai/gpt-5.5', name: 'GPT 5.5' }], currentModel = 'openai/gpt-5.5') {
   vi.mocked(api.get).mockImplementation(async (path: string) => {
     if (path === '/api/chat/models') {
       return {
@@ -154,7 +154,7 @@ describe('useChatState Hermes Agent provider behavior', () => {
 
     await waitFor(() => {
       expect(result.current.provider).toBe('hermes')
-      expect(result.current.model).toBe('gpt-5.5')
+      expect(result.current.model).toBe('openai/gpt-5.5')
     })
 
     act(() => {
@@ -172,7 +172,7 @@ describe('useChatState Hermes Agent provider behavior', () => {
     const body = JSON.parse(String(request?.body))
     expect(body).toEqual(expect.objectContaining({
       provider: 'hermes',
-      model: 'gpt-5.5',
+      model: 'openai/gpt-5.5',
       text: 'use the selected project',
       liveContext: 'screen context',
       newChat: true,
@@ -180,6 +180,33 @@ describe('useChatState Hermes Agent provider behavior', () => {
     }))
     expect(body.workingDir).not.toBe('/run/media/josue/T7/projects/clawctrl')
     expect(body.workingDir).not.toBe('/Volumes/T7/projects/clawctrl')
+  })
+
+  it('normalizes persisted display labels before sending chat requests', async () => {
+    localStorage.setItem('chat-model', JSON.stringify('GPT 5.5'))
+    localStorage.setItem(CHAT_PRIMARY_MODEL_STORAGE_KEY, JSON.stringify('GPT 5.5'))
+    localStorage.setItem(CHAT_FAVORITE_MODELS_VERSION_STORAGE_KEY, JSON.stringify(CHAT_FAVORITE_MODELS_VERSION))
+
+    const { result } = renderHook(() => useChatState(null, { blank: true }), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current.model).toBe('openai/gpt-5.5')
+    })
+
+    act(() => {
+      result.current.setInput('do not send a display label')
+    })
+    act(() => {
+      result.current.send()
+    })
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalled()
+    })
+    const request = vi.mocked(fetch).mock.calls.at(-1)?.[1]
+    const body = JSON.parse(String(request?.body))
+    expect(body.model).toBe('openai/gpt-5.5')
+    expect(body.model).not.toBe('GPT 5.5')
   })
 
   it('ignores stale legacy local providers from readiness status', async () => {
@@ -346,7 +373,7 @@ describe('useChatState Hermes Agent provider behavior', () => {
     localStorage.setItem(CHAT_PRIMARY_MODEL_STORAGE_KEY, JSON.stringify('gpt-5.4'))
     localStorage.setItem(CHAT_FAVORITE_MODELS_VERSION_STORAGE_KEY, JSON.stringify(CHAT_FAVORITE_MODELS_VERSION))
     mockHermesModels([
-      { id: 'gpt-5.5', name: 'GPT 5.5' },
+      { id: 'openai/gpt-5.5', name: 'GPT 5.5' },
       { id: 'gpt-5.4', name: 'GPT 5.4' },
     ])
     vi.mocked(api.post).mockRejectedValueOnce(new Error('model route unavailable'))
@@ -363,18 +390,18 @@ describe('useChatState Hermes Agent provider behavior', () => {
   })
 
   it('restores the previous model and shows status when a selected model fails to apply', async () => {
-    localStorage.setItem('chat-model', JSON.stringify('gpt-5.5'))
-    localStorage.setItem(CHAT_PRIMARY_MODEL_STORAGE_KEY, JSON.stringify('gpt-5.5'))
+    localStorage.setItem('chat-model', JSON.stringify('openai/gpt-5.5'))
+    localStorage.setItem(CHAT_PRIMARY_MODEL_STORAGE_KEY, JSON.stringify('openai/gpt-5.5'))
     localStorage.setItem(CHAT_FAVORITE_MODELS_VERSION_STORAGE_KEY, JSON.stringify(CHAT_FAVORITE_MODELS_VERSION))
     mockHermesModels([
-      { id: 'gpt-5.5', name: 'GPT 5.5' },
+      { id: 'openai/gpt-5.5', name: 'GPT 5.5' },
       { id: 'gpt-5.4', name: 'GPT 5.4' },
     ])
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const { result } = renderHook(() => useChatState(null, { blank: true }), { wrapper })
 
     await waitFor(() => {
-      expect(result.current.model).toBe('gpt-5.5')
+      expect(result.current.model).toBe('openai/gpt-5.5')
     })
     vi.mocked(api.patch).mockClear()
     vi.mocked(api.post).mockClear()
@@ -387,7 +414,7 @@ describe('useChatState Hermes Agent provider behavior', () => {
     await waitFor(() => {
       expect(result.current.systemMsg).toBe('Model change failed. The previous model was restored.')
     })
-    expect(result.current.model).toBe('gpt-5.5')
+    expect(result.current.model).toBe('openai/gpt-5.5')
     expect(api.patch).toHaveBeenCalledWith('/api/hermes/runtime-config', { chatPrimaryModel: 'gpt-5.4' })
     expect(api.post).not.toHaveBeenCalledWith('/api/chat/model', { model: 'gpt-5.4' })
 
@@ -535,11 +562,26 @@ describe('useChatState Hermes Agent provider behavior', () => {
 })
 
 describe('buildChatRequestPayload', () => {
+  it('normalizes GPT 5.5 display labels before adding a model field', () => {
+    expect(buildChatRequestPayload({
+      text: 'use canonical model id',
+      images: [],
+      model: 'GPT 5.5',
+      provider: 'hermes',
+      providerIsModelBacked: true,
+    })).toEqual({
+      text: 'use canonical model id',
+      images: [],
+      provider: 'hermes',
+      model: 'openai/gpt-5.5',
+    })
+  })
+
   it('keeps model only for Hermes model-backed requests while preserving request instructions', () => {
     expect(buildChatRequestPayload({
       text: 'build a widget',
       images: [],
-      model: 'gpt-5.5',
+      model: 'openai/gpt-5.5',
       provider: 'hermes',
       providerIsModelBacked: true,
       systemPrompt: 'module builder',
@@ -548,7 +590,7 @@ describe('buildChatRequestPayload', () => {
       text: 'build a widget',
       images: [],
       provider: 'hermes',
-      model: 'gpt-5.5',
+      model: 'openai/gpt-5.5',
       system_prompt: 'module builder',
       liveContext: 'screen context',
     })

@@ -16,7 +16,7 @@ import {
 
 const EMPTY_CAPABILITIES: ModelCapabilities = { optionDescriptors: [] }
 const DEFAULT_DRIVER_KIND = 'hermes'
-const DEFAULT_MODEL = 'gpt-5.5'
+const DEFAULT_MODEL = 'openai/gpt-5.5'
 const DEFAULT_MODEL_BY_PROVIDER: Record<string, string> = {
   hermes: DEFAULT_MODEL,
 }

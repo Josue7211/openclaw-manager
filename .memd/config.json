@@ -24,8 +24,8 @@
   "intent": "current_task",
   "workspace": null,
   "visibility": null,
-  "heartbeat_model": "llama-desktop/qwen",
-  "voice_mode": "caveman-lite",
+  "heartbeat_model": "gpt-5.4-mini",
+  "voice_mode": "caveman-ultra",
   "auto_short_term_capture": true,
   "authority_policy": {
     "shared_primary": true,

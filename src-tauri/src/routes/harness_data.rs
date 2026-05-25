@@ -927,7 +927,7 @@ mod tests {
     fn runtime_overlay_prefers_runtime_values() {
         let mut prefs = HarnessRuntimePrefs {
             chat_primary_model: Some("openai/gpt-5".into()),
-            heartbeat_model: Some("llama-desktop/qwen".into()),
+            heartbeat_model: Some("gpt-5.4-mini".into()),
             favorite_models: Some(vec!["openai/gpt-5".into()]),
         };
         let runtime = HarnessRuntimePrefs {
@@ -945,7 +945,7 @@ mod tests {
             prefs.chat_primary_model.as_deref(),
             Some("openai-codex/gpt-5.2-codex")
         );
-        assert_eq!(prefs.heartbeat_model.as_deref(), Some("llama-desktop/qwen"));
+        assert_eq!(prefs.heartbeat_model.as_deref(), Some("gpt-5.4-mini"));
         assert_eq!(
             prefs.favorite_models,
             Some(vec![
@@ -974,7 +974,7 @@ mod tests {
     fn parse_runtime_config_value_extracts_expected_fields() {
         let parsed = parse_runtime_config_value(json!({
             "chatPrimaryModel": "openai-codex/gpt-5.2-codex",
-            "heartbeatModel": "llama-desktop/qwen",
+            "heartbeatModel": "gpt-5.4-mini",
             "favoriteModels": ["openai-codex/gpt-5.2-codex", "openai/gpt-5-mini"]
         }));
 
@@ -984,7 +984,7 @@ mod tests {
         );
         assert_eq!(
             parsed.heartbeat_model.as_deref(),
-            Some("llama-desktop/qwen")
+            Some("gpt-5.4-mini")
         );
         assert_eq!(
             parsed.favorite_models,

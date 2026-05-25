@@ -19,6 +19,7 @@ import {
   resolvePreferredModelId,
   sanitizeFavoriteModelIds,
 } from '@/lib/model-favorites'
+import { resolveModelId, resolveStoredModelId } from '@/lib/model-resolver'
 import { buildModuleBuilderSystemPrompt } from './module-builder-prompt'
 import { buildLiveAppContext } from '@/features/chat/liveAppContext'
 import {
@@ -519,7 +520,7 @@ export function buildChatRequestPayload(input: {
   }
 
   if (input.providerIsModelBacked) {
-    payload.model = input.model
+    payload.model = resolveStoredModelId(input.model)
   }
 
   return payload
@@ -669,8 +670,9 @@ export function useChatState(
     if (!modelsData?.models?.length) return
     if (favoriteModelsVersion >= CHAT_FAVORITE_MODELS_VERSION) return
 
-    const defaultModel = resolvePreferredModelId(CHAT_DEFAULT_MODEL, modelsData.models)
-    if (!defaultModel) return
+    const defaultModel = resolveStoredModelId(CHAT_DEFAULT_MODEL, modelsData.models)
+    const defaultWireModel = resolveModelId(defaultModel, modelsData.models)
+    if (!defaultModel || !defaultWireModel) return
 
     setModelLocal(defaultModel)
     setPrimaryModel(defaultModel)
@@ -681,7 +683,7 @@ export function useChatState(
         lastPostedModelRef.current = defaultModel
         return
       }
-      return api.post('/api/chat/model', { model: defaultModel }).then(() => {
+      return api.post('/api/chat/model', { model: defaultWireModel }).then(() => {
         lastPostedModelRef.current = defaultModel
       })
     }).catch(() => {
@@ -744,12 +746,13 @@ export function useChatState(
     if (!providerIsModelBacked || !modelsData?.models?.length) return
 
     const availableIds = modelsData.models.map(m => m.id)
-    const isExactMatch = availableIds.includes(model)
+    const resolvedModel = resolveModelId(model, modelsData.models)
+    const isExactMatch = Boolean(resolvedModel && availableIds.includes(resolvedModel))
 
-    const preferredModel = resolvePreferredModelId(primaryModel, modelsData.models)
-    const serverModel = resolvePreferredModelId(modelsData.currentModel, modelsData.models)
+    const preferredModel = resolveStoredModelId(primaryModel, modelsData.models)
+    const serverModel = resolveStoredModelId(modelsData.currentModel, modelsData.models)
     const nextModel = isExactMatch
-      ? model
+      ? resolveStoredModelId(model, modelsData.models)
       : preferredModel || serverModel || availableIds[0]
 
     if (!nextModel) return
@@ -761,9 +764,10 @@ export function useChatState(
 
   useEffect(() => {
     if (!providerIsModelBacked || !modelsData?.models?.length || !model) return
-    if (!modelsData.models.some(candidate => candidate.id === model)) return
+    const wireModel = resolveModelId(model, modelsData.models)
+    if (!wireModel || !modelsData.models.some(candidate => candidate.id === wireModel)) return
 
-    if (modelsData.currentModel === model) {
+    if (resolveModelId(modelsData.currentModel, modelsData.models) === wireModel) {
       lastPostedModelRef.current = model
       return
     }
@@ -771,7 +775,7 @@ export function useChatState(
     if (lastPostedModelRef.current === model) return
 
     let cancelled = false
-    api.post('/api/chat/model', { model })
+    api.post('/api/chat/model', { model: wireModel })
       .then(() => {
         if (!cancelled) lastPostedModelRef.current = model
       })
@@ -792,17 +796,20 @@ export function useChatState(
   const setModel = useCallback((newModel: string) => {
     const previousModel = model
     const previousPrimaryModel = primaryModel
-    setModelLocal(newModel)
-    setPrimaryModel(newModel)
-    lastPostedModelRef.current = newModel
+    const storedModel = resolveStoredModelId(newModel, modelsData?.models ?? [])
+    const wireModel = resolveModelId(storedModel, modelsData?.models ?? []) || storedModel
+    if (!storedModel || !wireModel) return
+    setModelLocal(storedModel)
+    setPrimaryModel(storedModel)
+    lastPostedModelRef.current = storedModel
     if (!_demo && providerIsModelBacked) {
       api.patch<{ appliedChatModel?: boolean }>('/api/hermes/runtime-config', {
-        chatPrimaryModel: newModel,
+        chatPrimaryModel: storedModel,
       }).then((result) => {
         if (result?.appliedChatModel) {
           return
         }
-        return api.post('/api/chat/model', { model: newModel })
+        return api.post('/api/chat/model', { model: wireModel })
       }).catch(err => {
         console.error('Failed to set model:', err)
         lastPostedModelRef.current = ''
@@ -811,7 +818,7 @@ export function useChatState(
         showAttachmentStatus('Model change failed. The previous model was restored.', 5000)
       })
     }
-  }, [_demo, model, primaryModel, providerIsModelBacked, setModelLocal, setPrimaryModel, showAttachmentStatus])
+  }, [_demo, model, modelsData?.models, primaryModel, providerIsModelBacked, setModelLocal, setPrimaryModel, showAttachmentStatus])
   const setProvider = useCallback((newProvider: string) => {
     const requestedProvider = providers.find((candidate) => candidate.id === newProvider)
     const next = requestedProvider?.available !== false && requestedProvider
@@ -1473,10 +1480,11 @@ export function useChatState(
       safeLocalStorageSetItem('session-start', Date.now().toString())
       setSystemMsg('\u2500\u2500 Starting fresh session\u2026 \u2500\u2500')
       if (providerIsModelBacked) {
+        const sendModel = resolveModelId(model, modelsData?.models ?? []) || resolveStoredModelId(model, modelsData?.models ?? [])
         const payload = buildChatRequestPayload({
           text,
           images: [],
-          model,
+          model: sendModel,
           provider: resolvedProvider,
           providerIsModelBacked,
         })
@@ -1531,7 +1539,7 @@ export function useChatState(
     sendingRef.current = true
     setSending(true)
     const sendProvider = resolvedProvider
-    const sendModel = model
+    const sendModel = resolveModelId(model, modelsData?.models ?? []) || resolveStoredModelId(model, modelsData?.models ?? [])
     const sendProviderIsModelBacked = providerIsModelBacked
     const sendContext = snapshotChatRequestContext(options.context)
     if (clearComposer) {
@@ -1747,7 +1755,8 @@ export function useChatState(
       })
       if (controller.signal.aborted || abortRequestedRef.current || activeSendIdRef.current !== sendId) return
       const retryProvider = msg.provider || resolvedProvider
-      const retryModel = msg.model || model
+      const retryModel = resolveModelId(msg.model || model, modelsData?.models ?? [])
+        || resolveStoredModelId(msg.model || model, modelsData?.models ?? [])
       const retryProviderIsModelBacked = msg.providerIsModelBacked ?? providerIsModelBacked
       const payload = buildChatRequestPayload({
         text: msg.text,

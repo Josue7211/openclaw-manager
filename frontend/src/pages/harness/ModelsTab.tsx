@@ -4,6 +4,7 @@ import { Star } from '@phosphor-icons/react'
 import { useLocalStorageState } from '@/lib/hooks/useLocalStorageState'
 import { ModelSelector } from '@/components/ModelSelector'
 import { api } from '@/lib/api'
+import { resolveStoredModelId } from '@/lib/model-resolver'
 import {
   CHAT_DEFAULT_FAVORITE_MODELS,
   CHAT_FAVORITE_MODELS_STORAGE_KEY,
@@ -56,8 +57,8 @@ function ModelsContent() {
   const favoriteIds = sanitizedFavoriteIds.length === favoriteModelIds.length
     ? favoriteModelIds
     : sanitizedFavoriteIds
-  const normalizedPrimaryModel = resolvePreferredModelId(primaryModel, modelList)
-  const normalizedHeartbeatModel = resolvePreferredModelId(heartbeatModel, modelList)
+  const normalizedPrimaryModel = resolveStoredModelId(resolvePreferredModelId(primaryModel, modelList) || primaryModel, modelList)
+  const normalizedHeartbeatModel = resolveStoredModelId(resolvePreferredModelId(heartbeatModel, modelList) || heartbeatModel, modelList)
 
   useEffect(() => {
     let cancelled = false
@@ -67,11 +68,13 @@ function ModelsContent() {
       favoriteModels?: string[]
     }>('/api/hermes/runtime-config').then((config) => {
       if (cancelled) return
-      if (typeof config.chatPrimaryModel === 'string' && config.chatPrimaryModel !== primaryModel) {
-        setPrimaryModel(config.chatPrimaryModel)
+      if (typeof config.chatPrimaryModel === 'string') {
+        const nextPrimaryModel = resolveStoredModelId(config.chatPrimaryModel, modelList)
+        if (nextPrimaryModel && nextPrimaryModel !== primaryModel) setPrimaryModel(nextPrimaryModel)
       }
-      if (typeof config.heartbeatModel === 'string' && config.heartbeatModel !== heartbeatModel) {
-        setHeartbeatModel(config.heartbeatModel)
+      if (typeof config.heartbeatModel === 'string') {
+        const nextHeartbeatModel = resolveStoredModelId(config.heartbeatModel, modelList)
+        if (nextHeartbeatModel && nextHeartbeatModel !== heartbeatModel) setHeartbeatModel(nextHeartbeatModel)
       }
       if (Array.isArray(config.favoriteModels)) {
         setFavoriteModelIds(config.favoriteModels)
@@ -81,7 +84,7 @@ function ModelsContent() {
     return () => {
       cancelled = true
     }
-  }, [heartbeatModel, primaryModel, setFavoriteModelIds, setHeartbeatModel, setPrimaryModel])
+  }, [heartbeatModel, modelList, primaryModel, setFavoriteModelIds, setHeartbeatModel, setPrimaryModel])
 
   const persistRuntimeConfig = async (next: {
     chatPrimaryModel?: string
@@ -96,13 +99,17 @@ function ModelsContent() {
   }
 
   const handlePrimaryModelChange = async (nextModel: string) => {
-    setPrimaryModel(nextModel)
-    await persistRuntimeConfig({ chatPrimaryModel: nextModel })
+    const storedModel = resolveStoredModelId(nextModel, modelList)
+    if (!storedModel) return
+    setPrimaryModel(storedModel)
+    await persistRuntimeConfig({ chatPrimaryModel: storedModel })
   }
 
   const handleHeartbeatModelChange = async (nextModel: string) => {
-    setHeartbeatModel(nextModel)
-    await persistRuntimeConfig({ heartbeatModel: nextModel })
+    const storedModel = resolveStoredModelId(nextModel, modelList)
+    if (!storedModel) return
+    setHeartbeatModel(storedModel)
+    await persistRuntimeConfig({ heartbeatModel: storedModel })
   }
 
   const toggleFavoriteModel = async (modelId: string) => {

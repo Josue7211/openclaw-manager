@@ -1,18 +1,21 @@
 import type { ModelInfo, ModelsResponse as HarnessModelsResponse } from '@/features/harness/types'
 import type { ModelOption } from '@/features/chat/types'
+import {
+  CANONICAL_GPT_55_MODEL_ID,
+  canonicalizeModelId,
+  modelIdentifiersMatch,
+  resolveModelId,
+} from './model-resolver'
 
 export const CHAT_FAVORITE_MODELS_STORAGE_KEY = 'chat-favorite-models'
 export const CHAT_FAVORITE_MODELS_VERSION_STORAGE_KEY = 'chat-favorite-models-version'
 export const CHAT_PRIMARY_MODEL_STORAGE_KEY = 'harness-chat-primary-model'
 export const HARNESS_HEARTBEAT_MODEL_STORAGE_KEY = 'harness-heartbeat-model'
-export const CHAT_FAVORITE_MODELS_VERSION = 6
-export const CHAT_DEFAULT_MODEL = 'openai/gpt-5.5'
+export const CHAT_FAVORITE_MODELS_VERSION = 7
+export const CHAT_DEFAULT_MODEL = CANONICAL_GPT_55_MODEL_ID
 export const CHAT_DEFAULT_FAVORITE_MODELS: string[] = [
   CHAT_DEFAULT_MODEL,
   'openai/gpt-5.4',
-  'openai/gpt-5.4-mini',
-  'openai-codex/gpt-5.3-codex',
-  'openai-codex/gpt-5.3-codex-spark',
 ]
 
 export function getHarnessModelList(models?: HarnessModelsResponse | null): ModelInfo[] {
@@ -20,7 +23,7 @@ export function getHarnessModelList(models?: HarnessModelsResponse | null): Mode
 }
 
 function sanitizeFavoriteId(value: string): string {
-  return value.trim()
+  return canonicalizeModelId(value)
 }
 
 export function sanitizeFavoriteModelIds(favoriteIds: string[]): string[] {
@@ -60,10 +63,11 @@ function modelSlug(modelId: string): string {
 }
 
 function findFavoriteModel(models: ModelOption[], favoriteId: string): ModelOption | undefined {
-  const exact = models.find((candidate) => candidate.id === favoriteId)
+  const resolvedFavoriteId = resolveModelId(favoriteId, models)
+  const exact = models.find((candidate) => candidate.id === resolvedFavoriteId)
   if (exact) return exact
 
-  const favoriteSlug = modelSlug(favoriteId)
+  const favoriteSlug = modelSlug(resolvedFavoriteId || favoriteId)
   return models.find((candidate) => modelSlug(candidate.id) === favoriteSlug)
 }
 
@@ -83,7 +87,8 @@ export function getChatFavoriteModels(
 ): ModelOption[] {
   const uniqueFavoriteIds = sanitizeFavoriteModelIds(favoriteIds)
   if (uniqueFavoriteIds.length === 0) {
-    const current = models.find((candidate) => candidate.id === currentModel)
+    const resolvedCurrentModel = resolveModelId(currentModel, models)
+    const current = models.find((candidate) => candidate.id === resolvedCurrentModel)
     return current ? [current] : models.slice(0, 1)
   }
 
@@ -91,7 +96,8 @@ export function getChatFavoriteModels(
     .map((favoriteId) => findFavoriteModel(models, favoriteId) ?? makeMissingFavoriteModel(favoriteId))
   )
 
-  const current = models.find((candidate) => candidate.id === currentModel)
+  const resolvedCurrentModel = resolveModelId(currentModel, models)
+  const current = models.find((candidate) => candidate.id === resolvedCurrentModel)
   if (current && !favorites.some((candidate) => candidate.id === current.id)) {
     return [current, ...favorites]
   }
@@ -104,7 +110,10 @@ export function normalizeFavoriteModelIds(
   models: Array<{ id: string }>,
 ): string[] {
   const validIds = new Set(models.map((model) => model.id))
-  return sanitizeFavoriteModelIds(favoriteIds).filter((favoriteId) => validIds.has(favoriteId))
+  return sanitizeFavoriteModelIds(favoriteIds).filter((favoriteId) => {
+    const resolvedFavoriteId = resolveModelId(favoriteId, models)
+    return resolvedFavoriteId ? validIds.has(resolvedFavoriteId) : false
+  })
 }
 
 export function mergeDefaultFavoriteModelIds(
@@ -116,17 +125,12 @@ export function mergeDefaultFavoriteModelIds(
 }
 
 export function isFavoriteModel(modelId: string, favoriteIds: string[]): boolean {
-  return favoriteIds.includes(modelId)
+  return favoriteIds.some((favoriteId) => modelIdentifiersMatch(favoriteId, modelId))
 }
 
 export function resolvePreferredModelId(
   preferredId: string,
   models: Array<{ id: string }>,
 ): string {
-  if (!preferredId) return ''
-  const exact = models.find((model) => model.id === preferredId)
-  if (exact) return exact.id
-
-  const preferredSlug = modelSlug(preferredId)
-  return models.find((model) => modelSlug(model.id) === preferredSlug)?.id ?? ''
+  return resolveModelId(preferredId, models)
 }

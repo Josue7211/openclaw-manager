@@ -178,9 +178,9 @@ describe('ModelOption type', () => {
 
   it('supports optional contextWindow', () => {
     const model: ModelOption = {
-      id: 'llama-desktop/qwen',
-      name: 'Qwen Local',
-      provider: 'llama-desktop',
+      id: 'openai/gpt-5.4',
+      name: 'GPT 5.4',
+      provider: 'openai',
       local: true,
       contextWindow: 102400,
     }
