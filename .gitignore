@@ -33,3 +33,11 @@ coverage/
 *.swp
 *.swo
 *~
+
+# memd runtime state (generated on every wake/status)
+.memd/.last-wake
+.memd/wake.md
+.memd/mem.md
+.memd/wake-token-metrics.json
+.memd/state/
+.memd/agents/HARNESS_BRIDGES.md
