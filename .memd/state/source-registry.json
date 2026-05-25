@@ -1,0 +1,337 @@
+{
+  "project": "clawcontrol",
+  "project_root": "/run/media/josue/T7/projects/clawcontrol",
+  "imported_at": "2026-05-25T05:00:42.559546515Z",
+  "sources": [
+    {
+      "path": "~/.claude/command/memd.md",
+      "kind": "claude-config",
+      "hash": "f8c380c5d7a98155a5c5949cffe864684e0f98f879915a461fdeea04f3ac4aa4",
+      "bytes": 1117,
+      "lines": 25,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.556334973Z",
+      "modified_at": "2026-04-12T18:16:26.219180243Z"
+    },
+    {
+      "path": "~/.claude/commands/memd/init.md",
+      "kind": "claude-config",
+      "hash": "a8afa0e108495e03aa8ffb3097ac52874fd3604ec7fdd03f42afba69c6ff7b20",
+      "bytes": 562,
+      "lines": 19,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.556373014Z",
+      "modified_at": "2026-04-12T17:55:56.755180557Z"
+    },
+    {
+      "path": "~/.claude/commands/memd/reload.md",
+      "kind": "claude-config",
+      "hash": "de8cf49d900bdbacce148e71d4ea5bfe1d1a62609ce16c021ccc7f27de169851",
+      "bytes": 383,
+      "lines": 16,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.556401898Z",
+      "modified_at": "2026-04-12T17:55:56.755197629Z"
+    },
+    {
+      "path": "~/.claude/commands/memd/status.md",
+      "kind": "claude-config",
+      "hash": "77c425fe0c5536c557b9042cee20cdd797506ea245540b237137d4a696edccc4",
+      "bytes": 363,
+      "lines": 14,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.556428437Z",
+      "modified_at": "2026-04-12T17:55:56.754731981Z"
+    },
+    {
+      "path": "~/.claude/commands/memd.md",
+      "kind": "claude-config",
+      "hash": "dd09cb59f80810604e67f4bd3a81083aa97328e91ded0c0ce79c66f4b46df413",
+      "bytes": 885,
+      "lines": 20,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.556469594Z",
+      "modified_at": "2026-04-12T17:55:56.754731981Z"
+    },
+    {
+      "path": "~/.claude/settings.json",
+      "kind": "claude-config",
+      "hash": "5ad29318953ae54a5f3da07de425a512d14340f271aab910cc6ecc5e3725ca8f",
+      "bytes": 14412,
+      "lines": 514,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.556852911Z",
+      "modified_at": "2026-04-17T22:54:33.220316051Z"
+    },
+    {
+      "path": "~/.claude/skills/memd/SKILL.md",
+      "kind": "claude-skill",
+      "hash": "2f9639dd2031cc406899d80c10106d55767c88579224861c5ac7ef95159fae9f",
+      "bytes": 5665,
+      "lines": 100,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.557021756Z",
+      "modified_at": "2026-04-09T17:17:18.135567558Z"
+    },
+    {
+      "path": "~/.claude/skills/memd-init/SKILL.md",
+      "kind": "claude-skill",
+      "hash": "186a36008782e76dac9fa25f85cc50700e9fc47197ec752abcb2c19192da1cd9",
+      "bytes": 2717,
+      "lines": 66,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.557111314Z",
+      "modified_at": "2026-04-09T17:17:18.135567558Z"
+    },
+    {
+      "path": "~/.claude/skills/memd-reload/SKILL.md",
+      "kind": "claude-skill",
+      "hash": "a7b5bf88d2ab8c5f2e9a11c607943baeeccac23b41f4824a9f18b54ddf7a04fd",
+      "bytes": 2384,
+      "lines": 55,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.557192916Z",
+      "modified_at": "2026-04-11T12:42:03.882458886Z"
+    },
+    {
+      "path": "~/.claude/skills/memd-status/SKILL.md",
+      "kind": "claude-skill",
+      "hash": "e9532e97c38a6d4f5b0035b62bb82623275db12cebd5b3ca5c3816da7b766cef",
+      "bytes": 1346,
+      "lines": 39,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.557254140Z",
+      "modified_at": "2026-04-07T14:26:00.062527359Z"
+    },
+    {
+      "path": "~/.claw/settings.json",
+      "kind": "doc",
+      "hash": "a91c5d01426899dd7a60a70e688dda039538759252a02dacf0895602559814a9",
+      "bytes": 306,
+      "lines": 17,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.557285148Z",
+      "modified_at": "2026-05-25T05:00:02.095551685Z"
+    },
+    {
+      "path": "~/.codex/config.toml",
+      "kind": "codex-config",
+      "hash": "965efb0616a618b843d7318fe3fea92f45989ac59c3ca3ab529be1a5c1cee785",
+      "bytes": 7860,
+      "lines": 184,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.557511532Z",
+      "modified_at": "2026-05-22T16:25:28.751958159Z"
+    },
+    {
+      "path": "~/.codex/skills/autodream/SKILL.md",
+      "kind": "codex-skill",
+      "hash": "2d6ebbac3ed3c578bf6dba2472ff82bb5bfa842d2d3c8e7b53573b639be5a608",
+      "bytes": 4359,
+      "lines": 109,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.557648658Z",
+      "modified_at": "2026-04-05T19:38:45.938777727Z"
+    },
+    {
+      "path": "~/.codex/skills/dream/SKILL.md",
+      "kind": "codex-skill",
+      "hash": "3047b061feda80ca56412b224d62096f463a7dee613498b9e42138c64b914a54",
+      "bytes": 12880,
+      "lines": 221,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.557978324Z",
+      "modified_at": "2026-05-21T16:16:03.561669185Z"
+    },
+    {
+      "path": "~/.codex/skills/gsd-autonomous/SKILL.md",
+      "kind": "codex-skill",
+      "hash": "ed4864f1028beb204f6ecd899089b89857c4f0fc69fdaa44ff006db7c63ac21e",
+      "bytes": 6471,
+      "lines": 121,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.558169351Z",
+      "modified_at": "2026-04-06T01:38:03.364296596Z"
+    },
+    {
+      "path": "~/.codex/skills/gsd-map-codebase/SKILL.md",
+      "kind": "codex-skill",
+      "hash": "899711a55615d8d17ae0364e19a31a30641224875d8c41ef355227208af94254",
+      "bytes": 4363,
+      "lines": 105,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.558299855Z",
+      "modified_at": "2026-03-31T06:37:16.176012219Z"
+    },
+    {
+      "path": "~/.codex/skills/memd/SKILL.md",
+      "kind": "codex-skill",
+      "hash": "2f9639dd2031cc406899d80c10106d55767c88579224861c5ac7ef95159fae9f",
+      "bytes": 5665,
+      "lines": 100,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.558456768Z",
+      "modified_at": "2026-04-09T17:17:18.135567558Z"
+    },
+    {
+      "path": "~/.codex/skills/memd-init/SKILL.md",
+      "kind": "codex-skill",
+      "hash": "186a36008782e76dac9fa25f85cc50700e9fc47197ec752abcb2c19192da1cd9",
+      "bytes": 2717,
+      "lines": 66,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.558549391Z",
+      "modified_at": "2026-04-09T17:17:18.135567558Z"
+    },
+    {
+      "path": "~/.codex/skills/memd-reload/SKILL.md",
+      "kind": "codex-skill",
+      "hash": "a7b5bf88d2ab8c5f2e9a11c607943baeeccac23b41f4824a9f18b54ddf7a04fd",
+      "bytes": 2384,
+      "lines": 55,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.558629241Z",
+      "modified_at": "2026-04-11T12:42:03.882458886Z"
+    },
+    {
+      "path": "~/.config/claw/settings.json",
+      "kind": "doc",
+      "hash": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "bytes": 3,
+      "lines": 1,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.558648697Z",
+      "modified_at": "2026-04-06T03:20:31.140530246Z"
+    },
+    {
+      "path": "~/.config/opencode/command/gsd-autonomous.md",
+      "kind": "opencode-config",
+      "hash": "484dd7617109773ebbb40c856d07ae3746bafc225c7cb770dcdaffa93279f22d",
+      "bytes": 1551,
+      "lines": 40,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.558709190Z",
+      "modified_at": "2026-03-31T06:25:02.858748438Z"
+    },
+    {
+      "path": "~/.config/opencode/command/gsd-map-codebase.md",
+      "kind": "opencode-config",
+      "hash": "17f4a53973af7776a56ba5573d3faa0a62333ac7ff5bca7e0878009b652db89e",
+      "bytes": 2597,
+      "lines": 70,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.558796974Z",
+      "modified_at": "2026-03-31T06:25:02.861748404Z"
+    },
+    {
+      "path": "~/.config/opencode/command/memd.md",
+      "kind": "opencode-config",
+      "hash": "704edc31ca58a607fd3133f2f600689373d2eb2065d4c1ec288c70d21835da25",
+      "bytes": 999,
+      "lines": 30,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.558842880Z",
+      "modified_at": "2026-04-06T01:50:01.943311530Z"
+    },
+    {
+      "path": "~/.config/opencode/opencode.json",
+      "kind": "opencode-config",
+      "hash": "72b963e35376de8365acf8b9bddab5b956802633cfd95f53bfbdafbc6a4c70cf",
+      "bytes": 2079,
+      "lines": 84,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.558919573Z",
+      "modified_at": "2026-04-12T15:11:52.391167268Z"
+    },
+    {
+      "path": "~/.config/opencode/plugins/memd-plugin.mjs",
+      "kind": "opencode-config",
+      "hash": "79c5cb2d407ed20c938caa6aa2d0afa3d1e9988896038fd18adc3edea9834eef",
+      "bytes": 4004,
+      "lines": 118,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.559042563Z",
+      "modified_at": "2026-04-12T15:31:34.857764521Z"
+    },
+    {
+      "path": "~/.config/opencode/settings.json",
+      "kind": "opencode-config",
+      "hash": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "bytes": 3,
+      "lines": 1,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.559056519Z",
+      "modified_at": "2026-03-31T06:25:02.904747919Z"
+    },
+    {
+      "path": "~/.openclaw/workspace/AGENTS.md",
+      "kind": "openclaw-config",
+      "hash": "d57ab17f5ee8a67ca72bccf0c683fdd943b848fa36e2c058689f5a9ebcb929bc",
+      "bytes": 8167,
+      "lines": 216,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.559279626Z",
+      "modified_at": "2026-04-06T01:10:09.956602116Z"
+    },
+    {
+      "path": "~/.openclaw/workspace/BOOTSTRAP.md",
+      "kind": "openclaw-config",
+      "hash": "2c1642bd91d94910907268a261a2ff11f7a8d5f29aca45c94acecd4565aeb224",
+      "bytes": 1625,
+      "lines": 60,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.559347433Z",
+      "modified_at": "2026-04-06T01:10:31.357441294Z"
+    },
+    {
+      "path": "~/.openclaw/workspace/HEARTBEAT.md",
+      "kind": "openclaw-config",
+      "hash": "dac422286075ba178e9bae58154cc0ae8749a66854e438c9c58e8eb91f22c126",
+      "bytes": 168,
+      "lines": 5,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.559365437Z",
+      "modified_at": "2026-03-21T07:02:55.724941043Z"
+    },
+    {
+      "path": "~/.openclaw/workspace/IDENTITY.md",
+      "kind": "openclaw-config",
+      "hash": "1379f924cf4b4d6d0a306ecc2544a913dab706a1325fcf8eb9b267686ee8551c",
+      "bytes": 636,
+      "lines": 23,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.559403177Z",
+      "modified_at": "2026-03-21T07:02:55.724941043Z"
+    },
+    {
+      "path": "~/.openclaw/workspace/SOUL.md",
+      "kind": "openclaw-config",
+      "hash": "95c467f710183b2c0397c29ec4ef886bb723671a39ee767dc4d59165f723b68f",
+      "bytes": 1673,
+      "lines": 36,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.559465764Z",
+      "modified_at": "2026-03-21T07:02:55.724941043Z"
+    },
+    {
+      "path": "~/.openclaw/workspace/TOOLS.md",
+      "kind": "openclaw-config",
+      "hash": "78f3e26b8625ea283c615cec291d4978da5f9f01df730628c5c42094418b8dc2",
+      "bytes": 860,
+      "lines": 40,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.559510538Z",
+      "modified_at": "2026-03-21T07:02:55.724941043Z"
+    },
+    {
+      "path": "~/.openclaw/workspace/USER.md",
+      "kind": "openclaw-config",
+      "hash": "178a5807bd2e6ace25b80a366f0f7d8d3f354a47f577c4ab0092397456b8738f",
+      "bytes": 477,
+      "lines": 17,
+      "present": true,
+      "imported_at": "2026-05-25T05:00:42.559540263Z",
+      "modified_at": "2026-03-21T07:02:55.724941043Z"
+    }
+  ]
+}
