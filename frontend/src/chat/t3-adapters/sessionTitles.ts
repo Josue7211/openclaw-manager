@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code's thread title repair boundary.
- * ClawControl keeps title heuristics here so Chat.tsx only decides when to
+ * clawctrl keeps title heuristics here so Chat.tsx only decides when to
  * apply a repaired project-scoped chat label.
  */
 

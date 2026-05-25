@@ -1384,7 +1384,7 @@ mod tests {
             id: "acct_proton".into(),
             provider: "proton".into(),
             address: "josue@aparcedo.org".into(),
-            agentmail_inbox_id: "clawcontrol-josue-aparcedo@agentmail.to".into(),
+            agentmail_inbox_id: "clawctrl-josue-aparcedo@agentmail.to".into(),
             imap_host: String::new(),
             imap_port: 993,
             imap_username: String::new(),
@@ -1416,7 +1416,7 @@ mod tests {
             id: "acct_proton".into(),
             provider: "proton".into(),
             address: "josue@aparcedo.org".into(),
-            agentmail_inbox_id: "clawcontrol-josue-aparcedo@agentmail.to".into(),
+            agentmail_inbox_id: "clawctrl-josue-aparcedo@agentmail.to".into(),
             imap_host: "127.0.0.1".into(),
             imap_port: 1143,
             imap_username: "josue@aparcedo.org".into(),
@@ -1478,7 +1478,7 @@ mod tests {
             message_count: Some(1),
         }];
 
-        let response = agentmail_ready_response(threads, "INBOX", "clawcontrol-josue@agentmail.to");
+        let response = agentmail_ready_response(threads, "INBOX", "clawctrl-josue@agentmail.to");
 
         assert_eq!(response["source"], "agentmail");
         assert_eq!(response["state"], "ready");
@@ -1489,7 +1489,7 @@ mod tests {
     #[test]
     fn linked_agentmail_account_with_no_mail_returns_empty_state() {
         let response =
-            agentmail_empty_response("josue@aparcedo.org", "clawcontrol-josue@agentmail.to");
+            agentmail_empty_response("josue@aparcedo.org", "clawctrl-josue@agentmail.to");
 
         assert_eq!(response["source"], "agentmail");
         assert_eq!(response["state"], "empty");
@@ -1515,7 +1515,7 @@ mod tests {
         let response = agentmail_error_response(
             "agentmail_not_configured",
             "josue@aparcedo.org",
-            "clawcontrol-josue@agentmail.to",
+            "clawctrl-josue@agentmail.to",
         );
 
         assert_eq!(response["source"], "agentmail");
@@ -1525,16 +1525,16 @@ mod tests {
     #[test]
     fn agentmail_account_states_never_return_missing_credentials() {
         for response in [
-            agentmail_empty_response("josue@aparcedo.org", "clawcontrol-josue@agentmail.to"),
+            agentmail_empty_response("josue@aparcedo.org", "clawctrl-josue@agentmail.to"),
             agentmail_error_response(
                 "agentmail_not_configured",
                 "josue@aparcedo.org",
-                "clawcontrol-josue@agentmail.to",
+                "clawctrl-josue@agentmail.to",
             ),
             agentmail_error_response(
                 "agentmail_upstream_error",
                 "josue@aparcedo.org",
-                "clawcontrol-josue@agentmail.to",
+                "clawctrl-josue@agentmail.to",
             ),
         ] {
             assert_ne!(response["error"], "missing_credentials");

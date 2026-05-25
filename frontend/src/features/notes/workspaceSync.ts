@@ -33,11 +33,11 @@ export interface SyncedNotesGraphWorkspaceContext {
   groupMode: 'tag' | 'folder' | 'type' | 'none'
 }
 
-export const NOTES_WORKSPACE_SYNC_NOTE_ID = '.clawcontrol/workspaces.md'
+export const NOTES_WORKSPACE_SYNC_NOTE_ID = '.clawctrl/workspaces.md'
 
 const LOCAL_VAULT_PREFIX = '/api/vault/local'
-const WORKSPACE_MARKER_START = '<!-- clawcontrol:workspaces:v1 -->'
-const WORKSPACE_MARKER_END = '<!-- /clawcontrol:workspaces:v1 -->'
+const WORKSPACE_MARKER_START = '<!-- clawctrl:workspaces:v1 -->'
+const WORKSPACE_MARKER_END = '<!-- /clawctrl:workspaces:v1 -->'
 const VALID_VIEW_MODES = new Set<SyncedNotesWorkspaceViewMode>(['editor', 'graph', 'data', 'canvas'])
 const VALID_GRAPH_GROUP_MODES = new Set<SyncedNotesGraphWorkspaceContext['groupMode']>(['tag', 'folder', 'type', 'none'])
 const MAX_WORKSPACE_SNAPSHOTS = 24
@@ -172,7 +172,7 @@ export function notesWorkspaceSnapshotsEqual(
 export function serializeNotesWorkspaceDocument(snapshots: SyncedNotesWorkspaceSnapshot[]): string {
   const normalized = normalizeNotesWorkspaceSnapshots(snapshots)
   return [
-    '# ClawControl workspaces',
+    '# clawctrl workspaces',
     '',
     'This internal note stores synced Notes workspace layout presets.',
     '',
@@ -222,13 +222,13 @@ export async function saveSyncedNotesWorkspaceSnapshots(snapshots: SyncedNotesWo
     ...existing,
     _id: NOTES_WORKSPACE_SYNC_NOTE_ID,
     type: 'note',
-    title: 'ClawControl workspaces',
+    title: 'clawctrl workspaces',
     content: serializeNotesWorkspaceDocument(snapshots),
-    folder: '.clawcontrol',
+    folder: '.clawctrl',
     tags: [],
     links: [],
     aliases: [],
-    properties: { clawcontrol_internal: 'workspaces' },
+    properties: { clawctrl_internal: 'workspaces' },
     created_at: typeof existing.created_at === 'number' ? existing.created_at : now,
     updated_at: now,
   })

@@ -50,14 +50,14 @@ export function verifyMarkdownVaultArchive(buffer: ArrayBuffer | Uint8Array): Va
   } else {
     try {
       manifest = JSON.parse(new TextDecoder().decode(manifestEntry.data))
-      if (manifest?.format !== 'clawcontrol-markdown-vault-tar') {
+      if (manifest?.format !== 'clawctrl-markdown-vault-tar') {
         errors.push('Archive manifest format is not supported')
       }
       if (manifest?.version !== 1) {
         errors.push('Archive manifest version is not supported')
       }
       if (manifest?.plugin_metadata) {
-        if (manifest.plugin_metadata.schema !== 'clawcontrol-vault-plugin-index') {
+        if (manifest.plugin_metadata.schema !== 'clawctrl-vault-plugin-index') {
           errors.push('Archive plugin metadata schema is not supported')
         }
         if (manifest.plugin_metadata.version !== 1) {

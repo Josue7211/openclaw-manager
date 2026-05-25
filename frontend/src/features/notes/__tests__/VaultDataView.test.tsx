@@ -269,7 +269,7 @@ describe('VaultDataView', () => {
   it('loads and saves synced data view presets through the vault document', async () => {
     apiMock.get.mockResolvedValue({
       data: {
-        _id: '.clawcontrol/data-views.md',
+        _id: '.clawctrl/data-views.md',
         content: serializeVaultDataViewPresetDocument([
           {
             id: 'remote-status',
@@ -308,10 +308,10 @@ describe('VaultDataView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save view' }))
 
     await waitFor(() => expect(apiMock.put).toHaveBeenCalled())
-    expect(apiMock.put.mock.calls[0][0]).toBe('/api/vault/local/doc?id=.clawcontrol%2Fdata-views.md')
+    expect(apiMock.put.mock.calls[0][0]).toBe('/api/vault/local/doc?id=.clawctrl%2Fdata-views.md')
     const savedDoc = apiMock.put.mock.calls[0][1] as { content: string; folder: string; properties: Record<string, string> }
-    expect(savedDoc.folder).toBe('.clawcontrol')
-    expect(savedDoc.properties).toEqual({ clawcontrol_internal: 'data-views' })
+    expect(savedDoc.folder).toBe('.clawctrl')
+    expect(savedDoc.properties).toEqual({ clawctrl_internal: 'data-views' })
     expect(parseVaultDataViewPresetDocument(savedDoc.content)).toEqual([
       expect.objectContaining({
         id: 'remote-status',
@@ -324,7 +324,7 @@ describe('VaultDataView', () => {
   })
 
   it('keeps saved data view presets local and exposes retry when vault sync fails', async () => {
-    apiMock.get.mockResolvedValue({ data: { _id: '.clawcontrol/data-views.md', content: '' } })
+    apiMock.get.mockResolvedValue({ data: { _id: '.clawctrl/data-views.md', content: '' } })
     apiMock.put.mockResolvedValue({ data: { rev: 'initial' } })
 
     render(<VaultDataView syncPresets notes={notes} query="" onSelect={vi.fn()} onToggleTask={vi.fn()} />)
@@ -370,7 +370,7 @@ describe('VaultDataView', () => {
         updatedAt: 20,
       },
     ]))
-    apiMock.get.mockResolvedValue({ data: { _id: '.clawcontrol/data-views.md', content: '' } })
+    apiMock.get.mockResolvedValue({ data: { _id: '.clawctrl/data-views.md', content: '' } })
     apiMock.put.mockResolvedValue({ data: { rev: '1-data-views' } })
 
     render(<VaultDataView syncPresets notes={notes} query="" onSelect={vi.fn()} onToggleTask={vi.fn()} />)
@@ -402,7 +402,7 @@ describe('VaultDataView', () => {
     ]))
     apiMock.get.mockResolvedValue({
       data: {
-        _id: '.clawcontrol/data-views.md',
+        _id: '.clawctrl/data-views.md',
         content: serializeVaultDataViewPresetDocument([
           {
             id: 'status',

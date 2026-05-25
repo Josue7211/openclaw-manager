@@ -12,27 +12,27 @@ describe('T3 copied sidebar project grouping', () => {
   it('groups roots by repository identity and preserves physical member refs', () => {
     const projects: Project[] = [
       {
-        id: 'local-clawcontrol',
+        id: 'local-clawctrl',
         environmentId: 'local',
-        name: 'clawcontrol',
-        cwd: '/Volumes/T7/projects/clawcontrol',
+        name: 'clawctrl',
+        cwd: '/Volumes/T7/projects/clawctrl',
         repositoryIdentity: {
-          canonicalKey: 'github.com/josue7211/clawcontrol',
-          rootPath: '/Volumes/T7/projects/clawcontrol',
-          displayName: 'josue7211/clawcontrol',
-          name: 'clawcontrol',
+          canonicalKey: 'github.com/josue7211/clawctrl',
+          rootPath: '/Volumes/T7/projects/clawctrl',
+          displayName: 'josue7211/clawctrl',
+          name: 'clawctrl',
         },
       },
       {
-        id: 'remote-clawcontrol',
+        id: 'remote-clawctrl',
         environmentId: 'agent-vm',
-        name: 'clawcontrol',
-        cwd: '/home/josue/projects/clawcontrol',
+        name: 'clawctrl',
+        cwd: '/home/josue/projects/clawctrl',
         repositoryIdentity: {
-          canonicalKey: 'github.com/josue7211/clawcontrol',
-          rootPath: '/home/josue/projects/clawcontrol',
-          displayName: 'josue7211/clawcontrol',
-          name: 'clawcontrol',
+          canonicalKey: 'github.com/josue7211/clawctrl',
+          rootPath: '/home/josue/projects/clawctrl',
+          displayName: 'josue7211/clawctrl',
+          name: 'clawctrl',
         },
       },
     ]
@@ -46,15 +46,15 @@ describe('T3 copied sidebar project grouping', () => {
 
     expect(snapshots).toHaveLength(1)
     expect(snapshots[0]).toMatchObject({
-      projectKey: 'github.com/josue7211/clawcontrol',
-      displayName: 'josue7211/clawcontrol',
+      projectKey: 'github.com/josue7211/clawctrl',
+      displayName: 'josue7211/clawctrl',
       groupedProjectCount: 2,
       environmentPresence: 'mixed',
       remoteEnvironmentLabels: ['agent-vm'],
     })
     expect(snapshots[0]?.memberProjects.map(derivePhysicalProjectKey)).toEqual([
-      'local:/volumes/t7/projects/clawcontrol',
-      'agent-vm:/home/josue/projects/clawcontrol',
+      'local:/volumes/t7/projects/clawctrl',
+      'agent-vm:/home/josue/projects/clawctrl',
     ])
   })
 
@@ -62,20 +62,20 @@ describe('T3 copied sidebar project grouping', () => {
     const root: Project = {
       id: 'root',
       environmentId: 'local',
-      name: 'clawcontrol',
-      cwd: '/Volumes/T7/projects/clawcontrol',
+      name: 'clawctrl',
+      cwd: '/Volumes/T7/projects/clawctrl',
       repositoryIdentity: {
-        canonicalKey: 'github.com/josue7211/clawcontrol',
-        rootPath: '/Volumes/T7/projects/clawcontrol',
-        displayName: 'josue7211/clawcontrol',
-        name: 'clawcontrol',
+        canonicalKey: 'github.com/josue7211/clawctrl',
+        rootPath: '/Volumes/T7/projects/clawctrl',
+        displayName: 'josue7211/clawctrl',
+        name: 'clawctrl',
       },
     }
     const frontend: Project = {
       ...root,
       id: 'frontend',
       name: 'frontend',
-      cwd: '/Volumes/T7/projects/clawcontrol/frontend',
+      cwd: '/Volumes/T7/projects/clawctrl/frontend',
     }
 
     const snapshots = buildSidebarProjectSnapshots({
@@ -91,8 +91,8 @@ describe('T3 copied sidebar project grouping', () => {
     })
 
     expect(snapshots.map(snapshot => snapshot.projectKey)).toEqual([
-      'github.com/josue7211/clawcontrol',
-      'github.com/josue7211/clawcontrol::frontend',
+      'github.com/josue7211/clawctrl',
+      'github.com/josue7211/clawctrl::frontend',
     ])
   })
 })

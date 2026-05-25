@@ -53,7 +53,7 @@ pub fn cleanup_old_logs(keep_days: i64) {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
 
-        // Match pattern: clawctrl-YYYY-MM-DD.log (or legacy clawcontrol/mission-control logs)
+        // Match pattern: clawctrl-YYYY-MM-DD.log (or legacy clawctrl/mission-control logs)
         if let Some(date_part) = name_str
             .strip_prefix(crate::app_paths::APP_LOG_PREFIX)
             .or_else(|| name_str.strip_prefix(crate::app_paths::LEGACY_APP_LOG_PREFIX))

@@ -479,7 +479,7 @@ vi.mock('@/components/CommandPalette', () => ({
 
 // Preferences sync
 vi.mock('@/lib/preferences-sync', () => ({
-  CHAT_WORKSPACE_PREFERENCES_CHANGED_EVENT: 'clawcontrol:chat-workspace-preferences-changed',
+  CHAT_WORKSPACE_PREFERENCES_CHANGED_EVENT: 'clawctrl:chat-workspace-preferences-changed',
   syncPreferences: vi.fn(),
   loadRemotePreferences: vi.fn(() => Promise.resolve()),
 }))

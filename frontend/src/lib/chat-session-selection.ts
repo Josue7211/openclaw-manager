@@ -1,6 +1,6 @@
 export const CHAT_SELECTED_SESSION_KEY = 'chat-selected-session-key'
 export const CHAT_SELECTED_SESSION_ENVIRONMENT_KEY = 'chat-selected-session-environment'
-export const CHAT_SESSIONS_CHANGED_EVENT = 'clawcontrol:chat-sessions-changed'
+export const CHAT_SESSIONS_CHANGED_EVENT = 'clawctrl:chat-sessions-changed'
 
 export function loadSelectedChatSessionKey(): string | null {
   try {

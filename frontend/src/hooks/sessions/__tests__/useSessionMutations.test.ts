@@ -42,7 +42,7 @@ const SEED_SESSIONS = {
 }
 const FILTERED_GATEWAY_SESSIONS_KEY = [
   ...queryKeys.gatewaySessions,
-  '/api/gateway/sessions?cwd=%2FVolumes%2FT7%2Fprojects%2Fclawcontrol&includeUnscoped=1',
+  '/api/gateway/sessions?cwd=%2FVolumes%2FT7%2Fprojects%2Fclawctrl&includeUnscoped=1',
 ] as const
 const DUPLICATE_THREAD_SESSIONS = {
   ok: true,

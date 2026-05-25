@@ -140,7 +140,7 @@ async function main() {
     cwd: process.cwd(),
     env: {
       ...process.env,
-      CLAWCONTROL_API_BASE: `http://127.0.0.1:${port}`,
+      CLAWCTRL_API_BASE: `http://127.0.0.1:${port}`,
       MC_API_KEY: API_KEY,
     },
     stdio: ['ignore', 'pipe', 'pipe'],

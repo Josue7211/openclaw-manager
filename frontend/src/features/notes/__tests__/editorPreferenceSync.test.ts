@@ -41,14 +41,14 @@ const localPreferences: NotesEditorPreferences = {
 
 describe('editor preference synced vault document', () => {
   it('uses an internal vault note path for synced editor preferences', () => {
-    expect(NOTES_EDITOR_PREFERENCES_SYNC_NOTE_ID).toBe('.clawcontrol/editor-preferences.md')
+    expect(NOTES_EDITOR_PREFERENCES_SYNC_NOTE_ID).toBe('.clawctrl/editor-preferences.md')
   })
 
   it('round-trips sync-safe preferences through the sync document content', () => {
     const state = notesEditorPreferencesToSyncState(localPreferences, 42)
     const content = serializeNotesEditorPreferencesDocument(state)
 
-    expect(content).toContain('clawcontrol:editor-preferences:v1')
+    expect(content).toContain('clawctrl:editor-preferences:v1')
     expect(parseNotesEditorPreferencesDocument(content)).toEqual(state)
   })
 
@@ -101,7 +101,7 @@ describe('editor preference synced vault document', () => {
 
   it('normalizes malformed synced content to defaults', () => {
     expect(parseNotesEditorPreferencesDocument('')).toEqual(expect.objectContaining({ updatedAt: 0 }))
-    expect(parseNotesEditorPreferencesDocument('<!-- clawcontrol:editor-preferences:v1 -->\nnope\n<!-- /clawcontrol:editor-preferences:v1 -->')).toEqual(
+    expect(parseNotesEditorPreferencesDocument('<!-- clawctrl:editor-preferences:v1 -->\nnope\n<!-- /clawctrl:editor-preferences:v1 -->')).toEqual(
       expect.objectContaining({ updatedAt: 0 }),
     )
   })

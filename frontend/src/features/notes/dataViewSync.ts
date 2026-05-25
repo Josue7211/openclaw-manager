@@ -1,16 +1,16 @@
 import { api } from '@/lib/api'
 import { normalizeVaultDataViewPresets, type VaultDataViewPreset } from './dataMode'
 
-export const VAULT_DATA_VIEW_SYNC_NOTE_ID = '.clawcontrol/data-views.md'
+export const VAULT_DATA_VIEW_SYNC_NOTE_ID = '.clawctrl/data-views.md'
 
 const LOCAL_VAULT_PREFIX = '/api/vault/local'
-const DATA_VIEW_MARKER_START = '<!-- clawcontrol:data-views:v1 -->'
-const DATA_VIEW_MARKER_END = '<!-- /clawcontrol:data-views:v1 -->'
+const DATA_VIEW_MARKER_START = '<!-- clawctrl:data-views:v1 -->'
+const DATA_VIEW_MARKER_END = '<!-- /clawctrl:data-views:v1 -->'
 
 export function serializeVaultDataViewPresetDocument(presets: VaultDataViewPreset[]): string {
   const normalized = normalizeVaultDataViewPresets(presets)
   return [
-    '# ClawControl data views',
+    '# clawctrl data views',
     '',
     'This internal note stores synced Notes data-view definitions.',
     '',
@@ -60,13 +60,13 @@ export async function saveSyncedVaultDataViewPresets(presets: VaultDataViewPrese
     ...existing,
     _id: VAULT_DATA_VIEW_SYNC_NOTE_ID,
     type: 'note',
-    title: 'ClawControl data views',
+    title: 'clawctrl data views',
     content: serializeVaultDataViewPresetDocument(presets),
-    folder: '.clawcontrol',
+    folder: '.clawctrl',
     tags: [],
     links: [],
     aliases: [],
-    properties: { clawcontrol_internal: 'data-views' },
+    properties: { clawctrl_internal: 'data-views' },
     created_at: typeof existing.created_at === 'number' ? existing.created_at : now,
     updated_at: now,
   })

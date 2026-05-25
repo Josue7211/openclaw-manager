@@ -9,7 +9,7 @@ import {
 
 describe('pinned notes synced vault document', () => {
   it('uses an internal vault note path for synced pinned notes', () => {
-    expect(NOTES_PINNED_NOTES_SYNC_NOTE_ID).toBe('.clawcontrol/pinned-notes.md')
+    expect(NOTES_PINNED_NOTES_SYNC_NOTE_ID).toBe('.clawctrl/pinned-notes.md')
   })
 
   it('round-trips normalized pinned notes through the sync document content', () => {
@@ -19,7 +19,7 @@ describe('pinned notes synced vault document', () => {
     }
     const content = serializePinnedNotesDocument(state)
 
-    expect(content).toContain('clawcontrol:pinned-notes:v1')
+    expect(content).toContain('clawctrl:pinned-notes:v1')
     expect(parsePinnedNotesDocument(content)).toEqual(state)
   })
 
@@ -44,7 +44,7 @@ describe('pinned notes synced vault document', () => {
 
   it('ignores malformed synced pinned-note content', () => {
     expect(parsePinnedNotesDocument('')).toEqual({ pinnedNoteIds: [], updatedAt: 0 })
-    expect(parsePinnedNotesDocument('<!-- clawcontrol:pinned-notes:v1 -->\nnot json\n<!-- /clawcontrol:pinned-notes:v1 -->')).toEqual({
+    expect(parsePinnedNotesDocument('<!-- clawctrl:pinned-notes:v1 -->\nnot json\n<!-- /clawctrl:pinned-notes:v1 -->')).toEqual({
       pinnedNoteIds: [],
       updatedAt: 0,
     })

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/api', () => ({
-  API_BASE_CHANGED_EVENT: 'clawcontrol:api-base-changed',
+  API_BASE_CHANGED_EVENT: 'clawctrl:api-base-changed',
   getRequestApiKeyForPath: vi.fn(() => 'test-key'),
   getRequestBaseForPath: vi.fn(() => 'http://127.0.0.1:3010'),
 }))

@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code apps/web/src/components/Sidebar.tsx.
- * ClawControl maps its sessions/projects into this project-first sidebar so
+ * clawctrl maps its sessions/projects into this project-first sidebar so
  * Chat.tsx stays as orchestration instead of owning a parallel sidebar UI.
  */
 

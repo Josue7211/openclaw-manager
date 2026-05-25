@@ -14,7 +14,7 @@ export interface UiCustomizationState {
 }
 
 const STORAGE_KEY = 'ui-customization-state'
-const STYLE_ID = 'clawcontrol-ui-customizations'
+const STYLE_ID = 'clawctrl-ui-customizations'
 const MAX_UNDO = 30
 const ALLOWED_PROPERTIES = new Set([
   'align-content',

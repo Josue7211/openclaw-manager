@@ -15,10 +15,10 @@ import {
 import type { ChatWorkspaceProject } from '../projectWorkspace'
 
 const project: ChatWorkspaceProject = {
-  id: 'local:clawcontrol:stable',
-  name: 'clawcontrol',
-  path: '/Volumes/T7/projects/clawcontrol',
-  root: '/Volumes/T7/projects/clawcontrol',
+  id: 'local:clawctrl:stable',
+  name: 'clawctrl',
+  path: '/Volumes/T7/projects/clawctrl',
+  root: '/Volumes/T7/projects/clawctrl',
   environmentId: 'local',
   branches: ['main'],
   currentBranch: 'main',
@@ -41,10 +41,10 @@ describe('T3 session project reference adapter', () => {
     const ref = projectRefFromProject(project, { branch: 'main', runtime: 'Work locally' })
 
     expect(ref).toEqual({
-      project: 'clawcontrol',
-      projectId: 'local:clawcontrol:stable',
-      projectRoot: '/Volumes/T7/projects/clawcontrol',
-      workingDir: '/Volumes/T7/projects/clawcontrol',
+      project: 'clawctrl',
+      projectId: 'local:clawctrl:stable',
+      projectRoot: '/Volumes/T7/projects/clawctrl',
+      workingDir: '/Volumes/T7/projects/clawctrl',
       environmentId: 'local',
       branch: 'main',
       runtime: 'Work locally',
@@ -77,9 +77,9 @@ describe('T3 session project reference adapter', () => {
   it('normalizes corrupted stored refs instead of trusting arbitrary localStorage JSON', () => {
     localStorage.setItem(CHAT_SESSION_PROJECT_REFS_KEY, JSON.stringify({
       ' thread-1 ': {
-        project: ' clawcontrol ',
+        project: ' clawctrl ',
         projectId: 42,
-        workingDir: '/Volumes/T7/projects/clawcontrol ',
+        workingDir: '/Volumes/T7/projects/clawctrl ',
         branch: '',
         runtime: ' Work locally ',
       },
@@ -92,8 +92,8 @@ describe('T3 session project reference adapter', () => {
 
     expect(loadChatSessionProjectRefs()).toEqual({
       'thread-1': {
-        project: 'clawcontrol',
-        workingDir: '/Volumes/T7/projects/clawcontrol',
+        project: 'clawctrl',
+        workingDir: '/Volumes/T7/projects/clawctrl',
         runtime: 'Work locally',
       },
     })
@@ -102,9 +102,9 @@ describe('T3 session project reference adapter', () => {
   it('saves only normalized string refs and drops empty records', () => {
     saveChatSessionProjectRefs({
       [session.key]: {
-        project: ' clawcontrol ',
+        project: ' clawctrl ',
         projectId: undefined,
-        workingDir: '/Volumes/T7/projects/clawcontrol ',
+        workingDir: '/Volumes/T7/projects/clawctrl ',
         runtime: ' ',
       },
       empty: {
@@ -114,8 +114,8 @@ describe('T3 session project reference adapter', () => {
 
     expect(JSON.parse(localStorage.getItem(CHAT_SESSION_PROJECT_REFS_KEY) || '{}')).toEqual({
       [session.key]: {
-        project: 'clawcontrol',
-        workingDir: '/Volumes/T7/projects/clawcontrol',
+        project: 'clawctrl',
+        workingDir: '/Volumes/T7/projects/clawctrl',
       },
     })
   })
@@ -161,8 +161,8 @@ describe('T3 session project reference adapter', () => {
       ],
       {
         [chatSessionProjectRefKey('shared-thread', 'local')]: {
-          project: 'clawcontrol',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
+          project: 'clawctrl',
+          workingDir: '/Volumes/T7/projects/clawctrl',
           environmentId: 'local',
           branch: 'main',
         },
@@ -177,8 +177,8 @@ describe('T3 session project reference adapter', () => {
 
     expect(sessions[0]).toMatchObject({
       key: 'shared-thread',
-      project: 'clawcontrol',
-      workingDir: '/Volumes/T7/projects/clawcontrol',
+      project: 'clawctrl',
+      workingDir: '/Volumes/T7/projects/clawctrl',
       environmentId: 'local',
       branch: 'main',
     })
@@ -258,8 +258,8 @@ describe('T3 session project reference adapter', () => {
       [{ ...session, key: 'restored-thread' }],
       {
         [chatSessionProjectRefKey('restored-thread', 'local')]: {
-          project: 'clawcontrol',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
+          project: 'clawctrl',
+          workingDir: '/Volumes/T7/projects/clawctrl',
           environmentId: 'local',
         },
         [chatSessionProjectRefKey('restored-thread', 'desktop')]: {
@@ -281,8 +281,8 @@ describe('T3 session project reference adapter', () => {
       [{ ...session, key: 'restored-thread' }],
       {
         [chatSessionProjectRefKey('restored-thread', 'desktop')]: {
-          project: 'clawcontrol',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
+          project: 'clawctrl',
+          workingDir: '/Volumes/T7/projects/clawctrl',
           environmentId: 'local',
         },
       },
@@ -299,8 +299,8 @@ describe('T3 session project reference adapter', () => {
       [{ ...session, key: 'shared-thread', environmentId: 'desktop' }],
       {
         'shared-thread': {
-          project: 'clawcontrol',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
+          project: 'clawctrl',
+          workingDir: '/Volumes/T7/projects/clawctrl',
           environmentId: 'local',
         },
       },
@@ -321,16 +321,16 @@ describe('T3 session project reference adapter', () => {
       ],
       {
         'legacy-thread': {
-          project: 'clawcontrol',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
+          project: 'clawctrl',
+          workingDir: '/Volumes/T7/projects/clawctrl',
         },
       },
     )
 
     expect(sessions[0]).toMatchObject({
       key: 'legacy-thread',
-      project: 'clawcontrol',
-      workingDir: '/Volumes/T7/projects/clawcontrol',
+      project: 'clawctrl',
+      workingDir: '/Volumes/T7/projects/clawctrl',
       environmentId: 'local',
     })
     expect(sessions[1]).toEqual({
@@ -343,7 +343,7 @@ describe('T3 session project reference adapter', () => {
   it('removes only the scoped project ref when duplicate thread ids collide', () => {
     const refs = {
       [chatSessionProjectRefKey('shared-thread', 'local')]: {
-        workingDir: '/Volumes/T7/projects/clawcontrol',
+        workingDir: '/Volumes/T7/projects/clawctrl',
         environmentId: 'local',
       },
       [chatSessionProjectRefKey('shared-thread', 'desktop')]: {
@@ -360,7 +360,7 @@ describe('T3 session project reference adapter', () => {
   it('keeps unscoped legacy refs when removing a non-local colliding thread id', () => {
     const refs = {
       'shared-thread': {
-        workingDir: '/Volumes/T7/projects/clawcontrol',
+        workingDir: '/Volumes/T7/projects/clawctrl',
       },
       [chatSessionProjectRefKey('shared-thread', 'desktop')]: {
         workingDir: '/Users/josue/AgentShell',
@@ -433,7 +433,7 @@ describe('T3 session project reference adapter', () => {
   it('keeps ambiguous legacy path refs when pruning a non-local same-path project', () => {
     const remoteProject = {
       ...project,
-      id: 'remote:clawcontrol:stable',
+      id: 'remote:clawctrl:stable',
       environmentId: 'remote-vm',
     }
     const refs = {

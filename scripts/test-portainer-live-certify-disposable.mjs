@@ -5,7 +5,7 @@ import http from 'node:http'
 import { spawn } from 'node:child_process'
 
 const API_KEY = 'dummy-portainer-cert-key'
-const CONTAINER_NAME = 'clawcontrol-cert-events-mock'
+const CONTAINER_NAME = 'clawctrl-cert-events-mock'
 const CONTAINER_ID = 'mock-container-id'
 const RENAMED_CONTAINER_NAME = `${CONTAINER_NAME}-renamed`
 const DUPLICATE_CONTAINER_NAME = `${CONTAINER_NAME}-copy`
@@ -292,7 +292,7 @@ async function main() {
       if (body.action === 'create-stack') {
         assertEndpointAction(body, 'create-stack')
         if (body.args?.name !== STACK_NAME) throw new Error('create-stack name mismatch')
-        if (!String(body.args?.stack_file_content || '').includes('clawcontrol-stack-cert')) throw new Error('create-stack compose marker missing')
+        if (!String(body.args?.stack_file_content || '').includes('clawctrl-stack-cert')) throw new Error('create-stack compose marker missing')
         json(res, 200, {
           data: {
             mode: 'portainer-api',
@@ -306,7 +306,7 @@ async function main() {
         json(res, 200, {
           data: {
             mode: 'portainer-api',
-            response: { logs: '2026-05-22T00:00:00Z clawcontrol-cert\n' },
+            response: { logs: '2026-05-22T00:00:00Z clawctrl-cert\n' },
           },
         })
         return
@@ -332,7 +332,7 @@ async function main() {
             mode: 'portainer-api',
             response: {
               Titles: ['UID', 'PID', 'CMD'],
-              Processes: [['root', '1', 'sh -c echo clawcontrol-cert && sleep 300']],
+              Processes: [['root', '1', 'sh -c echo clawctrl-cert && sleep 300']],
             },
           },
         })
@@ -340,13 +340,13 @@ async function main() {
       }
       if (body.action === 'exec') {
         assertContainerAction(body, 'exec')
-        if (!String(body.args?.cmd || '').includes('clawcontrol-exec')) throw new Error('exec command mismatch')
+        if (!String(body.args?.cmd || '').includes('clawctrl-exec')) throw new Error('exec command mismatch')
         json(res, 200, {
           data: {
             mode: 'portainer-api',
             response: {
               exec_id: 'mock-exec-id',
-              output: 'clawcontrol-exec\n',
+              output: 'clawctrl-exec\n',
             },
           },
         })
@@ -358,7 +358,7 @@ async function main() {
           data: {
             mode: 'portainer-api',
             response: [
-              { Kind: 1, Path: '/tmp/clawcontrol-cert-detail' },
+              { Kind: 1, Path: '/tmp/clawctrl-cert-detail' },
             ],
           },
         })
@@ -434,7 +434,7 @@ async function main() {
                 'services:',
                 '  cert:',
                 '    image: alpine:3.20',
-                '    command: sh -c "echo clawcontrol-stack-cert && sleep 300"',
+                '    command: sh -c "echo clawctrl-stack-cert && sleep 300"',
                 '',
               ].join('\n'),
             },
@@ -449,7 +449,7 @@ async function main() {
           data: {
             mode: 'portainer-api',
             response: {
-              logs: `===== ${STACK_NAME}_cert_1 (stackcert123) =====\n2026-05-22T00:00:00Z clawcontrol-stack-cert\n`,
+              logs: `===== ${STACK_NAME}_cert_1 (stackcert123) =====\n2026-05-22T00:00:00Z clawctrl-stack-cert\n`,
               containers: [{ id: 'stackcert123', name: `${STACK_NAME}_cert_1`, image: SOURCE_IMAGE, state: 'running' }],
               tail: 50,
             },
@@ -460,7 +460,7 @@ async function main() {
       if (body.action === 'update-stack') {
         assertStackAction(body, 'update-stack')
         if (body.confirmation !== STACK_NAME) throw new Error('update-stack did not send typed confirmation')
-        if (!String(body.args?.stack_file_content || '').includes('clawcontrol-stack-cert-updated')) throw new Error('update-stack compose marker missing')
+        if (!String(body.args?.stack_file_content || '').includes('clawctrl-stack-cert-updated')) throw new Error('update-stack compose marker missing')
         if (body.args?.prune !== true) throw new Error('update-stack prune mismatch')
         json(res, 200, {
           data: {
@@ -631,7 +631,7 @@ async function main() {
     cwd: process.cwd(),
     env: {
       ...process.env,
-      CLAWCONTROL_API_BASE: `http://127.0.0.1:${port}`,
+      CLAWCTRL_API_BASE: `http://127.0.0.1:${port}`,
       MC_API_KEY: API_KEY,
       PORTAINER_CERTIFY_NAME: CONTAINER_NAME,
     },

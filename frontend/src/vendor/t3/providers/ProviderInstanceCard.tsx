@@ -2,7 +2,7 @@
  * Copied/adapted from T3 Code apps/web/src/components/settings/ProviderInstanceCard.tsx
  * and ProviderModelsSection.tsx (MIT License).
  *
- * ClawControl uses this read-only card in chat parity settings. Editing remains
+ * clawctrl uses this read-only card in chat parity settings. Editing remains
  * out of scope for this adapter, but model display/status/auth/setup/config
  * presentation follows the T3 card layer.
  */

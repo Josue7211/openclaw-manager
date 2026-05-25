@@ -106,7 +106,7 @@ export interface VaultSuggestion {
 }
 
 export interface VaultEncryptedBackup {
-  format: 'clawcontrol-encrypted-vault-backup' | string
+  format: 'clawctrl-encrypted-vault-backup' | string
   version: number
   created_at: string
   encryption: {
@@ -200,7 +200,7 @@ export interface VaultCollaborationPeer {
 }
 
 export interface VaultCollaborationEvent {
-  protocol: 'clawcontrol-notes-local-collab'
+  protocol: 'clawctrl-notes-local-collab'
   version: 1
   eventId: string
   clientId: string
@@ -366,7 +366,7 @@ const INTERNAL_PREFIXES = [
   'ps:',
   'ix:',
   'cc:',
-  '.clawcontrol/',
+  '.clawctrl/',
   '.obsidian/',
   '.obsidian-livesync/',
   'obsydian_livesync',
@@ -1467,7 +1467,7 @@ function parseVaultCollaborationEvents(payload: any): VaultCollaborationEvent[] 
     ? payload.events
         .filter((event: any) => event && typeof event === 'object')
         .map((event: any) => ({
-          protocol: 'clawcontrol-notes-local-collab',
+          protocol: 'clawctrl-notes-local-collab',
           version: 1,
           eventId: String(event.eventId || event.id || crypto.randomUUID()),
           clientId: String(event.clientId || event.client_id || event.peer?.id || ''),

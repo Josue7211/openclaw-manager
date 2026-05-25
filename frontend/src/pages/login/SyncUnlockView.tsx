@@ -113,7 +113,7 @@ export function SyncUnlockView({
           lineHeight: 1.5,
           textAlign: 'center',
         }}>
-          No recovery key exists for this account, so ClawControl will not ask for one.
+          No recovery key exists for this account, so clawctrl will not ask for one.
         </div>
       )}
       <div style={{

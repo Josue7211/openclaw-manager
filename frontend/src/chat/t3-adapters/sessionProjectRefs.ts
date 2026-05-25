@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code's project-scoped thread routing model.
- * ClawControl keeps local session reference persistence here so project-owned
+ * clawctrl keeps local session reference persistence here so project-owned
  * chats remain attached to their directory/project instead of floating in Recent.
  */
 

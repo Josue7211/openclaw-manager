@@ -87,10 +87,10 @@ secret() {
 
 need ssh
 
-target_files='~/.hermes/.env ~/.config/clawcontrol-hermes.env'
+target_files='~/.hermes/.env ~/.config/clawctrl-hermes.env'
 
 set_bluebubbles_config_safety() {
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawcontrol_known_hosts "$SSH_TARGET" '
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawctrl_known_hosts "$SSH_TARGET" '
     set -e
     python3 - <<'"'"'PY'"'"'
 from pathlib import Path
@@ -121,12 +121,12 @@ if [ "$DISABLE" -eq 1 ]; then
     exit 0
   fi
 
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawcontrol_known_hosts "$SSH_TARGET" '
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawctrl_known_hosts "$SSH_TARGET" '
     set -e
     python3 - <<'"'"'PY'"'"'
 from pathlib import Path
 
-for path in [Path.home() / ".hermes/.env", Path.home() / ".config/clawcontrol-hermes.env"]:
+for path in [Path.home() / ".hermes/.env", Path.home() / ".config/clawctrl-hermes.env"]:
     if not path.exists():
         continue
     kept = []
@@ -139,7 +139,7 @@ PY
   '
   set_bluebubbles_config_safety
   if [ "$RESTART" -eq 1 ]; then
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawcontrol_known_hosts "$SSH_TARGET" \
+    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawctrl_known_hosts "$SSH_TARGET" \
       'systemctl --user restart hermes-api-server.service'
   fi
   printf 'disabled=true\n'
@@ -232,7 +232,7 @@ payload="$(jq -nc \
     BLUEBUBBLES_FROM_ME_PREFIXES: $from_me_prefixes
   }')"
 
-printf '%s' "$payload" | ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawcontrol_known_hosts "$SSH_TARGET" '
+printf '%s' "$payload" | ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawctrl_known_hosts "$SSH_TARGET" '
   set -e
   python3 -c '"'"'
 import json
@@ -240,7 +240,7 @@ import sys
 from pathlib import Path
 
 payload = json.load(sys.stdin)
-paths = [Path.home() / ".hermes/.env", Path.home() / ".config/clawcontrol-hermes.env"]
+paths = [Path.home() / ".hermes/.env", Path.home() / ".config/clawctrl-hermes.env"]
 for path in paths:
     lines = path.read_text().splitlines() if path.exists() else []
     seen = set()
@@ -263,6 +263,6 @@ for path in paths:
 set_bluebubbles_config_safety
 
 if [ "$RESTART" -eq 1 ]; then
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawcontrol_known_hosts "$SSH_TARGET" \
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawctrl_known_hosts "$SSH_TARGET" \
     'systemctl --user restart hermes-api-server.service'
 fi

@@ -2168,11 +2168,11 @@ mod tests {
     #[test]
     fn chat_workspace_machine_labels_external_linux_volumes_by_drive_name() {
         assert_eq!(
-            machine_label_for_path(Path::new("/run/media/josue/T7/projects/clawcontrol")),
+            machine_label_for_path(Path::new("/run/media/josue/T7/projects/clawctrl")),
             "T7"
         );
         assert_eq!(
-            machine_label_for_path(Path::new("/Volumes/T7/projects/clawcontrol")),
+            machine_label_for_path(Path::new("/Volumes/T7/projects/clawctrl")),
             "T7"
         );
     }
@@ -2181,7 +2181,7 @@ mod tests {
     fn local_chat_sessions_append_history_rename_and_delete() {
         let _guard = data_dir_env_lock().lock().expect("env lock");
         let dir = tempfile::tempdir().unwrap();
-        let _data_dir = set_test_env("CLAWCONTROL_DATA_DIR", dir.path());
+        let _data_dir = set_test_env("CLAWCTRL_DATA_DIR", dir.path());
 
         let session = append_local_chat_turn(AppendLocalChatTurn {
             session_key: None,
@@ -2263,7 +2263,7 @@ mod tests {
     fn local_chat_session_history_limit_returns_latest_messages_in_order() {
         let _guard = data_dir_env_lock().lock().expect("env lock");
         let dir = tempfile::tempdir().unwrap();
-        let _data_dir = set_test_env("CLAWCONTROL_DATA_DIR", dir.path());
+        let _data_dir = set_test_env("CLAWCTRL_DATA_DIR", dir.path());
 
         let first = append_local_chat_turn(AppendLocalChatTurn {
             session_key: None,
@@ -2326,7 +2326,7 @@ mod tests {
     fn local_chat_session_label_uses_context_file_paths_for_file_only_turns() {
         let _guard = data_dir_env_lock().lock().expect("env lock");
         let dir = tempfile::tempdir().unwrap();
-        let _data_dir = set_test_env("CLAWCONTROL_DATA_DIR", dir.path());
+        let _data_dir = set_test_env("CLAWCTRL_DATA_DIR", dir.path());
 
         let session = append_local_chat_turn(AppendLocalChatTurn {
             session_key: None,
@@ -2367,7 +2367,7 @@ mod tests {
     fn local_chat_session_compact_summarizes_older_messages_and_keeps_metadata() {
         let _guard = data_dir_env_lock().lock().expect("env lock");
         let dir = tempfile::tempdir().unwrap();
-        let _data_dir = set_test_env("CLAWCONTROL_DATA_DIR", dir.path());
+        let _data_dir = set_test_env("CLAWCTRL_DATA_DIR", dir.path());
         let repeated = "context ".repeat(180);
 
         let first = append_local_chat_turn(AppendLocalChatTurn {
@@ -2528,9 +2528,9 @@ mod tests {
             &repo,
             &[
                 "-c",
-                "user.name=ClawControl",
+                "user.name=clawctrl",
                 "-c",
-                "user.email=clawcontrol@example.test",
+                "user.email=clawctrl@example.test",
                 "commit",
                 "-m",
                 "init",
@@ -2834,9 +2834,9 @@ mod tests {
             &repo,
             &[
                 "-c",
-                "user.name=ClawControl",
+                "user.name=clawctrl",
                 "-c",
-                "user.email=clawcontrol@example.test",
+                "user.email=clawctrl@example.test",
                 "commit",
                 "-m",
                 "init",
@@ -2902,7 +2902,7 @@ mod tests {
     fn updating_stored_chat_workspace_project_refreshes_git_metadata() {
         let _guard = data_dir_env_lock().lock().expect("env lock");
         let dir = tempfile::tempdir().unwrap();
-        let _data_dir = set_test_env("CLAWCONTROL_DATA_DIR", dir.path());
+        let _data_dir = set_test_env("CLAWCTRL_DATA_DIR", dir.path());
         let repo = dir.path().join("patched-project");
         std::fs::create_dir_all(&repo).unwrap();
 
@@ -2919,9 +2919,9 @@ mod tests {
             &repo,
             &[
                 "-c",
-                "user.name=ClawControl",
+                "user.name=clawctrl",
                 "-c",
-                "user.email=clawcontrol@example.test",
+                "user.email=clawctrl@example.test",
                 "commit",
                 "-m",
                 "init",
@@ -2965,7 +2965,7 @@ mod tests {
     fn native_chat_workspace_project_commands_return_refreshed_mutation_payloads() {
         let _guard = data_dir_env_lock().lock().expect("env lock");
         let dir = tempfile::tempdir().unwrap();
-        let _data_dir = set_test_env("CLAWCONTROL_DATA_DIR", dir.path());
+        let _data_dir = set_test_env("CLAWCTRL_DATA_DIR", dir.path());
         let repo = dir.path().join("native-project");
         std::fs::create_dir_all(&repo).unwrap();
 
@@ -3020,7 +3020,7 @@ mod tests {
     fn stored_chat_workspace_project_list_and_remove_return_refreshed_metadata() {
         let _guard = data_dir_env_lock().lock().expect("env lock");
         let dir = tempfile::tempdir().unwrap();
-        let _data_dir = set_test_env("CLAWCONTROL_DATA_DIR", dir.path());
+        let _data_dir = set_test_env("CLAWCTRL_DATA_DIR", dir.path());
         let removed_repo = dir.path().join("removed-project");
         let remaining_repo = dir.path().join("remaining-project");
         std::fs::create_dir_all(&removed_repo).unwrap();
@@ -3040,9 +3040,9 @@ mod tests {
                 repo,
                 &[
                     "-c",
-                    "user.name=ClawControl",
+                    "user.name=clawctrl",
                     "-c",
-                    "user.email=clawcontrol@example.test",
+                    "user.email=clawctrl@example.test",
                     "commit",
                     "-m",
                     "init",
@@ -3093,7 +3093,7 @@ mod tests {
     fn stored_chat_workspace_project_update_and_remove_match_canonical_path_variants() {
         let _guard = data_dir_env_lock().lock().expect("env lock");
         let dir = tempfile::tempdir().unwrap();
-        let _data_dir = set_test_env("CLAWCONTROL_DATA_DIR", dir.path());
+        let _data_dir = set_test_env("CLAWCTRL_DATA_DIR", dir.path());
         let repo = dir.path().join("variant-project");
         std::fs::create_dir_all(&repo).unwrap();
 
@@ -3124,7 +3124,7 @@ mod tests {
     fn stored_chat_workspace_project_remove_matches_missing_path_variants() {
         let _guard = data_dir_env_lock().lock().expect("env lock");
         let dir = tempfile::tempdir().unwrap();
-        let _data_dir = set_test_env("CLAWCONTROL_DATA_DIR", dir.path());
+        let _data_dir = set_test_env("CLAWCTRL_DATA_DIR", dir.path());
         let repo = dir.path().join("missing-variant-project");
         std::fs::create_dir_all(&repo).unwrap();
         let stored = normalize_chat_workspace_project(repo.clone());
@@ -3145,7 +3145,7 @@ mod tests {
     fn stored_chat_workspace_project_routes_fall_back_to_path_when_id_is_stale() {
         let _guard = data_dir_env_lock().lock().expect("env lock");
         let dir = tempfile::tempdir().unwrap();
-        let _data_dir = set_test_env("CLAWCONTROL_DATA_DIR", dir.path());
+        let _data_dir = set_test_env("CLAWCTRL_DATA_DIR", dir.path());
         let repo = dir.path().join("stale-id-project");
         std::fs::create_dir_all(&repo).unwrap();
 
@@ -3181,7 +3181,7 @@ mod tests {
     fn stored_chat_workspace_project_rename_rejects_blank_names() {
         let _guard = data_dir_env_lock().lock().expect("env lock");
         let dir = tempfile::tempdir().unwrap();
-        let _data_dir = set_test_env("CLAWCONTROL_DATA_DIR", dir.path());
+        let _data_dir = set_test_env("CLAWCTRL_DATA_DIR", dir.path());
         let repo = dir.path().join("blank-name-project");
         std::fs::create_dir_all(&repo).unwrap();
 
@@ -3210,7 +3210,7 @@ mod tests {
     fn stored_chat_workspace_project_mutations_respect_environment_identity() {
         let _guard = data_dir_env_lock().lock().expect("env lock");
         let dir = tempfile::tempdir().unwrap();
-        let _data_dir = set_test_env("CLAWCONTROL_DATA_DIR", dir.path());
+        let _data_dir = set_test_env("CLAWCTRL_DATA_DIR", dir.path());
         let repo = dir.path().join("shared-path-project");
         std::fs::create_dir_all(&repo).unwrap();
 
@@ -3257,7 +3257,7 @@ mod tests {
     fn stored_chat_workspace_project_exact_id_respects_supplied_environment_lookup() {
         let _guard = data_dir_env_lock().lock().expect("env lock");
         let dir = tempfile::tempdir().unwrap();
-        let _data_dir = set_test_env("CLAWCONTROL_DATA_DIR", dir.path());
+        let _data_dir = set_test_env("CLAWCTRL_DATA_DIR", dir.path());
         let local_repo = dir.path().join("local-project");
         let remote_repo = dir.path().join("remote-project");
         std::fs::create_dir_all(&local_repo).unwrap();
@@ -3310,7 +3310,7 @@ mod tests {
     fn adding_stored_chat_workspace_project_replaces_legacy_path_variants() {
         let _guard = data_dir_env_lock().lock().expect("env lock");
         let dir = tempfile::tempdir().unwrap();
-        let _data_dir = set_test_env("CLAWCONTROL_DATA_DIR", dir.path());
+        let _data_dir = set_test_env("CLAWCTRL_DATA_DIR", dir.path());
         let repo = dir.path().join("duplicate-project");
         std::fs::create_dir_all(&repo).unwrap();
 

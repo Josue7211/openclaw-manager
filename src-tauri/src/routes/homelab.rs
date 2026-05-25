@@ -7704,8 +7704,8 @@ fn kubernetes_custom_resource_plural(document: &Value, kind: &str) -> Result<Str
     if let Some(plural) = kubernetes_manifest_annotation(
         document,
         &[
-            "clawcontrol.dev/plural",
-            "clawcontrol.io/plural",
+            "clawctrl.dev/plural",
+            "clawctrl.io/plural",
             "portainer.io/plural",
         ],
     ) {
@@ -7727,8 +7727,8 @@ fn kubernetes_custom_resource_cluster_scoped(document: &Value, args: &Value) -> 
     if let Some(scope) = kubernetes_manifest_annotation(
         document,
         &[
-            "clawcontrol.dev/scope",
-            "clawcontrol.io/scope",
+            "clawctrl.dev/scope",
+            "clawctrl.io/scope",
             "portainer.io/scope",
         ],
     ) {
@@ -15530,8 +15530,8 @@ mod tests {
     #[test]
     fn test_proxmox_token_user_derives_shell_console_user() {
         assert_eq!(
-            proxmox_token_user("root@pam!clawcontrol").as_deref(),
-            Some("root@pam!clawcontrol")
+            proxmox_token_user("root@pam!clawctrl").as_deref(),
+            Some("root@pam!clawctrl")
         );
         assert_eq!(
             proxmox_token_user("admin@pve").as_deref(),
@@ -15727,7 +15727,7 @@ mod tests {
         secrets.insert("PROXMOX_HOST".to_string(), base_url.to_string());
         secrets.insert(
             "PROXMOX_TOKEN_ID".to_string(),
-            "root@pam!clawcontrol".to_string(),
+            "root@pam!clawctrl".to_string(),
         );
         secrets.insert(
             "PROXMOX_TOKEN_SECRET".to_string(),
@@ -15783,7 +15783,7 @@ mod tests {
         assert_eq!(request.path, "/api2/json/nodes/pve/qemu/100/vncproxy");
         assert_eq!(
             request.authorization.as_deref(),
-            Some("PVEAPIToken=root@pam!clawcontrol=secret-value")
+            Some("PVEAPIToken=root@pam!clawctrl=secret-value")
         );
         assert!(request
             .content_type
@@ -15845,7 +15845,7 @@ mod tests {
             spawn_fake_proxmox_disconnect_then_success("200 OK", body).await;
         let config = ProxmoxApiCredentials {
             url: base_url,
-            token_id: "root@pam!clawcontrol".to_string(),
+            token_id: "root@pam!clawctrl".to_string(),
             token_secret: "secret-value".to_string(),
             origin: "test",
         };
@@ -15853,7 +15853,7 @@ mod tests {
         let node = infer_single_proxmox_api_node(
             &insecure_client(),
             &config,
-            "PVEAPIToken=root@pam!clawcontrol=secret-value",
+            "PVEAPIToken=root@pam!clawctrl=secret-value",
         )
         .await
         .expect("node inference should retry transient request failure");
@@ -15928,7 +15928,7 @@ mod tests {
         assert_eq!(request.path, "/api2/json/nodes/pve/termproxy");
         assert_eq!(
             request.authorization.as_deref(),
-            Some("PVEAPIToken=root@pam!clawcontrol=secret-value")
+            Some("PVEAPIToken=root@pam!clawctrl=secret-value")
         );
         assert!(request.body.is_empty());
         assert_eq!(result["target"], json!({ "node": "pve" }));
@@ -16005,7 +16005,7 @@ mod tests {
         assert_eq!(request.path, "/api2/json/nodes/pve/qemu/100/config");
         assert_eq!(
             request.authorization.as_deref(),
-            Some("PVEAPIToken=root@pam!clawcontrol=secret-value")
+            Some("PVEAPIToken=root@pam!clawctrl=secret-value")
         );
         assert!(request
             .content_type
@@ -16145,7 +16145,7 @@ mod tests {
             assert_eq!(request.path, path, "{action} path");
             assert_eq!(
                 request.authorization.as_deref(),
-                Some("PVEAPIToken=root@pam!clawcontrol=secret-value"),
+                Some("PVEAPIToken=root@pam!clawctrl=secret-value"),
                 "{action} auth"
             );
             assert_eq!(decoded_form_pairs(&request.body), form, "{action} form");
@@ -16291,7 +16291,7 @@ mod tests {
                 "create-vm",
                 json!({
                     "vmid": 990,
-                    "name": "clawcontrol-cert-vm",
+                    "name": "clawctrl-cert-vm",
                     "memory_mb": 512,
                     "cores": 1,
                     "storage": "local-lvm",
@@ -16307,7 +16307,7 @@ mod tests {
                 "create-lxc",
                 json!({
                     "vmid": 991,
-                    "hostname": "clawcontrol-cert-ct",
+                    "hostname": "clawctrl-cert-ct",
                     "ostemplate": "local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst",
                     "memory_mb": 512,
                     "cores": 1,
@@ -16835,8 +16835,8 @@ spec:
                     "metadata": {
                         "name": "global",
                         "annotations": {
-                            "clawcontrol.dev/plural": "policies",
-                            "clawcontrol.dev/scope": "Cluster"
+                            "clawctrl.dev/plural": "policies",
+                            "clawctrl.dev/scope": "Cluster"
                         }
                     }
                 }),
@@ -17603,7 +17603,7 @@ spec:
             validate_proxmox_volume_id("local:backup/bad archive.vma.zst", "backup archive")
                 .is_err()
         );
-        let upid = "UPID:pve:000EE18B:1D8D45C5:6A0FB5F3:qmstart:100:root@pam!clawcontrol:";
+        let upid = "UPID:pve:000EE18B:1D8D45C5:6A0FB5F3:qmstart:100:root@pam!clawctrl:";
         assert_eq!(validate_proxmox_task_upid(upid).expect("upid"), upid);
         assert!(validate_proxmox_task_upid("local:backup/not-a-task").is_err());
     }
@@ -18030,7 +18030,7 @@ spec:
         assert_eq!(group.users, "root@pam,ops@pve");
 
         let role = to_proxmox_access_role(&json!({
-            "roleid": "ClawControlAudit",
+            "roleid": "clawctrlAudit",
             "privs": ["Sys.Audit", "VM.Audit"],
             "special": 0
         }))
@@ -18040,14 +18040,14 @@ spec:
 
         let acl = to_proxmox_access_acl(&json!({
             "path": "/",
-            "ugid": "root@pam!clawcontrol",
+            "ugid": "root@pam!clawctrl",
             "roleid": "Administrator",
             "propagate": 1,
             "type": "token"
         }))
         .expect("acl");
         assert_eq!(acl.path, "/");
-        assert_eq!(acl.ugid, "root@pam!clawcontrol");
+        assert_eq!(acl.ugid, "root@pam!clawctrl");
         assert_eq!(acl.roleid, "Administrator");
         assert!(acl.propagate);
 
@@ -18064,7 +18064,7 @@ spec:
         let token = to_proxmox_access_token(
             "root@pam",
             &json!({
-                "tokenid": "clawcontrol",
+                "tokenid": "clawctrl",
                 "privsep": 1,
                 "expire": 0,
                 "comment": "automation"
@@ -18072,7 +18072,7 @@ spec:
         )
         .expect("token");
         assert_eq!(token.userid, "root@pam");
-        assert_eq!(token.tokenid, "clawcontrol");
+        assert_eq!(token.tokenid, "clawctrl");
         assert!(token.privsep);
     }
 

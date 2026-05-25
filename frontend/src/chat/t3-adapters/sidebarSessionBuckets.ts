@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code's sidebar project/thread ownership behavior.
- * T3 keeps project-owned threads under their project group; ClawControl uses
+ * T3 keeps project-owned threads under their project group; clawctrl uses
  * this adapter to keep only truly unscoped gateway sessions in Recent.
  */
 

@@ -20,7 +20,7 @@ describe('ui-customization-store', () => {
       styles: { padding: '6px', backgroundColor: 'red' },
     })
 
-    expect(document.getElementById('clawcontrol-ui-customizations')?.textContent).toContain('padding: 6px')
+    expect(document.getElementById('clawctrl-ui-customizations')?.textContent).toContain('padding: 6px')
     expect(localStorage.getItem('ui-customization-state')).toBeNull()
 
     expect(store.commitUiCustomizationDraft()).toBe(true)
@@ -37,7 +37,7 @@ describe('ui-customization-store', () => {
       styles: { rowGap: '8px', textAlign: 'center' },
     })
 
-    const css = document.getElementById('clawcontrol-ui-customizations')?.textContent || ''
+    const css = document.getElementById('clawctrl-ui-customizations')?.textContent || ''
     expect(css).toContain(':root[data-claw-route="/todos"] [data-testid="target"]')
     expect(css).toContain('row-gap: 8px')
     expect(css).toContain('text-align: center')
@@ -57,13 +57,13 @@ describe('ui-customization-store', () => {
       styles: { padding: '12px' },
     })
 
-    expect(document.getElementById('clawcontrol-ui-customizations')?.textContent).toContain('12px')
+    expect(document.getElementById('clawctrl-ui-customizations')?.textContent).toContain('12px')
     expect(store.undoUiCustomizationDraft()).toBe(true)
-    expect(document.getElementById('clawcontrol-ui-customizations')?.textContent).toContain('6px')
+    expect(document.getElementById('clawctrl-ui-customizations')?.textContent).toContain('6px')
     expect(store.redoUiCustomizationDraft()).toBe(true)
-    expect(document.getElementById('clawcontrol-ui-customizations')?.textContent).toContain('12px')
+    expect(document.getElementById('clawctrl-ui-customizations')?.textContent).toContain('12px')
     expect(store.discardUiCustomizationDraft()).toBe(true)
-    expect(document.getElementById('clawcontrol-ui-customizations')?.textContent).not.toContain('12px')
+    expect(document.getElementById('clawctrl-ui-customizations')?.textContent).not.toContain('12px')
   })
 
   it('drops unsafe CSS values and unsupported properties', async () => {

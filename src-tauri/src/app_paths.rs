@@ -9,7 +9,9 @@ pub const LEGACY_APP_LOG_PREFIX: &str = "clawcontrol";
 pub const OLDEST_APP_LOG_PREFIX: &str = "mission-control";
 
 fn data_local_root() -> PathBuf {
-    if let Ok(path) = std::env::var("CLAWCONTROL_DATA_DIR") {
+    if let Ok(path) =
+        std::env::var("CLAWCTRL_DATA_DIR").or_else(|_| std::env::var("CLAWCONTROL_DATA_DIR"))
+    {
         let trimmed = path.trim();
         if !trimmed.is_empty() {
             return PathBuf::from(trimmed);

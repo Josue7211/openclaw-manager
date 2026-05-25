@@ -1,5 +1,5 @@
 // Copied/adapted from T3 Code apps/web/src/sidebarProjectGrouping.ts.
-// ClawControl adapters convert local workspace projects into this T3 shape.
+// clawctrl adapters convert local workspace projects into this T3 shape.
 
 import {
   deriveLogicalProjectKeyFromSettings,

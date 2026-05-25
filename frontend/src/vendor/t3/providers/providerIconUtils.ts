@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code apps/web/src/components/chat/providerIconUtils.ts
- * (MIT License). ClawControl keeps the model-display helpers local so the
+ * (MIT License). clawctrl keeps the model-display helpers local so the
  * composer picker can share T3's provider-instance language without pulling
  * in T3's full icon system.
  */

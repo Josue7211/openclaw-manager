@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code apps/web/src/components/chat/ProviderInstanceIcon.tsx
- * (MIT License). T3 renders provider icons when available; this ClawControl
+ * (MIT License). T3 renders provider icons when available; this clawctrl
  * adapter uses stable initials for local provider instances.
  */
 

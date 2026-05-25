@@ -25,7 +25,7 @@ const MAX_VNC_CONNECTIONS: usize = 8;
 const VNC_SECURITY_NONE: u8 = 1;
 const LOCAL_TUNNEL_SERVICE: &str = "openclaw-vnc-tunnel.service";
 const LEGACY_LOCAL_TUNNEL_SERVICE: &str = "openclaw-sunshine-tunnel.service";
-const REMOTE_VNC_SERVICE: &str = "clawcontrol-vnc.service";
+const REMOTE_VNC_SERVICE: &str = "clawctrl-vnc.service";
 const REMOTE_VNC_HOST: &str = "agent-vm";
 const DEFAULT_VNC_HOST: &str = "127.0.0.1";
 const DEFAULT_VNC_PORT: u16 = 5901;
@@ -812,7 +812,7 @@ mod tests {
                 "address": "127.0.0.1:5901",
                 "configured": false,
                 "repairHost": "agent-vm",
-                "vncService": "clawcontrol-vnc.service",
+                "vncService": "clawctrl-vnc.service",
                 "tunnelService": "openclaw-vnc-tunnel.service"
             },
             "reason": "connect failed: Connection refused (os error 61)",

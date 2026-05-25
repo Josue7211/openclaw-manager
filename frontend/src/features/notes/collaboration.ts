@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-const COLLAB_PROTOCOL = 'clawcontrol-notes-local-collab'
+const COLLAB_PROTOCOL = 'clawctrl-notes-local-collab'
 const COLLAB_VERSION = 1
 const PEER_TTL_MS = 15_000
 const PRESENCE_INTERVAL_MS = 5_000
@@ -161,7 +161,7 @@ export interface LocalCrdtState {
 }
 
 export function localCollabChannelName(documentId: string): string {
-  return `clawcontrol-notes:${documentId.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120)}`
+  return `clawctrl-notes:${documentId.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120)}`
 }
 
 export function summarizeLocalCollabProviderStatuses(

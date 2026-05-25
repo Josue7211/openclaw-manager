@@ -6,7 +6,7 @@ ENV_FILE="${CLAWCTRL_ENV_FILE:-$ROOT/.env.local}"
 MAC_HOST="${MAC_HOST:-macbook}"
 MAC_BRIDGE_SRC="${MAC_BRIDGE_SRC:-/home/josue/Documents/projects new/memd/integrations/mac-bridge}"
 MAC_BRIDGE_REMOTE_DIR_RAW="${MAC_BRIDGE_REMOTE_DIR:-~/Documents/projects/memd/integrations/mac-bridge}"
-CLAWCTRL_REMOTE_DIR_RAW="${CLAWCTRL_REMOTE_DIR:-~/Documents/projects/clawcontrol}"
+CLAWCTRL_REMOTE_DIR_RAW="${CLAWCTRL_REMOTE_DIR:-~/Documents/projects/clawctrl}"
 MAC_BRIDGE_PORT="${MAC_BRIDGE_PORT:-4100}"
 BLUEBUBBLES_PORT="${BLUEBUBBLES_PORT:-1234}"
 
@@ -95,13 +95,13 @@ say "installing BlueBubbles keepalive LaunchAgent"
 "${SSH_BASE[@]}" "$MAC_HOST" "mkdir -p '$CLAWCTRL_REMOTE_DIR/scripts' '$REMOTE_LAUNCH_AGENTS'"
 "${SCP_BASE[@]}" "$ROOT/scripts/ensure-bluebubbles.sh" "$MAC_HOST:$CLAWCTRL_REMOTE_DIR/scripts/ensure-bluebubbles.sh" >/dev/null
 "${SSH_BASE[@]}" "$MAC_HOST" "chmod 755 '$CLAWCTRL_REMOTE_DIR/scripts/ensure-bluebubbles.sh'"
-"${SSH_BASE[@]}" "$MAC_HOST" "cat > '$REMOTE_LAUNCH_AGENTS/com.clawcontrol.bluebubbles-watch.plist' <<EOF
+"${SSH_BASE[@]}" "$MAC_HOST" "cat > '$REMOTE_LAUNCH_AGENTS/com.clawctrl.bluebubbles-watch.plist' <<EOF
 <?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
 <plist version=\"1.0\">
 <dict>
   <key>Label</key>
-  <string>com.clawcontrol.bluebubbles-watch</string>
+  <string>com.clawctrl.bluebubbles-watch</string>
   <key>ProgramArguments</key>
   <array>
     <string>$CLAWCTRL_REMOTE_DIR/scripts/ensure-bluebubbles.sh</string>
@@ -111,15 +111,15 @@ say "installing BlueBubbles keepalive LaunchAgent"
   <key>StartInterval</key>
   <integer>60</integer>
   <key>StandardOutPath</key>
-  <string>/tmp/clawcontrol-bluebubbles-watch.log</string>
+  <string>/tmp/clawctrl-bluebubbles-watch.log</string>
   <key>StandardErrorPath</key>
-  <string>/tmp/clawcontrol-bluebubbles-watch.log</string>
+  <string>/tmp/clawctrl-bluebubbles-watch.log</string>
 </dict>
 </plist>
 EOF
-launchctl bootout gui/\$(id -u) '$REMOTE_LAUNCH_AGENTS/com.clawcontrol.bluebubbles-watch.plist' 2>/dev/null || true
-launchctl bootstrap gui/\$(id -u) '$REMOTE_LAUNCH_AGENTS/com.clawcontrol.bluebubbles-watch.plist' 2>/dev/null || launchctl load '$REMOTE_LAUNCH_AGENTS/com.clawcontrol.bluebubbles-watch.plist'
-launchctl kickstart -k gui/\$(id -u)/com.clawcontrol.bluebubbles-watch || true"
+launchctl bootout gui/\$(id -u) '$REMOTE_LAUNCH_AGENTS/com.clawctrl.bluebubbles-watch.plist' 2>/dev/null || true
+launchctl bootstrap gui/\$(id -u) '$REMOTE_LAUNCH_AGENTS/com.clawctrl.bluebubbles-watch.plist' 2>/dev/null || launchctl load '$REMOTE_LAUNCH_AGENTS/com.clawctrl.bluebubbles-watch.plist'
+launchctl kickstart -k gui/\$(id -u)/com.clawctrl.bluebubbles-watch || true"
 
 mac_ip="$("${SSH_BASE[@]}" "$MAC_HOST" 'tailscale ip -4 2>/dev/null | head -n1')"
 [ -n "$mac_ip" ] || mac_ip="$("${SSH_BASE[@]}" "$MAC_HOST" 'ipconfig getifaddr en0 2>/dev/null || true')"

@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code's settings route shortcuts.
- * ClawControl keeps the account/settings popover as a thin adapter over
+ * clawctrl keeps the account/settings popover as a thin adapter over
  * concrete settings routes so chat does not hard-code a second settings map.
  */
 

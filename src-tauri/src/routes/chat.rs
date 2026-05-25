@@ -1330,8 +1330,8 @@ fn resolve_local_provider_cwd(context: Option<ChatRequestContext<'_>>) -> Result
 #[cfg(test)]
 fn local_provider_command_env(provider: ChatProvider) -> Option<String> {
     match provider {
-        ChatProvider::ClaudeCode => std::env::var("CLAWCONTROL_CLAUDE_COMMAND").ok(),
-        ChatProvider::CodexCli => std::env::var("CLAWCONTROL_CODEX_COMMAND").ok(),
+        ChatProvider::ClaudeCode => std::env::var("CLAWCTRL_CLAUDE_COMMAND").ok(),
+        ChatProvider::CodexCli => std::env::var("CLAWCTRL_CODEX_COMMAND").ok(),
         _ => None,
     }
     .map(|value| value.trim().to_string())
@@ -1376,7 +1376,7 @@ fn dev_claude_provider_runtime_path() -> PathBuf {
 
 #[cfg(test)]
 fn claude_provider_runtime_path(state: Option<&AppState>) -> PathBuf {
-    if let Some(path) = std::env::var_os("CLAWCONTROL_CLAUDE_PROVIDER_RUNTIME") {
+    if let Some(path) = std::env::var_os("CLAWCTRL_CLAUDE_PROVIDER_RUNTIME") {
         let path = PathBuf::from(path);
         if !path.as_os_str().is_empty() {
             return path;
@@ -1407,7 +1407,7 @@ fn claude_provider_runtime_cwd(runtime_path: &Path) -> PathBuf {
 
 #[cfg(test)]
 fn node_command_name() -> String {
-    std::env::var("CLAWCONTROL_NODE_COMMAND")
+    std::env::var("CLAWCTRL_NODE_COMMAND")
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
@@ -1488,16 +1488,16 @@ fn local_provider_project_env(
             "HERMES_REPOSITORY_ROOT".to_string(),
             project_root.to_string(),
         ),
-        ("CLAWCONTROL_PROJECT_PATH".to_string(), cwd_text.clone()),
+        ("CLAWCTRL_PROJECT_PATH".to_string(), cwd_text.clone()),
         (
-            "CLAWCONTROL_PROJECT_ROOT".to_string(),
+            "CLAWCTRL_PROJECT_ROOT".to_string(),
             project_root.to_string(),
         ),
-        ("CLAWCONTROL_WORKSPACE_CWD".to_string(), cwd_text.clone()),
-        ("CLAWCONTROL_WORKING_DIR".to_string(), cwd_text.clone()),
-        ("CLAWCONTROL_TERMINAL_CWD".to_string(), cwd_text.clone()),
+        ("CLAWCTRL_WORKSPACE_CWD".to_string(), cwd_text.clone()),
+        ("CLAWCTRL_WORKING_DIR".to_string(), cwd_text.clone()),
+        ("CLAWCTRL_TERMINAL_CWD".to_string(), cwd_text.clone()),
         (
-            "CLAWCONTROL_REPOSITORY_ROOT".to_string(),
+            "CLAWCTRL_REPOSITORY_ROOT".to_string(),
             project_root.to_string(),
         ),
     ];
@@ -1530,15 +1530,11 @@ fn local_provider_project_env(
     push_env_if_present(&mut env, "HERMES_BRANCH", context.branch);
     push_env_if_present(&mut env, "HERMES_RUNTIME", context.runtime);
 
-    push_env_if_present(&mut env, "CLAWCONTROL_PROJECT_ID", context.project_id);
-    push_env_if_present(&mut env, "CLAWCONTROL_PROJECT_NAME", context.project);
-    push_env_if_present(
-        &mut env,
-        "CLAWCONTROL_ENVIRONMENT_ID",
-        context.environment_id,
-    );
-    push_env_if_present(&mut env, "CLAWCONTROL_BRANCH", context.branch);
-    push_env_if_present(&mut env, "CLAWCONTROL_RUNTIME", context.runtime);
+    push_env_if_present(&mut env, "CLAWCTRL_PROJECT_ID", context.project_id);
+    push_env_if_present(&mut env, "CLAWCTRL_PROJECT_NAME", context.project);
+    push_env_if_present(&mut env, "CLAWCTRL_ENVIRONMENT_ID", context.environment_id);
+    push_env_if_present(&mut env, "CLAWCTRL_BRANCH", context.branch);
+    push_env_if_present(&mut env, "CLAWCTRL_RUNTIME", context.runtime);
 
     env
 }
@@ -1560,7 +1556,7 @@ async fn run_claude_code_once(
         "prompt": message,
         "config": {
             "binaryPath": command_name,
-            "homePath": std::env::var("CLAWCONTROL_CLAUDE_HOME").unwrap_or_default()
+            "homePath": std::env::var("CLAWCTRL_CLAUDE_HOME").unwrap_or_default()
         }
     });
     let mut request = OneShotCommand::new(
@@ -1607,7 +1603,7 @@ async fn run_codex_cli_once(
     let command_name =
         local_provider_command_env(ChatProvider::CodexCli).unwrap_or_else(|| "codex".to_string());
     let output_path =
-        std::env::temp_dir().join(format!("clawcontrol-codex-reply-{}.txt", random_uuid()));
+        std::env::temp_dir().join(format!("clawctrl-codex-reply-{}.txt", random_uuid()));
     let output = run_local_provider_command(
         "Codex CLI",
         command_name,
@@ -3861,7 +3857,7 @@ mod tests {
     fn local_provider_cwd_requires_explicit_absolute_folder_path() {
         let display_name_only = ChatRequestContext {
             project_id: Some("local:project"),
-            project: Some("clawcontrol"),
+            project: Some("clawctrl"),
             project_root: None,
             working_dir: None,
             environment_id: Some("local"),
@@ -3986,12 +3982,12 @@ mod tests {
         assert_eq!(value("HERMES_ENVIRONMENT_ID"), "local");
         assert_eq!(value("HERMES_BRANCH"), "feature/project-env");
         assert_eq!(value("HERMES_RUNTIME"), "Work locally");
-        assert_eq!(value("CLAWCONTROL_PROJECT_PATH"), terminal_cwd_text);
-        assert_eq!(value("CLAWCONTROL_PROJECT_ROOT"), project_root_text);
-        assert_eq!(value("CLAWCONTROL_WORKSPACE_CWD"), terminal_cwd_text);
-        assert_eq!(value("CLAWCONTROL_WORKING_DIR"), terminal_cwd_text);
-        assert_eq!(value("CLAWCONTROL_TERMINAL_CWD"), terminal_cwd_text);
-        assert_eq!(value("CLAWCONTROL_REPOSITORY_ROOT"), project_root_text);
+        assert_eq!(value("CLAWCTRL_PROJECT_PATH"), terminal_cwd_text);
+        assert_eq!(value("CLAWCTRL_PROJECT_ROOT"), project_root_text);
+        assert_eq!(value("CLAWCTRL_WORKSPACE_CWD"), terminal_cwd_text);
+        assert_eq!(value("CLAWCTRL_WORKING_DIR"), terminal_cwd_text);
+        assert_eq!(value("CLAWCTRL_TERMINAL_CWD"), terminal_cwd_text);
+        assert_eq!(value("CLAWCTRL_REPOSITORY_ROOT"), project_root_text);
     }
 
     #[test]
@@ -4202,7 +4198,7 @@ Current user request:\nwhat changed?"
 
     #[test]
     fn resolve_local_provider_cwd_rejects_missing_directory() {
-        let missing = std::env::temp_dir().join(format!("clawcontrol-missing-{}", random_uuid()));
+        let missing = std::env::temp_dir().join(format!("clawctrl-missing-{}", random_uuid()));
         let missing_text = missing.to_string_lossy().to_string();
         let context = ChatRequestContext {
             project_id: None,
@@ -4304,7 +4300,7 @@ Current user request:\nwhat changed?"
     async fn local_provider_prompt_loads_existing_local_session_history() {
         let _env_lock = provider_env_lock().lock().await;
         let dir = tempfile::tempdir().expect("temp dir");
-        let _data_dir = set_provider_test_env("CLAWCONTROL_DATA_DIR", dir.path());
+        let _data_dir = set_provider_test_env("CLAWCTRL_DATA_DIR", dir.path());
         let session =
             crate::commands::append_local_chat_turn(crate::commands::AppendLocalChatTurn {
                 session_key: None,
@@ -4346,8 +4342,8 @@ Current user request:\nwhat changed?"
         let dir = tempfile::tempdir().expect("temp dir");
         let fake_claude = write_executable_script(dir.path(), "claude-fake", "#!/bin/sh\nexit 0\n");
         let missing_node = dir.path().join("missing-node");
-        let _claude_env = set_provider_test_env("CLAWCONTROL_CLAUDE_COMMAND", &fake_claude);
-        let _node_env = set_provider_test_env("CLAWCONTROL_NODE_COMMAND", &missing_node);
+        let _claude_env = set_provider_test_env("CLAWCTRL_CLAUDE_COMMAND", &fake_claude);
+        let _node_env = set_provider_test_env("CLAWCTRL_NODE_COMMAND", &missing_node);
 
         let (ready, detail) = local_provider_readiness(ChatProvider::ClaudeCode, None);
 
@@ -4364,10 +4360,10 @@ Current user request:\nwhat changed?"
         let fake_claude = write_executable_script(dir.path(), "claude-fake", "#!/bin/sh\nexit 0\n");
         let fake_node = write_executable_script(dir.path(), "node-fake", "#!/bin/sh\nexit 0\n");
         let missing_runtime = dir.path().join("missing-runtime.mjs");
-        let _claude_env = set_provider_test_env("CLAWCONTROL_CLAUDE_COMMAND", &fake_claude);
-        let _node_env = set_provider_test_env("CLAWCONTROL_NODE_COMMAND", &fake_node);
+        let _claude_env = set_provider_test_env("CLAWCTRL_CLAUDE_COMMAND", &fake_claude);
+        let _node_env = set_provider_test_env("CLAWCTRL_NODE_COMMAND", &fake_node);
         let _runtime_env =
-            set_provider_test_env("CLAWCONTROL_CLAUDE_PROVIDER_RUNTIME", &missing_runtime);
+            set_provider_test_env("CLAWCTRL_CLAUDE_PROVIDER_RUNTIME", &missing_runtime);
 
         let (ready, detail) = local_provider_readiness(ChatProvider::ClaudeCode, None);
 
@@ -4387,7 +4383,7 @@ Current user request:\nwhat changed?"
             "claude-fake",
             "#!/bin/sh\nprintf 'claude reply from %s' \"$PWD\"\n",
         );
-        let _claude_env = set_provider_test_env("CLAWCONTROL_CLAUDE_COMMAND", &fake);
+        let _claude_env = set_provider_test_env("CLAWCTRL_CLAUDE_COMMAND", &fake);
 
         let reply = run_claude_code_once("hello", dir.path(), Vec::new(), None)
             .await
@@ -4410,9 +4406,9 @@ Current user request:\nwhat changed?"
         let fake = write_executable_script(
             dir.path(),
             "claude-env-fake",
-            "#!/bin/sh\nprintf 'id=%s project=%s path=%s root=%s terminal=%s repo=%s env=%s branch=%s runtime=%s legacy=%s legacy_root=%s legacy_terminal=%s' \"$CHAT_PROJECT_ID\" \"$CHAT_PROJECT_NAME\" \"$CHAT_PROJECT_PATH\" \"$CHAT_PROJECT_ROOT\" \"$CHAT_TERMINAL_CWD\" \"$CHAT_REPOSITORY_ROOT\" \"$CHAT_ENVIRONMENT_ID\" \"$CHAT_BRANCH\" \"$CHAT_RUNTIME\" \"$CLAWCONTROL_PROJECT_PATH\" \"$CLAWCONTROL_PROJECT_ROOT\" \"$CLAWCONTROL_TERMINAL_CWD\"\n",
+            "#!/bin/sh\nprintf 'id=%s project=%s path=%s root=%s terminal=%s repo=%s env=%s branch=%s runtime=%s legacy=%s legacy_root=%s legacy_terminal=%s' \"$CHAT_PROJECT_ID\" \"$CHAT_PROJECT_NAME\" \"$CHAT_PROJECT_PATH\" \"$CHAT_PROJECT_ROOT\" \"$CHAT_TERMINAL_CWD\" \"$CHAT_REPOSITORY_ROOT\" \"$CHAT_ENVIRONMENT_ID\" \"$CHAT_BRANCH\" \"$CHAT_RUNTIME\" \"$CLAWCTRL_PROJECT_PATH\" \"$CLAWCTRL_PROJECT_ROOT\" \"$CLAWCTRL_TERMINAL_CWD\"\n",
         );
-        let _claude_env = set_provider_test_env("CLAWCONTROL_CLAUDE_COMMAND", &fake);
+        let _claude_env = set_provider_test_env("CLAWCTRL_CLAUDE_COMMAND", &fake);
         let context = ChatRequestContext {
             project_id: Some("local:agent-shell:stable"),
             project: Some("agent-shell"),
@@ -4458,11 +4454,11 @@ Current user request:\nwhat changed?"
             "#!/bin/sh\nif [ \"$HOME\" != \"$EXPECTED_CLAUDE_HOME\" ]; then printf 'bad HOME %s expected %s' \"$HOME\" \"$EXPECTED_CLAUDE_HOME\" >&2; exit 7; fi\nprintf 'home=%s key=%s' \"$HOME\" \"$CLAUDE_CONTINUATION_GROUP_KEY\"\n",
         );
         let expected_home = std::env::var("HOME")
-            .map(|home| format!("{home}/clawcontrol-claude-home-test"))
+            .map(|home| format!("{home}/clawctrl-claude-home-test"))
             .expect("HOME env");
-        let _claude_env = set_provider_test_env("CLAWCONTROL_CLAUDE_COMMAND", &fake);
+        let _claude_env = set_provider_test_env("CLAWCTRL_CLAUDE_COMMAND", &fake);
         let _home_env =
-            set_provider_test_env("CLAWCONTROL_CLAUDE_HOME", "~/clawcontrol-claude-home-test");
+            set_provider_test_env("CLAWCTRL_CLAUDE_HOME", "~/clawctrl-claude-home-test");
         let _expected_home_env = set_provider_test_env("EXPECTED_CLAUDE_HOME", &expected_home);
 
         let reply = run_claude_code_once("hello", dir.path(), Vec::new(), None)
@@ -4489,9 +4485,8 @@ Current user request:\nwhat changed?"
             "node-cwd-fake",
             "#!/bin/sh\nprintf '{\"ok\":true,\"reply\":\"node cwd=%s\"}\\n' \"$PWD\"\n",
         );
-        let _node_env = set_provider_test_env("CLAWCONTROL_NODE_COMMAND", &fake_node);
-        let _runtime_env =
-            set_provider_test_env("CLAWCONTROL_CLAUDE_PROVIDER_RUNTIME", &runtime_path);
+        let _node_env = set_provider_test_env("CLAWCTRL_NODE_COMMAND", &fake_node);
+        let _runtime_env = set_provider_test_env("CLAWCTRL_CLAUDE_PROVIDER_RUNTIME", &runtime_path);
 
         let reply = run_claude_code_once("hello", dir.path(), Vec::new(), None)
             .await
@@ -4509,7 +4504,7 @@ Current user request:\nwhat changed?"
         let _env_lock = provider_env_lock().lock().await;
         let dir = tempfile::tempdir().expect("temp dir");
         let missing = dir.path().join("missing-claude");
-        let _claude_env = set_provider_test_env("CLAWCONTROL_CLAUDE_COMMAND", &missing);
+        let _claude_env = set_provider_test_env("CLAWCTRL_CLAUDE_COMMAND", &missing);
 
         let error = run_claude_code_once("hello", dir.path(), Vec::new(), None)
             .await
@@ -4528,7 +4523,7 @@ Current user request:\nwhat changed?"
         let dir = tempfile::tempdir().expect("temp dir");
         let fake_node =
             write_executable_script(dir.path(), "node-fake", "#!/bin/sh\nprintf 'not-json'\n");
-        let _node_env = set_provider_test_env("CLAWCONTROL_NODE_COMMAND", &fake_node);
+        let _node_env = set_provider_test_env("CLAWCTRL_NODE_COMMAND", &fake_node);
 
         let error = run_claude_code_once("hello", dir.path(), Vec::new(), None)
             .await
@@ -4558,7 +4553,7 @@ printf 'stdout fallback'
 printf 'codex file reply' > "$out"
 "#,
         );
-        let _codex_env = set_provider_test_env("CLAWCONTROL_CODEX_COMMAND", &fake);
+        let _codex_env = set_provider_test_env("CLAWCTRL_CODEX_COMMAND", &fake);
 
         let reply = run_codex_cli_once("hello", dir.path(), Vec::new())
             .await
@@ -4589,7 +4584,7 @@ done
 printf '%s' "$last" > "$out"
 "#,
         );
-        let _codex_env = set_provider_test_env("CLAWCONTROL_CODEX_COMMAND", &fake);
+        let _codex_env = set_provider_test_env("CLAWCTRL_CODEX_COMMAND", &fake);
         let cwd = dir.path().to_string_lossy().to_string();
         let context = ChatRequestContext {
             project_id: None,
@@ -4643,10 +4638,10 @@ while [ "$#" -gt 0 ]; do
   fi
   shift
 done
-printf 'id=%s project=%s path=%s root=%s terminal=%s repo=%s env=%s branch=%s runtime=%s legacy=%s legacy_root=%s legacy_terminal=%s' "$CHAT_PROJECT_ID" "$CHAT_PROJECT_NAME" "$CHAT_PROJECT_PATH" "$CHAT_PROJECT_ROOT" "$CHAT_TERMINAL_CWD" "$CHAT_REPOSITORY_ROOT" "$CHAT_ENVIRONMENT_ID" "$CHAT_BRANCH" "$CHAT_RUNTIME" "$CLAWCONTROL_PROJECT_PATH" "$CLAWCONTROL_PROJECT_ROOT" "$CLAWCONTROL_TERMINAL_CWD" > "$out"
+printf 'id=%s project=%s path=%s root=%s terminal=%s repo=%s env=%s branch=%s runtime=%s legacy=%s legacy_root=%s legacy_terminal=%s' "$CHAT_PROJECT_ID" "$CHAT_PROJECT_NAME" "$CHAT_PROJECT_PATH" "$CHAT_PROJECT_ROOT" "$CHAT_TERMINAL_CWD" "$CHAT_REPOSITORY_ROOT" "$CHAT_ENVIRONMENT_ID" "$CHAT_BRANCH" "$CHAT_RUNTIME" "$CLAWCTRL_PROJECT_PATH" "$CLAWCTRL_PROJECT_ROOT" "$CLAWCTRL_TERMINAL_CWD" > "$out"
 "#,
         );
-        let _codex_env = set_provider_test_env("CLAWCONTROL_CODEX_COMMAND", &fake);
+        let _codex_env = set_provider_test_env("CLAWCTRL_CODEX_COMMAND", &fake);
         let context = ChatRequestContext {
             project_id: Some("local:agent-shell:stable"),
             project: Some("agent-shell"),
@@ -4691,7 +4686,7 @@ printf 'id=%s project=%s path=%s root=%s terminal=%s repo=%s env=%s branch=%s ru
             "codex-stdout-fake",
             "#!/bin/sh\nprintf 'codex stdout reply'\n",
         );
-        let _codex_env = set_provider_test_env("CLAWCONTROL_CODEX_COMMAND", &fake);
+        let _codex_env = set_provider_test_env("CLAWCTRL_CODEX_COMMAND", &fake);
 
         let reply = run_codex_cli_once("hello", dir.path(), Vec::new())
             .await

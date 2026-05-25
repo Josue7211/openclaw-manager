@@ -1,6 +1,6 @@
 # Hermes Agent Infra Map
 
-This is the ClawControl/Hermes messaging topology for the current Hermes Agent migration. Runtime hosts are configured through secrets/env, not baked into the app.
+This is the clawctrl/Hermes messaging topology for the current Hermes Agent migration. Runtime hosts are configured through secrets/env, not baked into the app.
 
 ## Configured Nodes
 
@@ -20,11 +20,11 @@ Legacy `HARNESS_*`, `OPENCLAW_*`, and `CODEX_LB_*` keys are still accepted as co
 - Discord target: `Local AI Club` server.
 - Discord default behavior: mention-only, channel allowlist, user allowlist, `GATEWAY_ALLOW_ALL_USERS=false`.
 - iMessage target: selected BlueBubbles group chat, using configured Mac/BlueBubbles credentials.
-- Matrix: retired. ClawControl audits and clears Hermes Matrix env only after explicit confirmation.
+- Matrix: retired. clawctrl audits and clears Hermes Matrix env only after explicit confirmation.
 
-## ClawControl Control Routes
+## clawctrl Control Routes
 
-ClawControl owns the browser-facing API under `/api/hermes/control/*`.
+clawctrl owns the browser-facing API under `/api/hermes/control/*`.
 
 - Dashboard token stays backend-only.
 - Public UI responses redact secret values.

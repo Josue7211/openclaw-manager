@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code's sidebar account/settings popover surface.
- * ClawControl supplies the destination shortcuts, while the chat page consumes
+ * clawctrl supplies the destination shortcuts, while the chat page consumes
  * this as a vendor UI chunk instead of keeping a bespoke inline menu.
  */
 

@@ -16,7 +16,7 @@ use super::util::random_uuid;
 use crate::error::AppError;
 use crate::server::{AppState, RequireAuth};
 
-const SOURCE_CLAWCONTROL: &str = "clawcontrol";
+const SOURCE_CLAWCTRL: &str = "clawctrl";
 const SOURCE_HARNESS: &str = "harness";
 const SOURCE_AGENTSECRETS: &str = "agentsecrets";
 
@@ -223,11 +223,11 @@ fn validate_result_status(status: &str) -> Result<&'static str, AppError> {
 
 fn split_local_approval_id<'a>(id: &'a str) -> Result<&'a str, AppError> {
     let (source, raw_id) = split_source_id(id);
-    if source == SOURCE_CLAWCONTROL || (source == SOURCE_HARNESS && raw_id.starts_with("appr_")) {
+    if source == SOURCE_CLAWCTRL || (source == SOURCE_HARNESS && raw_id.starts_with("appr_")) {
         Ok(raw_id)
     } else {
         Err(AppError::BadRequest(
-            "result reporting is only supported for ClawControl approvals".into(),
+            "result reporting is only supported for clawctrl approvals".into(),
         ))
     }
 }
@@ -255,7 +255,7 @@ fn source_label(source: &str) -> &'static str {
         "agentshell" => "Agent Shell",
         SOURCE_AGENTSECRETS => "Agent Secrets",
         SOURCE_HARNESS => "Hermes Agent",
-        _ => "ClawControl",
+        _ => "clawctrl",
     }
 }
 
@@ -268,7 +268,7 @@ fn normalize_local_approval(row: LocalApprovalRow) -> Value {
     let raw = parse_json(&row.raw);
 
     json!({
-        "id": prefixed_id(SOURCE_CLAWCONTROL, &row.id),
+        "id": prefixed_id(SOURCE_CLAWCTRL, &row.id),
         "source": row.source,
         "sourceLabel": source_label(&row.source),
         "sessionId": str_field(&requester, &["session_id", "sessionId"]).unwrap_or(""),
@@ -622,7 +622,7 @@ async fn list_agentsecrets_approvals(state: &AppState) -> (Vec<Value>, Value) {
     }
 }
 
-async fn list_clawcontrol_approvals(state: &AppState, user_id: &str) -> (Vec<Value>, Value) {
+async fn list_clawctrl_approvals(state: &AppState, user_id: &str) -> (Vec<Value>, Value) {
     if let Err(err) = sweep_expired_local(state, user_id, "list").await {
         tracing::warn!("expired approval sweep failed before list: {err:?}");
     }
@@ -661,8 +661,8 @@ async fn list_clawcontrol_approvals(state: &AppState, user_id: &str) -> (Vec<Val
             return (
                 Vec::new(),
                 source_error(
-                    SOURCE_CLAWCONTROL,
-                    "ClawControl",
+                    SOURCE_CLAWCTRL,
+                    "clawctrl",
                     true,
                     format!("Local approvals unavailable: {err}"),
                 ),
@@ -715,7 +715,7 @@ async fn list_clawcontrol_approvals(state: &AppState, user_id: &str) -> (Vec<Val
         .count();
     (
         approvals,
-        source_ok(SOURCE_CLAWCONTROL, "ClawControl", true, pending),
+        source_ok(SOURCE_CLAWCTRL, "clawctrl", true, pending),
     )
 }
 
@@ -781,20 +781,19 @@ async fn sweep_expired_request(
     let payload = sweep_expired_local(&state, &session.user_id, "manual").await?;
     Ok(Json(json!({
         "ok": true,
-        "source": SOURCE_CLAWCONTROL,
+        "source": SOURCE_CLAWCTRL,
         "data": payload,
     })))
 }
 
 /// `GET /api/approvals`
 ///
-/// Aggregates approval requests from ClawControl, Hermes Agent, and Agent Secrets.
+/// Aggregates approval requests from clawctrl, Hermes Agent, and Agent Secrets.
 async fn list_approvals(
     State(state): State<AppState>,
     RequireAuth(session): RequireAuth,
 ) -> Result<Json<Value>, AppError> {
-    let (mut approvals, clawcontrol_source) =
-        list_clawcontrol_approvals(&state, &session.user_id).await;
+    let (mut approvals, clawctrl_source) = list_clawctrl_approvals(&state, &session.user_id).await;
     let (harness, harness_source) = list_harness_approvals(&state).await;
     let (agentsecrets, agentsecrets_source) = list_agentsecrets_approvals(&state).await;
     approvals.extend(harness);
@@ -807,7 +806,7 @@ async fn list_approvals(
 
     Ok(Json(json!({
         "approvals": approvals,
-        "sources": [clawcontrol_source, harness_source, agentsecrets_source],
+        "sources": [clawctrl_source, harness_source, agentsecrets_source],
     })))
 }
 
@@ -828,7 +827,7 @@ async fn create_request(
     let id = format!("appr_{}", random_uuid());
     let source = payload
         .source
-        .unwrap_or_else(|| SOURCE_CLAWCONTROL.into())
+        .unwrap_or_else(|| SOURCE_CLAWCTRL.into())
         .trim()
         .to_ascii_lowercase();
     let risk = risk_or_default(payload.risk)?;
@@ -889,7 +888,7 @@ async fn create_request(
     Ok(Json(json!({
         "ok": true,
         "approval": {
-            "id": prefixed_id(SOURCE_CLAWCONTROL, &id),
+            "id": prefixed_id(SOURCE_CLAWCTRL, &id),
             "source": source,
             "action": action,
             "risk": risk,
@@ -1005,7 +1004,7 @@ async fn expire_local_approval(state: &AppState, user_id: &str, id: &str) -> Res
         Some(id),
         None,
         "approval.expired",
-        &json!({"kind": "system", "id": "clawcontrol"}),
+        &json!({"kind": "system", "id": "clawctrl"}),
         &json!({}),
     )
     .await;
@@ -1082,7 +1081,7 @@ async fn approve_local(state: &AppState, user_id: &str, id: &str) -> Result<Valu
         Some(id),
         Some(&capability_id),
         "capability.issued",
-        &json!({"kind": "system", "id": "clawcontrol"}),
+        &json!({"kind": "system", "id": "clawctrl"}),
         &json!({"expires_at": expires_at}),
     )
     .await;
@@ -1097,7 +1096,7 @@ async fn approve_local(state: &AppState, user_id: &str, id: &str) -> Result<Valu
             "target": parse_json(&target),
             "scope": parse_json(&scope),
             "risk": risk,
-            "issuer": "clawcontrol",
+            "issuer": "clawctrl",
             "expires_at": expires_at,
         }
     }))
@@ -1233,7 +1232,7 @@ async fn resolve_approval_code(
     .await;
 
     Ok(json!({
-        "approval_id": prefixed_id(SOURCE_CLAWCONTROL, &id),
+        "approval_id": prefixed_id(SOURCE_CLAWCTRL, &id),
         "decision": decision.as_str(),
         "risk": risk,
         "data": payload,
@@ -1278,7 +1277,7 @@ async fn resolve_code_request(
     let payload = resolve_approval_code(&state, &body.code, decision, reason, false).await?;
     Ok(Json(json!({
         "ok": true,
-        "source": SOURCE_CLAWCONTROL,
+        "source": SOURCE_CLAWCTRL,
         "data": payload,
     })))
 }
@@ -1475,7 +1474,7 @@ async fn approve_request(
 ) -> Result<Json<Value>, AppError> {
     let (source, raw_id) = split_source_id(&id);
     let payload = match source {
-        SOURCE_CLAWCONTROL => approve_local(&state, &session.user_id, raw_id).await?,
+        SOURCE_CLAWCTRL => approve_local(&state, &session.user_id, raw_id).await?,
         SOURCE_AGENTSECRETS => approve_agentsecrets(&state, raw_id).await?,
         _ => approve_harness(&state, raw_id).await?,
     };
@@ -1494,7 +1493,7 @@ async fn approval_result(
     let payload = record_local_result(&state, &session.user_id, raw_id, body).await?;
     Ok(Json(json!({
         "ok": true,
-        "source": SOURCE_CLAWCONTROL,
+        "source": SOURCE_CLAWCTRL,
         "data": payload,
     })))
 }
@@ -1513,7 +1512,7 @@ async fn reject_request(
         .to_string();
     let (source, raw_id) = split_source_id(&id);
     let payload = match source {
-        SOURCE_CLAWCONTROL => reject_local(&state, &session.user_id, raw_id, &reason).await?,
+        SOURCE_CLAWCTRL => reject_local(&state, &session.user_id, raw_id, &reason).await?,
         SOURCE_AGENTSECRETS => reject_agentsecrets(&state, raw_id, &reason).await?,
         _ => reject_harness(&state, raw_id, &reason).await?,
     };
@@ -1573,7 +1572,7 @@ async fn verify_capability(
         Some(&approval_id),
         Some(&capability_id),
         "capability.verified",
-        &json!({"kind": "system", "id": "clawcontrol"}),
+        &json!({"kind": "system", "id": "clawctrl"}),
         &json!({"action": action}),
     )
     .await;
@@ -1609,7 +1608,7 @@ async fn revoke_capability(
     let payload = revoke_capability_local(&state, &session.user_id, &id, reason).await?;
     Ok(Json(json!({
         "ok": true,
-        "source": SOURCE_CLAWCONTROL,
+        "source": SOURCE_CLAWCTRL,
         "data": payload,
     })))
 }
@@ -1693,7 +1692,7 @@ mod tests {
     #[test]
     fn split_local_result_id_accepts_prefixed_and_raw_ids() {
         assert_eq!(
-            split_local_approval_id("clawcontrol:appr_123").unwrap(),
+            split_local_approval_id("clawctrl:appr_123").unwrap(),
             "appr_123"
         );
         assert_eq!(split_local_approval_id("appr_123").unwrap(), "appr_123");

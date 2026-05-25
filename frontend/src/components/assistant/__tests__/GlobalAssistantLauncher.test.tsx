@@ -330,10 +330,10 @@ describe('GlobalAssistantLauncher', () => {
         return {
           projects: [
             {
-              id: 'local:clawcontrol',
-              name: 'clawcontrol',
-              path: '/Volumes/T7/projects/clawcontrol',
-              root: '/Volumes/T7/projects/clawcontrol',
+              id: 'local:clawctrl',
+              name: 'clawctrl',
+              path: '/Volumes/T7/projects/clawctrl',
+              root: '/Volumes/T7/projects/clawctrl',
               environmentId: 'local',
               branches: ['main'],
               currentBranch: 'main',
@@ -524,7 +524,7 @@ describe('GlobalAssistantLauncher', () => {
     })
     mockApiPost.mockResolvedValueOnce({ reply: 'Started builder chat.', sessionKey: 'builder-agent-shell' })
     const sessionsChanged = vi.fn()
-    window.addEventListener('clawcontrol:chat-sessions-changed', sessionsChanged)
+    window.addEventListener('clawctrl:chat-sessions-changed', sessionsChanged)
     renderLauncher()
 
     fireEvent.click(screen.getByTestId('global-ai-chat-launcher'))
@@ -543,13 +543,13 @@ describe('GlobalAssistantLauncher', () => {
       sessionKey: 'builder-agent-shell',
       environmentId: 'desktop',
     })
-    window.removeEventListener('clawcontrol:chat-sessions-changed', sessionsChanged)
+    window.removeEventListener('clawctrl:chat-sessions-changed', sessionsChanged)
   })
 
   it('selects a newly-created saved session after a sidebar send', async () => {
     mockApiPost.mockResolvedValueOnce({ reply: 'Started saved chat.', sessionKey: 'new-sidebar-chat' })
     const sessionsChanged = vi.fn()
-    window.addEventListener('clawcontrol:chat-sessions-changed', sessionsChanged)
+    window.addEventListener('clawctrl:chat-sessions-changed', sessionsChanged)
     renderLauncher()
 
     fireEvent.click(screen.getByTestId('global-ai-chat-launcher'))
@@ -563,7 +563,7 @@ describe('GlobalAssistantLauncher', () => {
     expect((sessionsChanged.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({
       sessionKey: 'new-sidebar-chat',
     })
-    window.removeEventListener('clawcontrol:chat-sessions-changed', sessionsChanged)
+    window.removeEventListener('clawctrl:chat-sessions-changed', sessionsChanged)
   })
 
   it('sends one unified assistant request and renders OpenUI inline', async () => {

@@ -23,18 +23,18 @@ const preset: VaultDataViewPreset = {
 
 describe('data view synced vault document', () => {
   it('uses an internal vault note path for synced view definitions', () => {
-    expect(VAULT_DATA_VIEW_SYNC_NOTE_ID).toBe('.clawcontrol/data-views.md')
+    expect(VAULT_DATA_VIEW_SYNC_NOTE_ID).toBe('.clawctrl/data-views.md')
   })
 
   it('round-trips normalized presets through the sync document content', () => {
     const content = serializeVaultDataViewPresetDocument([preset])
 
-    expect(content).toContain('clawcontrol:data-views:v1')
+    expect(content).toContain('clawctrl:data-views:v1')
     expect(parseVaultDataViewPresetDocument(content)).toEqual([preset])
   })
 
   it('ignores malformed synced preset content', () => {
     expect(parseVaultDataViewPresetDocument('')).toEqual([])
-    expect(parseVaultDataViewPresetDocument('<!-- clawcontrol:data-views:v1 -->\nnot json\n<!-- /clawcontrol:data-views:v1 -->')).toEqual([])
+    expect(parseVaultDataViewPresetDocument('<!-- clawctrl:data-views:v1 -->\nnot json\n<!-- /clawctrl:data-views:v1 -->')).toEqual([])
   })
 })

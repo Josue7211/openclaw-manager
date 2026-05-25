@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code provider-instance contracts (MIT License).
- * Localized to ClawControl's frontend so copied T3 provider logic can run
+ * Localized to clawctrl's frontend so copied T3 provider logic can run
  * without importing the full @t3tools/contracts workspace package.
  */
 

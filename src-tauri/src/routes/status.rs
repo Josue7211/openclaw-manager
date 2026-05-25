@@ -470,7 +470,7 @@ async fn verify_calendar_round_trip(
     cleanup: bool,
 ) -> Value {
     let token = random_uuid();
-    let title = format!("[ClawControl Verify] {token}");
+    let title = format!("[clawctrl Verify] {token}");
     let start = chrono::Utc::now() + chrono::Duration::minutes(10);
     let end = start + chrono::Duration::minutes(15);
     let create_body = json!({
@@ -569,10 +569,10 @@ async fn verify_reminder_round_trip(
     cleanup: bool,
 ) -> Value {
     let token = random_uuid();
-    let title = format!("[ClawControl Verify] {token}");
+    let title = format!("[clawctrl Verify] {token}");
     let create_body = json!({
         "title": title,
-        "notes": "Temporary ClawControl Mac Bridge verification item",
+        "notes": "Temporary clawctrl Mac Bridge verification item",
         "dueDate": (chrono::Utc::now() + chrono::Duration::hours(1)).to_rfc3339(),
     });
 

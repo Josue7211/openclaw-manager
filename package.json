@@ -1,5 +1,5 @@
 {
-  "name": "clawcontrol-workspace",
+  "name": "clawctrl-workspace",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,7 +10,7 @@
     "check:architecture": "node scripts/check-architecture.mjs",
     "check:bundle": "node scripts/check-bundle-size.mjs",
     "check:dead-code": "node scripts/check-dead-code.mjs",
-    "check:tauri": "cargo check --manifest-path src-tauri/Cargo.toml --bin clawcontrol-backend",
+    "check:tauri": "cargo check --manifest-path src-tauri/Cargo.toml --bin clawctrl",
     "portainer:certify-live": "node scripts/portainer-live-certify.mjs",
     "portainer:test-certify-readonly": "node scripts/test-portainer-live-certify-readonly.mjs",
     "portainer:test-certify-disposable": "node scripts/test-portainer-live-certify-disposable.mjs",

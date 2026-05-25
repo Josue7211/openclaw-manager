@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code apps/web/src/components/ProjectScriptsControl.tsx
- * (MIT License). ClawControl keeps the dialog in the T3 vendor boundary and
+ * (MIT License). clawctrl keeps the dialog in the T3 vendor boundary and
  * supplies project persistence through the chat adapter.
  */
 

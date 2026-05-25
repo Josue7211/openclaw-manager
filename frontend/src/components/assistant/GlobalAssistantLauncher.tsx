@@ -568,13 +568,13 @@ function buildOpenUiRequest(
 ): string {
   const allowActions = shouldAllowAppActions(userText)
   return [
-    'Create an OpenUI response for ClawControl.',
+    'Create an OpenUI response for clawctrl.',
     'The OpenUI preview is the primary result. Return a concise explanation, then exactly one fenced ```openui block when a UI preview is useful.',
     'Grounding rule: use only factual values from the user request, selectedTarget, activeDraft, visiblePageText, liveAppContext, and current app context. Never invent names, companies, appointment titles, times, counts, dates, or statuses.',
     'If the user asks for actual/current/my data and the needed fact is missing from liveAppContext, visiblePageText, or the user request, render an honest empty/loading/needs-connection state instead of fake sample data.',
     'For visual UI, prefer composed OpenUI components like Stack, Card, Text, Badge, Checklist, Metric, Progress, charts, lists, and forms. Do not make a MarkdownDisplay-only card unless the user asked for prose or markdown.',
-    'Match ClawControl UI: use the existing dark panel/card structure, app CSS variables, compact typography, 8px-ish radii, muted borders, and the app accent. Avoid arbitrary brand colors, oversized badges, fake initials, or marketing-card styling.',
-    'Do not put Save, Apply, Install, or Undo controls inside the generated OpenUI. The ClawControl assistant shell supplies those controls when a live draft exists.',
+    'Match clawctrl UI: use the existing dark panel/card structure, app CSS variables, compact typography, 8px-ish radii, muted borders, and the app accent. Avoid arbitrary brand colors, oversized badges, fake initials, or marketing-card styling.',
+    'Do not put Save, Apply, Install, or Undo controls inside the generated OpenUI. The clawctrl assistant shell supplies those controls when a live draft exists.',
     'Before generating a new widget, inspect placedWidgets and availableBuiltInWidgets. If an existing widget already covers the request, ask whether to edit/resize/restyle/configure that widget instead of making a duplicate. If activeDraft is present, refine that draft rather than creating a second widget.',
     selectedTarget
       ? 'A specific UI element is selected. If the user asks to change its look, spacing, size, layout, or CSS, include a fenced ```json actions block with type "ui.style_override", payload.selector from selectedTarget.selector, and payload.styles as safe CSS properties.'

@@ -86,10 +86,10 @@ catalog at any time with:
 memd commands --output .memd --summary
 ```
 
-OpenClaw is the second harness pack after Codex and uses the same shared hook
+clawctrl is the second harness pack after Codex and uses the same shared hook
 kit, but its primary flow is context + spill instead of wake + capture.
 
-Hermes is the adoption-focused harness pack after OpenClaw and uses the same
+Hermes is the adoption-focused harness pack after clawctrl and uses the same
 shared hook kit, but its primary flow is onboarding-friendly wake + capture +
 spill with cloud-first reach and self-host later.
 

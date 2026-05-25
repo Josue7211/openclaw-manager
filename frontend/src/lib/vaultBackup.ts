@@ -3,7 +3,7 @@ export interface VaultBackupVerification {
   errors: string[]
 }
 
-const BACKUP_FORMAT = 'clawcontrol-encrypted-vault-backup'
+const BACKUP_FORMAT = 'clawctrl-encrypted-vault-backup'
 const BACKUP_VERSION = 1
 
 export function verifyEncryptedVaultBackup(input: unknown): VaultBackupVerification {

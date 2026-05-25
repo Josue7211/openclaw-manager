@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "project": "clawcontrol",
+  "project": "clawctrl",
   "namespace": "main",
   "agent": "claw",
   "session": "session-46fabd0c",
@@ -12,7 +12,7 @@
     "memory"
   ],
   "hive_groups": [
-    "project:clawcontrol"
+    "project:clawctrl"
   ],
   "hive_group_goal": null,
   "hive_project_enabled": false,

@@ -10,11 +10,11 @@ export interface NotesGraphSettings {
   updatedAt: number
 }
 
-export const NOTES_GRAPH_SETTINGS_SYNC_NOTE_ID = '.clawcontrol/graph-settings.md'
+export const NOTES_GRAPH_SETTINGS_SYNC_NOTE_ID = '.clawctrl/graph-settings.md'
 
 const LOCAL_VAULT_PREFIX = '/api/vault/local'
-const GRAPH_SETTINGS_MARKER_START = '<!-- clawcontrol:graph-settings:v1 -->'
-const GRAPH_SETTINGS_MARKER_END = '<!-- /clawcontrol:graph-settings:v1 -->'
+const GRAPH_SETTINGS_MARKER_START = '<!-- clawctrl:graph-settings:v1 -->'
+const GRAPH_SETTINGS_MARKER_END = '<!-- /clawctrl:graph-settings:v1 -->'
 const VALID_GROUP_MODES = new Set<GraphGroupMode>(['tag', 'folder', 'type', 'none'])
 
 export const DEFAULT_NOTES_GRAPH_SETTINGS: NotesGraphSettings = {
@@ -56,7 +56,7 @@ export function notesGraphSettingsEqual(left: NotesGraphSettings, right: NotesGr
 export function serializeNotesGraphSettingsDocument(settings: NotesGraphSettings): string {
   const normalized = normalizeNotesGraphSettings(settings)
   return [
-    '# ClawControl graph settings',
+    '# clawctrl graph settings',
     '',
     'This internal note stores synced Notes graph filter and grouping settings.',
     '',
@@ -106,13 +106,13 @@ export async function saveSyncedNotesGraphSettings(settings: NotesGraphSettings)
     ...existing,
     _id: NOTES_GRAPH_SETTINGS_SYNC_NOTE_ID,
     type: 'note',
-    title: 'ClawControl graph settings',
+    title: 'clawctrl graph settings',
     content: serializeNotesGraphSettingsDocument(settings),
-    folder: '.clawcontrol',
+    folder: '.clawctrl',
     tags: [],
     links: [],
     aliases: [],
-    properties: { clawcontrol_internal: 'graph-settings' },
+    properties: { clawctrl_internal: 'graph-settings' },
     created_at: typeof existing.created_at === 'number' ? existing.created_at : now,
     updated_at: now,
   })

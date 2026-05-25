@@ -142,12 +142,12 @@ describe('T3 project workspace adapter', () => {
 
   it('remembers a non-hardcoded start directory for the native project folder picker', () => {
     expect(projectPickerDefaultPath({
-      projects: [{ path: '/Volumes/T7/projects/clawcontrol' }],
+      projects: [{ path: '/Volumes/T7/projects/clawctrl' }],
     })).toBe('/Volumes/T7/projects')
 
     expect(projectPickerDefaultPath({
       selectedProjectPath: '/Users/josue/AgentShell',
-      projects: [{ path: '/Volumes/T7/projects/clawcontrol' }],
+      projects: [{ path: '/Volumes/T7/projects/clawctrl' }],
     })).toBe('/Users/josue')
 
     rememberProjectPickerDirectory('/Users/josue/Work/NewProject')
@@ -155,17 +155,17 @@ describe('T3 project workspace adapter', () => {
     expect(localStorage.getItem(CHAT_PROJECT_PICKER_LAST_DIR_KEY)).toBe('/Users/josue/Work')
     expect(projectPickerDefaultPath({
       selectedProjectPath: '/Users/josue/AgentShell',
-      projects: [{ path: '/Volumes/T7/projects/clawcontrol' }],
+      projects: [{ path: '/Volumes/T7/projects/clawctrl' }],
     })).toBe('/Users/josue')
 
     expect(projectPickerDefaultPath({
-      projects: [{ path: '/Volumes/T7/projects/clawcontrol' }],
+      projects: [{ path: '/Volumes/T7/projects/clawctrl' }],
     })).toBe('/Users/josue/Work')
 
     expect(projectPickerDefaultPath({
       preferredProjectPath: '/Users/josue/TypedProject',
       selectedProjectPath: '/Users/josue/AgentShell',
-      projects: [{ path: '/Volumes/T7/projects/clawcontrol' }],
+      projects: [{ path: '/Volumes/T7/projects/clawctrl' }],
     })).toBe('/Users/josue')
   })
 
@@ -183,9 +183,9 @@ describe('T3 project workspace adapter', () => {
       path: 'C:/Users/josue/Repo',
       machineLabel: 'C:',
     })
-    expect(projectFromPath('/run/media/josue/T7/projects/clawcontrol')).toMatchObject({
-      name: 'clawcontrol',
-      path: '/run/media/josue/T7/projects/clawcontrol',
+    expect(projectFromPath('/run/media/josue/T7/projects/clawctrl')).toMatchObject({
+      name: 'clawctrl',
+      path: '/run/media/josue/T7/projects/clawctrl',
       machineLabel: 'T7',
     })
   })
@@ -596,18 +596,18 @@ describe('T3 project workspace adapter', () => {
   })
 
   it('adapts project scripts to the copied T3 toolbar and resolves command cwd/scope', () => {
-    const project = projectFromPath('/Volumes/T7/projects/clawcontrol')
+    const project = projectFromPath('/Volumes/T7/projects/clawctrl')
     const script: ChatProjectScript = { id: 'lint', name: 'Lint', command: 'npm run lint', cwd: 'frontend', keybinding: 'ctrl+shift+l' }
 
     expect(toT3ProjectScript(script)).toEqual({ ...script, icon: 'play' })
-    expect(resolveScriptCwd(project, script)).toBe('/Volumes/T7/projects/clawcontrol/frontend')
+    expect(resolveScriptCwd(project, script)).toBe('/Volumes/T7/projects/clawctrl/frontend')
     expect(resolveScriptCwd(project, { ...script, cwd: '/tmp/work' })).toBe('/tmp/work')
-    expect(resolveScriptCwd(project, { ...script, cwd: './frontend/../src-tauri' })).toBe('/Volumes/T7/projects/clawcontrol/src-tauri')
-    expect(resolveScriptCwd(project, { ...script, cwd: '../outside' })).toBe('/Volumes/T7/projects/clawcontrol/outside')
-    expect(resolveScriptCwd(project, { ...script, cwd: String.raw`frontend\\src` })).toBe('/Volumes/T7/projects/clawcontrol/frontend/src')
+    expect(resolveScriptCwd(project, { ...script, cwd: './frontend/../src-tauri' })).toBe('/Volumes/T7/projects/clawctrl/src-tauri')
+    expect(resolveScriptCwd(project, { ...script, cwd: '../outside' })).toBe('/Volumes/T7/projects/clawctrl/outside')
+    expect(resolveScriptCwd(project, { ...script, cwd: String.raw`frontend\\src` })).toBe('/Volumes/T7/projects/clawctrl/frontend/src')
     expect(resolveScriptCwd(project, { ...script, cwd: ' "file:///tmp/My%20Work/" ' })).toBe('/tmp/My Work')
-    expect(terminalProcessScope(project, null)).toBe('local-volumes-t7-projects-clawcontrol')
-    expect(terminalProcessScope({ ...project, environmentId: 'harness-vm' }, null)).toBe('harness-vm-volumes-t7-projects-clawcontrol')
+    expect(terminalProcessScope(project, null)).toBe('local-volumes-t7-projects-clawctrl')
+    expect(terminalProcessScope({ ...project, environmentId: 'harness-vm' }, null)).toBe('harness-vm-volumes-t7-projects-clawctrl')
     expect(terminalProcessScope({ ...project, id: 'local:repo:stable' }, 'thread-123')).toBe('thread-123')
   })
 
@@ -675,18 +675,18 @@ describe('T3 project workspace adapter', () => {
       HERMES_WORKING_DIR: '/tmp/agent-shell/frontend',
       HERMES_TERMINAL_CWD: '/tmp/agent-shell/frontend',
       HERMES_REPOSITORY_ROOT: '/tmp/agent-shell',
-      CLAWCONTROL_PROJECT_ID: 'local:agent-shell:stable',
-      CLAWCONTROL_SESSION_KEY: 'hermes-session-1',
-      CLAWCONTROL_PROJECT_PATH: '/tmp/agent-shell',
-      CLAWCONTROL_PROJECT_ROOT: '/tmp/agent-shell',
-      CLAWCONTROL_PROJECT_NAME: 'agent-shell',
-      CLAWCONTROL_ENVIRONMENT_ID: 'local',
-      CLAWCONTROL_RUNTIME: 'Work locally',
-      CLAWCONTROL_BRANCH: 'main',
-      CLAWCONTROL_WORKSPACE_CWD: '/tmp/agent-shell',
-      CLAWCONTROL_WORKING_DIR: '/tmp/agent-shell/frontend',
-      CLAWCONTROL_TERMINAL_CWD: '/tmp/agent-shell/frontend',
-      CLAWCONTROL_REPOSITORY_ROOT: '/tmp/agent-shell',
+      CLAWCTRL_PROJECT_ID: 'local:agent-shell:stable',
+      CLAWCTRL_SESSION_KEY: 'hermes-session-1',
+      CLAWCTRL_PROJECT_PATH: '/tmp/agent-shell',
+      CLAWCTRL_PROJECT_ROOT: '/tmp/agent-shell',
+      CLAWCTRL_PROJECT_NAME: 'agent-shell',
+      CLAWCTRL_ENVIRONMENT_ID: 'local',
+      CLAWCTRL_RUNTIME: 'Work locally',
+      CLAWCTRL_BRANCH: 'main',
+      CLAWCTRL_WORKSPACE_CWD: '/tmp/agent-shell',
+      CLAWCTRL_WORKING_DIR: '/tmp/agent-shell/frontend',
+      CLAWCTRL_TERMINAL_CWD: '/tmp/agent-shell/frontend',
+      CLAWCTRL_REPOSITORY_ROOT: '/tmp/agent-shell',
     })
   })
 
@@ -727,12 +727,12 @@ describe('T3 project workspace adapter', () => {
       HERMES_WORKING_DIR: '',
       HERMES_TERMINAL_CWD: '',
       HERMES_SESSION_KEY: '',
-      CLAWCONTROL_PROJECT_NAME: '',
-      CLAWCONTROL_SESSION_KEY: '',
-      CLAWCONTROL_WORKSPACE_CWD: '',
-      CLAWCONTROL_WORKING_DIR: '',
-      CLAWCONTROL_TERMINAL_CWD: '',
-      CLAWCONTROL_REPOSITORY_ROOT: '',
+      CLAWCTRL_PROJECT_NAME: '',
+      CLAWCTRL_SESSION_KEY: '',
+      CLAWCTRL_WORKSPACE_CWD: '',
+      CLAWCTRL_WORKING_DIR: '',
+      CLAWCTRL_TERMINAL_CWD: '',
+      CLAWCTRL_REPOSITORY_ROOT: '',
     })
   })
 })

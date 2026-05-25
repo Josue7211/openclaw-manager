@@ -4,7 +4,7 @@ import { verifyEncryptedVaultBackup } from '../vaultBackup'
 describe('encrypted vault backup verifier', () => {
   it('accepts supported encrypted vault backups', () => {
     expect(verifyEncryptedVaultBackup({
-      format: 'clawcontrol-encrypted-vault-backup',
+      format: 'clawctrl-encrypted-vault-backup',
       version: 1,
       created_at: '2026-05-12T00:00:00Z',
       encryption: {

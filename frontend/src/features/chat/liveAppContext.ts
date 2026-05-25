@@ -224,7 +224,7 @@ function buildLiveStateRecords(fetched: LiveAppContextFetch[], freshnessSecs: nu
   return fetched.map(item => {
     const sensitive = isSensitiveModule(item.key)
     return {
-      sourceApp: 'clawcontrol',
+      sourceApp: 'clawctrl',
       module: item.key,
       scope: 'current',
       visibility: 'private',

@@ -3,10 +3,10 @@ import { splitProjectScopedSessions } from '../sidebarSessionBuckets'
 
 const project = {
   projects: [{
-    id: 'local:clawcontrol',
-    name: 'clawcontrol',
-    path: '/Volumes/T7/projects/clawcontrol',
-    root: '/Volumes/T7/projects/clawcontrol',
+    id: 'local:clawctrl',
+    name: 'clawctrl',
+    path: '/Volumes/T7/projects/clawctrl',
+    root: '/Volumes/T7/projects/clawctrl',
   }],
 }
 
@@ -15,12 +15,12 @@ describe('T3 sidebar session buckets adapter', () => {
     const projectById = {
       key: 'project-by-id',
       label: 'Project chat',
-      projectId: 'local:clawcontrol',
+      projectId: 'local:clawctrl',
     }
     const projectByCwd = {
       key: 'project-by-cwd',
       label: 'Nested project chat',
-      workingDir: '/Volumes/T7/projects/clawcontrol/frontend',
+      workingDir: '/Volumes/T7/projects/clawctrl/frontend',
     }
     const unscoped = {
       key: 'unscoped',
@@ -42,7 +42,7 @@ describe('T3 sidebar session buckets adapter', () => {
     const projectSession = {
       key: 'project-only',
       label: 'Project only',
-      metadata: { projectRoot: '/Volumes/T7/projects/clawcontrol' },
+      metadata: { projectRoot: '/Volumes/T7/projects/clawctrl' },
     }
 
     const buckets = splitProjectScopedSessions({
@@ -57,9 +57,9 @@ describe('T3 sidebar session buckets adapter', () => {
   it('scopes project-owned bucket keys by environment when thread ids collide', () => {
     const localProject = {
       projects: [{
-        id: 'local:clawcontrol',
-        name: 'clawcontrol',
-        path: '/Volumes/T7/projects/clawcontrol',
+        id: 'local:clawctrl',
+        name: 'clawctrl',
+        path: '/Volumes/T7/projects/clawctrl',
         environmentId: 'local',
       }],
     }
@@ -74,7 +74,7 @@ describe('T3 sidebar session buckets adapter', () => {
     const localSession = {
       key: 'shared-thread',
       label: 'Local shared thread',
-      workingDir: '/Volumes/T7/projects/clawcontrol',
+      workingDir: '/Volumes/T7/projects/clawctrl',
       environmentId: 'local',
     }
     const remoteSession = {

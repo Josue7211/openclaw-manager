@@ -1,5 +1,5 @@
 // Copied/adapted from T3 Code apps/web/src/components/ProjectScriptsControl.tsx.
-// ClawControl keeps this as the active project action toolbar boundary and
+// clawctrl keeps this as the active project action toolbar boundary and
 // supplies thin callbacks for terminal/review/info/environment behavior.
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from 'react'

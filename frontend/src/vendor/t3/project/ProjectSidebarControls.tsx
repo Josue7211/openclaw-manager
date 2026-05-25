@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code's sidebar project menu controls.
- * ClawControl wires these into its chat sidebar so project view/action menus
+ * clawctrl wires these into its chat sidebar so project view/action menus
  * live with the copied project UI surface instead of inside Chat.tsx.
  */
 

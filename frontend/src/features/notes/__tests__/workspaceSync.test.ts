@@ -45,13 +45,13 @@ const snapshot: SyncedNotesWorkspaceSnapshot = {
 
 describe('workspace synced vault document', () => {
   it('uses an internal vault note path for synced workspace presets', () => {
-    expect(NOTES_WORKSPACE_SYNC_NOTE_ID).toBe('.clawcontrol/workspaces.md')
+    expect(NOTES_WORKSPACE_SYNC_NOTE_ID).toBe('.clawctrl/workspaces.md')
   })
 
   it('round-trips normalized workspace presets through the sync document content', () => {
     const content = serializeNotesWorkspaceDocument([snapshot])
 
-    expect(content).toContain('clawcontrol:workspaces:v1')
+    expect(content).toContain('clawctrl:workspaces:v1')
     expect(parseNotesWorkspaceDocument(content)).toEqual([snapshot])
   })
 
@@ -85,6 +85,6 @@ describe('workspace synced vault document', () => {
 
   it('ignores malformed synced workspace content', () => {
     expect(parseNotesWorkspaceDocument('')).toEqual([])
-    expect(parseNotesWorkspaceDocument('<!-- clawcontrol:workspaces:v1 -->\nnot json\n<!-- /clawcontrol:workspaces:v1 -->')).toEqual([])
+    expect(parseNotesWorkspaceDocument('<!-- clawctrl:workspaces:v1 -->\nnot json\n<!-- /clawctrl:workspaces:v1 -->')).toEqual([])
   })
 })

@@ -53,7 +53,7 @@ const CHAT_WORKSPACE_KEYS: readonly SyncedKey[] = [
   'chat-project-grouping-mode',
   'chat-project-sort-order',
 ]
-export const CHAT_WORKSPACE_PREFERENCES_CHANGED_EVENT = 'clawcontrol:chat-workspace-preferences-changed'
+export const CHAT_WORKSPACE_PREFERENCES_CHANGED_EVENT = 'clawctrl:chat-workspace-preferences-changed'
 
 /** Keys that use last-write-wins (timestamp comparison) instead of remote-wins */
 const LAST_WRITE_WINS_KEYS: readonly SyncedKey[] = ['theme-state', 'dashboard-state']

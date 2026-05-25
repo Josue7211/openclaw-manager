@@ -772,7 +772,7 @@ mod tests {
 
     #[test]
     fn test_resolve_terminal_cwd_rejects_missing_folder() {
-        let missing = std::env::temp_dir().join("clawcontrol-missing-terminal-cwd");
+        let missing = std::env::temp_dir().join("clawctrl-missing-terminal-cwd");
         let resolved = resolve_terminal_cwd(Some(missing.to_string_lossy().to_string()));
 
         assert!(resolved.is_err());
@@ -781,7 +781,7 @@ mod tests {
     #[test]
     fn test_parse_terminal_env_accepts_safe_context() {
         let env = parse_terminal_env(Some(
-            r#"{"CLAWCONTROL_PROJECT_PATH":"/tmp/project","CLAWCONTROL_BRANCH":"main","CLAWCONTROL_RUNTIME":"Work locally","COUNT":2,"ENABLED":true,"SKIP":null}"#
+            r#"{"CLAWCTRL_PROJECT_PATH":"/tmp/project","CLAWCTRL_BRANCH":"main","CLAWCTRL_RUNTIME":"Work locally","COUNT":2,"ENABLED":true,"SKIP":null}"#
                 .to_string(),
         ))
         .expect("safe env parses");
@@ -789,15 +789,12 @@ mod tests {
         assert_eq!(
             env,
             vec![
-                ("CLAWCONTROL_BRANCH".to_string(), "main".to_string()),
+                ("CLAWCTRL_BRANCH".to_string(), "main".to_string()),
                 (
-                    "CLAWCONTROL_PROJECT_PATH".to_string(),
+                    "CLAWCTRL_PROJECT_PATH".to_string(),
                     "/tmp/project".to_string()
                 ),
-                (
-                    "CLAWCONTROL_RUNTIME".to_string(),
-                    "Work locally".to_string()
-                ),
+                ("CLAWCTRL_RUNTIME".to_string(), "Work locally".to_string()),
                 ("COUNT".to_string(), "2".to_string()),
                 ("ENABLED".to_string(), "true".to_string()),
             ]
@@ -862,18 +859,14 @@ mod tests {
 
     #[test]
     fn test_terminal_ws_query_accepts_encoded_env_context() {
-        let query: TerminalWsQuery = serde_urlencoded::from_str(
-            "env=%7B%22CLAWCONTROL_RUNTIME%22%3A%22Work%20locally%22%7D",
-        )
-        .expect("terminal websocket query parses encoded env");
+        let query: TerminalWsQuery =
+            serde_urlencoded::from_str("env=%7B%22CLAWCTRL_RUNTIME%22%3A%22Work%20locally%22%7D")
+                .expect("terminal websocket query parses encoded env");
         let env = parse_terminal_env(query.env).expect("encoded terminal env parses");
 
         assert_eq!(
             env,
-            vec![(
-                "CLAWCONTROL_RUNTIME".to_string(),
-                "Work locally".to_string()
-            )]
+            vec![("CLAWCTRL_RUNTIME".to_string(), "Work locally".to_string())]
         );
     }
 

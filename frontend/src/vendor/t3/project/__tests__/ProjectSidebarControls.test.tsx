@@ -90,8 +90,8 @@ describe('T3 copied ProjectSidebarControls adapter', () => {
 
     render(
       <ProjectActionMenu
-        label="clawcontrol"
-        groupingLabel="Grouping for clawcontrol"
+        label="clawctrl"
+        groupingLabel="Grouping for clawctrl"
         groupingValue=""
         copyLabel="Copy path"
         copied={false}
@@ -105,12 +105,12 @@ describe('T3 copied ProjectSidebarControls adapter', () => {
       />,
     )
 
-    const trigger = screen.getByRole('button', { name: 'More actions for clawcontrol' })
+    const trigger = screen.getByRole('button', { name: 'More actions for clawctrl' })
     expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
 
     fireEvent.click(trigger)
 
-    const menu = screen.getByRole('menu', { name: 'Actions for clawcontrol' })
+    const menu = screen.getByRole('menu', { name: 'Actions for clawctrl' })
     expect(menu).toHaveAttribute('data-t3-project-action-menu')
     expect(trigger).toHaveAttribute('aria-controls', menu.id)
     expect(menu).toHaveStyle({
@@ -124,21 +124,21 @@ describe('T3 copied ProjectSidebarControls adapter', () => {
       backdropFilter: 'none',
       isolation: 'isolate',
     })
-    expect(screen.getByLabelText('Grouping for clawcontrol').compareDocumentPosition(
+    expect(screen.getByLabelText('Grouping for clawctrl').compareDocumentPosition(
       screen.getByRole('menuitem', { name: 'Remove project' }),
     ) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: 'Remove project' })).toHaveAttribute('title', 'Remove project')
     fireEvent.click(screen.getByRole('menuitem', { name: 'Copy path' }))
     expect(onCopy).toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'More actions for clawcontrol' }))
-    fireEvent.change(screen.getByLabelText('Grouping for clawcontrol'), { target: { value: 'repository-path' } })
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for clawctrl' }))
+    fireEvent.change(screen.getByLabelText('Grouping for clawctrl'), { target: { value: 'repository-path' } })
     expect(onGroupingChange).toHaveBeenCalledWith('repository-path')
 
     fireEvent.click(screen.getByRole('menuitem', { name: 'Rename' }))
     expect(onRename).toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'More actions for clawcontrol' }))
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for clawctrl' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Remove project' }))
     expect(onRemove).toHaveBeenCalled()
   })
@@ -146,8 +146,8 @@ describe('T3 copied ProjectSidebarControls adapter', () => {
   it('supports keyboard navigation and focus return in project action menus', async () => {
     render(
       <ProjectActionMenu
-        label="clawcontrol"
-        groupingLabel="Grouping for clawcontrol"
+        label="clawctrl"
+        groupingLabel="Grouping for clawctrl"
         groupingValue=""
         copyLabel="Copy path"
         copied={false}
@@ -161,9 +161,9 @@ describe('T3 copied ProjectSidebarControls adapter', () => {
       />,
     )
 
-    const trigger = screen.getByRole('button', { name: 'More actions for clawcontrol' })
+    const trigger = screen.getByRole('button', { name: 'More actions for clawctrl' })
     fireEvent.click(trigger)
-    const menu = screen.getByRole('menu', { name: 'Actions for clawcontrol' })
+    const menu = screen.getByRole('menu', { name: 'Actions for clawctrl' })
 
     await waitFor(() => {
       expect(screen.getByRole('menuitem', { name: 'Copy path' })).toHaveFocus()
@@ -176,13 +176,13 @@ describe('T3 copied ProjectSidebarControls adapter', () => {
     fireEvent.keyDown(menu, { key: 'Home' })
     expect(screen.getByRole('menuitem', { name: 'Copy path' })).toHaveFocus()
 
-    const groupingSelect = screen.getByLabelText('Grouping for clawcontrol')
+    const groupingSelect = screen.getByLabelText('Grouping for clawctrl')
     groupingSelect.focus()
     fireEvent.keyDown(groupingSelect, { key: 'ArrowDown' })
     expect(groupingSelect).toHaveFocus()
 
     fireEvent.keyDown(menu, { key: 'Escape' })
-    expect(screen.queryByRole('menu', { name: 'Actions for clawcontrol' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menu', { name: 'Actions for clawctrl' })).not.toBeInTheDocument()
     expect(trigger).toHaveFocus()
   })
 
@@ -219,8 +219,8 @@ describe('T3 copied ProjectSidebarControls adapter', () => {
 
     render(
       <ProjectActionMenu
-        label="clawcontrol"
-        groupingLabel="Grouping for clawcontrol"
+        label="clawctrl"
+        groupingLabel="Grouping for clawctrl"
         groupingValue=""
         copyLabel="Copy path"
         copied={false}
@@ -233,7 +233,7 @@ describe('T3 copied ProjectSidebarControls adapter', () => {
         onRemove={vi.fn()}
       />,
     )
-    const trigger = screen.getByRole('button', { name: 'More actions for clawcontrol' })
+    const trigger = screen.getByRole('button', { name: 'More actions for clawctrl' })
     vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue({
       x: 168,
       y: 16,
@@ -248,7 +248,7 @@ describe('T3 copied ProjectSidebarControls adapter', () => {
 
     fireEvent.click(trigger)
 
-    const menu = screen.getByRole('menu', { name: 'Actions for clawcontrol' })
+    const menu = screen.getByRole('menu', { name: 'Actions for clawctrl' })
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth })
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: originalInnerHeight })
 

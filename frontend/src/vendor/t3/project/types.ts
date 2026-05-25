@@ -1,4 +1,4 @@
-// Copied/adapted from T3 Code project/sidebar contracts for ClawControl.
+// Copied/adapted from T3 Code project/sidebar contracts for clawctrl.
 // This file intentionally keeps the T3-shaped data model at the vendor edge.
 
 export type EnvironmentId = string

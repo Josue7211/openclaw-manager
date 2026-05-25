@@ -88,7 +88,7 @@ impl AgentMailThread {
         let id = self.thread_id.or(self.id)?;
         let subject = self.subject.unwrap_or_else(|| "(no subject)".to_string());
         let preview = self.preview.unwrap_or_default();
-        if is_clawcontrol_route_test(&subject, &preview) {
+        if is_clawctrl_route_test(&subject, &preview) {
             return None;
         }
         let from = self
@@ -147,7 +147,7 @@ impl AgentMailMessage {
         let id = self.thread_id.unwrap_or_else(|| message_id.clone());
         let subject = self.subject.unwrap_or_else(|| "(no subject)".to_string());
         let preview = self.preview.unwrap_or_default();
-        if is_clawcontrol_route_test(&subject, &preview)
+        if is_clawctrl_route_test(&subject, &preview)
             || self
                 .labels
                 .iter()
@@ -176,7 +176,7 @@ impl AgentMailMessage {
     }
 }
 
-fn is_clawcontrol_route_test(subject: &str, preview: &str) -> bool {
+fn is_clawctrl_route_test(subject: &str, preview: &str) -> bool {
     subject.trim().eq_ignore_ascii_case("clawctrl route test")
         || preview.contains("Testing AgentMail delivery into clawctrl.")
 }

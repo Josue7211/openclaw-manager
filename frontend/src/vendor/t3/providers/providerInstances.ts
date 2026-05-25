@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code apps/web/src/providerInstances.ts (MIT License).
- * This preserves T3's instance-aware provider projection so ClawControl does
+ * This preserves T3's instance-aware provider projection so clawctrl does
  * not collapse providers into a flat hardcoded dropdown.
  */
 

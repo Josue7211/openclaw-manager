@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code's chat header/project context controls.
- * ClawControl passes project/session state and local usage UI in through props
+ * clawctrl passes project/session state and local usage UI in through props
  * so Chat.tsx does not own a bespoke header/context implementation.
  */
 

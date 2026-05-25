@@ -150,7 +150,7 @@ const WizardHarness = React.memo(function WizardHarness() {
             Hermes Agent Dashboard
           </h3>
           <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '12px' }}>
-            Used for accounts, API keys, request logs, and limit data inside ClawControl.
+            Used for accounts, API keys, request logs, and limit data inside clawctrl.
           </p>
         </div>
 

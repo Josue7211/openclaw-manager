@@ -1929,7 +1929,7 @@ async fn prepare_application_batch(
     sqlx::query(
         "INSERT INTO approval_requests \
          (id, user_id, source, requester, action, target, risk, scope, summary, diff, policy, nonce_hash, status, expires_at, raw) \
-         VALUES (?, ?, 'clawcontrol', ?, ?, ?, 'high', ?, ?, ?, ?, ?, 'pending', ?, ?)",
+         VALUES (?, ?, 'clawctrl', ?, ?, ?, 'high', ?, ?, ?, ?, ?, 'pending', ?, ?)",
     )
     .bind(&approval_id)
     .bind(&session.user_id)
@@ -1950,7 +1950,7 @@ async fn prepare_application_batch(
         "batchId": batch_id,
         "applications": applications,
         "approval": {
-            "id": format!("clawcontrol:{approval_id}"),
+            "id": format!("clawctrl:{approval_id}"),
             "action": ACTION_APPLY_BATCH,
             "summary": summary,
             "risk": "high",

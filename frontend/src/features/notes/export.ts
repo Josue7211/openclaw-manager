@@ -63,7 +63,7 @@ export interface PublishedNotesAttachment {
 }
 
 export interface PublishedNotesSiteManifest {
-  format: 'clawcontrol-published-notes-site'
+  format: 'clawctrl-published-notes-site'
   version: 1
   title: string
   entry_id: string | null
@@ -119,7 +119,7 @@ export function buildReviewPackage(
 ) {
   const permission = options.permission ?? 'suggest'
   return {
-    format: 'clawcontrol-document-review-package',
+    format: 'clawctrl-document-review-package',
     version: 1,
     exported_at: new Date().toISOString(),
     privacy: {
@@ -156,7 +156,7 @@ export function verifyReviewPackage(input: unknown): ReviewPackageVerification {
   }
 
   const pkg = input as Record<string, unknown>
-  if (pkg.format !== 'clawcontrol-document-review-package') errors.push('Review package format is not supported')
+  if (pkg.format !== 'clawctrl-document-review-package') errors.push('Review package format is not supported')
   if (pkg.version !== 1) errors.push('Review package version is not supported')
 
   const privacy = objectValue(pkg.privacy)
@@ -237,7 +237,7 @@ export function buildPublishedNotesSite(notes: VaultNote[], options: PublishedNo
     .slice()
     .sort((a, b) => a.folder.localeCompare(b.folder) || a.title.localeCompare(b.title))
   const entry = publishable.find(note => note._id === options.entryId) ?? publishable[0] ?? null
-  const title = options.title?.trim() || entry?.title || 'ClawControl Notes'
+  const title = options.title?.trim() || entry?.title || 'clawctrl Notes'
   const attachmentMap = new Map((options.attachments ?? []).map(attachment => [attachment.id, attachment]))
   const navItems = publishable
     .map(note => {
@@ -272,7 +272,7 @@ export function buildPublishedNotesSite(notes: VaultNote[], options: PublishedNo
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="generator" content="ClawControl Notes" />
+  <meta name="generator" content="clawctrl Notes" />
   <title>${escapeHtml(title)}</title>
   <style>
     :root { color-scheme: light; --ink: #111827; --muted: #6b7280; --line: #e5e7eb; --panel: #f9fafb; --accent: #2563eb; }
@@ -356,12 +356,12 @@ export async function buildPublishedNotesSiteBundle(
     .slice()
     .sort((a, b) => a.folder.localeCompare(b.folder) || a.title.localeCompare(b.title))
   const entry = publishable.find(note => note._id === options.entryId) ?? publishable[0] ?? null
-  const title = options.title?.trim() || entry?.title || 'ClawControl Notes'
+  const title = options.title?.trim() || entry?.title || 'clawctrl Notes'
   const attachmentFiles = await collectPublishedAttachmentFiles(publishable)
   const attachments = attachmentFiles.map(({ bytes: _bytes, ...attachment }) => attachment)
   const html = buildPublishedNotesSite(notes, { ...options, attachments })
   const manifest: PublishedNotesSiteManifest = {
-    format: 'clawcontrol-published-notes-site',
+    format: 'clawctrl-published-notes-site',
     version: 1,
     title,
     entry_id: entry?._id ?? null,
@@ -391,7 +391,7 @@ export async function downloadPublishedNotesSite(notes: VaultNote[], options: Pu
   new Uint8Array(buffer).set(zip)
   downloadBlob(
     new Blob([buffer], { type: 'application/zip' }),
-    safeExportName(options.title || 'ClawControl Notes Site', 'zip'),
+    safeExportName(options.title || 'clawctrl Notes Site', 'zip'),
   )
 }
 
@@ -1353,8 +1353,8 @@ function corePropsXml(title: string): string {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <dc:title>${escapeXml(title)}</dc:title>
-  <dc:creator>ClawControl Notes</dc:creator>
-  <cp:lastModifiedBy>ClawControl Notes</cp:lastModifiedBy>
+  <dc:creator>clawctrl Notes</dc:creator>
+  <cp:lastModifiedBy>clawctrl Notes</cp:lastModifiedBy>
   <dcterms:created xsi:type="dcterms:W3CDTF">${now}</dcterms:created>
   <dcterms:modified xsi:type="dcterms:W3CDTF">${now}</dcterms:modified>
 </cp:coreProperties>`
@@ -1363,7 +1363,7 @@ function corePropsXml(title: string): string {
 function appPropsXml(): string {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
-  <Application>ClawControl</Application>
+  <Application>clawctrl</Application>
 </Properties>`
 }
 

@@ -295,7 +295,7 @@ describe('notes export markdown compatibility', () => {
     expect(bundle.html).toContain('Missing attachment: Media/missing.png')
     expect(bundle.manifest).toEqual(
       expect.objectContaining({
-        format: 'clawcontrol-published-notes-site',
+        format: 'clawctrl-published-notes-site',
         title: 'Project Docs',
         entry_id: 'Projects/brief.md',
         attachments: [
@@ -492,7 +492,7 @@ describe('notes export markdown compatibility', () => {
 
     expect(pkg).toEqual(
       expect.objectContaining({
-        format: 'clawcontrol-document-review-package',
+        format: 'clawctrl-document-review-package',
         version: 1,
         privacy: expect.objectContaining({ remote_required: false, storage: 'local_package' }),
         share: expect.objectContaining({

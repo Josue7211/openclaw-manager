@@ -448,9 +448,9 @@ export const clawOpenUiLibrary = createLibrary({
 
 export function buildOpenUiLangSystemPrompt(): string {
   return clawOpenUiLibrary.prompt({
-    preamble: 'You are an OpenUI Lang UI generator for ClawControl.',
+    preamble: 'You are an OpenUI Lang UI generator for clawctrl.',
     additionalRules: [
-      'Only use components from the provided ClawControl library.',
+      'Only use components from the provided clawctrl library.',
       'Prefer composed generated UI using Stack, Card, Text, Badge, Checklist, Metric, and Progress.',
       'Use MarkdownDisplay only for markdown-heavy prose; do not use MarkdownDisplay as the default for visual UI.',
       'Prefer compact dashboard-safe layouts that fit a right-side assistant drawer.',

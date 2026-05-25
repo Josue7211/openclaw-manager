@@ -36,7 +36,7 @@ describe('ChatTerminalDrawer', () => {
       <ChatTerminalDrawer
         title="Tauri dev"
         initialCommand="cargo tauri dev"
-        cwd="/Volumes/T7/projects/clawcontrol/src-tauri"
+        cwd="/Volumes/T7/projects/clawctrl/src-tauri"
         onClose={vi.fn()}
       />,
     )
@@ -49,7 +49,7 @@ describe('ChatTerminalDrawer', () => {
       {
         fontSize: 12,
         initialCommand: 'cargo tauri dev',
-        cwd: '/Volumes/T7/projects/clawcontrol/src-tauri',
+        cwd: '/Volumes/T7/projects/clawctrl/src-tauri',
         processId: undefined,
         env: undefined,
       },
@@ -60,11 +60,11 @@ describe('ChatTerminalDrawer', () => {
     render(
       <ChatTerminalDrawer
         title="Tauri dev"
-        cwd="/Volumes/T7/projects/clawcontrol"
+        cwd="/Volumes/T7/projects/clawctrl"
         env={{
-          CLAWCONTROL_PROJECT_PATH: '/Volumes/T7/projects/clawcontrol',
-          CLAWCONTROL_RUNTIME: 'Work locally',
-          CLAWCONTROL_BRANCH: 'main',
+          CLAWCTRL_PROJECT_PATH: '/Volumes/T7/projects/clawctrl',
+          CLAWCTRL_RUNTIME: 'Work locally',
+          CLAWCTRL_BRANCH: 'main',
         }}
         onClose={vi.fn()}
       />,
@@ -73,11 +73,11 @@ describe('ChatTerminalDrawer', () => {
     expect(mockUseTerminal).toHaveBeenCalledWith(
       expect.objectContaining({ current: expect.any(HTMLDivElement) }),
       expect.objectContaining({
-        cwd: '/Volumes/T7/projects/clawcontrol',
+        cwd: '/Volumes/T7/projects/clawctrl',
         env: {
-          CLAWCONTROL_PROJECT_PATH: '/Volumes/T7/projects/clawcontrol',
-          CLAWCONTROL_RUNTIME: 'Work locally',
-          CLAWCONTROL_BRANCH: 'main',
+          CLAWCTRL_PROJECT_PATH: '/Volumes/T7/projects/clawctrl',
+          CLAWCTRL_RUNTIME: 'Work locally',
+          CLAWCTRL_BRANCH: 'main',
         },
       }),
     )
@@ -89,7 +89,7 @@ describe('ChatTerminalDrawer', () => {
       error: null,
       status: 'running',
       processId: 'terminal-1',
-      cwd: '/Volumes/T7/projects/clawcontrol',
+      cwd: '/Volumes/T7/projects/clawctrl',
       exitCode: null,
       exitSignal: null,
       closeReason: null,
@@ -97,10 +97,10 @@ describe('ChatTerminalDrawer', () => {
       restart: mockRestart,
     })
 
-    render(<ChatTerminalDrawer title="Terminal" cwd="/Volumes/T7/projects/clawcontrol" onClose={vi.fn()} />)
+    render(<ChatTerminalDrawer title="Terminal" cwd="/Volumes/T7/projects/clawctrl" onClose={vi.fn()} />)
 
     expect(screen.getByText('running')).toBeInTheDocument()
-    expect(screen.getByText('/Volumes/T7/projects/clawcontrol')).toBeInTheDocument()
+    expect(screen.getByText('/Volumes/T7/projects/clawctrl')).toBeInTheDocument()
   })
 
   it('exposes responsive hooks for terminal header wrapping', () => {
@@ -109,7 +109,7 @@ describe('ChatTerminalDrawer', () => {
       error: null,
       status: 'running',
       processId: 'terminal-1',
-      cwd: '/Volumes/T7/projects/clawcontrol',
+      cwd: '/Volumes/T7/projects/clawctrl',
       exitCode: null,
       exitSignal: null,
       closeReason: null,
@@ -117,12 +117,12 @@ describe('ChatTerminalDrawer', () => {
       restart: mockRestart,
     })
 
-    render(<ChatTerminalDrawer title="Terminal" cwd="/Volumes/T7/projects/clawcontrol" onClose={vi.fn()} />)
+    render(<ChatTerminalDrawer title="Terminal" cwd="/Volumes/T7/projects/clawctrl" onClose={vi.fn()} />)
 
     expect(screen.getByRole('region', { name: 'Chat terminal' })).toHaveClass('chat-terminal-drawer')
     expect(screen.getByText('Terminal')).toHaveClass('chat-terminal-name')
     expect(screen.getByText('running')).toHaveClass('chat-terminal-status')
-    expect(screen.getByText('/Volumes/T7/projects/clawcontrol')).toHaveClass('chat-terminal-cwd')
+    expect(screen.getByText('/Volumes/T7/projects/clawctrl')).toHaveClass('chat-terminal-cwd')
   })
 
   it('wires stop, restart, and close controls', () => {
@@ -186,7 +186,7 @@ describe('ChatTerminalDrawer', () => {
       error: null,
       status: 'closed',
       processId: 'terminal-1',
-      cwd: '/Volumes/T7/projects/clawcontrol',
+      cwd: '/Volumes/T7/projects/clawctrl',
       exitCode: 2,
       exitSignal: null,
       closeReason: 'closed',
@@ -206,7 +206,7 @@ describe('ChatTerminalDrawer', () => {
       error: null,
       status: 'running',
       processId: 'terminal-1',
-      cwd: '/Volumes/T7/projects/clawcontrol',
+      cwd: '/Volumes/T7/projects/clawctrl',
       exitCode: null,
       exitSignal: null,
       closeReason: null,
@@ -217,7 +217,7 @@ describe('ChatTerminalDrawer', () => {
     render(
       <ChatTerminalDrawer
         title="Tauri dev"
-        cwd="/Volumes/T7/projects/clawcontrol"
+        cwd="/Volumes/T7/projects/clawctrl"
         onClose={vi.fn()}
         onStatusChange={onStatusChange}
       />,
@@ -228,7 +228,7 @@ describe('ChatTerminalDrawer', () => {
         title: 'Tauri dev',
         status: 'running',
         displayText: 'running',
-        cwd: '/Volumes/T7/projects/clawcontrol',
+        cwd: '/Volumes/T7/projects/clawctrl',
         processId: 'terminal-1',
         error: null,
       })

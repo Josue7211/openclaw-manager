@@ -5,14 +5,14 @@ import {
 } from '../sidebarSessionMatching'
 
 const project = {
-  id: 'local:clawcontrol',
+  id: 'local:clawctrl',
   environmentId: 'local',
-  name: 'clawcontrol',
-  path: '/Volumes/T7/projects/clawcontrol',
+  name: 'clawctrl',
+  path: '/Volumes/T7/projects/clawctrl',
   root: '/Volumes/T7/projects',
   repositoryIdentity: {
-    displayName: 'josue7211/clawcontrol',
-    name: 'clawcontrol',
+    displayName: 'josue7211/clawctrl',
+    name: 'clawctrl',
   },
 }
 
@@ -20,21 +20,21 @@ describe('T3 sidebar session matching adapter', () => {
   it('matches project-owned chats by project id first', () => {
     expect(sessionMatchesProject({
       key: 'thread-1',
-      projectId: 'local:clawcontrol',
+      projectId: 'local:clawctrl',
       workingDir: '/tmp/unrelated',
     }, project)).toBe(true)
 
     expect(sessionMatchesProject({
       key: 'thread-1b',
       projectId: 'local:other',
-      workingDir: '/Volumes/T7/projects/clawcontrol',
+      workingDir: '/Volumes/T7/projects/clawctrl',
     }, project)).toBe(false)
   })
 
   it('matches path-like project ids after normalization', () => {
     expect(sessionMatchesProject({
       key: 'thread-path-project-id',
-      projectId: '/Volumes/T7/projects/clawcontrol/',
+      projectId: '/Volumes/T7/projects/clawctrl/',
       environmentId: 'local',
     }, project)).toBe(true)
   })
@@ -42,33 +42,33 @@ describe('T3 sidebar session matching adapter', () => {
   it('does not match explicit environment mismatches by cwd or project name', () => {
     expect(sessionMatchesProject({
       key: 'remote-project-id-collision',
-      projectId: 'local:clawcontrol',
+      projectId: 'local:clawctrl',
       environmentId: 'remote-vm',
     }, project)).toBe(false)
 
     expect(sessionMatchesProject({
       key: 'remote-cwd-collision',
       environmentId: 'remote-vm',
-      workingDir: '/Volumes/T7/projects/clawcontrol/frontend',
+      workingDir: '/Volumes/T7/projects/clawctrl/frontend',
     }, project)).toBe(false)
 
     expect(sessionMatchesProject({
       key: 'remote-name-collision',
       environmentId: 'remote-vm',
-      project: 'clawcontrol',
+      project: 'clawctrl',
     }, project)).toBe(false)
   })
 
   it('matches project id collisions only when environment identity is compatible', () => {
     expect(sessionMatchesProject({
       key: 'same-env-project-id-collision',
-      projectId: 'local:clawcontrol',
+      projectId: 'local:clawctrl',
       environmentId: 'LOCAL',
     }, project)).toBe(true)
 
     expect(sessionMatchesProject({
       key: 'legacy-project-id-without-env',
-      projectId: 'local:clawcontrol',
+      projectId: 'local:clawctrl',
     }, project)).toBe(true)
   })
 
@@ -76,14 +76,14 @@ describe('T3 sidebar session matching adapter', () => {
     expect(sessionMatchesProject({
       key: 'thread-2',
       metadata: {
-        projectRoot: '/Volumes/T7/projects/clawcontrol/frontend',
+        projectRoot: '/Volumes/T7/projects/clawctrl/frontend',
       },
     }, project)).toBe(true)
 
     expect(sessionMatchesProject({
       key: 'thread-3',
       workspace: {
-        workingDir: '/volumes/t7/projects/clawcontrol',
+        workingDir: '/volumes/t7/projects/clawctrl',
       },
     }, project)).toBe(true)
   })

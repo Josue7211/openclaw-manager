@@ -156,7 +156,7 @@ export type VaultPluginMarketplaceFetch = (
 
 const MAX_VAULT_PLUGIN_RUNTIME_CODE_LENGTH = 16000
 const VAULT_PLUGIN_SCOPE_NOTICE =
-  '> Scope: local ClawControl plugin manifests run through a permission-scoped Obsidian compatibility facade; arbitrary native/community Obsidian plugins are not executed.'
+  '> Scope: local clawctrl plugin manifests run through a permission-scoped Obsidian compatibility facade; arbitrary native/community Obsidian plugins are not executed.'
 
 const ALLOWED_PLUGIN_PERMISSIONS = new Set<VaultPluginPermission>([
   'read:vault-stats',
@@ -690,7 +690,7 @@ function vaultPluginTrustedPublisherActive(publisher: VaultPluginTrustedPublishe
 
 export function vaultPluginPackageSigningPayload(pkg: VaultPluginMarketplacePackage): string {
   return [
-    'clawcontrol-vault-plugin-package-v1',
+    'clawctrl-vault-plugin-package-v1',
     pkg.packageId,
     pkg.checksum,
     stablePluginManifestJson(pkg.plugin),
@@ -1840,7 +1840,7 @@ function mutablePluginEl() {
 function buildObsidianPluginAppFacade(notes: VaultNote[], plugin: VaultPluginDefinition, currentId?: string) {
   const liveNotes = notes.filter(note => note.type === 'note' && !isTrashed(note))
   const dataStore = buildVaultPluginDataStore(notes)
-  const vaultRef = Object.freeze({ getName: () => 'ClawControl Local Vault' })
+  const vaultRef = Object.freeze({ getName: () => 'clawctrl Local Vault' })
   const folders = permittedPluginData(plugin, 'read:files') ? buildObsidianFolders(liveNotes, vaultRef) : []
   const folderByPath = new Map(folders.map(folder => [folder.path, folder]))
   const files = permittedPluginData(plugin, 'read:files')
@@ -1907,7 +1907,7 @@ function buildObsidianPluginAppFacade(notes: VaultNote[], plugin: VaultPluginDef
   folders.forEach(folder => Object.freeze(folder.children))
   const markdownCommands = new Map<string, { name: string; run: () => string }>([
     [
-      'clawcontrol:vault-stats',
+      'clawctrl:vault-stats',
       {
         name: 'vault stats',
         run: () =>
@@ -1917,7 +1917,7 @@ function buildObsidianPluginAppFacade(notes: VaultNote[], plugin: VaultPluginDef
       },
     ],
     [
-      'clawcontrol:recent-notes',
+      'clawctrl:recent-notes',
       {
         name: 'recent notes',
         run: () =>
@@ -1927,7 +1927,7 @@ function buildObsidianPluginAppFacade(notes: VaultNote[], plugin: VaultPluginDef
       },
     ],
     [
-      'clawcontrol:tag-index',
+      'clawctrl:tag-index',
       {
         name: 'tag index',
         run: () =>
@@ -1972,7 +1972,7 @@ function buildObsidianPluginAppFacade(notes: VaultNote[], plugin: VaultPluginDef
       return vaultPluginDataMarkdown(plugin.id, data)
     },
     vault: Object.freeze({
-      getName: () => 'ClawControl Local Vault',
+      getName: () => 'clawctrl Local Vault',
       getMarkdownFiles: () => files,
       getFiles: () => files,
       getAllLoadedFiles: () => Object.freeze([rootFolder, ...folders, ...files]),
@@ -2086,7 +2086,7 @@ function buildObsidianPluginAppFacade(notes: VaultNote[], plugin: VaultPluginDef
         })
       },
       adapter: Object.freeze({
-        getName: () => 'ClawControl Local Vault',
+        getName: () => 'clawctrl Local Vault',
         getFullPath: (path: string) => normalizePluginPath(path),
         list: (path: string) => {
           if (!permittedPluginData(plugin, 'read:files')) return Object.freeze({ files: Object.freeze([]), folders: Object.freeze([]) })

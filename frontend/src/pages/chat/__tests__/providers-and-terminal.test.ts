@@ -29,15 +29,15 @@ describe('chat provider and terminal contracts', () => {
   it('builds terminal websocket URLs with auth and dock context', () => {
     setApiKey('test-key')
 
-    const url = buildTerminalWebSocketUrl('/Volumes/T7/projects/clawcontrol', 'chat-process-1', {
-      CLAWCONTROL_RUNTIME: 'Work locally',
+    const url = buildTerminalWebSocketUrl('/Volumes/T7/projects/clawctrl', 'chat-process-1', {
+      CLAWCTRL_RUNTIME: 'Work locally',
     })
 
     expect(url).toContain('ws://127.0.0.1:3010/api/terminal/ws?')
     expect(url).toContain('apiKey=test-key')
-    expect(url).toContain('cwd=%2FVolumes%2FT7%2Fprojects%2Fclawcontrol')
+    expect(url).toContain('cwd=%2FVolumes%2FT7%2Fprojects%2Fclawctrl')
     expect(url).toContain('processId=chat-process-1')
-    expect(url).toContain('CLAWCONTROL_RUNTIME')
+    expect(url).toContain('CLAWCTRL_RUNTIME')
   })
 
   it('uses the local desktop backend and local api key for terminal websocket URLs', () => {
@@ -51,7 +51,7 @@ describe('chat provider and terminal contracts', () => {
       remoteApiKey: 'remote-key',
     })
 
-    const url = buildTerminalWebSocketUrl('/Volumes/T7/projects/clawcontrol', 'chat-process-2')
+    const url = buildTerminalWebSocketUrl('/Volumes/T7/projects/clawctrl', 'chat-process-2')
 
     expect(url).toContain('ws://127.0.0.1:3010/api/terminal/ws?')
     expect(url).toContain('apiKey=local-terminal-key')

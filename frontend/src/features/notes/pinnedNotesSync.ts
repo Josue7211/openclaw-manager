@@ -5,11 +5,11 @@ export interface NotesPinnedNotesState {
   updatedAt: number
 }
 
-export const NOTES_PINNED_NOTES_SYNC_NOTE_ID = '.clawcontrol/pinned-notes.md'
+export const NOTES_PINNED_NOTES_SYNC_NOTE_ID = '.clawctrl/pinned-notes.md'
 
 const LOCAL_VAULT_PREFIX = '/api/vault/local'
-const PINNED_NOTES_MARKER_START = '<!-- clawcontrol:pinned-notes:v1 -->'
-const PINNED_NOTES_MARKER_END = '<!-- /clawcontrol:pinned-notes:v1 -->'
+const PINNED_NOTES_MARKER_START = '<!-- clawctrl:pinned-notes:v1 -->'
+const PINNED_NOTES_MARKER_END = '<!-- /clawctrl:pinned-notes:v1 -->'
 const MAX_PINNED_NOTES = 64
 
 export function normalizePinnedNoteIds(value: unknown): string[] {
@@ -48,7 +48,7 @@ export function pinnedNotesStateEqual(left: NotesPinnedNotesState, right: NotesP
 export function serializePinnedNotesDocument(state: NotesPinnedNotesState): string {
   const normalized = normalizePinnedNotesState(state)
   return [
-    '# ClawControl pinned notes',
+    '# clawctrl pinned notes',
     '',
     'This internal note stores synced Notes pinned-note bookmarks.',
     '',
@@ -98,13 +98,13 @@ export async function saveSyncedPinnedNotesState(state: NotesPinnedNotesState): 
     ...existing,
     _id: NOTES_PINNED_NOTES_SYNC_NOTE_ID,
     type: 'note',
-    title: 'ClawControl pinned notes',
+    title: 'clawctrl pinned notes',
     content: serializePinnedNotesDocument(state),
-    folder: '.clawcontrol',
+    folder: '.clawctrl',
     tags: [],
     links: [],
     aliases: [],
-    properties: { clawcontrol_internal: 'pinned-notes' },
+    properties: { clawctrl_internal: 'pinned-notes' },
     created_at: typeof existing.created_at === 'number' ? existing.created_at : now,
     updated_at: now,
   })

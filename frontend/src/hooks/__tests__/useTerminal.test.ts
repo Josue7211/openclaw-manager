@@ -410,13 +410,13 @@ describe('useTerminal', () => {
     const containerRef = createContainerRef()
 
     renderHook(() => useTerminal(containerRef, {
-      cwd: '/Volumes/T7/projects/clawcontrol',
+      cwd: '/Volumes/T7/projects/clawctrl',
       processId: 'chat-proc-1',
     }))
     await act(async () => { await flushPromises() })
 
     expect(MockWebSocket.instances[0].url).toBe(
-      'ws://127.0.0.1:5000/api/terminal/ws?apiKey=terminal-key&cwd=%2FVolumes%2FT7%2Fprojects%2Fclawcontrol&processId=chat-proc-1',
+      'ws://127.0.0.1:5000/api/terminal/ws?apiKey=terminal-key&cwd=%2FVolumes%2FT7%2Fprojects%2Fclawctrl&processId=chat-proc-1',
     )
   })
 
@@ -425,12 +425,12 @@ describe('useTerminal', () => {
     const containerRef = createContainerRef()
 
     renderHook(() => useTerminal(containerRef, {
-      cwd: '/Volumes/T7/projects/clawcontrol',
+      cwd: '/Volumes/T7/projects/clawctrl',
       processId: 'chat-proc-1',
       env: {
-        CLAWCONTROL_PROJECT_PATH: '/Volumes/T7/projects/clawcontrol',
-        CLAWCONTROL_BRANCH: 'codex/terminal-env',
-        CLAWCONTROL_RUNTIME: 'Work locally',
+        CLAWCTRL_PROJECT_PATH: '/Volumes/T7/projects/clawctrl',
+        CLAWCTRL_BRANCH: 'codex/terminal-env',
+        CLAWCTRL_RUNTIME: 'Work locally',
         EMPTY_VALUE: null,
       },
     }))
@@ -438,12 +438,12 @@ describe('useTerminal', () => {
 
     const url = new URL(MockWebSocket.instances[0].url)
     expect(url.searchParams.get('apiKey')).toBe('terminal-key')
-    expect(url.searchParams.get('cwd')).toBe('/Volumes/T7/projects/clawcontrol')
+    expect(url.searchParams.get('cwd')).toBe('/Volumes/T7/projects/clawctrl')
     expect(url.searchParams.get('processId')).toBe('chat-proc-1')
     expect(JSON.parse(url.searchParams.get('env') || '{}')).toEqual({
-      CLAWCONTROL_PROJECT_PATH: '/Volumes/T7/projects/clawcontrol',
-      CLAWCONTROL_BRANCH: 'codex/terminal-env',
-      CLAWCONTROL_RUNTIME: 'Work locally',
+      CLAWCTRL_PROJECT_PATH: '/Volumes/T7/projects/clawctrl',
+      CLAWCTRL_BRANCH: 'codex/terminal-env',
+      CLAWCTRL_RUNTIME: 'Work locally',
     })
   })
 
@@ -452,7 +452,7 @@ describe('useTerminal', () => {
     const containerRef = createContainerRef()
 
     const { result } = renderHook(() => useTerminal(containerRef, {
-      cwd: '/Volumes/T7/projects/clawcontrol',
+      cwd: '/Volumes/T7/projects/clawctrl',
       processId: 'chat-proc-1',
     }))
     await act(async () => { await flushPromises() })
@@ -464,13 +464,13 @@ describe('useTerminal', () => {
       ws.simulateMessage(JSON.stringify({
         type: 'started',
         processId: 'chat-proc-1',
-        cwd: '/Volumes/T7/projects/clawcontrol',
+        cwd: '/Volumes/T7/projects/clawctrl',
       }))
     })
 
     expect(result.current.status).toBe('running')
     expect(result.current.processId).toBe('chat-proc-1')
-    expect(result.current.cwd).toBe('/Volumes/T7/projects/clawcontrol')
+    expect(result.current.cwd).toBe('/Volumes/T7/projects/clawctrl')
     expect(MockTerminal.instances[0].write).not.toHaveBeenCalledWith(expect.stringContaining('started'))
 
     act(() => {

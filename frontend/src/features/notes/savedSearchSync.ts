@@ -1,16 +1,16 @@
 import { api } from '@/lib/api'
 import { normalizeSavedSearches, type NotesSavedSearch } from './savedSearches'
 
-export const NOTES_SAVED_SEARCH_SYNC_NOTE_ID = '.clawcontrol/saved-searches.md'
+export const NOTES_SAVED_SEARCH_SYNC_NOTE_ID = '.clawctrl/saved-searches.md'
 
 const LOCAL_VAULT_PREFIX = '/api/vault/local'
-const SAVED_SEARCH_MARKER_START = '<!-- clawcontrol:saved-searches:v1 -->'
-const SAVED_SEARCH_MARKER_END = '<!-- /clawcontrol:saved-searches:v1 -->'
+const SAVED_SEARCH_MARKER_START = '<!-- clawctrl:saved-searches:v1 -->'
+const SAVED_SEARCH_MARKER_END = '<!-- /clawctrl:saved-searches:v1 -->'
 
 export function serializeNotesSavedSearchDocument(searches: NotesSavedSearch[]): string {
   const normalized = normalizeSavedSearches(searches)
   return [
-    '# ClawControl saved searches',
+    '# clawctrl saved searches',
     '',
     'This internal note stores synced Notes saved-search definitions.',
     '',
@@ -60,13 +60,13 @@ export async function saveSyncedNotesSavedSearches(searches: NotesSavedSearch[])
     ...existing,
     _id: NOTES_SAVED_SEARCH_SYNC_NOTE_ID,
     type: 'note',
-    title: 'ClawControl saved searches',
+    title: 'clawctrl saved searches',
     content: serializeNotesSavedSearchDocument(searches),
-    folder: '.clawcontrol',
+    folder: '.clawctrl',
     tags: [],
     links: [],
     aliases: [],
-    properties: { clawcontrol_internal: 'saved-searches' },
+    properties: { clawctrl_internal: 'saved-searches' },
     created_at: typeof existing.created_at === 'number' ? existing.created_at : now,
     updated_at: now,
   })

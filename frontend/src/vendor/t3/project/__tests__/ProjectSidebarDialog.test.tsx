@@ -29,7 +29,7 @@ describe('ProjectSidebarDialog', () => {
     expect(screen.getByText('Remove this project from the Hermes Agent workspace. Saved chats and files are not deleted.')).toBeInTheDocument()
     expect(screen.getByRole('note')).toHaveTextContent('does not delete the folder')
     expect(screen.getByRole('note')).toHaveTextContent('Hermes Agent workspace')
-    expect(screen.getByRole('note')).not.toHaveTextContent('ClawControl')
+    expect(screen.getByRole('note')).not.toHaveTextContent('clawctrl')
     expect(screen.getByRole('note')).not.toHaveTextContent('chat workspace')
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.getByRole('presentation')).toHaveStyle({

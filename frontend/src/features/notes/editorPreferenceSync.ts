@@ -32,11 +32,11 @@ export interface SyncedNotesEditorPreferences {
   updatedAt: number
 }
 
-export const NOTES_EDITOR_PREFERENCES_SYNC_NOTE_ID = '.clawcontrol/editor-preferences.md'
+export const NOTES_EDITOR_PREFERENCES_SYNC_NOTE_ID = '.clawctrl/editor-preferences.md'
 
 const LOCAL_VAULT_PREFIX = '/api/vault/local'
-const EDITOR_PREFERENCES_MARKER_START = '<!-- clawcontrol:editor-preferences:v1 -->'
-const EDITOR_PREFERENCES_MARKER_END = '<!-- /clawcontrol:editor-preferences:v1 -->'
+const EDITOR_PREFERENCES_MARKER_START = '<!-- clawctrl:editor-preferences:v1 -->'
+const EDITOR_PREFERENCES_MARKER_END = '<!-- /clawctrl:editor-preferences:v1 -->'
 
 export function syncSafeNotesEditorPreferences(
   preferences: Partial<NotesEditorPreferences> | null | undefined,
@@ -130,7 +130,7 @@ export function syncedNotesEditorPreferencesEqual(
 export function serializeNotesEditorPreferencesDocument(state: SyncedNotesEditorPreferences): string {
   const normalized = normalizeSyncedNotesEditorPreferences(state)
   return [
-    '# ClawControl editor preferences',
+    '# clawctrl editor preferences',
     '',
     'This internal note stores synced Notes editor, assistant, appearance, and periodic-note preferences.',
     '',
@@ -180,13 +180,13 @@ export async function saveSyncedNotesEditorPreferences(state: SyncedNotesEditorP
     ...existing,
     _id: NOTES_EDITOR_PREFERENCES_SYNC_NOTE_ID,
     type: 'note',
-    title: 'ClawControl editor preferences',
+    title: 'clawctrl editor preferences',
     content: serializeNotesEditorPreferencesDocument(state),
-    folder: '.clawcontrol',
+    folder: '.clawctrl',
     tags: [],
     links: [],
     aliases: [],
-    properties: { clawcontrol_internal: 'editor-preferences' },
+    properties: { clawctrl_internal: 'editor-preferences' },
     created_at: typeof existing.created_at === 'number' ? existing.created_at : now,
     updated_at: now,
   })

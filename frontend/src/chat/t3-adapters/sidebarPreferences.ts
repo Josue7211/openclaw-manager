@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code's persisted sidebar/project view settings.
- * ClawControl keeps localStorage keys and normalization here so Chat.tsx and
+ * clawctrl keeps localStorage keys and normalization here so Chat.tsx and
  * the copied sidebar consume the same project-first preferences.
  */
 

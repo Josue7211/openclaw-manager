@@ -1241,7 +1241,7 @@ async fn matrix_audit(
     Ok(Json(json!({
         "status": if active.is_empty() { "retired" } else { "configured" },
         "activeKeys": active,
-        "message": "Matrix is retired for ClawControl; Discord is the target platform."
+        "message": "Matrix is retired for clawctrl; Discord is the target platform."
     })))
 }
 

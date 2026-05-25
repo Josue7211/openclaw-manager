@@ -124,12 +124,12 @@ describe('vault templates', () => {
 
   it('extracts prompt variables in first-seen order', () => {
     expect(extractTemplatePrompts([
-      '# {{prompt:Project|ClawControl}}',
+      '# {{prompt:Project|clawctrl}}',
       'Status: {{prompt:Status|Draft}}',
       'Again: {{ prompt:Project|Ignored }}',
       'Nested separator: {{prompt:Notes|A|B}}',
     ].join('\n'))).toEqual([
-      { name: 'Project', defaultValue: 'ClawControl' },
+      { name: 'Project', defaultValue: 'clawctrl' },
       { name: 'Status', defaultValue: 'Draft' },
       { name: 'Notes', defaultValue: 'A|B' },
     ])

@@ -1,6 +1,6 @@
 # Hermes Mac Services Runbook
 
-This records the current ClawControl/Hermes Mac integration state for BlueBubbles
+This records the current clawctrl/Hermes Mac integration state for BlueBubbles
 and Mac Bridge.
 
 ## Current Self-Chat Test State
@@ -38,7 +38,7 @@ systemctl --user disable --now hermes-mac-services-tunnel.service
 - Hermes does not currently load BlueBubbles credentials at runtime.
 - The `agent-vm` Hermes env files no longer contain `BLUEBUBBLES_*` entries.
 - The Hermes BlueBubbles webhook is not registered in BlueBubbles.
-- The only current BlueBubbles webhook points to local ClawControl:
+- The only current BlueBubbles webhook points to local clawctrl:
   - `http://127.0.0.1:3010/api/messages/webhook`
 - The desktop tunnel unit exists but is disabled and inactive:
   - `hermes-mac-services-tunnel.service`
@@ -48,7 +48,7 @@ systemctl --user disable --now hermes-mac-services-tunnel.service
 
 ## Stored Secrets
 
-Current ClawControl keyring entries are present and nonempty:
+Current clawctrl keyring entries are present and nonempty:
 
 - `bluebubbles.host`
 - `bluebubbles.password`

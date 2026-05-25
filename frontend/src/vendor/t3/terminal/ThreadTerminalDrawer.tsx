@@ -1,5 +1,5 @@
 // Copied/adapted from T3 Code apps/web/src/components/ThreadTerminalDrawer.tsx.
-// This keeps the terminal as a resizable bottom dock. ClawControl supplies the
+// This keeps the terminal as a resizable bottom dock. clawctrl supplies the
 // local terminal hook/websocket backend at the adapter boundary.
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'

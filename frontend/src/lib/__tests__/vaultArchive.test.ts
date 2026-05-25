@@ -7,12 +7,12 @@ describe('markdown vault archive verifier', () => {
       [
         'vault-manifest.json',
         JSON.stringify({
-          format: 'clawcontrol-markdown-vault-tar',
+          format: 'clawctrl-markdown-vault-tar',
           version: 1,
           notes: 1,
           attachments: 1,
           plugin_metadata: {
-            schema: 'clawcontrol-vault-plugin-index',
+            schema: 'clawctrl-vault-plugin-index',
             version: 1,
             documents: [{ id: 'Projects/Roadmap.md', tags: ['strategy'] }],
             attachments: [{ id: 'Media/diagram.png', sha256: 'abc' }],
@@ -33,7 +33,7 @@ describe('markdown vault archive verifier', () => {
         ok: true,
         manifest: expect.objectContaining({
           plugin_metadata: expect.objectContaining({
-            schema: 'clawcontrol-vault-plugin-index',
+            schema: 'clawctrl-vault-plugin-index',
             tags: { strategy: 1 },
           }),
         }),
@@ -48,7 +48,7 @@ describe('markdown vault archive verifier', () => {
       [
         'vault-manifest.json',
         JSON.stringify({
-          format: 'clawcontrol-markdown-vault-tar',
+          format: 'clawctrl-markdown-vault-tar',
           version: 1,
           notes: 2,
           attachments: 0,
@@ -73,7 +73,7 @@ describe('markdown vault archive verifier', () => {
       [
         'vault-manifest.json',
         JSON.stringify({
-          format: 'clawcontrol-markdown-vault-tar',
+          format: 'clawctrl-markdown-vault-tar',
           version: 1,
           notes: 1,
           attachments: 0,
@@ -104,12 +104,12 @@ describe('markdown vault archive verifier', () => {
       [
         'vault-manifest.json',
         JSON.stringify({
-          format: 'clawcontrol-markdown-vault-tar',
+          format: 'clawctrl-markdown-vault-tar',
           version: 1,
           notes: 1,
           attachments: 0,
           plugin_metadata: {
-            schema: 'clawcontrol-vault-plugin-index',
+            schema: 'clawctrl-vault-plugin-index',
             version: 1,
             attachments: [{ id: 'Media/missing.png' }],
           },
@@ -129,12 +129,12 @@ describe('markdown vault archive verifier', () => {
       [
         'vault-manifest.json',
         JSON.stringify({
-          format: 'clawcontrol-markdown-vault-tar',
+          format: 'clawctrl-markdown-vault-tar',
           version: 1,
           notes: 2,
           attachments: 0,
           plugin_metadata: {
-            schema: 'clawcontrol-vault-plugin-index',
+            schema: 'clawctrl-vault-plugin-index',
             version: 1,
             documents: [
               { id: 'Projects/Roadmap.md' },
@@ -164,12 +164,12 @@ describe('markdown vault archive verifier', () => {
       [
         'vault-manifest.json',
         JSON.stringify({
-          format: 'clawcontrol-markdown-vault-tar',
+          format: 'clawctrl-markdown-vault-tar',
           version: 1,
           notes: 2,
           attachments: 0,
           plugin_metadata: {
-            schema: 'clawcontrol-vault-plugin-index',
+            schema: 'clawctrl-vault-plugin-index',
             version: 1,
             documents: [{ id: '../unsafe.md' }],
             attachments: [],
@@ -199,12 +199,12 @@ describe('markdown vault archive verifier', () => {
       [
         'vault-manifest.json',
         JSON.stringify({
-          format: 'clawcontrol-markdown-vault-tar',
+          format: 'clawctrl-markdown-vault-tar',
           version: 1,
           notes: 2,
           attachments: 2,
           plugin_metadata: {
-            schema: 'clawcontrol-vault-plugin-index',
+            schema: 'clawctrl-vault-plugin-index',
             version: 1,
             documents: [
               { id: 'Projects/Roadmap.md' },
@@ -242,12 +242,12 @@ describe('markdown vault archive verifier', () => {
       [
         'vault-manifest.json',
         JSON.stringify({
-          format: 'clawcontrol-markdown-vault-tar',
+          format: 'clawctrl-markdown-vault-tar',
           version: 1,
           notes: 1,
           attachments: 1,
           plugin_metadata: {
-            schema: 'clawcontrol-vault-plugin-index',
+            schema: 'clawctrl-vault-plugin-index',
             version: 1,
             attachments: [],
           },
@@ -273,12 +273,12 @@ describe('markdown vault archive verifier', () => {
       [
         'vault-manifest.json',
         JSON.stringify({
-          format: 'clawcontrol-markdown-vault-tar',
+          format: 'clawctrl-markdown-vault-tar',
           version: 1,
           notes: 1,
           attachments: 1,
           plugin_metadata: {
-            schema: 'clawcontrol-vault-plugin-index',
+            schema: 'clawctrl-vault-plugin-index',
             version: 1,
             attachments: [{ id: '../Media/diagram.png' }],
           },

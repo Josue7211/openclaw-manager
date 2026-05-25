@@ -44,7 +44,7 @@ describe('T3 project sidebar adapter', () => {
     expect(projectEnvironmentDisplayLabel(remoteProject)).toBe('Hermes Agent VM')
     expect(projectGroupLabel({
       ...localProject,
-      path: '/run/media/josue/T7/projects/clawcontrol',
+      path: '/run/media/josue/T7/projects/clawctrl',
       root: undefined,
       machineLabel: undefined,
       machine: undefined,
@@ -53,8 +53,8 @@ describe('T3 project sidebar adapter', () => {
     })).toBe('T7')
     expect(projectEnvironmentDisplayLabel({
       ...localProject,
-      path: '/run/media/josue/T7/projects/clawcontrol',
-      root: '/run/media/josue/T7/projects/clawcontrol',
+      path: '/run/media/josue/T7/projects/clawctrl',
+      root: '/run/media/josue/T7/projects/clawctrl',
       machineLabel: undefined,
       machine: undefined,
       host: undefined,
@@ -73,7 +73,7 @@ describe('T3 project sidebar adapter', () => {
     ])
   })
 
-  it('builds T3 logical project sidebar groups from ClawControl workspace projects', () => {
+  it('builds T3 logical project sidebar groups from clawctrl workspace projects', () => {
     const groups = buildProjectSidebarGroups(
       [localProject, remoteProject],
       {

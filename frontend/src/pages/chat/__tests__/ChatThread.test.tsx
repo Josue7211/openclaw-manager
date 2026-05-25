@@ -323,8 +323,8 @@ describe('ChatThread message polish', () => {
     const transcript = buildChatTranscript({
       systemMsg: null,
       context: {
-        projectName: 'clawcontrol',
-        projectPath: '/Volumes/T7/projects/clawcontrol',
+        projectName: 'clawctrl',
+        projectPath: '/Volumes/T7/projects/clawctrl',
         environmentId: 'local',
         runtime: 'Work locally',
         branch: 'main',
@@ -341,8 +341,8 @@ describe('ChatThread message polish', () => {
     expect(transcript).toBe([
       '### Context',
       '',
-      'Project: clawcontrol',
-      'Path: /Volumes/T7/projects/clawcontrol',
+      'Project: clawctrl',
+      'Path: /Volumes/T7/projects/clawctrl',
       'Environment: local',
       'Runtime: Work locally',
       'Branch: main',
@@ -516,8 +516,8 @@ describe('ChatThread message polish', () => {
   it('includes active project metadata when copying the whole thread transcript', async () => {
     renderThread({
       transcriptContext: {
-        projectName: 'clawcontrol',
-        projectPath: '/Volumes/T7/projects/clawcontrol',
+        projectName: 'clawctrl',
+        projectPath: '/Volumes/T7/projects/clawctrl',
         runtime: 'Work locally',
         branch: 'main',
       },
@@ -534,8 +534,8 @@ describe('ChatThread message polish', () => {
     await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledWith([
       '### Context',
       '',
-      'Project: clawcontrol',
-      'Path: /Volumes/T7/projects/clawcontrol',
+      'Project: clawctrl',
+      'Path: /Volumes/T7/projects/clawctrl',
       'Runtime: Work locally',
       'Branch: main',
       '',

@@ -1036,7 +1036,7 @@ describe('CareerOpsPage', () => {
               },
             ],
             approval: {
-              id: 'clawcontrol:appr_1',
+              id: 'clawctrl:appr_1',
               action: 'career.apply.batch',
               summary: 'Approve one safe browser-assisted application.',
               risk: 'high',
@@ -1133,7 +1133,7 @@ describe('CareerOpsPage', () => {
             batchId: 'batch_gap',
             applications: [],
             approval: {
-              id: 'clawcontrol:appr_gap',
+              id: 'clawctrl:appr_gap',
               action: 'career.apply.batch',
               summary: 'Approve one application with packet gaps.',
               risk: 'high',

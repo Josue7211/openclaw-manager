@@ -28,7 +28,7 @@ const requiredFiles = [
   'src-tauri/tauri.conf.json',
   'src-tauri/src/lib.rs',
   'src-tauri/src/main.rs',
-  'src-tauri/src/bin/clawcontrol-backend.rs',
+  'src-tauri/src/bin/clawctrl-backend.rs',
 ]
 
 const reusableLayerPrefixes = [

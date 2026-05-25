@@ -30,8 +30,8 @@ describe('T3 copied ProjectScriptsControl adapter', () => {
       <ProjectScriptsControl
         scripts={scripts}
         preferredScriptId="dev"
-        projectName="clawcontrol"
-        projectPath="/Volumes/T7/projects/clawcontrol"
+        projectName="clawctrl"
+        projectPath="/Volumes/T7/projects/clawctrl"
         projectEnvironmentLabel="T7"
         onSelectScript={onSelectScript}
         onRunScript={onRunScript}
@@ -58,21 +58,21 @@ describe('T3 copied ProjectScriptsControl adapter', () => {
     expect(screen.getByRole('menuitem', { name: 'Edit selected action' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Delete selected action' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Change environment' })).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: 'Current project' })).toHaveTextContent('clawcontrol')
-    expect(screen.getByRole('group', { name: 'Current project' })).toHaveTextContent('T7 / .../projects/clawcontrol')
+    expect(screen.getByRole('group', { name: 'Current project' })).toHaveTextContent('clawctrl')
+    expect(screen.getByRole('group', { name: 'Current project' })).toHaveTextContent('T7 / .../projects/clawctrl')
     expect(screen.getByRole('menuitem', { name: 'Copy project path' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Rename project clawcontrol' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Remove project clawcontrol' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Rename project clawctrl' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Remove project clawctrl' })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'Project danger actions' })).toContainElement(
-      screen.getByRole('menuitem', { name: 'Remove project clawcontrol' }),
+      screen.getByRole('menuitem', { name: 'Remove project clawctrl' }),
     )
     expect(screen.getByRole('menuitem', { name: 'Delete selected action' })).toHaveStyle({
       color: 'var(--danger, #ef4444)',
     })
-    expect(screen.getByRole('menuitem', { name: 'Remove project clawcontrol' })).toHaveStyle({
+    expect(screen.getByRole('menuitem', { name: 'Remove project clawctrl' })).toHaveStyle({
       color: 'var(--danger, #ef4444)',
     })
-    expect(screen.queryByRole('button', { name: 'Remove project clawcontrol' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove project clawctrl' })).not.toBeInTheDocument()
     expect(screen.getByRole('menu', { name: 'Project action menu' })).toHaveStyle({
       overflow: 'hidden',
       backgroundColor: '#18181f',
@@ -86,18 +86,18 @@ describe('T3 copied ProjectScriptsControl adapter', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'More project actions' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Copy project path' }))
-    await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledWith('/Volumes/T7/projects/clawcontrol'))
+    await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledWith('/Volumes/T7/projects/clawctrl'))
 
     fireEvent.click(screen.getByRole('button', { name: 'More project actions' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Delete selected action' }))
     expect(onDeleteScript).toHaveBeenCalledWith(expect.objectContaining({ id: 'dev' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'More project actions' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Rename project clawcontrol' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Rename project clawctrl' }))
     expect(onRenameProject).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByRole('button', { name: 'More project actions' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove project clawcontrol' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove project clawctrl' }))
     expect(onDeleteProject).toHaveBeenCalledTimes(1)
   })
 
@@ -144,8 +144,8 @@ describe('T3 copied ProjectScriptsControl adapter', () => {
       <ProjectScriptsControl
         scripts={scripts}
         preferredScriptId="dev"
-        projectName="clawcontrol"
-        projectPath="/Volumes/T7/projects/clawcontrol"
+        projectName="clawctrl"
+        projectPath="/Volumes/T7/projects/clawctrl"
         onRunScript={vi.fn()}
         onAddScript={vi.fn()}
         onEditScript={vi.fn()}
@@ -158,12 +158,12 @@ describe('T3 copied ProjectScriptsControl adapter', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'More project actions' }))
-    expect(screen.getByRole('group', { name: 'Current project' })).toHaveTextContent('clawcontrol')
-    expect(screen.queryByRole('menuitem', { name: 'Rename project clawcontrol' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('menuitem', { name: 'Remove project clawcontrol' })).not.toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Current project' })).toHaveTextContent('clawctrl')
+    expect(screen.queryByRole('menuitem', { name: 'Rename project clawctrl' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Remove project clawctrl' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('menuitem', { name: 'Copy project path' }))
-    await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledWith('/Volumes/T7/projects/clawcontrol'))
+    await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledWith('/Volumes/T7/projects/clawctrl'))
   })
 
   it('exposes recovery actions for unavailable selected folders in the opaque project menu', async () => {
@@ -356,8 +356,8 @@ describe('T3 copied ProjectScriptsControl adapter', () => {
       <ProjectScriptsControl
         scripts={scripts}
         preferredScriptId="dev"
-        projectName="clawcontrol"
-        projectPath="/Volumes/T7/projects/clawcontrol"
+        projectName="clawctrl"
+        projectPath="/Volumes/T7/projects/clawctrl"
         onSelectScript={vi.fn()}
         onRunScript={vi.fn()}
         onAddScript={vi.fn()}
@@ -381,7 +381,7 @@ describe('T3 copied ProjectScriptsControl adapter', () => {
     })
 
     fireEvent.keyDown(menu, { key: 'End' })
-    expect(screen.getByRole('menuitem', { name: 'Remove project clawcontrol' })).toHaveFocus()
+    expect(screen.getByRole('menuitem', { name: 'Remove project clawctrl' })).toHaveFocus()
     fireEvent.keyDown(menu, { key: 'Escape' })
 
     expect(screen.queryByRole('menu', { name: 'Project action menu' })).not.toBeInTheDocument()

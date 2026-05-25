@@ -34,7 +34,7 @@ describe('canvasData', () => {
     })
 
     expect(content).toContain('type: canvas')
-    expect(content).toContain('```clawcontrol-canvas')
+    expect(content).toContain('```clawctrl-canvas')
     expect(parseCanvasData(content).nodes[0]).toEqual({
       id: 'Inbox/a.md',
       x: 10,

@@ -1,11 +1,11 @@
--- Approval kernel for ClawControl-native approvals and scoped capability grants.
+-- Approval kernel for clawctrl-native approvals and scoped capability grants.
 -- This is the durable foundation for Agent Shell, Agent Secrets, mobile, and
 -- iMessage approval flows.
 
 CREATE TABLE IF NOT EXISTS approval_requests (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
-    source TEXT NOT NULL DEFAULT 'clawcontrol',
+    source TEXT NOT NULL DEFAULT 'clawctrl',
     requester TEXT NOT NULL DEFAULT '{}',
     action TEXT NOT NULL,
     target TEXT NOT NULL DEFAULT '{}',

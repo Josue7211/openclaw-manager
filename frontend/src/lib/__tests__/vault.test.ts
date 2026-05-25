@@ -441,15 +441,15 @@ describe('vault notes', () => {
     expect(apiMock.put).not.toHaveBeenCalled()
   })
 
-  it('hides internal ClawControl sync documents from visible notes', async () => {
+  it('hides internal clawctrl sync documents from visible notes', async () => {
     apiMock.get.mockResolvedValue({
       data: {
         notes: [
           {
-            _id: '.clawcontrol/data-views.md',
-            title: 'ClawControl data views',
+            _id: '.clawctrl/data-views.md',
+            title: 'clawctrl data views',
             content: '# Internal',
-            folder: '.clawcontrol',
+            folder: '.clawctrl',
             tags: [],
             links: [],
             created_at: 1,
@@ -2063,7 +2063,7 @@ describe('vault notes', () => {
       .mockResolvedValueOnce({
         data: {
           backup: {
-            format: 'clawcontrol-encrypted-vault-backup',
+            format: 'clawctrl-encrypted-vault-backup',
             version: 1,
             created_at: '2026-05-12T00:00:00Z',
             encryption: {
@@ -2104,7 +2104,7 @@ describe('vault notes', () => {
       backup,
     })
     expect(apiMock.get).toHaveBeenCalledWith('/api/vault/local/documents')
-    expect(backup).toEqual(expect.objectContaining({ format: 'clawcontrol-encrypted-vault-backup' }))
+    expect(backup).toEqual(expect.objectContaining({ format: 'clawctrl-encrypted-vault-backup' }))
     expect(stats).toEqual(
       expect.objectContaining({
         imported_notes: 1,

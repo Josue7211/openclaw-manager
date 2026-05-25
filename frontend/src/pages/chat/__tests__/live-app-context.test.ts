@@ -34,10 +34,10 @@ describe('buildLiveAppContext', () => {
       route: '/calendar',
       pageTitle: 'Calendar',
       context: {
-        projectId: 'local:clawcontrol:stable',
-        project: 'clawcontrol',
+        projectId: 'local:clawctrl:stable',
+        project: 'clawctrl',
         projectRoot: '/Volumes/T7/projects',
-        workingDir: '/Volumes/T7/projects/clawcontrol',
+        workingDir: '/Volumes/T7/projects/clawctrl',
         environmentId: 'local',
         branch: 'main',
         runtime: 'Work locally',
@@ -48,7 +48,7 @@ describe('buildLiveAppContext', () => {
 
     expect(context).toContain('captured_at: 2026-05-17T12:00:00.000Z')
     expect(context).toContain('route: /calendar')
-    expect(context).toContain('project_id: local:clawcontrol:stable')
+    expect(context).toContain('project_id: local:clawctrl:stable')
     expect(context).toContain('project_root: /Volumes/T7/projects')
     expect(context).toContain('environment_id: local')
     expect(context).toContain('calendar: loaded; source=local-macos-calendar')
@@ -59,7 +59,7 @@ describe('buildLiveAppContext', () => {
     expect(post).toHaveBeenCalledWith('/api/memd/live-state', {
       records: expect.arrayContaining([
         expect.objectContaining({
-          sourceApp: 'clawcontrol',
+          sourceApp: 'clawctrl',
           module: 'calendar',
           privacy: 'approved',
           approved: true,

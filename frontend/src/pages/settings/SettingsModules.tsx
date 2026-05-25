@@ -18,7 +18,7 @@ import { GeneratedModulesSection } from './GeneratedModulesSection'
 import { ModuleProposalsSection } from './ModuleProposalsSection'
 
 const GAP_BETWEEN_PANELS = 16 // must match GAP in ResizablePanel
-const SIDEBAR_ITEM_DRAG_TYPE = 'application/x-clawcontrol-sidebar-item'
+const SIDEBAR_ITEM_DRAG_TYPE = 'application/x-clawctrl-sidebar-item'
 
 function setSidebarItemDragData(dataTransfer: DataTransfer, href: string, fromCatId: string) {
   const payload = JSON.stringify({ href, fromCatId })

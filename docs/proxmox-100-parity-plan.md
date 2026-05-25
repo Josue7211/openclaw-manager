@@ -1,6 +1,6 @@
 # Proxmox 100% Parity Plan
 
-Objective: ClawControl must be usable as the primary Proxmox VE control plane for day-to-day operations, including console, shell, guests, nodes, storage, networking, firewall, backup, HA, permissions, tasks, datacenter, and cluster administration. Until every row below is implemented and verified, the module must not be described as 100% parity.
+Objective: clawctrl must be usable as the primary Proxmox VE control plane for day-to-day operations, including console, shell, guests, nodes, storage, networking, firewall, backup, HA, permissions, tasks, datacenter, and cluster administration. Until every row below is implemented and verified, the module must not be described as 100% parity.
 
 Official scope source:
 
@@ -13,7 +13,7 @@ Official scope source:
 1. No fake controls. A visible active control must be present in `/api/homelab.control.actions`, backed by a route, and covered by tests.
 2. Capability truth comes from `/api/homelab.control.capabilities`; UI copy cannot overclaim status.
 3. Destructive actions require typed confirmation, backend validation, audit logging, and task/result visibility.
-4. Live write certification can only mutate disposable `clawcontrol-cert*`, `cc-cert*`, or `test-clawcontrol*` resources unless the operator explicitly overrides the guard.
+4. Live write certification can only mutate disposable `clawctrl-cert*`, `cc-cert*`, or `test-clawctrl*` resources unless the operator explicitly overrides the guard.
 5. Completion requires browser verification for UI fidelity, unit tests for backend paths, mock API tests, and live read-only plus disposable write certification.
 
 ## Implementation Phases
@@ -95,7 +95,7 @@ Backend work:
 
 Acceptance:
 
-- Node admin operations that normally require Proxmox are available in ClawControl with guarded destructive paths.
+- Node admin operations that normally require Proxmox are available in clawctrl with guarded destructive paths.
 
 ### Phase 5: Storage And Backup Content Parity
 
@@ -124,7 +124,7 @@ Surfaces:
 
 Acceptance:
 
-- Network/security/identity administration is possible from ClawControl with clear permission and task feedback.
+- Network/security/identity administration is possible from clawctrl with clear permission and task feedback.
 
 ### Phase 7: Certification And Release Gate
 
@@ -143,4 +143,4 @@ Definition of done:
 - Every Proxmox VE dashboard surface in this plan is implemented or intentionally marked out of scope by the user.
 - Every visible control is backed by a verified backend route.
 - There are no generic "feature not available" failures for advertised actions.
-- The user can operate Proxmox VE from ClawControl for normal administration without opening the Proxmox dashboard.
+- The user can operate Proxmox VE from clawctrl for normal administration without opening the Proxmox dashboard.

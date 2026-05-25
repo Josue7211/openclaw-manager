@@ -2,7 +2,7 @@
  * Copied/adapted from T3 Code apps/web/src/components/chat/ProviderModelPicker.tsx,
  * ModelPickerSidebar.tsx, and ModelListRow.tsx (MIT License).
  *
- * ClawControl supplies a compact provider-instance snapshot, so this adapter
+ * clawctrl supplies a compact provider-instance snapshot, so this adapter
  * preserves T3's single trigger + provider rail + model/direct rows while
  * avoiding T3's full popover/combobox dependency stack.
  */

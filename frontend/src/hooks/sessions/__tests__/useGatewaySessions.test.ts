@@ -125,15 +125,15 @@ describe('useGatewaySessions', () => {
 
   it('builds scoped session URLs with repeated cwd filters', () => {
     expect(gatewaySessionsPath({
-      cwd: ['/Volumes/T7/projects/clawcontrol', '/Users/josue/AgentShell', '/Users/josue/AgentShell'],
-      projectId: 'local:clawcontrol:stable',
-      projectIds: ['local:agent-shell:stable', 'local:clawcontrol:stable'],
-      project: 'clawcontrol',
+      cwd: ['/Volumes/T7/projects/clawctrl', '/Users/josue/AgentShell', '/Users/josue/AgentShell'],
+      projectId: 'local:clawctrl:stable',
+      projectIds: ['local:agent-shell:stable', 'local:clawctrl:stable'],
+      project: 'clawctrl',
       branch: 'codex/chat-parity',
       runtime: 'Work locally',
       environmentId: 'local',
       includeUnscoped: true,
-    })).toBe('/api/gateway/sessions?cwd=%2FUsers%2Fjosue%2FAgentShell&cwd=%2FVolumes%2FT7%2Fprojects%2Fclawcontrol&projectId=local%3Aagent-shell%3Astable&projectId=local%3Aclawcontrol%3Astable&project=clawcontrol&branch=codex%2Fchat-parity&runtime=Work+locally&environmentId=local&includeUnscoped=1')
+    })).toBe('/api/gateway/sessions?cwd=%2FUsers%2Fjosue%2FAgentShell&cwd=%2FVolumes%2FT7%2Fprojects%2Fclawctrl&projectId=local%3Aagent-shell%3Astable&projectId=local%3Aclawctrl%3Astable&project=clawctrl&branch=codex%2Fchat-parity&runtime=Work+locally&environmentId=local&includeUnscoped=1')
   })
 
   it('canonicalizes cwd filter path variants before querying sessions', () => {
@@ -155,14 +155,14 @@ describe('useGatewaySessions', () => {
     vi.mocked(api.get).mockResolvedValue({ ok: true, sessions: [] })
 
     renderHook(() => useGatewaySessions({
-      cwd: ['/Volumes/T7/projects/clawcontrol'],
+      cwd: ['/Volumes/T7/projects/clawctrl'],
       includeUnscoped: true,
     }), {
       wrapper: createWrapper(),
     })
 
     await waitFor(() => {
-      expect(api.get).toHaveBeenCalledWith('/api/gateway/sessions?cwd=%2FVolumes%2FT7%2Fprojects%2Fclawcontrol&includeUnscoped=1')
+      expect(api.get).toHaveBeenCalledWith('/api/gateway/sessions?cwd=%2FVolumes%2FT7%2Fprojects%2Fclawctrl&includeUnscoped=1')
     })
   })
 
@@ -181,13 +181,13 @@ describe('useGatewaySessions', () => {
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
 
     renderHook(() => useGatewaySessions({
-      cwd: ['/Volumes/T7/projects/clawcontrol'],
+      cwd: ['/Volumes/T7/projects/clawctrl'],
       includeUnscoped: true,
     }), {
       wrapper: createWrapper(queryClient),
     })
 
-    window.dispatchEvent(new CustomEvent('clawcontrol:chat-sessions-changed', {
+    window.dispatchEvent(new CustomEvent('clawctrl:chat-sessions-changed', {
       detail: { sessionKey: 'drawer-chat' },
     }))
 

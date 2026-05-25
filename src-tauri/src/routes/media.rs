@@ -7038,7 +7038,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn media_registry_covers_helmarr_plus_clawcontrol_services() {
+    fn media_registry_covers_helmarr_plus_clawctrl_services() {
         let ids: Vec<&str> = MEDIA_SERVICE_REGISTRY.iter().map(|def| def.id).collect();
         for expected in [
             "sonarr",

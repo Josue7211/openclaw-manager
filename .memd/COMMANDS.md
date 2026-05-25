@@ -1,6 +1,6 @@
 # memd commands
 
-- Root: `/run/media/josue/T7/projects/clawcontrol/.memd`
+- Root: `/run/media/josue/T7/projects/clawctrl/.memd`
 - Commands: `25`
 
 memd owns the native CLI surfaces. External bridge surfaces stay listed so they can be migrated, swapped, or reimplemented on other harnesses without pretending memd owns them.
@@ -210,7 +210,7 @@ memd owns the native CLI surfaces. External bridge surfaces stay listed so they 
 - compatibility: `bundle-root-present`, `launcher-script-present`, `launcher-script-executable`
 - command: `.memd/agents/codex.sh`
 - purpose: launch the Codex harness pack
-- path: `/run/media/josue/T7/projects/clawcontrol/.memd/agents/codex.sh`
+- path: `/run/media/josue/T7/projects/clawctrl/.memd/agents/codex.sh`
 
 ## .memd/agents/claude-code.sh
 
@@ -221,7 +221,7 @@ memd owns the native CLI surfaces. External bridge surfaces stay listed so they 
 - compatibility: `bundle-root-present`, `launcher-script-present`, `launcher-script-executable`
 - command: `.memd/agents/claude-code.sh`
 - purpose: launch the Claude Code harness pack
-- path: `/run/media/josue/T7/projects/clawcontrol/.memd/agents/claude-code.sh`
+- path: `/run/media/josue/T7/projects/clawctrl/.memd/agents/claude-code.sh`
 
 ## .memd/agents/agent-zero.sh
 
@@ -232,18 +232,18 @@ memd owns the native CLI surfaces. External bridge surfaces stay listed so they 
 - compatibility: `bundle-root-present`, `launcher-script-present`, `launcher-script-executable`
 - command: `.memd/agents/agent-zero.sh`
 - purpose: launch the Agent Zero harness pack
-- path: `/run/media/josue/T7/projects/clawcontrol/.memd/agents/agent-zero.sh`
+- path: `/run/media/josue/T7/projects/clawctrl/.memd/agents/agent-zero.sh`
 
 ## .memd/agents/openclaw.sh
 
-- surface: `OpenClaw`
+- surface: `clawctrl`
 - kind: `helper`
 - ownership: `memd`
 - role: `bundle-helper`
 - compatibility: `bundle-root-present`, `launcher-script-present`, `launcher-script-executable`
 - command: `.memd/agents/openclaw.sh`
-- purpose: launch the OpenClaw harness pack
-- path: `/run/media/josue/T7/projects/clawcontrol/.memd/agents/openclaw.sh`
+- purpose: launch the clawctrl harness pack
+- path: `/run/media/josue/T7/projects/clawctrl/.memd/agents/openclaw.sh`
 
 ## .memd/agents/opencode.sh
 
@@ -254,7 +254,7 @@ memd owns the native CLI surfaces. External bridge surfaces stay listed so they 
 - compatibility: `bundle-root-present`, `launcher-script-present`, `launcher-script-executable`
 - command: `.memd/agents/opencode.sh`
 - purpose: launch the OpenCode harness pack
-- path: `/run/media/josue/T7/projects/clawcontrol/.memd/agents/opencode.sh`
+- path: `/run/media/josue/T7/projects/clawctrl/.memd/agents/opencode.sh`
 
 ## .memd/agents/hermes.sh
 
@@ -265,5 +265,4 @@ memd owns the native CLI surfaces. External bridge surfaces stay listed so they 
 - compatibility: `bundle-root-present`, `launcher-script-present`, `launcher-script-executable`
 - command: `.memd/agents/hermes.sh`
 - purpose: launch the Hermes harness pack
-- path: `/run/media/josue/T7/projects/clawcontrol/.memd/agents/hermes.sh`
-
+- path: `/run/media/josue/T7/projects/clawctrl/.memd/agents/hermes.sh`

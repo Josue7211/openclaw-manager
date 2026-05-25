@@ -19,13 +19,13 @@ const settings: NotesGraphSettings = {
 
 describe('graph settings synced vault document', () => {
   it('uses an internal vault note path for synced graph settings', () => {
-    expect(NOTES_GRAPH_SETTINGS_SYNC_NOTE_ID).toBe('.clawcontrol/graph-settings.md')
+    expect(NOTES_GRAPH_SETTINGS_SYNC_NOTE_ID).toBe('.clawctrl/graph-settings.md')
   })
 
   it('round-trips normalized graph settings through the sync document content', () => {
     const content = serializeNotesGraphSettingsDocument(settings)
 
-    expect(content).toContain('clawcontrol:graph-settings:v1')
+    expect(content).toContain('clawctrl:graph-settings:v1')
     expect(parseNotesGraphSettingsDocument(content)).toEqual(settings)
   })
 
@@ -49,7 +49,7 @@ describe('graph settings synced vault document', () => {
 
   it('ignores malformed synced graph settings content', () => {
     expect(parseNotesGraphSettingsDocument('')).toEqual(expect.objectContaining({ graphSearch: '', groupMode: 'tag' }))
-    expect(parseNotesGraphSettingsDocument('<!-- clawcontrol:graph-settings:v1 -->\nnot json\n<!-- /clawcontrol:graph-settings:v1 -->')).toEqual(
+    expect(parseNotesGraphSettingsDocument('<!-- clawctrl:graph-settings:v1 -->\nnot json\n<!-- /clawctrl:graph-settings:v1 -->')).toEqual(
       expect.objectContaining({ graphSearch: '', groupMode: 'tag' }),
     )
   })

@@ -1,7 +1,7 @@
 //! Copied/adapted from Codex `codex-rs/app-server/src/command_exec.rs`
 //! and `app-server-protocol/src/protocol/v2/command_exec.rs`.
 //!
-//! ClawControl uses this bounded one-shot subset for local provider bridges.
+//! clawctrl uses this bounded one-shot subset for local provider bridges.
 //! It preserves the important Codex lifecycle semantics here: generated vs.
 //! client process id discipline, timeout exit handling, output caps, stderr
 //! surfacing, and kill-on-drop cleanup.

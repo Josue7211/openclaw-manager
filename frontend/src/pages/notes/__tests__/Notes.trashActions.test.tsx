@@ -55,7 +55,7 @@ const mocks = vi.hoisted(() => ({
   writeText: vi.fn(() => Promise.resolve()),
   downloadPublishedNotesSite: vi.fn(),
   downloadReviewPackage: vi.fn(),
-  exportEncryptedVault: vi.fn(() => Promise.resolve({ format: 'clawcontrol-encrypted-vault', version: 1 })),
+  exportEncryptedVault: vi.fn(() => Promise.resolve({ format: 'clawctrl-encrypted-vault', version: 1 })),
   importEncryptedVault: vi.fn(() => Promise.resolve(null)),
   approveVaultCollaborationPairing: vi.fn(() => Promise.resolve(null)),
   revokeVaultCollaborationPairing: vi.fn(() => Promise.resolve(null)),
@@ -356,7 +356,7 @@ describe('Notes trash actions', () => {
     mocks.getNoteRevisions.mockResolvedValue([])
     mocks.getNoteRevision.mockResolvedValue(revisionDetail({ rev: 'rev-new', label: 'Research draft' }))
     mocks.labelNoteRevision.mockResolvedValue(null)
-    mocks.exportEncryptedVault.mockResolvedValue({ format: 'clawcontrol-encrypted-vault', version: 1 })
+    mocks.exportEncryptedVault.mockResolvedValue({ format: 'clawctrl-encrypted-vault', version: 1 })
     mocks.importEncryptedVault.mockResolvedValue(null)
     mocks.approveVaultCollaborationPairing.mockResolvedValue(null)
     mocks.revokeVaultCollaborationPairing.mockResolvedValue(null)
@@ -2228,8 +2228,8 @@ describe('Notes trash actions', () => {
       canonical_store: 'local_sqlite',
       remote_required: false,
       encrypted_backup_supported: true,
-      database_path: '/tmp/clawcontrol/local.db',
-      attachments_path: '/tmp/clawcontrol/attachments',
+      database_path: '/tmp/clawctrl/local.db',
+      attachments_path: '/tmp/clawctrl/attachments',
       counts: {
         live_notes: 1,
         trashed_notes: 0,
@@ -2303,8 +2303,8 @@ describe('Notes trash actions', () => {
       canonical_store: 'local_sqlite',
       remote_required: false,
       encrypted_backup_supported: true,
-      database_path: '/tmp/clawcontrol/local.db',
-      attachments_path: '/tmp/clawcontrol/attachments',
+      database_path: '/tmp/clawctrl/local.db',
+      attachments_path: '/tmp/clawctrl/attachments',
       counts: {
         live_notes: 1,
         trashed_notes: 0,
@@ -2361,8 +2361,8 @@ describe('Notes trash actions', () => {
       canonical_store: 'local_sqlite',
       remote_required: false,
       encrypted_backup_supported: true,
-      database_path: '/tmp/clawcontrol/local.db',
-      attachments_path: '/tmp/clawcontrol/attachments',
+      database_path: '/tmp/clawctrl/local.db',
+      attachments_path: '/tmp/clawctrl/attachments',
       counts: {
         live_notes: 1,
         trashed_notes: 0,
@@ -2431,8 +2431,8 @@ describe('Notes trash actions', () => {
       canonical_store: 'local_sqlite',
       remote_required: false,
       encrypted_backup_supported: true,
-      database_path: '/tmp/clawcontrol/local.db',
-      attachments_path: '/tmp/clawcontrol/attachments',
+      database_path: '/tmp/clawctrl/local.db',
+      attachments_path: '/tmp/clawctrl/attachments',
       counts: {
         live_notes: 1,
         trashed_notes: 0,

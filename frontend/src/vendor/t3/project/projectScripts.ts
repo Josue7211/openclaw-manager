@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code apps/web/src/projectScripts.ts (MIT License).
- * ClawControl keeps this helper layer as the canonical project action ID and
+ * clawctrl keeps this helper layer as the canonical project action ID and
  * primary-action behavior instead of reimplementing it inline in Chat.tsx.
  */
 

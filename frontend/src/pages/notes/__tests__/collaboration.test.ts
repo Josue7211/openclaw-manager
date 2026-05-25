@@ -37,8 +37,8 @@ import {
 
 describe('local note collaboration primitives', () => {
   it('creates safe per-document channel names', () => {
-    expect(localCollabChannelName('Projects/Roadmap.md')).toBe('clawcontrol-notes:Projects_Roadmap.md')
-    expect(localCollabChannelName('../Bad/Name.md')).toBe('clawcontrol-notes:.._Bad_Name.md')
+    expect(localCollabChannelName('Projects/Roadmap.md')).toBe('clawctrl-notes:Projects_Roadmap.md')
+    expect(localCollabChannelName('../Bad/Name.md')).toBe('clawctrl-notes:.._Bad_Name.md')
   })
 
   it('builds and validates protocol messages for the active document', () => {
@@ -48,7 +48,7 @@ describe('local note collaboration primitives', () => {
 
     expect(message).toEqual(
       expect.objectContaining({
-        protocol: 'clawcontrol-notes-local-collab',
+        protocol: 'clawctrl-notes-local-collab',
         version: 1,
         eventId: expect.stringMatching(/^evt-/),
         clientId: 'peer-1',
@@ -101,7 +101,7 @@ describe('local note collaboration primitives', () => {
     expect(
       isLocalCollabMessage(
         {
-          protocol: 'clawcontrol-notes-local-collab',
+          protocol: 'clawctrl-notes-local-collab',
           version: 1,
           type: 'presence',
           documentId: 'Projects/Roadmap.md',

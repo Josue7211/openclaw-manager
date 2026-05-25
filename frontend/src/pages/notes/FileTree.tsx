@@ -312,17 +312,17 @@ const FolderItem = memo(function FolderItem({
           draggable={!inTrash}
           onDragStart={event => {
             if (inTrash) return
-            event.dataTransfer.setData('application/x-clawcontrol-folder', node.path)
+            event.dataTransfer.setData('application/x-clawctrl-folder', node.path)
             event.dataTransfer.effectAllowed = 'move'
           }}
           onDragOver={event => {
-            const hasNote = event.dataTransfer.types.includes('application/x-clawcontrol-note')
-            const hasFolder = event.dataTransfer.types.includes('application/x-clawcontrol-folder')
+            const hasNote = event.dataTransfer.types.includes('application/x-clawctrl-note')
+            const hasFolder = event.dataTransfer.types.includes('application/x-clawctrl-folder')
             if (hasNote || (hasFolder && isNotesTrashPath(node.path))) event.preventDefault()
           }}
           onDrop={event => {
-            const noteId = event.dataTransfer.getData('application/x-clawcontrol-note')
-            const folderPath = event.dataTransfer.getData('application/x-clawcontrol-folder')
+            const noteId = event.dataTransfer.getData('application/x-clawctrl-note')
+            const folderPath = event.dataTransfer.getData('application/x-clawctrl-folder')
             if (!noteId && !folderPath) return
             if (noteId) {
               event.preventDefault()
@@ -509,7 +509,7 @@ const NoteItem = memo(function NoteItem({
       draggable={note.type === 'note' && !isUnavailable}
       onDragStart={event => {
         if (note.type !== 'note' || isUnavailable) return
-        event.dataTransfer.setData('application/x-clawcontrol-note', note._id)
+        event.dataTransfer.setData('application/x-clawctrl-note', note._id)
         event.dataTransfer.effectAllowed = 'move'
       }}
       aria-disabled={isUnavailable}
@@ -1125,14 +1125,14 @@ export default function FileTree({
       onContextMenu={openRootMenu}
       onDragOver={event => {
         if (
-          event.dataTransfer.types.includes('application/x-clawcontrol-note') ||
-          event.dataTransfer.types.includes('application/x-clawcontrol-folder')
+          event.dataTransfer.types.includes('application/x-clawctrl-note') ||
+          event.dataTransfer.types.includes('application/x-clawctrl-folder')
         )
           event.preventDefault()
       }}
       onDrop={event => {
-        const noteId = event.dataTransfer.getData('application/x-clawcontrol-note')
-        const folderPath = event.dataTransfer.getData('application/x-clawcontrol-folder')
+        const noteId = event.dataTransfer.getData('application/x-clawctrl-note')
+        const folderPath = event.dataTransfer.getData('application/x-clawctrl-folder')
         if (!noteId && !folderPath) return
         event.preventDefault()
         if (noteId) handleDropNote(noteId, '')
@@ -1663,14 +1663,14 @@ export default function FileTree({
           }}
           onDragOver={event => {
             if (
-              event.dataTransfer.types.includes('application/x-clawcontrol-note') ||
-              event.dataTransfer.types.includes('application/x-clawcontrol-folder')
+              event.dataTransfer.types.includes('application/x-clawctrl-note') ||
+              event.dataTransfer.types.includes('application/x-clawctrl-folder')
             )
               event.preventDefault()
           }}
           onDrop={event => {
-            const noteId = event.dataTransfer.getData('application/x-clawcontrol-note')
-            const folderPath = event.dataTransfer.getData('application/x-clawcontrol-folder')
+            const noteId = event.dataTransfer.getData('application/x-clawctrl-note')
+            const folderPath = event.dataTransfer.getData('application/x-clawctrl-folder')
             if (!noteId && !folderPath) return
             event.preventDefault()
             onSearchChange('')

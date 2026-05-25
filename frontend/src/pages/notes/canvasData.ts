@@ -23,7 +23,7 @@ export interface CanvasLink {
   target: string
 }
 
-const CANVAS_BLOCK_RE = /```clawcontrol-canvas\s*([\s\S]*?)```/m
+const CANVAS_BLOCK_RE = /```clawctrl-canvas\s*([\s\S]*?)```/m
 const DEFAULT_NODE_WIDTH = 220
 const DEFAULT_NODE_HEIGHT = 128
 
@@ -67,7 +67,7 @@ export function serializeCanvasNote(data: CanvasData): string {
     '',
     `# ${CANVAS_TITLE}`,
     '',
-    '```clawcontrol-canvas',
+    '```clawctrl-canvas',
     JSON.stringify(normalized, null, 2),
     '```',
     '',

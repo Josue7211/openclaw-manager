@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code apps/web/src/lib/projectScriptKeybindings.ts
- * (MIT License). ClawControl currently uses this as a lightweight helper for
+ * (MIT License). clawctrl currently uses this as a lightweight helper for
  * project action command/key display without importing @t3tools/contracts.
  */
 

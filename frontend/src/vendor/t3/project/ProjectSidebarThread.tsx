@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code's sidebar thread row/action menu surface.
- * ClawControl passes session callbacks in from Chat.tsx while the row UI lives
+ * clawctrl passes session callbacks in from Chat.tsx while the row UI lives
  * with the copied project sidebar components.
  */
 

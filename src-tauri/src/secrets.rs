@@ -11,7 +11,7 @@ use std::sync::{
 use std::time::Duration;
 
 const SERVICE: &str = "com.clawctrl.desktop";
-const LEGACY_CLAWCONTROL_SERVICE: &str = "com.clawcontrol.desktop";
+const LEGACY_CLAWCTRL_SERVICE: &str = "com.clawcontrol.desktop";
 const LEGACY_SERVICE: &str = "com.mission-control";
 static PROCESS_API_KEY: OnceLock<String> = OnceLock::new();
 static KEYRING_DISABLED: AtomicBool = AtomicBool::new(false);
@@ -338,7 +338,7 @@ fn get_entry_raw_security(service: &str, key: &str) -> Option<String> {
 #[cfg(target_os = "macos")]
 fn get_entry_raw(key: &str) -> Option<String> {
     get_entry_raw_security(SERVICE, key)
-        .or_else(|| get_entry_raw_security(LEGACY_CLAWCONTROL_SERVICE, key))
+        .or_else(|| get_entry_raw_security(LEGACY_CLAWCTRL_SERVICE, key))
         .or_else(|| get_entry_raw_security(LEGACY_SERVICE, key))
         .or_else(|| {
             Entry::new(SERVICE, key)
@@ -346,7 +346,7 @@ fn get_entry_raw(key: &str) -> Option<String> {
                 .and_then(|entry| entry.get_password().ok())
         })
         .or_else(|| {
-            Entry::new(LEGACY_CLAWCONTROL_SERVICE, key)
+            Entry::new(LEGACY_CLAWCTRL_SERVICE, key)
                 .ok()
                 .and_then(|entry| entry.get_password().ok())
         })
@@ -363,7 +363,7 @@ fn get_entry_raw(key: &str) -> Option<String> {
         .ok()
         .and_then(|entry| entry.get_password().ok())
         .or_else(|| {
-            Entry::new(LEGACY_CLAWCONTROL_SERVICE, key)
+            Entry::new(LEGACY_CLAWCTRL_SERVICE, key)
                 .ok()
                 .and_then(|entry| entry.get_password().ok())
         })

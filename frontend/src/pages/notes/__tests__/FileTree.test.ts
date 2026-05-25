@@ -224,8 +224,8 @@ describe('FileTree', () => {
 
     fireEvent.drop(screen.getByRole('button', { name: 'Show Trash' }), {
       dataTransfer: {
-        types: ['application/x-clawcontrol-note'],
-        getData: (type: string) => (type === 'application/x-clawcontrol-note' ? 'HOMEWORK/commands.md' : ''),
+        types: ['application/x-clawctrl-note'],
+        getData: (type: string) => (type === 'application/x-clawctrl-note' ? 'HOMEWORK/commands.md' : ''),
       },
     })
 

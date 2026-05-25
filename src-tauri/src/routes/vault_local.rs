@@ -1201,7 +1201,7 @@ async fn import_document(state: &AppState, doc: &Value) -> Result<bool, AppError
 fn configured_obsidian_vault_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
 
-    if let Ok(path) = std::env::var("CLAWCONTROL_OBSIDIAN_VAULT_PATH") {
+    if let Ok(path) = std::env::var("CLAWCTRL_OBSIDIAN_VAULT_PATH") {
         let trimmed = path.trim();
         if !trimmed.is_empty() {
             paths.push(PathBuf::from(trimmed));
@@ -1307,7 +1307,7 @@ fn markdown_file_to_import_note(root: &FsPath, path: &FsPath) -> Option<Value> {
 
 async fn maybe_import_sparse_obsidian_vault(state: &AppState) -> Result<(), AppError> {
     let existing_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM vault_documents WHERE deleted_at IS NULL AND id NOT LIKE '.clawcontrol/%'",
+        "SELECT COUNT(*) FROM vault_documents WHERE deleted_at IS NULL AND id NOT LIKE '.clawctrl/%'",
     )
     .fetch_one(&state.db)
     .await?;
@@ -1419,7 +1419,7 @@ async fn search_documents(
         return Ok(success_json(json!({ "notes": [] })));
     }
     let query = if query.is_empty() {
-        "__clawcontrol_no_match__".to_string()
+        "__clawctrl_no_match__".to_string()
     } else {
         query
     };
@@ -2767,7 +2767,7 @@ async fn list_collaboration_events(
             let kind: String = row.try_get("kind")?;
             let metadata = parse_json(row.try_get::<String, _>("metadata_json")?, json!({}));
             Ok::<Value, AppError>(json!({
-                "protocol": "clawcontrol-notes-local-collab",
+                "protocol": "clawctrl-notes-local-collab",
                 "version": 1,
                 "eventId": row.try_get::<String, _>("id")?,
                 "clientId": metadata
@@ -4058,7 +4058,7 @@ async fn collect_vault_export_payload(state: &AppState, full: bool) -> Result<Va
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(json!({
-        "format": "clawcontrol-local-vault",
+        "format": "clawctrl-local-vault",
         "version": 1,
         "exported_at": chrono::Utc::now().to_rfc3339(),
         "scope": if full { "full" } else { "live" },
@@ -4272,13 +4272,13 @@ fn build_markdown_archive_manifest(payload: &Value, created_at: String) -> Value
         .collect::<Vec<_>>();
 
     json!({
-        "format": "clawcontrol-markdown-vault-tar",
+        "format": "clawctrl-markdown-vault-tar",
         "version": 1,
         "created_at": created_at,
         "notes": notes.len(),
         "attachments": attachments.len(),
         "plugin_metadata": {
-            "schema": "clawcontrol-vault-plugin-index",
+            "schema": "clawctrl-vault-plugin-index",
             "version": 1,
             "documents": documents,
             "attachments": attachment_index,
@@ -4359,7 +4359,7 @@ async fn export_vault_markdown_archive(
         .header(header::CONTENT_TYPE, "application/x-tar")
         .header(
             header::CONTENT_DISPOSITION,
-            "attachment; filename=\"clawcontrol-vault-markdown.tar\"",
+            "attachment; filename=\"clawctrl-vault-markdown.tar\"",
         )
         .body(Body::from(archive))
         .map_err(|e| AppError::Internal(e.into()))
@@ -4398,7 +4398,7 @@ fn encrypt_backup_payload(payload: &Value, password: &str) -> Result<Value, AppE
     let (ciphertext, nonce) =
         crate::crypto::encrypt(&plaintext, &key).map_err(|e| AppError::Internal(e.into()))?;
     Ok(json!({
-        "format": "clawcontrol-encrypted-vault-backup",
+        "format": "clawctrl-encrypted-vault-backup",
         "version": 1,
         "created_at": chrono::Utc::now().to_rfc3339(),
         "encryption": {
@@ -4413,7 +4413,7 @@ fn encrypt_backup_payload(payload: &Value, password: &str) -> Result<Value, AppE
 
 fn decrypt_backup_payload(backup: &Value, password: &str) -> Result<Value, AppError> {
     let password = backup_password(password)?;
-    if backup.get("format").and_then(Value::as_str) != Some("clawcontrol-encrypted-vault-backup") {
+    if backup.get("format").and_then(Value::as_str) != Some("clawctrl-encrypted-vault-backup") {
         return Err(AppError::BadRequest(
             "Unsupported vault backup format".into(),
         ));
@@ -4470,7 +4470,7 @@ async fn import_vault_encrypted(
         &state,
         None,
         "vault_import_encrypted",
-        json!({ "format": "clawcontrol-encrypted-vault-backup" }),
+        json!({ "format": "clawctrl-encrypted-vault-backup" }),
     )
     .await?;
     Ok(success_json(stats))
@@ -5121,10 +5121,10 @@ mod tests {
 
         let manifest = build_markdown_archive_manifest(&payload, "2026-05-12T00:00:00Z".into());
 
-        assert_eq!(manifest["format"], "clawcontrol-markdown-vault-tar");
+        assert_eq!(manifest["format"], "clawctrl-markdown-vault-tar");
         assert_eq!(
             manifest["plugin_metadata"]["schema"],
-            "clawcontrol-vault-plugin-index"
+            "clawctrl-vault-plugin-index"
         );
         assert_eq!(
             manifest["plugin_metadata"]["documents"][0]["review"]["comments"],
@@ -5465,14 +5465,14 @@ mod tests {
     #[test]
     fn encrypted_backup_roundtrips_payload() {
         let payload = json!({
-            "format": "clawcontrol-local-vault",
+            "format": "clawctrl-local-vault",
             "notes": [{ "id": "Projects/roadmap.md", "content": "# Roadmap" }],
         });
 
         let backup = encrypt_backup_payload(&payload, "long-password").unwrap();
         let restored = decrypt_backup_payload(&backup, "long-password").unwrap();
 
-        assert_eq!(backup["format"], "clawcontrol-encrypted-vault-backup");
+        assert_eq!(backup["format"], "clawctrl-encrypted-vault-backup");
         assert_eq!(restored, payload);
     }
 

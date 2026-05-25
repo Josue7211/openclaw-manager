@@ -960,7 +960,7 @@ function MailSetupPanel({ onAddProton }: { onAddProton: () => void }) {
           <div style={setupStepStyle}>1</div>
           <h3 style={setupCardTitleStyle}>Open Proton Bridge</h3>
           <p style={setupCardBodyStyle}>
-            Bridge must be running locally. ClawControl defaults to 127.0.0.1:1143 for Proton IMAP.
+            Bridge must be running locally. clawctrl defaults to 127.0.0.1:1143 for Proton IMAP.
           </p>
         </div>
         <div style={setupCardStyle}>

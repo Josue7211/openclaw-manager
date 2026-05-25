@@ -247,14 +247,14 @@ fn parse_recovery_key(input: &str) -> Result<[u8; 32], AppError> {
 
 fn recovery_key_hash(key: &[u8; 32]) -> String {
     let mut hasher = Sha256::new();
-    hasher.update(b"clawcontrol-account-sync-recovery-key-hash-v1");
+    hasher.update(b"clawctrl-account-sync-recovery-key-hash-v1");
     hasher.update(key);
     hex::encode(hasher.finalize())
 }
 
 fn recovery_wrap_key(key: &[u8; 32]) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(b"clawcontrol-account-sync-recovery-wrap-v1");
+    hasher.update(b"clawctrl-account-sync-recovery-wrap-v1");
     hasher.update(key);
     hasher.finalize().into()
 }
@@ -275,7 +275,7 @@ fn derive_handoff_envelope_key(
     approver_public_key: &[u8; 32],
 ) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(b"clawcontrol-account-sync-handoff-v1");
+    hasher.update(b"clawctrl-account-sync-handoff-v1");
     hasher.update(shared_secret);
     hasher.update(request_public_key);
     hasher.update(approver_public_key);

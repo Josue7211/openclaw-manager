@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process'
 
 const API_KEY = 'dummy-cert-key'
 const VMID = 900
-const VM_NAME = 'clawcontrol-cert-vm'
+const VM_NAME = 'clawctrl-cert-vm'
 const NODE = 'pve'
 const EXPECTED_ACTIONS = [
   'set-memory',
@@ -73,15 +73,15 @@ function assertActionArgs(body) {
       }
       break
     case 'snapshot':
-      if (!String(body.args.snapname || '').startsWith('clawcontrol-cert-')) {
-        throw new Error('snapshot name was not generated with clawcontrol-cert prefix')
+      if (!String(body.args.snapname || '').startsWith('clawctrl-cert-')) {
+        throw new Error('snapshot name was not generated with clawctrl-cert prefix')
       }
-      if (body.args.description !== 'ClawControl disposable live certification snapshot') {
+      if (body.args.description !== 'clawctrl disposable live certification snapshot') {
         throw new Error('snapshot description mismatch')
       }
       break
     case 'delete-snapshot':
-      if (!String(body.args.snapname || '').startsWith('clawcontrol-cert-')) {
+      if (!String(body.args.snapname || '').startsWith('clawctrl-cert-')) {
         throw new Error('delete-snapshot did not use generated snapshot name')
       }
       if (body.confirmation !== VM_NAME) {
@@ -104,7 +104,7 @@ function assertActionArgs(body) {
       }
       break
     case 'add-ha':
-      if (body.args.state !== 'started' || body.args.comment !== 'ClawControl disposable live certification') {
+      if (body.args.state !== 'started' || body.args.comment !== 'clawctrl disposable live certification') {
         throw new Error('add-ha args mismatch')
       }
       break
@@ -122,7 +122,7 @@ function assertActionArgs(body) {
         body.args.dport !== '65535' ||
         body.args.source !== '127.0.0.1' ||
         body.args.enable !== false ||
-        !String(body.args.comment || '').startsWith('clawcontrol-cert-')
+        !String(body.args.comment || '').startsWith('clawctrl-cert-')
       ) {
         throw new Error('add-firewall-rule args mismatch')
       }
@@ -273,7 +273,7 @@ async function runCase({ missingName = false, echo = true } = {}) {
     cwd: process.cwd(),
     env: {
       ...process.env,
-      CLAWCONTROL_API_BASE: `http://127.0.0.1:${port}`,
+      CLAWCTRL_API_BASE: `http://127.0.0.1:${port}`,
       MC_API_KEY: API_KEY,
       PROXMOX_CERTIFY_VMID: String(VMID),
       PROXMOX_CERTIFY_NAME: VM_NAME,
@@ -430,7 +430,7 @@ async function runCreateDisposableCase({ existingVm = false, resizeDisk = false,
     cwd: process.cwd(),
     env: {
       ...process.env,
-      CLAWCONTROL_API_BASE: `http://127.0.0.1:${port}`,
+      CLAWCTRL_API_BASE: `http://127.0.0.1:${port}`,
       MC_API_KEY: API_KEY,
       PROXMOX_CERTIFY_VMID: String(VMID),
       PROXMOX_CERTIFY_NAME: VM_NAME,

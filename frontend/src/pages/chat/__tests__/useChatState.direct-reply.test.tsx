@@ -123,7 +123,7 @@ describe('useChatState Hermes Agent provider behavior', () => {
 
     const { result } = renderHook(() => useChatState(null, {
       blank: true,
-      context: { workingDir: '/Volumes/T7/projects/clawcontrol' },
+      context: { workingDir: '/Volumes/T7/projects/clawctrl' },
     }), { wrapper })
 
     expect(result.current.providers.map(provider => provider.id)).toEqual(['hermes'])
@@ -178,8 +178,8 @@ describe('useChatState Hermes Agent provider behavior', () => {
       newChat: true,
       ...context,
     }))
-    expect(body.workingDir).not.toBe('/run/media/josue/T7/projects/clawcontrol')
-    expect(body.workingDir).not.toBe('/Volumes/T7/projects/clawcontrol')
+    expect(body.workingDir).not.toBe('/run/media/josue/T7/projects/clawctrl')
+    expect(body.workingDir).not.toBe('/Volumes/T7/projects/clawctrl')
   })
 
   it('ignores stale legacy local providers from readiness status', async () => {
@@ -208,7 +208,7 @@ describe('useChatState Hermes Agent provider behavior', () => {
 
     const { result } = renderHook(() => useChatState(null, {
       blank: true,
-      context: { workingDir: '/Volumes/T7/projects/clawcontrol' },
+      context: { workingDir: '/Volumes/T7/projects/clawctrl' },
     }), { wrapper })
 
     await waitFor(() => {
@@ -227,7 +227,7 @@ describe('useChatState Hermes Agent provider behavior', () => {
 
     const { result } = renderHook(() => useChatState(null, {
       blank: true,
-      context: { workingDir: '/Volumes/T7/projects/clawcontrol' },
+      context: { workingDir: '/Volumes/T7/projects/clawctrl' },
     }), { wrapper })
 
     await waitFor(() => {
@@ -239,7 +239,7 @@ describe('useChatState Hermes Agent provider behavior', () => {
   it('explains unsupported provider selections with Hermes Agent wording', async () => {
     const { result } = renderHook(() => useChatState(null, {
       blank: true,
-      context: { workingDir: '/Volumes/T7/projects/clawcontrol' },
+      context: { workingDir: '/Volumes/T7/projects/clawctrl' },
     }), { wrapper })
 
     await waitFor(() => {
@@ -280,7 +280,7 @@ describe('useChatState Hermes Agent provider behavior', () => {
 
     const { result } = renderHook(() => useChatState('shared-thread', {
       sessionEnvironmentId: 'desktop',
-      context: { workingDir: '/Volumes/T7/projects/clawcontrol' },
+      context: { workingDir: '/Volumes/T7/projects/clawctrl' },
     }), { wrapper })
 
     await waitFor(() => {
@@ -329,7 +329,7 @@ describe('useChatState Hermes Agent provider behavior', () => {
 
     renderHook(() => useChatState(null, {
       sessionEnvironmentId: 'desktop',
-      context: { workingDir: '/Volumes/T7/projects/clawcontrol' },
+      context: { workingDir: '/Volumes/T7/projects/clawctrl' },
     }), { wrapper })
 
     await waitFor(() => {
@@ -427,7 +427,7 @@ describe('useChatState Hermes Agent provider behavior', () => {
     const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { result } = renderHook(() => useChatState(null, {
       blank: true,
-      context: { workingDir: '/Volumes/T7/projects/clawcontrol' },
+      context: { workingDir: '/Volumes/T7/projects/clawctrl' },
     }), { wrapper })
 
     act(() => {

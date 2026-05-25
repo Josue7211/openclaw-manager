@@ -10,9 +10,9 @@ import {
 } from '../ProjectContextControls'
 
 const project: ChatWorkspaceProject = {
-  id: 'local:clawcontrol:stable',
-  name: 'clawcontrol',
-  path: '/Volumes/T7/projects/clawcontrol',
+  id: 'local:clawctrl:stable',
+  name: 'clawctrl',
+  path: '/Volumes/T7/projects/clawctrl',
   environmentId: 'local',
   branches: ['main', 'codex/t3'],
   currentBranch: 'main',
@@ -57,7 +57,7 @@ describe('T3 copied ProjectContextControls adapter', () => {
 
     expect(screen.getByRole('region', { name: 'Session info' })).toHaveAttribute('data-t3-project-header-panel')
     expect(screen.getByText('Project chat')).toBeInTheDocument()
-    expect(screen.getByText('/Volumes/T7/projects/clawcontrol')).toBeInTheDocument()
+    expect(screen.getByText('/Volumes/T7/projects/clawctrl')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Close Session info' }))
     expect(onClose).toHaveBeenCalled()
 
@@ -190,8 +190,8 @@ describe('T3 copied ProjectContextControls adapter', () => {
     )
 
     expect(screen.getByLabelText('Local chat context')).toHaveAttribute('data-t3-project-context-toolbar')
-    expect(screen.getByRole('status', { name: 'Selected chat project context' })).toHaveTextContent('clawcontrol')
-    expect(screen.getByRole('status', { name: 'Selected chat project context' })).toHaveTextContent('/Volumes/T7/projects/clawcontrol')
+    expect(screen.getByRole('status', { name: 'Selected chat project context' })).toHaveTextContent('clawctrl')
+    expect(screen.getByRole('status', { name: 'Selected chat project context' })).toHaveTextContent('/Volumes/T7/projects/clawctrl')
     expect(screen.getByRole('status', { name: 'Selected chat project context' })).toHaveTextContent('T7')
     expect(screen.getByRole('option', { name: 'Hermes Agent VM' })).toHaveValue('Harness VM')
     fireEvent.click(screen.getByRole('button', { name: 'Manage project context' }))
@@ -333,17 +333,17 @@ describe('T3 copied ProjectContextControls adapter', () => {
     )
 
     expect(screen.getByLabelText('Project')).toHaveValue(missingEnvironmentValue)
-    expect(screen.getByRole('option', { name: 'Unavailable - Hermes Agent VM / .../projects/clawcontrol' })).toBeDisabled()
+    expect(screen.getByRole('option', { name: 'Unavailable - Hermes Agent VM / .../projects/clawctrl' })).toBeDisabled()
     expect(screen.getByRole('status', { name: 'Selected chat project context' })).toHaveTextContent('Hermes Agent VM')
     expect(screen.getByRole('status', { name: 'Selected chat project context' })).not.toHaveTextContent('harness-vm')
-    expect(screen.getByRole('option', { name: 'clawcontrol' })).toHaveValue(projectOptionValue(project))
+    expect(screen.getByRole('option', { name: 'clawctrl' })).toHaveValue(projectOptionValue(project))
   })
 
   it('disambiguates projects with the same folder name in project selects', () => {
     const localProject: ChatWorkspaceProject = {
       ...project,
-      id: 'local:clawcontrol',
-      path: '/run/media/josue/T7/projects/clawcontrol',
+      id: 'local:clawctrl',
+      path: '/run/media/josue/T7/projects/clawctrl',
       machineLabel: undefined,
       machine: undefined,
       host: undefined,
@@ -351,8 +351,8 @@ describe('T3 copied ProjectContextControls adapter', () => {
     }
     const remoteProject: ChatWorkspaceProject = {
       ...project,
-      id: 'vm:clawcontrol',
-      path: '/home/josue/projects/clawcontrol',
+      id: 'vm:clawctrl',
+      path: '/home/josue/projects/clawctrl',
       environmentId: 'agent-vm',
       machineLabel: 'Agent VM',
     }
@@ -372,10 +372,10 @@ describe('T3 copied ProjectContextControls adapter', () => {
     )
 
     expect(screen.getByRole('option', {
-      name: 'clawcontrol - T7 / .../projects/clawcontrol',
+      name: 'clawctrl - T7 / .../projects/clawctrl',
     })).toBeInTheDocument()
     expect(screen.getByRole('option', {
-      name: 'clawcontrol - Agent VM / .../projects/clawcontrol',
+      name: 'clawctrl - Agent VM / .../projects/clawctrl',
     })).toBeInTheDocument()
   })
 
@@ -383,13 +383,13 @@ describe('T3 copied ProjectContextControls adapter', () => {
     const onProjectChange = vi.fn()
     const localProject: ChatWorkspaceProject = {
       ...project,
-      id: 'local:clawcontrol',
+      id: 'local:clawctrl',
       environmentId: 'local',
       machineLabel: 'T7',
     }
     const remoteProject: ChatWorkspaceProject = {
       ...project,
-      id: 'vm:clawcontrol',
+      id: 'vm:clawctrl',
       environmentId: 'agent-vm',
       machineLabel: 'Agent VM',
     }
@@ -418,13 +418,13 @@ describe('T3 copied ProjectContextControls adapter', () => {
     const onProjectChange = vi.fn()
     const localProject: ChatWorkspaceProject = {
       ...project,
-      id: 'local:clawcontrol',
+      id: 'local:clawctrl',
       environmentId: 'local',
       machineLabel: 'T7',
     }
     const remoteProject: ChatWorkspaceProject = {
       ...project,
-      id: 'vm:clawcontrol',
+      id: 'vm:clawctrl',
       environmentId: 'agent-vm',
       machineLabel: 'Agent VM',
     }
@@ -514,11 +514,11 @@ describe('T3 copied ProjectContextControls adapter', () => {
     expect((projectSelect.closest('label') as HTMLElement).style.background).toContain('--bg-card-solid')
     expect((projectSelect as HTMLSelectElement).style.backgroundColor).toContain('--bg-card-solid')
     const selectedProjectActions = screen.getByRole('region', { name: 'Selected project actions' })
-    expect(selectedProjectActions).toHaveTextContent('clawcontrol')
-    expect(selectedProjectActions).toHaveTextContent('/Volumes/T7/projects/clawcontrol')
+    expect(selectedProjectActions).toHaveTextContent('clawctrl')
+    expect(selectedProjectActions).toHaveTextContent('/Volumes/T7/projects/clawctrl')
     expect((selectedProjectActions as HTMLElement).style.border).toContain('var(--border)')
     expect(screen.getAllByRole('button', { name: /Remove selected project/ })).toHaveLength(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Remove selected project clawcontrol' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove selected project clawctrl' }))
     expect(onRemoveProject).toHaveBeenCalledWith(project.path, 'local')
     onRemoveProject.mockClear()
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: projectOptionValue(project) } })
@@ -534,7 +534,7 @@ describe('T3 copied ProjectContextControls adapter', () => {
     const onProjectChange = vi.fn()
     const localProject: ChatWorkspaceProject = {
       ...project,
-      id: 'local:clawcontrol',
+      id: 'local:clawctrl',
       machineLabel: 'T7',
     }
     const remoteProject: ChatWorkspaceProject = {
@@ -564,20 +564,20 @@ describe('T3 copied ProjectContextControls adapter', () => {
 
     expect(screen.getByRole('listbox', { name: 'Project folders' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Search project folders' })).toHaveFocus()
-    expect(screen.getByRole('option', { name: 'Select project folder clawcontrol T7' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('option', { name: 'Select project folder clawctrl T7' })).toHaveAttribute('aria-selected', 'true')
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Search project folders' }), {
       target: { value: 'agent vm' },
     })
 
-    expect(screen.queryByRole('option', { name: 'Select project folder clawcontrol T7' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Select project folder clawctrl T7' })).not.toBeInTheDocument()
     const remoteOption = screen.getByRole('option', { name: 'Select project folder AgentShell Agent VM' })
     expect(remoteOption).toBeInTheDocument()
     fireEvent.click(remoteOption)
 
     expect(onProjectChange).toHaveBeenCalledWith('/Users/josue/AgentShell', 'agent-vm')
     fireEvent.click(screen.getByRole('button', { name: 'Clear project search' }))
-    expect(screen.getByRole('option', { name: 'Select project folder clawcontrol T7' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Select project folder clawctrl T7' })).toBeInTheDocument()
   })
 
   it('selects filtered project roots from the keyboard before closing the dialog', () => {
@@ -585,7 +585,7 @@ describe('T3 copied ProjectContextControls adapter', () => {
     const onProjectChange = vi.fn()
     const localProject: ChatWorkspaceProject = {
       ...project,
-      id: 'local:clawcontrol',
+      id: 'local:clawctrl',
       machineLabel: 'T7',
     }
     const remoteProject: ChatWorkspaceProject = {
@@ -678,7 +678,7 @@ describe('T3 copied ProjectContextControls adapter', () => {
     )
 
     expect(screen.getByLabelText('Project')).toHaveValue(projectOptionValue(project))
-    fireEvent.click(screen.getByRole('button', { name: 'Remove selected project clawcontrol' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove selected project clawctrl' }))
     expect(onRemoveProject).toHaveBeenCalledWith(project.path, 'local')
   })
 
@@ -786,10 +786,10 @@ describe('T3 copied ProjectContextControls adapter', () => {
     )
 
     expect(screen.getByLabelText('Project')).toHaveValue(missingEnvironmentValue)
-    expect(screen.getByRole('option', { name: 'Unavailable - Hermes Agent VM / .../projects/clawcontrol' })).toBeDisabled()
+    expect(screen.getByRole('option', { name: 'Unavailable - Hermes Agent VM / .../projects/clawctrl' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: 'Add selected folder' }))
     expect(onAddProject).toHaveBeenCalledWith(project.path)
-    expect(screen.getByRole('status', { name: 'Selected project unavailable' })).toHaveTextContent('Hermes Agent VM / .../projects/clawcontrol')
+    expect(screen.getByRole('status', { name: 'Selected project unavailable' })).toHaveTextContent('Hermes Agent VM / .../projects/clawctrl')
     expect(screen.getByRole('status', { name: 'Selected project unavailable' })).not.toHaveTextContent('harness-vm')
 
     fireEvent.click(screen.getByRole('button', { name: 'Clear selected folder' }))

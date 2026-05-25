@@ -374,7 +374,7 @@ export function notesRemoteCollaborationSetupStatus(
       state: 'missing-provider',
       ready: false,
       label: 'Provider needed',
-      detail: 'Add the ClawControl provider URL for the device that will relay collaboration events.',
+      detail: 'Add the clawctrl provider URL for the device that will relay collaboration events.',
     }
   }
   if (!isNotesRemoteCollaborationBaseUrl(normalized.remoteCollaborationBaseUrl)) {
@@ -443,7 +443,7 @@ function generateNotesPairingKey(randomBytes?: Uint8Array): string {
 }
 
 function normalizePairingLabel(value: unknown): string {
-  return typeof value === 'string' && value.trim() ? value.trim().slice(0, 80) : 'ClawControl Notes'
+  return typeof value === 'string' && value.trim() ? value.trim().slice(0, 80) : 'clawctrl Notes'
 }
 
 function notesPairingVerifier(invite: Omit<NotesRemoteCollaborationPairingInvite, 'verifier'>): string {

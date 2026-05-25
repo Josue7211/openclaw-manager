@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LOG_PATH="${LOG_PATH:-/tmp/clawcontrol-bluebubbles-watch.log}"
+LOG_PATH="${LOG_PATH:-/tmp/clawctrl-bluebubbles-watch.log}"
 APP_PATH="${BLUEBUBBLES_APP_PATH:-/Applications/BlueBubbles.app}"
 PORT="${BLUEBUBBLES_PORT:-1234}"
 

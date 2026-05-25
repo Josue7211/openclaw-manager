@@ -29,8 +29,8 @@ const {
   ],
   mockApiGet: vi.fn(async () => ({
     projects: [{
-      name: 'clawcontrol',
-      path: '/Volumes/T7/projects/clawcontrol',
+      name: 'clawctrl',
+      path: '/Volumes/T7/projects/clawctrl',
       branches: ['main'],
       currentBranch: 'main',
       scripts: [
@@ -60,8 +60,8 @@ const {
     }
   }),
   mockApiPatch: vi.fn(async (_path: string, body?: { id?: string; path?: string; name?: string; scripts?: unknown[]; groupingOverride?: string | null }) => {
-    const projectPath = body?.path || '/Volumes/T7/projects/clawcontrol'
-    const name = body?.name || projectPath.split('/').filter(Boolean).at(-1) || 'clawcontrol'
+    const projectPath = body?.path || '/Volumes/T7/projects/clawctrl'
+    const name = body?.name || projectPath.split('/').filter(Boolean).at(-1) || 'clawctrl'
     return {
       project: {
         id: body?.id || projectPath,
@@ -399,7 +399,7 @@ function searchParamsFromLocation() {
 }
 
 function persistClawcontrolProjectSelection() {
-  localStorage.setItem('chat-selected-project-path', '/Volumes/T7/projects/clawcontrol')
+  localStorage.setItem('chat-selected-project-path', '/Volumes/T7/projects/clawctrl')
   localStorage.setItem('chat-selected-project-environment', 'local')
   localStorage.setItem('chat-selected-runtime', 'Work locally')
   localStorage.setItem('chat-selected-branch', 'main')
@@ -478,8 +478,8 @@ describe('ChatPage new chat intent', () => {
     })
     mockApiGet.mockResolvedValue({
       projects: [{
-        name: 'clawcontrol',
-        path: '/Volumes/T7/projects/clawcontrol',
+        name: 'clawctrl',
+        path: '/Volumes/T7/projects/clawctrl',
         branches: ['main'],
         currentBranch: 'main',
         scripts: mockClawcontrolScripts,
@@ -503,8 +503,8 @@ describe('ChatPage new chat intent', () => {
       }
     })
     mockApiPatch.mockImplementation(async (_path: string, body?: { id?: string; path?: string; name?: string; scripts?: unknown[]; groupingOverride?: string | null }) => {
-      const projectPath = body?.path || '/Volumes/T7/projects/clawcontrol'
-      const name = body?.name || projectPath.split('/').filter(Boolean).at(-1) || 'clawcontrol'
+      const projectPath = body?.path || '/Volumes/T7/projects/clawctrl'
+      const name = body?.name || projectPath.split('/').filter(Boolean).at(-1) || 'clawctrl'
       return {
         project: {
           id: body?.id || projectPath,
@@ -573,8 +573,8 @@ describe('ChatPage new chat intent', () => {
         blank: true,
         newChat: true,
         context: expect.objectContaining({
-          project: 'clawcontrol',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
+          project: 'clawctrl',
+          workingDir: '/Volumes/T7/projects/clawctrl',
           branch: 'main',
           runtime: 'Work locally',
         }),
@@ -650,8 +650,8 @@ describe('ChatPage new chat intent', () => {
         blank: false,
         newChat: false,
         context: expect.objectContaining({
-          project: 'clawcontrol',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
+          project: 'clawctrl',
+          workingDir: '/Volumes/T7/projects/clawctrl',
           branch: 'main',
           runtime: 'Work locally',
         }),
@@ -758,8 +758,8 @@ describe('ChatPage new chat intent', () => {
     )
 
     const strip = await screen.findByRole('region', { name: 'Current project scope' })
-    expect(strip).toHaveTextContent('Project: clawcontrol')
-    expect(strip).toHaveTextContent('/Volumes/T7/projects/clawcontrol')
+    expect(strip).toHaveTextContent('Project: clawctrl')
+    expect(strip).toHaveTextContent('/Volumes/T7/projects/clawctrl')
     expect(strip).toHaveTextContent('Work locally')
     expect(strip).toHaveTextContent('main')
     expect(within(strip).getByRole('button', { name: 'Change project' })).toBeInTheDocument()
@@ -1466,9 +1466,9 @@ describe('ChatPage new chat intent', () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [
         {
-          id: 'local:clawcontrol:stable',
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
+          id: 'local:clawctrl:stable',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
           branches: ['main'],
           currentBranch: 'main',
           environmentId: 'local',
@@ -1499,7 +1499,7 @@ describe('ChatPage new chat intent', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Select project clawcontrol' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Select project clawctrl' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Select project AgentShell' })).toBeInTheDocument()
       expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('')
       expect(screen.getByRole('button', { name: 'Select a project before opening terminal' })).toBeDisabled()
@@ -1519,9 +1519,9 @@ describe('ChatPage new chat intent', () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [
         {
-          id: 'local:clawcontrol:stable',
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
+          id: 'local:clawctrl:stable',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
           branches: ['main'],
           currentBranch: 'main',
           environmentId: 'local',
@@ -1544,7 +1544,7 @@ describe('ChatPage new chat intent', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Select project clawcontrol' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Select project clawctrl' })).toBeInTheDocument()
       expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('')
       expect(screen.getByRole('button', { name: 'Select a project before opening terminal' })).toBeDisabled()
       expect(mockUseChatState).toHaveBeenLastCalledWith(null, expect.objectContaining({
@@ -1560,7 +1560,7 @@ describe('ChatPage new chat intent', () => {
 
   it('does not treat a route env qualifier as a project selection', async () => {
     const send = vi.fn()
-    localStorage.setItem('chat-selected-project-path', '/Volumes/T7/projects/clawcontrol')
+    localStorage.setItem('chat-selected-project-path', '/Volumes/T7/projects/clawctrl')
     localStorage.setItem('chat-selected-project-environment', 'local')
     mockUseChatState.mockReturnValue({
       ...chatStateStub(),
@@ -1645,7 +1645,7 @@ describe('ChatPage new chat intent', () => {
   it('surfaces unavailable project selections instead of silently ignoring them', async () => {
     const showAttachmentStatus = vi.fn()
     const missingPath = '/Volumes/T7/projects/missing-project'
-    localStorage.setItem('chat-selected-project-path', '/Volumes/T7/projects/clawcontrol')
+    localStorage.setItem('chat-selected-project-path', '/Volumes/T7/projects/clawctrl')
     localStorage.setItem('chat-selected-project-environment', 'local')
     mockApiPost.mockRejectedValue(new Error('missing project'))
     mockUseChatState.mockReturnValue({
@@ -1742,7 +1742,7 @@ describe('ChatPage new chat intent', () => {
   })
 
   it('canonicalizes a stored project path that differs only by trailing slash', async () => {
-    localStorage.setItem('chat-selected-project-path', '/Volumes/T7/projects/clawcontrol/')
+    localStorage.setItem('chat-selected-project-path', '/Volumes/T7/projects/clawctrl/')
 
     render(
       <MemoryRouter initialEntries={['/chat?new=1']}>
@@ -1751,14 +1751,14 @@ describe('ChatPage new chat intent', () => {
     )
 
     await waitFor(() => {
-      expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('/Volumes/T7/projects/clawcontrol')
+      expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('/Volumes/T7/projects/clawctrl')
       expect(mockUseChatState).toHaveBeenLastCalledWith(null, expect.objectContaining({
         context: expect.objectContaining({
-          project: 'clawcontrol',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
+          project: 'clawctrl',
+          workingDir: '/Volumes/T7/projects/clawctrl',
         }),
       }))
-      expect(localStorage.getItem('chat-selected-project-path')).toBe('/Volumes/T7/projects/clawcontrol')
+      expect(localStorage.getItem('chat-selected-project-path')).toBe('/Volumes/T7/projects/clawctrl')
     })
   })
 
@@ -1835,7 +1835,7 @@ describe('ChatPage new chat intent', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Project')).toHaveValue('/Volumes/T7/projects/clawcontrol')
+      expect(screen.getByLabelText('Project')).toHaveValue('/Volumes/T7/projects/clawctrl')
     })
 
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: '' } })
@@ -2036,9 +2036,9 @@ describe('ChatPage new chat intent', () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [
         {
-          id: 'local:clawcontrol:stable',
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
+          id: 'local:clawctrl:stable',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
           branches: ['main'],
           currentBranch: 'main',
           environmentId: 'local',
@@ -2060,8 +2060,8 @@ describe('ChatPage new chat intent', () => {
           key: 'shared-thread',
           label: 'Local shared thread',
           messageCount: 2,
-          project: 'clawcontrol',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
+          project: 'clawctrl',
+          workingDir: '/Volumes/T7/projects/clawctrl',
           environmentId: 'local',
         },
         {
@@ -2112,9 +2112,9 @@ describe('ChatPage new chat intent', () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [
         {
-          id: 'local:clawcontrol:stable',
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
+          id: 'local:clawctrl:stable',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
           branches: ['main'],
           currentBranch: 'main',
           environmentId: 'local',
@@ -2128,8 +2128,8 @@ describe('ChatPage new chat intent', () => {
           key: 'shared-thread',
           label: 'Local shared thread',
           messageCount: 2,
-          project: 'clawcontrol',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
+          project: 'clawctrl',
+          workingDir: '/Volumes/T7/projects/clawctrl',
           environmentId: 'local',
         },
       ],
@@ -2174,9 +2174,9 @@ describe('ChatPage new chat intent', () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [
         {
-          id: 'local:clawcontrol:stable',
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
+          id: 'local:clawctrl:stable',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
           branches: ['main'],
           currentBranch: 'main',
           environmentId: 'local',
@@ -2198,8 +2198,8 @@ describe('ChatPage new chat intent', () => {
           key: 'shared-thread',
           label: 'Local shared thread',
           messageCount: 2,
-          project: 'clawcontrol',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
+          project: 'clawctrl',
+          workingDir: '/Volumes/T7/projects/clawctrl',
           environmentId: 'local',
         },
         {
@@ -2248,9 +2248,9 @@ describe('ChatPage new chat intent', () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [
         {
-          id: 'local:clawcontrol:stable',
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
+          id: 'local:clawctrl:stable',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
           branches: ['main'],
           currentBranch: 'main',
           environmentId: 'local',
@@ -2272,8 +2272,8 @@ describe('ChatPage new chat intent', () => {
           key: 'shared-thread',
           label: 'Local shared thread',
           messageCount: 2,
-          project: 'clawcontrol',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
+          project: 'clawctrl',
+          workingDir: '/Volumes/T7/projects/clawctrl',
           environmentId: 'local',
         },
         {
@@ -2331,8 +2331,8 @@ describe('ChatPage new chat intent', () => {
           key: 'existing-session',
           label: 'Existing chat',
           messageCount: 3,
-          project: 'clawcontrol',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
+          project: 'clawctrl',
+          workingDir: '/Volumes/T7/projects/clawctrl',
           environmentId: 'local',
         },
       ],
@@ -2368,18 +2368,18 @@ describe('ChatPage new chat intent', () => {
       expect(params.get('session')).toBe('existing-session')
       expect(params.get('threadId')).toBe('existing-session')
       expect(params.get('environmentId')).toBe('local')
-      expect(params.get('cwd')).toBe('/Volumes/T7/projects/clawcontrol')
+      expect(params.get('cwd')).toBe('/Volumes/T7/projects/clawctrl')
     })
   })
 
   it('clears project scope when selecting an unscoped Recent chat from a project route', async () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [{
-        id: 'local:clawcontrol:stable',
+        id: 'local:clawctrl:stable',
         environmentId: 'local',
-        name: 'clawcontrol',
-        path: '/Volumes/T7/projects/clawcontrol',
-        root: '/Volumes/T7/projects/clawcontrol',
+        name: 'clawctrl',
+        path: '/Volumes/T7/projects/clawctrl',
+        root: '/Volumes/T7/projects/clawctrl',
         branches: ['main'],
         currentBranch: 'main',
       }],
@@ -2391,9 +2391,9 @@ describe('ChatPage new chat intent', () => {
           key: 'project-chat',
           label: 'Project-owned chat',
           messageCount: 3,
-          projectId: 'local:clawcontrol:stable',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
-          project: 'clawcontrol',
+          projectId: 'local:clawctrl:stable',
+          workingDir: '/Volumes/T7/projects/clawctrl',
+          project: 'clawctrl',
           environmentId: 'local',
         },
         {
@@ -2407,14 +2407,14 @@ describe('ChatPage new chat intent', () => {
     })
 
     render(
-      <MemoryRouter initialEntries={['/chat?new=1&projectId=local%3Aclawcontrol%3Astable&cwd=%2FVolumes%2FT7%2Fprojects%2Fclawcontrol&env=local&branch=main&runtime=Work+locally']}>
+      <MemoryRouter initialEntries={['/chat?new=1&projectId=local%3Aclawctrl%3Astable&cwd=%2FVolumes%2FT7%2Fprojects%2Fclawctrl&env=local&branch=main&runtime=Work+locally']}>
         <ChatPage />
         <LocationProbe />
       </MemoryRouter>,
     )
 
     await waitFor(() => {
-      expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('/Volumes/T7/projects/clawcontrol')
+      expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('/Volumes/T7/projects/clawctrl')
       expect(screen.getByLabelText('Projects')).toContainElement(
         screen.getByRole('option', { name: /Project-owned chat, 3 messages/ }),
       )
@@ -2452,8 +2452,8 @@ describe('ChatPage new chat intent', () => {
   it('keeps rename compact and delete actions on unified sidebar chat rows', async () => {
     localStorage.setItem('chat-session-project-refs', JSON.stringify({
       'existing-session': {
-        projectId: 'local:clawcontrol:stable',
-        workingDir: '/Volumes/T7/projects/clawcontrol',
+        projectId: 'local:clawctrl:stable',
+        workingDir: '/Volumes/T7/projects/clawctrl',
       },
     }))
 
@@ -2505,16 +2505,16 @@ describe('ChatPage new chat intent', () => {
     })
     localStorage.setItem('chat-session-project-refs', JSON.stringify({
       'existing-session': {
-        projectId: 'local:clawcontrol:stable',
-        project: 'clawcontrol',
-        projectRoot: '/Volumes/T7/projects/clawcontrol',
-        workingDir: '/Volumes/T7/projects/clawcontrol',
+        projectId: 'local:clawctrl:stable',
+        project: 'clawctrl',
+        projectRoot: '/Volumes/T7/projects/clawctrl',
+        workingDir: '/Volumes/T7/projects/clawctrl',
         environmentId: 'local',
       },
     }))
 
     render(
-      <MemoryRouter initialEntries={['/chat?session=existing-session&threadId=existing-session&environmentId=local&cwd=%2FVolumes%2FT7%2Fprojects%2Fclawcontrol&projectId=local%3Aclawcontrol%3Astable&env=local&branch=main&runtime=Work+locally']}>
+      <MemoryRouter initialEntries={['/chat?session=existing-session&threadId=existing-session&environmentId=local&cwd=%2FVolumes%2FT7%2Fprojects%2Fclawctrl&projectId=local%3Aclawctrl%3Astable&env=local&branch=main&runtime=Work+locally']}>
         <ChatPage />
         <LocationProbe />
       </MemoryRouter>,
@@ -2543,7 +2543,7 @@ describe('ChatPage new chat intent', () => {
       expect(params.get('session')).toBeNull()
       expect(params.get('threadId')).toBeNull()
       expect(params.get('environmentId')).toBeNull()
-      expect(params.get('cwd')).toBe('/Volumes/T7/projects/clawcontrol')
+      expect(params.get('cwd')).toBe('/Volumes/T7/projects/clawctrl')
     })
 
     const deleteOptions = mockDeleteMutate.mock.calls.at(-1)?.[1] as { onError?: () => void } | undefined
@@ -2556,7 +2556,7 @@ describe('ChatPage new chat intent', () => {
       expect(localStorage.getItem('chat-selected-session-key')).toBe('existing-session')
       expect(JSON.parse(localStorage.getItem('chat-session-project-refs') || '{}')).toHaveProperty('existing-session')
       expect(searchParamsFromLocation().get('session')).toBe('existing-session')
-      expect(searchParamsFromLocation().get('cwd')).toBe('/Volumes/T7/projects/clawcontrol')
+      expect(searchParamsFromLocation().get('cwd')).toBe('/Volumes/T7/projects/clawctrl')
       expect(showAttachmentStatus).toHaveBeenCalledWith(
         'Chat deletion failed. Restored Existing chat.',
         5000,
@@ -2580,8 +2580,8 @@ describe('ChatPage new chat intent', () => {
         newChat: true,
         sessionEnvironmentId: 'local',
         context: expect.objectContaining({
-          project: 'clawcontrol',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
+          project: 'clawctrl',
+          workingDir: '/Volumes/T7/projects/clawctrl',
         }),
         onSessionKey: expect.any(Function),
       }))
@@ -2602,7 +2602,7 @@ describe('ChatPage new chat intent', () => {
     await waitFor(() => {
       const params = searchParamsFromLocation()
       expect(params.get('session')).toBe('created-session')
-      expect(params.get('cwd')).toBe('/Volumes/T7/projects/clawcontrol')
+      expect(params.get('cwd')).toBe('/Volumes/T7/projects/clawctrl')
     })
   })
 
@@ -2696,9 +2696,9 @@ describe('ChatPage new chat intent', () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [
         {
-          id: 'local:clawcontrol:stable',
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
+          id: 'local:clawctrl:stable',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
           branches: ['main'],
           currentBranch: 'main',
           environmentId: 'local',
@@ -2720,8 +2720,8 @@ describe('ChatPage new chat intent', () => {
           key: 'existing-session',
           label: 'Existing chat',
           messageCount: 3,
-          project: 'clawcontrol',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
+          project: 'clawctrl',
+          workingDir: '/Volumes/T7/projects/clawctrl',
           environmentId: 'local',
         },
       ],
@@ -2741,7 +2741,7 @@ describe('ChatPage new chat intent', () => {
         blank: false,
         newChat: false,
       }))
-      expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('/Volumes/T7/projects/clawcontrol')
+      expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('/Volumes/T7/projects/clawctrl')
     })
 
     fireEvent.change(screen.getByLabelText('Project'), {
@@ -2788,7 +2788,7 @@ describe('ChatPage new chat intent', () => {
         blank: false,
         newChat: false,
       }))
-      expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('/Volumes/T7/projects/clawcontrol')
+      expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('/Volumes/T7/projects/clawctrl')
     })
 
     const sidebar = screen.getByTestId('session-list')
@@ -2834,8 +2834,8 @@ describe('ChatPage new chat intent', () => {
           key: 'existing-session',
           label: 'Existing chat',
           messageCount: 3,
-          project: 'clawcontrol',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
+          project: 'clawctrl',
+          workingDir: '/Volumes/T7/projects/clawctrl',
           environmentId: 'local',
         },
       ],
@@ -2855,7 +2855,7 @@ describe('ChatPage new chat intent', () => {
         blank: false,
         newChat: false,
       }))
-      expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('/Volumes/T7/projects/clawcontrol')
+      expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('/Volumes/T7/projects/clawctrl')
     })
 
     fireEvent.change(screen.getByLabelText('Project'), {
@@ -3574,12 +3574,12 @@ describe('ChatPage new chat intent', () => {
     expect(screen.getByRole('button', { name: 'Run Hermes review' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Run Hermes review' }))
     expect(sendMessage).toHaveBeenCalledWith(expect.stringContaining('Review the current project for correctness'))
-    expect(sendMessage).toHaveBeenCalledWith(expect.stringContaining('Working directory: /Volumes/T7/projects/clawcontrol'))
-    expect(sendMessage).toHaveBeenCalledWith(expect.stringContaining('Project root: /Volumes/T7/projects/clawcontrol'))
+    expect(sendMessage).toHaveBeenCalledWith(expect.stringContaining('Working directory: /Volumes/T7/projects/clawctrl'))
+    expect(sendMessage).toHaveBeenCalledWith(expect.stringContaining('Project root: /Volumes/T7/projects/clawctrl'))
     expect(screen.queryByTestId('chat-terminal-drawer')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Session info' }))
-    expect(screen.getByRole('region', { name: 'Session info' })).toHaveTextContent('/Volumes/T7/projects/clawcontrol')
+    expect(screen.getByRole('region', { name: 'Session info' })).toHaveTextContent('/Volumes/T7/projects/clawctrl')
 
     fireEvent.click(screen.getByRole('button', { name: 'More project actions' }))
     expect(screen.getByRole('menu', { name: 'Project action menu' })).toBeInTheDocument()
@@ -3638,7 +3638,7 @@ describe('ChatPage new chat intent', () => {
     expect(sendMessage).toHaveBeenCalledTimes(1)
     const prompt = setInput.mock.calls.at(-1)?.[0] as string
     expect(prompt).toContain('Review the current project for correctness')
-    expect(prompt).toContain('Working directory: /Volumes/T7/projects/clawcontrol')
+    expect(prompt).toContain('Working directory: /Volumes/T7/projects/clawctrl')
     expect(setImages).toHaveBeenCalledWith([])
     expect(setContextFiles).toHaveBeenCalledWith([])
     expect(imagesRef.current).toEqual([])
@@ -3723,17 +3723,17 @@ describe('ChatPage new chat intent', () => {
     persistClawcontrolProjectSelection()
 
     localStorage.setItem('chat-project-scripts', JSON.stringify({
-      '/Volumes/T7/projects/clawcontrol': [
+      '/Volumes/T7/projects/clawctrl': [
         { id: 'legacy', name: 'Legacy stale action', command: 'npm run old' },
       ],
     }))
     mockApiGet.mockResolvedValueOnce({
       projects: [{
-        id: '/Volumes/T7/projects/clawcontrol',
+        id: '/Volumes/T7/projects/clawctrl',
         environmentId: 'local',
-        name: 'clawcontrol',
-        path: '/Volumes/T7/projects/clawcontrol',
-        root: '/Volumes/T7/projects/clawcontrol',
+        name: 'clawctrl',
+        path: '/Volumes/T7/projects/clawctrl',
+        root: '/Volumes/T7/projects/clawctrl',
         branches: ['main'],
         currentBranch: 'main',
         scripts: [
@@ -3855,15 +3855,15 @@ describe('ChatPage new chat intent', () => {
     const drawer = await screen.findByTestId('chat-terminal-drawer')
     expect(drawer).toHaveTextContent('Storybook dev')
     expect(drawer).toHaveTextContent('npm run storybook -- --host 0.0.0.0')
-    expect(drawer).toHaveTextContent('/Volumes/T7/projects/clawcontrol/frontend/src')
-    expect(drawer).toHaveTextContent('CLAWCONTROL_PROJECT_PATH')
-    expect(drawer).toHaveTextContent('CLAWCONTROL_RUNTIME')
-    expect(drawer).toHaveTextContent('CLAWCONTROL_BRANCH')
+    expect(drawer).toHaveTextContent('/Volumes/T7/projects/clawctrl/frontend/src')
+    expect(drawer).toHaveTextContent('CLAWCTRL_PROJECT_PATH')
+    expect(drawer).toHaveTextContent('CLAWCTRL_RUNTIME')
+    expect(drawer).toHaveTextContent('CLAWCTRL_BRANCH')
     expect(drawer).toHaveTextContent('CHAT_TERMINAL_CWD')
     expect(drawer).toHaveTextContent('AGENT_TERMINAL_CWD')
     expect(drawer).toHaveTextContent('HERMES_AGENT_TERMINAL_CWD')
     const persisted = JSON.parse(localStorage.getItem('chat-project-scripts') || '{}') as Record<string, Array<{ name: string; command: string }>>
-    const savedScripts = persisted['/Volumes/T7/projects/clawcontrol'] ?? []
+    const savedScripts = persisted['/Volumes/T7/projects/clawctrl'] ?? []
     expect(savedScripts).toEqual(expect.arrayContaining([
       expect.objectContaining({
         name: 'Storybook dev',
@@ -3873,7 +3873,7 @@ describe('ChatPage new chat intent', () => {
     ]))
     await waitFor(() => {
       expect(mockApiPatch).toHaveBeenCalledWith('/api/chat/workspace-projects', expect.objectContaining({
-        path: '/Volumes/T7/projects/clawcontrol',
+        path: '/Volumes/T7/projects/clawctrl',
         scripts: expect.arrayContaining([
           expect.objectContaining({
             name: 'Storybook dev',
@@ -3891,9 +3891,9 @@ describe('ChatPage new chat intent', () => {
         {
           id: 'local-claw',
           environmentId: 'local',
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
-          root: '/Volumes/T7/projects/clawcontrol',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
+          root: '/Volumes/T7/projects/clawctrl',
           branches: ['main'],
           currentBranch: 'main',
           scripts: mockClawcontrolScripts,
@@ -3916,7 +3916,7 @@ describe('ChatPage new chat intent', () => {
     })
 
     render(
-      <MemoryRouter initialEntries={['/chat?new=1&cwd=%2FVolumes%2FT7%2Fprojects%2Fclawcontrol']}>
+      <MemoryRouter initialEntries={['/chat?new=1&cwd=%2FVolumes%2FT7%2Fprojects%2Fclawctrl']}>
         <ChatPage />
       </MemoryRouter>,
     )
@@ -3937,7 +3937,7 @@ describe('ChatPage new chat intent', () => {
       expect(screen.getByRole('button', { name: 'Run Agent dev' })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Select project clawcontrol' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select project clawctrl' }))
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Run Chat tests' })).toBeInTheDocument()
     })
@@ -3948,7 +3948,7 @@ describe('ChatPage new chat intent', () => {
     persistClawcontrolProjectSelection()
     mockApiPatch.mockRejectedValueOnce(new Error('script save failed'))
     localStorage.setItem('chat-project-preferred-scripts', JSON.stringify({
-      '/Volumes/T7/projects/clawcontrol': 'tauri-dev',
+      '/Volumes/T7/projects/clawctrl': 'tauri-dev',
     }))
 
     render(
@@ -3974,7 +3974,7 @@ describe('ChatPage new chat intent', () => {
 
     await waitFor(() => {
       expect(mockApiPatch).toHaveBeenCalledWith('/api/chat/workspace-projects', expect.objectContaining({
-        path: '/Volumes/T7/projects/clawcontrol',
+        path: '/Volumes/T7/projects/clawctrl',
         scripts: expect.arrayContaining([
           expect.objectContaining({ name: 'Storybook', command: 'npm run storybook' }),
         ]),
@@ -3998,7 +3998,7 @@ describe('ChatPage new chat intent', () => {
 
     const toolbar = screen.getByTestId('chat-local-context-toolbar')
     await waitFor(() => {
-      expect(screen.getByLabelText('Project')).toHaveTextContent('clawcontrol')
+      expect(screen.getByLabelText('Project')).toHaveTextContent('clawctrl')
     })
     expect(screen.getByLabelText('Runtime')).toHaveTextContent('Work locally')
     expect(screen.getByLabelText('Branch')).toHaveTextContent('main')
@@ -4015,18 +4015,18 @@ describe('ChatPage new chat intent', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Project')).toHaveTextContent('clawcontrol')
+      expect(screen.getByLabelText('Project')).toHaveTextContent('clawctrl')
     })
     fireEvent.click(screen.getByRole('button', { name: 'Run Tauri dev' }))
 
     const drawer = await screen.findByTestId('chat-terminal-drawer')
     expect(drawer).toHaveTextContent('Tauri dev')
     expect(drawer).toHaveTextContent('cargo tauri dev')
-    expect(drawer).toHaveTextContent('/Volumes/T7/projects/clawcontrol/src-tauri')
-    expect(drawer).toHaveTextContent('chat-local-volumes-t7-projects-clawcontrol-1')
-    expect(drawer).toHaveTextContent('"CHAT_TERMINAL_CWD":"/Volumes/T7/projects/clawcontrol/src-tauri"')
-    expect(drawer).toHaveTextContent('"AGENT_TERMINAL_CWD":"/Volumes/T7/projects/clawcontrol/src-tauri"')
-    expect(drawer).toHaveTextContent('"HERMES_AGENT_PROJECT_PATH":"/Volumes/T7/projects/clawcontrol"')
+    expect(drawer).toHaveTextContent('/Volumes/T7/projects/clawctrl/src-tauri')
+    expect(drawer).toHaveTextContent('chat-local-volumes-t7-projects-clawctrl-1')
+    expect(drawer).toHaveTextContent('"CHAT_TERMINAL_CWD":"/Volumes/T7/projects/clawctrl/src-tauri"')
+    expect(drawer).toHaveTextContent('"AGENT_TERMINAL_CWD":"/Volumes/T7/projects/clawctrl/src-tauri"')
+    expect(drawer).toHaveTextContent('"HERMES_AGENT_PROJECT_PATH":"/Volumes/T7/projects/clawctrl"')
     await waitFor(() => {
       expect(screen.getByRole('status', { name: 'Terminal status' })).toHaveTextContent('Tauri dev: running')
     })
@@ -4042,17 +4042,17 @@ describe('ChatPage new chat intent', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Project')).toHaveTextContent('clawcontrol')
+      expect(screen.getByLabelText('Project')).toHaveTextContent('clawctrl')
     })
     fireEvent.click(screen.getByRole('button', { name: 'Run Tauri dev' }))
 
     const drawer = await screen.findByTestId('chat-terminal-drawer')
-    expect(drawer).toHaveTextContent('chat-local-volumes-t7-projects-clawcontrol-1')
+    expect(drawer).toHaveTextContent('chat-local-volumes-t7-projects-clawctrl-1')
 
     fireEvent.click(screen.getByRole('button', { name: 'Run Tauri dev' }))
 
-    expect(screen.getByTestId('chat-terminal-drawer')).toHaveTextContent('chat-local-volumes-t7-projects-clawcontrol-1')
-    expect(screen.getByTestId('chat-terminal-drawer')).not.toHaveTextContent('chat-local-volumes-t7-projects-clawcontrol-2')
+    expect(screen.getByTestId('chat-terminal-drawer')).toHaveTextContent('chat-local-volumes-t7-projects-clawctrl-1')
+    expect(screen.getByTestId('chat-terminal-drawer')).not.toHaveTextContent('chat-local-volumes-t7-projects-clawctrl-2')
   })
 
   it('blocks a second project script while a terminal is already running', async () => {
@@ -4065,7 +4065,7 @@ describe('ChatPage new chat intent', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Project')).toHaveTextContent('clawcontrol')
+      expect(screen.getByLabelText('Project')).toHaveTextContent('clawctrl')
     })
     fireEvent.click(screen.getByRole('button', { name: 'Run Tauri dev' }))
 
@@ -4132,10 +4132,10 @@ describe('ChatPage new chat intent', () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [
         {
-          id: 'local:clawcontrol:stable',
+          id: 'local:clawctrl:stable',
           environmentId: 'local',
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
           branches: ['main', 'codex/chat-parity'],
           currentBranch: 'main',
           scripts: mockClawcontrolScripts,
@@ -4199,8 +4199,8 @@ describe('ChatPage new chat intent', () => {
     expect(drawer).toHaveTextContent('"AGENT_PROJECT_PATH":"/Users/josue/AgentShell"')
     expect(drawer).toHaveTextContent('"HERMES_AGENT_TERMINAL_CWD":"/Users/josue/AgentShell/frontend"')
     expect(mockUseGatewaySessions).toHaveBeenCalledWith(expect.objectContaining({
-      cwd: ['/Users/josue/AgentShell', '/Volumes/T7/projects/clawcontrol'],
-      projectIds: ['local:clawcontrol:stable', 'local:agent-shell:stable'],
+      cwd: ['/Users/josue/AgentShell', '/Volumes/T7/projects/clawctrl'],
+      projectIds: ['local:clawctrl:stable', 'local:agent-shell:stable'],
       includeUnscoped: true,
     }))
   })
@@ -4229,10 +4229,10 @@ describe('ChatPage new chat intent', () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [
         {
-          id: 'local:clawcontrol:stable',
+          id: 'local:clawctrl:stable',
           environmentId: 'local',
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
           branches: ['main'],
           currentBranch: 'main',
         },
@@ -4282,9 +4282,9 @@ describe('ChatPage new chat intent', () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [
         {
-          id: 'local:clawcontrol:stable',
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
+          id: 'local:clawctrl:stable',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
           branches: ['main'],
           currentBranch: 'main',
           environmentId: 'local',
@@ -4380,9 +4380,9 @@ describe('ChatPage new chat intent', () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [
         {
-          id: 'local:clawcontrol:stable',
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
+          id: 'local:clawctrl:stable',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
           branches: ['main'],
           currentBranch: 'main',
           environmentId: 'local',
@@ -4423,9 +4423,9 @@ describe('ChatPage new chat intent', () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [
         {
-          id: 'local:clawcontrol:stable',
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
+          id: 'local:clawctrl:stable',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
           branches: ['main'],
           currentBranch: 'main',
           environmentId: 'local',
@@ -4493,9 +4493,9 @@ describe('ChatPage new chat intent', () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [
         {
-          id: 'local:clawcontrol:stable',
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
+          id: 'local:clawctrl:stable',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
           branches: ['main'],
           currentBranch: 'main',
           environmentId: 'local',
@@ -4549,8 +4549,8 @@ describe('ChatPage new chat intent', () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [
         {
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
           branches: ['main'],
           currentBranch: 'main',
           machineLabel: 'T7',
@@ -4579,7 +4579,7 @@ describe('ChatPage new chat intent', () => {
       },
       clawThread: {
         projectId: 'local-claw',
-        workingDir: '/Volumes/T7/projects/clawcontrol',
+        workingDir: '/Volumes/T7/projects/clawctrl',
       },
     }))
 
@@ -4618,33 +4618,33 @@ describe('ChatPage new chat intent', () => {
         {
           id: 'local-claw',
           environmentId: 'local',
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
-          root: '/Volumes/T7/projects/clawcontrol',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
+          root: '/Volumes/T7/projects/clawctrl',
           branches: ['main'],
           currentBranch: 'main',
           machineLabel: 'T7',
           repositoryIdentity: {
-            canonicalKey: 'github.com/josue/clawcontrol',
-            displayName: 'josue/clawcontrol',
-            name: 'clawcontrol',
-            rootPath: '/Volumes/T7/projects/clawcontrol',
+            canonicalKey: 'github.com/josue/clawctrl',
+            displayName: 'josue/clawctrl',
+            name: 'clawctrl',
+            rootPath: '/Volumes/T7/projects/clawctrl',
           },
         },
         {
           id: 'remote-claw',
           environmentId: 'desktop',
-          name: 'clawcontrol',
-          path: '/Users/josue/projects/clawcontrol',
-          root: '/Users/josue/projects/clawcontrol',
+          name: 'clawctrl',
+          path: '/Users/josue/projects/clawctrl',
+          root: '/Users/josue/projects/clawctrl',
           branches: ['main', 'desktop-branch'],
           currentBranch: 'desktop-branch',
           machineLabel: 'JosuesDesktop',
           repositoryIdentity: {
-            canonicalKey: 'github.com/josue/clawcontrol',
-            displayName: 'josue/clawcontrol',
-            name: 'clawcontrol',
-            rootPath: '/Users/josue/projects/clawcontrol',
+            canonicalKey: 'github.com/josue/clawctrl',
+            displayName: 'josue/clawctrl',
+            name: 'clawctrl',
+            rootPath: '/Users/josue/projects/clawctrl',
           },
         },
       ],
@@ -4662,9 +4662,9 @@ describe('ChatPage new chat intent', () => {
       expect(screen.getByRole('group', { name: 'Repositories' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Project view options' })).toBeInTheDocument()
       expect(screen.queryByRole('menu', { name: 'Project view options' })).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Select project josue/clawcontrol' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Select josue/clawcontrol root T7' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Select josue/clawcontrol root JosuesDesktop' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Select project josue/clawctrl' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Select josue/clawctrl root T7' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Select josue/clawctrl root JosuesDesktop' })).toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Project view options' }))
@@ -4675,18 +4675,18 @@ describe('ChatPage new chat intent', () => {
     fireEvent.change(screen.getByLabelText('Project sort'), { target: { value: 'recent' } })
     expect(localStorage.getItem('chat-project-sort-order')).toBe('recent')
 
-    fireEvent.click(screen.getByRole('button', { name: 'New chat in josue/clawcontrol root JosuesDesktop' }))
+    fireEvent.click(screen.getByRole('button', { name: 'New chat in josue/clawctrl root JosuesDesktop' }))
 
     await waitFor(() => {
-      expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('/Users/josue/projects/clawcontrol')
+      expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('/Users/josue/projects/clawctrl')
       expect((screen.getByLabelText('Branch') as HTMLSelectElement).value).toBe('desktop-branch')
-      expect(searchParamsFromLocation().get('cwd')).toBe('/Users/josue/projects/clawcontrol')
+      expect(searchParamsFromLocation().get('cwd')).toBe('/Users/josue/projects/clawctrl')
       expect(searchParamsFromLocation().get('env')).toBe('desktop')
       expect(searchParamsFromLocation().get('session')).toBeNull()
       expect(mockUseChatState).toHaveBeenLastCalledWith(null, expect.objectContaining({
         context: expect.objectContaining({
-          project: 'clawcontrol',
-          workingDir: '/Users/josue/projects/clawcontrol',
+          project: 'clawctrl',
+          workingDir: '/Users/josue/projects/clawctrl',
           branch: 'desktop-branch',
         }),
       }))
@@ -4720,30 +4720,30 @@ describe('ChatPage new chat intent', () => {
       },
       clawThread: {
         projectId: 'local-claw',
-        workingDir: '/Volumes/T7/projects/clawcontrol',
+        workingDir: '/Volumes/T7/projects/clawctrl',
       },
     }))
     localStorage.setItem('chat-project-scripts', JSON.stringify({
       'agent-shell': [{ id: 'agent-dev', name: 'Agent dev', command: 'npm run dev' }],
       '/Users/josue/AgentShell/': [{ id: 'agent-test', name: 'Agent test', command: 'npm test' }],
-      '/Volumes/T7/projects/clawcontrol': [{ id: 'claw-dev', name: 'Claw dev', command: 'npm run dev' }],
+      '/Volumes/T7/projects/clawctrl': [{ id: 'claw-dev', name: 'Claw dev', command: 'npm run dev' }],
     }))
     mockApiGet.mockResolvedValueOnce({
       projects: [
         {
           id: 'local-claw',
           environmentId: 'local',
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
-          root: '/Volumes/T7/projects/clawcontrol',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
+          root: '/Volumes/T7/projects/clawctrl',
           branches: ['main'],
           currentBranch: 'main',
           machineLabel: 'T7',
           repositoryIdentity: {
-            canonicalKey: 'github.com/josue/clawcontrol',
-            displayName: 'josue/clawcontrol',
-            name: 'clawcontrol',
-            rootPath: '/Volumes/T7/projects/clawcontrol',
+            canonicalKey: 'github.com/josue/clawctrl',
+            displayName: 'josue/clawctrl',
+            name: 'clawctrl',
+            rootPath: '/Volumes/T7/projects/clawctrl',
           },
         },
         {
@@ -4763,9 +4763,9 @@ describe('ChatPage new chat intent', () => {
       {
         id: 'local-claw',
         environmentId: 'local',
-        name: 'clawcontrol',
-        path: '/Volumes/T7/projects/clawcontrol',
-        root: '/Volumes/T7/projects/clawcontrol',
+        name: 'clawctrl',
+        path: '/Volumes/T7/projects/clawctrl',
+        root: '/Volumes/T7/projects/clawctrl',
         branches: ['main'],
         currentBranch: 'main',
         machineLabel: 'T7',
@@ -4790,43 +4790,43 @@ describe('ChatPage new chat intent', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /More actions for project (josue\/clawcontrol|clawcontrol)/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /More actions for project (josue\/clawctrl|clawctrl)/ })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'More actions for project AgentShell' })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /More actions for project (josue\/clawcontrol|clawcontrol)/ }))
-    expect(screen.getByRole('menu', { name: /Actions for project (josue\/clawcontrol|clawcontrol)/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /More actions for project (josue\/clawctrl|clawctrl)/ }))
+    expect(screen.getByRole('menu', { name: /Actions for project (josue\/clawctrl|clawctrl)/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'New chat in project AgentShell' })).toBeInTheDocument()
     fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.queryByRole('menu', { name: /Actions for project (josue\/clawcontrol|clawcontrol)/ })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /More actions for project (josue\/clawcontrol|clawcontrol)/ }))
+    expect(screen.queryByRole('menu', { name: /Actions for project (josue\/clawctrl|clawctrl)/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /More actions for project (josue\/clawctrl|clawctrl)/ }))
 
-    fireEvent.change(screen.getByLabelText(/Grouping for project (josue\/clawcontrol|clawcontrol)/), { target: { value: 'separate' } })
+    fireEvent.change(screen.getByLabelText(/Grouping for project (josue\/clawctrl|clawctrl)/), { target: { value: 'separate' } })
     await waitFor(() => {
       expect(mockApiPatch).toHaveBeenCalledWith('/api/chat/workspace-projects', expect.objectContaining({
         id: 'local-claw',
-        path: '/Volumes/T7/projects/clawcontrol',
+        path: '/Volumes/T7/projects/clawctrl',
         groupingOverride: 'separate',
       }))
     })
-    fireEvent.click(screen.getByRole('button', { name: /More actions for project (josue\/clawcontrol|clawcontrol)/ }))
-    fireEvent.change(screen.getByLabelText(/Grouping for project (josue\/clawcontrol|clawcontrol)/), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: /More actions for project (josue\/clawctrl|clawctrl)/ }))
+    fireEvent.change(screen.getByLabelText(/Grouping for project (josue\/clawctrl|clawctrl)/), { target: { value: '' } })
     await waitFor(() => {
       expect(mockApiPatch).toHaveBeenCalledWith('/api/chat/workspace-projects', expect.objectContaining({
         id: 'local-claw',
-        path: '/Volumes/T7/projects/clawcontrol',
+        path: '/Volumes/T7/projects/clawctrl',
         groupingOverride: null,
       }))
     })
 
-    fireEvent.click(screen.getByRole('menuitem', { name: /Copy path for project (josue\/clawcontrol|clawcontrol)/ }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Copy path for project (josue\/clawctrl|clawctrl)/ }))
     await waitFor(() => {
-      expect(mockClipboardWrite).toHaveBeenCalledWith('/Volumes/T7/projects/clawcontrol')
+      expect(mockClipboardWrite).toHaveBeenCalledWith('/Volumes/T7/projects/clawctrl')
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /More actions for project (josue\/clawcontrol|clawcontrol)/ }))
-    expect(screen.getByRole('menuitem', { name: /Copied path for project (josue\/clawcontrol|clawcontrol)/ })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('menuitem', { name: /Rename project (josue\/clawcontrol|clawcontrol)/ }))
+    fireEvent.click(screen.getByRole('button', { name: /More actions for project (josue\/clawctrl|clawctrl)/ }))
+    expect(screen.getByRole('menuitem', { name: /Copied path for project (josue\/clawctrl|clawctrl)/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('menuitem', { name: /Rename project (josue\/clawctrl|clawctrl)/ }))
     const renameDialog = await screen.findByRole('dialog', { name: 'Rename project' })
     fireEvent.change(within(renameDialog).getByRole('textbox', { name: 'Project title' }), {
       target: { value: 'Claw Workspace' },
@@ -4835,14 +4835,14 @@ describe('ChatPage new chat intent', () => {
     await waitFor(() => {
       expect(mockApiPatch).toHaveBeenCalledWith('/api/chat/workspace-projects', expect.objectContaining({
         id: 'local-claw',
-        path: '/Volumes/T7/projects/clawcontrol',
+        path: '/Volumes/T7/projects/clawctrl',
         name: 'Claw Workspace',
       }))
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Select project Claw Workspace' }))
     await waitFor(() => {
-      expect(searchParamsFromLocation().get('cwd')).toBe('/Volumes/T7/projects/clawcontrol')
+      expect(searchParamsFromLocation().get('cwd')).toBe('/Volumes/T7/projects/clawctrl')
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'More actions for project AgentShell' }))
@@ -4866,8 +4866,8 @@ describe('ChatPage new chat intent', () => {
     const scripts = JSON.parse(localStorage.getItem('chat-project-scripts') || '{}')
     expect(scripts).not.toHaveProperty('agent-shell')
     expect(scripts).not.toHaveProperty('/Users/josue/AgentShell/')
-    expect(scripts).toHaveProperty('/Volumes/T7/projects/clawcontrol')
-    expect(searchParamsFromLocation().get('cwd')).toBe('/Volumes/T7/projects/clawcontrol')
+    expect(scripts).toHaveProperty('/Volumes/T7/projects/clawctrl')
+    expect(searchParamsFromLocation().get('cwd')).toBe('/Volumes/T7/projects/clawctrl')
   })
 
   it('rolls project rename back when backend persistence fails', async () => {
@@ -4933,9 +4933,9 @@ describe('ChatPage new chat intent', () => {
         {
           id: 'local-claw',
           environmentId: 'local',
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
-          root: '/Volumes/T7/projects/clawcontrol',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
+          root: '/Volumes/T7/projects/clawctrl',
           branches: ['main'],
           currentBranch: 'main',
           machineLabel: 'T7',
@@ -4955,7 +4955,7 @@ describe('ChatPage new chat intent', () => {
     })
 
     render(
-      <MemoryRouter initialEntries={['/chat?new=1&cwd=%2FVolumes%2FT7%2Fprojects%2Fclawcontrol&branch=main&runtime=Work+locally']}>
+      <MemoryRouter initialEntries={['/chat?new=1&cwd=%2FVolumes%2FT7%2Fprojects%2Fclawctrl&branch=main&runtime=Work+locally']}>
         <ChatPage />
         <LocationProbe />
       </MemoryRouter>,
@@ -4964,16 +4964,16 @@ describe('ChatPage new chat intent', () => {
     await waitFor(() => {
       expect(mockUseChatState).toHaveBeenLastCalledWith(null, expect.objectContaining({
         context: expect.objectContaining({
-          project: 'clawcontrol',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
+          project: 'clawctrl',
+          workingDir: '/Volumes/T7/projects/clawctrl',
         }),
       }))
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'More project actions' }))
-    expect(screen.getByRole('group', { name: 'Current project' })).toHaveTextContent('clawcontrol')
-    expect(screen.getByRole('menuitem', { name: 'Rename project clawcontrol' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove project clawcontrol' }))
+    expect(screen.getByRole('group', { name: 'Current project' })).toHaveTextContent('clawctrl')
+    expect(screen.getByRole('menuitem', { name: 'Rename project clawctrl' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove project clawctrl' }))
     const removeDialog = await screen.findByRole('dialog', { name: 'Remove project' })
     expect(mockApiDel).not.toHaveBeenCalled()
     fireEvent.click(within(removeDialog).getByRole('button', { name: /^Remove project / }))
@@ -4981,7 +4981,7 @@ describe('ChatPage new chat intent', () => {
     await waitFor(() => {
       expect(mockApiDel).toHaveBeenCalledWith('/api/chat/workspace-projects', expect.objectContaining({
         id: 'local-claw',
-        path: '/Volumes/T7/projects/clawcontrol',
+        path: '/Volumes/T7/projects/clawctrl',
         environmentId: 'local',
       }))
       expect(mockUseChatState).toHaveBeenLastCalledWith(null, expect.objectContaining({
@@ -5165,9 +5165,9 @@ describe('ChatPage new chat intent', () => {
         {
           id: 'local-claw',
           environmentId: 'local',
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
-          root: '/Volumes/T7/projects/clawcontrol',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
+          root: '/Volumes/T7/projects/clawctrl',
           branches: ['main'],
           currentBranch: 'main',
           machineLabel: 'T7',
@@ -5232,11 +5232,11 @@ describe('ChatPage new chat intent', () => {
   it('uses Projects as the primary sidebar navigator and keeps scoped chats out of flat recents', async () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [{
-        id: 'local:clawcontrol:stable',
+        id: 'local:clawctrl:stable',
         environmentId: 'local',
-        name: 'clawcontrol',
-        path: '/Volumes/T7/projects/clawcontrol',
-        root: '/Volumes/T7/projects/clawcontrol',
+        name: 'clawctrl',
+        path: '/Volumes/T7/projects/clawctrl',
+        root: '/Volumes/T7/projects/clawctrl',
         branches: ['main'],
         currentBranch: 'main',
       }],
@@ -5248,17 +5248,17 @@ describe('ChatPage new chat intent', () => {
           key: 'project-chat',
           label: 'Weather dashboard page',
           messageCount: 69,
-          projectId: 'local:clawcontrol:stable',
+          projectId: 'local:clawctrl:stable',
           workingDir: '/tmp/path-that-would-not-match-by-cwd',
-          project: 'clawcontrol',
+          project: 'clawctrl',
         },
         {
           key: 'wrong-project-id',
           label: 'Wrong stable identity',
           messageCount: 2,
           projectId: 'local:other:stable',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
-          project: 'clawcontrol',
+          workingDir: '/Volumes/T7/projects/clawctrl',
+          project: 'clawctrl',
         },
         {
           key: 'loose-chat',
@@ -5297,11 +5297,11 @@ describe('ChatPage new chat intent', () => {
   it('hides Recent when every chat belongs under a project', async () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [{
-        id: 'local:clawcontrol:stable',
+        id: 'local:clawctrl:stable',
         environmentId: 'local',
-        name: 'clawcontrol',
-        path: '/Volumes/T7/projects/clawcontrol',
-        root: '/Volumes/T7/projects/clawcontrol',
+        name: 'clawctrl',
+        path: '/Volumes/T7/projects/clawctrl',
+        root: '/Volumes/T7/projects/clawctrl',
         branches: ['main'],
         currentBranch: 'main',
       }],
@@ -5313,9 +5313,9 @@ describe('ChatPage new chat intent', () => {
           key: 'project-chat',
           label: 'Project-owned chat',
           messageCount: 3,
-          projectId: 'local:clawcontrol:stable',
+          projectId: 'local:clawctrl:stable',
           workingDir: '/tmp/wrong-cwd',
-          project: 'clawcontrol',
+          project: 'clawctrl',
         },
       ],
       available: true,
@@ -5336,20 +5336,20 @@ describe('ChatPage new chat intent', () => {
   it('keeps newly created project chats under their project using stored T3 thread refs', async () => {
     localStorage.setItem('chat-session-project-refs', JSON.stringify({
       'new-hermes-session': {
-        projectId: 'local:clawcontrol:stable',
-        project: 'clawcontrol',
-        projectRoot: '/Volumes/T7/projects/clawcontrol',
-        workingDir: '/Volumes/T7/projects/clawcontrol',
+        projectId: 'local:clawctrl:stable',
+        project: 'clawctrl',
+        projectRoot: '/Volumes/T7/projects/clawctrl',
+        workingDir: '/Volumes/T7/projects/clawctrl',
         environmentId: 'local',
       },
     }))
     mockApiGet.mockResolvedValueOnce({
       projects: [{
-        id: 'local:clawcontrol:stable',
+        id: 'local:clawctrl:stable',
         environmentId: 'local',
-        name: 'clawcontrol',
-        path: '/Volumes/T7/projects/clawcontrol',
-        root: '/Volumes/T7/projects/clawcontrol',
+        name: 'clawctrl',
+        path: '/Volumes/T7/projects/clawctrl',
+        root: '/Volumes/T7/projects/clawctrl',
         branches: ['main'],
         currentBranch: 'main',
       }],
@@ -5381,11 +5381,11 @@ describe('ChatPage new chat intent', () => {
   it('does not float pinned project-owned chats outside their project', async () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [{
-        id: 'local:clawcontrol:stable',
+        id: 'local:clawctrl:stable',
         environmentId: 'local',
-        name: 'clawcontrol',
-        path: '/Volumes/T7/projects/clawcontrol',
-        root: '/Volumes/T7/projects/clawcontrol',
+        name: 'clawctrl',
+        path: '/Volumes/T7/projects/clawctrl',
+        root: '/Volumes/T7/projects/clawctrl',
         branches: ['main'],
         currentBranch: 'main',
       }],
@@ -5398,9 +5398,9 @@ describe('ChatPage new chat intent', () => {
           label: 'Pinned project chat',
           messageCount: 4,
           pinned: true,
-          projectId: 'local:clawcontrol:stable',
-          workingDir: '/Volumes/T7/projects/clawcontrol',
-          project: 'clawcontrol',
+          projectId: 'local:clawctrl:stable',
+          workingDir: '/Volumes/T7/projects/clawctrl',
+          project: 'clawctrl',
         },
       ],
       available: true,
@@ -5472,9 +5472,9 @@ describe('ChatPage new chat intent', () => {
       expect(within(addDialog).getByRole('alert')).toHaveTextContent('project folder does not exist')
     })
     expect(screen.queryByRole('button', { name: 'Select project MissingProject' })).not.toBeInTheDocument()
-    expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('/Volumes/T7/projects/clawcontrol')
+    expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('/Volumes/T7/projects/clawctrl')
     expect(JSON.parse(localStorage.getItem('chat-added-projects') || '[]')).toEqual([])
-    expect(searchParamsFromLocation().get('cwd')).toBe('/Volumes/T7/projects/clawcontrol')
+    expect(searchParamsFromLocation().get('cwd')).toBe('/Volumes/T7/projects/clawctrl')
     warnSpy.mockRestore()
   })
 
@@ -5641,8 +5641,8 @@ describe('ChatPage new chat intent', () => {
       if (command === 'get_chat_workspace_context') {
         return {
           projects: [{
-            name: 'clawcontrol',
-            path: '/Volumes/T7/projects/clawcontrol',
+            name: 'clawctrl',
+            path: '/Volumes/T7/projects/clawctrl',
             branches: ['main'],
             currentBranch: 'main',
           }],
@@ -5701,8 +5701,8 @@ describe('ChatPage new chat intent', () => {
       if (command === 'get_chat_workspace_context') {
         return {
           projects: [{
-            name: 'clawcontrol',
-            path: '/Volumes/T7/projects/clawcontrol',
+            name: 'clawctrl',
+            path: '/Volumes/T7/projects/clawctrl',
             branches: ['main'],
             currentBranch: 'main',
           }],
@@ -5763,8 +5763,8 @@ describe('ChatPage new chat intent', () => {
       if (command === 'get_chat_workspace_context') {
         return {
           projects: [{
-            name: 'clawcontrol',
-            path: '/Volumes/T7/projects/clawcontrol',
+            name: 'clawctrl',
+            path: '/Volumes/T7/projects/clawctrl',
             branches: ['main'],
             currentBranch: 'main',
           }],
@@ -5825,8 +5825,8 @@ describe('ChatPage new chat intent', () => {
       if (command === 'get_chat_workspace_context') {
         return {
           projects: [{
-            name: 'clawcontrol',
-            path: '/Volumes/T7/projects/clawcontrol',
+            name: 'clawctrl',
+            path: '/Volumes/T7/projects/clawctrl',
             branches: ['main'],
             currentBranch: 'main',
           }],
@@ -5894,8 +5894,8 @@ describe('ChatPage new chat intent', () => {
       if (command === 'get_chat_workspace_context') {
         return {
           projects: [{
-            name: 'clawcontrol',
-            path: '/Volumes/T7/projects/clawcontrol',
+            name: 'clawctrl',
+            path: '/Volumes/T7/projects/clawctrl',
             branches: ['main'],
             currentBranch: 'main',
           }],
@@ -5999,8 +5999,8 @@ describe('ChatPage new chat intent', () => {
       if (command === 'get_chat_workspace_context') {
         return {
           projects: [{
-            name: 'clawcontrol',
-            path: '/Volumes/T7/projects/clawcontrol',
+            name: 'clawctrl',
+            path: '/Volumes/T7/projects/clawctrl',
             branches: ['main'],
             currentBranch: 'main',
           }],
@@ -6043,8 +6043,8 @@ describe('ChatPage new chat intent', () => {
       if (command === 'get_chat_workspace_context') {
         return {
           projects: [{
-            name: 'clawcontrol',
-            path: '/Volumes/T7/projects/clawcontrol',
+            name: 'clawctrl',
+            path: '/Volumes/T7/projects/clawctrl',
             branches: ['main'],
             currentBranch: 'main',
           }],
@@ -6162,7 +6162,7 @@ describe('ChatPage new chat intent', () => {
     }))
 
     act(() => {
-      window.dispatchEvent(new CustomEvent('clawcontrol:chat-workspace-preferences-changed'))
+      window.dispatchEvent(new CustomEvent('clawctrl:chat-workspace-preferences-changed'))
     })
 
     await waitFor(() => {
@@ -6180,18 +6180,18 @@ describe('ChatPage new chat intent', () => {
   it('mirrors edited project scripts across stable id and legacy path keys', async () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [{
-        id: 'local:clawcontrol:stable123',
+        id: 'local:clawctrl:stable123',
         environmentId: 'local',
-        name: 'clawcontrol',
-        path: '/Volumes/T7/projects/clawcontrol',
-        root: '/Volumes/T7/projects/clawcontrol',
+        name: 'clawctrl',
+        path: '/Volumes/T7/projects/clawctrl',
+        root: '/Volumes/T7/projects/clawctrl',
         branches: ['main'],
         currentBranch: 'main',
       }],
       runtimeModes: ['Work locally'],
     })
     localStorage.setItem('chat-project-scripts', JSON.stringify({
-      '/Volumes/T7/projects/clawcontrol': [{ id: 'dev', name: 'Dev', command: 'npm run dev' }],
+      '/Volumes/T7/projects/clawctrl': [{ id: 'dev', name: 'Dev', command: 'npm run dev' }],
     }))
     persistClawcontrolProjectSelection()
 
@@ -6221,10 +6221,10 @@ describe('ChatPage new chat intent', () => {
       expect(screen.getByRole('button', { name: 'Run Dev watch' })).toBeInTheDocument()
     })
     const persisted = JSON.parse(localStorage.getItem('chat-project-scripts') || '{}') as Record<string, Array<{ id: string; name: string; command: string }>>
-    expect(persisted['local:clawcontrol:stable123']).toEqual(expect.arrayContaining([
+    expect(persisted['local:clawctrl:stable123']).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'dev', name: 'Dev watch' }),
     ]))
-    expect(persisted['/Volumes/T7/projects/clawcontrol']).toEqual(expect.arrayContaining([
+    expect(persisted['/Volumes/T7/projects/clawctrl']).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'dev', name: 'Dev watch' }),
     ]))
   })
@@ -6239,18 +6239,18 @@ describe('ChatPage new chat intent', () => {
     mockApiPatch.mockRejectedValueOnce(new Error('script update failed'))
     mockApiGet.mockResolvedValueOnce({
       projects: [{
-        id: 'local:clawcontrol:stable123',
+        id: 'local:clawctrl:stable123',
         environmentId: 'local',
-        name: 'clawcontrol',
-        path: '/Volumes/T7/projects/clawcontrol',
-        root: '/Volumes/T7/projects/clawcontrol',
+        name: 'clawctrl',
+        path: '/Volumes/T7/projects/clawctrl',
+        root: '/Volumes/T7/projects/clawctrl',
         branches: ['main'],
         currentBranch: 'main',
       }],
       runtimeModes: ['Work locally'],
     })
     localStorage.setItem('chat-project-scripts', JSON.stringify({
-      '/Volumes/T7/projects/clawcontrol': [{ id: 'dev', name: 'Dev', command: 'npm run dev' }],
+      '/Volumes/T7/projects/clawctrl': [{ id: 'dev', name: 'Dev', command: 'npm run dev' }],
     }))
     persistClawcontrolProjectSelection()
 
@@ -6278,19 +6278,19 @@ describe('ChatPage new chat intent', () => {
 
     await waitFor(() => {
       expect(mockApiPatch).toHaveBeenCalledWith('/api/chat/workspace-projects', expect.objectContaining({
-        id: 'local:clawcontrol:stable123',
-        path: '/Volumes/T7/projects/clawcontrol',
+        id: 'local:clawctrl:stable123',
+        path: '/Volumes/T7/projects/clawctrl',
         scripts: [expect.objectContaining({ id: 'dev', name: 'Dev watch' })],
       }))
       expect(screen.getByRole('button', { name: 'Run Dev' })).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Run Dev watch' })).not.toBeInTheDocument()
       expect(showAttachmentStatus).toHaveBeenCalledWith(
-        'Project action update failed. Restored actions for clawcontrol.',
+        'Project action update failed. Restored actions for clawctrl.',
         5000,
       )
     })
     const persisted = JSON.parse(localStorage.getItem('chat-project-scripts') || '{}') as Record<string, Array<{ id: string; name: string }>>
-    expect(persisted['/Volumes/T7/projects/clawcontrol']).toEqual([
+    expect(persisted['/Volumes/T7/projects/clawctrl']).toEqual([
       expect.objectContaining({ id: 'dev', name: 'Dev' }),
     ])
     warnSpy.mockRestore()
@@ -6303,8 +6303,8 @@ describe('ChatPage new chat intent', () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [
         {
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
           branches: ['main'],
           currentBranch: 'main',
         },
@@ -6345,8 +6345,8 @@ describe('ChatPage new chat intent', () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [
         {
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
           branches: ['main', 'codex/chat-parity'],
           currentBranch: 'main',
         },
@@ -6406,9 +6406,9 @@ describe('ChatPage new chat intent', () => {
     mockApiGet.mockResolvedValueOnce({
       projects: [
         {
-          id: 'local:clawcontrol:stable',
-          name: 'clawcontrol',
-          path: '/Volumes/T7/projects/clawcontrol',
+          id: 'local:clawctrl:stable',
+          name: 'clawctrl',
+          path: '/Volumes/T7/projects/clawctrl',
           branches: ['main', 'codex/chat-parity'],
           currentBranch: 'main',
           environmentId: 'local',

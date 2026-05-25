@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code's logicalProject/sidebarProjectGrouping layer.
- * ClawControl maps its workspace project records into T3 project snapshots here
+ * clawctrl maps its workspace project records into T3 project snapshots here
  * so Chat.tsx does not carry a parallel sidebar grouping implementation.
  */
 

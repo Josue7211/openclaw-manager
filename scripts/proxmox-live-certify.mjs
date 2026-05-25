@@ -2,7 +2,7 @@
 
 const DEFAULT_BASE = 'http://127.0.0.1:3010'
 const REQUIRED_ANY_TARGET_ACK = 'I_UNDERSTAND_THIS_MUTATES_PROXMOX'
-const SAFE_NAME_PREFIXES = ['clawcontrol-cert', 'cc-cert', 'test-clawcontrol']
+const SAFE_NAME_PREFIXES = ['clawctrl-cert', 'cc-cert', 'test-clawctrl']
 
 function argValue(name) {
   const index = process.argv.indexOf(name)
@@ -17,19 +17,19 @@ function usage() {
   console.log(`Usage:
   MC_API_KEY=... npm run proxmox:certify-live -- --read-only
 
-  MC_API_KEY=... PROXMOX_CERTIFY_VMID=900 PROXMOX_CERTIFY_NAME=clawcontrol-cert-vm \\
+  MC_API_KEY=... PROXMOX_CERTIFY_VMID=900 PROXMOX_CERTIFY_NAME=clawctrl-cert-vm \\
     npm run proxmox:certify-live -- --lifecycle
 
-  MC_API_KEY=... PROXMOX_CERTIFY_VMID=900 PROXMOX_CERTIFY_NAME=clawcontrol-cert-vm \\
+  MC_API_KEY=... PROXMOX_CERTIFY_VMID=900 PROXMOX_CERTIFY_NAME=clawctrl-cert-vm \\
     npm run proxmox:certify-live -- --create-disposable --hardware --firewall --lifecycle --yes
 
-  MC_API_KEY=... PROXMOX_CERTIFY_VMID=901 PROXMOX_CERTIFY_NAME=clawcontrol-cert-ct \\
+  MC_API_KEY=... PROXMOX_CERTIFY_VMID=901 PROXMOX_CERTIFY_NAME=clawctrl-cert-ct \\
     PROXMOX_CERTIFY_CREATE_KIND=lxc PROXMOX_CERTIFY_CREATE_TEMPLATE=local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst \\
     npm run proxmox:certify-live -- --create-disposable --lifecycle --yes
 
 Environment:
-  CLAWCONTROL_API_BASE       Backend base URL. Defaults to ${DEFAULT_BASE}
-  MC_API_KEY                 Backend API key. CLAWCONTROL_API_KEY also works.
+  CLAWCTRL_API_BASE       Backend base URL. Defaults to ${DEFAULT_BASE}
+  MC_API_KEY                 Backend API key. CLAWCTRL_API_KEY also works.
   PROXMOX_CERTIFY_VMID       Disposable VMID to mutate, or read-only console target.
   PROXMOX_CERTIFY_NAME       Exact guest name expected for that VMID.
   PROXMOX_CERTIFY_NODE       Optional node assertion.
@@ -66,8 +66,8 @@ function requireValue(value, label) {
   return String(value).trim()
 }
 
-const base = (process.env.CLAWCONTROL_API_BASE || DEFAULT_BASE).replace(/\/$/, '')
-const apiKey = process.env.CLAWCONTROL_API_KEY || process.env.MC_API_KEY
+const base = (process.env.CLAWCTRL_API_BASE || DEFAULT_BASE).replace(/\/$/, '')
+const apiKey = process.env.CLAWCTRL_API_KEY || process.env.MC_API_KEY
 const targetVmid = Number(process.env.PROXMOX_CERTIFY_VMID || argValue('--vmid'))
 const targetName = process.env.PROXMOX_CERTIFY_NAME || argValue('--name')
 const targetNode = process.env.PROXMOX_CERTIFY_NODE || argValue('--node')
@@ -97,7 +97,7 @@ if (hasFlag('--help') || hasFlag('-h')) {
 }
 
 try {
-  requireValue(apiKey, 'MC_API_KEY or CLAWCONTROL_API_KEY')
+  requireValue(apiKey, 'MC_API_KEY or CLAWCTRL_API_KEY')
   if (!readOnly) {
     requireValue(targetName, 'PROXMOX_CERTIFY_NAME or --name')
     if (!Number.isFinite(targetVmid) || targetVmid <= 0) {
@@ -556,8 +556,8 @@ async function certifyDisposableVm(vm) {
     console.log('[skip] set-network: no NIC config visible in inventory')
   }
 
-  const snapname = `clawcontrol-cert-${Date.now()}`
-  await runAction(vm, 'snapshot', { snapname, description: 'ClawControl disposable live certification snapshot' })
+  const snapname = `clawctrl-cert-${Date.now()}`
+  await runAction(vm, 'snapshot', { snapname, description: 'clawctrl disposable live certification snapshot' })
   await runAction(vm, 'delete-snapshot', { snapname }, { confirm: true })
 
   if (runHardware) {
@@ -569,7 +569,7 @@ async function certifyDisposableVm(vm) {
   }
 
   if (runHa) {
-    await runAction(vm, 'add-ha', { state: 'started', comment: 'ClawControl disposable live certification' })
+    await runAction(vm, 'add-ha', { state: 'started', comment: 'clawctrl disposable live certification' })
     await runAction(vm, 'set-ha-state', { state: 'started' })
     await runAction(vm, 'remove-ha', {}, { confirm: true })
   } else {
@@ -577,7 +577,7 @@ async function certifyDisposableVm(vm) {
   }
 
   if (runFirewall) {
-    const comment = `clawcontrol-cert-${Date.now()}`
+    const comment = `clawctrl-cert-${Date.now()}`
     await runAction(vm, 'add-firewall-rule', {
       type: 'in',
       action: 'ACCEPT',

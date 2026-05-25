@@ -1257,14 +1257,14 @@ mod tests {
     #[test]
     fn session_filters_parse_repeated_workspace_roots() {
         let filters = GatewaySessionFilters::from_query(
-            "cwd=%2FVolumes%2FT7%2Fprojects%2Fclawcontrol&cwd=/Users/josue/clawcontrol&includeUnscoped=1",
+            "cwd=%2FVolumes%2FT7%2Fprojects%2Fclawctrl&cwd=/Users/josue/clawctrl&includeUnscoped=1",
         );
 
         assert_eq!(
             filters.cwd,
             vec![
-                "/users/josue/clawcontrol".to_string(),
-                "/volumes/t7/projects/clawcontrol".to_string(),
+                "/users/josue/clawctrl".to_string(),
+                "/volumes/t7/projects/clawctrl".to_string(),
             ]
         );
         assert!(filters.include_unscoped);
@@ -1272,36 +1272,35 @@ mod tests {
 
     #[test]
     fn session_filters_treat_path_like_project_ids_as_workspace_roots() {
-        let filters =
-            GatewaySessionFilters::from_query("projectId=/Volumes/T7/projects/clawcontrol/");
+        let filters = GatewaySessionFilters::from_query("projectId=/Volumes/T7/projects/clawctrl/");
 
         assert_eq!(
             filters.cwd,
-            vec!["/volumes/t7/projects/clawcontrol".to_string()]
+            vec!["/volumes/t7/projects/clawctrl".to_string()]
         );
         assert_eq!(
             filters.project_id_paths,
-            vec!["/volumes/t7/projects/clawcontrol".to_string()]
+            vec!["/volumes/t7/projects/clawctrl".to_string()]
         );
         assert!(filters.project_ids.is_empty());
 
         let sessions = json!([
             {
                 "key": "working-dir",
-                "workingDir": "/Volumes/T7/projects/clawcontrol"
+                "workingDir": "/Volumes/T7/projects/clawctrl"
             },
             {
                 "key": "nested-working-dir",
-                "workingDir": "/Volumes/T7/projects/clawcontrol/frontend"
+                "workingDir": "/Volumes/T7/projects/clawctrl/frontend"
             },
             {
                 "key": "path-project-ref",
-                "projectRef": "/Volumes/T7/projects/clawcontrol"
+                "projectRef": "/Volumes/T7/projects/clawctrl"
             },
             {
                 "key": "stable-project-id-with-path",
-                "workingDir": "/Volumes/T7/projects/clawcontrol",
-                "projectId": "local:clawcontrol:stable"
+                "workingDir": "/Volumes/T7/projects/clawctrl",
+                "projectId": "local:clawctrl:stable"
             },
             {
                 "key": "other",
@@ -1333,24 +1332,24 @@ mod tests {
         let sessions = json!([
             {
                 "key": "claw",
-                "workingDir": "/Volumes/T7/projects/clawcontrol",
-                "project": "clawcontrol"
+                "workingDir": "/Volumes/T7/projects/clawctrl",
+                "project": "clawctrl"
             },
             {
                 "key": "nested",
-                "cwd": "/Volumes/T7/projects/clawcontrol/frontend",
-                "project": "clawcontrol"
+                "cwd": "/Volumes/T7/projects/clawctrl/frontend",
+                "project": "clawctrl"
             },
             {
                 "key": "project-root",
-                "projectRoot": "/Volumes/T7/projects/clawcontrol",
-                "project": "clawcontrol"
+                "projectRoot": "/Volumes/T7/projects/clawctrl",
+                "project": "clawctrl"
             },
             {
                 "key": "nested-metadata-root",
                 "metadata": {
-                    "projectRoot": "/Volumes/T7/projects/clawcontrol",
-                    "project": "clawcontrol"
+                    "projectRoot": "/Volumes/T7/projects/clawctrl",
+                    "project": "clawctrl"
                 }
             },
             {
@@ -1364,7 +1363,7 @@ mod tests {
             }
         ]);
         let filters = GatewaySessionFilters::from_query(
-            "cwd=/Volumes/T7/projects/clawcontrol&includeUnscoped=true",
+            "cwd=/Volumes/T7/projects/clawctrl&includeUnscoped=true",
         );
 
         let filtered = filter_gateway_sessions(sessions, &filters);
@@ -1392,33 +1391,33 @@ mod tests {
         let sessions = json!([
             {
                 "key": "match",
-                "workingDir": "/Volumes/T7/projects/clawcontrol",
-                "projectId": "local:clawcontrol:stable",
-                "project": "clawcontrol",
+                "workingDir": "/Volumes/T7/projects/clawctrl",
+                "projectId": "local:clawctrl:stable",
+                "project": "clawctrl",
                 "branch": "codex/chat-parity",
                 "runtime": "Work locally",
                 "environmentId": "local"
             },
             {
                 "key": "match-by-project-id",
-                "projectId": "local:clawcontrol:stable",
-                "project": "clawcontrol",
+                "projectId": "local:clawctrl:stable",
+                "project": "clawctrl",
                 "branch": "codex/chat-parity",
                 "runtime": "Work locally",
                 "environmentId": "local"
             },
             {
                 "key": "match-by-project-ref",
-                "projectRef": "local:clawcontrol:stable",
-                "project": "clawcontrol",
+                "projectRef": "local:clawctrl:stable",
+                "project": "clawctrl",
                 "branch": "codex/chat-parity",
                 "runtime": "Work locally",
                 "env": "local"
             },
             {
                 "key": "match-by-cwd-without-project-id",
-                "workingDir": "/Volumes/T7/projects/clawcontrol",
-                "project": "clawcontrol",
+                "workingDir": "/Volumes/T7/projects/clawctrl",
+                "project": "clawctrl",
                 "branch": "codex/chat-parity",
                 "runtime": "Work locally",
                 "environmentId": "local"
@@ -1427,41 +1426,41 @@ mod tests {
                 "key": "wrong-project-id",
                 "workingDir": "/tmp/other-project",
                 "projectId": "local:other:stable",
-                "project": "clawcontrol",
+                "project": "clawctrl",
                 "branch": "codex/chat-parity",
                 "runtime": "Work locally",
                 "environmentId": "local"
             },
             {
                 "key": "wrong-project-id-same-cwd",
-                "workingDir": "/Volumes/T7/projects/clawcontrol",
+                "workingDir": "/Volumes/T7/projects/clawctrl",
                 "projectId": "local:other:stable",
-                "project": "clawcontrol",
+                "project": "clawctrl",
                 "branch": "codex/chat-parity",
                 "runtime": "Work locally",
                 "environmentId": "local"
             },
             {
                 "key": "wrong-branch",
-                "workingDir": "/Volumes/T7/projects/clawcontrol",
-                "projectId": "local:clawcontrol:stable",
-                "project": "clawcontrol",
+                "workingDir": "/Volumes/T7/projects/clawctrl",
+                "projectId": "local:clawctrl:stable",
+                "project": "clawctrl",
                 "branch": "main",
                 "runtime": "Work locally",
                 "environmentId": "local"
             },
             {
                 "key": "wrong-env",
-                "workingDir": "/Volumes/T7/projects/clawcontrol",
-                "projectId": "local:clawcontrol:stable",
-                "project": "clawcontrol",
+                "workingDir": "/Volumes/T7/projects/clawctrl",
+                "projectId": "local:clawctrl:stable",
+                "project": "clawctrl",
                 "branch": "codex/chat-parity",
                 "runtime": "Work locally",
                 "environmentId": "remote"
             }
         ]);
         let filters = GatewaySessionFilters::from_query(
-            "cwd=/Volumes/T7/projects/clawcontrol&projectId=local%3Aclawcontrol%3Astable&project=clawcontrol&branch=codex%2Fchat-parity&runtime=Work%20locally&environmentId=local",
+            "cwd=/Volumes/T7/projects/clawctrl&projectId=local%3Aclawctrl%3Astable&project=clawctrl&branch=codex%2Fchat-parity&runtime=Work%20locally&environmentId=local",
         );
 
         let filtered = filter_gateway_sessions(sessions, &filters);

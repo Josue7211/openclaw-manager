@@ -559,7 +559,7 @@ fn env_or_secret_bool(state: &AppState, key: &str) -> bool {
 pub(crate) fn derive_device_api_key(pairing_token: &str, device_id: &str) -> String {
     let normalized_device_id = device_id.trim();
     let mut hasher = Sha256::new();
-    hasher.update(b"clawcontrol-device-key-v1:");
+    hasher.update(b"clawctrl-device-key-v1:");
     hasher.update(pairing_token.as_bytes());
     hasher.update(b":");
     hasher.update(normalized_device_id.as_bytes());

@@ -1,6 +1,6 @@
 /*
- * Thin ClawControl adapter around T3 Code apps/web/src/threadRoutes.ts
- * (MIT License). ClawControl still accepts the legacy `?session=` gateway
+ * Thin clawctrl adapter around T3 Code apps/web/src/threadRoutes.ts
+ * (MIT License). clawctrl still accepts the legacy `?session=` gateway
  * key, but active chat navigation now also stamps and resolves T3-style
  * scoped thread params: `environmentId` + `threadId`.
  */

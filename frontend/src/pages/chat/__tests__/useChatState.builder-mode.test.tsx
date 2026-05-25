@@ -163,20 +163,20 @@ describe('useChatState builder mode intent', () => {
 
   it('sends stable project and environment identity with chat context', async () => {
     const body = await sendText('hello', {
-      projectId: 'local:clawcontrol:stable',
-      project: 'clawcontrol',
+      projectId: 'local:clawctrl:stable',
+      project: 'clawctrl',
       projectRoot: '/Volumes/T7/projects',
-      workingDir: '/Volumes/T7/projects/clawcontrol',
+      workingDir: '/Volumes/T7/projects/clawctrl',
       environmentId: 'local',
       branch: 'main',
       runtime: 'Work locally',
     })
 
     expect(body).toEqual(expect.objectContaining({
-      projectId: 'local:clawcontrol:stable',
-      project: 'clawcontrol',
+      projectId: 'local:clawctrl:stable',
+      project: 'clawctrl',
       projectRoot: '/Volumes/T7/projects',
-      workingDir: '/Volumes/T7/projects/clawcontrol',
+      workingDir: '/Volumes/T7/projects/clawctrl',
       environmentId: 'local',
       branch: 'main',
       runtime: 'Work locally',

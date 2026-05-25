@@ -106,7 +106,7 @@ if [ "$CHECK_BITWARDEN" -eq 1 ]; then
 fi
 
 say "Hermes runtime on $AGENT_HOST"
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawcontrol_known_hosts "$SSH_TARGET" '
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawctrl_known_hosts "$SSH_TARGET" '
   set -e
   systemctl --user is-active hermes-api-server.service
   pid=$(systemctl --user show -p MainPID --value hermes-api-server.service)
@@ -125,7 +125,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawcontrol_known_hos
 '
 
 say "agent-vm BlueBubbles tunnel/webhook ports are closed in safe state"
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawcontrol_known_hosts "$SSH_TARGET" '
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawctrl_known_hosts "$SSH_TARGET" '
   if ss -ltnp 2>/dev/null | grep -E ":(41234|14100|8645)\b"; then
     echo "unexpected safe-state tunnel/webhook listener found" >&2
     exit 4
@@ -133,9 +133,9 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawcontrol_known_hos
 '
 
 say "Hermes BlueBubbles safety config"
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawcontrol_known_hosts "$SSH_TARGET" '
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawctrl_known_hosts "$SSH_TARGET" '
   set -e
-  for p in "$HOME/.hermes/.env" "$HOME/.config/clawcontrol-hermes.env"; do
+  for p in "$HOME/.hermes/.env" "$HOME/.config/clawctrl-hermes.env"; do
     if [ -f "$p" ] && grep -q "^GATEWAY_ALLOW_ALL_USERS=true" "$p"; then
       echo "GATEWAY_ALLOW_ALL_USERS=true found in $p" >&2
       exit 5
@@ -209,16 +209,16 @@ if [ "$PROBE_TUNNEL" -eq 1 ]; then
   trap cleanup EXIT
   systemctl --user start "$SERVICE_NAME"
   sleep 2
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawcontrol_known_hosts "$SSH_TARGET" '
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawctrl_known_hosts "$SSH_TARGET" '
     timeout 5 bash -lc "</dev/tcp/127.0.0.1/14100"
     timeout 5 bash -lc "</dev/tcp/127.0.0.1/41234"
   '
   ss -ltn 2>/dev/null | grep -E ":48645\b" >/dev/null || fail "desktop reverse tunnel port 48645 is not listening"
 
   say "temporary tunnel service probes"
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawcontrol_known_hosts "$SSH_TARGET" \
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawctrl_known_hosts "$SSH_TARGET" \
     "curl -fsS --max-time 8 -H 'x-api-key: $MAC_KEY' http://127.0.0.1:14100/health | jq -ce '.ok == true' >/dev/null"
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawcontrol_known_hosts "$SSH_TARGET" \
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawctrl_known_hosts "$SSH_TARGET" \
     "python3 - '$BB_PASS' <<'PY'
 import sys
 import urllib.parse

@@ -2,7 +2,7 @@
 
 const DEFAULT_BASE = 'http://127.0.0.1:3010'
 const REQUIRED_ANY_TARGET_ACK = 'I_UNDERSTAND_THIS_MUTATES_PORTAINER'
-const SAFE_NAME_PREFIXES = ['clawcontrol-cert', 'cc-cert', 'test-clawcontrol']
+const SAFE_NAME_PREFIXES = ['clawctrl-cert', 'cc-cert', 'test-clawctrl']
 
 function argValue(name) {
   const index = process.argv.indexOf(name)
@@ -20,11 +20,11 @@ function usage() {
   MC_API_KEY=... npm run portainer:certify-live -- --create-disposable --yes
 
 Environment:
-  CLAWCONTROL_API_BASE           Backend base URL. Defaults to ${DEFAULT_BASE}
-  MC_API_KEY                     Backend API key. CLAWCONTROL_API_KEY also works.
+  CLAWCTRL_API_BASE           Backend base URL. Defaults to ${DEFAULT_BASE}
+  MC_API_KEY                     Backend API key. CLAWCTRL_API_KEY also works.
   PORTAINER_CERTIFY_INSTANCE     Optional Portainer instance id/name to target.
   PORTAINER_CERTIFY_ENDPOINT_ID  Optional Docker endpoint id to target.
-  PORTAINER_CERTIFY_NAME         Disposable container name. Defaults to clawcontrol-cert-events-<timestamp>.
+  PORTAINER_CERTIFY_NAME         Disposable container name. Defaults to clawctrl-cert-events-<timestamp>.
   PORTAINER_CERTIFY_IMAGE        Disposable image. Defaults to alpine:3.20.
   PORTAINER_CERTIFY_ALLOW_ANY    Set to ${REQUIRED_ANY_TARGET_ACK} to bypass name-prefix guard.
 
@@ -44,8 +44,8 @@ Flags:
 `)
 }
 
-const base = (process.env.CLAWCONTROL_API_BASE || DEFAULT_BASE).replace(/\/$/, '')
-const apiKey = process.env.CLAWCONTROL_API_KEY || process.env.MC_API_KEY
+const base = (process.env.CLAWCTRL_API_BASE || DEFAULT_BASE).replace(/\/$/, '')
+const apiKey = process.env.CLAWCTRL_API_KEY || process.env.MC_API_KEY
 const readOnly = hasFlag('--read-only') || !hasFlag('--create-disposable')
 const createDisposable = hasFlag('--create-disposable')
 const runContainerLifecycle = hasFlag('--container-lifecycle')
@@ -59,7 +59,7 @@ const keepDisposable = hasFlag('--keep-disposable')
 const skipWs = hasFlag('--no-ws')
 const instanceSelector = process.env.PORTAINER_CERTIFY_INSTANCE || argValue('--instance')
 const endpointSelector = process.env.PORTAINER_CERTIFY_ENDPOINT_ID || argValue('--endpoint-id')
-const disposableName = process.env.PORTAINER_CERTIFY_NAME || argValue('--name') || `clawcontrol-cert-events-${Date.now()}`
+const disposableName = process.env.PORTAINER_CERTIFY_NAME || argValue('--name') || `clawctrl-cert-events-${Date.now()}`
 const disposableImage = process.env.PORTAINER_CERTIFY_IMAGE || argValue('--image') || 'alpine:3.20'
 const disposableRenamedContainerName = `${disposableName}-renamed`
 const disposableDuplicateContainerName = `${disposableName}-copy`
@@ -78,7 +78,7 @@ if (hasFlag('--help') || hasFlag('-h')) {
 }
 
 try {
-  if (!apiKey) throw new Error('MC_API_KEY or CLAWCONTROL_API_KEY is required')
+  if (!apiKey) throw new Error('MC_API_KEY or CLAWCTRL_API_KEY is required')
   if (createDisposable && !hasFlag('--yes')) {
     throw new Error('--yes is required because --create-disposable mutates the selected Docker endpoint')
   }
@@ -183,7 +183,7 @@ function parseImageRef(ref) {
   return { image: clean, tag: 'latest' }
 }
 
-function disposableStackCompose(marker = 'clawcontrol-stack-cert') {
+function disposableStackCompose(marker = 'clawctrl-stack-cert') {
   return [
     'services:',
     '  cert:',
@@ -541,8 +541,8 @@ async function createDisposableContainer(target) {
   const result = await request('/api/homelab/portainer/action', baseControl(target, 'create-container', {
     name: disposableName,
     image: disposableImage,
-    command: 'sh -c "echo clawcontrol-cert && sleep 300"',
-    labels: 'clawcontrol.certification=events',
+    command: 'sh -c "echo clawctrl-cert && sleep 300"',
+    labels: 'clawctrl.certification=events',
     restart_policy: 'no',
   }))
   const id = result?.response?.Id || result?.response?.id || disposableName
@@ -611,7 +611,7 @@ async function certifyContainerDetails(target, id) {
   }
 
   const logs = await runContainerDetailAction(target, id, 'logs')
-  if (!String(logs?.response?.logs || '').includes('clawcontrol-cert')) {
+  if (!String(logs?.response?.logs || '').includes('clawctrl-cert')) {
     throw new Error(`logs response did not include disposable marker: ${JSON.stringify(logs).slice(0, 800)}`)
   }
 
@@ -626,9 +626,9 @@ async function certifyContainerDetails(target, id) {
   }
 
   const exec = assertResponseObject(await runContainerDetailAction(target, id, 'exec', {
-    cmd: 'echo clawcontrol-exec && touch /tmp/clawcontrol-cert-detail',
+    cmd: 'echo clawctrl-exec && touch /tmp/clawctrl-cert-detail',
   }), 'exec')
-  if (!String(exec.output || '').includes('clawcontrol-exec')) {
+  if (!String(exec.output || '').includes('clawctrl-exec')) {
     throw new Error(`exec response did not include expected output: ${JSON.stringify(exec).slice(0, 800)}`)
   }
 
@@ -636,7 +636,7 @@ async function certifyContainerDetails(target, id) {
   if (!Array.isArray(changes?.response)) {
     throw new Error(`changes response was not a Docker changes array: ${JSON.stringify(changes).slice(0, 800)}`)
   }
-  if (!changes.response.some(item => String(item?.Path || '').includes('clawcontrol-cert-detail'))) {
+  if (!changes.response.some(item => String(item?.Path || '').includes('clawctrl-cert-detail'))) {
     throw new Error(`changes response did not include exec-created marker file: ${JSON.stringify(changes.response).slice(0, 800)}`)
   }
 
@@ -892,12 +892,12 @@ async function certifyDockerStack(target) {
     }
 
     const file = await runResourceAction(target, 'stack', stackId, 'stack-file', stackArgs)
-    if (!String(file?.response?.logs || '').includes('clawcontrol-stack-cert')) {
+    if (!String(file?.response?.logs || '').includes('clawctrl-stack-cert')) {
       throw new Error(`stack-file response did not include disposable compose marker: ${JSON.stringify(file).slice(0, 800)}`)
     }
 
     const logs = await runResourceAction(target, 'stack', stackId, 'stack-logs', { ...stackArgs, tail: 50 })
-    if (!String(logs?.response?.logs || '').includes('clawcontrol-stack-cert')) {
+    if (!String(logs?.response?.logs || '').includes('clawctrl-stack-cert')) {
       throw new Error(`stack-logs response did not include disposable marker: ${JSON.stringify(logs).slice(0, 800)}`)
     }
 
@@ -908,7 +908,7 @@ async function certifyDockerStack(target) {
       'update-stack',
       {
         ...stackArgs,
-        stack_file_content: disposableStackCompose('clawcontrol-stack-cert-updated'),
+        stack_file_content: disposableStackCompose('clawctrl-stack-cert-updated'),
         prune: true,
       },
       disposableStackName,

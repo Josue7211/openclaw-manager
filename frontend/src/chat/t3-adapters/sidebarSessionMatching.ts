@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code's project/thread sidebar scoping behavior.
- * ClawControl keeps raw gateway sessions, so this adapter maps common
+ * clawctrl keeps raw gateway sessions, so this adapter maps common
  * session metadata shapes into T3-style project ownership checks.
  */
 

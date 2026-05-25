@@ -486,7 +486,7 @@ const MIN_WORKSPACE_SIDE_PANE_WIDTH = 300
 const MAX_WORKSPACE_SIDE_PANE_WIDTH = 720
 const DEFAULT_WORKSPACE_SIDE_PANE_WIDTH = 420
 const WORKSPACE_SIDE_PANE_WIDTH_STEP = 40
-const WORKSPACE_TAB_DRAG_TYPE = 'application/x-clawcontrol-workspace-tab'
+const WORKSPACE_TAB_DRAG_TYPE = 'application/x-clawctrl-workspace-tab'
 const VALID_GRAPH_GROUP_MODES = new Set<NotesGraphWorkspaceContext['groupMode']>(['tag', 'folder', 'type', 'none'])
 
 function readLocalStorageJson<T>(key: string, fallback: T): T {
@@ -2782,7 +2782,7 @@ export default function NotesPage() {
       const url = URL.createObjectURL(archiveBlob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `clawcontrol-vault-markdown-${new Date().toISOString().slice(0, 10)}.tar`
+      link.download = `clawctrl-vault-markdown-${new Date().toISOString().slice(0, 10)}.tar`
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -2811,7 +2811,7 @@ export default function NotesPage() {
     const url = URL.createObjectURL(exportBlob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `clawcontrol-encrypted-vault-${new Date().toISOString().slice(0, 10)}.ccvault.json`
+    link.download = `clawctrl-encrypted-vault-${new Date().toISOString().slice(0, 10)}.ccvault.json`
     document.body.appendChild(link)
     link.click()
     link.remove()
@@ -14208,7 +14208,7 @@ function NotesPreferencesDialog({
   const [providerHealthBusy, setProviderHealthBusy] = useState(false)
   const [pairingInviteOutput, setPairingInviteOutput] = useState('')
   const [approveDeviceLabelOpen, setApproveDeviceLabelOpen] = useState(false)
-  const [approveDeviceLabel, setApproveDeviceLabel] = useState('ClawControl Notes')
+  const [approveDeviceLabel, setApproveDeviceLabel] = useState('clawctrl Notes')
   const [acceptInviteOpen, setAcceptInviteOpen] = useState(false)
   const [acceptInviteValue, setAcceptInviteValue] = useState('')
   const update = (patch: Partial<NotesEditorPreferences>) => {
@@ -14244,7 +14244,7 @@ function NotesPreferencesDialog({
       const { invite, encoded } = createNotesRemoteCollaborationPairingInvite({
         providerUrl: preferences.remoteCollaborationBaseUrl,
         pairingKey: preferences.remoteCollaborationPairingKey,
-        deviceLabel: 'ClawControl Notes',
+        deviceLabel: 'clawctrl Notes',
       })
       const nextPreferences = normalizeNotesEditorPreferences({
         ...preferences,
@@ -14273,14 +14273,14 @@ function NotesPreferencesDialog({
       setPairingError('Use a valid pairing key before approving this vault.')
       return
     }
-    setApproveDeviceLabel('ClawControl Notes')
+    setApproveDeviceLabel('clawctrl Notes')
     setApproveDeviceLabelOpen(true)
   }
 
   const approveCurrentPairing = async (label: string) => {
     setPairingBusy(true)
     try {
-      await approveVaultCollaborationPairing(preferences.remoteCollaborationPairingKey, label.trim() || 'ClawControl Notes')
+      await approveVaultCollaborationPairing(preferences.remoteCollaborationPairingKey, label.trim() || 'clawctrl Notes')
       await refreshPairings()
       setApproveDeviceLabelOpen(false)
       void checkProviderHealth()
@@ -14911,7 +14911,7 @@ function NotesPreferencesDialog({
                 type="url"
                 value={preferences.remoteCollaborationBaseUrl}
                 disabled={!preferences.remoteCollaborationEnabled}
-                placeholder="https://your-clawcontrol.example"
+                placeholder="https://your-clawctrl.example"
                 onChange={event => update({ remoteCollaborationBaseUrl: event.target.value })}
                 style={{
                   border: '1px solid var(--border)',

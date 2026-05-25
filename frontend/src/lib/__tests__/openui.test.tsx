@@ -7,7 +7,7 @@ import {
 } from '../openui'
 
 describe('openui', () => {
-  it('parses ClawControl OpenUI Lang snippets with the OpenUI parser', () => {
+  it('parses clawctrl OpenUI Lang snippets with the OpenUI parser', () => {
     const parser = createParser(clawOpenUiLibrary.toJSONSchema())
     const result = parser.parse('root = StatCard("Tasks", "7", "items", "up", "accent")')
 

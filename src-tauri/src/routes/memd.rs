@@ -305,8 +305,7 @@ impl LiveStateInputRecord {
     fn to_record(self, now: chrono::DateTime<chrono::Utc>) -> Result<LiveAppStateRecord, AppError> {
         validate_live_state_input(&self)?;
         let module = normalize_live_state_key(&self.module);
-        let source_app =
-            normalize_live_state_key(self.source_app.as_deref().unwrap_or("clawcontrol"));
+        let source_app = normalize_live_state_key(self.source_app.as_deref().unwrap_or("clawctrl"));
         let scope = self
             .scope
             .as_deref()
@@ -1052,8 +1051,8 @@ fn pressure_count(pressure: &Value, key: &str) -> u64 {
 }
 
 fn memory_operation_contract(action: &str, target: Option<&str>, reason: Option<&str>) -> Value {
-    let target = target.unwrap_or("clawcontrol-memd");
-    let reason = reason.unwrap_or("Memory authority operation requested from ClawControl");
+    let target = target.unwrap_or("clawctrl-memd");
+    let reason = reason.unwrap_or("Memory authority operation requested from clawctrl");
     let (label, risk, approval, agent_action, capabilities): (&str, &str, bool, &str, Vec<&str>) =
         match action {
             "health.check" => (
@@ -1172,7 +1171,7 @@ async fn authority_memo(
         warnings.push(json!({
             "severity": "error",
             "code": "memd_base_url_missing",
-            "message": "MEMD_BASE_URL is not configured, so ClawControl is using only the local bundle fallback.",
+            "message": "MEMD_BASE_URL is not configured, so clawctrl is using only the local bundle fallback.",
             "action": "configure MEMD_BASE_URL through memd/AgentSecrets before treating this as source of truth"
         }));
         return Ok(success_json(json!({
@@ -1278,7 +1277,7 @@ async fn authority_memo(
             "severity": "warning",
             "code": "rag_unreachable",
             "message": "RAG sidecar is not reachable from memd.",
-            "action": "verify clawcontrol-memd-rag in Portainer before semantic search work"
+            "action": "verify clawctrl-memd-rag in Portainer before semantic search work"
         }));
     }
 
@@ -1334,7 +1333,7 @@ async fn authority_memo(
         warnings.push(json!({
             "severity": "warning",
             "code": "memd_authority_token_missing",
-            "message": "MEMD_AUTHORITY_TOKEN is not configured in ClawControl, so the guarded memd authority endpoint cannot be used yet.",
+            "message": "MEMD_AUTHORITY_TOKEN is not configured in clawctrl, so the guarded memd authority endpoint cannot be used yet.",
             "action": "store the token through AgentSecrets/.memd env after the Docker image is redeployed with MEMD_AUTHORITY_SEARCH=1"
         }));
     }
@@ -1376,8 +1375,8 @@ async fn authority_memo(
             "verified": false,
             "portainerRequired": true,
             "containers": [
-                { "name": "clawcontrol-memd", "role": "server", "port": 8787, "status": if remote_healthy { "reachable" } else { "unknown" } },
-                { "name": "clawcontrol-memd-rag", "role": "rag-sidecar", "port": 9000, "status": health_payload.get("rag").and_then(|rag| rag.get("reachable")).and_then(Value::as_bool).map(|ok| if ok { "reachable" } else { "unreachable" }).unwrap_or("unknown") }
+                { "name": "clawctrl-memd", "role": "server", "port": 8787, "status": if remote_healthy { "reachable" } else { "unknown" } },
+                { "name": "clawctrl-memd-rag", "role": "rag-sidecar", "port": 9000, "status": health_payload.get("rag").and_then(|rag| rag.get("reachable")).and_then(Value::as_bool).map(|ok| if ok { "reachable" } else { "unreachable" }).unwrap_or("unknown") }
             ],
             "systemd": { "service": "memd-server.service", "expected": "inactive_disabled", "status": "not_observable_from_renderer" }
         },
@@ -2519,7 +2518,7 @@ mod tests {
     #[test]
     fn live_state_allows_message_metadata_but_blocks_unapproved_media() {
         let metadata = LiveStateInputRecord {
-            source_app: Some("clawcontrol".into()),
+            source_app: Some("clawctrl".into()),
             module: "messages".into(),
             scope: Some("current".into()),
             visibility: Some("private".into()),
@@ -2545,7 +2544,7 @@ mod tests {
     #[test]
     fn live_state_blocks_raw_message_media_even_with_agentsecrets() {
         let media = LiveStateInputRecord {
-            source_app: Some("clawcontrol".into()),
+            source_app: Some("clawctrl".into()),
             module: "messages".into(),
             scope: Some("current".into()),
             visibility: Some("private".into()),

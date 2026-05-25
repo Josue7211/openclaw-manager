@@ -1,6 +1,6 @@
 /*
  * Copied/adapted from T3 Code's provider snapshot and instance projection.
- * ClawControl translates its backend readiness payload into T3-shaped
+ * clawctrl translates its backend readiness payload into T3-shaped
  * ServerProvider records so chat picker/settings UI share one provider model.
  */
 
