@@ -124,6 +124,13 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawctrl_known_hosts 
   printf "%s\n" "$env_names" | grep -q "^MAC_BRIDGE_API_KEY$"
 '
 
+say "Hermes dashboard on $AGENT_HOST"
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawctrl_known_hosts "$SSH_TARGET" '
+  set -e
+  systemctl --user is-active hermes-dashboard.service
+  curl -fsS --max-time 8 -o /dev/null http://100.104.154.24:9119/
+'
+
 say "agent-vm BlueBubbles tunnel/webhook ports are closed in safe state"
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/clawctrl_known_hosts "$SSH_TARGET" '
   if ss -ltnp 2>/dev/null | grep -E ":(41234|14100|8645)\b"; then

@@ -15,6 +15,20 @@ This is the clawctrl/Hermes messaging topology for the current Hermes Agent migr
 
 Legacy `HARNESS_*`, `OPENCLAW_*`, and `CODEX_LB_*` keys are still accepted as compatibility aliases where needed, but Hermes-specific keys take precedence.
 
+## Agent VM User Services
+
+`agent-vm` runs the live Hermes surfaces as user `systemd` services:
+
+| Service | Purpose | Listener |
+| --- | --- | --- |
+| `hermes-api-server.service` | Hermes gateway/runtime. | `0.0.0.0:8787` |
+| `hermes-openclaw-compat.service` | OpenClaw-compatible API layer used by clawctrl. | Depends on gateway. |
+| `hermes-dashboard.service` | Hermes dashboard/control-plane UI. | `100.104.154.24:9119` |
+
+The dashboard service must stay enabled. clawctrl health checks treat a missing
+`hermes-dashboard.service` or dead `:9119` listener as a runtime break, not a
+manual-start condition.
+
 ## Target Platform State
 
 - Discord target: `Local AI Club` server.
